@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "4422b99a1df9"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -157,7 +157,9 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
+
+Los criterios que movió un intento anterior se cuentan solo en las preguntas de entrenamiento de este intento; cuando su comprobación no calificó ninguna, el asistente lo sabe en vez de ver ceros. Se leen como máximo seis intentos medidos recientes.
 
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
@@ -593,6 +595,8 @@ Un criterio es del skill solo cuando una línea del skill indica el valor o la r
 Cuando el skill solo calla, o solo prohíbe añadir otras secciones, y los datos que el criterio necesita están en las instrucciones, el contexto o el conocimiento del agente, el criterio sigue siendo del agente: el asistente propone el cambio del agente y puede seguir informando el problema del skill como consejo. El veredicto solo aparta, y cuenta en **Still held back by a skill** (aún bloqueados por un skill), los criterios propios del skill.
 
 El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
+
+Una cita se entrega solo cuando la comprobación del skill no calificará la respuesta de la que procede: una respuesta a una pregunta guardada en la parte apartada de su dataset, o a cualquiera de las preguntas de prueba propias de un skill, se queda atrás, así que el asistente del skill nunca lee lo que su comprobación mide después. Un problema que se queda sin otra cita no se entrega, y la sesión del skill dice cuántos quedaron fuera (`seed_withheld`).
 
 Las respuestas de entrenamiento fallidas que leyó esta sesión y que usaron el skill también cuentan como evidencia del skill: preguntas de prueba de la parte de entrenamiento guardada del propio dataset de la sesión, con la que una comprobación de skill nunca mide. Un Improve del skill iniciado así ya no necesita respuestas de chat valoradas negativamente para empezar; quien no puede ejecutar ese dataset no lee ninguna de esas respuestas.
 

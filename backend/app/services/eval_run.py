@@ -2902,6 +2902,7 @@ class EvalRunService:
         holdout_minimum: bool = True,
         training_only: bool = False,
         include_criteria: bool = True,
+        within: Collection[UUID] | None = None,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2914,6 +2915,8 @@ class EvalRunService:
         instead, so nothing about its held-out questions is read.
         `include_criteria` False omits criterion-grade reads for internal callers
         that only consume whole-question outcomes.
+        `within` narrows whatever else is compared to these cases, so a caller can
+        read a run on the questions it is allowed to learn from and no others.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2925,6 +2928,7 @@ class EvalRunService:
             holdout_minimum=holdout_minimum,
             training_only=training_only,
             include_criteria=include_criteria,
+            within=within,
         )
 
     @staticmethod
@@ -2998,6 +3002,7 @@ class EvalRunService:
         holdout_minimum: bool = True,
         training_only: bool = False,
         include_criteria: bool = False,
+        within: Collection[UUID] | None = None,
     ) -> EvalComparisonRead:
         """Whole-question results, with criterion detail only for explicit comparisons.
 
@@ -3030,6 +3035,8 @@ class EvalRunService:
             allowed = {attempt.case_id for attempt in attempts} - set(
                 () if kept_aside is None else kept_aside.holdout_case_ids
             )
+        if within is not None:
+            allowed = set(within) if allowed is None else allowed & set(within)
         if allowed is not None:
             mine = {key: value for key, value in mine.items() if key in allowed}
             candidate_attempts = [case for case in candidate_attempts if case.case_id in allowed]

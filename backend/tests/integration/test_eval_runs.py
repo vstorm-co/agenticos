@@ -58,6 +58,7 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.run_manifest import RunManifest
+from app.db.models.skill import Skill
 from app.db.models.skill_check import SkillCheck, SkillCheckAgent
 from app.db.models.skill_version import SkillVersion
 from app.db.models.user import User
@@ -4512,3 +4513,57 @@ async def test_a_current_incomplete_skill_verdict_is_not_a_legacy_result(db) -> 
     row.verdict_version = SKILL_CHECK_VERDICT_VERSION
     await db.flush()
     assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+
+
+@pytest.mark.security
+async def test_answers_to_questions_a_check_measures_on_are_told_apart(db) -> None:
+    """A hand-off to a skill's Improve keeps only quotes its check will not grade: an
+    answer to a stored held-out question, or to any question of a skill's own test
+    set, is one it would."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    learned, kept_aside = list(
+        await db.scalars(
+            select(DatasetCase)
+            .where(DatasetCase.dataset_id == dataset.id)
+            .order_by(DatasetCase.position)
+        )
+    )
+    learned.improvement_partition = "train"
+    kept_aside.improvement_partition = "holdout"
+    await db.flush()
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), started.id, ctx)
+    answered = {
+        attempt.case_id: attempt.agent_run_id
+        for attempt in await db.scalars(
+            select(EvalRunCase).where(EvalRunCase.eval_run_id == started.id)
+        )
+    }
+    in_chat = uuid.uuid4()
+    asked = [answered[learned.case_id], answered[kept_aside.case_id], in_chat]
+
+    measured = await eval_run_repo.answers_to_measured_questions(
+        db, asked, organization_id=ctx.organization_id
+    )
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name="refunds",
+        description="Refunds",
+    )
+    db.add(skill)
+    await db.flush()
+    await db.execute(update(Dataset).where(Dataset.id == dataset.id).values(skill_id=skill.id))
+    in_a_test_set = await eval_run_repo.answers_to_measured_questions(
+        db, asked, organization_id=ctx.organization_id
+    )
+    elsewhere = await eval_run_repo.answers_to_measured_questions(
+        db, asked, organization_id=uuid.uuid4()
+    )
+
+    assert measured == {answered[kept_aside.case_id]}
+    assert in_a_test_set == {answered[learned.case_id], answered[kept_aside.case_id]}
+    assert elsewhere == set()

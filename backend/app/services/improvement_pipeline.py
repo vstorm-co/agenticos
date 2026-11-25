@@ -7,7 +7,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Collection, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -296,52 +296,29 @@ def blocked_next_step(
 
 @dataclass(frozen=True)
 class EarlierAttempt:
-    """What one measured attempt of a session changed, and what its check found.
+    """What one measured attempt of a session found, as the next attempt may read it.
+
+    Never what it changed. Every attempt keeps its own questions aside, drawn
+    afresh, so the questions an earlier change was written to fix may be the ones
+    the next attempt is measured on; its text would carry them into the next
+    proposal. Its verdict and counts carry nothing of any question.
 
     Attributes:
         number: The attempt's number in its session.
         verdict: The check's verdict on it.
-        changes: Each change it made, as the helper would read it.
         held_out: How many held-out questions the check measured.
         fixed: Held-out questions confirmed fixed - a count, never which.
         broken: Held-out questions confirmed broken - a count, never which.
-        criteria: The criteria that moved on the questions it learned from.
+        criteria: The criteria that moved, counted only on the questions the
+            *next* attempt learns from; `None` when its check graded none of them.
     """
 
     number: int
     verdict: ImprovementVerdict
-    changes: tuple[str, ...]
     held_out: int
     fixed: int
     broken: int
-    criteria: tuple[CriterionMoveRead, ...]
-
-
-def _change_excerpt(text: str | None) -> str | None:
-    """Clip a value before adding its structural delimiters to the prompt."""
-    if text is None or len(text) <= 700:
-        return text
-    return text[:350] + "\n[... change excerpt clipped ...]\n" + text[-350:]
-
-
-def _change_text(hunk: SpecProposalHunk) -> str:
-    """A bounded description that keeps old and new excerpts separately labeled."""
-    if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
-        replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
-        where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
-        return (
-            f"In {where}, replaced:\n<old>\n{_change_excerpt(hunk.old_text)}\n</old>\n"
-            f"with:\n<new>\n{_change_excerpt(replaced)}\n</new>"
-        )
-    if hunk.kind == HunkKind.SPEC_FIELD.value:
-        return f"{hunk.op} {hunk.path}: {_change_excerpt(json.dumps(hunk.new_value))}"
-    if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
-        return (
-            f"Tool {hunk.capability_id}/{hunk.tool_id}: "
-            f"name {_change_excerpt(hunk.new_name)!r}, "
-            f"description {_change_excerpt(hunk.new_description)!r}"
-        )
-    return f"{hunk.kind}: {_change_excerpt(hunk.new_text or hunk.new_description or '')}"
+    criteria: tuple[CriterionMoveRead, ...] | None
 
 
 class ImprovementPipelineService:
@@ -1377,13 +1354,18 @@ class ImprovementPipelineService:
         return None if counted is None else CheckAnswers(**counted._asdict())
 
     async def earlier_attempts(
-        self, ctx: AuthContext, run_id: UUID, *, before: int
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        before: int,
+        learns_from: Collection[UUID] | None,
     ) -> list[EarlierAttempt]:
         """The measured attempts numbered below `before`, for the helper writing the next one.
 
-        Every attempt changes the same draft, so the next one needs to know what the
-        others tried and how it went. Held-out questions stay counts; only the
-        questions an attempt learned from say which criteria moved.
+        Each attempt's verdict and held-out counts, and the criteria its check moved
+        on `learns_from` - the questions the next attempt learns from - and on no
+        others: an earlier attempt's training questions may be held out now.
         """
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run_id
@@ -1396,41 +1378,40 @@ class ImprovementPipelineService:
                 or iteration.batch_id is None
             ):
                 continue
-            hunks = await authoring_repo.list_hunks(
-                self.db, organization_id=ctx.organization_id, batch_id=iteration.batch_id
-            )
-            included = iteration.included_hunk_ids
-            criteria: tuple[CriterionMoveRead, ...] = ()
-            if iteration.eval_run_ids:
-                try:
-                    comparison = await self.evals.compare(
-                        ctx, iteration.eval_run_ids[-1], training_only=True
-                    )
-                except NotFoundError:
-                    comparison = None
-                if comparison is not None and comparison.verdict != "invalid":
-                    criteria = tuple(
-                        move
-                        for move in comparison.criteria
-                        if move.fixed_confirmed or move.broken_confirmed
-                    )
             detail = iteration.verdict_detail or {}
             attempts.append(
                 EarlierAttempt(
                     number=iteration.number,
                     verdict=ImprovementVerdict(iteration.verdict),
-                    changes=tuple(
-                        _change_text(hunk)
-                        for hunk in hunks
-                        if included is None or hunk.id in included
-                    ),
                     held_out=detail.get("held_out") or 0,
                     fixed=detail.get("fixed") or 0,
                     broken=detail.get("broken") or 0,
-                    criteria=criteria,
+                    criteria=await self._moved_within(ctx, iteration, learns_from),
                 )
             )
         return attempts
+
+    async def _moved_within(
+        self,
+        ctx: AuthContext,
+        iteration: ImprovementIteration,
+        learns_from: Collection[UUID] | None,
+    ) -> tuple[CriterionMoveRead, ...] | None:
+        """The criteria an attempt's check moved on these questions, or `None` if it graded
+        none of them."""
+        if not iteration.eval_run_ids or not learns_from:
+            return None
+        try:
+            comparison = await self.evals.compare(
+                ctx, iteration.eval_run_ids[-1], training_only=True, within=learns_from
+            )
+        except NotFoundError:
+            return None
+        if comparison.verdict == "invalid" or not any(move.graded for move in comparison.criteria):
+            return None
+        return tuple(
+            move for move in comparison.criteria if move.fixed_confirmed or move.broken_confirmed
+        )
 
     async def _checked(
         self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]

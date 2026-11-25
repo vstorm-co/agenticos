@@ -834,7 +834,9 @@ A session opened from an agent's Improve starts from the problems that session
 reported. Only a problem that quotes a line of the skill stating the wrong value
 or rule takes the agent's criteria with it; where the skill is only silent the
 problem is advice, and the agent stays held to those criteria - see [When the
-fault is in a skill](authoring.md#when-the-fault-is-in-a-skill).
+fault is in a skill](authoring.md#when-the-fault-is-in-a-skill). Quotes from
+answers this session's check will grade are not handed over, and a problem left
+with none is counted rather than passed on.
 
 Its start says how many rated-down or failed answers it reads, and how many agents
 the line serves. It also says what
