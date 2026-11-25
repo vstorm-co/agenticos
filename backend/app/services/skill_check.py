@@ -2275,6 +2275,13 @@ class SkillCheckService:
     ) -> SkillCheckRead:
         """Refuse the change; a pending proposal it checked is discarded with it."""
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        proposal_id = (await self._check(ctx, skill_id, check_id)).proposal_id
+        if proposal_id is not None:
+            # Discarding the proposal locks it before its running checks; taking the two
+            # locks in that order here too keeps a discard of each from deadlocking.
+            await skill_proposal_repo.lock(
+                self.db, proposal_id, organization_id=ctx.organization_id
+            )
         check = await self._check(ctx, skill_id, check_id, lock=True)
         await self._refuse_session_owned(check, from_session=from_session)
         if CheckStatus(check.status).decided:
@@ -2424,9 +2431,13 @@ class SkillCheckService:
     ) -> DatasetRead:
         """Give the skill its test questions, empty or from recent answers that loaded it.
 
+        The set is named after the skill, numbered when a dataset already has the name -
+        a set a deleted skill of the same name left behind, say.
+
         Raises:
             AuthorizationError: The caller may not create datasets.
             AlreadyExistsError: The skill has its test questions already.
+            BadRequestError: Every name the set could take is taken.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         if not ctx.has(Perm.DATASETS_EDIT):
@@ -2441,7 +2452,7 @@ class SkillCheckService:
         created = await self.datasets.create(
             ctx,
             DatasetCreate(
-                name=f"{skill.name} · test questions",
+                name=await self._test_set_name(ctx, skill),
                 description=f"Questions every agent using '{skill.name}' is checked on.",
                 # Every question is held out: the set measures a change, and nothing
                 # learns from it.
@@ -2457,6 +2468,21 @@ class SkillCheckService:
             return await self.datasets.read(ctx, created.id)
         return created
 
+    async def _test_set_name(self, ctx: AuthContext, skill: Skill) -> str:
+        base = f"{skill.name} · test questions"
+        for attempt in range(1, _NAME_TRIES + 1):
+            name = base if attempt == 1 else f"{base} ({attempt})"
+            if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
+                continue
+            return name
+        raise BadRequestError(
+            message="Every name for this skill's test questions is taken. Rename one of them.",
+            details={"skill_id": skill.id},
+        )
+
+
+_NAME_TRIES = 10
+"""Names a skill's test questions may take, numbered after the first, before giving up."""
 
 _HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
 

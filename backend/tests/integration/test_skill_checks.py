@@ -50,6 +50,7 @@ from app.repositories import (
     skill_proposal_repo,
     skill_usage_repo,
 )
+from app.schemas.dataset import DatasetCreate
 from app.schemas.eval_run import CriterionMoveRead, FamilyMoveRead
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -62,6 +63,7 @@ from app.schemas.skill_check import (
 from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillForkCreate
 from app.services import skill_check as skill_check_module
+from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
 from app.services.skill_agents import SkillAgentService
@@ -1685,6 +1687,31 @@ class TestTestSet:
         assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+    async def test_a_name_another_dataset_holds_is_numbered_for_the_skills_set(self, db):
+        """A deleted skill's set keeps its name, and so may a private dataset its reader
+        cannot see; the new skill's set takes the next number instead of a 409."""
+        ctx = await _owner(db)
+        member = await _member(db, ctx, OrgRoleName.BUILDER)
+        skill = await _skill(db, ctx, name="tests-taken")
+        await DatasetService(db).create(
+            member, DatasetCreate(name="tests-taken · test questions", visibility="private")
+        )
+
+        created = await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
+
+        assert (created.name, created.skill_id) == ("tests-taken · test questions (2)", skill.id)
+
+    async def test_a_skill_whose_every_set_name_is_taken_is_told_to_rename_one(
+        self, db, monkeypatch
+    ):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx, name="tests-full")
+        await DatasetService(db).create(ctx, DatasetCreate(name="tests-full · test questions"))
+        monkeypatch.setattr(skill_check_module, "_NAME_TRIES", 1)
+
+        with pytest.raises(BadRequestError, match="Rename one"):
+            await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
 
     async def test_a_set_the_reader_may_not_open_is_said_apart_from_none(self, db):
         ctx = await _owner(db)
