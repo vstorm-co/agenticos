@@ -150,7 +150,8 @@ class PackedRun:
         return f"{self.source.replace('_', ' ')} {self.number}"
 
     def render(self) -> str:
-        """The run as the prompt shows it."""
+        """The run as the prompt shows it, redacted whole: the dataset's own names - a
+        criterion, a family, a tag, a key - reach the prompt here as well as the run's text."""
         rated = {-1: "rated down", 1: "rated up", 0: "not rated"}[self.rating]
         heading = self.label[0].upper() + self.label[1:]
         lines = [f"## {heading} (run {self.run_id}) - {self.status}, {rated}"]
@@ -177,7 +178,8 @@ class PackedRun:
         lines.append(f"Answered: {self.answer}")
         if self.error:
             lines.append(f"Error: {self.error}")
-        return "\n".join(lines)
+        text = "\n".join(lines)
+        return redact_credentials(text)[0] or text
 
     @property
     def quotable(self) -> str:
@@ -590,7 +592,7 @@ class EvidenceService:
                 f"Pass rate by tag:\n{rates(by_tag)}\nJudge criterion pass rate:\n{rates(by_criterion)}"
             )
         )
-        return packed[:MAX_EVIDENCE_RUNS], feedback
+        return packed[:MAX_EVIDENCE_RUNS], redact_credentials(feedback)[0] or feedback
 
     async def for_skill(
         self,

@@ -32,6 +32,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -116,7 +117,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.dataset import redact_credentials
+from app.services.dataset import redact_credentials, redact_json
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -878,7 +879,7 @@ class AuthoringService:
     ) -> AuthoringRequestRead:
         """A request as a reader sees it: nothing drawn from one of the agent's skills
         the reader may not see."""
-        read = AuthoringRequestRead.model_validate(request)
+        read = _redacted_report(AuthoringRequestRead.model_validate(request))
         if read.report is None:
             return read
         report = await self._without_hidden_skills(ctx, agent, read.report)
@@ -961,7 +962,7 @@ class AuthoringService:
             id=batch.id,
             agent_id=agent.id,
             status=batch.status,
-            expected_effect=batch.expected_effect,
+            expected_effect=redact_credentials(batch.expected_effect)[0] or batch.expected_effect,
             request_id=batch.request_id,
             hunks=[
                 self._hunk(spec, hunk, names=names, blocked=gates.get(hunk.id)) for hunk in hunks
@@ -1075,8 +1076,8 @@ class AuthoringService:
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
             blocked=blocked,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
@@ -1929,9 +1930,21 @@ class AuthoringService:
         return started
 
 
+_JSON_OBJECT: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(dict[str, JsonValue])
+
+
+def _redacted_report(read: AuthoringRequestRead) -> AuthoringRequestRead:
+    """The request with every string of its report redacted, whenever it was written."""
+    if read.report is None:
+        return read
+    report, _ = redact_json(_JSON_OBJECT.validate_python(read.report))
+    assert isinstance(report, dict)
+    return read.model_copy(update={"report": report})
+
+
 def _skill_request(request: AuthoringRequest, shown: set[UUID]) -> AuthoringRequestRead:
     """A skill's request as one reader sees it: evidence from the runs in `shown` only."""
-    read = AuthoringRequestRead.model_validate(request)
+    read = _redacted_report(AuthoringRequestRead.model_validate(request))
     if read.report is None:
         return read
     report = dict(read.report) | {

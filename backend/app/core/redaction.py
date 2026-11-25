@@ -9,13 +9,18 @@ added to its own and every caller uses this detector rather than the harness's.
 from pydantic_ai_harness.guardrails.detectors import secret_data
 
 PLATFORM_SECRET_PATTERNS: dict[str, str] = {
-    "url_credentials": r"(?<=://)[^\s:/?#@\[\]]+:[^\s/?#@\[\]]+(?=@)",
+    "url_credentials": r"(?<=://)[^\s:/?#@\[\]]*:[^\s/?#@\[\]]+(?=@)",
     "query_secret": (
         r"(?i)(?<![A-Za-z0-9_-])(?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token"
         r"|id[_-]?token|auth[_-]?token|token|client[_-]?secret|secret|password|passwd)"
         r"=(?!\[redacted:)[^&\s#\"'<>]+"
     ),
-    "basic_authorization": r"(?i)\bauthorization\s*[:=]\s*basic\s+[A-Za-z0-9+/]+={0,2}",
+    "basic_authorization": (
+        r"(?i)\bauthorization[\"']?\s*[:=]\s*[\"']?basic\s+[A-Za-z0-9+/]+={0,2}"
+    ),
+    "bearer_authorization": (
+        r"(?i)\bauthorization[\"']?\s*[:=]\s*[\"']?bearer\s+[A-Za-z0-9._~+/-]+=*"
+    ),
     "bearer_token": (
         r"(?i)\bbearer\s+(?=[A-Za-z0-9._~+/-]*\d)(?=[A-Za-z0-9._~+/-]*[A-Za-z])"
         r"[A-Za-z0-9._~+/-]{16,}=*"

@@ -7,6 +7,8 @@ import pytest
 
 from app.core.redaction import redact_secrets
 
+pytestmark = pytest.mark.security
+
 
 def _redacted(text: str) -> str:
     verdict = redact_secrets(text)
@@ -22,6 +24,7 @@ def _redacted(text: str) -> str:
             "[redacted:url_credentials]@db.internal:5432/app",
         ),
         ("https://ann:hunter2@example.com/feed", "hunter2", "https://[redacted:url_credentials]@"),
+        ("redis://:Kanar3kRedis@cache:6379/0", "Kanar3kRedis", "[redacted:url_credentials]@cache"),
         (
             "https://api.example.com/v1/items?api_key=K3yV4lue9x&page=2",
             "K3yV4lue9x",
@@ -32,6 +35,9 @@ def _redacted(text: str) -> str:
         ("POST client_secret=Zq8rT0pX2vW", "Zq8rT0pX2vW", "POST "),
         ("Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA", "[redacted:"),
         ("-H 'Authorization: Bearer 0a1b2c3d4e5f6a7b8c9d'", "0a1b2c3d4e5f6a7b8c9d", "-H '"),
+        ("Authorization: Bearer abcdefghijklmnop", "abcdefghijklmnop", "[redacted:"),
+        ('{"Authorization": "Bearer 1234567890"}', "1234567890", '{"[redacted:'),
+        ('headers = {"authorization": "Basic dXNlcjpwYXNz"}', "dXNlcjpwYXNz", "headers = "),
         ("hf_" + "aB3dE5gH7jK9mN1pQ3sT5vX7zA9cE1gI3", "aB3dE5gH7jK9", "[redacted:"),
         ("gsk_" + "a1B2" * 13, "a1B2a1B2", "[redacted:"),
         ("xai-" + "Z9y8" * 20, "Z9y8Z9y8", "[redacted:"),

@@ -439,6 +439,31 @@ class TestImprove:
         assert quote is not None and "[redacted:url_credentials]" in quote
         assert password not in read.model_dump_json()
 
+    @pytest.mark.security
+    async def test_a_kept_suggestion_is_read_with_its_credentials_redacted(self, db):
+        ctx, agent, _ = await _setup(db)
+        request = await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKept@db/app"
+        batch = await authoring_repo.get_open_batch(
+            db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
+        assert batch is not None
+        batch.expected_effect = f"Stops printing {leaked}"
+        hunks = await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        for hunk in hunks:
+            hunk.rationale = f"Readers saw {leaked}"
+            hunk.expected_effect = f"No more {leaked}"
+        request.report = {**(request.report or {}), "summary": f"It printed {leaked}"}
+        await db.flush()
+
+        read = await AuthoringService(db).for_agent(ctx, agent.id)
+
+        shown = read.model_dump_json()
+        assert "Kanar3kKept" not in shown
+        assert "[redacted:url_credentials]" in shown
+
     async def test_a_large_body_of_evidence_is_digested_before_the_proposal(self, db, monkeypatch):
         ctx, agent, _ = await _setup(db)
         for _ in range(6):

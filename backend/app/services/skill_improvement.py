@@ -2545,8 +2545,8 @@ class SkillImprovementService:
             base_description=hunk.base_description,
             new_name=None,
             new_description=hunk.new_description,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
