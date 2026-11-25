@@ -59,7 +59,8 @@ async def test_a_script_that_parks_twice_leaves_every_call_on_one_row(db) -> Non
                 tool_name="run_code",
                 args={"code": "..."},
                 script_calls=script_calls_record([_made(1, "file_ticket")]),
-            )
+            ),
+            RecordedToolCall(tool_call_id="c1", tool_name="notify", args={}, result="sent"),
         ],
         parked={"c9"},
     )
@@ -78,11 +79,14 @@ async def test_a_script_that_parks_twice_leaves_every_call_on_one_row(db) -> Non
         scripts={"c9": [_made(3, "notify")]},
     )
 
-    (row, _turn), *rest = await conversation_repo.list_tool_calls_for_run(
+    rows = await conversation_repo.list_tool_calls_for_run(
         db, run_id=run.id, organization_id=org.id
     )
+    assert sorted(row.tool_name for row, _turn in rows) == ["notify", "run_code"]
+    plain = next(row for row, _turn in rows if row.tool_name == "notify")
+    assert (plain.status, plain.result, plain.script_calls) == ("completed", "sent", None)
+    (row,) = [row for row, _turn in rows if row.tool_name == "run_code"]
     stored = (await db.execute(select(ToolCall).where(ToolCall.id == row.id))).scalar_one()
-    assert rest == []
     assert (stored.status, stored.result) == ("completed", "[1, 2, 3]")
     assert stored.script_calls is not None
     assert [call["tool_call_id"] for call in stored.script_calls["calls"]] == [
