@@ -547,6 +547,9 @@ def build_agent(
         tool_ids=approval_tool_ids(spec),
         asking_tool_names=asking,
     )
+    # Off unless the spec asks, and never under a session that asks before every
+    # tool: nothing could be folded into a script there.
+    scripts_run = spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
@@ -563,6 +566,9 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
+        # Outside the isolation guard and the approval gate: the manifest lists every
+        # call a script asks for, including those the two answer without running.
+        *([CodeCalls(recorder=recorder, isolation=isolation)] if scripts_run else []),
         *(
             ()
             if isolation is None
@@ -604,18 +610,15 @@ def build_agent(
             else []
         ),
         *_reviewers(spec, reviewer_models or {}, recorder),
-        # Off unless the spec asks, and never under a session that asks before
-        # every tool: nothing could be folded into a script there.
         *(
             [
                 code_mode(
                     approval_required=approval_required,
                     asking=asking,
                     max_tool_calls=spec.code_mode.max_tool_calls,
-                ),
-                CodeCalls(recorder=recorder),
+                )
             ]
-            if spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
+            if scripts_run
             else []
         ),
         # Every agent: a moved cache prefix costs the most on exactly the long,

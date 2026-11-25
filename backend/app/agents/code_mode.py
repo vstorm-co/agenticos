@@ -28,7 +28,7 @@ import json
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import JsonValue, TypeAdapter
 from pydantic_ai import RunContext
@@ -53,6 +53,10 @@ from app.agents.tool_errors import (
     nested_tool_error,
     tool_error,
 )
+from app.db.models.intercepted_tool_call import InterceptionOutcome
+
+if TYPE_CHECKING:
+    from app.agents.isolation import RunIsolation
 
 CODE_TOOL = "run_code"
 """The one tool code mode offers the model, as `CodeMode` names it."""
@@ -123,9 +127,16 @@ def code_mode(
 
 @dataclass
 class CodeCalls(AbstractCapability[AgentDeps]):
-    """Keeps each `run_code` script, and every call it made, on the run's manifest."""
+    """Keeps each `run_code` script, and every call it made, on the run's manifest.
+
+    Built outside the approval gate and the isolation guard, so it sees every call
+    the script asks for - including one either of them answers without running it.
+    A call isolation answered is recorded as `held` (with its reason), `replayed` or
+    `divergent`, never as `returned`.
+    """
 
     recorder: RunRecorder
+    isolation: RunIsolation | None = None
 
     async def wrap_tool_execute(
         self,
@@ -196,8 +207,24 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         except CodeApprovalPause:
             made["status"] = "awaiting_approval"
             raise
-        made["status"] = "returned"
+        made.update(self._answered(call.tool_call_id))
         return result
+
+    def _answered(self, tool_call_id: str) -> dict[str, Any]:
+        """How a call that came back was answered: it ran, or isolation answered it."""
+        caught = next(
+            (
+                held
+                for held in reversed(self.isolation.intercepted if self.isolation else [])
+                if held.tool_call_id == tool_call_id
+            ),
+            None,
+        )
+        if caught is None:
+            return {"status": "returned"}
+        if caught.outcome == InterceptionOutcome.BLOCKED:
+            return {"status": "held", "reason": caught.reason}
+        return {"status": caught.outcome.value}
 
 
 def current_code_record() -> dict[str, JsonValue]:

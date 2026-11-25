@@ -6,11 +6,11 @@ records are exactly what the run did. The script runs in the real Monty sandbox.
 """
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ApprovalRequired, CallDeferred
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -457,3 +457,27 @@ class TestScriptCalls:
 
     def test_a_script_call_is_placed_by_its_counter_not_as_text(self) -> None:
         assert sorted(["c__10", "c__2", "c__1"], key=script_position) == ["c__1", "c__2", "c__10"]
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [ApprovalRequired(), CallDeferred(), RuntimeError("the guard refused")],
+    ids=["approval", "deferred", "other"],
+)
+async def test_what_the_gate_or_isolation_raises_on_a_script_reaches_the_run_unchanged(
+    raised: Exception,
+) -> None:
+    """The manifest wraps the gate and the isolation guard, so it sees what they raise on
+    `run_code` itself; only a sandbox failure is turned into a message for the model."""
+    calls = CodeCalls(RunRecorder())
+
+    with pytest.raises(type(raised)) as caught:
+        await calls.wrap_tool_execute(
+            MagicMock(deps=AgentDeps()),
+            call=ToolCallPart("run_code", {"code": "1"}, tool_call_id="s"),
+            tool_def=ToolDefinition(name="run_code"),
+            args={"code": "1"},
+            handler=AsyncMock(side_effect=raised),
+        )
+
+    assert caught.value is raised
