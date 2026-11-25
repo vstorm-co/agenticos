@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InlineSecret } from "./inline-secret";
+import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 
@@ -17,12 +18,14 @@ import type { Permission } from "@/types/permissions";
  * finished.
  */
 
-const held: { permissions: Permission[] } = { permissions: [] };
+const held: { permissions: Permission[]; error: unknown } = { permissions: [], error: null };
 /** The write itself. Hoisted so a test can assert it was never sent. */
 const storeKey = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks", () => ({
-  useSecrets: () => ({ create: { mutate: storeKey, isPending: false } }),
+  useSecrets: () => ({
+    create: { mutate: storeKey, isPending: false, error: held.error, reset: vi.fn() },
+  }),
   usePermissions: () => ({
     can: (permission: Permission) => held.permissions.includes(permission),
   }),
@@ -31,6 +34,7 @@ vi.mock("@/hooks", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   held.permissions = [Perm.secretsEdit];
+  held.error = null;
 });
 
 function mount(suggestedName: string, disabled = false) {
@@ -145,5 +149,29 @@ describe("a surface that has gone read-only under an open form", () => {
       { name: "OpenAI", value: { kind: "api_key", api_key: "sk-live-1234" }, purpose: "openai" },
       expect.anything(),
     );
+  });
+
+  it("says why the vault refused the key, under the key", async () => {
+    held.error = new ApiError(422, "Validation failed", {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Validation failed",
+        details: {
+          fields: [
+            {
+              field: "value.api_key",
+              message: "Must be at least 8 characters - is the paste complete?",
+            },
+          ],
+        },
+      },
+    });
+    mount("OpenAI");
+    await userEvent.click(screen.getByRole("button", { name: "Add a key: OpenAI" }));
+
+    expect(
+      screen.getByText("Must be at least 8 characters - is the paste complete?"),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Key")).toHaveAttribute("aria-invalid", "true");
   });
 });
