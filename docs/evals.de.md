@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe820a92a3a"
+source_sha: "1ad1448905af"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -413,6 +413,8 @@ Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Z
 Gespeicherte Skill-Quellen verwenden stabile IDs: Eine Umbenennung behält die Identität bei; Löschen und erneutes Verwenden des Namens stellt keinen Zugriff auf alte Belege wieder her. Kriteriendetails einer Sitzung mit benanntem Skill, aber ohne ursprüngliche Skill-ID bleiben ebenfalls verborgen. Der optionale angezeigte Skill-Name gewährt keinen Zugriff: Die ursprüngliche ID wird auch ohne Bezeichnung geprüft.
 
 Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
+
+Das Lesen eines Runs vergleicht ihn nur dann erneut, wenn eine Person seit dem Speichern seines Urteils über eine seiner Bewertungen entschieden hat, und dieser Vergleich nutzt dieselbe Sperre und dasselbe Budget. Solange die Sperre belegt ist, zeigt eine Liste von Runs das Urteil jedes Runs wie gespeichert, und das Lesen eines einzelnen Runs antwortet mit 429. Eine Prüfung auf einer Eval-Suite speichert das Urteil der Suite zusammen mit dem des Runs, sodass ein erneutes Lesen nichts vergleicht.
 
 Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
 

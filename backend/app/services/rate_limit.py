@@ -49,6 +49,7 @@ import secrets
 import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -424,6 +425,9 @@ async def one_in_flight(
                 await _release(redis, key, token)
 
 
+_eval_admitted: ContextVar[bool] = ContextVar("eval_admitted", default=False)
+
+
 @asynccontextmanager
 async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
     """Shared admission for comparisons and eval-backed verdict writes and grades.
@@ -431,7 +435,15 @@ async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
     The caller checks the operation's own permissions first: every caller holds
     runs:view, and an eval-backed write also holds the dataset's own permission
     and access to the agent that answered.
+
+    Work nested under an admission this request already holds - a verdict that
+    settles a session again, which reads its check's runs - is not asked again:
+    the claim is one per organization, so asking twice would refuse the request
+    its own work.
     """
+    if _eval_admitted.get():
+        yield
+        return
     async with one_in_flight(
         "eval_comparison",
         f"org:{ctx.organization_id}",
@@ -452,7 +464,11 @@ async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
                     message="Too many comparisons and eval verdict updates. Wait and try again.",
                     details={"retry_after_seconds": decision.retry_after_seconds},
                 )
-        yield
+        admitted = _eval_admitted.set(True)
+        try:
+            yield
+        finally:
+            _eval_admitted.reset(admitted)
 
 
 def dictation_limit() -> Limit:

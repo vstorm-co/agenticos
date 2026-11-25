@@ -13,6 +13,8 @@
   evidence and no budget each refuse before anything is written.
 """
 
+import asyncio
+import contextvars
 import json
 import re
 import uuid
@@ -36,15 +38,17 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
+    RateLimitError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
+from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunArm
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
@@ -56,8 +60,9 @@ from app.repositories import authoring_repo, eval_suite_repo, skill_usage_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
-from app.schemas.scoring import DatasetScoring
+from app.schemas.scoring import CaseVerdict, DatasetScoring
 from app.schemas.skill_usage import SkillUseRecord
+from app.services import rate_limit
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE, ApiKeyService
@@ -68,6 +73,7 @@ from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 from tests.integration._keys import provider_key
 
@@ -838,15 +844,26 @@ class TestCheck:
         suite.name, suite.min_pass_rate = "renamed", Decimal("0")
         await db.flush()
         await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
-        with patch.object(
-            evals,
-            "criterion_batches",
-            side_effect=AssertionError("run reads must not aggregate criteria"),
-        ) as criterion_reads:
+        with (
+            patch.object(
+                evals,
+                "criterion_batches",
+                side_effect=AssertionError("run reads must not aggregate criteria"),
+            ) as criterion_reads,
+            patch.object(
+                EvalRunService,
+                "_comparison",
+                autospec=True,
+                side_effect=EvalRunService._comparison,
+            ) as compared,
+        ):
             judged = await evals.get(ctx, started.id)
             repeated = await evals.get(ctx, started.id)
+            await evals.get(ctx, started.id)
         criterion_reads.assert_not_called()
         assert repeated.suite_check == judged.suite_check
+        # The run's verdict and the suite's, each compared once and then read as kept.
+        assert compared.call_count == 2
         await eval_suite_repo.delete_suite(db, suite=suite)
         gone = await evals.get(ctx, started.id)
         by_dataset = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
@@ -866,6 +883,67 @@ class TestCheck:
         assert (await db.execute(select(func.count()).select_from(Notification))).scalar() == 0
 
     @pytest.mark.security
+    @pytest.mark.security
+    async def test_a_reviewed_check_compares_again_only_with_the_comparison_admission(self, db):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        datasets = DatasetService(db)
+        dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q0", checks=[{"type": "contains", "value": "30 days"}]),
+        )
+        await db.execute(
+            update(DatasetCase)
+            .where(DatasetCase.dataset_id == dataset.id)
+            .values(improvement_partition="holdout")
+        )
+        suite = await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                owner_user_id=ctx.user_id,
+                name="nightly",
+                min_pass_rate=Decimal("0.9"),
+            ),
+        )
+        started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
+        evals = EvalRunService(db)
+        first = await evals.get(ctx, started.id)
+        assert first.suite_check is not None and first.suite_check.status == "failed"
+        score = await db.scalar(
+            select(CaseScore)
+            .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
+            .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+            .where(EvalRunCase.eval_run_id == started.id, EvalRunArm.role == "candidate")
+        )
+        assert score is not None
+        await ScoringService(db).set_verdict(ctx, dataset.id, score.id, CaseVerdict(passed=True))
+        holding, release = asyncio.Event(), asyncio.Event()
+
+        async def another_comparison() -> None:
+            async with rate_limit.eval_computation(ctx):
+                holding.set()
+                await release.wait()
+
+        held = asyncio.create_task(another_comparison(), context=contextvars.Context())
+        await holding.wait()
+        try:
+            with pytest.raises(RateLimitError):
+                await evals.get(ctx, started.id)
+            listed = await evals.list_for_agent(ctx, agent.id)
+        finally:
+            release.set()
+            await held
+        again = await evals.get(ctx, started.id)
+
+        assert started.id in {run.id for run in listed.items}
+        assert again.suite_check is not None and again.suite_check.status == "inconclusive"
+
     async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))

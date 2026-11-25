@@ -57,6 +57,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
     PaymentRequiredError,
+    RateLimitError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -119,9 +120,9 @@ from app.schemas.eval_run import (
     ProposalCheckRecord,
     RoutingErrorRead,
 )
-from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
+from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead, EvalSuiteJudged
 from app.schemas.scoring import CaseScoreRead, DatasetScoring, ReviewReevaluation
-from app.services import authoring_hunks
+from app.services import authoring_hunks, rate_limit
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
     AgentRegistryService,
@@ -2001,7 +2002,7 @@ class EvalRunService:
         draft with the suggestions still waiting is what it checked.
         """
         run = await self._readable(ctx, run_id)
-        read = (await self._reads(ctx, [run]))[0]
+        read = (await self._reads(ctx, [run], refuse_when_busy=True))[0]
         if run.suite_check is not None:
             read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
         checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
@@ -2055,13 +2056,40 @@ class EvalRunService:
         )
         if run.status != EvalRunStatus.COMPLETED.value:
             return verdict
+        judged = check.judged
+        if judged is None or run.outcome_at is None or judged.outcome_at != run.outcome_at:
+            async with rate_limit.eval_computation(ctx):
+                judged = await self._judge_suite(ctx, run, read, check)
+        return verdict.model_copy(update={"status": judged.status, "reasons": judged.reasons})
+
+    async def _judge_suite(
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, check: EvalSuiteCheck
+    ) -> EvalSuiteJudged:
+        """Judge the run as the suite would, and keep the verdict on the run.
+
+        It is kept only while the run's own verdict is still the one it was judged
+        from: a person's decision meanwhile drops that one, and the next read judges
+        the suite again.
+        """
         candidate = next(arm for arm in read.arms if arm.role == ArmRole.CANDIDATE)
         comparison = await self._comparison(ctx, run)
         summary = (
             candidate.summary if self._measurement(run) is None else comparison.candidate_summary
         )
         status, reasons = judge(check.threshold, summary, comparison)
-        return verdict.model_copy(update={"status": status, "reasons": reasons})
+        judged_from = run.outcome_at
+        judged = EvalSuiteJudged(
+            status=status, reasons=reasons, outcome_at=judged_from or datetime.now(UTC)
+        )
+        if judged_from is None:
+            return judged
+        held = await eval_run_repo.lock(self.db, run.id, organization_id=ctx.organization_id)
+        if held is not None and held.outcome_at == judged_from:
+            kept = check.model_copy(update={"judged": judged})
+            await eval_run_repo.update_run(
+                self.db, run=held, values={"suite_check": kept.model_dump(mode="json")}
+            )
+        return judged
 
     async def arm_spec(self, ctx: AuthContext, run_id: UUID, arm_id: UUID) -> AgentSpec:
         """The spec one side of a run answered with - what History compares a version with.
@@ -2313,7 +2341,9 @@ class EvalRunService:
             self.db, ctx, list(rows.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
 
-    async def _reads(self, ctx: AuthContext, runs: Sequence[EvalRun]) -> list[EvalRunRead]:
+    async def _reads(
+        self, ctx: AuthContext, runs: Sequence[EvalRun], *, refuse_when_busy: bool = False
+    ) -> list[EvalRunRead]:
         org = ctx.organization_id
         arms_by_run: dict[UUID, list[EvalRunArm]] = defaultdict(list)
         for arm in await eval_run_repo.list_arms(
@@ -2441,7 +2471,7 @@ class EvalRunService:
                     cases=len({a.case_id for a in attempts}),
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
-                    outcome=await self._outcome(ctx, run),
+                    outcome=await self._outcome(ctx, run, refuse_when_busy=refuse_when_busy),
                     routed_to_review=run.routed_to_review,
                     routed_replacing=run.routed_replacing,
                     proposal_check=(
@@ -2939,9 +2969,18 @@ class EvalRunService:
             logger.warning("Eval run %s kept an outcome that no longer reads", run.id)
             return None
 
-    async def _outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead | None:
+    async def _outcome(
+        self, ctx: AuthContext, run: EvalRun, *, refuse_when_busy: bool = False
+    ) -> EvalOutcomeRead | None:
         """A finished run's verdict, as kept - or compared again once a person has
-        decided one of the scores it rests on since it was kept."""
+        decided one of the scores it rests on since it was kept.
+
+        Comparing again takes the organization's comparison admission. While it is
+        taken, a list keeps the verdict it has, and reading the run alone is refused.
+
+        Raises:
+            RateLimitError: `refuse_when_busy`, and the comparison admission is taken.
+        """
         if run.status in (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value):
             return None
         kept = self._kept_outcome(run)
@@ -2951,6 +2990,15 @@ class EvalRunService:
                 self.db, sorted(sides), since=run.outcome_at, organization_id=ctx.organization_id
             ):
                 return kept
+        try:
+            async with rate_limit.eval_computation(ctx):
+                return await self._compared_outcome(ctx, run)
+        except RateLimitError:
+            if refuse_when_busy:
+                raise
+            return kept
+
+    async def _compared_outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead:
         comparison = await self._comparison(ctx, run)
         theirs = comparison.baseline_summary
         # Over every case the candidate answered, not only those the baseline shares.

@@ -365,6 +365,8 @@ Stored skill sources use stable IDs: renaming a skill preserves its identity, wh
 
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
 
+Reading a run compares it again only when a person decided one of its scores since its verdict was kept, and that comparison takes the same claim and budget. While the claim is taken, a list of runs shows each run's verdict as it was kept, and reading the run on its own returns 429. A check on an eval suite keeps the suite's verdict with the run's own, so reading it again compares nothing.
+
 Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
 
 Busy refusals do not consume the per-minute read quotas. The console pauses polling until `Retry-After` expires.

@@ -2184,7 +2184,7 @@ async def test_a_drainer_that_fails_stops_the_others_before_the_run_is_failed(db
     events: list[str] = []
     busy = asyncio.Event()
 
-    async def drain(_ctx: AuthContext) -> None:
+    async def drain() -> None:
         if not busy.is_set():
             busy.set()
             try:

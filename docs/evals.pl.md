@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe820a92a3a"
+source_sha: "1ad1448905af"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -392,6 +392,8 @@ Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymag
 Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
+
+Odczyt runu porównuje go ponownie tylko wtedy, gdy ktoś zdecydował o jednej z jego ocen po zapisaniu werdyktu, i to porównanie korzysta z tej samej blokady i budżetu. Gdy blokada jest zajęta, lista runów pokazuje werdykt każdego runu w zapisanej postaci, a odczyt pojedynczego runu zwraca 429. Sprawdzenie na suicie ewaluacji przechowuje werdykt suity razem z werdyktem runu, więc kolejny odczyt niczego nie porównuje.
 
 Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
 

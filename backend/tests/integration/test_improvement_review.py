@@ -1,5 +1,9 @@
 """Human review updates the wizard's verdict without another paid run or publication."""
 
+import asyncio
+import contextvars
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -34,6 +38,25 @@ async def _scores(db, check_id):
             )
         ).all()
     )
+
+
+@asynccontextmanager
+async def _another_request_comparing(ctx) -> AsyncIterator[None]:
+    """Hold the organization's comparison claim as another request would, in its own context."""
+    holding, release = asyncio.Event(), asyncio.Event()
+
+    async def hold() -> None:
+        async with rate_limit.eval_computation(ctx):
+            holding.set()
+            await release.wait()
+
+    held = asyncio.create_task(hold(), context=contextvars.Context())
+    await holding.wait()
+    try:
+        yield
+    finally:
+        release.set()
+        await held
 
 
 async def test_review_and_undo_refresh_the_current_round_without_running_or_publishing(db):
@@ -161,7 +184,7 @@ async def test_eval_verdict_admission_precedes_writes_and_a_dataset_grant_alone_
     child = await db.get(EvalRun, check_id)
     cached = child.outcome
     service = ScoringService(db)
-    async with rate_limit.eval_computation(ctx):
+    async with _another_request_comparing(ctx):
         with pytest.raises(RateLimitError):
             await service.set_verdict(ctx, ready.dataset_id, score.id, CaseVerdict(passed=False))
         await db.refresh(score)
@@ -210,7 +233,7 @@ async def test_grading_an_eval_answer_again_takes_admission_and_settles_the_sess
     scores = await _ungraded_candidate(db, check_id, answer="Returns are not accepted.")
     wanted = RescoreRequest(score_ids=[score.id for score in scores])
     service = ScoringService(db)
-    async with rate_limit.eval_computation(ctx):
+    async with _another_request_comparing(ctx):
         with pytest.raises(RateLimitError):
             await service.rescore(ctx, ready.dataset_id, wanted)
     for score in scores:
