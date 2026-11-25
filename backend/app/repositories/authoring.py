@@ -780,7 +780,10 @@ async def train_answers(
 
     Only answers the agent itself gave, as a version or its draft: a spec an
     improvement attempt proposed is not what the agent is, and one that was
-    rejected never becomes it.
+    rejected never becomes it. So a check of a proposal gives only its baseline's
+    answers - its candidate ran the proposed change, a suggested spec or a skill or
+    context file body - and a knowledge check gives none: its baseline is an
+    attempt's projected candidate.
 
     `case_ids` are an improvement attempt's own learning questions, in place of the
     dataset's stored partition. `until` leaves out runs from that moment on.
@@ -820,8 +823,12 @@ async def train_answers(
             EvalRun.created_at >= since,
             EvalRun.created_at < until if until is not None else true(),
             or_(
-                EvalRunArm.role == "candidate",
-                and_(EvalRun.proposal_check.is_not(None), EvalRunArm.role == "baseline"),
+                and_(EvalRun.proposal_check.is_(None), EvalRunArm.role == "candidate"),
+                and_(
+                    EvalRun.proposal_check.is_not(None),
+                    EvalRun.proposal_check["knowledge"].astext.is_(None),
+                    EvalRunArm.role == "baseline",
+                ),
             ),
             EvalRunArm.source != "explicit",
             EvalRunCase.attempt == 0,
