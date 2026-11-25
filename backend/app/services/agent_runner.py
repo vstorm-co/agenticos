@@ -9638,7 +9638,7 @@ class AgentRunnerService:
 
         An eval answer and a platform agent's run were sent dataset cases, so a
         reader without view access to every dataset gets their record without
-        `messages` and `transcript`.
+        `messages` and `transcript`, and a platform agent's without its prompt too.
 
         Raises:
             NotFoundError: The run is not in the caller's organization, or
@@ -9659,30 +9659,36 @@ class AgentRunnerService:
             raise NotFoundError(
                 message="Nothing was recorded for this run", details={"run_id": str(run_id)}
             )
-        if await self._may_read_case_text(ctx, run):
+        hidden = await self._case_text(ctx, run)
+        if not hidden:
             return manifest
         return RunManifest(
             id=manifest.id,
             run_id=manifest.run_id,
             organization_id=manifest.organization_id,
-            payload={**manifest.payload, "messages": [], "transcript": []},
+            payload={**manifest.payload, **hidden},
             truncated=manifest.truncated,
             created_at=manifest.created_at,
         )
 
-    async def _may_read_case_text(self, ctx: AuthContext, run: AgentRun) -> bool:
-        """Whether the caller may read what this run was sent from datasets.
+    async def _case_text(self, ctx: AuthContext, run: AgentRun) -> dict[str, Any]:
+        """The parts of this run's record sent from datasets, emptied, for a reader who may
+        not view every dataset; nothing when the reader may read them.
 
-        An eval answer was sent a case's question, and the judge, the improver and
-        the other platform agents are sent cases and answers. A run records no
-        dataset, so this needs view access to every dataset.
+        An eval answer was sent a case's question; its prompt is the agent's own. The
+        judge, the improver and the other platform agents are sent cases and answers,
+        and their prompts carry a dataset's name, guidance and knowledge. A run records
+        no dataset, so reading any of it needs view access to every dataset.
         """
         if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
-            return True
+            return {}
+        sent: dict[str, Any] = {"messages": [], "transcript": []}
         if run.surface == RunSurface.EVAL.value:
-            return False
+            return sent
         agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
-        return agent is not None and agent.kind == AgentKind.AGENT.value
+        if agent is not None and agent.kind == AgentKind.AGENT.value:
+            return {}
+        return {**sent, "instructions": None, "system_prompts": []}
 
     async def transcript_ratings(
         self, ctx: AuthContext, message_ids: list[UUID]

@@ -217,7 +217,11 @@ class TestReadingWhatTheRunHandedItsModel:
     @pytest.mark.security
     @pytest.mark.parametrize(
         ("surface", "kind", "hidden"),
-        [("eval", "agent", True), ("web", "judge", True), ("web", "agent", False)],
+        [
+            ("eval", "agent", {"messages"}),
+            ("web", "judge", {"messages", "prompt"}),
+            ("web", "agent", set()),
+        ],
     )
     async def test_what_a_run_was_sent_from_datasets_needs_every_dataset(
         self,
@@ -225,7 +229,7 @@ class TestReadingWhatTheRunHandedItsModel:
         mock_db_session: AsyncMock,
         surface: str,
         kind: str,
-        hidden: bool,
+        hidden: set[str],
     ) -> None:
         run = MagicMock(id=uuid4(), agent_id=uuid4(), surface=surface)
         sent = [{"parts": [{"content": "What is the refund window?"}]}]
@@ -233,7 +237,13 @@ class TestReadingWhatTheRunHandedItsModel:
             id=uuid4(),
             run_id=run.id,
             organization_id=_ORG,
-            payload={"messages": sent, "transcript": [{"answer": "30 days"}], "tools": []},
+            payload={
+                "instructions": "What you must know to grade: refunds take 30 days.",
+                "system_prompts": ["Dataset: Refunds"],
+                "messages": sent,
+                "transcript": [{"answer": "30 days"}],
+                "tools": [],
+            },
             truncated=False,
         )
         monkeypatch.setattr(agent_runner.agent_run_repo, "get_run", AsyncMock(return_value=run))
@@ -254,12 +264,17 @@ class TestReadingWhatTheRunHandedItsModel:
 
         assert full is recorded
         assert recorded.payload["messages"] == sent
-        if hidden:
-            assert got is not recorded
-            assert (got.payload["messages"], got.payload["transcript"]) == ([], [])
-            assert (got.run_id, got.payload["tools"]) == (run.id, [])
-        else:
+        if not hidden:
             assert got is recorded
+            return
+        assert got is not recorded
+        assert (got.run_id, got.payload["tools"]) == (run.id, [])
+        assert (got.payload["messages"], got.payload["transcript"]) == ([], [])
+        prompt = (got.payload["instructions"], got.payload["system_prompts"])
+        if "prompt" in hidden:
+            assert prompt == (None, [])
+        else:
+            assert prompt == (recorded.payload["instructions"], recorded.payload["system_prompts"])
 
 
 class TestOpeningAnAttachmentOnSomebodyElsesRun:

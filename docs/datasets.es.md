@@ -1,5 +1,5 @@
 ---
-source_sha: "949a44e727c8"
+source_sha: "462ea19ce5e0"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -738,7 +738,7 @@ El texto de un caso copiado de una conversación solo es visible para lectores c
 
 Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
 
-El texto escrito a partir de los casos de un dataset sigue el acceso al dataset. Los cambios de una sesión de Improve requieren acceso de lectura a su dataset. Un run no registra qué dataset leyó, así que dos lecturas requieren acceso de lectura a todos los datasets: las citas de una sesión de skill tomadas de respuestas de evaluación y los mensajes que recibió una respuesta de evaluación o un agente de la plataforma, como el juez, en el registro del run.
+El texto escrito a partir de los casos de un dataset sigue el acceso al dataset. Los cambios de una sesión de Improve requieren acceso de lectura a su dataset. Un run no registra qué dataset leyó, así que dos lecturas requieren acceso de lectura a todos los datasets: las citas de una sesión de skill tomadas de respuestas de evaluación y, en el registro del run, los mensajes que recibió una respuesta de evaluación y el prompt y los mensajes de un agente de la plataforma, como el juez.
 
 Decidir sobre la respuesta de un eval run, o volver a calificarla, también requiere `runs:view` y acceso al agente que respondió, porque cambia los veredictos construidos sobre ese run: a un lector que no puede ver la respuesta no se le ofrece ninguna de las dos cosas, y la API las rechaza con `403`.
 

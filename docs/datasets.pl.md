@@ -1,5 +1,5 @@
 ---
-source_sha: "949a44e727c8"
+source_sha: "462ea19ce5e0"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -727,7 +727,7 @@ Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
 
-Tekst napisany z przypadków datasetu podlega dostępowi do datasetu. Zmiany sesji Improve wymagają dostępu do odczytu jej datasetu. Run nie zapisuje, który dataset czytał, więc dwa odczyty wymagają dostępu do odczytu wszystkich datasetów: cytaty sesji skilla z odpowiedzi ewaluacji oraz wiadomości wysłane do odpowiedzi ewaluacji albo agenta platformy, na przykład sędziego, w zapisie runu.
+Tekst napisany z przypadków datasetu podlega dostępowi do datasetu. Zmiany sesji Improve wymagają dostępu do odczytu jej datasetu. Run nie zapisuje, który dataset czytał, więc dwa odczyty wymagają dostępu do odczytu wszystkich datasetów: cytaty sesji skilla z odpowiedzi ewaluacji oraz, w zapisie runu, wiadomości wysłane do odpowiedzi ewaluacji, a także prompt i wiadomości agenta platformy, na przykład sędziego.
 
 Decyzja w sprawie odpowiedzi runu ewaluacji albo jej nowa ocena również wymaga `runs:view` i dostępu do odpowiadającego agenta, bo zmienia werdykty zbudowane na tym runie: czytający, który nie widzi odpowiedzi, nie dostaje żadnej z tych opcji, a API odrzuca je z `403`.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "949a44e727c8"
+source_sha: "462ea19ce5e0"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -774,7 +774,7 @@ Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
 
-Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und die Nachrichten, die eine Eval-Antwort oder ein Plattform-Agent wie der Judge im Protokoll des Runs erhalten hat.
+Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Judge.
 
 Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 
