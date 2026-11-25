@@ -7,16 +7,30 @@ from inside it, and keeps the text byte for byte, so a passage the model quotes
 from it still matches the original.
 """
 
-import re
-
-_BACKTICKS = re.compile(r"`+")
 _SHORTEST_FENCE = 3
+
+
+def _longest_run(text: str) -> int:
+    """The longest run of backticks in `text`, by substring search alone.
+
+    A conversation can hold millions of short runs, and listing them all to find
+    the longest costs a request seconds and megabytes before any budget is checked.
+    Doubling and then halving a probe asks only a few searches of the text.
+    """
+    found, step = 0, 1
+    while "`" * (found + step) in text:
+        found += step
+        step *= 2
+    while step > 1:
+        step //= 2
+        if "`" * (found + step) in text:
+            found += step
+    return found
 
 
 def fence(text: str) -> str:
     """`text` between two fence lines that no line of it can match."""
-    longest = max((len(run) for run in _BACKTICKS.findall(text)), default=0)
-    bar = "`" * max(_SHORTEST_FENCE, longest + 1)
+    bar = "`" * max(_SHORTEST_FENCE, _longest_run(text) + 1)
     return f"{bar}\n{text}\n{bar}"
 
 
