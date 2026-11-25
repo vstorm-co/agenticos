@@ -21866,5 +21866,55 @@
     "inProgress": "In progress",
     "unknown": "Not available",
     "otherStep": "Setup"
+  },
+  "stepFailure": {
+    "technicalDetails": "Technical details",
+    "step": {
+      "system_agent_not_seeded": "A system agent this step needs could not be set up.",
+      "system_agent_missing": "A system agent this step needs, or the version picked for it, no longer exists. Pick another.",
+      "system_agent_unpublished": "A system agent this step needs has no published version. Pick a model and publish it.",
+      "system_agent_archived": "A system agent this step needs is archived. Restore it to use it again.",
+      "system_agent_no_access": "Whoever started this may not run a system agent this step needs. Ask for access to it.",
+      "system_agent_no_model": "A system agent this step needs cannot reach its model.",
+      "system_agent_failed": "A system agent this step needs gave no answer that could be used. Its run is kept in Activity.",
+      "only_anonymised": "Every case of the dataset was anonymised when the person it was taken from was erased. Rewrite or remove those cases first.",
+      "all_evidence": "Every case of the dataset was taken from the conversations this change was derived from, so none can measure it. Add cases from other conversations, or pick another dataset.",
+      "no_scorer": "Nothing in the dataset's scoring can decide a case. Add a check, an expected tool call, or enable the judge.",
+      "no_reruns": "A run measured against a baseline needs at least one rerun, and this deployment is set to none.",
+      "evidence_too_large": "The proposal's evidence is too large to isolate its test safely. Request a new proposal.",
+      "budget": "The budget ran out before this step finished.",
+      "not_found": "Something this step needs no longer exists, or can no longer be seen.",
+      "not_allowed": "Whoever started this is no longer allowed to do this step.",
+      "changed": "Something this step read changed while it ran. Try again.",
+      "run_failed": "A run this step needed failed, or its model provider did not answer.",
+      "refused": "This step was refused.",
+      "failed": "This step failed on the server."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Add # more held-out test question to measure a change.} other {Add # more held-out test questions to measure a change.}}",
+      "no_evidence": "No rated chat runs or training failures are available yet.",
+      "search_too_few_training": "{minimum, plural, one {A search needs at least # training question for this attempt.} other {A search needs at least # training questions for this attempt.}}"
+    },
+    "request": {
+      "no_runs_view": "Whoever started this may no longer read runs.",
+      "evidence_erased": "An evidence source was erased while the assistant worked. Start again with current evidence.",
+      "no_edit_agent": "Whoever started this may no longer edit the agent.",
+      "agent_gone": "The agent is gone.",
+      "no_published_version": "The agent has no published version to compare with.",
+      "skill_gone": "The skill is gone.",
+      "no_edit_skill": "Whoever started this may no longer edit the skill.",
+      "session_moved_on": "The improvement session moved on.",
+      "conflicts_unanswered": "The assistant did not answer every conflict; settle them at Changes.",
+      "session_stopped": "The improvement session stopped.",
+      "context_gone": "The context file is gone.",
+      "no_edit_context": "Whoever started this may no longer edit the context file.",
+      "unknown_skill_use": "No run in this window is known to have used the skill. {runs, plural, one {# rated-down or failed run is from before uses were recorded, so whether it used the skill is unknown.} other {# rated-down or failed runs are from before uses were recorded, so whether they used it is unknown.}}",
+      "no_evidence": "Nothing to learn from yet: no run in this window was rated or failed. Widen the window, or come back once people have rated some answers.",
+      "key_revoked": "The API key that started this was revoked or no longer exists, so it was stopped.",
+      "not_a_member": "Whoever started this is no longer a member.",
+      "unexpected": "The assistant stopped unexpectedly. Try again.",
+      "stalled": "The assistant stopped without finishing. Try again.",
+      "withdrawn": "The request was cancelled before it started. Try again."
+    }
   }
 }

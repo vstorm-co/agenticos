@@ -1,4 +1,4 @@
-import type { EvidenceItem } from "@/types/authoring";
+import type { EvidenceItem, StepFailure } from "@/types/authoring";
 
 /** Durable improvement sessions; question and answer text stays behind runs:view. */
 export type ImprovementStatus =
@@ -24,6 +24,9 @@ export type ImprovementStage =
   | "judging";
 /** How a session's attempts reach their candidate: one proposal, or a search of many. */
 export type ImprovementMode = "steps" | "search";
+/** Why a session failed or stopped for want of data, as the code beside its English `error`. */
+export type ImprovementFailure =
+  StepFailure | "too_few_held_out" | "no_evidence" | "search_too_few_training";
 /** How a search attempt tries variants of the agent's instructions. */
 export interface SearchOptions {
   budget_usd: string;
@@ -226,7 +229,12 @@ export interface Improvement {
   next_step_blocked?: NextStepBlocked | null;
   try_again_blocked?: TryAgainBlocked | null;
   stop_reason: string | null;
+  /** Why it failed or stopped, in English; null without runs:view. */
   error: string | null;
+  /** Null on a session that failed before codes were recorded, and without runs:view. */
+  error_code?: ImprovementFailure | null;
+  /** The counts `error` names: `missing` for `too_few_held_out`, `minimum` for `search_too_few_training`. */
+  error_params?: Record<string, number> | null;
   created_at: string;
   finished_at: string | null;
   iterations: ImprovementIteration[];
