@@ -263,7 +263,8 @@ def test_shards_preserve_required_contexts_and_isolation() -> None:
     for name in ("test-shard", "e2e-shards"):
         postgres = jobs[name]["services"]["postgres"]
         assert postgres["image"] == "pgvector/pgvector:pg16"
-        assert "--tmpfs /var/lib/postgresql/data" in postgres["options"]
+        assert "--tmpfs" not in postgres["options"]
+        assert "volumes" not in postgres  # The image's anonymous volume is job-local.
 
 
 def test_cancelled_runs_do_not_recollect_tests_for_informational_reports() -> None:
