@@ -17,7 +17,7 @@ from app.repositories import conversation_share as conversation_share_repo
 from app.repositories import message_rating as message_rating_repo
 
 from app.repositories import knowledge_base as knowledge_base_repo
-from app.repositories import local_service as local_service_repo
+from app.repositories import service_connection as service_connection_repo
 from app.repositories import ml_service_call as ml_service_call_repo
 from app.repositories import collection_teardown as collection_teardown_repo
 
@@ -117,7 +117,7 @@ __all__ = [
     "conversation_share_repo",
     "message_rating_repo",
     "knowledge_base_repo",
-    "local_service_repo",
+    "service_connection_repo",
     "ml_service_call_repo",
     "collection_teardown_repo",
     "channel_bot_repo",

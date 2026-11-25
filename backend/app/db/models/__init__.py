@@ -32,7 +32,7 @@ from app.db.models.organization import Invitation, Organization, OrganizationMem
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.local_service import LocalService
+from app.db.models.service_connection import ServiceConnection
 from app.db.models.collection_teardown import CollectionTeardown
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
@@ -320,7 +320,7 @@ __all__ = [
     "AgentEnvironmentConnection",
     "ConnectionKind",
     "AgentWorkspace",
-    "LocalService",
+    "ServiceConnection",
     "SandboxConnection",
     "SandboxOperation",
     "AgentExposure",

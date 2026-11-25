@@ -38,7 +38,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, insert, select, text, update
+from sqlalchemy import create_engine, delete, insert, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -3042,3 +3042,90 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 )
     finally:
         engine.dispose()
+
+
+class TestServiceConnectionsRename:
+    @staticmethod
+    def _kb_endpoint(engine, kb_id):
+        with engine.connect() as connection:
+            return connection.scalar(
+                text("SELECT embedding_endpoint_id FROM knowledge_bases WHERE id = :id"),
+                {"id": kb_id},
+            )
+
+    def test_rows_survive_and_the_knowledge_base_foreign_key_follows_the_table(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0364_merge_routine_and_kb")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        service_id, kb_id = uuid4(), uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO local_services (id, kind, provider, name, base_url, is_active) "
+                        "VALUES (:id, 'embedding', 'ollama', 'gpu', 'http://ollama:11434/v1', true)"
+                    ),
+                    {"id": service_id},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO knowledge_bases (id, name, scope, collection_name, "
+                        "embedding_model, embedding_dim, embedding_provider, "
+                        "embedding_endpoint_id, is_default, visibility) VALUES (:kb, 'Docs', 'app', "
+                        "'docs_c', 'nomic-embed-text', 768, 'ollama', :id, false, 'org')"
+                    ),
+                    {"kb": kb_id, "id": service_id},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            inspector = inspect(engine)
+            assert inspector.has_table("service_connections")
+            assert not inspector.has_table("local_services")
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text("SELECT requires_key, secret_id, base_url FROM service_connections")
+                ).one()
+            assert tuple(row) == (False, None, "http://ollama:11434/v1")
+            checks = {c["name"] for c in inspector.get_check_constraints("service_connections")}
+            assert checks == {
+                "service_connections_ck_service_connections_kind_check",
+                "service_connections_ck_service_connections_deployment_k_44ad",
+            }
+            fk = next(
+                f
+                for f in inspector.get_foreign_keys("knowledge_bases")
+                if f["constrained_columns"] == ["embedding_endpoint_id"]
+            )
+            assert fk["referred_table"] == "service_connections"
+            assert fk["name"] == "knowledge_bases_embedding_endpoint_id_fkey"
+            assert self._kb_endpoint(engine, kb_id) == service_id
+            assert inspector.get_pk_constraint("service_connections")["name"] == (
+                "service_connections_pkey"
+            )
+            assert {f["name"] for f in inspector.get_foreign_keys("service_connections")} == {
+                "service_connections_created_by_user_id_fkey",
+                "service_connections_organization_id_fkey",
+                "service_connections_secret_id_fkey",
+            }
+            assert {i["name"] for i in inspector.get_indexes("service_connections")} == {
+                "service_connections_organization_id_idx",
+                "service_connections_secret_id_idx",
+            }
+            assert _alembic("check").returncode == 0
+            down = _alembic("downgrade", "0364_merge_routine_and_kb")
+            assert down.returncode == 0, down.stderr
+            inspector = inspect(engine)
+            assert inspector.has_table("local_services")
+            assert not inspector.has_table("service_connections")
+            columns = {c["name"] for c in inspector.get_columns("local_services")}
+            assert "secret_id" not in columns and "requires_key" not in columns
+            with engine.connect() as connection:
+                assert connection.scalar(text("SELECT count(*) FROM local_services")) == 1
+            assert self._kb_endpoint(engine, kb_id) == service_id
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()

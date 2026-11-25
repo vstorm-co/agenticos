@@ -349,7 +349,10 @@ class RAGDocumentService:
         collection_name = collection.collection_name
         ingestion = IngestionConfigService(self.db)
         ingestion.check_embedding_model(
-            collection=collection_name, built_with=collection.embedding_model
+            collection=collection_name,
+            built_with=collection.embedding_model,
+            provider=collection.embedding_provider,
+            dim=collection.embedding_dim,
         )
 
         config = IngestionConfig.model_validate(collection.ingestion_config)

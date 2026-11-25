@@ -181,7 +181,7 @@ async def test_step_detail_filters_in_the_api_instead_of_scanning_every_output(
 @pytest.mark.parametrize(
     "name,args,path",
     [
-        ("get_embedding_endpoint", (OTHER,), "/local-services"),
+        ("get_embedding_endpoint", (OTHER,), "/service-connections"),
         ("get_agent_environment", (ID, OTHER), f"/agents/{ID}/environments"),
         ("get_eval_suite", (ID, OTHER), f"/agents/{ID}/eval-suites"),
         ("get_knowledge_source", (ID, OTHER), f"/kb/{ID}/sync-sources"),

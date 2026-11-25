@@ -18,11 +18,17 @@ into a refusal naming the collection and the reason, at the moment somebody
 tries to index or search it; nothing is refused at resolution, because *whose
 key pays* must never decide *whether the row can be read*.
 
-The one provider that wants no key is `ollama`, a server on the deployment's own
-network (#1632). The catalog holds no address for it; the collection names a
-local service (`local_services`) that does, and resolves to `KEYLESS` with that
-address - not a degradation, and how an app-scoped collection, which has no
-vault, embeds at all (#1631).
+Two providers are reached through a service connection (`service_connections`)
+instead of the catalog's address. `ollama` is a server on the deployment's own
+network (#1632) and wants no key; the collection names the connection that holds
+its address and resolves to `KEYLESS` - not a degradation, and how an app-scoped
+collection, which has no vault, embeds at all (#1631). `openai_compatible` is any
+endpoint that speaks the same route: the connection holds its address and, when the
+endpoint wants one, the organization's vault key, which resolves to `CONNECTION`.
+
+Resolution is two steps so that a caller who must not hold a plaintext key can
+still say *what* a collection would embed through. `identify_target` reads the rows
+and names the target without opening any key; `open_target` unseals it.
 
 What the resolution must not do is stay quiet about itself. Every
 :class:`EmbeddingKeySource` value but two is a collection asking for a key and
@@ -32,7 +38,7 @@ row. So the source travels *with* the resolution, and both surfaces name it.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from uuid import UUID
 
@@ -43,7 +49,7 @@ from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_db_context
 from app.db.vector_tables import VectorScope
-from app.repositories import knowledge_base_repo, local_service_repo, organization_secret_repo
+from app.repositories import knowledge_base_repo, organization_secret_repo, service_connection_repo
 from app.services.rag import embedding_providers
 
 logger = logging.getLogger(__name__)
@@ -67,9 +73,15 @@ class EmbeddingKeySource(StrEnum):
     provider (#1631). `PROVIDER_UNKNOWN` is a catalog entry removed from
     `embedding_providers.json` under a collection that was using it; the key it
     holds was stored for the provider that is gone, so it stays sealed.
-    `ENDPOINT_MISSING` and `ENDPOINT_PAUSED` are a keyless collection whose local
-    service was deleted (the column is `SET NULL`) or turned off - the two
+    `ENDPOINT_MISSING` and `ENDPOINT_PAUSED` are a collection whose service
+    connection was deleted (the column is `SET NULL`) or turned off - the two
     remedies differ, so the two are told apart.
+
+    `CONNECTION` is a custom endpoint answering with the key its connection
+    carries. `CONNECTION_KEY_MISSING` is a connection that needs a key and has
+    none - it was never given one, or the vault entry was deleted (`secret_id` is
+    `SET NULL`, `requires_key` stays) - and `CONNECTION_KEY_UNUSABLE` one whose key
+    could not be opened or is not an API key. A keyed endpoint is never called bare.
     """
 
     ORGANIZATION = "organization"
@@ -82,6 +94,9 @@ class EmbeddingKeySource(StrEnum):
     PROVIDER_UNKNOWN = "provider_unknown"
     ENDPOINT_MISSING = "endpoint_missing"
     ENDPOINT_PAUSED = "endpoint_paused"
+    CONNECTION = "connection"
+    CONNECTION_KEY_MISSING = "connection_key_missing"
+    CONNECTION_KEY_UNUSABLE = "connection_key_unusable"
 
     @property
     def explanation(self) -> str:
@@ -94,13 +109,14 @@ class EmbeddingKeySource(StrEnum):
         return self not in _CAN_EMBED
 
 
-_CAN_EMBED = frozenset({EmbeddingKeySource.ORGANIZATION, EmbeddingKeySource.KEYLESS})
+_CAN_EMBED = frozenset(
+    {EmbeddingKeySource.ORGANIZATION, EmbeddingKeySource.KEYLESS, EmbeddingKeySource.CONNECTION}
+)
 
 _EXPLANATIONS = {
     EmbeddingKeySource.ORGANIZATION: "the vault key the collection chose",
-    EmbeddingKeySource.KEYLESS: (
-        "no key, at the local service the collection names on the deployment's own network"
-    ),
+    EmbeddingKeySource.KEYLESS: "no key, at the service connection the collection names",
+    EmbeddingKeySource.CONNECTION: ("the vault key of the service connection the collection names"),
     EmbeddingKeySource.NONE_CHOSEN: (
         "no key at all, because the collection names no vault key - choose one for its "
         "provider from the organization's vault"
@@ -125,12 +141,20 @@ _EXPLANATIONS = {
         "collection to one that is, and give it a key for that one"
     ),
     EmbeddingKeySource.ENDPOINT_MISSING: (
-        "no address, because the local service the collection named is gone - choose another "
+        "no address, because the service connection the collection named is gone - choose another "
         "under Knowledge, or register one"
     ),
     EmbeddingKeySource.ENDPOINT_PAUSED: (
-        "no address, because the local service the collection names is turned off - turn it "
+        "no address, because the service connection the collection names is turned off - turn it "
         "on under Knowledge, or choose another"
+    ),
+    EmbeddingKeySource.CONNECTION_KEY_MISSING: (
+        "no address, because the service connection the collection names needs a vault key "
+        "and has none - give it one under Knowledge"
+    ),
+    EmbeddingKeySource.CONNECTION_KEY_UNUSABLE: (
+        "no address, because the vault key of the service connection the collection names "
+        "could not be opened or does not hold an API key - give it another under Knowledge"
     ),
 }
 
@@ -212,87 +236,268 @@ async def embeddings_for_collection(
         kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
         if kb is None:
             return None
-        provider = embedding_providers.get(kb.embedding_provider)
-        if provider is None:
-            logger.warning(
-                "embedding_provider_unknown",
-                extra={"collection": collection_name, "provider": kb.embedding_provider},
-            )
-            api_key, key_source, base_url = "", EmbeddingKeySource.PROVIDER_UNKNOWN, ""
-        elif provider.keyless:
-            # Whatever key the row may still hold from a keyed provider it left
-            # is not opened: this endpoint takes none, and unsealing a credential
-            # nothing will send is a read of the vault for no reason.
-            api_key = ""
-            base_url, key_source = await _endpoint_for(db, kb)
-        else:
-            api_key, key_source = await _api_key_for(db, kb)
-            base_url = kb.embedding_base_url or provider.base_url or ""
+        target = await open_target(
+            db,
+            await identify_target(db, EmbeddingSettings.of(kb), organization_id=kb.organization_id),
+            collection=collection_name,
+        )
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at
             # this number, and a later catalog change must not disagree with it.
             dim=kb.embedding_dim,
-            api_key=api_key,
-            key_source=key_source,
-            base_url=base_url,
+            api_key=target.api_key,
+            key_source=target.identity.key_source,
+            base_url=target.identity.base_url,
             provider=kb.embedding_provider,
             vector_scope=kb.vector_scope,
         )
 
 
-async def _endpoint_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, EmbeddingKeySource]:
-    """Where a keyless collection's provider answers, or nowhere - and which.
+@dataclass(frozen=True)
+class EmbeddingSettings:
+    """What a collection - or a proposed change to one - says it embeds through."""
+
+    provider: str
+    endpoint_id: UUID | None
+    secret_id: UUID | None
+    base_url: str | None
+    model: str
+    # Only to name the collection in a log line; it decides nothing.
+    collection: str = ""
+
+    @classmethod
+    def of(cls, kb: KnowledgeBase) -> EmbeddingSettings:
+        return cls(
+            provider=kb.embedding_provider,
+            endpoint_id=kb.embedding_endpoint_id,
+            secret_id=kb.embedding_secret_id,
+            base_url=kb.embedding_base_url,
+            model=kb.embedding_model,
+            collection=kb.collection_name,
+        )
+
+
+@dataclass(frozen=True)
+class TargetIdentity:
+    """Where embeddings would go and on whose credential, with no plaintext.
+
+    What a probe's token is bound to, so every field is something whose change
+    could move a collection's vector space: the connection and its address, the
+    key by id and by `authorization_generation` (a rotated value is a new
+    generation), and the source that says whether the target can embed at all.
+    `key_source` here is what the rows say; :func:`open_target` may still find the
+    key unusable.
+    """
+
+    provider: str
+    connection_id: UUID | None
+    base_url: str
+    secret_id: UUID | None
+    key_generation: UUID | None
+    key_organization_id: UUID | None
+    key_source: EmbeddingKeySource
+
+
+@dataclass(frozen=True, repr=False)
+class EmbeddingTarget:
+    """An identity with its key opened. `repr=False`: it carries a plaintext key."""
+
+    identity: TargetIdentity
+    api_key: str
+
+    @property
+    def keyless(self) -> bool:
+        return self.identity.key_source is EmbeddingKeySource.KEYLESS
+
+    def __repr__(self) -> str:
+        return f"EmbeddingTarget(identity={self.identity!r}, api_key='***')"
+
+
+def _unresolved(provider: str, source: EmbeddingKeySource, *, base_url: str = "") -> TargetIdentity:
+    """A target that cannot embed: no key, the address it would have had, and the reason."""
+    return TargetIdentity(
+        provider=provider,
+        connection_id=None,
+        base_url=base_url,
+        secret_id=None,
+        key_generation=None,
+        key_organization_id=None,
+        key_source=source,
+    )
+
+
+async def identify_target(
+    db: AsyncSession, settings: EmbeddingSettings, *, organization_id: UUID | None
+) -> TargetIdentity:
+    """Name what these settings embed through, reading rows and opening no key.
+
+    Args:
+        settings: The collection's recorded settings, or a proposed change's.
+        organization_id: Whose service connections and vault the collection may
+            name; `None` for an app-scoped collection, which sees the deployment's
+            connections alone and has no vault.
+
+    A key that is not there - never chosen, deleted, or out of this organization -
+    is a `key_source` that says so, not an exception: whose key pays must never
+    decide whether the row can be read.
+    """
+    provider = embedding_providers.get(settings.provider)
+    if provider is None:
+        logger.warning(
+            "embedding_provider_unknown",
+            extra={"collection": settings.collection, "provider": settings.provider},
+        )
+        return _unresolved(settings.provider, EmbeddingKeySource.PROVIDER_UNKNOWN)
+    if provider.via_connection:
+        # Whatever key the settings may still hold from a keyed provider they
+        # left is not looked at: the connection's key, if it has one, is the only
+        # credential this provider sends.
+        return await _connection_target(db, settings, organization_id=organization_id)
+    base_url = settings.base_url or provider.base_url or ""
+    if organization_id is None:
+        return _unresolved(settings.provider, EmbeddingKeySource.NO_VAULT, base_url=base_url)
+    if settings.secret_id is None:
+        return _unresolved(settings.provider, EmbeddingKeySource.NONE_CHOSEN, base_url=base_url)
+    generation = await organization_secret_repo.authorization_generation(
+        db, settings.secret_id, organization_id=organization_id
+    )
+    if generation is None:
+        logger.warning("embedding_secret_missing", extra={"collection": settings.collection})
+        return _unresolved(settings.provider, EmbeddingKeySource.SECRET_MISSING, base_url=base_url)
+    return TargetIdentity(
+        provider=settings.provider,
+        connection_id=None,
+        base_url=base_url,
+        secret_id=settings.secret_id,
+        key_generation=generation,
+        key_organization_id=organization_id,
+        key_source=EmbeddingKeySource.ORGANIZATION,
+    )
+
+
+async def _connection_target(
+    db: AsyncSession, settings: EmbeddingSettings, *, organization_id: UUID | None
+) -> TargetIdentity:
+    """Where a collection reached through a service connection answers, or nowhere.
 
     The row is read within what the collection may name - its organization's
-    services and the deployment's - so a service id that leaked from another
-    tenant resolves to nothing rather than to their host. Degrades like the key
-    lookup: the address travels with the reason, and the client refuses.
+    connections and the deployment's - so an id that leaked from another tenant
+    resolves to nothing rather than to their host. Degrades like the key lookup:
+    the address travels with the reason, and the client refuses.
     """
-    if kb.embedding_endpoint_id is None:
-        return "", EmbeddingKeySource.ENDPOINT_MISSING
-    row = await local_service_repo.get_visible(
-        db, kb.embedding_endpoint_id, organization_id=kb.organization_id
+    if settings.endpoint_id is None:
+        return _unresolved(settings.provider, EmbeddingKeySource.ENDPOINT_MISSING)
+    row = await service_connection_repo.get_visible(
+        db, settings.endpoint_id, organization_id=organization_id
     )
     if row is None:
-        logger.warning("embedding_endpoint_missing", extra={"collection": kb.collection_name})
-        return "", EmbeddingKeySource.ENDPOINT_MISSING
+        logger.warning("embedding_endpoint_missing", extra={"collection": settings.collection})
+        return _unresolved(settings.provider, EmbeddingKeySource.ENDPOINT_MISSING)
     if not row.is_active:
-        return "", EmbeddingKeySource.ENDPOINT_PAUSED
-    return row.base_url, EmbeddingKeySource.KEYLESS
+        return _unresolved(settings.provider, EmbeddingKeySource.ENDPOINT_PAUSED)
+    if not row.requires_key:
+        return TargetIdentity(
+            provider=settings.provider,
+            connection_id=row.id,
+            base_url=row.base_url,
+            secret_id=None,
+            key_generation=None,
+            key_organization_id=None,
+            key_source=EmbeddingKeySource.KEYLESS,
+        )
+    generation = (
+        None
+        if row.secret_id is None or row.organization_id is None
+        else await organization_secret_repo.authorization_generation(
+            db, row.secret_id, organization_id=row.organization_id
+        )
+    )
+    if generation is None:
+        logger.warning(
+            "embedding_connection_key_missing", extra={"collection": settings.collection}
+        )
+        return _unresolved(settings.provider, EmbeddingKeySource.CONNECTION_KEY_MISSING)
+    return TargetIdentity(
+        provider=settings.provider,
+        connection_id=row.id,
+        base_url=row.base_url,
+        secret_id=row.secret_id,
+        key_generation=generation,
+        key_organization_id=row.organization_id,
+        key_source=EmbeddingKeySource.CONNECTION,
+    )
 
 
-async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, EmbeddingKeySource]:
-    """The organization's chosen key, or none - and which.
+async def open_target(
+    db: AsyncSession, identity: TargetIdentity, *, collection: str = ""
+) -> EmbeddingTarget:
+    """Unseal the key an identity names, or degrade it to the reason it cannot.
 
-    A failure to open the collection's own key degrades to no key rather than
-    raising: the choice of *whose key pays* must never decide *whether the
-    collection's row can be read*. The second element is what stops that from
-    being invisible: it is carried out to the flow log and to the error on the
-    document row.
+    A failure to open the key degrades to no key rather than raising, for the
+    reason :func:`identify_target` gives. The reason it degrades to is what stops
+    that from being invisible: it is carried out to the flow log and to the error
+    on the document row.
     """
-    if kb.organization_id is None:
-        return "", EmbeddingKeySource.NO_VAULT
-    if kb.embedding_secret_id is None:
-        return "", EmbeddingKeySource.NONE_CHOSEN
-
+    if identity.key_source not in _KEYED:
+        return EmbeddingTarget(identity=identity, api_key="")
+    missing, unusable = _KEY_FAILURES[identity.key_source]
+    if identity.secret_id is None or identity.key_organization_id is None:
+        return _degraded(identity, missing)
     row = await organization_secret_repo.get(
-        db, kb.embedding_secret_id, organization_id=kb.organization_id
+        db, identity.secret_id, organization_id=identity.key_organization_id
     )
     if row is None:
-        logger.warning("embedding_secret_missing", extra={"collection": kb.collection_name})
-        return "", EmbeddingKeySource.SECRET_MISSING
+        logger.warning("embedding_secret_missing", extra={"collection": collection})
+        return _degraded(identity, missing)
     try:
         secret = unseal_secret(
             row.sealed_secret,
             kind=SecretKind(row.kind),
-            scope=VaultScope.organization(kb.organization_id),
+            scope=VaultScope.organization(identity.key_organization_id),
             key_version=row.key_version,
         )
     except Exception:
-        logger.warning("embedding_secret_unusable", extra={"collection": kb.collection_name})
-        return "", EmbeddingKeySource.SECRET_UNUSABLE
+        logger.warning("embedding_secret_unusable", extra={"collection": collection})
+        return _degraded(identity, unusable)
     if not isinstance(secret, ApiKeySecret):
-        logger.warning("embedding_secret_wrong_kind", extra={"collection": kb.collection_name})
-        return "", EmbeddingKeySource.SECRET_WRONG_KIND
-    return secret.api_key.get_secret_value(), EmbeddingKeySource.ORGANIZATION
+        logger.warning("embedding_secret_wrong_kind", extra={"collection": collection})
+        return _degraded(identity, _WRONG_KIND[identity.key_source])
+    return EmbeddingTarget(identity=identity, api_key=secret.api_key.get_secret_value())
+
+
+_KEYED = frozenset({EmbeddingKeySource.ORGANIZATION, EmbeddingKeySource.CONNECTION})
+
+# What a keyed source degrades to when its row is gone, and when it cannot be opened.
+_KEY_FAILURES = {
+    EmbeddingKeySource.ORGANIZATION: (
+        EmbeddingKeySource.SECRET_MISSING,
+        EmbeddingKeySource.SECRET_UNUSABLE,
+    ),
+    EmbeddingKeySource.CONNECTION: (
+        EmbeddingKeySource.CONNECTION_KEY_MISSING,
+        EmbeddingKeySource.CONNECTION_KEY_UNUSABLE,
+    ),
+}
+_WRONG_KIND = {
+    EmbeddingKeySource.ORGANIZATION: EmbeddingKeySource.SECRET_WRONG_KIND,
+    EmbeddingKeySource.CONNECTION: EmbeddingKeySource.CONNECTION_KEY_UNUSABLE,
+}
+
+
+_CONNECTION_FAILURES = frozenset(
+    {EmbeddingKeySource.CONNECTION_KEY_MISSING, EmbeddingKeySource.CONNECTION_KEY_UNUSABLE}
+)
+
+
+def _degraded(identity: TargetIdentity, source: EmbeddingKeySource) -> EmbeddingTarget:
+    """The same target with no key, because its key could not be had.
+
+    A connection's address goes too: it is the address of a keyed endpoint, and
+    nothing may call that bare. A vendor's stays, as it always did - the client
+    refuses on the empty key and names the collection.
+    """
+    base_url = "" if source in _CONNECTION_FAILURES else identity.base_url
+    return EmbeddingTarget(
+        identity=replace(identity, base_url=base_url, key_source=source), api_key=""
+    )

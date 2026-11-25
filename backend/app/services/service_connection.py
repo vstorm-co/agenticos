@@ -1,0 +1,297 @@
+"""Register, edit and look up service connections.
+
+Who may do what follows who owns the row. An organization's rows are its
+operators' - `connections:manage`, the permission the vault and the MCP
+connections carry. The deployment's own rows (no organization) are the app
+administrator's: every organization may *name* one, and an app-scoped collection
+may name nothing else, but only the person running the deployment may say where
+the deployment's Ollama or OCR server is.
+
+What a row is for is checked when it is written, not when it is used. An
+`embedding` connection names a provider from the embedding catalog that is reached
+through a connection - `ollama`, whose catalog says which models it serves and at
+what width, or `openai_compatible`, which serves any; an `ocr` one names the one
+parser that sends pages out. Refused here, on the field, rather than discovered when
+a collection's first document fails to index.
+
+A connection may carry a key, and the rule is the one a collection's key follows:
+only an organization's, from that organization's vault, that the caller may view,
+and of the purpose the endpoint's API style takes. A deployment-owned row has no
+vault, so it is keyless, and clearing a key from a keyed row is refused: the endpoint
+would otherwise be called bare by every collection naming it.
+"""
+
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.audit import record_audit
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.field_errors import refused_field
+from app.core.permissions import AuthContext, Perm
+from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.service_connection import ServiceConnection, ServiceConnectionKind
+from app.db.updates import writable
+from app.repositories import organization_secret_repo, service_connection_repo
+from app.schemas.service_connection import ServiceConnectionCreate, ServiceConnectionUpdate
+from app.services.access import SECRET, resolve_access
+from app.services.rag import embedding_providers
+
+OCR_PROVIDER = "liteparse"
+"""The one parser that sends pages to an OCR server, and so the one `ocr` provider."""
+
+CONNECTION_KEY_PURPOSE = "openai_compatible"
+"""The purpose of the vault key a connection carries, and the only API style that takes one."""
+
+
+class ServiceConnectionService:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def list_visible(self, ctx: AuthContext) -> list[ServiceConnection]:
+        """The organization's own services and the deployment's, in that order."""
+        return await service_connection_repo.list_visible(
+            self.db, organization_id=ctx.organization_id
+        )
+
+    async def get_visible(self, ctx: AuthContext, service_id: UUID) -> ServiceConnection:
+        row = await service_connection_repo.get_visible(
+            self.db, service_id, organization_id=ctx.organization_id
+        )
+        if row is None:
+            raise NotFoundError(
+                message="Service connection not found", details={"service_id": service_id}
+            )
+        return row
+
+    async def create(self, ctx: AuthContext, data: ServiceConnectionCreate) -> ServiceConnection:
+        """Register a service.
+
+        Raises:
+            AuthorizationError: If a deployment-wide row is asked for by somebody
+                who is not the deployment's administrator.
+            BadRequestError: If the provider does not fit the kind, or the key is
+                not one this connection may carry - named on the field, because that
+                is the control that was wrong.
+            AlreadyExistsError: If the owner already has a row of that kind by
+                that name.
+        """
+        owner = self._owner_for(ctx, deployment_wide=data.deployment_wide)
+        _check_provider_fits(kind=data.kind, provider=data.provider)
+        if data.secret_id is not None:
+            await self._check_key(ctx, data.secret_id, owner=owner, provider=data.provider)
+        await self._refuse_duplicate_name(owner, kind=data.kind, name=data.name)
+        row = await service_connection_repo.create(
+            self.db,
+            organization_id=owner,
+            kind=data.kind,
+            provider=data.provider,
+            name=data.name,
+            base_url=data.base_url,
+            created_by_user_id=ctx.subject_id,
+            secret_id=data.secret_id,
+            requires_key=data.secret_id is not None,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=owner,
+            action="service_connection.created",
+            target_type="service_connection",
+            target_id=str(row.id),
+            details={
+                "name": row.name,
+                "kind": row.kind,
+                "provider": row.provider,
+                "has_key": row.requires_key,
+            },
+        )
+        return row
+
+    async def update(
+        self, ctx: AuthContext, service_id: UUID, data: ServiceConnectionUpdate
+    ) -> ServiceConnection:
+        """Edit a connection.
+
+        Raises:
+            BadRequestError: If the new key is not one this connection may carry,
+                or the edit would clear the key of a keyed connection.
+            AlreadyExistsError: If the new name is taken.
+        """
+        row = await self._editable(ctx, service_id)
+        changes = writable(data, over=ServiceConnection)
+        if "secret_id" in changes:
+            new_key = changes["secret_id"]
+            if new_key is None:
+                if row.requires_key:
+                    raise refused_field(
+                        "secret_id",
+                        "A keyed connection cannot be set back to no key: every collection "
+                        "naming it would call the endpoint bare. Delete it and register "
+                        "a keyless one instead.",
+                    )
+                del changes["secret_id"]
+            elif new_key == row.secret_id:
+                del changes["secret_id"]
+            else:
+                await self._check_key(
+                    ctx, new_key, owner=row.organization_id, provider=row.provider
+                )
+        if (
+            row.secret_id is not None
+            and row.organization_id is not None
+            and "secret_id" not in changes
+            and changes.get("base_url", row.base_url) != row.base_url
+        ):
+            # The retained key would be sent to the new host: lending it, as
+            # choosing it is, takes the right to view it.
+            await self._viewable_key(ctx, row.secret_id, owner=row.organization_id)
+        if "name" in changes and changes["name"] != row.name:
+            await self._refuse_duplicate_name(
+                row.organization_id, kind=row.kind, name=changes["name"]
+            )
+        if not changes:
+            return row
+        fields = sorted(changes)
+        if "secret_id" in changes:
+            changes["requires_key"] = True
+        updated = await service_connection_repo.update(self.db, row=row, update_data=changes)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=row.organization_id,
+            action="service_connection.updated",
+            target_type="service_connection",
+            target_id=str(service_id),
+            details={"fields": fields},
+        )
+        return updated
+
+    async def _viewable_key(
+        self, ctx: AuthContext, secret_id: UUID, *, owner: UUID
+    ) -> OrganizationSecret:
+        """The vault row, if the caller may view it; otherwise "not in the vault".
+
+        A missing row and one out of reach answer alike, so a refusal cannot
+        enumerate another member's private secrets.
+        """
+        row = await organization_secret_repo.get(self.db, secret_id, organization_id=owner)
+        if row is None or not await resolve_access(
+            self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"secret_id": str(secret_id)},
+            )
+        return row
+
+    async def _check_key(
+        self, ctx: AuthContext, secret_id: UUID, *, owner: UUID | None, provider: str
+    ) -> None:
+        """Refuse a key this connection may not carry.
+
+        The sibling of `KnowledgeBaseService._check_embedding_secret`, gate for gate.
+        Binding a key is lending it: every collection naming the connection sends it
+        to the endpoint. So the caller has to be able to reach the key themselves -
+        the picker only offers what they can see, but the API takes an id and an id
+        is guessable. A key they cannot view is phrased as one the vault does not
+        hold, so a refusal cannot enumerate another member's private secrets.
+
+        Raises:
+            BadRequestError: On `secret_id`, for a deployment-owned connection, an
+                API style that takes no key, a key outside the caller's reach, or a
+                key of another purpose.
+        """
+        if owner is None:
+            raise refused_field(
+                "secret_id",
+                "A deployment-wide connection cannot carry a key: the vault belongs to an "
+                "organization. Register the connection inside an organization to give it one.",
+            )
+        if provider != CONNECTION_KEY_PURPOSE:
+            raise refused_field(
+                "secret_id",
+                f"A {provider} connection takes no key; only an OpenAI-compatible one does.",
+            )
+        row = await self._viewable_key(ctx, secret_id, owner=owner)
+        if row.purpose != CONNECTION_KEY_PURPOSE:
+            raise refused_field(
+                "secret_id",
+                f"That key is for {row.purpose}, and a connection sends its key to an "
+                "OpenAI-compatible endpoint. Create a key with the openai_compatible purpose.",
+                purpose=row.purpose,
+            )
+
+    async def delete(self, ctx: AuthContext, service_id: UUID) -> None:
+        """Remove a service.
+
+        A collection naming it keeps its row: `knowledge_bases.embedding_endpoint_id`
+        is `SET NULL` on delete, and the resolver then says the service is gone,
+        which is the truth and a state somebody can fix.
+        """
+        row = await self._editable(ctx, service_id)
+        await service_connection_repo.delete(self.db, row=row)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=row.organization_id,
+            action="service_connection.deleted",
+            target_type="service_connection",
+            target_id=str(service_id),
+            details={"name": row.name, "kind": row.kind},
+        )
+
+    async def _editable(self, ctx: AuthContext, service_id: UUID) -> ServiceConnection:
+        """A row this caller may change: the organization's own, or the
+        deployment's for its administrator. A visible row is not an editable one."""
+        row = await self.get_visible(ctx, service_id)
+        if row.organization_id is None and not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="Only the deployment's administrator can change a deployment-wide service",
+                details={"service_id": service_id},
+            )
+        return row
+
+    @staticmethod
+    def _owner_for(ctx: AuthContext, *, deployment_wide: bool) -> UUID | None:
+        if not deployment_wide:
+            return ctx.organization_id
+        if not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="Only the deployment's administrator can register a deployment-wide service"
+            )
+        return None
+
+    async def _refuse_duplicate_name(self, owner: UUID | None, *, kind: str, name: str) -> None:
+        existing = await service_connection_repo.get_by_name(
+            self.db, organization_id=owner, kind=kind, name=name
+        )
+        if existing is not None:
+            raise AlreadyExistsError(
+                message="A service of that kind by that name already exists",
+                details={"name": name, "kind": kind},
+            )
+
+
+def _check_provider_fits(*, kind: str, provider: str) -> None:
+    if kind == ServiceConnectionKind.EMBEDDING.value:
+        entry = embedding_providers.get(provider)
+        if entry is None or not entry.via_connection:
+            reached = ", ".join(
+                e.provider for e in embedding_providers.providers() if e.via_connection
+            )
+            raise refused_field(
+                "provider",
+                f"An embedding connection is a provider from the catalog that is reached through "
+                f"one; choose one of: {reached}. A vendor with its own address is chosen on "
+                "the collection, with the key that pays.",
+            )
+    elif provider != OCR_PROVIDER:
+        raise refused_field(
+            "provider", f"An OCR server is reached by {OCR_PROVIDER}; that is the only provider."
+        )

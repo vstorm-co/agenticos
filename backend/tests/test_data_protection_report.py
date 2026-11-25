@@ -33,10 +33,10 @@ from app.commands.data_protection import (
     _conversation_of,
     _credentials,
     _external_connections,
-    _local_services,
     _model_destinations,
     _render,
     _retention,
+    _service_connections,
     _settings_section,
     _tracing,
     _unreferenced_media,
@@ -132,20 +132,58 @@ class TestWhatItReports:
 
         assert [row[4] for row in section.rows] == ["pymupdf", "llamaparse", "llamaparse"]
         assert [row[5] for row in section.rows] == ["no", "yes", "no"]
-        assert [row[3] for row in section.rows] == ["provider API", "local service", "provider API"]
+        assert [row[3] for row in section.rows] == [
+            "provider API",
+            "service connection",
+            "provider API",
+        ]
 
-    async def test_local_services_label_a_deployment_wide_row(self) -> None:
+    async def test_service_connections_label_a_deployment_wide_row(self) -> None:
         db = _db(
             [
-                (None, "embedding", "ollama", "ollama-1", "http://ollama:11434", True),
-                ("City", "ocr", "liteparse", "ocr-1", "http://ocr:8000", False),
+                (None, "embedding", "ollama", "ollama-1", "http://ollama:11434", True, False, None),
+                ("City", "ocr", "liteparse", "ocr-1", "http://ocr:8000", False, False, None),
             ]
         )
 
-        section = await _local_services(db)
+        section = await _service_connections(db)
 
         assert [row[0] for row in section.rows] == ["deployment-wide", "City"]
         assert [row[5] for row in section.rows] == ["yes", "no"]
+
+    async def test_a_keyed_connection_says_it_holds_a_vault_key_and_never_which(self) -> None:
+        db = _db(
+            [
+                (
+                    "City",
+                    "embedding",
+                    "openai_compatible",
+                    "gateway",
+                    "https://gateway.example.com/v1",
+                    True,
+                    True,
+                    uuid.uuid4(),
+                ),
+                (
+                    "City",
+                    "embedding",
+                    "openai_compatible",
+                    "lost",
+                    "https://x.example.com",
+                    True,
+                    True,
+                    None,
+                ),
+            ]
+        )
+
+        section = await _service_connections(db)
+
+        assert section.headers[-1] == "Vault key"
+        assert section.rows[0][-1] == "yes"
+        assert section.rows[1][-1] == "missing"
+        assert section.rows[0][2] == "openai_compatible"
+        assert len(section.rows[0]) == len(section.headers)
 
     async def test_external_connections_cover_mcp_sync_and_channels(self) -> None:
         db = _external_db(

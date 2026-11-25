@@ -101,7 +101,7 @@ async def list_embedding_models() -> Any:
     create-collection form and the one that moves an existing collection to
     another provider, and hardcoding it in the client is how the form and the
     build drift apart. There is no deployment default in it: the model, the
-    provider and what pays - a vault key, or a local service for a keyless
+    provider and what pays - a vault key, or a service connection for a keyless
     provider - are the collection's own choice, every time.
     """
     return {
@@ -111,6 +111,7 @@ async def list_embedding_models() -> Any:
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
                 "keyless": entry.keyless,
+                "any_model": entry.any_model,
             }
             for entry in embedding_providers.providers()
         ],

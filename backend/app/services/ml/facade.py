@@ -40,17 +40,17 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
-from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
 from app.db.models.organization import Organization
+from app.db.models.service_connection import ServiceConnectionKind
 from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
 from app.repositories.ml_service_call import CallFilters, UsageSummary
 from app.services import speech_to_text, transcription, transcription_usage
 from app.services.deployment_settings import DeploymentSettingsService
-from app.services.local_service import LocalServiceService
 from app.services.ml import audio_duration, parsing, pcm_wav, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
+from app.services.service_connection import ServiceConnectionService
 from app.services.speech_to_text import ComposerDictation, DictationUnavailable, RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
@@ -724,8 +724,8 @@ class MLService:
         """
         if ocr_service_id is None:
             return None
-        row = await LocalServiceService(self.db).get_visible(ctx, ocr_service_id)
-        if row.kind != LocalServiceKind.OCR.value:
+        row = await ServiceConnectionService(self.db).get_visible(ctx, ocr_service_id)
+        if row.kind != ServiceConnectionKind.OCR.value:
             raise refused_field(
                 "ocr_service_id", f"That service is registered for {row.kind}, not for OCR."
             )

@@ -99,7 +99,7 @@ from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
-from app.services.local_service import LocalServiceService
+from app.services.service_connection import ServiceConnectionService
 from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
@@ -211,11 +211,11 @@ def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
 SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
 
 
-def get_local_service_service(db: DBSession) -> LocalServiceService:
-    return LocalServiceService(db)
+def get_service_connection_service(db: DBSession) -> ServiceConnectionService:
+    return ServiceConnectionService(db)
 
 
-LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+ServiceConnectionSvc = Annotated[ServiceConnectionService, Depends(get_service_connection_service)]
 
 
 def get_ml_service(db: DBSession) -> MLService:

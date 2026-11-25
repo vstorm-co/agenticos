@@ -97,7 +97,7 @@ class TestWhatTheCatalogOffers:
 
         providers = {entry["provider"]: entry for entry in body["providers"]}
         assert {"openrouter", "openai"} <= set(providers)
-        assert all(entry["models"] for entry in body["providers"])
+        assert all(entry["models"] or entry["any_model"] for entry in body["providers"])
 
     async def test_no_provider_is_offered_as_the_deployments_key(self, client: AsyncClient):
         """There is no deployment-wide embedding key, so the catalog carries
@@ -117,13 +117,21 @@ class TestWhatTheCatalogOffers:
         assert {entry["keyless"] for entry in body["providers"]} == {True, False}
 
     async def test_the_keyless_provider_is_offered_and_says_so(self, client: AsyncClient):
-        """Its address is a local service the collection names, so the form
+        """Its address is a service connection the collection names, so the form
         offers a service select where it would offer a key select."""
         body = (await client.get(f"{_V1}/rag/embedding-models")).json()
 
         ollama = next(entry for entry in body["providers"] if entry["provider"] == "ollama")
         assert ollama["keyless"] is True
         assert {model["model"] for model in ollama["models"]} >= {"nomic-embed-text", "bge-m3"}
+
+    async def test_the_listing_marks_the_custom_provider_as_any_model(self, client: AsyncClient):
+        body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        by_name = {entry["provider"]: entry for entry in body["providers"]}
+        assert by_name["openai_compatible"]["any_model"] is True
+        assert by_name["openai_compatible"]["models"] == []
+        assert by_name["openai"]["any_model"] is False
 
     async def test_there_is_no_deployment_default_model_in_the_answer(self, client: AsyncClient):
         body = (await client.get(f"{_V1}/rag/embedding-models")).json()

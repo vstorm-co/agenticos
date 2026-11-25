@@ -181,11 +181,11 @@ async def test_shipped_bundles_install_valid_private_workflows_with_tables(
 async def test_optional_knowledge_uses_explicit_embedding_dependency_without_indexing(
     db: AsyncSession,
 ) -> None:
-    from app.db.models.local_service import LocalService
+    from app.db.models.service_connection import ServiceConnection
     from app.schemas.solution import SolutionKnowledge
 
     ctx = await owner(db)
-    endpoint = LocalService(
+    endpoint = ServiceConnection(
         name="Embedding fixture",
         organization_id=ctx.organization_id,
         kind="embedding",

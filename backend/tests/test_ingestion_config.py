@@ -420,7 +420,10 @@ class TestResolvingTheModelThatReadsImages:
 class TestTheEmbeddingModelACollectionWasBuiltWith:
     def test_indexing_continues_for_a_model_this_build_knows(self) -> None:
         IngestionConfigService(_db()).check_embedding_model(
-            collection="handbook", built_with="text-embedding-3-large"
+            collection="handbook",
+            built_with="text-embedding-3-large",
+            provider="openai",
+            dim=3072,
         )
 
     def test_a_named_model_is_looked_up_and_carries_its_width(self) -> None:
@@ -440,15 +443,45 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
         """The store embeds each collection with its own recorded model, so a
         catalog that moved on must not strand existing collections."""
         IngestionConfigService(_db()).check_embedding_model(
-            collection="handbook", built_with="text-embedding-ada-002"
+            collection="handbook",
+            built_with="text-embedding-ada-002",
+            provider="openai",
+            dim=1536,
         )
+
+    def test_an_upload_into_a_custom_collection_is_not_refused_for_an_unlisted_model(self) -> None:
+        IngestionConfigService(_db()).check_embedding_model(
+            collection="c", built_with="corp-embed-v2", provider="openai_compatible", dim=1024
+        )
+
+    def test_an_upload_into_a_catalog_collection_with_an_unknown_model_is_still_refused(
+        self,
+    ) -> None:
+        with pytest.raises(BadRequestError):
+            IngestionConfigService(_db()).check_embedding_model(
+                collection="c", built_with="corp-embed-v2", provider="openai", dim=1024
+            )
+
+    def test_chosen_embedding_accepts_a_measured_width_for_any_model(self) -> None:
+        assert chosen_embedding("corp-embed", measured_dim=1024) == ("corp-embed", 1024)
+        assert chosen_embedding("corp-embed", measured_dim=4000) == ("corp-embed", 4000)
+
+    @pytest.mark.parametrize("width", [0, 4001])
+    def test_chosen_embedding_refuses_a_measured_width_outside_1_to_4000(self, width) -> None:
+        with pytest.raises(BadRequestError) as refusal:
+            chosen_embedding("corp-embed", measured_dim=width)
+
+        assert refusal.value.details["fields"][0]["field"] == "embedding_model"
 
     def test_a_model_this_build_cannot_embed_with_is_refused_and_named(self) -> None:
         """The upload would otherwise be accepted and die in a worker with
         nothing on screen - the exact failure this module exists to prevent."""
         with pytest.raises(BadRequestError) as refusal:
             IngestionConfigService(_db()).check_embedding_model(
-                collection="handbook", built_with="withdrawn-model"
+                collection="handbook",
+                built_with="withdrawn-model",
+                provider="openai",
+                dim=1536,
             )
 
         assert "withdrawn-model" in refusal.value.message
@@ -613,14 +646,14 @@ def _ocr_service(**overrides: object) -> MagicMock:
 
 
 class TestTheOcrServer:
-    """Where LiteParse sends pages: a local service the collection names, or the
+    """Where LiteParse sends pages: a service connection the collection names, or the
     worker's own Tesseract. Checked at the form and resolved at parse time, both
     within what the collection may name."""
 
     async def test_no_choice_is_the_workers_own_tesseract(self) -> None:
         service = IngestionConfigService(_db())
         with patch(
-            "app.services.ingestion_config.local_service_repo.get_visible", new=AsyncMock()
+            "app.services.ingestion_config.service_connection_repo.get_visible", new=AsyncMock()
         ) as lookup:
             await service.check_ocr_endpoint(ORG, IngestionConfig())
             assert await service._ocr_server_url(ORG, IngestionConfig()) is None
@@ -630,7 +663,7 @@ class TestTheOcrServer:
     async def test_a_visible_ocr_server_resolves_to_its_address(self) -> None:
         config = IngestionConfig(ocr_endpoint_id=uuid.uuid4())
         with patch(
-            "app.services.ingestion_config.local_service_repo.get_visible",
+            "app.services.ingestion_config.service_connection_repo.get_visible",
             new=AsyncMock(return_value=_ocr_service()),
         ):
             await IngestionConfigService(_db()).check_ocr_endpoint(ORG, config)
@@ -651,7 +684,7 @@ class TestTheOcrServer:
         config = IngestionConfig(ocr_endpoint_id=uuid.uuid4())
         with (
             patch(
-                "app.services.ingestion_config.local_service_repo.get_visible",
+                "app.services.ingestion_config.service_connection_repo.get_visible",
                 new=AsyncMock(return_value=row),
             ),
             pytest.raises(BadRequestError, match=reason) as refusal,

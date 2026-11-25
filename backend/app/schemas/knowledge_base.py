@@ -65,10 +65,10 @@ class KnowledgeBaseCreate(AudienceChoice):
     embedding_endpoint_id: UUID | None = Field(
         default=None,
         description=(
-            "Where a keyless provider is reached: a local service of kind "
+            "Where a provider reached through a connection answers: a service connection of kind "
             "`embedding` whose provider is the chosen one - the organization's own "
-            "or the deployment's. Required for a keyless provider, refused for a "
-            "keyed one; an app-scoped collection may name only a deployment-wide "
+            "or the deployment's. Required for a keyless or custom provider, refused "
+            "for a keyed one; an app-scoped collection may name only a deployment-wide "
             "service."
         ),
     )
@@ -132,7 +132,7 @@ class KnowledgeBaseUpdate(BaseSchema):
     embedding_endpoint_id: UUID | None = Field(
         default=None,
         description=(
-            "The local service a keyless provider is reached at from now on. Must "
+            "The service connection a keyless or custom provider is reached at from now on. Must "
             "be of kind `embedding` and for the provider the collection ends up "
             "on. Null leaves it alone."
         ),

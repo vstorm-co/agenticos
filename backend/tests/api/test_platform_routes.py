@@ -655,10 +655,10 @@ CALLS: tuple[Call, ...] = (
     # containers there. Every route including the per-resource ones: a connection
     # has no grants, so a gate here cannot refuse somebody a grant would have
     # admitted.
-    Call("GET", "/local-services", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/service-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
-        "/local-services",
+        "/service-connections",
         Perm.CONNECTIONS_MANAGE,
         body={
             "name": "GPU box",
@@ -667,7 +667,7 @@ CALLS: tuple[Call, ...] = (
             "base_url": "http://ollama:11434/v1",
         },
     ),
-    Call("PATCH", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("PATCH", "/service-connections/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
     # The standalone ML services, all on one permission. `ml:invoke` is separate
     # from `agents:run` so that an integration which parses documents cannot also
     # spend the organization's model budget.
@@ -681,7 +681,7 @@ CALLS: tuple[Call, ...] = (
     # `ml:invoke` alone (every Member) is not enough (#1797).
     Call("GET", "/ml/calls/summary", Perm.RUNS_VIEW),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
-    Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
+    Call("DELETE", "/service-connections/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
@@ -1012,7 +1012,7 @@ _PLATFORM_PREFIXES = (
     "/solutions",
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
-    "/local-services",
+    "/service-connections",
     # The standalone ML services. Reached by another component holding a key
     # rather than by a person in a browser, which is precisely why the sweep has
     # to see them: nobody would notice an ungated one from the console.

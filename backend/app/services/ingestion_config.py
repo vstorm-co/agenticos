@@ -53,9 +53,10 @@ from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems, refused_field
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
-from app.db.models.local_service import LocalService, LocalServiceKind
-from app.repositories import local_service_repo, organization_secret_repo
+from app.db.models.service_connection import ServiceConnection, ServiceConnectionKind
+from app.repositories import organization_secret_repo, service_connection_repo
 from app.services.model_profile import ModelProfileService
+from app.services.rag import embedding_providers
 from app.services.rag.config import (
     EMBEDDING_DIMENSIONS,
     PdfParser,
@@ -213,7 +214,7 @@ class IngestionConfig(BaseModel):
     ocr_endpoint_id: UUID | None = Field(
         default=None,
         description=(
-            "The OCR server LiteParse sends pages to: a local service of kind "
+            "The OCR server LiteParse sends pages to: a service connection of kind "
             "`ocr`, the organization's own or the deployment's. Omit to run the "
             "Tesseract bundled with the worker. Ignored by the other parsers."
         ),
@@ -434,7 +435,7 @@ def deployment_defaults() -> IngestionConfig:
     return IngestionConfig()
 
 
-def chosen_embedding(model: str | None) -> tuple[str, int]:
+def chosen_embedding(model: str | None, *, measured_dim: int | None = None) -> tuple[str, int]:
     """The embedding model a new collection will index with, and its width.
 
     A named model must be one this build knows the width of, because the vector
@@ -442,6 +443,12 @@ def chosen_embedding(model: str | None) -> tuple[str, int]:
     from its first insert. There is no deployment default to fall back to: the
     form offers the models the chosen provider serves, and one of them has to
     be chosen.
+
+    Args:
+        model: The model the form named.
+        measured_dim: The width a custom endpoint answered with when it was
+            tested. Given for a provider that serves any model, whose width no
+            catalog states; it replaces the catalog's lookup.
 
     Raises:
         BadRequestError: If no model was named, or the named one has no known
@@ -453,6 +460,15 @@ def chosen_embedding(model: str | None) -> tuple[str, int]:
             "Choose the embedding model this collection indexes with; there is no "
             "deployment-wide default.",
         )
+    if measured_dim is not None:
+        if not 1 <= measured_dim <= embedding_providers.MAX_MEASURED_DIM:
+            raise refused_field(
+                "embedding_model",
+                f"A collection can index vectors of 1 to {embedding_providers.MAX_MEASURED_DIM} "
+                f"dimensions; this endpoint answered with {measured_dim}.",
+                dim=measured_dim,
+            )
+        return model, measured_dim
     if model not in EMBEDDING_DIMENSIONS:
         raise refused_field(
             "embedding_model",
@@ -471,7 +487,7 @@ def rag_settings_for(
     """Turn a collection's choices into the settings object the pipeline takes.
 
     `llamaparse_api_key` is the resolved credential of the vault key the
-    configuration names; `ocr_server_url` the address of the local service it
+    configuration names; `ocr_server_url` the address of the service connection it
     names. Both arrive resolved because the configuration holds ids, not values:
     a credential must not sit in a stored row, and an address is a row an
     operator may edit or turn off between two parses.
@@ -532,7 +548,9 @@ class IngestionConfigService:
         )
         return f"{spec.provider}:{spec.model}"
 
-    def check_embedding_model(self, *, collection: str, built_with: str) -> None:
+    def check_embedding_model(
+        self, *, collection: str, built_with: str, provider: str, dim: int
+    ) -> None:
         """Refuse to index into a collection whose model this build cannot run.
 
         The store embeds each collection with the model recorded on its row,
@@ -540,13 +558,18 @@ class IngestionConfigService:
         later catalog offers. What still has to be refused is a model this
         build has *no width for*: the
         vectors could not be produced at all, and the upload would otherwise be
-        accepted and die in a worker with nothing on screen.
+        accepted and die in a worker with nothing on screen. A collection on a
+        provider that serves any model recorded its width when it was created, so
+        the row is its own answer.
 
         Raises:
             BadRequestError: If the collection's recorded model has no known
                 dimension in this build.
         """
-        if built_with in EMBEDDING_DIMENSIONS:
+        entry = embedding_providers.get(provider)
+        if built_with in EMBEDDING_DIMENSIONS or (
+            entry is not None and entry.any_model and entry.serves(built_with, dim)
+        ):
             return
         raise BadRequestError(
             message=(
@@ -652,7 +675,7 @@ class IngestionConfigService:
         """Refuse an OCR server this collection may not name, while the form is open.
 
         Raises:
-            BadRequestError: If the named local service is not visible to this
+            BadRequestError: If the named service connection is not visible to this
                 collection, is not an OCR server, or is turned off.
         """
         if config.ocr_endpoint_id is None:
@@ -731,15 +754,17 @@ class IngestionConfigService:
             return None
         return (await self._ocr_service(organization_id, config.ocr_endpoint_id)).base_url
 
-    async def _ocr_service(self, organization_id: UUID | None, service_id: UUID) -> LocalService:
-        row = await local_service_repo.get_visible(
+    async def _ocr_service(
+        self, organization_id: UUID | None, service_id: UUID
+    ) -> ServiceConnection:
+        row = await service_connection_repo.get_visible(
             self.db, service_id, organization_id=organization_id
         )
         if row is None:
             raise refused_field(
-                "ocr_endpoint_id", "That local service is not one this collection may name."
+                "ocr_endpoint_id", "That service connection is not one this collection may name."
             )
-        if row.kind != LocalServiceKind.OCR.value:
+        if row.kind != ServiceConnectionKind.OCR.value:
             raise refused_field(
                 "ocr_endpoint_id", f"'{row.name}' is a {row.kind} service, not an OCR server."
             )

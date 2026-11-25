@@ -305,6 +305,9 @@ class EmbeddingProviderEntry(BaseSchema):
     # An endpoint on the deployment's own network that takes no key, so the form
     # asks for none - and the only kind an app-scoped collection may embed through.
     keyless: bool
+    # The model is typed rather than listed, and its width is measured: `models` is
+    # empty and the form asks for a name.
+    any_model: bool
 
 
 class EmbeddingModelsResponse(BaseSchema):

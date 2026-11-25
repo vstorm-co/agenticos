@@ -82,13 +82,13 @@ class KnowledgeBase(TimestampMixin, Base):
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
     )
-    # Where a keyless provider is reached: a `local_services` row of kind
+    # Where a keyless provider is reached: a `service_connections` row of kind
     # `embedding`, the organization's own or the deployment's. NULL for a keyed
     # provider, whose address is the catalog's. SET NULL on delete for the same
     # reason as the key above - the resolver then says the service is gone.
     embedding_endpoint_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("local_services.id", ondelete="SET NULL"),
+        ForeignKey("service_connections.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

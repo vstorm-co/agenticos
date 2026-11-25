@@ -143,7 +143,7 @@ async def recognise_document(
     ocr_service_id: UUID | None = Form(
         default=None,
         description=(
-            "An OCR server registered under `GET /local-services`, to send the pages "
+            "An OCR server registered under `GET /service-connections`, to send the pages "
             "to. Omit to use the recognition engine bundled with the parser."
         ),
     ),

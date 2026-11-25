@@ -11,16 +11,16 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.local_service import LocalServiceKind
 from app.db.models.resource_grant import Visibility
+from app.db.models.service_connection import ServiceConnectionKind
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
     collection_teardown_repo,
     knowledge_base_repo,
-    local_service_repo,
     organization_secret_repo,
     rag_document_repo,
     resource_grant_repo,
+    service_connection_repo,
     sync_log_repo,
 )
 from app.repositories.rag_document import CollectionCounts, CollectionScope
@@ -79,41 +79,54 @@ def _check_provider_fits_scope(
 
     An app-scoped collection belongs to no organization, so there is no vault
     it could name a key from and no deployment-wide key either; the one way it
-    can embed is through a keyless endpoint on the deployment's own network
-    (#1631). Refused here, on the control that chose the provider, rather than
+    can embed is through a service connection the deployment registered: a
+    keyless endpoint on its own network (#1631), or a custom one that holds no
+    key. Refused here, on the control that chose the provider, rather than
     discovered on the first document that fails to index.
     """
-    if organization_id is None and not provider.keyless:
+    if organization_id is None and not provider.via_connection:
         raise refused_field(
             "embedding_provider",
             f"An app-scoped collection belongs to no organization and has no vault to hold a "
             f"key for {provider.name}. Choose a keyless provider on the deployment's own "
-            "network, or create the collection inside an organization.",
+            "network, or a custom one at a deployment-wide connection, or create the "
+            "collection inside an organization.",
         )
 
 
 def _refuse_endpoint_for_keyed(
     provider: embedding_providers.EmbeddingProviderEntry, *, endpoint_id: UUID | None
 ) -> None:
-    """A vendor's address is the catalog's; a local service named for one is a mistake to record."""
+    """A vendor's address is the catalog's; a service connection named for one is a mistake to record."""
     if endpoint_id is not None:
         raise refused_field(
             "embedding_endpoint_id",
-            f"{provider.name} is reached at its own address; a local service applies only to "
-            "a keyless provider on the deployment's own network.",
+            f"{provider.name} is reached at its own address; a service connection applies only to "
+            "a provider reached through one.",
         )
 
 
-def _refuse_key_for_keyless(
+def _refuse_key_for_connection_provider(
     provider: embedding_providers.EmbeddingProviderEntry, *, secret_id: UUID | None
 ) -> None:
-    """A keyless endpoint takes no credential, so a key chosen for it is a mistake to name."""
-    if secret_id is not None:
+    """A provider reached through a service connection takes no key from the collection.
+
+    A keyless endpoint takes none at all; a custom one takes the key its connection
+    carries, so a key chosen on the collection is a second one nothing would use.
+    """
+    if secret_id is None:
+        return
+    if provider.any_model:
         raise refused_field(
             "embedding_secret_id",
-            f"{provider.name} takes no key: it is a keyless endpoint on the deployment's own "
-            "network, and nothing is billed for its embeddings.",
+            f"{provider.name} is reached through a service connection, which holds the key "
+            "if it needs one; a collection names none.",
         )
+    raise refused_field(
+        "embedding_secret_id",
+        f"{provider.name} takes no key: it is a keyless endpoint on the deployment's own "
+        "network, and nothing is billed for its embeddings.",
+    )
 
 
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
@@ -725,12 +738,12 @@ class KnowledgeBaseService:
                 await embedding_providers.require_served_at(
                     provider, embedding_base_url, model=embedding_model, field="embedding_model"
                 )
-            if provider.keyless:
-                _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
+            if provider.via_connection:
+                _refuse_key_for_connection_provider(provider, secret_id=embedding_secret_id)
                 if embedding_endpoint_id is None:
                     raise refused_field(
                         "embedding_endpoint_id",
-                        f"Choose the local service {provider.name} answers at; the catalog "
+                        f"Choose the service connection {provider.name} answers at; the catalog "
                         "holds no address for a server the deployment runs itself.",
                     )
                 await self._check_embedding_endpoint(
@@ -938,7 +951,7 @@ class KnowledgeBaseService:
             if (
                 kb.embedding_secret_id is not None
                 and data.embedding_secret_id is None
-                and not provider.keyless
+                and not provider.via_connection
             ):
                 await self._check_embedding_secret(
                     kb.embedding_secret_id,
@@ -961,11 +974,11 @@ class KnowledgeBaseService:
                 )
         if data.embedding_provider is not None:
             _check_provider_fits_scope(provider, organization_id=kb.organization_id)
-        if provider.keyless:
+        if provider.via_connection:
             # A key the row still holds from the provider it left is not
             # refused: the resolver never opens it for a keyless endpoint, and a
             # move back to a keyed provider checks it against that one.
-            _refuse_key_for_keyless(provider, secret_id=data.embedding_secret_id)
+            _refuse_key_for_connection_provider(provider, secret_id=data.embedding_secret_id)
             if data.embedding_endpoint_id is not None:
                 await self._check_embedding_endpoint(
                     data.embedding_endpoint_id,
@@ -1030,21 +1043,22 @@ class KnowledgeBaseService:
         organization_id: UUID | None,
         provider: embedding_providers.EmbeddingProviderEntry,
     ) -> None:
-        """Refuse a local service this collection may not name, or one of the wrong shape.
+        """Refuse a service connection this collection may not name, or one of the wrong shape.
 
         Visible means the organization's own or the deployment's; an app-scoped
         collection, with no organization, sees the deployment's alone. A service
         another organization registered is phrased as one that does not exist,
         so a refusal cannot enumerate another tenant's hosts.
         """
-        row = await local_service_repo.get_visible(
+        row = await service_connection_repo.get_visible(
             self.db, endpoint_id, organization_id=organization_id
         )
         if row is None:
             raise refused_field(
-                "embedding_endpoint_id", "That local service is not one this collection may name."
+                "embedding_endpoint_id",
+                "That service connection is not one this collection may name.",
             )
-        if row.kind != LocalServiceKind.EMBEDDING.value or row.provider != provider.provider:
+        if row.kind != ServiceConnectionKind.EMBEDDING.value or row.provider != provider.provider:
             raise refused_field(
                 "embedding_endpoint_id",
                 f"'{row.name}' is a {row.provider} {row.kind} service, and this collection "
@@ -1063,7 +1077,7 @@ class KnowledgeBaseService:
         if kb.embedding_endpoint_id is None:
             raise refused_field(
                 "embedding_endpoint_id",
-                f"Moving to {provider.name} needs the local service it answers at, in the "
+                f"Moving to {provider.name} needs the service connection it answers at, in the "
                 "same request.",
             )
         await self._check_embedding_endpoint(

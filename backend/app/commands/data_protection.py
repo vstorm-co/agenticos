@@ -54,13 +54,13 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.generated_media import GeneratedMedia
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sandbox_operation import SandboxOperation
+from app.db.models.service_connection import ServiceConnection
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.db.models.visual import Visual
@@ -394,7 +394,7 @@ async def _collections(db: AsyncSession) -> Section:
                 name,
                 provider,
                 model,
-                "local service" if endpoint_id else "provider API",
+                "service connection" if endpoint_id else "provider API",
                 parser,
                 _yes_no(off_site),
             ]
@@ -418,28 +418,41 @@ async def _collections(db: AsyncSession) -> Section:
     )
 
 
-async def _local_services(db: AsyncSession) -> Section:
-    """The hosts a collection or a model profile may be pointed at instead."""
+async def _service_connections(db: AsyncSession) -> Section:
+    """The endpoints a collection or a model profile may be pointed at instead."""
     result = await db.execute(
         select(
             Organization.name,
-            LocalService.kind,
-            LocalService.provider,
-            LocalService.name,
-            LocalService.base_url,
-            LocalService.is_active,
+            ServiceConnection.kind,
+            ServiceConnection.provider,
+            ServiceConnection.name,
+            ServiceConnection.base_url,
+            ServiceConnection.is_active,
+            ServiceConnection.requires_key,
+            ServiceConnection.secret_id,
         )
-        .outerjoin(Organization, Organization.id == LocalService.organization_id)
-        .order_by(LocalService.kind, LocalService.name)
+        .outerjoin(Organization, Organization.id == ServiceConnection.organization_id)
+        .order_by(ServiceConnection.kind, ServiceConnection.name)
     )
     rows = [
-        [org or "deployment-wide", kind, provider, name, base_url, _yes_no(is_active)]
-        for org, kind, provider, name, base_url, is_active in result.all()
+        [
+            org or "deployment-wide",
+            kind,
+            provider,
+            name,
+            base_url,
+            _yes_no(is_active),
+            "yes" if secret_id else ("missing" if requires_key else "no"),
+        ]
+        for org, kind, provider, name, base_url, is_active, requires_key, secret_id in result.all()
     ]
     return Section(
-        title="Services on your own network",
-        note="Every address here should be one the deployment runs. Verify each.",
-        headers=("Organization", "Kind", "Provider", "Name", "Endpoint", "Active"),
+        title="Service connections",
+        note=(
+            "Endpoints collections may be pointed at; an OpenAI-compatible one may be "
+            "outside the deployment. Verify each."
+        ),
+        headers=("Organization", "Kind", "API style", "Name", "Endpoint", "Active", "Vault key"),
         rows=rows,
     )
 
@@ -778,7 +791,7 @@ async def _collect(older_than_days: int) -> list[Section]:
             await _model_destinations(db),
             await _credentials(db),
             await _collections(db),
-            await _local_services(db),
+            await _service_connections(db),
             await _external_connections(db),
             await _capability_destinations(db),
             await _tracing(db),

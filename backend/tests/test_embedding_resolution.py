@@ -10,6 +10,7 @@ to an empty key and a reason, and the embedding client refuses with both.
 """
 
 import uuid
+from dataclasses import asdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,8 +21,12 @@ from app.core.vault import VaultScope
 from app.db.vector_tables import VectorScope
 from app.services.embedding_resolution import (
     EmbeddingKeySource,
+    EmbeddingSettings,
     ResolvedEmbeddings,
+    TargetIdentity,
     embeddings_for_collection,
+    identify_target,
+    open_target,
 )
 
 pytestmark = pytest.mark.anyio
@@ -29,6 +34,7 @@ pytestmark = pytest.mark.anyio
 _MODULE = "app.services.embedding_resolution"
 _ORG = uuid.uuid4()
 _KB = uuid.uuid4()
+_GENERATION = uuid.uuid4()
 
 
 def _kb(
@@ -52,9 +58,26 @@ def _kb(
     )
 
 
-def _local_service(*, base_url: str = "http://ollama:11434/v1", active: bool = True):
-    """A `local_services` row of kind `embedding`, as the resolver reads it."""
-    return MagicMock(base_url=base_url, is_active=active, kind="embedding", provider="ollama")
+def _service_connection(
+    *,
+    base_url: str = "http://ollama:11434/v1",
+    active: bool = True,
+    provider: str = "ollama",
+    requires_key: bool = False,
+    secret_id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = _ORG,
+):
+    """A `service_connections` row of kind `embedding`, as the resolver reads it."""
+    return MagicMock(
+        id=uuid.uuid4(),
+        base_url=base_url,
+        is_active=active,
+        kind="embedding",
+        provider=provider,
+        requires_key=requires_key,
+        secret_id=secret_id,
+        organization_id=organization_id,
+    )
 
 
 def _openai_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
@@ -79,7 +102,7 @@ def _sealed_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
 
 async def _resolve(kb, secret_row=None, endpoint_row=None):
     """Run the resolver against one KB row, an optional vault row and an
-    optional local-service row.
+    optional service-connection row.
 
     Returns the resolution and the secret-repo mock, so a test can assert the
     vault was - or was not - consulted.
@@ -88,12 +111,15 @@ async def _resolve(kb, secret_row=None, endpoint_row=None):
         patch(f"{_MODULE}.get_db_context") as db_ctx,
         patch(f"{_MODULE}.knowledge_base_repo") as kbs,
         patch(f"{_MODULE}.organization_secret_repo") as secrets,
-        patch(f"{_MODULE}.local_service_repo") as services,
+        patch(f"{_MODULE}.service_connection_repo") as services,
     ):
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
         kbs.get_for_collection = AsyncMock(return_value=kb)
         secrets.get = AsyncMock(return_value=secret_row)
+        secrets.authorization_generation = AsyncMock(
+            return_value=None if secret_row is None else _GENERATION
+        )
         services.get_visible = AsyncMock(return_value=endpoint_row)
         return await embeddings_for_collection("handbook"), secrets
 
@@ -252,13 +278,13 @@ class TestCredentialDegradation:
 
 class TestAKeylessProvider:
     """A server on the deployment's own network wants no credential (#1632); the
-    collection names the local service that carries its address."""
+    collection names the service connection that carries its address."""
 
     async def test_resolves_to_no_key_and_the_services_address_without_opening_the_vault(self):
         resolved, secrets = await _resolve(
             _kb(provider="ollama", endpoint_id=uuid.uuid4()),
             _sealed_key_row("sk-left-behind"),
-            _local_service(base_url="http://gpu-box:11434/v1"),
+            _service_connection(base_url="http://gpu-box:11434/v1"),
         )
 
         assert resolved is not None
@@ -274,7 +300,7 @@ class TestAKeylessProvider:
         resolved, secrets = await _resolve(
             _kb(secret_id=uuid.uuid4(), provider="ollama", endpoint_id=uuid.uuid4()),
             _sealed_key_row("sk-left-behind"),
-            _local_service(),
+            _service_connection(),
         )
 
         assert resolved is not None
@@ -287,7 +313,7 @@ class TestAKeylessProvider:
         resolved, _ = await _resolve(
             _kb(provider="ollama", organization_id=None, endpoint_id=uuid.uuid4()),
             None,
-            _local_service(),
+            _service_connection(),
         )
 
         assert resolved is not None
@@ -312,12 +338,311 @@ class TestAKeylessProvider:
     async def test_a_service_turned_off_is_told_apart_from_one_that_is_gone(self):
         """The remedies differ: turn it on, or choose another."""
         resolved, _ = await _resolve(
-            _kb(provider="ollama", endpoint_id=uuid.uuid4()), None, _local_service(active=False)
+            _kb(provider="ollama", endpoint_id=uuid.uuid4()),
+            None,
+            _service_connection(active=False),
         )
 
         assert resolved is not None
         assert resolved.key_source is EmbeddingKeySource.ENDPOINT_PAUSED
         assert "turned off" in resolved.key_source.explanation
+
+
+def _custom_kb(**overrides):
+    return _kb(provider="openai_compatible", endpoint_id=uuid.uuid4(), **overrides)
+
+
+class TestACustomConnection:
+    """`openai_compatible` is reached at its connection's address, on the key the
+    connection carries - never the collection's."""
+
+    async def test_a_custom_collection_embeds_with_its_connections_url_and_key(self):
+        key = uuid.uuid4()
+        resolved, secrets = await _resolve(
+            _custom_kb(),
+            _sealed_key_row("sk-gateway"),
+            _service_connection(
+                provider="openai_compatible",
+                base_url="https://gateway.example.com/v1",
+                requires_key=True,
+                secret_id=key,
+            ),
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.CONNECTION
+        assert resolved.base_url == "https://gateway.example.com/v1"
+        assert resolved.api_key == "sk-gateway"
+        assert not resolved.key_source.is_degraded
+        assert secrets.get.await_args.args[1] == key
+
+    async def test_a_custom_collection_on_a_keyless_connection_is_keyless(self):
+        resolved, secrets = await _resolve(
+            _custom_kb(),
+            None,
+            _service_connection(
+                provider="openai_compatible", base_url="https://gateway.example.com/v1"
+            ),
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.KEYLESS
+        assert resolved.api_key == ""
+        assert resolved.base_url == "https://gateway.example.com/v1"
+        secrets.get.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_keyed_connection_whose_key_was_deleted_is_refused_by_name(self):
+        """`secret_id` is `SET NULL` on delete and `requires_key` stays, so the
+        endpoint is not called bare."""
+        resolved, _ = await _resolve(
+            _custom_kb(),
+            None,
+            _service_connection(provider="openai_compatible", requires_key=True),
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.CONNECTION_KEY_MISSING
+        assert resolved.base_url == ""
+        assert resolved.api_key == ""
+
+    @pytest.mark.security
+    async def test_a_keyed_connection_whose_secret_row_is_gone_is_refused_by_name(self):
+        resolved, _ = await _resolve(
+            _custom_kb(),
+            None,
+            _service_connection(
+                provider="openai_compatible", requires_key=True, secret_id=uuid.uuid4()
+            ),
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.CONNECTION_KEY_MISSING
+        assert resolved.base_url == ""
+
+    @pytest.mark.security
+    async def test_a_connection_key_that_cannot_be_unsealed_is_unusable(self):
+        broken = MagicMock(
+            sealed_secret="not-a-ciphertext", kind=SecretKind.API_KEY.value, key_version=1
+        )
+        resolved, _ = await _resolve(
+            _custom_kb(),
+            broken,
+            _service_connection(
+                provider="openai_compatible", requires_key=True, secret_id=uuid.uuid4()
+            ),
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.CONNECTION_KEY_UNUSABLE
+        assert resolved.api_key == ""
+        assert resolved.base_url == ""
+
+    @pytest.mark.security
+    async def test_a_connection_key_that_is_not_an_api_key_is_unusable(self):
+        with patch(f"{_MODULE}.unseal_secret", return_value=MagicMock(spec=[])):
+            resolved, _ = await _resolve(
+                _custom_kb(),
+                _sealed_key_row("sk-xxxxxxxxxx"),
+                _service_connection(
+                    provider="openai_compatible", requires_key=True, secret_id=uuid.uuid4()
+                ),
+            )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.CONNECTION_KEY_UNUSABLE
+        assert resolved.base_url == ""
+
+    @pytest.mark.parametrize(
+        ("row", "expected"),
+        [
+            (None, EmbeddingKeySource.ENDPOINT_MISSING),
+            (
+                _service_connection(provider="openai_compatible", active=False),
+                EmbeddingKeySource.ENDPOINT_PAUSED,
+            ),
+        ],
+        ids=["missing", "paused"],
+    )
+    async def test_a_paused_or_missing_connection_is_named(self, row, expected):
+        resolved, _ = await _resolve(_custom_kb(), None, row)
+
+        assert resolved is not None
+        assert resolved.key_source is expected
+        assert resolved.base_url == ""
+
+    @pytest.mark.parametrize(
+        "case",
+        ["organization", "keyless", "connection"],
+    )
+    async def test_no_path_that_can_embed_has_an_empty_url(self, case):
+        key = uuid.uuid4()
+        if case == "organization":
+            resolved, _ = await _resolve(_kb(secret_id=key), _sealed_key_row("sk-aaaaaaaaaa"))
+        elif case == "keyless":
+            resolved, _ = await _resolve(
+                _kb(provider="ollama", endpoint_id=uuid.uuid4()), None, _service_connection()
+            )
+        else:
+            resolved, _ = await _resolve(
+                _custom_kb(),
+                _sealed_key_row("sk-aaaaaaaaaa"),
+                _service_connection(provider="openai_compatible", requires_key=True, secret_id=key),
+            )
+
+        assert resolved is not None
+        assert not resolved.key_source.is_degraded
+        assert resolved.base_url != ""
+
+    async def test_the_identity_never_carries_the_key(self):
+        db = MagicMock()
+        key = uuid.uuid4()
+        with (
+            patch(f"{_MODULE}.organization_secret_repo") as secrets,
+            patch(f"{_MODULE}.service_connection_repo") as services,
+        ):
+            secrets.authorization_generation = AsyncMock(return_value=_GENERATION)
+            secrets.get = AsyncMock(return_value=_sealed_key_row("sk-never-in-identity"))
+            services.get_visible = AsyncMock(
+                return_value=_service_connection(
+                    provider="openai_compatible", requires_key=True, secret_id=key
+                )
+            )
+            identity = await identify_target(
+                db, EmbeddingSettings.of(_custom_kb()), organization_id=_ORG
+            )
+            target = await open_target(db, identity)
+
+        assert target.api_key == "sk-never-in-identity"
+        assert "sk-never-in-identity" not in repr(identity)
+        assert "sk-never-in-identity" not in str(asdict(identity))
+        assert "sk-never-in-identity" not in repr(target)
+        secrets.get.assert_awaited_once()
+
+    async def test_the_identity_names_the_keys_generation(self):
+        key = uuid.uuid4()
+        with (
+            patch(f"{_MODULE}.organization_secret_repo") as secrets,
+            patch(f"{_MODULE}.service_connection_repo") as services,
+        ):
+            secrets.authorization_generation = AsyncMock(return_value=_GENERATION)
+            secrets.get = AsyncMock()
+            services.get_visible = AsyncMock(
+                return_value=_service_connection(
+                    provider="openai_compatible", requires_key=True, secret_id=key
+                )
+            )
+            identity = await identify_target(
+                MagicMock(), EmbeddingSettings.of(_custom_kb()), organization_id=_ORG
+            )
+
+        assert identity.key_generation == _GENERATION
+        assert identity.secret_id == key
+        assert identity.key_organization_id == _ORG
+        assert identity.key_source is EmbeddingKeySource.CONNECTION
+        secrets.get.assert_not_called()  # identifying unseals nothing
+
+    async def test_a_key_that_vanishes_between_identifying_and_opening_degrades(self):
+        """The two steps are separate reads, so the row can be deleted between them."""
+        identity = TargetIdentity(
+            provider="openai_compatible",
+            connection_id=uuid.uuid4(),
+            base_url="https://gateway.example.com/v1",
+            secret_id=uuid.uuid4(),
+            key_generation=_GENERATION,
+            key_organization_id=_ORG,
+            key_source=EmbeddingKeySource.CONNECTION,
+        )
+        with patch(f"{_MODULE}.organization_secret_repo") as secrets:
+            secrets.get = AsyncMock(return_value=None)
+            target = await open_target(MagicMock(), identity)
+
+        assert target.identity.key_source is EmbeddingKeySource.CONNECTION_KEY_MISSING
+        assert target.identity.base_url == ""
+        assert target.api_key == ""
+        assert not target.keyless
+
+    async def test_an_identity_naming_no_key_is_never_opened(self):
+        identity = TargetIdentity(
+            provider="openai_compatible",
+            connection_id=uuid.uuid4(),
+            base_url="https://gateway.example.com/v1",
+            secret_id=None,
+            key_generation=None,
+            key_organization_id=None,
+            key_source=EmbeddingKeySource.CONNECTION,
+        )
+        with patch(f"{_MODULE}.organization_secret_repo") as secrets:
+            target = await open_target(MagicMock(), identity)
+
+        assert target.identity.key_source is EmbeddingKeySource.CONNECTION_KEY_MISSING
+        secrets.get.assert_not_called()
+
+    async def test_a_keyless_identity_opens_to_a_keyless_target(self):
+        identity = TargetIdentity(
+            provider="ollama",
+            connection_id=uuid.uuid4(),
+            base_url="http://ollama:11434/v1",
+            secret_id=None,
+            key_generation=None,
+            key_organization_id=None,
+            key_source=EmbeddingKeySource.KEYLESS,
+        )
+
+        target = await open_target(MagicMock(), identity)
+
+        assert target.keyless
+        assert target.api_key == ""
+        assert "api_key='***'" in repr(target)
+
+    async def test_a_catalog_keys_degradation_keeps_the_vendors_address(self):
+        broken = MagicMock(sealed_secret="nope", kind=SecretKind.API_KEY.value, key_version=1)
+        resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), broken)
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.SECRET_UNUSABLE
+        assert resolved.base_url == "https://openrouter.ai/api/v1"
+
+    async def test_a_degradation_names_the_collection_in_the_log(self, caplog):
+        with caplog.at_level("WARNING"):
+            await _resolve(_kb(secret_id=uuid.uuid4()), None)
+
+        assert any(getattr(r, "collection", None) == "handbook" for r in caplog.records)
+
+    @pytest.mark.parametrize("wrong_kind", [False, True])
+    async def test_an_unopenable_key_names_the_collection_in_the_log(self, caplog, wrong_kind):
+        row = _sealed_key_row("sk-aaaaaaaaaa")
+        if not wrong_kind:
+            row = MagicMock(sealed_secret="nope", kind=SecretKind.API_KEY.value, key_version=1)
+        with (
+            caplog.at_level("WARNING"),
+            patch(
+                f"{_MODULE}.unseal_secret",
+                **(
+                    {"return_value": MagicMock(spec=[])}
+                    if wrong_kind
+                    else {"side_effect": ValueError}
+                ),
+            ),
+        ):
+            await _resolve(_kb(secret_id=uuid.uuid4()), row)
+
+        assert any(getattr(r, "collection", None) == "handbook" for r in caplog.records)
+
+    async def test_an_unknown_provider_names_provider_and_collection_in_the_log(self, caplog):
+        with caplog.at_level("WARNING"):
+            await _resolve(_kb(provider="a-provider-that-left"))
+
+        record = next(r for r in caplog.records if r.getMessage() == "embedding_provider_unknown")
+        assert (record.collection, record.provider) == ("handbook", "a-provider-that-left")
+
+    async def test_an_unknown_provider_resolves_to_no_address_and_no_key(self):
+        resolved, secrets = await _resolve(_kb(provider="a-provider-that-left"))
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.PROVIDER_UNKNOWN
+        assert resolved.base_url == ""
+        secrets.get.assert_not_called()
 
 
 class TestSayingWhichKeyPaid:
@@ -346,6 +671,7 @@ class TestSayingWhichKeyPaid:
         degraded = {source for source in EmbeddingKeySource if source.is_degraded}
 
         assert EmbeddingKeySource.KEYLESS not in degraded
+        assert EmbeddingKeySource.CONNECTION not in degraded
         assert degraded == {
             EmbeddingKeySource.NONE_CHOSEN,
             EmbeddingKeySource.NO_VAULT,
@@ -355,6 +681,8 @@ class TestSayingWhichKeyPaid:
             EmbeddingKeySource.PROVIDER_UNKNOWN,
             EmbeddingKeySource.ENDPOINT_MISSING,
             EmbeddingKeySource.ENDPOINT_PAUSED,
+            EmbeddingKeySource.CONNECTION_KEY_MISSING,
+            EmbeddingKeySource.CONNECTION_KEY_UNUSABLE,
         }
 
     def test_every_source_has_a_sentence_of_its_own(self):
