@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "8a442bac0bd0"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1483,6 +1483,11 @@ Wybierz `inject` dla kontekstu każdego uruchomienia albo `link` dla odczytu na
 zastępuje cały zestaw powiązań. Edycja podpiętego pliku działa przy kolejnym
 uruchomieniu; zmiana powiązania draftu wymaga publikacji. Nadal obowiązują
 uprawnienia i zatwierdzenia zapisów.
+
+`update_skill`, `add_skill_resource` i
+`update_context_file` zmieniają to, co działające agenty czytają przy kolejnym
+uruchomieniu, więc każde wywołanie najpierw pyta osobę, także przy stałej zgodzie;
+utworzenie nowego skilla lub pliku Context działa domyślnie.
 
 ### Uprawnienia źródłowe połączonego konta { #connected-account-source-authority }
 

@@ -643,7 +643,10 @@ Platform MCP can discover/create/edit Context files, bind their `context_ids` to
 an agent draft, and read/edit skills or add text resources. Context supports
 `inject` for standing prompt material and `link` for on-demand reading. Editing a
 bound file takes effect on the next run; changing a draft binding still requires
-publication. Resource writes keep normal permissions and approval gates.
+publication. Resource writes keep normal permissions and approval gates. Editing a
+skill, adding a resource to it and editing a Context file always ask the person
+first: every agent on the skill's line, or bound to the file, reads the change on
+its next run.
 
 The document-production skill includes LaTeX starter sources and a build/render
 procedure. HTML Apps and browser decks remain distinct from compiled PDF or

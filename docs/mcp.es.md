@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "8a442bac0bd0"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1535,6 +1535,11 @@ herramientas de borrador aceptan `context_ids`; la lista sustituye todos los
 vínculos Context. Editar un archivo vinculado afecta al próximo uso; cambiar
 el vínculo del borrador requiere publicación. Se mantienen permisos y
 aprobaciones de escritura.
+
+`update_skill`, `add_skill_resource` y
+`update_context_file` cambian lo que leen los agents en uso en su siguiente run,
+así que cada llamada pregunta antes a la persona, también con consentimiento
+permanente; crear un skill o un archivo Context nuevo se ejecuta por defecto.
 
 ### Autoridad de origen de las cuentas conectadas { #connected-account-source-authority }
 

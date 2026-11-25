@@ -1432,6 +1432,11 @@ list replaces the complete binding list. Editing a bound Context file affects th
 next run; changing a draft binding requires publication. Normal permissions and
 write approvals remain in force.
 
+`update_skill`, `add_skill_resource` and
+`update_context_file` change what live agents read on their next run, so each
+call asks the person first, standing consent included; creating a new skill or
+Context file runs by default.
+
 ### Connected account source authority
 
 A Google account connected through an organization's OAuth client can only be used in that organization. Personal use also requires current membership. Rotating or removing that client invalidates the copied grant until the person reconnects. Organization account connections, reconnections and disconnections are audited. Personal exports include account metadata, never tokens or client secrets.

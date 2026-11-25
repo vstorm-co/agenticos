@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "78d8964a9f50"
 ---
 
 # Skills { #skills }
@@ -682,7 +682,10 @@ El MCP de plataforma permite buscar, crear y editar Context, vincular
 `context_ids` a un borrador y leer/editar skills o añadir recursos de texto.
 Context admite `inject` para material permanente y `link` para lectura bajo
 demanda. Editar un archivo vinculado afecta al siguiente uso; cambiar el vínculo
-del borrador requiere publicación. Se mantienen permisos y aprobaciones.
+del borrador requiere publicación. Se mantienen permisos y aprobaciones. Editar un
+skill, añadirle un recurso y editar un archivo Context siempre preguntan antes a la
+persona: cada agent de la línea del skill, o con el archivo vinculado, lee el
+cambio en su siguiente run.
 
 El skill documental incluye fuentes iniciales LaTeX y un proceso de compilación,
 renderizado y revisión. Apps HTML y diapositivas web no equivalen a PDF compilado
