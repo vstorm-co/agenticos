@@ -77,7 +77,6 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
               setError(null);
               setChoice(round.id);
             }}
-            // Named "Keep attempt N" and its verdict, which the visible summary shows.
             aria-labelledby={`${ids}-${round.id}-keep ${ids}-${round.id}-verdict`}
             className={NATIVE_CHOICE}
           />

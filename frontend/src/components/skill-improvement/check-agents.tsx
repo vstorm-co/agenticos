@@ -224,7 +224,6 @@ function AgentRow({
   const [open, setOpen] = useState(false);
   const id = useId();
   const measured = !["queued", "running", "unknown"].includes(row.state);
-  // The short name stays the agent's; its state and reason are read as the description.
   const described = [
     row.unknown_reason !== null && `${id}-reason`,
     measured && `${id}-counts`,
