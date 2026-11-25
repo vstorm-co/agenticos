@@ -9,12 +9,15 @@ export function RoleNavigationChoices({
   hiddenItems,
   configurableItems,
   can,
+  isAdmin,
   disabled,
   onChange,
 }: {
   hiddenItems: readonly string[];
   configurableItems: readonly string[];
   can: (permission: Permission) => boolean;
+  /** The app-admin flag, not an org role: the Admin entry is never the role's to set. */
+  isAdmin: boolean;
   disabled: boolean;
   onChange: (id: string, visible: boolean) => void;
 }) {
@@ -24,7 +27,7 @@ export function RoleNavigationChoices({
   return (
     <div className="min-w-0 space-y-4" aria-label={t("controlsTitle")}>
       <div className="grid gap-4 sm:grid-cols-2">
-        {NAV_GROUPS.filter((group) => !group.adminOnly).map((group) => (
+        {NAV_GROUPS.filter((group) => !group.adminOnly || isAdmin).map((group) => (
           <fieldset
             key={group.labelKey ?? "main"}
             className="min-w-0 space-y-3 rounded-xl border p-4"

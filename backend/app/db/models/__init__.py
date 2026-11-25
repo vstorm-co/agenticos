@@ -63,6 +63,7 @@ from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.nav_pins import NavPins
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.network_connection import NetworkConnection
@@ -359,6 +360,7 @@ __all__ = [
     "DirectoryGroupMapping",
     "DiscordRoleMapping",
     "DashboardLayout",
+    "NavPins",
     "DashboardPreset",
     "McpConnection",
     "NetworkConnection",

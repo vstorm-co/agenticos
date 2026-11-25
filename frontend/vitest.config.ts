@@ -159,9 +159,10 @@ export default defineConfig({
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
         "src/components/remote-agents/**/*.tsx",
-        // Projects: the pages, the composer's picker and the sidebar's rows.
+        // Projects: the pages and the composer's picker; the sidebar's More panel.
         "src/components/projects/**/*.tsx",
-        "src/components/layout/project-rows.tsx",
+        "src/components/layout/nav-more.tsx",
+        "src/components/layout/connection-health-count.tsx",
         "src/components/layout/navigation-progress.tsx",
         // Asks before leaving drops a change somebody has not saved.
         "src/components/layout/unsaved-changes-guard.tsx",

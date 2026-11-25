@@ -269,7 +269,7 @@ def test_openbot_features_apply_after_the_published_t3_teaching_chain(
 
 def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
     chain = _chain()
-    assert chain.get_heads() == ["0349_personal_work_context"]
+    assert chain.get_heads() == ["0353_nav_pins"]
     expected = {
         "0339_browser_teaching_capture": "0338_message_reply_excerpt",
         "0340_browser_teaching_review": "0339_browser_teaching_capture",

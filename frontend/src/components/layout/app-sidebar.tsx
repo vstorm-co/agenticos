@@ -26,30 +26,25 @@ import { scrollWithin } from "@/lib/scroll-within";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronRight, Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Loader2, PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 
-import { AppsRows } from "@/components/layout/apps-rows";
-import { ProjectRows } from "@/components/layout/project-rows";
+import { ConnectionHealthCount } from "@/components/layout/connection-health-count";
+import { NavMore } from "@/components/layout/nav-more";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
-import { useConnectionHealth } from "@/hooks/use-connection-health";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
+import { useNavPins } from "@/hooks/use-nav-pins";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn } from "@/lib/utils";
-import { useSidebarStore } from "@/stores";
-import {
-  NAV_GROUPS,
-  isActive,
-  navItemVisible,
-  type NavGroup,
-  type NavItem,
-} from "@/lib/nav-sections";
+import { buildNavLayout, navItemId } from "@/lib/nav-pins";
+import { cn, isAppAdmin } from "@/lib/utils";
+import { useAuthStore, useSidebarStore } from "@/stores";
+import { isActive, navItemVisible, type NavItem } from "@/lib/nav-sections";
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
@@ -123,29 +118,6 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-/** How many connections need attention: a number in the column, a dot on the rail. */
-function ConnectionHealthCount({ collapsed }: { collapsed: boolean }) {
-  const t = useTranslations("nav");
-  const { total } = useConnectionHealth();
-  if (total === 0) return null;
-  // Destructive, not muted like the inbox count: this is not something
-  // waiting, it is something broken, and the column should say so at a glance.
-  const label = t("connectionHealthCount", { count: total });
-  return collapsed ? (
-    <span
-      className="bg-destructive absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
-      aria-label={label}
-    />
-  ) : (
-    <span
-      className="text-destructive ml-auto px-1 text-xs font-medium tabular-nums"
-      aria-label={label}
-    >
-      {total}
-    </span>
-  );
-}
-
 /**
  * The entry's icon, turning while the page it opens is on its way: the click
  * answers where it was made, beside the bar along the top edge.
@@ -162,6 +134,9 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
 /**
  * The link list on its own, so the desktop column and the mobile slide-over
  * cannot drift into offering different destinations.
+ *
+ * Four fixed entries, then what the person pinned, then the page they are on
+ * when it is neither (marked, with a quick pin, until they leave it), then More.
  */
 export function SidebarNav({
   onNavigate,
@@ -177,144 +152,57 @@ export function SidebarNav({
     if (active) scrollWithin(active, "nearest", "instant");
   }, [collapsed, pathname]);
   const { can, hiddenNavigationItems, isLoaded } = usePermissions();
+  const { user } = useAuthStore();
+  const { pinnedIds, ready, toggle } = useNavPins();
   const t = useTranslations("nav");
 
-  const groups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded)),
-  })).filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
+  const { fixed, pinned, current, more } = buildNavLayout({
+    pinnedIds,
+    pathname,
+    isAdmin: isAppAdmin(user),
+    isVisible: (item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded),
+  });
 
   return (
     <nav
       ref={nav}
       aria-label={t("primary")}
-      className={cn("flex flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
+      className={cn("flex flex-col gap-0.5 py-3", collapsed ? "items-center px-2" : "px-3")}
     >
-      {groups.map((group) =>
-        group.labelKey === "apps" ? (
-          <AppsRows key="apps" onNavigate={onNavigate} collapsed={collapsed} />
-        ) : (
-          <NavGroupBlock
-            key={group.labelKey ?? "main"}
-            group={group}
-            onNavigate={onNavigate}
-            collapsed={collapsed}
-          />
-        ),
-      )}
-    </nav>
-  );
-}
-
-function NavGroupBlock({
-  group,
-  onNavigate,
-  collapsed,
-}: {
-  group: NavGroup;
-  onNavigate?: () => void;
-  collapsed: boolean;
-}) {
-  const t = useTranslations("nav");
-  const pathname = usePathname();
-  const mounted = useMounted();
-  const openGroups = useSidebarStore((state) => state.openGroups);
-  const closedGroups = useSidebarStore((state) => state.closedGroups);
-  const toggleGroup = useSidebarStore((state) => state.toggleGroup);
-  const key = group.labelKey ?? "main";
-  // The page you are on is never hidden behind a folded heading. The stored
-  // choice is read only after mount, for the same hydration reason as the rail.
-  const holdsActive = group.items.some((item) => isActive(pathname, item.href));
-  // The rail folds too: a group closed in the column is closed on the rail, so
-  // the two show the same destinations rather than the rail every one of them.
-  const folds = !!group.collapsible;
-  const open =
-    !folds ||
-    holdsActive ||
-    (mounted && (openGroups.includes(key) || (key === "knowledge" && !closedGroups.includes(key))));
-  // The health badge lives on the Connections entry, and that entry is hidden
-  // while its group is folded - which is the default. A folded group carrying
-  // a broken connection says so on its heading instead, so the badge is
-  // visible before anybody opens the group; once open, the entry carries it.
-  const holdsConnectionHealth = group.items.some((item) => item.count === "connectionHealth");
-  const showHeadingHealth = holdsConnectionHealth && !open;
-
-  return (
-    <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
-      {group.labelKey &&
-        // The heading is what tells the groups apart, and on the rail there is
-        // no room for the word. A rule does the same job: it says "a different
-        // kind of thing starts here" without claiming to say which, which an
-        // abbreviation would do badly. A folding group's rule is its fold
-        // control, at the height the heading has in the column.
-        (collapsed ? (
-          folds ? (
-            <button
-              type="button"
-              onClick={() => toggleGroup(key)}
-              disabled={holdsActive}
-              aria-expanded={open}
-              aria-label={t(group.labelKey)}
-              title={t(group.labelKey)}
-              className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 relative flex h-6 w-8 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
-            >
-              <span aria-hidden className="bg-border h-px w-3" />
-              <ChevronRight
-                className={cn(
-                  "size-3 transition-transform duration-[var(--duration-fast)]",
-                  open && "rotate-90",
-                )}
-                aria-hidden
-              />
-              {showHeadingHealth && <ConnectionHealthCount collapsed={collapsed} />}
-            </button>
-          ) : (
-            <div aria-hidden className="flex h-6 items-center">
-              <span className="bg-border h-px w-5" />
-            </div>
-          )
-        ) : folds ? (
+      {[...fixed, ...pinned].map((item) => (
+        <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
+      ))}
+      {current && (
+        <div
+          data-unpinned
+          className={cn("relative flex items-center", collapsed ? "w-9" : "w-full")}
+        >
+          <NavLink item={current} onNavigate={onNavigate} collapsed={collapsed} />
           <button
             type="button"
-            onClick={() => toggleGroup(key)}
-            disabled={holdsActive}
-            aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground touch:min-h-11 flex h-7 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
+            onClick={() => toggle(navItemId(current))}
+            disabled={!ready}
+            aria-label={t("pinItem", { item: t(current.labelKey) })}
+            title={t("pinItem", { item: t(current.labelKey) })}
+            className={cn(
+              "text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 absolute flex items-center justify-center rounded-md outline-none focus-visible:ring-2",
+              collapsed ? "-top-1 -right-1 size-4" : "right-1 size-7",
+            )}
           >
-            <span className="flex-1">{t(group.labelKey)}</span>
-            {showHeadingHealth && <ConnectionHealthCount collapsed={collapsed} />}
-            <ChevronRight
-              className={cn(
-                "size-3.5 transition-transform duration-[var(--duration-fast)]",
-                open && "rotate-90",
-              )}
-              aria-hidden
-            />
+            <Pin className={collapsed ? "size-3" : "size-4"} aria-hidden />
           </button>
-        ) : (
-          <div className="text-muted-foreground flex h-7 items-center px-2.5 text-xs font-medium">
-            {t(group.labelKey)}
-          </div>
-        ))}
-      {key === "projects" && <ProjectRows onNavigate={onNavigate} collapsed={collapsed} />}
-      <div
-        className="sidebar-group-content"
-        data-open={open || undefined}
-        inert={!open}
-        aria-hidden={!open || undefined}
-      >
-        <div
-          className={cn(
-            "sidebar-group-links flex min-h-0 flex-col gap-0.5",
-            collapsed && "items-center",
-          )}
-        >
-          {group.items.map((item) => (
-            <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
-          ))}
         </div>
-      </div>
-    </div>
+      )}
+      <NavMore
+        sections={more}
+        pinnedIds={pinned.map(navItemId)}
+        currentId={current ? navItemId(current) : null}
+        pinsReady={ready}
+        onToggle={toggle}
+        onNavigate={onNavigate}
+        collapsed={collapsed}
+      />
+    </nav>
   );
 }
 

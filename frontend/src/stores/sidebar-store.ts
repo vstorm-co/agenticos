@@ -21,15 +21,6 @@ interface SidebarState {
    */
   isCollapsed: boolean;
   toggleCollapsed: () => void;
-  /**
-   * The folding groups somebody opened, by label key. Persisted for the same
-   * reason the collapse is: somebody who keeps Connections open wants it open
-   * tomorrow too.
-   */
-  openGroups: string[];
-  /** Explicit closures override defaults, including on installations with older preferences. */
-  closedGroups: string[];
-  toggleGroup: (key: string) => void;
 }
 
 export const useSidebarStore = create<SidebarState>()(
@@ -41,22 +32,6 @@ export const useSidebarStore = create<SidebarState>()(
       toggle: () => set((state) => ({ isOpen: !state.isOpen })),
       isCollapsed: false,
       toggleCollapsed: () => set((state) => ({ isCollapsed: !state.isCollapsed })),
-      openGroups: [],
-      closedGroups: [],
-      toggleGroup: (key) =>
-        set((state) => {
-          const wasOpen =
-            state.openGroups.includes(key) ||
-            (key === "knowledge" && !state.closedGroups.includes(key));
-          return {
-            openGroups: wasOpen
-              ? state.openGroups.filter((open) => open !== key)
-              : [...state.openGroups, key],
-            closedGroups: wasOpen
-              ? [...state.closedGroups.filter((closed) => closed !== key), key]
-              : state.closedGroups.filter((closed) => closed !== key),
-          };
-        }),
     }),
     {
       name: "agenticos.sidebar",
@@ -64,8 +39,6 @@ export const useSidebarStore = create<SidebarState>()(
       // open a drawer over the page somebody just loaded.
       partialize: (state) => ({
         isCollapsed: state.isCollapsed,
-        openGroups: state.openGroups,
-        closedGroups: state.closedGroups,
       }),
     },
   ),

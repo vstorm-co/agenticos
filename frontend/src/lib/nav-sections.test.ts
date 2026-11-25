@@ -79,7 +79,7 @@ describe("the Connectors nav entry", () => {
     expect(navItemVisible(connectors()!, holding(Perm.networksView))).toBe(true);
   });
 
-  it("stays hidden from a role with none of the three", () => {
+  it("stays hidden from a role with none of the four", () => {
     expect(navItemVisible(connectors()!, holding(Perm.workflowsView))).toBe(false);
   });
 });

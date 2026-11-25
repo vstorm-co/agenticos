@@ -2527,6 +2527,15 @@ def get_dashboard_layout_service(db: DBSession) -> DashboardLayoutService:
 
 
 DashboardLayoutSvc = Annotated[DashboardLayoutService, Depends(get_dashboard_layout_service)]
+
+from app.services.nav_pins import NavPinsService
+
+
+def get_nav_pins_service(db: DBSession) -> NavPinsService:
+    return NavPinsService(db)
+
+
+NavPinsSvc = Annotated[NavPinsService, Depends(get_nav_pins_service)]
 from app.services.dashboard_preset import DashboardPresetService
 
 

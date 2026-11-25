@@ -694,6 +694,19 @@ describe("cached static App previews", () => {
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
+  it("asks for the current version when no version is named", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      version_id: "v9",
+      state: "ready",
+      image: "data:image/jpeg;base64,aA==",
+    });
+    const { result } = renderHook(() => useArtifactThumbnail("a", null, true), {
+      wrapper: cachedWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a/thumbnail");
+  });
+
   it("does not restart a failed preview on every Back navigation", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Unavailable version"));
     const wrap = cachedWrapper();

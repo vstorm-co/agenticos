@@ -54,7 +54,16 @@ test("browser titles follow destinations after client navigation and reload", as
     (answer) =>
       new URL(answer.url()).pathname === "/api/datasets" && answer.request().method() === "GET",
   );
-  await page.getByRole("link", { name: "Datasets", exact: true }).click();
+  // Datasets is not pinned, so it lives in More; the sidebar label is "Test data".
+  // The trigger also names a connection that needs attention, so match its first word.
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("button", { name: /^More\b/ })
+    .click();
+  await page
+    .getByRole("dialog", { name: "More" })
+    .getByRole("link", { name: "Test data", exact: true })
+    .click();
   expect((await response).status()).toBe(200);
   await expect(page).toHaveTitle(/^Datasets \| /);
 });

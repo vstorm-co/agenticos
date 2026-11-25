@@ -111,7 +111,7 @@ async def test_procedure_teaching_follows_the_published_t3_teaching_chain():
         "0326_provider_account_pools",
     )
     assert scripts.get_revision("0336_merge_core_v1761").down_revision == "0331_merge_core_accounts"
-    assert scripts.get_heads() == ["0349_personal_work_context"]
+    assert scripts.get_heads() == ["0353_nav_pins"]
 
 
 async def test_upgrade_downgrade_preserves_existing_proposals_and_matches_every_model_column(
