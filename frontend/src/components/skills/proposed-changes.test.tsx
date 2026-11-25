@@ -29,7 +29,7 @@ vi.mock("@/hooks/use-skill-proposal-baseline", () => ({
     isLoading: false,
     error: null,
   }),
-  useSkillProposalFile: () => ({ data: undefined, isLoading: false, error: null }),
+  useSkillVersionFile: () => ({ data: undefined, isLoading: false, error: null }),
 }));
 vi.mock("./skill-check-dialog", () => ({
   SkillCheckDialog: ({

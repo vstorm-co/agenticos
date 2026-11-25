@@ -525,7 +525,11 @@ they changed differently is a conflict, and the model proposes one text for it. 
 **Changes** a person can rewrite any part, the model's included
 (`GET …/improvements/{run_id}/merge`, then `PATCH …/merge/description` or
 `…/merge/parts/{index}`). For a file both sides changed differently, a person keeps
-one side (`PATCH …/merge/files`); the model never writes a file. The check starts
+one side (`PATCH …/merge/files`); the model never writes a file. Each file lists
+the description and size each side gives it, and opens to what each side changed
+against the version both started from, read from that side's version
+(`GET …/versions/{version_id}/resources/{name}`). A file over 200 KB, or one that is
+not text, is offered as a download of each side instead. The check starts
 only when nothing is left unsettled. It asks the fork's agents about the merge and,
 unless `main_alone` is turned off when the check is priced at Changes, about main's
 newest alone. That second check says whether the fork is still needed, and the

@@ -412,7 +412,7 @@ it("names the attempt limit only once it is really reached", () => {
 it("puts the choice of attempt in the decision card, not inside an attempt's details", async () => {
   show(EXHAUSTED);
   const choice = screen.getByRole("group", { name: "Which attempt to keep" });
-  expect(choice).toHaveTextContent("Summary 1Summary 2Summary 3");
+  expect(choice).toHaveTextContent(/Summary 1.*Summary 2.*Summary 3/);
   await userEvent.click(screen.getByRole("radio", { name: "Keep attempt 3" }));
   await userEvent.click(screen.getByRole("button", { name: "Keep attempt 3 anyway" }));
   expect(state.select).toHaveBeenCalledWith(3);

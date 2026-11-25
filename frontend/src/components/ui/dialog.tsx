@@ -44,6 +44,7 @@ const DialogContent = React.forwardRef<
       onInteractOutside,
       onEscapeKeyDown,
       onOpenAutoFocus,
+      onCloseAutoFocus,
       dismissible = true,
       mobilePresentation = "center",
       ...props
@@ -51,6 +52,9 @@ const DialogContent = React.forwardRef<
     ref,
   ) => {
     const t = useTranslations("common");
+    // Radix gives focus back to a `DialogTrigger` on close. A dialog opened from state
+    // has none, so without this keyboard focus would fall to the page's body.
+    const opener = React.useRef<HTMLElement | null>(null);
     return (
       <DialogPortal>
         <DialogOverlay />
@@ -58,6 +62,8 @@ const DialogContent = React.forwardRef<
           ref={ref}
           data-mobile-presentation={mobilePresentation}
           onOpenAutoFocus={(event) => {
+            opener.current =
+              document.activeElement instanceof HTMLElement ? document.activeElement : null;
             onOpenAutoFocus?.(event);
             if (event.defaultPrevented || !(event.target instanceof HTMLElement)) return;
             const field = event.target.querySelector<HTMLElement>(
@@ -66,6 +72,14 @@ const DialogContent = React.forwardRef<
             if (!field || field.getClientRects().length === 0 || field.closest("[inert]")) return;
             event.preventDefault();
             field.focus({ preventScroll: true });
+          }}
+          onCloseAutoFocus={(event) => {
+            onCloseAutoFocus?.(event);
+            const target = opener.current;
+            opener.current = null;
+            if (event.defaultPrevented || !target?.isConnected) return;
+            event.preventDefault();
+            target.focus({ preventScroll: true });
           }}
           onInteractOutside={(event) => {
             onInteractOutside?.(event);

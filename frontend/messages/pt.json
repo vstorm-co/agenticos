@@ -1168,7 +1168,8 @@
     "appWide": "Em toda a aplicação",
     "appWideNotForAgents": "Agentes não podem usar bases de conhecimento de toda a aplicação. Desmarque a base para removê-la.",
     "otherOrganization": "Outra organização",
-    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la."
+    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la.",
+    "testedSpecUnread": "Não foi possível ler a versão que este run testou. {reason}"
   },
   "auth": {
     "agreeToTerms": "Ao criar uma conta, você concorda com nossos <terms>Termos</terms> e com nossa <privacy>Política de Privacidade</privacy>.",
@@ -16711,6 +16712,7 @@
     "evidence": {
       "none": "Não há evidências que possam ser verificadas.",
       "dropped": "{count, plural, =1 {1 item citado não foi encontrado} other {# itens citados não foram encontrados}} nas execuções e {count, plural, =1 {foi removido} other {foram removidos}}.",
+      "hidden": "{count, plural, =1 {1 item citado vem de um agente que você não pode ver e não é mostrado.} other {# itens citados vêm de agentes que você não pode ver e não são mostrados.}}",
       "conversation": "conversa {number}",
       "testQuestion": "pergunta de teste {number}",
       "aConversation": "uma conversa"
@@ -18688,6 +18690,17 @@
       "part": "Parte {number}",
       "unchangedLines": "{count, plural, =1 {1 linha que nenhum dos lados alterou} other {# linhas que nenhum dos lados alterou}}",
       "files": "Arquivos",
+      "file": {
+        "side": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: {size}",
+        "absent": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: não há este arquivo",
+        "show": "Mostrar o que mudou",
+        "hide": "Ocultar o que mudou",
+        "compare": "{side, select, fork {O que a bifurcação mudou} other {O que a principal mudou}}",
+        "tooLarge": "Grande demais para comparar aqui. Baixe cada lado para lê-lo.",
+        "notText": "Não é texto, então não pode ser comparado aqui. Baixe cada lado para lê-lo.",
+        "download": "{side, select, base {Baixar o ponto de partida} fork {Baixar a versão da bifurcação} other {Baixar a versão principal}}",
+        "readFailed": "Não foi possível ler o arquivo. {reason}"
+      },
       "state": {
         "same": "Sem alteração",
         "fork": "Do fork",

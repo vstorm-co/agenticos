@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "a6ab34072e8a"
 ---
 
 # Skills { #skills }
@@ -595,7 +595,12 @@ geändert haben, ist ein Konflikt, und das Modell schlägt einen Text dafür vor
 (`GET …/improvements/{run_id}/merge`, dann `PATCH …/merge/description` oder
 `…/merge/parts/{index}`). Bei einer Datei, die beide Seiten verschieden geändert
 haben, behält eine Person eine Seite (`PATCH …/merge/files`); das Modell schreibt nie
-eine Datei. Die Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
+eine Datei. Jede Datei zeigt Beschreibung und Größe, die ihr jede Seite gibt, und
+aufgeklappt, was jede Seite gegenüber der Version geändert hat, von der beide
+ausgingen, gelesen aus der Version dieser Seite
+(`GET …/versions/{version_id}/resources/{name}`). Eine Datei über 200 KB oder eine,
+die kein Text ist, wird stattdessen von jeder Seite zum Herunterladen angeboten. Die
+Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
 Agents des Forks nach dem Ergebnis und, sofern `main_alone` nicht beim Bepreisen
 der Prüfung unter Changes abgeschaltet wird, nach der neuesten Version von main
 allein. Diese zweite Prüfung sagt, ob der Fork noch gebraucht wird, und die Schätzung

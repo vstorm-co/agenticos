@@ -1168,7 +1168,8 @@
     "observationSave": "Save participation settings",
     "connectionSettings": "Connection settings · {provider} · {endpoint}",
     "customEndpoint": "Custom endpoint",
-    "noMatchingModels": "No matching models."
+    "noMatchingModels": "No matching models.",
+    "testedSpecUnread": "The version this run tested could not be read. {reason}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -16827,6 +16828,7 @@
     "evidence": {
       "none": "No evidence that could be checked.",
       "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out.",
+      "hidden": "{count, plural, =1 {1 cited item is from an agent you cannot see and is not shown.} other {# cited items are from agents you cannot see and are not shown.}}",
       "conversation": "conversation {number}",
       "testQuestion": "test question {number}",
       "aConversation": "a conversation"
@@ -18804,6 +18806,17 @@
       "part": "Part {number}",
       "unchangedLines": "{count, plural, =1 {1 line neither side changed} other {# lines neither side changed}}",
       "files": "Files",
+      "file": {
+        "side": "{side, select, base {Where both started} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Where both started} fork {Fork} other {Main}}: no such file",
+        "show": "Show what changed",
+        "hide": "Hide what changed",
+        "compare": "{side, select, fork {What the fork changed} other {What main changed}}",
+        "tooLarge": "Too large to compare here. Download each side to read it.",
+        "notText": "Not text, so it cannot be compared here. Download each side to read it.",
+        "download": "{side, select, base {Download where both started} fork {Download the fork's} other {Download main's}}",
+        "readFailed": "The file could not be read. {reason}"
+      },
       "state": {
         "same": "Unchanged",
         "fork": "From the fork",

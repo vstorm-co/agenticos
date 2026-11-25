@@ -225,6 +225,13 @@ describe("EvalRunView", () => {
     expect(screen.queryByText("You have 30 days.")).not.toBeInTheDocument();
   });
 
+  it("offers what changed in a tested draft only to a reader who may edit the agent", () => {
+    worseDraft();
+    loaded.agent = { can_run: true, can_edit: false, can_publish: false };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("link", { name: "See what changed" })).not.toBeInTheDocument();
+  });
+
   it("says a draft made things worse, what changed, and shows the cases that broke", async () => {
     worseDraft();
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };

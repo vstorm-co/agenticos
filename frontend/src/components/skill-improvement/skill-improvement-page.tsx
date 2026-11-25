@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import { AttemptChanges } from "@/components/improvement/attempt-changes";
 import { AttemptHistory } from "@/components/improvement/attempt-history";
@@ -343,7 +342,11 @@ function SkillSession({
                         check && (
                           <div className="max-h-96 space-y-3 overflow-y-auto text-sm leading-relaxed wrap-anywhere">
                             <p className="text-muted-foreground">{check.candidate.description}</p>
-                            <MarkdownContent content={check.candidate.content} inertImages />
+                            {/* Source, not rendered: a rendered view hides reference
+                                definitions and shows a link's label without its address. */}
+                            <pre className="bg-muted/40 rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap">
+                              {check.candidate.content}
+                            </pre>
                           </div>
                         )
                       )}

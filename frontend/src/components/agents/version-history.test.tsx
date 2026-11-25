@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-error";
 
 import { VersionHistory } from "./version-history";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
@@ -370,6 +371,17 @@ describe("the diff", () => {
     expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
     expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft as tested");
     expect(screen.getByText(/As tested\./)).toBeInTheDocument();
+  });
+
+  it("says the tested spec could not be read instead of comparing something else silently", () => {
+    mount({
+      compareFrom: 1,
+      compareTo: "tested",
+      testedSpecError: new ApiError(403, "Editing this agent is required"),
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The version this run tested could not be read. Editing this agent is required",
+    );
   });
 
   it("waits for the tested spec before comparing with it", () => {

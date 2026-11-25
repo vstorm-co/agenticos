@@ -7205,7 +7205,8 @@
     "observationSave": "Katılım ayarlarını kaydet",
     "subscriptionAccountsNote": "Herkes bu modelleri kendi hesaplarıyla çalıştırır. Kendinizinkileri <link>Ayarlar → Profil</link> bölümünde bağlayın.",
     "connectionSettings": "Bağlantı ayarları · {provider} · {endpoint}",
-    "customEndpoint": "Özel uç nokta"
+    "customEndpoint": "Özel uç nokta",
+    "testedSpecUnread": "Bu run'ın test ettiği sürüm okunamadı. {reason}"
   },
   "dashboard": {
     "edit": {
@@ -17146,6 +17147,9 @@
   "authoring": {
     "describe": {
       "open": "{name} ile oluştur"
+    },
+    "evidence": {
+      "hidden": "{count, plural, =1 {Alıntılanan 1 öğe göremediğiniz bir agent'tan geliyor ve gösterilmiyor.} other {Alıntılanan # öğe göremediğiniz agent'lardan geliyor ve gösterilmiyor.}}"
     }
   },
   "consoleExperience": {
@@ -17299,6 +17303,19 @@
       "hint": "Beceriler paylaşılır. Değişikliğin uygulanması her ajana yardımcı olduğu anlamına gelmez.",
       "agents": "Ajanlar üzerindeki etki",
       "skillText": "Bu oturumda test edilen beceri"
+    },
+    "merge": {
+      "file": {
+        "side": "{side, select, base {Ortak başlangıç} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Ortak başlangıç} fork {Fork} other {Main}}: böyle bir dosya yok",
+        "show": "Neyin değiştiğini göster",
+        "hide": "Neyin değiştiğini gizle",
+        "compare": "{side, select, fork {Fork'un değiştirdikleri} other {Main'in değiştirdikleri}}",
+        "tooLarge": "Burada karşılaştırılamayacak kadar büyük. Okumak için her tarafı indirin.",
+        "notText": "Metin değil, bu yüzden burada karşılaştırılamaz. Okumak için her tarafı indirin.",
+        "download": "{side, select, base {Ortak başlangıcı indir} fork {Fork sürümünü indir} other {Main sürümünü indir}}",
+        "readFailed": "Dosya okunamadı. {reason}"
+      }
     }
   },
   "datasets": {
