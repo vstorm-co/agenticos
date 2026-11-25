@@ -10,6 +10,7 @@ then exported and handed to models. A credential in it is redacted before the
 case is stored, on every way in.
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Mapping, Sequence
@@ -144,6 +145,12 @@ def _refuse_past_ceiling(held: int, adding: int) -> None:
             ),
             details={"case_count": held, "adding": adding, "max_cases": MAX_CASES},
         )
+
+
+def _read_import(content: bytes, fmt: DatasetFileFormat) -> list[tuple[dict[str, Any], int]]:
+    """An import's cases as their rows' fields, each redacted, with how many values it
+    redacted. Pure, and run in a thread."""
+    return [redacted_case(case) for case in dataset_files.parse(content, fmt)]
 
 
 @dataclass(frozen=True)
@@ -1338,18 +1345,20 @@ class DatasetService:
     ) -> DatasetVersionRead:
         """Append every case in a CSV or JSONL file, as one new version.
 
-        The file is parsed, measured against the ceiling and redacted before the
-        dataset is locked, so a large upload holds up nobody else's edit; and it is
-        refused whole if any row is wrong (see :func:`dataset_files.parse`). The
-        ceiling is checked again under the lock, against the count it guards.
+        The file is parsed and redacted in a thread, off the event loop, and
+        measured against the ceiling before the dataset is locked, so a large
+        upload holds up neither the API nor anybody else's edit; and it is refused
+        whole if any row is wrong (see :func:`dataset_files.parse`). The ceiling is
+        checked again under the lock, against the count it guards.
         """
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        cases = dataset_files.parse(content, dataset_files.format_of(filename, fmt))
+        cases = await asyncio.to_thread(
+            _read_import, content, dataset_files.format_of(filename, fmt)
+        )
         _refuse_past_ceiling(current.case_count, len(cases))
         revisions: list[DatasetCase] = []
         redacted = 0
-        for case in cases:
-            fields, found = redacted_case(case)
+        for fields, found in cases:
             redacted += found
             revisions.append(self._revision(ctx, current, fields, source=CaseSource.IMPORT))
         dataset = await self._locked(ctx, dataset_id)
