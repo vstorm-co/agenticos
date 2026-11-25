@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { useState } from "react";
 import { SearchX } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -20,6 +22,7 @@ import type { KnowledgeGapStatus } from "@/types/knowledge-gaps";
 import { KnowledgeGapDialog } from "./knowledge-gap-dialog";
 import { KnowledgeGapRow } from "./knowledge-gap-row";
 import { KnowledgeGapsToolbar } from "./knowledge-gaps-toolbar";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 const EMPTY = {
   open: { title: "emptyOpen", body: "emptyOpenBody" },
@@ -72,7 +75,11 @@ export function KnowledgeGapsPanel({
         role={expanded ? "dialog" : undefined}
         aria-modal={expanded || undefined}
         aria-label={t("title")}
-        className={expanded ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined}
+        className={
+          expanded
+            ? cn("fixed inset-0 z-40 overflow-y-auto rounded-none", FULLSCREEN_SAFE)
+            : undefined
+        }
         title={t("title")}
         counted={isLoading ? null : t("topicCount", { count: total })}
         controls={

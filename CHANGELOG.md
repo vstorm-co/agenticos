@@ -39,6 +39,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Panels and expanded views that cover the whole screen - Files, Sources and
+  the browser beside a chat on a phone, the agent test panel, expanded tables,
+  datasets, workflows, sandboxes, knowledge gaps, API keys and sign-ins - keep
+  their header clear of the phone's status bar and home indicator. In the
+  iPhone app the Files panel's close button sat beneath the clock.
+
 - Open projects on Chats by default and start a project chat directly from the
   sidebar; explicit links to other tabs keep working.
 - Resize the iOS webview for the software keyboard instead of combining native

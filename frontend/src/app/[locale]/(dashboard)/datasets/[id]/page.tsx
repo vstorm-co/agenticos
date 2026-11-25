@@ -64,6 +64,7 @@ import { useOrgStore } from "@/stores/org-store";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -266,6 +267,7 @@ export default function DatasetPage({ params }: PageProps) {
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
+          expanded && FULLSCREEN_SAFE_PADDED,
         )}
       >
         <Tabs

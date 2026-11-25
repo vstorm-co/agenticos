@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { useState } from "react";
 import { KeyRound, LogIn, LogOut } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -13,6 +15,7 @@ import { useBrowserSignIns, useSignInToSite } from "@/hooks/use-browser-sign-ins
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { SignInToSiteDialog } from "./sign-in-to-site-dialog";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 /**
  * The sites your agents' browser starts signed in to, and forgetting one (#2129).
@@ -34,7 +37,10 @@ export function MySignIns() {
       ref={ref}
       className={
         expanded
-          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          ? cn(
+              "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6",
+              FULLSCREEN_SAFE_PADDED,
+            )
           : "flex min-h-0 flex-1 flex-col"
       }
     >
