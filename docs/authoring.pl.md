@@ -1,5 +1,5 @@
 ---
-source_sha: "452644ae3cf2"
+source_sha: "5110a2efa07a"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -188,7 +188,7 @@ serwera MCP, do którego się odnosi, nigdy przez identyfikator.
 | Model | Zmienić profil modelu |
 | Ustawienia modelu | Ustawić temperaturę, top-p, maksymalną liczbę tokenów, timeout albo równoległe wywołania narzędzi |
 | Limit kroków | Ustawić `max_steps` |
-| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień, niezależnie od tego, jak nazywa je sugestia |
+| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Capability, której narzędzia sięgają poza wdrożenie - do sieci, przeglądarki albo pulpitu, kanału komunikacji albo telefonu, podłączonej usługi, sandboxa, workflowu albo innego agenta - nigdy nie jest dodawana. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień, niezależnie od tego, jak nazywa je sugestia |
 | Zatwierdzanie | Sprawić, że capability albo jedno z jej narzędzi najpierw pyta |
 | Specjaliści | Przepisać opis wbudowanego [specjalisty](reference/capabilities.md#delegation) |
 | Bazy wiedzy | Podpiąć albo odpiąć jedną |
@@ -225,6 +225,14 @@ poszerza tego, co działa bez udziału człowieka:
   odrzucana przy **Przyjmij**. Karta pokazuje całe powiązanie, które zapisze, z
   każdym znakiem, który nic nie rysuje albo przestawia otaczający tekst,
   wypisanym, na przykład `\u{202E}`.
+- Capability, której narzędzia sięgają poza wdrożenie, nigdy nie jest dodawana:
+  trafia pod **pomysły, których asystent nie dodał**, do dodania w Builderze,
+  gdzie ustawia się jej limity.
+- Ponowne dodanie capability, którą wiąże opublikowana wersja, a draft już nie,
+  jest oceniane jako zmiana względem opublikowanego powiązania: jej ustawienia
+  zmieniają się tylko tam, gdzie dotyczą wyłącznie jakości, ustawienia
+  zabezpieczenia nigdy, a żadne z jej narzędzi nie pyta o zatwierdzenie rzadziej
+  niż wcześniej.
 
 Sugestię, która podpina bazę wiedzy, plik kontekstowy, profil modelu albo serwer
 MCP, albo pozwala agentowi wywołać więcej narzędzi MCP, przyjmie tylko ktoś, kto

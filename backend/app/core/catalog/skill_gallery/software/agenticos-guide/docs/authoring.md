@@ -182,7 +182,7 @@ capability or MCP server it refers to, never an identifier.
 | Model | Change the model profile |
 | Model settings | Set temperature, top-p, max tokens, timeout or parallel tool calls |
 | Step limit | Set `max_steps` |
-| Capabilities | Add or remove one, or change its settings - only where the settings are about quality alone, such as how much knowledge to retrieve or when to compact; settings that reach a URL, a domain, a connection, a provider or personal data never change, and Subagents are never added or reconfigured. A safeguard - Guardrails - can only be added: never removed or reconfigured, however the suggestion names it |
+| Capabilities | Add or remove one, or change its settings - only where the settings are about quality alone, such as how much knowledge to retrieve or when to compact; settings that reach a URL, a domain, a connection, a provider or personal data never change, and Subagents are never added or reconfigured. A capability whose tools reach beyond the deployment - the web, a browser or a desktop, a messaging channel or a phone, a mounted service, a sandbox, a workflow or another agent - is never added. A safeguard - Guardrails - can only be added: never removed or reconfigured, however the suggestion names it |
 | Approval | Make a capability or one of its tools ask first |
 | Specialists | Rewrite the description of an inline [specialist](https://vstorm-co.github.io/agenticos/reference/capabilities/#delegation) |
 | Knowledge bases | Bind or unbind one |
@@ -216,6 +216,13 @@ a person:
   of these is not recorded, and one stored before is refused at **Accept**. The
   card shows the whole binding it writes, with every character that draws
   nothing or reorders the text around it written out, such as `\u{202E}`.
+- A capability whose tools reach beyond the deployment is never added: it is
+  listed under **more ideas the assistant did not add**, to add in the Builder,
+  where its limits are set.
+- Adding back a capability the published version binds and the draft no longer
+  does is judged as a change from the published binding: its settings change
+  only where they are about quality alone, a safeguard's never, and none of its
+  tools asks for less approval than before.
 
 A suggestion that binds a knowledge base, a context file, a model profile or an
 MCP server, or lets the agent call more MCP tools, is accepted only by somebody
