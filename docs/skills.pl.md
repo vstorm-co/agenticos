@@ -1,5 +1,5 @@
 ---
-source_sha: "603a82afc33b"
+source_sha: "82442facb9b6"
 ---
 
 # Skille { #skills }
@@ -352,7 +352,8 @@ trafia, a sprawdzenie mówi, że nie było kogo sprawdzić.
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
 razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
 regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
-pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
+pytanie zestawu skilla jest held-out - jego udział zostaje równy jeden, a dodane
+pytanie jest held-out niezależnie od niego - a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
 
 Sprawdzenie wysyła swoje potwierdzone regresje i odpowiedzi, których sędzia nie

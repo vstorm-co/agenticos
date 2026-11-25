@@ -13,6 +13,7 @@ from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo
+from app.schemas.dataset import DatasetUpdate
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
@@ -24,6 +25,7 @@ from app.schemas.improvement import (
 )
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
+from app.services.dataset import DatasetService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
@@ -499,16 +501,16 @@ async def test_try_again_is_refused_before_it_costs_anything_when_too_few_questi
 ):
     ctx, agent, _ = await _setup(db)
     dataset = await _dataset(db, ctx, cases=5)
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    stored.improvement_holdout_share = Decimal("0.5")
+    await db.flush()
     service = ImprovementPipelineService(db)
     started = await service.start(
         ctx,
         agent.id,
         ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
     )
-    stored = await db.get(Dataset, dataset.id)
-    assert stored is not None
-    stored.improvement_holdout_share = Decimal("0.5")
-    await db.flush()
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
@@ -642,3 +644,30 @@ async def test_a_try_again_note_quoting_a_question_the_attempt_is_measured_on_is
     assert "HOLDOUT_QUESTION_MARKER_4" not in refused.value.message
     assert (allowed.status, allowed.iteration) == ("running", 2)
     assert allowed.iterations[1].note == "Keep TRAIN_QUESTION_MARKER_0 answered as before"
+
+
+@pytest.mark.security
+async def test_a_later_attempt_draws_with_the_share_the_session_started_with(db):
+    """Editing the dataset's held-out share must not move what a running session measures."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+
+    await DatasetService(db).update(
+        ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.125"))
+    )
+    await _next_step(db, ctx, started.id)
+    _, second = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+
+    assert second.holdout_case_ids is not None and len(second.holdout_case_ids) == 5
