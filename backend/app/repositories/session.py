@@ -4,11 +4,73 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import Select, cast, func, select, update
+from sqlalchemy import Select, cast, delete, func, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.session import Session
+from app.db.models.session import MagicLinkClaim, Session
+
+
+async def create_magic_link_claim(
+    db: AsyncSession,
+    *,
+    token_hash: str,
+    user_id: UUID,
+    credential_version: int,
+    expires_at: datetime,
+) -> MagicLinkClaim:
+    """Persist only the digest and authority needed to redeem a magic link once."""
+    claim = MagicLinkClaim(
+        token_hash=token_hash,
+        user_id=user_id,
+        credential_version=credential_version,
+        expires_at=expires_at,
+    )
+    db.add(claim)
+    await db.flush()
+    await db.refresh(claim)
+    return claim
+
+
+async def delete_expired_magic_link_claims(
+    db: AsyncSession, *, user_id: UUID, now: datetime
+) -> None:
+    """Bound abandoned claim storage when this account asks for another link."""
+    await db.execute(
+        delete(MagicLinkClaim).where(
+            MagicLinkClaim.user_id == user_id,
+            MagicLinkClaim.expires_at <= now,
+        )
+    )
+
+
+async def consume_magic_link_claim(
+    db: AsyncSession,
+    *,
+    token_hash: str,
+    user_id: UUID,
+    credential_version: int,
+    now: datetime,
+) -> bool:
+    """Atomically remove a live claim, returning whether this transaction won.
+
+    A conditional `DELETE` makes sequential and concurrent replays equivalent:
+    after one transaction commits, no second transaction can return this hash.
+    The caller keeps this transaction open through session creation, so a later
+    failure rolls the deletion back instead of burning a link that issued nothing.
+    """
+    consumed = await db.execute(
+        delete(MagicLinkClaim)
+        .where(
+            MagicLinkClaim.token_hash == token_hash,
+            MagicLinkClaim.user_id == user_id,
+            MagicLinkClaim.credential_version == credential_version,
+            MagicLinkClaim.expires_at > now,
+        )
+        .returning(MagicLinkClaim.token_hash)
+        .execution_options(synchronize_session=False)
+    )
+    return consumed.scalar_one_or_none() is not None
 
 
 async def get_by_id(db: AsyncSession, session_id: UUID) -> Session | None:

@@ -757,12 +757,15 @@ class TestWebhookDeliveries:
         assert again == moved == WebhookAdmitted(run_id=first.run_id, duplicate=True)
         assert len(await _runs(db)) == 1
 
-    async def test_the_same_content_a_day_later_starts_a_run_again(self, db, tenant):
+    @pytest.mark.security
+    async def test_the_same_signed_request_stays_a_copy_after_a_day(self, db, tenant):
         owner, org, workflow = tenant
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
         body = b'{"job": "nightly build"}'
         service = WorkflowExposureService(db)
-        await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body, "d-1"))
+        first = await service.receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body, "d-1")
+        )
         await db.execute(
             update(WorkflowWebhookDelivery)
             .where(WorkflowWebhookDelivery.exposure_id == exposure_id)
@@ -773,8 +776,9 @@ class TestWebhookDeliveries:
             exposure_id, body=body, headers=_signed(secret, body, "d-2")
         )
 
-        assert isinstance(later, WebhookAdmitted) and later.duplicate is False
-        assert len(await _runs(db)) == 2
+        assert isinstance(first, WebhookAdmitted)
+        assert later == WebhookAdmitted(run_id=first.run_id, duplicate=True)
+        assert len(await _runs(db)) == 1
 
     async def test_identical_content_signed_at_different_times_is_two_deliveries(self, db, tenant):
         owner, org, workflow = tenant

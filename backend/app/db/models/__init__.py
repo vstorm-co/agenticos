@@ -12,7 +12,7 @@ from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
-from app.db.models.session import Session
+from app.db.models.session import MagicLinkClaim, Session
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
@@ -90,7 +90,12 @@ from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.channel_observation import ChannelObservation, ChannelObservationReceipt
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
+from app.db.models.agent_trigger import (
+    AgentTrigger,
+    AgentTriggerWebhookReceipt,
+    ScheduleKind,
+    TriggerAttempt,
+)
 from app.db.models.run_manifest import RunManifest
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
@@ -318,6 +323,7 @@ __all__ = [
     "KnowledgeGapTopic",
     "KnowledgeSearch",
     "User",
+    "MagicLinkClaim",
     "Session",
     "Conversation",
     "ConversationMessagePin",
@@ -388,6 +394,7 @@ __all__ = [
     "ChannelObservationReceipt",
     "ExposureSurface",
     "AgentTrigger",
+    "AgentTriggerWebhookReceipt",
     "TriggerAttempt",
     "ScheduleKind",
     "AgentRun",

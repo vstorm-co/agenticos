@@ -1,5 +1,5 @@
 ---
-source_sha: "3b84a8c986cf"
+source_sha: "fedd16f66cb7"
 ---
 
 # Konfiguracja { #configuration }
@@ -117,17 +117,21 @@ obcy trzymający link, już jest.
 Żądanie deklarujące `Content-Length` większy niż największy z limitów
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` i
 `ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB na opakowanie multipart dostaje **413** przed
-odczytaniem treści. Limit całego żądania automatycznie podąża za tymi ustawieniami.
+odczytaniem treści. Niezależnie od tego aplikacja zlicza każdy chunk treści
+żądania w chwili jego przybycia i zwraca **413**, zanim chunk przekraczający ten
+sufit dotrze do parsera treści lub multipart. Żądania chunked i HTTP/2 oraz
+żądania z brakującym, nieprawidłowym albo zaniżonym `Content-Length` mają więc ten
+sam limit. Limit całego żądania automatycznie podąża za ustawieniami uploadu.
 
-`Content-Length` podaje klient; żądania chunked go nie deklarują i podlegają
-limitom konkretnych tras mierzącym rzeczywiste bajty. Ustaw limit także na proxy,
-aby objąć nim te żądania. W Nginx jest to również konieczne, żeby przyjmować
-uploady powyżej domyślnego 1 MiB: szablon ma `client_max_body_size 55m;` na
-hoście API i w lokalizacjach uploadu multipart konsoli. Strony konsoli,
-uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś oba limity uploadu
-razem z największym ustawieniem.
-Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
-uvicorn bez własnego limitu treści żądania.
+Ustaw limit także na reverse proxy jako dodatkową ochronę. W Nginx jest to również
+konieczne, żeby przyjmować uploady powyżej domyślnego 1 MiB: szablon ma
+`client_max_body_size 55m;` na hoście API i w lokalizacjach uploadu multipart
+konsoli. Strony konsoli,
+uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś limit proxy razem z
+największym ustawieniem uploadu. Zobacz
+[wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają uvicorn
+bez osobnego limitu serwera; middleware aplikacji nadal egzekwuje swój strumieniowy
+sufit.
 
 ## Uwierzytelnianie { #authentication }
 

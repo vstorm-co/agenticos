@@ -1,9 +1,11 @@
 import asyncio
 import contextlib
+import hashlib
 import logging
 import secrets
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
@@ -26,6 +28,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.core.security import (
+    MAGIC_LINK_TTL,
     create_email_change_token,
     create_magic_link_token,
     create_password_reset_token,
@@ -1280,17 +1283,37 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id), return_to=return_to, email=user.email)
+        now = datetime.now(UTC)
+        expires_at = now + MAGIC_LINK_TTL
+        jti = secrets.token_urlsafe(32)
+        await session_repo.delete_expired_magic_link_claims(self.db, user_id=user.id, now=now)
+        await session_repo.create_magic_link_claim(
+            self.db,
+            token_hash=hashlib.sha256(jti.encode()).hexdigest(),
+            user_id=user.id,
+            credential_version=user.credential_version,
+            expires_at=expires_at,
+        )
+        token = create_magic_link_token(
+            subject=str(user.id),
+            return_to=return_to,
+            email=user.email,
+            credential_version=user.credential_version,
+            jti=jti,
+            expires_at=expires_at,
+        )
         return user, token
 
     async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:
         """The account the link is for, and where it was headed.
 
-        Caller is responsible for minting access/refresh tokens for the returned
-        user. The return path comes back rather than being applied here: it is
-        the client that navigates, and `postSignInDestination` on that side is
-        the one place deciding whether a path is safe to honour - the same
-        judgement for a password login, an OAuth callback and this (#1214).
+        The one-time claim is consumed in this transaction. The caller is
+        responsible for minting access/refresh tokens before that transaction
+        commits, so a session and its authorization are one atomic result. The
+        return path comes back rather than being applied here: it is the client
+        that navigates, and `postSignInDestination` on that side is the one place
+        deciding whether a path is safe to honour - the same judgement for a
+        password login, an OAuth callback and this (#1214).
         """
         payload = verify_special_token(token, expected_type="magic_link")
         if payload is None or "sub" not in payload:
@@ -1300,8 +1323,39 @@ class UserService:
         except (TypeError, ValueError) as exc:
             raise AuthenticationError(message="Magic link is invalid or has expired") from exc
 
-        user = await self.get_by_id(user_id)
+        jti = payload.get("jti")
+        credential_version = payload.get("cv")
+        claimed_email = payload.get("email")
+        if (
+            not isinstance(jti, str)
+            or not jti
+            or not isinstance(credential_version, int)
+            or isinstance(credential_version, bool)
+            or not isinstance(claimed_email, str)
+            or not claimed_email
+        ):
+            raise AuthenticationError(message="Magic link is invalid or has expired")
+
+        # Held until the route's transaction commits its session (or MFA handoff).
+        # Password and email changes update this row, so either they happen first
+        # and invalidate the claim below, or they happen after and revoke the
+        # session created while this lock was held.
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if (
+            user is None
+            or credential_version != user.credential_version
+            or claimed_email != user.email
+        ):
+            raise AuthenticationError(message="Magic link is invalid or has expired")
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
+        if not await session_repo.consume_magic_link_claim(
+            self.db,
+            token_hash=hashlib.sha256(jti.encode()).hexdigest(),
+            user_id=user.id,
+            credential_version=credential_version,
+            now=datetime.now(UTC),
+        ):
+            raise AuthenticationError(message="Magic link is invalid or has expired")
         claimed = payload.get("rt")
         return user, claimed if isinstance(claimed, str) else None

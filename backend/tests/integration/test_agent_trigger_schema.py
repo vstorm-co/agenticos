@@ -20,7 +20,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger, EventSource
+from app.db.models.agent_trigger import AgentTrigger, AgentTriggerWebhookReceipt, EventSource
 from app.db.models.conversation import Conversation
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -353,6 +353,34 @@ class TestTheEventShapeRejectsABadRow:
                 )
             )
         await db.flush()
+
+
+class TestAuthenticatedWebhookReceipts:
+    @pytest.mark.security
+    async def test_a_committed_signed_request_is_claimed_once_across_sessions(self, db, engine):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        trigger = _event(org, agent)
+        db.add(trigger)
+        await db.flush()
+
+        assert await agent_trigger_repo.claim_webhook_delivery(
+            db, trigger=trigger, signed_digest="a" * 64
+        )
+        await db.commit()
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as restarted:
+            assert not await agent_trigger_repo.claim_webhook_delivery(
+                restarted, trigger=trigger, signed_digest="a" * 64
+            )
+            assert await agent_trigger_repo.claim_webhook_delivery(
+                restarted, trigger=trigger, signed_digest="b" * 64
+            )
+            await restarted.commit()
+
+        receipts = (await db.scalars(select(AgentTriggerWebhookReceipt))).all()
+        assert {receipt.signed_digest for receipt in receipts} == {"a" * 64, "b" * 64}
 
 
 class TestTheClaimReturnsTheRightRows:

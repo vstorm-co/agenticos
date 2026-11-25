@@ -10,6 +10,9 @@ import jwt
 
 from app.core.config import settings
 
+MAGIC_LINK_TTL = timedelta(minutes=15)
+"""How long a state-backed magic-link claim may be redeemed."""
+
 
 def encode_untrusted(value: str) -> bytes:
     """UTF-8 bytes for an attacker-controlled string, never raising on a surrogate.
@@ -251,11 +254,20 @@ def create_magic_link_token(
     expires_delta: timedelta | None = None,
     return_to: str | None = None,
     email: str | None = None,
+    *,
+    credential_version: int = 0,
+    jti: str | None = None,
+    expires_at: datetime | None = None,
 ) -> str:
-    """Sign-in-by-email JWT. Short-lived (15 min default).
+    """Sign the public half of a state-backed, single-use email sign-in claim.
+
+    Short-lived (15 min default). `jti` identifies the server-side claim without
+    putting its stored SHA-256 digest in the bearer, and `cv` invalidates the link
+    after a credential change. The consume path accepts only a matching unspent
+    claim, so a token created without persisting its `jti` cannot sign in.
 
     `email` binds mailbox proof to the address this link was actually sent to.
-    Legacy links without it can still sign in, but cannot prove a current address.
+    The consume path also requires it to still be the account's current address.
 
     `return_to` rides in the token because a magic link is followed from an
     email - a different tab, often a different application, sometimes a
@@ -264,8 +276,14 @@ def create_magic_link_token(
     between the mint and the landing; validated before it gets here, by
     `MagicLinkRequest`, so nothing unchecked is ever put in a token.
     """
-    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=15))
-    to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "magic_link"}
+    expire = expires_at or datetime.now(UTC) + (expires_delta or MAGIC_LINK_TTL)
+    to_encode: dict[str, Any] = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "magic_link",
+        "cv": credential_version,
+        "jti": jti or uuid4().hex,
+    }
     if email is not None:
         to_encode["email"] = email
     if return_to is not None:

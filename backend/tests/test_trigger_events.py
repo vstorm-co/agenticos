@@ -589,18 +589,64 @@ class TestSignatureVerificationIsRobust:
         )
 
 
-class TestTheDeliveryIdIsWhatDedupKeysOn:
+class TestProviderDeliveryIds:
     def test_githubs_native_delivery_header_is_read(self):
         assert trigger_events.delivery_id("github", {"x-github-delivery": "uuid-1"}, {}) == "uuid-1"
 
     def test_a_relay_uses_the_generic_header(self):
         assert trigger_events.delivery_id("webhook", {"x-delivery-id": "abc"}, {}) == "abc"
 
-    def test_no_header_means_no_id_so_the_source_is_not_deduplicated(self):
+    def test_no_header_means_no_provider_id(self):
         assert trigger_events.delivery_id("github", {}, {}) is None
 
     def test_a_blank_header_is_treated_as_absent(self):
         assert trigger_events.delivery_id("webhook", {"x-delivery-id": "   "}, {}) is None
+
+
+class TestSignedDeliveryDigests:
+    @pytest.mark.security
+    def test_unsigned_github_delivery_id_cannot_change_replay_identity(self):
+        body = b'{"action":"opened"}'
+        signature = _sign(_SECRET, body)
+        first = trigger_events.signed_delivery_digest(
+            "github",
+            {"x-hub-signature-256": signature, "x-github-delivery": "one"},
+            {},
+        )
+        changed = trigger_events.signed_delivery_digest(
+            "github",
+            {"x-hub-signature-256": signature, "x-github-delivery": "two"},
+            {},
+        )
+        missing = trigger_events.signed_delivery_digest(
+            "github", {"x-hub-signature-256": signature}, {}
+        )
+
+        assert first == changed == missing
+        assert first != trigger_events.signed_delivery_digest(
+            "github", {"x-hub-signature-256": _sign(_SECRET, body + b" ")}, {}
+        )
+
+    @pytest.mark.security
+    def test_configured_generic_header_not_unsigned_id_defines_replay_identity(self):
+        config = {
+            "signature_scheme": "hmac-sha256-hex",
+            "signature_header": "X-Custom-Signature",
+        }
+        headers = {"x-custom-signature": "a" * 64, "x-delivery-id": "one"}
+
+        first = trigger_events.signed_delivery_digest("webhook", headers, {}, config=config)
+        changed = trigger_events.signed_delivery_digest(
+            "webhook", headers | {"x-delivery-id": "two"}, {}, config=config
+        )
+        missing = trigger_events.signed_delivery_digest(
+            "webhook", {"x-custom-signature": "a" * 64}, {}, config=config
+        )
+
+        assert first == changed == missing
+        assert first != trigger_events.signed_delivery_digest(
+            "webhook", headers | {"x-custom-signature": "b" * 64}, {}, config=config
+        )
 
 
 def _github(event: str, payload: dict, config: dict) -> bool:

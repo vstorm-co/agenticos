@@ -2993,6 +2993,71 @@ class TestTheTokenEndpointsRefusals:
             await mcp_oauth._token_request("https://93.184.216.34/token", {"grant_type": "x"})
         assert not isinstance(raised.value, mcp_oauth.OAuthGrantRevoked)
 
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("body", "content_type", "expected_error", "private_values"),
+        [
+            (
+                "refresh_token=rt-secret\r\nforged-log-entry=true",
+                "text/plain",
+                None,
+                ("rt-secret", "forged-log-entry"),
+            ),
+            (
+                '{"error":"invalid_client","detail":{"client_secret":"cs-secret"}}',
+                "application/json",
+                "invalid_client",
+                ("cs-secret",),
+            ),
+            (
+                "refresh_token=rt%20secret&client_secret=cs%2Dsecret",
+                "application/x-www-form-urlencoded",
+                None,
+                ("rt%20secret", "cs%2Dsecret"),
+            ),
+            (
+                '{"error":"invalid_client\\r\\nforged-code","detail":"rt-secret"}',
+                "application/json",
+                None,
+                ("forged-code", "rt-secret"),
+            ),
+        ],
+    )
+    async def test_reflected_credentials_never_reach_token_refusal_logs(
+        self, monkeypatch, caplog, body, content_type, expected_error, private_values
+    ):
+        async def refuse(client, request):
+            return httpx2.Response(
+                400,
+                content=body,
+                headers={"Content-Type": content_type},
+                request=request,
+            )
+
+        monkeypatch.setattr(mcp_oauth, "_send", refuse)
+        endpoint = "https://93.184.216.34/oauth/token?request_key=url-secret"
+        with (
+            caplog.at_level(logging.WARNING, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError, match="returned 400"),
+        ):
+            await mcp_oauth._token_request(
+                endpoint,
+                {
+                    "grant_type": "refresh_token",
+                    "refresh_token": "rt secret",
+                    "client_secret": "cs-secret",
+                },
+            )
+
+        [record] = [r for r in caplog.records if r.message == "mcp_oauth_token_refused"]
+        logged = f"{record.getMessage()} {record.__dict__}"
+        assert record.__dict__["endpoint_origin"] == "https://93.184.216.34"
+        assert record.__dict__["oauth_error"] == expected_error
+        assert record.__dict__["status"] == 400
+        assert not any(value in logged for value in (*private_values, "url-secret"))
+        assert "/oauth/token" not in logged
+
     @pytest.mark.anyio
     @pytest.mark.parametrize(("resource", "sent"), [("https://srv/mcp", True), (None, False)])
     async def test_a_refresh_sends_a_resource_only_when_there_is_one(
@@ -5935,12 +6000,13 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "redirect URL" in str(error.value)
         assert "do-not-show" not in str(error.value)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_unreachable_token_endpoint_is_named_by_its_class(self, monkeypatch, caplog):
-        vendor_text = f"[Errno 61] Connection refused for {self._LEAKY_URL}"
+        vendor_text = f"[Errno 61] Connection refused for {self._LEAKY_URL}: rt-secret cs-secret"
 
         async def fake_send(client, request):
-            raise httpx2.ConnectError(vendor_text)
+            raise httpx2.ConnectError(vendor_text, request=request)
 
         monkeypatch.setattr(mcp_oauth, "_send", fake_send)
         with (
@@ -5948,14 +6014,27 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
             pytest.raises(mcp_oauth.OAuthError) as exc_info,
         ):
             await mcp_oauth._token_request(
-                "https://auth.example.com/token", {"grant_type": "refresh_token"}
+                "https://auth.example.com/token?request_key=url-secret",
+                {
+                    "grant_type": "refresh_token",
+                    "refresh_token": "rt-secret",
+                    "client_secret": "cs-secret",
+                },
             )
 
         shown = str(exc_info.value)
         assert "client_secret" not in shown
         assert self._LEAKY_URL not in shown
         assert "ConnectError" in shown
-        assert vendor_text in caplog.text
+        [record] = [r for r in caplog.records if r.message == "mcp_oauth_token_transport_failed"]
+        logged = f"{record.getMessage()} {record.__dict__}"
+        assert record.__dict__["endpoint_origin"] == "https://auth.example.com"
+        assert record.__dict__["error_type"] == "ConnectError"
+        assert record.exc_info is None
+        assert not any(
+            value in logged or value in shown for value in ("url-secret", "rt-secret", "cs-secret")
+        )
+        assert vendor_text not in logged
 
     @pytest.mark.anyio
     async def test_a_failed_registration_is_named_by_its_class(self, monkeypatch, caplog):
@@ -5996,7 +6075,8 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
             pytest.raises(mcp_oauth.OAuthError) as exc_info,
         ):
             await mcp_oauth._token_request(
-                "https://auth.example.com/token", {"grant_type": "authorization_code"}
+                "https://auth.example.com/token?request_key=url-secret",
+                {"grant_type": "authorization_code"},
             )
 
         shown = str(exc_info.value)
@@ -6004,7 +6084,14 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "ValidationError" in shown
         # The token must not reach the log, but the failure is still described.
         assert "at-secret-9f2c" not in caplog.text
-        assert "unreadable token response" in caplog.text
+        [record] = [r for r in caplog.records if r.message == "mcp_oauth_token_unreadable"]
+        logged = f"{record.getMessage()} {record.__dict__}"
+        assert record.__dict__["endpoint_origin"] == "https://auth.example.com"
+        assert record.__dict__["status"] == 200
+        assert "access_token" in record.__dict__["validation_error"]
+        assert record.exc_info is None
+        assert "at-secret-9f2c" not in logged
+        assert "url-secret" not in logged
 
     def test_validation_detail_names_the_field_not_the_value(self):
         """The sanitized detail says which field failed and how, not what was in it."""

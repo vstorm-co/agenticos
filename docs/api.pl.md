@@ -1,5 +1,5 @@
 ---
-source_sha: "e441c709a83c"
+source_sha: "ad535e606b1f"
 ---
 
 # API HTTP { #the-http-api }
@@ -595,7 +595,8 @@ curl -X POST "$WEBHOOK_URL" \
 Odpowiada `202` z `{"run_id": ..., "duplicate": false}`, gdy tylko run zostanie
 przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęto,
 odpowiada `"duplicate": true` z id pierwszego runa, tak samo jak to samo podpisane
-żądanie pod innym id w ciągu 24 godzin. Podpis, który się nie weryfikuje,
+żądanie pod innym id, niezależnie od tego, jak późno zostanie powtórzone. Podpis,
+który się nie weryfikuje,
 to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
 a wstrzymany albo nieznany webhook to `404`.
 

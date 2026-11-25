@@ -26,6 +26,7 @@ from app.api.deps import get_db_session, get_redis, get_session_service, get_use
 from app.core.config import settings
 from app.core.security import create_magic_link_token
 from app.main import app
+from app.repositories import session_repo, user_repo
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -129,22 +130,26 @@ class TestTheTokenCarriesIt:
         """Signed, so it cannot be edited between the email and the landing."""
         user = _User()
         service = UserService(mock_db_session)
-        token = create_magic_link_token(subject=str(user.id), return_to="/agents/a-1")
+        token = create_magic_link_token(
+            subject=str(user.id), return_to="/agents/a-1", email=user.email
+        )
 
         with pytest.MonkeyPatch.context() as patched:
-            patched.setattr(service, "get_by_id", AsyncMock(return_value=user))
+            patched.setattr(user_repo, "get_by_id_for_update", AsyncMock(return_value=user))
+            patched.setattr(session_repo, "consume_magic_link_claim", AsyncMock(return_value=True))
             consumed, return_to = await service.consume_magic_link_token(token)
 
         assert consumed is user
         assert return_to == "/agents/a-1"
 
-    async def test_a_token_with_no_claim_answers_none(self, mock_db_session) -> None:
+    async def test_a_token_with_no_return_path_answers_none(self, mock_db_session) -> None:
         user = _User()
         service = UserService(mock_db_session)
-        token = create_magic_link_token(subject=str(user.id))
+        token = create_magic_link_token(subject=str(user.id), email=user.email)
 
         with pytest.MonkeyPatch.context() as patched:
-            patched.setattr(service, "get_by_id", AsyncMock(return_value=user))
+            patched.setattr(user_repo, "get_by_id_for_update", AsyncMock(return_value=user))
+            patched.setattr(session_repo, "consume_magic_link_claim", AsyncMock(return_value=True))
             _, return_to = await service.consume_magic_link_token(token)
 
         assert return_to is None
