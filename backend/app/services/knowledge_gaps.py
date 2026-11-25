@@ -758,6 +758,7 @@ class KnowledgeGapService:
         status: TopicStatusLiteral | None,
         skip: int,
         limit: int,
+        topic_ids: Sequence[UUID] | None = None,
     ) -> KnowledgeGapTopicList:
         threshold = settings.KNOWLEDGE_GAP_MIN_SIMILARITY
         rows, total = await knowledge_gap_repo.list_topics(
@@ -769,6 +770,7 @@ class KnowledgeGapService:
             agent_id=agent_id,
             skip=skip,
             limit=limit,
+            topic_ids=topic_ids,
         )
         ungrouped = await knowledge_gap_repo.count_ungrouped(
             self.db,
@@ -872,8 +874,12 @@ class KnowledgeGapService:
         status: TopicStatusLiteral | None = None,
         skip: int = 0,
         limit: int = 50,
+        topic_ids: Sequence[UUID] | None = None,
     ) -> KnowledgeGapTopicList:
         """What one agent searched for and did not find, in the knowledge bases the caller reads.
+
+        `topic_ids` narrows the items and their total to those topics; the counts per
+        knowledge base and the ungrouped questions stay the agent's.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -887,7 +893,13 @@ class KnowledgeGapService:
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
         readable = await self._readable_with_misses(ctx, agent_id=agent.id)
         return await self._list(
-            ctx, readable, agent_id=agent.id, status=status, skip=skip, limit=limit
+            ctx,
+            readable,
+            agent_id=agent.id,
+            status=status,
+            skip=skip,
+            limit=limit,
+            topic_ids=topic_ids,
         )
 
     async def _topic(

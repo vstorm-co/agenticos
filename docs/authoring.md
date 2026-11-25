@@ -151,7 +151,7 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from a version that was only proposed, which the draft does not hold: an earlier attempt's, the one a knowledge check measures, or one serving a skill or context file change. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
@@ -352,8 +352,8 @@ within its budget. Two unchanged results in a row, or an inconclusive one and it
 repeat, show on the result as a hint that another attempt is unlikely to help, not
 as a stop.
 
-Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
-and the steps after it run with that person's current permissions and credential,
+Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step, try again, or confirm one of its paid checks: of chosen changes, of a knowledge draft, or of what each change did. The session records who did,
+and the steps after it run with that person's current permissions and credential and are logged under them,
 so a session the Architect started can be taken further in the console.
 
 The worker

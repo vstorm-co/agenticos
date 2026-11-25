@@ -1625,9 +1625,18 @@ class ImprovementPipelineService:
 
     async def _require_may_continue(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Refuse unless the caller may start a session on this agent, which is all that taking
-        a session's next step, trying again, resuming or retrying asks of them."""
+        a session's next step, trying again, resuming, retrying or confirming a check asks
+        of them."""
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
+
+    async def _take_over(self, ctx: AuthContext, run: ImprovementRun) -> None:
+        """Make whoever confirmed a paid step the one the session's later steps run as."""
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"actor_user_id": ctx.subject_id, "actor_api_key_id": ctx.api_key_id},
+        )
 
     @staticmethod
     def _resumes(run: ImprovementRun) -> bool:
@@ -1702,13 +1711,6 @@ class ImprovementPipelineService:
         except AuthorizationError, NotFoundError:
             return False
         return True
-
-    @staticmethod
-    def _require_requester(ctx: AuthContext, run: ImprovementRun) -> None:
-        if ctx.user_id != run.created_by_user_id or ctx.api_key_id != run.created_by_api_key_id:
-            raise AuthorizationError(
-                message="Use the session requester's original account and credentials for paid restarts, or start a new session"
-            )
 
     async def retry(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         """Retry a failed paid step only after a person's explicit request.
@@ -2482,11 +2484,12 @@ class ImprovementPipelineService:
         """Record a step on the session's timeline.
 
         `actor_user_id` names a person who acted; the session's own steps name
-        none and are recorded under its requester. `decided` is what they decided.
+        none and are recorded under the person they run as. `decided` is what they
+        decided.
         """
         await record_audit(
             self.db,
-            actor_user_id=actor_user_id or run.created_by_user_id,
+            actor_user_id=actor_user_id or self._acting_as(run)[0],
             organization_id=run.organization_id,
             action=f"improvement.{action}",
             target_type="improvement",
@@ -2881,6 +2884,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -2902,6 +2906,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 await improvement_repo.update_iteration(
                     self.db, iteration=iteration, values={"authoring_request_id": request.id}
@@ -3927,7 +3932,7 @@ class ImprovementPipelineService:
     async def start_knowledge(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckConsent
     ) -> EvalRunRead:
-        self._require_requester(ctx, await self._row(ctx, agent_id, run_id))
+        await self._require_may_continue(ctx, agent_id)
         planned = await self._knowledge_plan(ctx, agent_id, run_id, data)
         quote = planned.quote if isinstance(planned, KnowledgePlan) else planned
         if quote.draft_hash != data.draft_hash or quote.total_usd != data.estimate_usd:
@@ -3960,7 +3965,8 @@ class ImprovementPipelineService:
             baseline_skills=planned.skills,
             proposal_check=planned.record,
         )
-        await self._audit(planned.session, "knowledge_check_started", actor_user_id=ctx.user_id)
+        await self._take_over(ctx, planned.session)
+        await self._audit(planned.session, "knowledge_check_started", actor_user_id=ctx.subject_id)
         return child
 
     async def _attribution_target(
@@ -4055,12 +4061,10 @@ class ImprovementPipelineService:
         Excluded suggestions stay undecided; accepting the session applies only
         its measured selection through normal authoring decisions.
         """
-        await self.authoring._editable(ctx, agent_id)
-        self.authoring._require_runs_view(ctx)
+        await self._require_may_continue(ctx, agent_id)
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         existing = await self._row(ctx, agent_id, run_id, lock=True)
-        self._require_requester(ctx, existing)
         if Status(existing.status).active:
             current = await improvement_repo.get_iteration(
                 self.db, organization_id=ctx.organization_id, run_id=run_id, number=number
@@ -4120,6 +4124,7 @@ class ImprovementPipelineService:
                 "error": None,
             },
         )
+        await self._take_over(ctx, run)
         await self._audit(
             run,
             "selection_confirmed",
@@ -4231,8 +4236,8 @@ class ImprovementPipelineService:
         number: int,
         consent: AttributionConsent,
     ) -> ImprovementRead:
+        await self._require_may_continue(ctx, agent_id)
         run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
-        self._require_requester(ctx, run)
         if iteration.attribution_eval_run_ids:
             return await self._read(ctx, run)
         if await improvement_repo.has_active_check(
@@ -4291,5 +4296,6 @@ class ImprovementPipelineService:
         await improvement_repo.update_iteration(
             self.db, iteration=iteration, values={"attribution_eval_run_ids": ids}
         )
-        await self._audit(run, "attribution_started")
+        await self._take_over(ctx, run)
+        await self._audit(run, "attribution_started", actor_user_id=ctx.subject_id)
         return await self._read(ctx, run)

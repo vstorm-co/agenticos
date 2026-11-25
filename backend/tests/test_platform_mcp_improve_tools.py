@@ -1,6 +1,7 @@
 """The Architect's Improve and eval tools: the wizard's own routes, read back compactly."""
 
 import uuid
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -95,10 +96,23 @@ UNPUBLISHED: dict[tuple[str, str], Any] = {
 
 
 def _responder(responses: dict[tuple[str, str], Any]) -> AsyncMock:
-    async def respond(method: str, path: str, **_: Any) -> Any:
-        return {**UNPUBLISHED, **responses}[(method, path)]
+    """Each call's answer; a callable one is given the call's query parameters."""
+
+    async def respond(method: str, path: str, **kwargs: Any) -> Any:
+        answer = {**UNPUBLISHED, **responses}[(method, path)]
+        return answer(kwargs.get("params") or {}) if callable(answer) else answer
 
     return AsyncMock(side_effect=respond)
+
+
+def _gaps(*topics: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    """The agent's knowledge gap list, answering for the topic ids it is asked about."""
+
+    def answer(params: dict[str, Any]) -> dict[str, Any]:
+        asked = set(params.get("topic_id", []))
+        return {"items": [topic for topic in topics if topic["id"] in asked]}
+
+    return answer
 
 
 @pytest.fixture
@@ -204,13 +218,11 @@ class TestReadingSessions:
                         _miss("r3", "agent"),
                     ]
                 },
-                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
-                    "items": [
-                        topic,
-                        {**topic, "id": OTHER_TOPIC, "label": "Gift cards?"},
-                        {**topic, "id": str(uuid.uuid4()), "label": "Another session's"},
-                    ]
-                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): _gaps(
+                    topic,
+                    {**topic, "id": OTHER_TOPIC, "label": "Gift cards?"},
+                    {**topic, "id": str(uuid.uuid4()), "label": "Another session's"},
+                ),
             }
         )
 
@@ -230,6 +242,40 @@ class TestReadingSessions:
                 "state": "draft_stale",
             },
         ]
+
+    async def test_every_topic_the_session_found_is_read_by_its_id_and_the_rest_counted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """An agent's topics past its first hundred are read; one the caller cannot read is
+        counted rather than silently missing."""
+        found = [str(uuid.uuid4()) for _ in range(101)]
+        readable = [
+            {"id": topic_id, "label": "Q", "knowledge_base_name": "K"} for topic_id in found[1:]
+        ]
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
+                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
+                    "items": [
+                        _miss(f"r{n}", "missing_knowledge", topic_id)
+                        for n, topic_id in enumerate(found)
+                    ]
+                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): _gaps(*readable),
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        asked = [
+            call.kwargs["params"]["topic_id"]
+            for call in api.request.await_args_list
+            if call.args == ("GET", f"/knowledge-gaps/agents/{AGENT}")
+        ]
+        assert [len(ids) for ids in asked] == [100, 1]
+        assert [t["topic_id"] for t in session["missing_knowledge"]] == found[1:]
+        assert session["missing_knowledge_left_out"] == 1
 
     async def test_an_attempt_kept_by_hand_is_chosen_without_being_the_best(
         self, server: FastMCP, api: MagicMock
@@ -303,16 +349,14 @@ class TestReadingSessions:
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
                     "items": [_miss("r1", "missing_knowledge", TOPIC)]
                 },
-                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
-                    "items": [
-                        {
-                            "id": TOPIC,
-                            "label": "Do you ship to Germany?",
-                            "knowledge_base_name": "Help center",
-                            **topic,
-                        }
-                    ]
-                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): _gaps(
+                    {
+                        "id": TOPIC,
+                        "label": "Do you ship to Germany?",
+                        "knowledge_base_name": "Help center",
+                        **topic,
+                    }
+                ),
             }
         )
 
@@ -443,7 +487,7 @@ class TestStepByStep:
                         _miss("r6", "not_a_problem"),
                     ]
                 },
-                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): _gaps(),
             }
         )
 
@@ -1316,6 +1360,22 @@ class TestFindingSessionsWithoutAnId:
         assert "next_actions" not in found
         assert api.request.await_count == 1
         assert api.request.await_args_list[0].kwargs == {"params": {"open": "true"}}
+
+    async def test_every_open_session_is_counted_and_reached_by_paging(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        sessions = [
+            {"id": str(uuid.uuid4()), "agent_id": str(uuid.uuid4()), "status": "waiting"}
+            for _ in range(21)
+        ]
+        api.request = _responder({("GET", "/improvements"): sessions})
+
+        first = await _call(server, "list_improvements", limit=20)
+        rest = await _call(server, "list_improvements", limit=20, skip=first["next_skip"])
+
+        assert (first["total"], first["next_skip"], len(first["open_sessions"])) == (21, 20, 20)
+        assert [item["id"] for item in rest["open_sessions"]] == [sessions[20]["id"]]
+        assert rest["next_skip"] is None
 
     @pytest.mark.parametrize("name", ["refund desk", "  Refund Desk ", "refund"])
     async def test_an_agent_can_be_named_instead_of_identified(

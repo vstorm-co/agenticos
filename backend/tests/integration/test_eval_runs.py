@@ -4446,6 +4446,63 @@ async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(
     assert {row.arm.version_number for row in rows} == {7}
 
 
+@pytest.mark.parametrize(
+    ("proposal_check", "roles"),
+    [
+        (None, {"candidate"}),
+        ({"kind": "agent", "base_version": 7, "suggestions": 1}, {"baseline"}),
+        (
+            {
+                "kind": "skill",
+                "base_version": 7,
+                "suggestions": 1,
+                "skill_check_id": str(uuid.uuid4()),
+            },
+            {"baseline"},
+        ),
+        ({"kind": "context", "base_version": 7, "suggestions": 1}, {"baseline"}),
+        (
+            {
+                "kind": "context",
+                "base_version": None,
+                "on_draft": True,
+                "suggestions": 1,
+                "knowledge": {"topic_id": str(uuid.uuid4()), "draft_hash": "a", "supported": True},
+            },
+            set(),
+        ),
+    ],
+    ids=["ordinary", "suggestions-check", "skill-check", "context-check", "knowledge-check"],
+)
+async def test_training_answers_are_only_those_the_agent_itself_gave(db, proposal_check, roles):
+    """A check's candidate served a proposed change, and a knowledge check's baseline is an
+    attempt's projected version: neither is how the agent answers."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+    )
+    await _run_to_end(db, Model(db), started.id, ctx)
+    stored = await db.get(EvalRun, started.id)
+    assert stored is not None
+    stored.proposal_check = proposal_check
+    await db.flush()
+    cases = (await DatasetService(db).list_cases(ctx, dataset.id)).items
+
+    rows = await authoring_repo.train_answers(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_ids=[dataset.id],
+        since=started.created_at,
+        case_ids=[case.case_id for case in cases],
+    )
+
+    assert {row.arm.role for row in rows} == roles
+
+
 @pytest.mark.security
 async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monkeypatch):
     from app.services import eval_run as eval_service
