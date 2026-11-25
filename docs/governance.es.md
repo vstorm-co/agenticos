@@ -1,5 +1,5 @@
 ---
-source_sha: "72feafd2fd90"
+source_sha: "449d73c9dbf6"
 ---
 
 # Governance { #governance }
@@ -1459,6 +1459,13 @@ llamada del script se decide por separado con las
 propios de este despliegue se ejecuta; una lectura de fuera o una escritura se
 retiene y se registra con sus argumentos. Ejecutar el script no deja pasar nada
 que una llamada directa no obtendría.
+
+Cada llamada que hace el script se guarda con el run, bajo el script: su
+herramienta, sus argumentos y su resultado, hasta 100 llamadas por script. Un
+eval califica esas llamadas en lugar del script y las enumera bajo él
+([llamadas a herramientas esperadas](datasets.md#trajectory)). Una grabación del
+run responde a cada una cuando un eval vuelve a ejecutar el script, así que la
+reproducción también las enumera.
 
 El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
 bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un

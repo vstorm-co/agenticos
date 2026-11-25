@@ -234,7 +234,9 @@ released when the run finishes.
 A case taken from a conversation can be answered **from the recording** of the
 run it came from (`from_recordings`): a call that matches the recording gets the
 recorded result, and one that does not is held and marked divergent. A case
-without a usable recording runs isolated without one.
+without a usable recording runs isolated without one. A code-mode agent's
+script runs again, and each call it makes is answered from the recording; the
+case lists those calls under the script.
 
 ### A draft is never counted as a version { #a-draft-is-never-counted-as-a-version }
 

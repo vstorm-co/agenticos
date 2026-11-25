@@ -1,5 +1,5 @@
 ---
-source_sha: "28b0064924c0"
+source_sha: "ee9f3eaad5fb"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -270,7 +270,9 @@ Ein Fall aus einer Conversation kann **aus der Aufzeichnung** des Runs
 beantwortet werden, aus dem er stammt (`from_recordings`): Ein Aufruf, der zur
 Aufzeichnung passt, bekommt das aufgezeichnete Ergebnis, einer, der nicht
 passt, wird zurückgehalten und als abweichend markiert. Ein Fall ohne
-verwendbare Aufzeichnung läuft isoliert ohne sie.
+verwendbare Aufzeichnung läuft isoliert ohne sie. Das Skript eines Agents im
+Code-Modus läuft erneut, und jeder Aufruf, den es macht, wird aus der
+Aufzeichnung beantwortet; der Fall führt diese Aufrufe unter dem Skript auf.
 
 ### Ein Entwurf zählt nie als Version { #a-draft-is-never-counted-as-a-version }
 

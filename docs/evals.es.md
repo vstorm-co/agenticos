@@ -1,5 +1,5 @@
 ---
-source_sha: "28b0064924c0"
+source_sha: "ee9f3eaad5fb"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -247,7 +247,9 @@ Un caso tomado de una conversación puede responderse **desde la grabación** de
 run del que salió (`from_recordings`): una llamada que coincide con la
 grabación recibe el resultado grabado, y una que no coincide se retiene y se
 marca como divergente. Un caso sin grabación utilizable se ejecuta aislado sin
-ella.
+ella. El script de un agent en modo código se ejecuta de nuevo, y cada llamada
+que hace se responde desde la grabación; el caso enumera esas llamadas bajo el
+script.
 
 ### Un borrador nunca cuenta como versión { #a-draft-is-never-counted-as-a-version }
 

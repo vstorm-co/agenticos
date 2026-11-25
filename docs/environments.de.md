@@ -1,5 +1,5 @@
 ---
-source_sha: "95840a455250"
+source_sha: "58eec76b2613"
 ---
 
 # Umgebungen { #environments }
@@ -271,6 +271,12 @@ abweichend aufgezeichnet. Ein Run, dessen Transkript einen Aufruf verloren hat,
 wird gar nicht wiedergegeben. Ein isolierter Run hat niemanden, den er um eine
 Freigabe bitten kann, also wird ein gesperrter Aufruf ebenfalls nicht ausgeführt
 und als freigabepflichtig aufgezeichnet.
+
+Ein Skript im Code-Modus wird als die Aufrufe aufgezeichnet, die es gemacht hat:
+Die Wiedergabe führt das Skript erneut aus, und jeder Aufruf wird aus der
+Aufzeichnung beantwortet. Ein Skript, das aufgezeichnet wurde, bevor seine
+Aufrufe aufbewahrt wurden, oder eines mit mehr Aufrufen, als sein Run aufbewahrt
+hat, wird als Ganzes beantwortet.
 
 ## Aus dem Builder heraus ausprobieren { #trying-it-from-the-builder }
 

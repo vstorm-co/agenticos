@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "c62113518480"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -490,6 +490,14 @@ zablokował izolowany run, nadal liczy się jako wywołanie wykonane przez agent
 Wywołanie jest dopasowywane po nazwie narzędzia zapisanej przez run, czyli po
 nazwie po ewentualnym nadpisaniu w specu. Przypadek napisany przed zmianą nazwy
 narzędzia oczekuje starej nazwy.
+
+Agent w [trybie kodu](governance.md#code-mode) wywołuje jedno narzędzie,
+`run_code`, a pozostałe wywołuje jego skrypt. Dopasowywane są wywołania skryptu,
+w miejsce samego skryptu i w kolejności, w jakiej skrypt o nie prosił, a skrypt,
+który niczego nie wywołał, jest dopasowywany jako `run_code`. Run zachowuje
+pierwsze 100 wywołań każdego skryptu, więc dalsze wywołania nie są dopasowywane.
+Przypadek utworzony przez **Dodaj do datasetu** z odpowiedzi w trybie kodu
+oczekuje wywołań skryptu, a nie `run_code`.
 
 ### Sędzia { #judge }
 Oceniający jest pomocnikiem ewaluacji zdefiniowanym w kodzie. Model, instrukcje, kryteria, skala i próg należą do zakładki **Ustawienia** tego datasetu. Model wybiera się tym samym selektorem providera, modelu i klucza oraz edytorem Markdown co w Agent Builderze. Edycja wymaga `datasets:edit`, a dodanie modelu `connections:manage`. Nie trzeba tworzyć ani publikować osobnego agenta.

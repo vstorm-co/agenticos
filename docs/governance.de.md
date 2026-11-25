@@ -1,5 +1,5 @@
 ---
-source_sha: "72feafd2fd90"
+source_sha: "449d73c9dbf6"
 ---
 
 # Governance { #governance }
@@ -1543,6 +1543,13 @@ jeden Aufruf des Skripts entscheiden einzeln die
 Daten dieses Deployments läuft, ein Lesezugriff nach außen oder ein Schreibzugriff
 wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skripts
 lässt nichts durch, was ein direkter Aufruf nicht bekäme.
+
+Jeder Aufruf des Skripts wird mit dem Run aufbewahrt, unter dem Skript: sein
+Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe pro Skript. Ein Eval
+bewertet diese Aufrufe an Stelle des Skripts und führt sie darunter auf
+([erwartete Tool-Aufrufe](datasets.md#trajectory)). Eine Aufzeichnung des Runs
+beantwortet jeden von ihnen, wenn ein Eval das Skript erneut ausführt, sodass
+auch die Wiedergabe sie aufführt.
 
 Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
 rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs

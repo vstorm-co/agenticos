@@ -1366,6 +1366,12 @@ data runs, a read from outside it or a write is held and recorded with its
 arguments. Running the script lets nothing through that a direct call would not
 get.
 
+Each call the script makes is kept with the run, under the script: its tool,
+arguments and result, up to 100 calls a script. An eval grades those calls in
+the script's place and lists them under it
+([expected tool calls](datasets.md#trajectory)). A recording of the run answers
+each of them when an eval runs the script again, so the replay lists them too.
+
 The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
 at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
 Atomic database reservations cap retained checkpoints at 8 MB per initiating

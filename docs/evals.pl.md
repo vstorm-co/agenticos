@@ -1,5 +1,5 @@
 ---
-source_sha: "28b0064924c0"
+source_sha: "ee9f3eaad5fb"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -252,7 +252,9 @@ zwalniany po zakończeniu runu.
 Na przypadek wzięty z konwersacji można odpowiadać **z nagrania** runa, z
 którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje
 nagrany wynik, a niezgodne jest wstrzymywane i oznaczane jako rozbieżne.
-Przypadek bez użytecznego nagrania działa w izolacji bez niego.
+Przypadek bez użytecznego nagrania działa w izolacji bez niego. Skrypt agenta w
+trybie kodu działa ponownie, a każde jego wywołanie dostaje odpowiedź z nagrania;
+przypadek wymienia te wywołania pod skryptem.
 
 ### Wersja robocza nigdy nie liczy się jako wersja { #a-draft-is-never-counted-as-a-version }
 

@@ -470,6 +470,13 @@ A call is matched by the tool name the run recorded, which is the name after
 any override in the spec. A case written before a tool was renamed expects the
 old name.
 
+An agent in [code mode](governance.md#code-mode) calls one tool, `run_code`, and
+its script calls the rest. The script's calls are matched in its place, in the
+order the script asked for them, and a script that called nothing is matched as
+`run_code`. A run keeps the first 100 calls of each script, so a call past them
+is not matched. A case drafted with **Add to dataset** from a code-mode reply
+expects the script's calls, not `run_code`.
+
 ### The judge { #judge }
 The grader is a code-defined evaluation helper. Its model, instructions, criteria, scale and pass mark belong to this dataset's **Settings** tab. Choose a saved model with search, or open Add model for the provider/model/key form. Instructions use the Markdown editor. Editing grading requires `datasets:edit`; adding a model requires `connections:manage`. Creating or publishing a separate agent is unnecessary.
 

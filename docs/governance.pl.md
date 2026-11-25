@@ -1,5 +1,5 @@
 ---
-source_sha: "72feafd2fd90"
+source_sha: "449d73c9dbf6"
 ---
 
 # Governance { #governance }
@@ -1451,6 +1451,13 @@ wywołaniu ze skryptu decydują osobno
 wdrożenia działa, a odczyt spoza wdrożenia albo zapis jest wstrzymywany i
 zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
 nie dostałoby bezpośrednie wywołanie.
+
+Każde wywołanie skryptu jest zachowywane z runem, pod skryptem: narzędzie,
+argumenty i wynik, do 100 wywołań na skrypt. Ewaluacja ocenia te wywołania w
+miejsce skryptu i wymienia je pod nim
+([oczekiwane wywołania narzędzi](datasets.md#trajectory)). Nagranie runu
+odpowiada na każde z nich, gdy ewaluacja uruchamia skrypt ponownie, więc
+odtworzenie też je wymienia.
 
 Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
 runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
