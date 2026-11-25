@@ -8526,6 +8526,23 @@ describe("explicit room thread stream scope", () => {
     },
   );
 
+  it("forgets the oldest run's save scope once more than fifty are held", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    for (let run = 0; run <= 50; run += 1) {
+      receive("model_request_start", scope("root-a", { run_id: `run-${run}` }));
+    }
+
+    receive("message_saved", scope("root-a", { message_id: "saved-oldest", run_id: "run-0" }));
+    expect(onTurnSaved).toHaveBeenLastCalledWith(undefined);
+
+    receive("message_saved", scope("root-a", { message_id: "saved-next", run_id: "run-1" }));
+    expect(onTurnSaved).toHaveBeenLastCalledWith(
+      expect.objectContaining({ threadRootMessageId: "root-a" }),
+    );
+  });
+
   it("can recover scope from model_request_start and rejects late frames from another conversation", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
