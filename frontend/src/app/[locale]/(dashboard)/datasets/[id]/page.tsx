@@ -345,6 +345,7 @@ export default function DatasetPage({ params }: PageProps) {
                         <CasesToolbar
                           datasetId={id}
                           disabled={!editable}
+                          importMaxBytes={dataset.import_max_bytes}
                           onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                           onImport={(file) => cases.importFile.mutateAsync(file)}
                           onGenerate={() => setGenerating(true)}
@@ -368,6 +369,7 @@ export default function DatasetPage({ params }: PageProps) {
                 ) : cases.cases.length === 0 ? (
                   <EmptyCases
                     datasetId={id}
+                    importMaxBytes={dataset.import_max_bytes}
                     onAddCase={
                       editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                     }

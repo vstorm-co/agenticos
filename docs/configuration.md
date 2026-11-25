@@ -892,6 +892,8 @@ The test cases evals run over. See [Datasets](datasets.md).
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case revisions one organization's datasets may store together. Every case added and every edit is a revision, kept for the versions that hold it; a version stores only what it changed, so a dataset of 10,000 cases edited 500 times stores 10,500, not 5 million. An add or an edit past the limit is refused, naming how many are stored; removing a case stores nothing and is always allowed, and deleting datasets nobody needs frees their revisions. The name is older than this meaning: it counted every case of every version until versions stopped copying their cases. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | The largest file one dataset import reads (10 MB). A larger upload is read only one byte past the limit and refused as too large, naming the file; split it into several imports |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | The rows one dataset import may hold. The file is read row by row and refused at the first row past the limit, so a file of many tiny rows costs no more than one at the limit. The dataset's own ceiling of 10,000 cases still applies to what an import adds |
 
 **With `ARTIFACT_ORIGIN` empty, the frontend's `PUBLIC_API_URL` must equal the
 backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs

@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "c39334e82c1d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -152,7 +152,10 @@ Zugriffsprotokollen landet.
 als eine neue Version hinzu. Der Import gilt ganz oder gar nicht: Ist eine Zeile
 ungültig, wird keine hinzugefügt, und die Ablehnung nennt jede ungültige Zeile,
 damit Sie die Datei korrigieren und es erneut versuchen können. Eine Datei ist
-höchstens 10 MB groß, und ein Dataset enthält höchstens 10.000 Fälle. In der
+höchstens 10 MB groß und hat höchstens 10.000 Zeilen
+(`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), und ein Dataset enthält
+höchstens 10.000 Fälle. Ein Wert, der zu tief verschachtelt ist, um ihn zu lesen,
+lehnt seine Zeile ab. In der
 Konsole listet **Importieren** zuerst die Spalten auf und bietet **Vorlage
 herunterladen** an, eine CSV-Datei mit jeder Spalte und einem Fall, der sich
 unverändert importieren lässt; **Datei wählen** öffnet die Dateiauswahl.

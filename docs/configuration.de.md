@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "59bd87468e64"
 ---
 
 # Konfiguration { #configuration }
@@ -969,6 +969,8 @@ Die Testfälle, über die Evals laufen. Siehe [Datasets](datasets.md).
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Wie viele Fallrevisionen die Datasets einer Organisation zusammen speichern dürfen. Jeder hinzugefügte Fall und jede Bearbeitung ist eine Revision, gespeichert für die Versionen, die sie enthalten; eine Version speichert nur, was sie geändert hat, ein Dataset mit 10.000 Fällen, 500-mal bearbeitet, speichert also 10.500, nicht 5 Millionen. Ein Hinzufügen oder Bearbeiten über das Limit wird abgelehnt und nennt, wie viele gespeichert sind; einen Fall zu entfernen speichert nichts und ist immer erlaubt, und das Löschen nicht mehr benötigter Datasets gibt ihre Revisionen frei. Der Name ist älter als diese Bedeutung: Er zählte jeden Fall jeder Version, solange Versionen ihre Fälle kopierten. Das Limit ist ungefähr: Jede Änderung wird für sich geprüft, daher können gleichzeitige Änderungen an verschiedenen Datasets es leicht überschreiten. Es schützt den Speicher und dient nicht der Abrechnung |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | Die größte Datei, die ein Dataset-Import liest (10 MB). Eine größere Datei wird nur ein Byte über das Limit hinaus gelesen und als zu groß abgelehnt, mit dem Dateifeld benannt; teilen Sie sie auf mehrere Importe auf |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Wie viele Zeilen ein Dataset-Import enthalten darf. Die Datei wird Zeile für Zeile gelesen und bei der ersten Zeile über dem Limit abgelehnt, sodass eine Datei mit vielen winzigen Zeilen nicht mehr kostet als eine am Limit. Die eigene Obergrenze eines Datasets von 10.000 Fällen gilt weiterhin für das, was ein Import hinzufügt |
 
 ## Agent-Workspaces { #agent-workspaces }
 

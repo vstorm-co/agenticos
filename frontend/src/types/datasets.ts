@@ -123,6 +123,8 @@ export interface Dataset {
   helper_settings?: DatasetHelperSettings;
   helper_defaults?: { judge: string; generator: string; improver: string };
   improvement_holdout_share?: string;
+  /** The largest file an import of cases accepts, in bytes. */
+  import_max_bytes: number;
   id: string;
   name: string;
   description: string | null;

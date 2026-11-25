@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "59bd87468e64"
 ---
 
 # Konfiguracja { #configuration }
@@ -923,6 +923,8 @@ Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile rewizji przypadków mogą łącznie przechowywać datasety jednej organizacji. Każdy dodany przypadek i każda edycja to rewizja, przechowywana dla wersji, które ją zawierają; wersja zapisuje tylko to, co zmieniła, więc dataset z 10 000 przypadków edytowany 500 razy przechowuje 10 500, a nie 5 milionów. Dodanie albo edycja ponad limit jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku nic nie zapisuje i jest zawsze dozwolone, a usunięcie niepotrzebnych datasetów zwalnia ich rewizje. Nazwa jest starsza niż to znaczenie: liczyła każdy przypadek każdej wersji, dopóki wersje kopiowały swoje przypadki. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | Największy plik, jaki czyta jeden import datasetu (10 MB). Większy plik jest czytany tylko o bajt ponad limit i odrzucany jako za duży, z nazwą pola pliku; podziel go na kilka importów |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Ile wierszy może mieć jeden import datasetu. Plik jest czytany wiersz po wierszu i odrzucany przy pierwszym wierszu ponad limit, więc plik z wieloma drobnymi wierszami nie kosztuje więcej niż plik na granicy limitu. Własny sufit datasetu, 10 000 przypadków, nadal dotyczy tego, co import dodaje |
 
 ## Workspace'y agentów { #agent-workspaces }
 

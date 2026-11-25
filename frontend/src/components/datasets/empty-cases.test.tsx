@@ -15,6 +15,7 @@ describe("EmptyCases", () => {
     render(
       <EmptyCases
         datasetId="d1"
+        importMaxBytes={10_485_760}
         onAddCase={onAddCase}
         onImport={onImport}
         onGenerate={onGenerate}
@@ -42,7 +43,7 @@ describe("EmptyCases", () => {
   });
 
   it("says only what the tab holds to somebody who may not add a case", () => {
-    render(<EmptyCases datasetId="d1" />);
+    render(<EmptyCases datasetId="d1" importMaxBytes={10_485_760} />);
 
     expect(screen.getByText("No cases in this version")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();

@@ -15268,7 +15268,7 @@
     "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} generate {aus Entwürfen angenommen} other {geändert}}",
     "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
     "importTitle": "Fälle importieren",
-    "importBody": "Eine CSV- oder JSONL-Datei bis 10 MB, in UTF-8, mit einem Fall pro Zeile. Nur input ist Pflicht, und eine leere Zelle lässt ein Feld leer. Die Datei wird zur nächsten Version des Datasets; wird eine Zeile abgelehnt, wird nichts importiert.",
+    "importBody": "Eine CSV- oder JSONL-Datei bis {megabytes, number} MB, in UTF-8, mit einem Fall pro Zeile. Nur input ist Pflicht, und eine leere Zelle lässt ein Feld leer. Die Datei wird zur nächsten Version des Datasets; wird eine Zeile abgelehnt, wird nichts importiert.",
     "importColumn": {
       "input": "Die Nachricht, mit der der Agent getestet wird.",
       "history": "Die Turns davor, als JSON-Liste aus Rolle und Inhalt.",
