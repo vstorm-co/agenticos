@@ -628,6 +628,29 @@ async def test_search_hides_a_room_whose_source_closure_cannot_be_proved(
         service._may_read_direct.assert_not_awaited()
 
 
+async def test_search_counts_a_source_reached_by_two_paths_only_once(service, monkeypatch):
+    """Both middle rooms queue the shared source before either walk visits it."""
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    left, right, shared = (
+        conversation(organization_id, room_visibility="private") for _ in range(3)
+    )
+    graph(
+        monkeypatch,
+        destination,
+        [
+            (destination.id, left.id),
+            (destination.id, right.id),
+            (left.id, shared.id),
+            (right.id, shared.id),
+        ],
+        [left, right, shared],
+    )
+    monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_NODES", 4)
+
+    assert await service.unreadable_destinations(organization_id, uuid4()) == set()
+
+
 async def test_search_stops_walking_once_the_node_limit_is_reached(service, monkeypatch):
     organization_id = uuid4()
     destination = conversation(organization_id, room_visibility="private")
