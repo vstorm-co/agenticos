@@ -265,7 +265,7 @@ export function locatePassage(text: string, passage: Passage): number | null {
     const at = positions[0]!;
     const end = at + passage.old_text.length;
     const moved =
-      passage.old_text.length >= MOVED_MIN_CHARS ||
+      [...passage.old_text].length >= MOVED_MIN_CHARS ||
       (wholeLines(
         passage.old_text,
         !passage.context_before || passage.context_before.endsWith("\n"),

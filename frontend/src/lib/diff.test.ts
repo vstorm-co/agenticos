@@ -199,6 +199,17 @@ describe("locatePassage", () => {
     expect(locatePassage("Hello there", passage("there", "Hi "))).toBeNull();
   });
 
+  it("counts a passage's length in characters, as the server does", () => {
+    const short = `${"x".repeat(37)}👍🏽`;
+    expect(short.length).toBeGreaterThanOrEqual(40);
+    expect([...short].length).toBeLessThan(40);
+    expect(
+      locatePassage(`Note: ${short}. Be brief.`, passage(short, "Say ", ", always.")),
+    ).toBeNull();
+    const long = `${"x".repeat(38)}👍🏽`;
+    expect(locatePassage(`Note: ${long}. Be brief.`, passage(long, "Say ", ", always."))).toBe(6);
+  });
+
   it("follows a long passage wherever it moved", () => {
     const long = "refunds over a hundred dollars need a manager";
     const moved = `Hand off.\nNote: ${long}. Be brief.`;
