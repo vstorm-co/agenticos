@@ -9690,7 +9690,8 @@
         "unscorable": "Não verificado: nada consegue avaliar as perguntas dele. Configure a avaliação no dataset delas.",
         "all_evidence": "Não verificado: todas as perguntas vieram das conversas de onde esta alteração foi aprendida.",
         "cancelled": "Não verificado: a verificação foi interrompida antes de terminar.",
-        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora."
+        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora.",
+        "too_few_questions": "Não verificado: ele tem poucas perguntas de teste para verificar a mudança."
       },
       "verdict": {
         "passed": "Nenhum agente piorou e pelo menos um melhorou.",
@@ -18646,7 +18647,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Nenhum agente desta linha pode ser verificado.} =1 {Será verificado em 1 agente: {names}.} other {Será verificado em # agentes: {names}.}}",
-      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} other {a verificação dele falhou}}.",
+      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} failed {a verificação dele falhou} unscorable {nada pode avaliar as perguntas dele} all_evidence {todas as perguntas vieram das conversas de onde esta mudança foi aprendida} cancelled {a verificação foi interrompida antes de terminar} own_not_asked {as próprias perguntas dele não foram feitas} too_few_questions {ele tem poucas perguntas de teste para verificar a mudança} other {a verificação não conseguiu medi-lo}}.",
       "hidden": "{count, plural, =1 {Mais 1 agente que você não vê usa esta linha.} other {Mais # agentes que você não vê usam esta linha.}}",
       "thorough": "A descrição mudou, e ela define quando os agentes abrem a skill; por isso, as perguntas próprias de cada agente também são feitas."
     },

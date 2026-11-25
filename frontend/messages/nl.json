@@ -9690,7 +9690,8 @@
         "unscorable": "Niet gecontroleerd: de vragen hebben geen beoordelingsmethode. Stel een beoordeling in op hun dataset.",
         "all_evidence": "Niet gecontroleerd: elke vraag kwam uit de gesprekken waaruit deze wijziging werd geleerd.",
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat ze klaar was.",
-        "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld nadat uit de vragen van de skill bleek dat hij slechter werd."
+        "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld nadat uit de vragen van de skill bleek dat hij slechter werd.",
+        "too_few_questions": "Niet gecontroleerd: hij heeft te weinig testvragen om de wijziging te bevestigen."
       },
       "verdict": {
         "passed": "Geen agent werd slechter en minstens één werd beter.",
@@ -18646,7 +18647,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Geen enkele agent op deze lijn kan worden gecontroleerd.} =1 {Ze wordt gecontroleerd op 1 agent: {names}.} other {Ze wordt gecontroleerd op # agents: {names}.}}",
-      "unchecked": "{name} kan niet worden gecontroleerd: {reason, select, no_questions {hij heeft geen testvragen waar hij de skill laadde} no_access {je mag hem niet uitvoeren} no_budget {zijn budget is op} no_published_version {hij heeft geen gepubliceerde versie} inconclusive {zijn run kon niet elk antwoord beoordelen} other {zijn controle is mislukt}}.",
+      "unchecked": "{name} kan niet worden gecontroleerd: {reason, select, no_questions {hij heeft geen testvragen waar hij de skill laadde} no_access {je mag hem niet uitvoeren} no_budget {zijn budget is op} no_published_version {hij heeft geen gepubliceerde versie} inconclusive {zijn run kon niet elk antwoord beoordelen} failed {zijn controle is mislukt} unscorable {niets kan zijn vragen beoordelen} all_evidence {elke vraag komt uit de gesprekken waaruit deze wijziging is geleerd} cancelled {de controle is gestopt voordat die klaar was} own_not_asked {zijn eigen vragen zijn niet gesteld} too_few_questions {hij heeft te weinig testvragen om de wijziging te bevestigen} other {de controle kon hem niet meten}}.",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, gebruikt deze lijn.} other {Nog # agents die je niet kunt zien, gebruiken deze lijn.}}",
       "thorough": "De beschrijving is gewijzigd, en die bepaalt wanneer agents de skill openen, dus ook de eigen vragen van elke agent worden gesteld."
     },

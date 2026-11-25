@@ -847,7 +847,10 @@
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
       "proposalGoneDescription": "Başka bir oturumda uygulandı, reddedildi veya değiştirildi. Liste yenilendi.",
       "backToChanges": "Güncellemelere dön",
-      "stoppedUpdating": "Bu kontrol güncellenmeyi durdurdu ve güncel olmayabilir. {reason}"
+      "stoppedUpdating": "Bu kontrol güncellenmeyi durdurdu ve güncel olmayabilir. {reason}",
+      "reason": {
+        "too_few_questions": "Kontrol edilmedi: değişikliği doğrulamak için çok az test sorusu var."
+      }
     }
   },
   "workflows": {

@@ -8689,7 +8689,8 @@
         "unscorable": "Nie sprawdzono: nic nie oceni jego pytań. Ustaw ocenianie w ich datasecie.",
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których ta zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano przed końcem.",
-        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, gdy pytania skilla pokazały, że jest gorzej."
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, gdy pytania skilla pokazały, że jest gorzej.",
+        "too_few_questions": "Nie sprawdzono: ma za mało pytań testowych, żeby zweryfikować zmianę."
       },
       "verdict": {
         "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
@@ -18535,7 +18536,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
-      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} failed {sprawdzenie się nie powiodło} unscorable {nic nie może ocenić jego pytań} all_evidence {każde pytanie pochodzi z rozmów, z których wyciągnięto tę zmianę} cancelled {sprawdzenie zatrzymano przed końcem} own_not_asked {nie zadano jego własnych pytań} too_few_questions {ma za mało pytań testowych, żeby zweryfikować zmianę} other {sprawdzenie nie mogło go zmierzyć}}.",
       "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
     },

@@ -9806,7 +9806,8 @@
         "unscorable": "Not checked: nothing can grade its questions. Set up grading on their dataset.",
         "all_evidence": "Not checked: every question came from the conversations this change was learned from.",
         "cancelled": "Not checked: the check was stopped before it finished.",
-        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse."
+        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse.",
+        "too_few_questions": "Not checked: it has too few test questions to verify the change."
       },
       "verdict": {
         "passed": "No agent got worse and at least one got better.",
@@ -18762,7 +18763,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {No agent on this line can be checked.} =1 {It will be checked on 1 agent: {names}.} other {It will be checked on # agents: {names}.}}",
-      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} other {its check failed}}.",
+      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} failed {its check failed} unscorable {nothing can grade its questions} all_evidence {every question came from the conversations this change was learned from} cancelled {the check was stopped before it finished} own_not_asked {its own questions were not asked} too_few_questions {it has too few test questions to verify the change} other {the check could not measure it}}.",
       "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
       "thorough": "The description changed, which decides when agents open the skill, so every agent's own questions are asked too."
     },

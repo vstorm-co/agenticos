@@ -10,6 +10,7 @@ import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, SearchInput, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
+import { knownReason } from "@/lib/skill-check-reasons";
 import { cn } from "@/lib/utils";
 import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
@@ -30,27 +31,9 @@ const TONE: Record<ReturnType<typeof shownState>, Tone> = {
 
 /** The groups in the order a person reads them: what blocks a decision first. */
 const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
-const REASONS: (UnknownReason | "other" | null)[] = [
-  "no_questions",
-  "no_budget",
-  "no_access",
-  "no_published_version",
-  "inconclusive",
-  "failed",
-  "unscorable",
-  "all_evidence",
-  "own_not_asked",
-  "too_few_questions",
-  "cancelled",
-  "other",
-  null,
-];
-
 /** A reason this page does not know by name is still a reason: it reads as "other". */
 const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
-  row.unknown_reason === null || REASONS.includes(row.unknown_reason)
-    ? row.unknown_reason
-    : "other";
+  row.unknown_reason === null || knownReason(row.unknown_reason) ? row.unknown_reason : "other";
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
