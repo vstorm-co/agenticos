@@ -351,8 +351,9 @@ it("shows a linked dataset that failed to read, and prices nothing until it is r
     "The dataset in the link could not be read, so nothing is priced yet. Bad gateway",
   );
   expect(screen.queryByText(/The dataset in the link cannot be used/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
   await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.refetchLinked).toHaveBeenCalled();
 });
 
 it("prices nothing on a linked dataset whose read failed again after an earlier answer", async () => {
