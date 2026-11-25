@@ -8,7 +8,6 @@ from sqlalchemy import func, select
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
-    AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
     PaymentRequiredError,
@@ -168,7 +167,10 @@ async def test_changed_quotes_and_insufficient_limits_start_no_paid_work(db):
     )
 
 
-async def test_a_different_key_takes_the_session_over_but_not_the_requesters_rechecks(db):
+@pytest.mark.parametrize("step", ["try_again", "selection_check"])
+async def test_a_different_key_takes_the_session_over_with_any_step_it_confirms(db, step):
+    """A session started with one credential - the Architect's per-run key - is taken
+    further with another, paid checks included, and runs as the one that confirmed."""
     from tests.integration.test_improvement_selection import _consent as selection_consent
     from tests.integration.test_improvement_selection import _hunks
 
@@ -194,13 +196,14 @@ async def test_a_different_key_takes_the_session_over_but_not_the_requesters_rec
     keyed = await ApiKeyService(db).context_for_key(key.id, organization_id=ctx.organization_id)
     read = await service.read(keyed, agent.id, ready.id)
     assert read.can_restart and read.can_discard
-    chosen = await selection_consent(
-        service, ctx, agent, ready, [(await _hunks(db, ctx, ready))[0].id]
-    )
-    with pytest.raises(AuthorizationError, match="original account and credentials"):
-        await service.check_selection(keyed, agent.id, ready.id, 1, chosen)
-    continued = await service.continue_run(keyed, agent.id, ready.id, consent)
-    assert continued.status == "running"
+    if step == "try_again":
+        taken = await service.continue_run(keyed, agent.id, ready.id, consent)
+    else:
+        chosen = await selection_consent(
+            service, keyed, agent, ready, [(await _hunks(db, ctx, ready))[0].id]
+        )
+        taken = await service.check_selection(keyed, agent.id, ready.id, 1, chosen)
+    assert taken.status == "running"
     assert (row.actor_user_id, row.actor_api_key_id) == (ctx.user_id, key.id)
 
 
@@ -433,3 +436,80 @@ async def test_try_again_reads_and_prices_the_same_learning_questions(db):
         on_estimate = read.await_args.kwargs["train_case_ids"]
 
     assert on_read is not None and on_read == on_estimate
+
+
+async def _confirmed_attempt(db, monkeypatch):
+    """A second attempt, confirmed, that learns from two questions of its own draw."""
+    from app.db.models.dataset import Dataset
+
+    monkeypatch.setattr("app.services.improvement_pipeline.MIN_HOLDOUT_CASES", 3)
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.max_iterations = 3
+    dataset = await db.get(Dataset, row.dataset_id)
+    assert dataset is not None
+    dataset.improvement_holdout_share = Decimal("0.6")
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    quote, consent = await _consent(service, ctx, agent, ready)
+    started = await service.continue_run(ctx, agent.id, ready.id, consent)
+    attempt = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=ready.id, number=started.iteration
+    )
+    assert attempt is not None and len(attempt.train_case_ids or []) == 2
+    return ctx, ready, service, quote, attempt
+
+
+async def test_a_confirmed_attempt_is_admitted_on_the_questions_its_helper_reads(db, monkeypatch):
+    """The step a person confirmed is priced and checked on the attempt's own draw, the
+    one its quote read and its helper then reads."""
+    from app.services.authoring_evidence import EvidenceService
+    from app.services.authoring_worker import AuthoringWorker
+    from tests.integration.test_authoring import _answering, _sessions
+
+    ctx, ready, service, quote, attempt = await _confirmed_attempt(db, monkeypatch)
+    real = EvidenceService.for_improvement
+    with patch.object(EvidenceService, "for_improvement", autospec=True, side_effect=real) as read:
+        await service.advance(ready.id, ctx.organization_id)
+        await db.refresh(attempt)
+        assert attempt.authoring_request_id is not None
+        admitted = [call.kwargs["train_case_ids"] for call in read.await_args_list]
+        read.reset_mock()
+        with _answering(Improver(db)):
+            await AuthoringWorker(
+                attempt.authoring_request_id, ctx.organization_id, sessions=_sessions(db)
+            ).run()
+        learned = [call.kwargs["train_case_ids"] for call in read.await_args_list]
+
+    assert admitted and learned
+    assert set(map(tuple, admitted + learned)) == {tuple(attempt.train_case_ids or [])}
+    request = await authoring_repo.get_request(
+        db, attempt.authoring_request_id, organization_id=ctx.organization_id
+    )
+    assert request is not None and request.estimate_usd == quote.total_usd
+
+
+async def test_an_attempt_whose_own_draw_still_fails_is_not_refused_for_no_evidence(
+    db, monkeypatch
+):
+    """The dataset's fixed half may have nothing left to learn from while the attempt's
+    own draw does; the attempt learns from its draw, so it goes on."""
+    from app.services.authoring_evidence import EvidencePack, EvidenceService
+
+    ctx, ready, service, _, attempt = await _confirmed_attempt(db, monkeypatch)
+    real = EvidenceService.for_improvement
+
+    async def stored_half_learned(self, ctx, run_id, **kwargs):
+        if kwargs.get("train_case_ids") is None:
+            return EvidencePack()
+        return await real(self, ctx, run_id, **kwargs)
+
+    with patch.object(EvidenceService, "for_improvement", stored_half_learned):
+        await service.advance(ready.id, ctx.organization_id)
+
+    session = await db.get(ImprovementRun, ready.id)
+    assert session is not None
+    assert (session.status, session.stage, session.error) == ("running", "proposing", None)
+    await db.refresh(attempt)
+    assert attempt.authoring_request_id is not None

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2bde210e1fa"
+source_sha: "c926420bac25"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -163,7 +163,7 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -371,9 +371,9 @@ ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
 
-Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
+Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok, spróbować ponownie albo zatwierdzić jeden z jej płatnych testów: wybranych zmian, szkicu wiedzy albo tego, co dała każda zmiana. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
-poświadczeniem tej osoby, więc sesję rozpoczętą przez Architekta można
+poświadczeniem tej osoby i są zapisywane w dzienniku pod nią, więc sesję rozpoczętą przez Architekta można
 poprowadzić dalej w konsoli.
 
 Worker przed każdym przejściem sprawdza wersję

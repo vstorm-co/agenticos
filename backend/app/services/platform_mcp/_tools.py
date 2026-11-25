@@ -825,6 +825,9 @@ def _topic_state(topic: dict[str, Any], deferred: set[Any]) -> str:
 
 _REASON_CHARS = 150
 
+_TOPICS_PER_PAGE = 100
+"""The most topics the agent's knowledge gap list answers for at once."""
+
 
 def _noise(noise: dict[str, Any] | None) -> dict[str, Any] | None:
     """How far a session's test can be trusted, its example questions cut short."""
@@ -3152,7 +3155,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         by the session itself when that is empty - and `best` only an attempt
         whose verdict is better; a chosen attempt need not be one. Each knowledge
         topic has its `state`: missing, deferred, drafting, draft_failed,
-        draft_ready, draft_stale, covered or dismissed. Only a session with
+        draft_ready, draft_stale, covered or dismissed; `missing_knowledge_left_out`,
+        when present, counts the session's topics the list cannot show - in a
+        knowledge base this caller cannot read, or no longer holding the agent's
+        questions - so say that many are not listed. Only a session with
         `can_accept` can be accepted; a `closed` one is a record, and its
         `outcome` says what was decided. Point the person at `link` rather than
         retelling the wizard's screens.
@@ -3186,11 +3192,21 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
         )
         result["found"] = _found(evidence["items"])
-        topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
-        deferred = set(session.get("deferred_topic_ids") or [])
-        topics = await api.request(
-            "GET", f"/knowledge-gaps/agents/{agent_id}", params={"limit": 100}
+        topic_ids = list(
+            dict.fromkeys(item["topic_id"] for item in evidence["items"] if item.get("topic_id"))
         )
+        deferred = set(session.get("deferred_topic_ids") or [])
+        topics: list[dict[str, Any]] = []
+        for start in range(0, len(topic_ids), _TOPICS_PER_PAGE):
+            page = await api.request(
+                "GET",
+                f"/knowledge-gaps/agents/{agent_id}",
+                params={
+                    "topic_id": topic_ids[start : start + _TOPICS_PER_PAGE],
+                    "limit": _TOPICS_PER_PAGE,
+                },
+            )
+            topics.extend(page["items"])
         result["missing_knowledge"] = [
             {
                 "topic_id": topic["id"],
@@ -3198,9 +3214,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "knowledge_base": topic["knowledge_base_name"],
                 "state": _topic_state(topic, deferred),
             }
-            for topic in topics["items"]
-            if topic["id"] in topic_ids
+            for topic in topics
         ]
+        if left_out := len(topic_ids) - len(topics):
+            result["missing_knowledge_left_out"] = left_out
         return result
 
     async def estimate_improvement(

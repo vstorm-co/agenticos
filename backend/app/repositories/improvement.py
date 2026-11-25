@@ -198,9 +198,13 @@ async def list_deciding(
 
 
 async def list_for_person(
-    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str]
 ) -> list[ImprovementRun]:
-    """The organization's sessions in these statuses, newest first."""
+    """The organization's sessions in these open statuses, newest first.
+
+    All of them: an agent holds at most one open session, so there are never more
+    than the organization has agents.
+    """
     result = await db.execute(
         select(ImprovementRun)
         .where(
@@ -208,7 +212,6 @@ async def list_for_person(
             ImprovementRun.status.in_(statuses),
         )
         .order_by(ImprovementRun.created_at.desc(), ImprovementRun.id.desc())
-        .limit(limit)
     )
     return list(result.scalars().all())
 

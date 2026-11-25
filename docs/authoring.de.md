@@ -1,5 +1,5 @@
 ---
-source_sha: "e2bde210e1fa"
+source_sha: "c926420bac25"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -172,7 +172,7 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus einer nur vorgeschlagenen Fassung, die der Entwurf nicht enthält: der eines früheren Versuchs, der von einer Wissensprüfung gemessenen oder einer, die eine Skill- oder Kontextdatei-Änderung liefert. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
@@ -394,9 +394,9 @@ oder ein unentschiedenes samt Wiederholung erscheinen im Ergebnis als Hinweis,
 dass ein weiterer Versuch kaum hilft, nicht als Halt.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
- -, darf auch ihren nächsten Schritt ausführen oder
-es erneut versuchen. Die Sitzung hält fest, wer das tat, und die folgenden
-Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person; eine
+ -, darf auch ihren nächsten Schritt ausführen,
+es erneut versuchen oder eine ihrer kostenpflichtigen Prüfungen bestätigen: der gewählten Änderungen, eines Wissensentwurfs oder dessen, was jede Änderung bewirkt hat. Die Sitzung hält fest, wer das tat, und die folgenden
+Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person und werden unter ihr protokolliert; eine
 vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführen.
 
 Der Worker prüft vor jedem Übergang Entwurf, letzte Veröffentlichung, Bewertung
