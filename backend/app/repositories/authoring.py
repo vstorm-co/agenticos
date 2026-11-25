@@ -12,7 +12,7 @@ from pydantic import JsonValue
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.authoring import (
     AuthoringRequest,
@@ -231,6 +231,44 @@ async def latest_batch(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def dismissed_since_publish(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID
+) -> list[SpecProposalHunk]:
+    """The agent's suggestions a person dismissed and no publish has closed on since.
+
+    That is every dismissal in the open batch, and in any other batch created or
+    decided after the agent's newest version; for an agent never published, every
+    batch counts. A suggestion a check left out is marked dismissed with no
+    decision time, and is not one a person made.
+    """
+    published_at = (
+        select(AgentVersion.created_at)
+        .where(AgentVersion.agent_id == agent_id, AgentVersion.organization_id == organization_id)
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(SpecProposalHunk)
+        .join(SpecProposalBatch, SpecProposalBatch.id == SpecProposalHunk.batch_id)
+        .where(
+            SpecProposalBatch.organization_id == organization_id,
+            SpecProposalBatch.agent_id == agent_id,
+            SpecProposalHunk.organization_id == organization_id,
+            SpecProposalHunk.status == HunkStatus.DISMISSED.value,
+            SpecProposalHunk.decided_at.is_not(None),
+            or_(
+                published_at.is_(None),
+                SpecProposalBatch.status == BatchStatus.OPEN.value,
+                SpecProposalBatch.created_at > published_at,
+                SpecProposalHunk.decided_at > published_at,
+            ),
+        )
+        .order_by(SpecProposalHunk.decided_at)
+    )
+    return list(result.scalars().all())
 
 
 async def create_batch(

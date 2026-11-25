@@ -19,7 +19,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkStatus, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -406,6 +406,65 @@ class TestProposals:
         assert (
             undone is not None and undone.decided_at is None and undone.decided_by_user_id is None
         )
+
+    async def test_dismissals_count_until_a_publish_closes_on_them_and_only_a_persons(
+        self, db: AsyncSession
+    ):
+        """A publish that left the open batch open closes on nothing in it; a dismissal
+        after the newest version counts wherever it was made; a change a check left out
+        is no person's dismissal."""
+        org, user = await _org(db)
+        agent = await _agent(db, org, user)
+        hour_ago = datetime.now(UTC) - timedelta(hours=1)
+        replaced = await self._batch(db, org, agent)
+        before, after = await authoring_repo.add_hunks(
+            db,
+            organization_id=org.id,
+            batch_id=replaced.id,
+            hunks=[
+                {"kind": "instructions", "origin": "improve", "new_text": text}
+                for text in ("Before.", "After.")
+            ],
+        )
+        await authoring_repo.close_batch(db, batch=replaced, status=BatchStatus.SUPERSEDED)
+        current = await self._batch(db, org, agent)
+        held, checked = await authoring_repo.add_hunks(
+            db,
+            organization_id=org.id,
+            batch_id=current.id,
+            hunks=[
+                {"kind": "instructions", "origin": "improve", "new_text": text}
+                for text in ("Held.", "Checked.")
+            ],
+        )
+        for hunk in (before, after, held):
+            await authoring_repo.decide_hunk(
+                db,
+                organization_id=org.id,
+                hunk_id=hunk.id,
+                expected=HunkStatus.PENDING,
+                status=HunkStatus.DISMISSED,
+                decided_by=user.id,
+            )
+        checked.status = HunkStatus.DISMISSED.value
+        replaced.created_at = current.created_at = hour_ago
+        before.decided_at = held.decided_at = hour_ago + timedelta(minutes=10)
+        db.add(
+            AgentVersion(
+                agent_id=agent.id,
+                organization_id=org.id,
+                version=1,
+                spec={"name": "Clerk"},
+                created_at=hour_ago + timedelta(minutes=30),
+            )
+        )
+        await db.flush()
+
+        dismissed = await authoring_repo.dismissed_since_publish(
+            db, organization_id=org.id, agent_id=agent.id
+        )
+
+        assert {hunk.new_text for hunk in dismissed} == {"After.", "Held."}
 
     async def test_hunks_append_in_order_and_count_while_pending(self, db: AsyncSession):
         org, user = await _org(db)

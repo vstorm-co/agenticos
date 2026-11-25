@@ -31,7 +31,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
+from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind, SpecProposalHunk
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -501,6 +501,11 @@ class TestSteps:
         assert (run.status, run.stage, read.next_step) == ("waiting", "filtering", "check")
         assert len(changes) == 5 and all(change.applies for change in changes)
         assert [change.kind for change in changes].count("skill_description") == 2
+        described = next(change for change in changes if change.kind == "skill_description")
+        assert (described.old_text, described.new_text) == (
+            "How refunds work.",
+            "How refunds and returns work.",
+        )
         assert sorted(item["reason"] for item in attempt.dropped) == [
             "overlaps",
             "repeated",
@@ -1666,6 +1671,37 @@ class TestCheckAndResult:
             )
 
         assert refused.value.details["fields"][0]["field"] == "hunk_ids"
+
+
+@pytest.mark.security
+async def test_a_chosen_change_with_no_text_to_show_is_neither_checked_nor_applied(
+    db, evidence, monkeypatch
+):
+    """A description the person could not read is never measured, so it is never applied."""
+    _checked(db, monkeypatch)
+    ctx = await _owner(db)
+    run = await _at_changes(
+        db,
+        ctx,
+        [
+            _body_edit("Refunds take 14 days.", "Refunds take 30 days."),
+            _description("How refunds and returns work."),
+        ],
+    )
+    blank = await db.scalar(
+        select(SpecProposalHunk).where(
+            SpecProposalHunk.kind == HunkKind.SKILL_DESCRIPTION.value,
+            SpecProposalHunk.organization_id == ctx.organization_id,
+        )
+    )
+    assert blank is not None
+    blank.new_description = "   "
+    await db.flush()
+
+    with pytest.raises(BadRequestError) as refused:
+        await _check_now(db, ctx, run)
+
+    assert refused.value.details["fields"][0]["field"] == "hunk_ids"
 
 
 class TestOutcomes:

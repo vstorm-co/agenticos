@@ -1,5 +1,5 @@
 ---
-source_sha: "8fddc389ac3a"
+source_sha: "f270385ae7d5"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -85,7 +85,7 @@ Begründung und die Belege, und über jeden wird einzeln entschieden:
 |---|---|
 | **Annehmen** | Die Änderung wird in den Entwurf geschrieben. Nichts wird veröffentlicht. |
 | **Bearbeiten** | Ihre eigene Formulierung wird statt des Vorschlags angenommen. Bei Anweisungen öffnet sich der ganze Text: die aktuelle Version neben der vorgeschlagenen, die Sie bearbeiten, mit beim Tippen neu gezeichnetem Diff. Gespeichert wird nur die vorgeschlagene Passage; Text außerhalb ändern Sie im Anweisungseditor. |
-| **Verwerfen** | Festgehalten; eine spätere Anfrage schlägt es nicht wieder vor. |
+| **Verwerfen** | Festgehalten; bis zur nächsten Veröffentlichung des Agents schlägt keine spätere Anfrage, keine Prüfung der eigenen Änderungen und keine Verbesserungssitzung es wieder vor. |
 | **Rückgängig** | Kehrt die Entscheidung um, solange sie noch zum Entwurf passt. |
 
 Ein Vorschlag, dessen Text Zeichen enthält, die ein Mensch nicht sehen kann - ein

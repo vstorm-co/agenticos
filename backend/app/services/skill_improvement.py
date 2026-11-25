@@ -310,6 +310,13 @@ def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tup
     return description, content
 
 
+def shown(hunk: SpecProposalHunk) -> bool:
+    """Whether an edit has text a person reads before it is checked or applied."""
+    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        return bool((hunk.edited_text or hunk.new_description or "").strip())
+    return bool((hunk.old_text or "").strip() or (hunk.edited_text or hunk.new_text or "").strip())
+
+
 def filtered(
     hunks: Sequence[SpecProposalHunk], base: SkillVersion
 ) -> tuple[list[SpecProposalHunk], list[DroppedHunk]]:
@@ -317,7 +324,8 @@ def filtered(
 
     An edit repeating one already kept is dropped, and so is one whose passage an
     edit kept before it already changed - both cannot be applied - every
-    description after the first, and an edit holding characters a person cannot see.
+    description after the first, an edit with no text to show, and an edit holding
+    characters a person cannot see.
     """
     kept: list[SpecProposalHunk] = []
     dropped: list[DroppedHunk] = []
@@ -326,7 +334,9 @@ def filtered(
     described = False
     for hunk in hunks:
         reason: str | None = None
-        if holds_refused([hunk.new_text, hunk.edited_text, hunk.new_description]):
+        if not shown(hunk):
+            reason = "nothing_to_show"
+        elif holds_refused([hunk.new_text, hunk.edited_text, hunk.new_description]):
             reason = "hidden_characters"
         elif hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
             reason = "repeated" if described else None
@@ -1862,6 +1872,12 @@ class SkillImprovementService:
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
         chosen = await self._chosen(ctx, iteration)
+        if not all(shown(hunk) for hunk in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change has no text to show, so it is neither checked nor applied; "
+                "leave it out",
+            )
         if any(holds_refused([h.new_text, h.edited_text, h.new_description]) for h in chosen):
             raise refused_field(
                 "hunk_ids",
@@ -2562,8 +2578,8 @@ class SkillImprovementService:
             kind=hunk.kind,
             origin=hunk.origin,
             status=hunk.status,
-            old_text=hunk.old_text,
-            new_text=hunk.new_text,
+            old_text=(hunk.base_description or "") if description else hunk.old_text,
+            new_text=(hunk.new_description or "") if description else hunk.new_text,
             edited_text=hunk.edited_text,
             accepted_text=hunk.accepted_text,
             context_before=hunk.context_before,

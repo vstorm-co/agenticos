@@ -1,5 +1,5 @@
 ---
-source_sha: "f75050767f96"
+source_sha: "098e6e8f0554"
 ---
 
 # Skills { #skills }
@@ -874,6 +874,10 @@ main, o el fork elegido en los chips - con los mismos cinco pasos que [mejorar u
 agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resultado y Aceptar. Se
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
+
+Un cambio propuesto a la descripción del skill muestra la descripción antigua y la
+nueva, como lo hace un cambio de su texto. Un cambio sin texto que mostrar se deja
+fuera, y uno elegido se rechaza antes de comprobarlo.
 
 Una sesión abierta desde el Improve de un agente empieza con los problemas que
 esa sesión informó. Solo un problema que cita una línea del skill con el valor o

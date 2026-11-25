@@ -830,6 +830,10 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
+A proposed change to the skill's description shows the old and the new
+description, as a change to its text does. A change with no text to show is left
+out, and a chosen one is refused before it is checked.
+
 A session opened from an agent's Improve starts from the problems that session
 reported. Only a problem that quotes a line of the skill stating the wrong value
 or rule takes the agent's criteria with it; where the skill is only silent the
