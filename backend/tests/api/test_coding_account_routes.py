@@ -171,6 +171,8 @@ async def test_account_update_accepts_only_an_explicit_default_or_pool_choice(
     assert args is not None and args.args[0] == CTX and args.args[1] == identifier
     assert args.args[2].generation == generation and args.args[2].is_default is True
     assert args.args[2].pool_member is True
+
+
 async def test_codex_device_sign_in_finishes_without_a_pasted_address(service: AsyncMock) -> None:
     from unittest.mock import MagicMock
 

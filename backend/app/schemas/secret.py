@@ -156,11 +156,6 @@ class OpenAICodexSecretCreate(_OneCodexProof):
     description: str | None = Field(default=None, max_length=1000)
     visibility: VisibilityLiteral = Field(default="private")
     usage_scope: Literal["organization", "personal"] = Field(default="organization")
-    callback_url: str = Field(
-        min_length=1,
-        max_length=_MAX_CALLBACK_URL,
-        description="The whole address the sign-in ended on, with its `code` and `state`",
-    )
 
 
 class OpenAICodexSecretReconnect(_OneCodexProof):

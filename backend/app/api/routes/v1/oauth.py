@@ -39,7 +39,7 @@ from app.core.oauth import (
     verified_identity,
 )
 from app.core.security import create_access_token, create_mfa_token, create_refresh_token
-from app.schemas.token import OAuthExchangeRequest, SignInToken, Token
+from app.schemas.token import OAuthExchangeRequest, SignInToken
 from app.services.oauth_exchange import native_code_challenge
 
 logger = logging.getLogger(__name__)

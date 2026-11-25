@@ -587,6 +587,7 @@ class OrganizationSecretService:
                 details={"secret_id": str(secret_id)},
             )
         return secret
+
     async def chatgpt_models(self, ctx: AuthContext, secret_id: UUID) -> list[CatalogModel]:
         """List only the selected visible official ChatGPT account's models."""
         from app.services.chatgpt_plan import account_models

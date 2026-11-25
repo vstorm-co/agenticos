@@ -18,7 +18,6 @@ from pydantic_ai.exceptions import UserError
 
 from app.agents.capabilities.coding_agent._harness import (
     AcpHarness,
-    Harness,
     Said,
     StepEnded,
     StepStarted,

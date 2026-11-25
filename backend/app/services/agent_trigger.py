@@ -116,6 +116,7 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
 from app.schemas.routine_readiness import TriggerReadiness
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
