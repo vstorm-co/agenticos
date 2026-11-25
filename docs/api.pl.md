@@ -1,5 +1,5 @@
 ---
-source_sha: "58aaa4e50b4b"
+source_sha: "ce4c6fc377c9"
 ---
 
 # API HTTP { #the-http-api }
@@ -338,6 +338,39 @@ ciałem, którym odpowiada wywołanie synchroniczne - albo `failed` z `error`. J
 `conversation_id` jest znane od pierwszej odpowiedzi, więc kolejną wiadomość
 można wysłać, zanim run się skończy. Wykonuje je worker, przez ten sam runner,
 budżet i zatwierdzenia co na każdej innej powierzchni.
+
+**Skoryguj trwający run.** Wyślij wiadomość bez załączników na ten sam endpoint,
+z nagłówkiem `Prefer: respond-async`, identyfikatorem `conversation_id` z
+pierwszej odpowiedzi i polem `"steer": true`. Każdemu zdarzeniu webhooka nadaj
+osobny `Idempotency-Key`; ponawiając wysyłkę tego zdarzenia, użyj tego samego
+klucza. Nie musisz wcześniej sprawdzać stanu runa.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Przed każdym żądaniem do modelu agent może pobrać do ośmiu korekt, w kolejności
+ich nadejścia. Pozostałe czekają w kolejce. Trwające wywołanie narzędzia lub
+modelu nie zostaje przerwane.
+
+Korektę może pobrać tylko trwające asynchroniczne żądanie API dla tej samej
+rozmowy, tego samego agenta i środowiska. Musi korzystać z aktualnie wybranej
+opublikowanej wersji oraz z tego samego klucza API (lub pochodzić od tej samej
+zalogowanej osoby, bez klucza). Jeśli żaden taki run nie odbierze wiadomości,
+worker przetworzy ją jako osobną turę. Pomiń `steer`, aby zawsze kolejkować
+osobną turę.
+
+Odpytuj żądanie przypisane do wiadomości uzupełniającej. Końcowy stan
+`steered` oznacza, że run wskazany przez `steered_into_run_id` pobrał
+korektę do żądania wysyłanego do modelu, a nie że zakończył pracę. Wiadomość
+nie ma osobnego `result`. Jeśli run później zakończy się błędem, korekta nie
+wróci do kolejki. Jeśli zostanie
+przetworzona jako osobna tura, otrzymasz zwykły stan i wynik runa. W przypadku
+załączników lub żądań synchronicznych użyj zwykłej tury.
 
 To, co da się sprawdzić od razu, jest sprawdzane od razu: nieznana rozmowa albo
 załącznik to `404` na `POST`, a nie błąd, na który trzeba czekać. Uprawnienia

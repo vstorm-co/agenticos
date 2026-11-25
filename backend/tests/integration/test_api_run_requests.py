@@ -24,6 +24,7 @@ from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import background_job as job_repo
+from app.repositories import background_task_kind as kind_repo
 from app.schemas.agent import AgentRunRequest
 from app.services.api_runs import ApiRunService, digest, scoped_key
 from app.worker.jobs import RUN_AGENT
@@ -393,3 +394,140 @@ def test_the_fingerprint_is_the_agent_and_the_body() -> None:
     assert digest(agent, _ask()) == digest(agent, _ask())
     assert digest(agent, _ask()) != digest(uuid.uuid4(), _ask())
     assert digest(agent, _ask()) != digest(agent, _ask("other"))
+
+
+async def test_only_an_active_compatible_attempt_can_consume_a_steer(
+    db: AsyncSession, stubbed
+) -> None:
+    ctx = await _person(db)
+    agent_id = uuid.uuid4()
+    service = ApiRunService(db)
+    parent = await service.queue(ctx, agent_id, _ask(), idempotency_key=None)
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
+    assert claimed is not None and claimed.id == parent.id
+    job = RUN_AGENT.load(claimed.payload)
+    assert job.execution_token is not None
+    stored = await job_repo.get(db, parent.id)
+    assert stored is not None and "execution_token" not in stored.payload
+    assert "steer_target" not in stored.payload
+
+    request = AgentRunRequest(conversation_id=CONVERSATION, prompt="Use the EU numbers", steer=True)
+    correction = await service.queue(ctx, agent_id, request, idempotency_key="delivery")
+    assert correction.status == "queued"
+    ordinary = await service.queue(ctx, agent_id, _ask("Other task"), idempotency_key=None)
+    assert await job_repo.lock_api_steering_target(db, job=job)
+    assert [row.id for row in await job_repo.queued_api_steers(db, job=job)] == [correction.id]
+
+    # Stubbing ordinary admission isolates the *additional* steering identity checks.
+    for difference in (
+        {"agent_id": uuid.uuid4()},
+        {"user_id": uuid.uuid4()},
+        {"api_key_id": uuid.uuid4()},
+        {"environment_id": uuid.uuid4()},
+        {"organization_id": uuid.uuid4()},
+        {"conversation_id": uuid.uuid4()},
+    ):
+        other = job.model_copy(update=difference)
+        assert await job_repo.api_steering_target(db, job=other) is None
+        assert not await job_repo.lock_api_steering_target(db, job=other)
+        assert not await job_repo.queued_api_steers(db, job=other)
+
+    run_id = uuid.uuid4()
+    await job_repo.finish_run_addition(db, job_id=correction.id, run_id=run_id)
+    assert not await job_repo.queued_api_steers(db, job=job)
+    receipt = await service.get(ctx, correction.id)
+    assert (receipt.status, receipt.steered_into_run_id, receipt.result) == (
+        "steered",
+        run_id,
+        None,
+    )
+    assert await service.queue(ctx, agent_id, request, idempotency_key="delivery") == receipt
+    with pytest.raises(AlreadyExistsError):
+        await service.queue(
+            ctx, agent_id, request.model_copy(update={"steer": False}), idempotency_key="delivery"
+        )
+
+    await job_repo.complete(db, parent.id, fence=claimed.attempts)
+    next_turn = await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1))
+    assert next_turn is not None and next_turn.id == ordinary.id
+
+
+async def test_an_unconsumed_steer_remains_a_turn_and_cannot_be_taken_by_a_new_attempt(
+    db: AsyncSession, stubbed
+) -> None:
+    ctx = await _person(db)
+    agent_id = uuid.uuid4()
+    service = ApiRunService(db)
+    request = AgentRunRequest(conversation_id=CONVERSATION, prompt="Look again", steer=True)
+    first = await service.queue(ctx, agent_id, request, idempotency_key="first")
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
+    assert claimed is not None and claimed.id == first.id
+    job = RUN_AGENT.load(claimed.payload)
+    assert job.steer_target is None
+    second = await service.queue(ctx, agent_id, request, idempotency_key="second")
+    assert [row.id for row in await job_repo.queued_api_steers(db, job=job)] == [second.id]
+
+    # Once the original worker exits past its final model call, its fallback job
+    # is claimable without any extra dispatch or a second admission.
+    await job_repo.complete(db, first.id, fence=claimed.attempts)
+    assert not await job_repo.lock_api_steering_target(db, job=job)
+    following = await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1))
+    assert following is not None and following.id == second.id
+    fallback = RUN_AGENT.load(following.payload)
+    assert fallback.steer_target == job.execution_token
+    assert fallback.execution_token != job.execution_token
+    assert fallback.prompt == request.prompt
+    assert await job_repo.lock_api_steering_target(db, job=fallback)
+    assert not await job_repo.queued_api_steers(db, job=fallback)
+
+
+async def test_an_expired_attempt_cannot_take_input_even_before_rescue(
+    db: AsyncSession, stubbed
+) -> None:
+    ctx = await _person(db)
+    service = ApiRunService(db)
+    parent = await service.queue(ctx, uuid.uuid4(), _ask(), idempotency_key=None)
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(seconds=-1))
+    assert claimed is not None and claimed.id == parent.id
+    stale = RUN_AGENT.load(claimed.payload)
+    assert await job_repo.api_steering_target(db, job=stale) is None
+    assert not await job_repo.lock_api_steering_target(db, job=stale)
+    await job_repo.rescue_expired(db, retry_in=timedelta(0))
+    assert await job_repo.requeue_dead(db, parent.id)
+    retried = await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1))
+    assert retried is not None and retried.id == parent.id
+    new_attempt = RUN_AGENT.load(retried.payload)
+    assert new_attempt.execution_token != stale.execution_token
+    assert not await job_repo.lock_api_steering_target(db, job=stale)
+    assert await job_repo.lock_api_steering_target(db, job=new_attempt)
+
+
+@pytest.mark.parametrize("global_pause", [False, True], ids=["organization", "deployment"])
+async def test_queued_corrections_wait_for_the_kind_to_resume(
+    db: AsyncSession, stubbed, global_pause: bool
+) -> None:
+    ctx = await _person(db)
+    agent_id = uuid.uuid4()
+    service = ApiRunService(db)
+    await service.queue(ctx, agent_id, _ask(), idempotency_key=None)
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
+    assert claimed is not None
+    job = RUN_AGENT.load(claimed.payload)
+    correction = await service.queue(
+        ctx,
+        agent_id,
+        AgentRunRequest(conversation_id=CONVERSATION, prompt="Use euros", steer=True),
+        idempotency_key=None,
+    )
+
+    scope = None if global_pause else ctx.organization_id
+    assert await kind_repo.pause(db, RUN_AGENT.kind, scope, reason="operator pause")
+    assert not await job_repo.queued_api_steers(db, job=job)
+    assert (await service.get(ctx, correction.id)).status == "queued"
+
+    assert await kind_repo.resume(db, RUN_AGENT.kind, scope)
+    other = await _person(db)
+    assert await kind_repo.pause(
+        db, RUN_AGENT.kind, other.organization_id, reason="unrelated pause"
+    )
+    assert [row.id for row in await job_repo.queued_api_steers(db, job=job)] == [correction.id]

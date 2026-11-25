@@ -1008,6 +1008,14 @@ class AgentRunRequest(BaseSchema):
             "else's, answers 404"
         ),
     )
+    steer: bool = Field(
+        default=False,
+        description=(
+            "With Prefer: respond-async and an existing conversation_id, offer this text "
+            "to the matching active asynchronous run at its next model request. If not "
+            "consumed, it runs as a separate turn. Not supported with files or a draft."
+        ),
+    )
     environment_id: UUID | None = Field(
         default=None,
         description=(
@@ -1232,7 +1240,7 @@ class AgentRunResult(BaseSchema):
     )
 
 
-RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled", "steered"]
 
 
 class RunRequestRead(BaseSchema):
@@ -1240,6 +1248,13 @@ class RunRequestRead(BaseSchema):
 
     id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
     status: RunRequestStatus
+    steered_into_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "For a steered request, the active run that took the correction. This "
+            "request has no separate result; the original request owns the answer."
+        ),
+    )
     conversation_id: UUID = Field(
         description="The conversation the run files under, known from the moment it is queued."
     )

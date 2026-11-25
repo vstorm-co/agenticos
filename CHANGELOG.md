@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Send a correction to an asynchronous agent run by conversation ID. With `"steer": true`, the agent takes the message before its next model call or processes it as a new turn if no running request takes it. Webhooks can retry safely with the same `Idempotency-Key`.
+
 - Export selected agent dependencies as YAML, JSON or ZIP, then review which
   resources to copy, reuse or skip during import. Context and exact Skill
   snapshots retain their text and files. Private ZIP transfers run as durable,
@@ -61,6 +63,8 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- If you roll out API replicas and workers separately, update all of them before clients start sending `"steer": true`. Older versions cannot process steering requests or read their receipts. Ordinary run requests do not need a coordinated upgrade.
 
 - Apply `0367_portability_operations.py` for private transfer journals and run
   the updated worker for ZIP preparation, import and expiry cleanup. Preserve

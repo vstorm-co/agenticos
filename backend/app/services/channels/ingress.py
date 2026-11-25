@@ -2,6 +2,8 @@
 
 import hashlib
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from uuid import UUID, uuid4
 
@@ -297,6 +299,13 @@ async def invite_admitted(
     return True
 
 
+@asynccontextmanager
+async def poll_steering(
+    receipt_id: UUID, incoming: IncomingMessage, deps: AgentDeps
+) -> AsyncGenerator[list[str]]:
+    yield await collect_steering(receipt_id, incoming, deps)
+
+
 async def collect_steering(
     receipt_id: UUID,
     incoming: IncomingMessage,
@@ -343,7 +352,7 @@ async def collect_steering(
             if router._is_overheard(next_message):
                 continue
             if command in {"stop", "/stop"}:
-                await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+                await job_repo.finish_run_addition(db, job_id=job.id, run_id=run.id)
                 stopped = True
                 break
             text = next_message.text
@@ -355,7 +364,7 @@ async def collect_steering(
                 )
             else:
                 raise BadRequestError(message="A queued addition needs its native message id")
-            await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+            await job_repo.finish_run_addition(db, job_id=job.id, run_id=run.id)
             added.append(text)
     if stopped:
         raise ChannelTurnStopped()
