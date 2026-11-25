@@ -56,6 +56,18 @@ from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
 
+PROPOSAL_HIDES_TEXT = (
+    "This change holds characters a person cannot see, so it is neither checked nor "
+    "applied. Dismiss it and ask again."
+)
+
+
+def proposal_hides_text(proposal: SkillProposal) -> bool:
+    """Whether a proposed skill change holds a character a person cannot see, anywhere in it."""
+    return holds_refused(
+        [proposal.name, proposal.description, proposal.content, dict(proposal.resources or {})]
+    )
+
 
 class SkillProposalService:
     """Records what an agent proposed, and applies what a person accepts."""
@@ -286,12 +298,9 @@ class SkillProposalService:
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
-        if holds_refused([proposal.content, proposal.description]):
+        if proposal_hides_text(proposal):
             raise BadRequestError(
-                message=(
-                    "This change holds characters a person cannot see, so it is never "
-                    "applied. Dismiss it and ask again."
-                ),
+                message=PROPOSAL_HIDES_TEXT,
                 details={"proposal_id": proposal.id, "reason": "hidden_characters"},
             )
         if proposal.skill_id is not None and decision.check_id is not None and not checked:

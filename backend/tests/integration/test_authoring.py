@@ -1556,6 +1556,27 @@ class TestSkillCheck:
         )
         return AuthoringContext(ctx=ctx, agent=agent, dataset_id=dataset.id), skill, proposal
 
+    @pytest.mark.security
+    async def test_a_skill_change_holding_hidden_text_is_never_checked(self, db):
+        """No eval run starts, so no model reads a body a reviewer could not read whole."""
+        setup, skill, proposal = await self._proposal(db)
+        proposal.description = "Refunds\u202e, revised"
+        await db.flush()
+        service = AuthoringService(db)
+        body = ProposalCheck(
+            dataset_id=setup.dataset_id, agent_id=setup.agent.id, proposal_id=proposal.id
+        )
+
+        for start in (service.estimate_skill_check, service.check_skill):
+            with pytest.raises(BadRequestError, match="cannot see") as refused:
+                await start(setup.ctx, skill.id, body)
+            assert refused.value.details == {
+                "proposal_id": proposal.id,
+                "reason": "hidden_characters",
+            }
+
+        assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
     async def test_a_skill_change_is_checked_on_an_agent_that_uses_it(self, db):
         setup, skill, proposal = await self._proposal(db)
         service = AuthoringService(db)

@@ -1762,6 +1762,13 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        from app.services.skill_proposal import PROPOSAL_HIDES_TEXT, proposal_hides_text
+
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this skill to check the change on",
@@ -1879,6 +1886,13 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
+            )
+        from app.services.context_proposal import CONTEXT_HIDES_TEXT, context_hides_text
+
+        if context_hides_text(proposal):
+            raise BadRequestError(
+                message=CONTEXT_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
             )
         if body.agent_id is None:
             raise BadRequestError(

@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -32,7 +32,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
-from app.db.models.eval_run import EvalRunArm
+from app.db.models.eval_run import EvalRun, EvalRunArm
 from app.db.models.eval_suite import EvalSuite
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, eval_suite_repo
@@ -229,6 +229,25 @@ async def test_a_reviewer_needs_runs_view_for_generated_text_and_access_to_the_f
     assert (await service.list_read(member)).items == []
     with pytest.raises(NotFoundError, match="Context change not found"):
         await service.read(ctx, uuid.uuid4())
+
+
+@pytest.mark.security
+async def test_a_context_change_holding_hidden_text_is_never_checked(db):
+    """No eval run starts, so no model reads a body a reviewer could not read whole."""
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days.\U000e0041"
+    await db.flush()
+    service = AuthoringService(db)
+    body = ProposalCheck(dataset_id=uuid.uuid4(), agent_id=agent.id, proposal_id=proposal.id)
+
+    for start in (service.estimate_context_check, service.check_context):
+        with pytest.raises(BadRequestError, match="cannot see") as refused:
+            await start(ctx, file.id, body)
+        assert refused.value.details == {"proposal_id": proposal.id, "reason": "hidden_characters"}
+
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
 
 
 async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):

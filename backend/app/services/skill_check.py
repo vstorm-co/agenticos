@@ -288,6 +288,13 @@ class SkillCheckService:
             )
         if proposal.fork_id != data.fork_id:
             raise refused_field("fork_id", "The proposal is for another line of this skill")
+        from app.services.skill_proposal import PROPOSAL_HIDES_TEXT, proposal_hides_text
+
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         return _proposal_candidate(proposal), proposal, proposal.fork_id
 
     async def _served(

@@ -53,6 +53,16 @@ logger = logging.getLogger(__name__)
 _PRODUCT_CONTEXT = "agenticos-product-map"
 _PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
 
+CONTEXT_HIDES_TEXT = (
+    "This change holds characters a person cannot see, so it is neither checked nor "
+    "applied. Discard it, or edit the file by hand."
+)
+
+
+def context_hides_text(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change holds a character a person cannot see."""
+    return holds_refused([proposal.description, proposal.content])
+
 
 class ContextProposalService:
     """List, apply and discard the assistant's proposed context file changes."""
@@ -299,12 +309,9 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
-        if holds_refused([proposal.content, proposal.description]):
+        if context_hides_text(proposal):
             raise BadRequestError(
-                message=(
-                    "This proposal holds characters a person cannot see, so it is never "
-                    "applied. Discard it, or edit the file by hand."
-                ),
+                message=CONTEXT_HIDES_TEXT,
                 details={"proposal_id": proposal.id, "reason": "hidden_characters"},
             )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
