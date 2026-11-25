@@ -1,5 +1,5 @@
 ---
-source_sha: "58becc2b41b5"
+source_sha: "069d24496775"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -562,8 +562,8 @@ besten Varianten. Schneidet keine Variante besser ab, hält die Sitzung mit
 
 Die Suche hat ein eigenes Budget, `search.budget_usd`, innerhalb des Limits der
 Sitzung, und die Schätzung beim Start rechnet es und die Prüfung der gefundenen
-Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung in den
-Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
+Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung, samt dem, was ihre längeren
+Anweisungen zu lesen kosten, in den Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
 begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
 Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
 Rest.
@@ -575,8 +575,10 @@ eigenen Limit anhält, gilt für diese Variante als unbeantwortet; nur ein
 erschöpftes Budget der Suche, der Sitzung oder des Monats beendet die Suche.
 
 Eine Bewertungseinheit beginnt keine Antworten mehr, bevor die Zeit ihres Jobs
-abläuft, und behält, was sie beantwortet hat; die nächste fragt den Rest, sodass
-jede Frage einmal bezahlt wird. Vor jeder Einheit prüft die Suche, ob die
+abläuft, bricht eine Antwort ab, die kurz vor dem Ende des Jobs noch läuft, und
+behält, was sie beantwortet hat; die nächste fragt den Rest, sodass jede Frage
+einmal bezahlt wird. Eine behaltene Antwort auf eine inzwischen gelöschte Frage
+fällt mit ihr weg. Vor jeder Einheit prüft die Suche, ob die
 handelnde Person noch Bearbeitungsrecht am Agenten, `runs:view` und das Recht hat,
 das Dataset auszuführen; sonst hält die Sitzung an wie bei ihrem nächsten
 Schritt. Eine Notiz zu **Try again** erreicht auch den Helfer, der die Varianten
