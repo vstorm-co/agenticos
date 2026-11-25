@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.api import deps
 from app.core.config import settings
@@ -217,6 +217,31 @@ async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
     assert (alone.total, alone.items) == (0, [])
     assert (for_owner.total, [item.case_id for item in for_owner.items]) == (2, [case.case_id])
     assert (for_viewer.total, [item.case_id for item in for_viewer.items]) == (1, [typed.case_id])
+
+
+@pytest.mark.security
+async def test_a_case_written_before_the_flag_is_masked_by_its_source(db) -> None:
+    """A writer from before `from_conversation` leaves it unset on a copied or drafted case."""
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="older", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    await service.add_from_message(owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id))
+    drafted = GeneratedCase(
+        content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        source_conversation_id=answer.conversation_id,
+    )
+    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(from_conversation=False)
+    )
+
+    reads = (await service.list_cases(viewer, dataset.id)).items
+
+    assert [read.masked for read in reads] == [True, True]
 
 
 @pytest.mark.security

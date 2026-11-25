@@ -817,7 +817,11 @@ class DatasetService:
     async def masked_case_ids(self, ctx: AuthContext, cases: Sequence[DatasetCase]) -> set[UUID]:
         """The revisions among `cases` this caller reads masked: taken from a conversation
         they may not open. Anything computed over case text for this caller leaves them out,
-        or it would confirm what the mask hides."""
+        or it would confirm what the mask hides.
+
+        A revision is from a conversation by its flag, or by its source or conversation link
+        alone: a writer from before the flag existed leaves it unset.
+        """
         if ctx.has(Perm.RUNS_VIEW):
             return set()
         readable = await ConversationService(self.db).readable(
@@ -827,7 +831,12 @@ class DatasetService:
         return {
             case.id
             for case in cases
-            if case.from_conversation and case.source_conversation_id not in readable
+            if (
+                case.from_conversation
+                or case.source == CaseSource.CONVERSATION.value
+                or case.source_conversation_id is not None
+            )
+            and case.source_conversation_id not in readable
         }
 
     async def source_privacy(self, ctx: AuthContext, message_id: UUID) -> DatasetSourcePrivacy:
