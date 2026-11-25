@@ -402,6 +402,19 @@ describe.each([
         .sort();
     expect(ofScreens(catalog)).toEqual(ofScreens(en));
   });
+  it("preserves the current screen arguments and selector branches", () => {
+    const translated = new Map(entries(catalog));
+    const prefixes = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      if (!prefixes.some((prefix) => key.startsWith(prefix))) return [];
+      const value = translated.get(key);
+      return value !== undefined &&
+        JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  });
 });
 
 describe("Turkish ICU contracts", () => {

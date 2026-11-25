@@ -66,6 +66,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission does not return attempts, timeline or evidence.
+- Complete French and Turkish Improve/eval/assistant translations. Translate comparison, merge-refusal and stored failure reasons from stable codes while retaining technical details and compatibility with uncoded historical results.
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
 - Keep an Improve session's held-out share fixed across attempts, even after
@@ -106,6 +107,8 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0369_run_error_code.py` to retain optional failure codes and numeric parameters for Improve sessions and assistant requests. Historical free-text failures remain readable when no exact code can be backfilled.
 
 - Apply `0366_improvement_holdout_share.py` with API admission and background
   workers paused, then restart both on the updated code. Existing Improve

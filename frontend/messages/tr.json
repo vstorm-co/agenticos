@@ -18321,7 +18321,7 @@
       "mcp_galleryAvailable": "Yalnızca kuruluşun bağladığı sunucular",
       "skill_galleryAvailable": "Yalnızca görünür kurulu Skills",
       "allowList": "Öğeleri seç",
-      "selected": "{count, plural, other {# öğe seçildi}}",
+      "selected": "{count, plural, =1 {1 öğe seçildi} other {# öğe seçildi}}",
       "remove": "{name} kaldır",
       "empty": "Eşleşen öğe yok",
       "discard": "Değişiklikleri iptal et",
@@ -19161,7 +19161,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Bu sürüm hattındaki hiçbir agent kontrol edilemez.} =1 {1 agent üzerinde kontrol edilecek: {names}.} other {# agent üzerinde kontrol edilecek: {names}.}}",
-      "unchecked": "{name} kontrol edilemiyor: {reason, select, no_questions {skill'i yüklediği yerlerde test sorusu yok} no_access {onu çalıştırma izniniz yok} no_budget {budget'ı tükendi} no_published_version {yayınlanmış bir sürümü yok} inconclusive {run'ı her yanıtı puanlayamadı} failed {kontrolü başarısız oldu} unscorable {sorularını puanlayabilecek hiçbir şey yok} all_evidence {tüm sorular bu değişikliğin öğrenildiği konuşmalardan geldi} cancelled {kontrol bitmeden durduruldu} own_not_asked {kendi soruları sorulmadı} too_few_questions {değişikliği doğrulamak için çok az test sorusu var} other {kontrol bunu ölçemedi}}.",
+      "unchecked": "{name} kontrol edilemiyor: {reason, select, no_questions {skill'i yüklediği yerlerde test sorusu yok} no_access {onu çalıştırma izniniz yok} no_budget {budget'ı tükendi} no_published_version {yayınlanmış bir sürümü yok} inconclusive {run'ı her yanıtı puanlayamadı} other {kontrolü başarısız oldu}}.",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını kullanıyor.} other {Göremediğiniz # agent daha bu sürüm hattını kullanıyor.}}",
       "thorough": "Agent'ların skill'i ne zaman açacağını belirleyen açıklama değişti, bu yüzden her agent'ın kendi soruları da sorulur."
     },
