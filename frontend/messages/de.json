@@ -1497,7 +1497,18 @@
         "approve_all": "Alles erlauben",
         "ask_all": "Immer fragen"
       },
-      "afterFirstMessage": "Nach der ersten Nachricht verfügbar."
+      "afterFirstMessage": "Nach der ersten Nachricht verfügbar.",
+      "projectExecution": {
+        "title": "Befehle ausführen in",
+        "agent": "Agenten-Arbeitsbereich",
+        "project": "Projekt-Arbeitsbereich",
+        "hint": "Gilt für die nächste Nachricht. Projektkontext oder Dateien zu wählen ändert nicht den Ausführungsort.",
+        "filesOnly": "Dieser Agent kann Projektdateien und Kontext verwenden, aber keine Befehle ausführen.",
+        "noProject": "Starten Sie einen Chat im Projekt, um dessen Arbeitsbereich zu wählen. Bitten Sie den Agenten in anderen Chats, ein Projekt für den aktuellen Lauf zu wählen.",
+        "local": "Befehle verwenden den freigegebenen Ordner auf diesem Computer. Wechseln Sie zur Cloud, um diese Auswahl zu ändern.",
+        "loading": "Projekt dieses Chats wird geprüft…",
+        "unavailable": "Das Projekt konnte nicht geprüft werden. Versuchen Sie es vor der Auswahl erneut."
+      }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",

@@ -32,6 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
   Projects capability searches accessible projects and reads/writes bounded text
   from web chat and linked private channels without granting a shell. Chat Files
   exposes authorized project and agent workspace origins separately.
+- Choose the agent or project workspace for commands in chat settings, separately from project file context. Per-chat choices stay within the current account and organization and preserve local folder consent.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 

@@ -31,7 +31,24 @@ const DEFAULT_CODING_PREFERENCES: CodingPreferences = { model: null, effort: nul
 const browserKey = (conversationId: string) =>
   `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
 
+export type ProjectExecutionTarget = "agent" | "project";
+interface ExecutionChoice {
+  projectId: string;
+  target: ProjectExecutionTarget;
+}
+
 interface WorkOnState {
+  executionByConversation: Record<string, ExecutionChoice>;
+  draftExecutionByScope: Record<string, ExecutionChoice>;
+  executionFor: (
+    conversationId: string | null,
+    pendingProjectId?: string | null,
+  ) => ProjectExecutionTarget | null;
+  setExecution: (
+    conversationId: string | null,
+    projectId: string,
+    target: ProjectExecutionTarget,
+  ) => void;
   /** Private folder mappings never leave this browser's account/organization scope. */
   fileRoots: Record<string, string>;
   rememberFileRoot: (id: string, root: string) => void;
@@ -93,6 +110,22 @@ const NO_SKILLS: SkillSource[] = [];
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      executionByConversation: {},
+      draftExecutionByScope: {},
+      executionFor: (conversationId, pendingProjectId) => {
+        const choice =
+          conversationId === null
+            ? get().draftExecutionByScope[browserKey("execution:draft")]
+            : get().executionByConversation[browserKey(conversationId)];
+        if (!choice || (conversationId === null && choice.projectId !== pendingProjectId))
+          return null;
+        return choice.target;
+      },
+      setExecution: (conversationId, projectId, target) => {
+        const field = conversationId === null ? "draftExecutionByScope" : "executionByConversation";
+        const key = browserKey(conversationId ?? "execution:draft");
+        set({ [field]: { ...get()[field], [key]: { projectId, target } } });
+      },
       fileRoots: {},
       rememberFileRoot: (id, root) =>
         set({ fileRoots: { ...get().fileRoots, [browserKey(`file:${id}`)]: root } }),
@@ -205,6 +238,11 @@ export const useWorkOnStore = create<WorkOnState>()(
       },
       resetDraft: () =>
         set({
+          draftExecutionByScope: Object.fromEntries(
+            Object.entries(get().draftExecutionByScope).filter(
+              ([key]) => key !== browserKey("execution:draft"),
+            ),
+          ),
           draft: null,
           draftProjectKey: null,
           draftBrowser: undefined,
@@ -257,7 +295,17 @@ export const useWorkOnStore = create<WorkOnState>()(
         if (Object.hasOwn(state.byConversation, conversationId)) return;
         const key = browserKey(conversationId);
         const target = state.targetFor(null);
+        const execution = state.draftExecutionByScope[browserKey("execution:draft")];
         set({
+          executionByConversation:
+            execution && !Object.hasOwn(state.executionByConversation, key)
+              ? { ...state.executionByConversation, [key]: execution }
+              : state.executionByConversation,
+          draftExecutionByScope: Object.fromEntries(
+            Object.entries(state.draftExecutionByScope).filter(
+              ([entry]) => entry !== browserKey("execution:draft"),
+            ),
+          ),
           draft: null,
           draftProjectKey: null,
           draftComputer: undefined,
@@ -289,6 +337,7 @@ export const useWorkOnStore = create<WorkOnState>()(
       name: "work-on",
       version: 1,
       partialize: ({
+        executionByConversation,
         agentTargets,
         fileRoots,
         byConversation,
@@ -298,6 +347,7 @@ export const useWorkOnStore = create<WorkOnState>()(
         codingByConversation,
         codingPreferencesByConversation,
       }) => ({
+        executionByConversation,
         agentTargets,
         fileRoots,
         skillsByConversation,

@@ -27,10 +27,11 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
-import { useAgentSelectionStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useInChatScope } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { worksOnThisComputer } from "@/hooks/use-local-access-gate";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
+import { ProjectExecutionControl } from "./project-execution-control";
 import { LocalSkillsControl } from "./local-skills-control";
 import { LocalCodingControl } from "./local-coding-control";
 import { useProviderCatalog } from "@/hooks/use-model-providers";
@@ -47,8 +48,8 @@ function folderName(path: string): string {
 /**
  * "Work on: Cloud / This computer" - where this conversation's runs work (#2305).
  *
- * Only in the desktop app, which is the only place that can pick a folder and
- * carry the work out. Cloud is the agent's own sandbox; this computer is a folder
+ * Project execution is available in every console. Only the desktop app can
+ * select a local folder. Cloud execution has its own workspace selection; a folder
  * the person picks in the native dialog, with the mode they allow there. The
  * choice is remembered per conversation; new chats inherit the last preferences.
  */
@@ -58,21 +59,30 @@ export function WorkOn({
   agentCapabilities?: readonly string[] | null;
 }) {
   const shell = useShell();
-  return isDesktopShell(shell) ? (
+  const scoped = useInChatScope();
+  return (
     <>
-      <LocalCodingControl />
-      <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
-      <LocalToolControl
-        tool="browser"
-        agentEnabled={agentCapabilities?.includes("browser_use") === true}
-      />
-      <LocalToolControl
-        tool="computer"
-        agentEnabled={agentCapabilities?.includes("computer_use") === true}
-      />
-      <LocalSkillsControl />
+      {!scoped &&
+        agentCapabilities?.some(
+          (capability) => capability === "sandbox" || capability === "projects",
+        ) && <ProjectExecutionControl agentCapabilities={agentCapabilities} />}
+      {isDesktopShell(shell) && (
+        <>
+          <LocalCodingControl />
+          <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
+          <LocalToolControl
+            tool="browser"
+            agentEnabled={agentCapabilities?.includes("browser_use") === true}
+          />
+          <LocalToolControl
+            tool="computer"
+            agentEnabled={agentCapabilities?.includes("computer_use") === true}
+          />
+          <LocalSkillsControl />
+        </>
+      )}
     </>
-  ) : null;
+  );
 }
 
 export function ConversationNotifications() {

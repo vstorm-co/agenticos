@@ -1497,7 +1497,18 @@
         "approve_all": "Aprovar tudo",
         "ask_all": "Perguntar sempre"
       },
-      "afterFirstMessage": "Disponível após a primeira mensagem."
+      "afterFirstMessage": "Disponível após a primeira mensagem.",
+      "projectExecution": {
+        "title": "Executar comandos em",
+        "agent": "Espaço do agente",
+        "project": "Espaço do projeto",
+        "hint": "Aplica-se à próxima mensagem. Escolher o contexto ou os arquivos do projeto não altera o local de execução.",
+        "filesOnly": "Este agente pode usar arquivos e contexto do projeto, mas não pode executar comandos.",
+        "noProject": "Inicie um chat em um projeto para escolher seu espaço. Em outros chats, peça ao agente para selecionar um projeto para esta execução.",
+        "local": "Os comandos usam a pasta autorizada neste computador. Volte à nuvem para alterar esta escolha.",
+        "loading": "Verificando o projeto deste chat…",
+        "unavailable": "Não foi possível verificar o projeto. Tente novamente antes de escolher seu espaço."
+      }
     },
     "conversationArchived": "Esta conversa está arquivada",
     "conversationDeleted": "Conversa excluída",

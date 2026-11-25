@@ -499,7 +499,18 @@
         "approve_all": "Zatwierdzaj wszystko",
         "ask_all": "Zawsze pytaj"
       },
-      "afterFirstMessage": "Dostępne po pierwszej wiadomości."
+      "afterFirstMessage": "Dostępne po pierwszej wiadomości.",
+      "projectExecution": {
+        "title": "Wykonuj polecenia w",
+        "agent": "Workspace agenta",
+        "project": "Workspace projektu",
+        "hint": "Dotyczy następnej wiadomości. Wybór kontekstu lub plików projektu nie przełącza wykonywania poleceń.",
+        "filesOnly": "Ten agent może korzystać z plików i kontekstu projektu, ale nie ma możliwości wykonywania poleceń.",
+        "noProject": "Rozpocznij chat w projekcie, aby wybrać jego workspace. W innych chatach poproś agenta o wybranie projektu na czas danego uruchomienia.",
+        "local": "Polecenia korzystają z folderu udostępnionego na tym komputerze. Wróć do chmury, aby zmienić ten wybór.",
+        "loading": "Sprawdzanie projektu tego chatu…",
+        "unavailable": "Nie udało się sprawdzić projektu. Ponów próbę przed wyborem jego workspace."
+      }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",
