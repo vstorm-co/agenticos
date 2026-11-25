@@ -2859,7 +2859,7 @@ Python guard.
 
 | Config | Default | |
 |---|---|---|
-| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs, PEM blocks, passwords in addresses, keys in query strings and form bodies, and Basic or Bearer authorization headers |
 | `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
 | `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |

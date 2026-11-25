@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "6b7dd41c2549"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2964,7 +2964,7 @@ pythonowego strażnika.
 
 | Konfiguracja | Domyślnie |  |
 | --- | --- | --- |
-| `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT i bloki PEM |
+| `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT, bloki PEM, hasła w adresach, klucze w query stringach i formularzach oraz nagłówki autoryzacji Basic i Bearer |
 | `redact_pii_*` | `false` | wymaż e-mail, numer telefonu (poprawny w swoim planie numeracji), IBAN (mod-97), kartę (Luhn) i US SSN |
 | `blocked_keywords_*` | `""` | terminy rozdzielone przecinkiem albo nową linią; trafienie kończy run |
 | `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII, najwyżej 16 |

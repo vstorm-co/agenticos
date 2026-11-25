@@ -702,6 +702,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).
@@ -1643,6 +1644,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).

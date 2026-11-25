@@ -29,6 +29,7 @@ from app.schemas.improvement import (
 )
 from app.schemas.skill_version import SkillAgentList, SkillBindingRead
 from app.services.access import SKILL, accessible_ids, resolve_access
+from app.services.dataset import redact_credentials
 from app.services.skill_agents import SkillAgentService, lines_of
 
 
@@ -62,8 +63,13 @@ def problems_of(
             if item["skill_id"] != str(skill_id) or item["problem"] in found:
                 continue
             found[item["problem"]] = ImprovementSkillProblem(
-                problem=item["problem"],
-                evidence=[EvidenceItemRead.model_validate(quote) for quote in item["evidence"]],
+                problem=redact_credentials(item["problem"])[0] or "",
+                evidence=[
+                    EvidenceItemRead.model_validate(
+                        {**quote, "quote": redact_credentials(quote.get("quote"))[0]}
+                    )
+                    for quote in item["evidence"]
+                ],
             )
     return list(found.values())
 

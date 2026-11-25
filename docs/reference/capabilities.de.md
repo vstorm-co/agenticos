@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "6b7dd41c2549"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3186,7 +3186,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 
 | Konfiguration | Standard |  |
 | --- | --- | --- |
-| `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen |
+| `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs, PEM-Blöcke, Passwörter in Adressen, Schlüssel in Query-Strings und Formularen sowie Basic- und Bearer-Authorization-Header entfernen |
 | `redact_pii_*` | `false` | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
 | `blocked_keywords_*` | `""` | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run |
 | `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest, höchstens 16 |

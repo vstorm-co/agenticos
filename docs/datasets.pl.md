@@ -1,5 +1,5 @@
 ---
-source_sha: "5c7b14920eb8"
+source_sha: "078ddddaa358"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -323,6 +323,14 @@ platforma zastępuje każdy rozpoznany klucz API albo token znacznikiem, np.
 które trafia do eksportu, także argumentów oczekiwanego wywołania narzędzia, i
 każdej drogi dodania przypadku. Wpis audytu dla zmiany zapisuje, ile wartości
 zredagowano, nigdy same wartości.
+
+Rozpoznaje klucze API i tokeny dostawców i usług, z którymi platforma
+współpracuje, JWT i klucze prywatne, hasło wpisane w adres
+(`postgres://user:password@host`), klucz albo hasło w query stringu lub treści
+formularza (`?api_key=`, `token=`, `password=`) oraz nagłówek `Authorization`
+typu Basic albo Bearer. Ten sam detektor czyści to, co czyta pomocnik
+ulepszania, to, co czyta klasyfikator luk w wiedzy, oraz wiadomości agenta,
+gdy jego guardrail redaguje sekrety.
 
 Generowanie redaguje też pytania i fragmenty przekazywane generatorowi, zanim
 trafią do modelu, i usuwa z pytań i komentarzy ludzi dane osobowe, które
