@@ -207,7 +207,8 @@ for that reason. A case answered [from its recording](#in-an-eval) still gets th
 pages and results the original run read: replaying them sends nothing. A
 `web_fetch` or `web_research` binding set to the model provider's own fetch or
 search is built with this deployment's in an isolated run, so its calls are held
-like any other.
+like any other. An agent in [code mode](governance.md#code-mode) keeps its
+script tool: each call the script makes is decided here, one call at a time.
 
 A test key stands in for a credential, but a URL or host in the capability's
 config can still point the writes at production. So a swapped key lets a

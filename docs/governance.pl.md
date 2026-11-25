@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "72feafd2fd90"
 ---
 
 # Governance { #governance }
@@ -1444,6 +1444,13 @@ zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny wo
 może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
 Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
 Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+W ewaluacji, i w każdym innym runie w izolacji, `run_code` działa, a o każdym
+wywołaniu ze skryptu decydują osobno
+[zasady izolacji](environments.md#in-an-eval): odczyt własnych danych tego
+wdrożenia działa, a odczyt spoza wdrożenia albo zapis jest wstrzymywany i
+zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
+nie dostałoby bezpośrednie wywołanie.
 
 Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
 runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane

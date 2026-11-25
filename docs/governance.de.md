@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "72feafd2fd90"
 ---
 
 # Governance { #governance }
@@ -1536,6 +1536,13 @@ speichert. Nach der Entscheidung kann jeder Worker das Skript fortsetzen, ohne
 einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
 Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
 nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
+
+In einem Eval und in jedem anderen isolierten Run läuft `run_code`, und über
+jeden Aufruf des Skripts entscheiden einzeln die
+[Isolationsregeln](environments.md#in-an-eval): Ein Lesezugriff auf die eigenen
+Daten dieses Deployments läuft, ein Lesezugriff nach außen oder ein Schreibzugriff
+wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skripts
+lässt nichts durch, was ein direkter Aufruf nicht bekäme.
 
 Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
 rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs

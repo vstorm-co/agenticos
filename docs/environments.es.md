@@ -1,5 +1,5 @@
 ---
-source_sha: "52ab8dfc3c12"
+source_sha: "95840a455250"
 ---
 
 # Entornos { #environments }
@@ -224,7 +224,9 @@ caso respondido [desde su grabación](#in-an-eval) sigue recibiendo las páginas
 los resultados que leyó el run original: reproducirlos no envía nada. Un binding
 de `web_fetch` o `web_research` configurado con la obtención o la búsqueda
 propias del provider del modelo se construye en un run aislado con las de este
-despliegue, así que sus llamadas se retienen como cualquier otra.
+despliegue, así que sus llamadas se retienen como cualquier otra. Un agente en
+[modo código](governance.md#code-mode) conserva su herramienta de script: cada
+llamada del script se decide aquí, una a una.
 
 Una clave de prueba sustituye una credencial, pero una URL o un host en la
 configuración de la capability todavía puede dirigir las escrituras a
