@@ -43,7 +43,7 @@ from app.repositories import (
     member_repo,
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, may_decide
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import (
@@ -606,10 +606,10 @@ class ChannelPrompts:
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
     ) -> RunSegment | None:
         """Record the decision; continue the run once nothing else is pending."""
-        if not ctx.has(Perm.APPROVALS_DECIDE):
-            raise AuthorizationError(message=NOT_YOURS)
         if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
             return None
+        if not await self._may_decide(ctx, prompt.approval_id, prompt.run_id):
+            raise AuthorizationError(message=NOT_YOURS)
         approved = choice == 0
         await ApprovalService(self.db).decide(ctx, prompt.approval_id, approved=approved)
         await channel_prompt_repo.answer(self.db, prompt=prompt, value={"approved": approved})
@@ -619,6 +619,25 @@ class ChannelPrompts:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return None
         return await self.runner.resume(ctx, prompt.run_id)
+
+    async def _may_decide(self, ctx: AuthContext, approval_id: UUID, run_id: UUID) -> bool:
+        """`approvals:decide`, or the run's own person pressing on their own platform call."""
+        if ctx.has(Perm.APPROVALS_DECIDE):
+            return True
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=ctx.organization_id
+        )
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return (
+            approval is not None
+            and run is not None
+            and may_decide(
+                ctx,
+                tool_id=approval.tool_id,
+                always_asks=approval.always_asks,
+                person_id=run.user_id,
+            )
+        )
 
     async def _answer(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None, typed: str | None

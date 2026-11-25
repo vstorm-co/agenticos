@@ -1050,10 +1050,38 @@ class TestATurnThatFinished:
                         # the card puts above the arguments.
                         "context": {"recipient": "Ops"},
                         "account": None,
+                        "always_asks": False,
+                        # A member holds no `approvals:decide`: the card says who can.
+                        "may_decide": False,
+                        "may_approve": False,
                     }
                 ],
                 "review_configs": [{"tool_name": "send_email", "allow_edit": False}],
             },
+        )
+
+    async def test_the_person_answers_their_own_platform_call_whatever_their_role(self):
+        """A platform call that always asks runs as the person whose run it is, so
+        that person answers it, whatever their role."""
+        session = _session()
+        parked = (
+            ParkedApproval(
+                approval_id=uuid4(),
+                tool_call_id="call-1",
+                tool_name="agenticos_accept_improvement",
+                tool_args={"publish": True},
+                always_asks=True,
+            ),
+        )
+
+        with _chat(AsyncMock(return_value=_finished_turn(parked=parked))):
+            await session.process_message(_message())
+
+        [request] = _sent_events(session)[2][1]["action_requests"]
+        assert (request["always_asks"], request["may_decide"], request["may_approve"]) == (
+            True,
+            True,
+            True,
         )
 
     async def test_a_parked_turn_stores_which_calls_are_waiting(self):

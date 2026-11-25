@@ -53,8 +53,9 @@ def _person() -> AuthContext:
 
 
 def _key() -> AuthContext:
+    """An organization key, which carries its issuer's authority narrowed to its scopes."""
     return AuthContext(
-        user_id=None, organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
+        user_id=uuid.uuid4(), organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
     )
 
 
