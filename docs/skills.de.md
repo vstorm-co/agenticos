@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "05c37312ff1d"
 ---
 
 # Skills { #skills }
@@ -926,6 +926,13 @@ Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritte
 das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
+
+Ein Schritt, der nicht laufen kann - sein Helfer ist archiviert oder nicht
+erreichbar, oder die übergebenen Belege sind weg -, schlägt mit dem Grund in der
+Sitzung fehl, und **Retry this step within the spending limit** führt ihn erneut
+aus, als die Person, die es erneut versucht, sobald das behoben ist. Ein Schritt
+über dem Ausgabenlimit hält bei seinem Budget an. Keiner wird von selbst erneut
+gestellt.
 
 Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
 Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des

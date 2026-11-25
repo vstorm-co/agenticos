@@ -830,6 +830,12 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
+A step that cannot run - its helper archived or out of reach, or the evidence it
+was handed gone - fails with the reason on the session, and **Retry this step
+within the spending limit** runs it again, as whoever retries it, once that is
+fixed. A step past the spending limit stops on its budget. Neither is asked again
+on its own.
+
 A session opened from an agent's Improve starts from the problems that session
 reported. Only a problem that quotes a line of the skill stating the wrong value
 or rule takes the agent's criteria with it; where the skill is only silent the

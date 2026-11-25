@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "05c37312ff1d"
 ---
 
 # Skille { #skills }
@@ -855,6 +855,12 @@ wybranego w chipach - w tych samych pięciu krokach co [poprawianie
 agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
+
+Krok, który nie może się wykonać - jego helper jest zarchiwizowany albo poza
+zasięgiem, albo zniknęły dowody, które dostał - kończy się błędem z powodem
+zapisanym w sesji, a **Retry this step within the spending limit** wykonuje go
+ponownie, jako osoba, która ponawia, gdy przyczyna zostanie usunięta. Krok ponad
+limitem wydatków zatrzymuje się na budżecie. Żaden nie jest ponawiany sam.
 
 Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
 Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,

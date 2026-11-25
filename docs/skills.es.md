@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "05c37312ff1d"
 ---
 
 # Skills { #skills }
@@ -874,6 +874,12 @@ main, o el fork elegido en los chips - con los mismos cinco pasos que [mejorar u
 agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resultado y Aceptar. Se
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
+
+Un paso que no puede ejecutarse - su ayudante está archivado o fuera de alcance,
+o la evidencia que recibió ya no está - falla con el motivo en la sesión, y
+**Retry this step within the spending limit** lo vuelve a ejecutar, como quien lo
+reintenta, una vez corregido. Un paso que supera el límite de gasto se detiene en
+su presupuesto. Ninguno se vuelve a pedir solo.
 
 Una sesión abierta desde el Improve de un agente empieza con los problemas que
 esa sesión informó. Solo un problema que cita una línea del skill con el valor o
