@@ -1,5 +1,5 @@
 ---
-source_sha: "f75050767f96"
+source_sha: "098e6e8f0554"
 ---
 
 # Skille { #skills }
@@ -855,6 +855,10 @@ wybranego w chipach - w tych samych pięciu krokach co [poprawianie
 agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
+
+Proponowana zmiana opisu skilla pokazuje stary i nowy opis, tak jak zmiana jego
+treści. Zmiana bez tekstu do pokazania jest pomijana, a wybrana jest odrzucana,
+zanim zostanie sprawdzona.
 
 Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
 Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,

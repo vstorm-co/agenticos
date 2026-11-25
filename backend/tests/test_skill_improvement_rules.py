@@ -87,6 +87,25 @@ class TestFilter:
             {"hunk_id": str(second.id), "reason": "repeated"},
         ]
 
+    def test_an_edit_with_no_text_to_show_is_dropped_before_anybody_decides(self):
+        blank = _description("  ")
+        empty = SpecProposalHunk(
+            id=uuid.uuid4(), kind=HunkKind.SKILL_BODY.value, old_text="", new_text=""
+        )
+        spaces = SpecProposalHunk(
+            id=uuid.uuid4(), kind=HunkKind.SKILL_BODY.value, old_text="", new_text=" \n\t"
+        )
+        reworded = _description("", edited_text="Refunds and returns.")
+
+        kept, dropped = filtered([blank, empty, spaces, reworded], _base())
+
+        assert kept == [reworded]
+        assert dropped == [
+            {"hunk_id": str(blank.id), "reason": "nothing_to_show"},
+            {"hunk_id": str(empty.id), "reason": "nothing_to_show"},
+            {"hunk_id": str(spaces.id), "reason": "nothing_to_show"},
+        ]
+
 
 @pytest.mark.parametrize(
     ("edits", "runs", "allowed"),
