@@ -25,6 +25,7 @@ import { useApiKeys, usePermissions } from "@/hooks";
 import { formatDate } from "@/lib/utils";
 import type { ApiKey } from "@/types/api-keys";
 import { Perm } from "@/types/permissions";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 const apiKeyRowId = (key: ApiKey): string => key.id;
 
@@ -136,7 +137,7 @@ export function ApiKeysManager() {
       ref={ref}
       className={
         expanded
-          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          ? `bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6 ${FULLSCREEN_SAFE_PADDED}`
           : "flex min-h-0 flex-1 flex-col"
       }
     >

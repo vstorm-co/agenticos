@@ -19,6 +19,7 @@ import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 const WorkspaceGraph = dynamic(() =>
   import("./workspace-graph").then((module) => module.WorkspaceGraph),
@@ -577,6 +578,7 @@ export function FileExplorer({
               "border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border",
               chosen === null && "hidden lg:flex",
               readerExpanded && "fixed inset-0 z-40 rounded-none",
+              readerExpanded && FULLSCREEN_SAFE,
             )}
           >
             {isLoading ? (

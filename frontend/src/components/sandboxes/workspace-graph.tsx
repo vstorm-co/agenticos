@@ -17,6 +17,7 @@ import { filterWikiPages, inWikiFolder } from "@/lib/wiki-navigation";
 import { WikiNavigator } from "./wiki-navigator";
 import { WikiGroups } from "./wiki-groups";
 import { WikiDiagnostics } from "./wiki-diagnostics";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 const EMPTY_GRAPH: WikiGraph = {
   pages: [],
@@ -84,6 +85,7 @@ export function WorkspaceGraph({
       className={cn(
         "bg-background relative min-h-[36rem] min-w-0 flex-1 overflow-hidden rounded-2xl border",
         expanded && "fixed inset-0 z-40 h-dvh min-h-0 rounded-none border-0",
+        expanded && FULLSCREEN_SAFE,
       )}
     >
       <WikiCanvas

@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 export type PanelSizing = "wide" | "sources";
 const SOURCES_CAP_PERCENT = 38;
@@ -64,12 +65,17 @@ export function BrowserPanelFrame({
       style={style}
       className={cn(
         "bg-card fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col",
+        // Over the whole screen the panel is drawn under a phone's status bar and
+        // home indicator (`viewportFit: "cover"`), and in the desktop app under its
+        // title bar: its header - and the close button in it - sat beneath the clock.
+        !contained && FULLSCREEN_SAFE,
         contained && "absolute",
+        // Docked beside the chat it sits below the console's own header, which clears both.
         !fullscreen &&
           !contained &&
           (layout === "browser"
-            ? "@min-[900px]/browser-layout:relative @min-[900px]/browser-layout:inset-auto @min-[900px]/browser-layout:z-20 @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-(--browser-panel-width) @min-[900px]/browser-layout:shrink-0 @min-[900px]/browser-layout:border-l"
-            : "@min-[900px]/sources-layout:relative @min-[900px]/sources-layout:inset-auto @min-[900px]/sources-layout:z-20 @min-[900px]/sources-layout:h-full @min-[900px]/sources-layout:w-(--browser-panel-width) @min-[900px]/sources-layout:shrink-0 @min-[900px]/sources-layout:border-l"),
+            ? "@min-[900px]/browser-layout:relative @min-[900px]/browser-layout:inset-auto @min-[900px]/browser-layout:z-20 @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-(--browser-panel-width) @min-[900px]/browser-layout:shrink-0 @min-[900px]/browser-layout:border-l @min-[900px]/browser-layout:pt-0 @min-[900px]/browser-layout:pb-0"
+            : "@min-[900px]/sources-layout:relative @min-[900px]/sources-layout:inset-auto @min-[900px]/sources-layout:z-20 @min-[900px]/sources-layout:h-full @min-[900px]/sources-layout:w-(--browser-panel-width) @min-[900px]/sources-layout:shrink-0 @min-[900px]/sources-layout:border-l @min-[900px]/sources-layout:pt-0 @min-[900px]/sources-layout:pb-0"),
       )}
     >
       {!fullscreen && !contained && (

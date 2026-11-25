@@ -11,6 +11,7 @@ import { WorkflowGraphView } from "./workflow-graph-view";
 
 import "@xyflow/react/dist/style.css";
 import styles from "./workflow-canvas.module.css";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 interface WorkflowCanvasProps {
   /** The workflow being edited; its `draft_graph` is seeded into the store by the page. */
@@ -41,6 +42,7 @@ export function WorkflowCanvas({ workflow, catalog, readOnly = false }: Workflow
         styles.canvas,
         "relative h-full",
         expanded && "bg-background fixed inset-0 z-40 h-auto",
+        expanded && FULLSCREEN_SAFE,
       )}
     >
       <div

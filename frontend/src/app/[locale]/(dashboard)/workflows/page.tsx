@@ -37,6 +37,7 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { WorkflowRead, WorkflowStatus } from "@/lib/workflows/types";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 type Filter = "all" | WorkflowStatus;
 type Sort = "edited" | "name" | "created";
@@ -281,7 +282,7 @@ export default function WorkflowsPage() {
         aria-label={t("catalog")}
         className={
           galleryFullscreen
-            ? "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6"
+            ? `bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6 ${FULLSCREEN_SAFE_PADDED}`
             : undefined
         }
         namedByPage

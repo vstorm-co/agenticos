@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Panels and expanded views that cover the whole screen - Files, Sources and
+  the browser beside a chat on a phone, the agent test panel, expanded tables,
+  datasets, workflows, sandboxes, knowledge gaps, API keys and sign-ins - keep
+  their header clear of the phone's status bar and home indicator. In the
+  iPhone app the Files panel's close button sat beneath the clock.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
