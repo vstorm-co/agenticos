@@ -227,10 +227,18 @@ export interface Passage {
   context_after: string;
 }
 
+/** How long a passage must be to be followed once its surroundings changed (`MOVED_MIN_CHARS`). */
+const MOVED_MIN_CHARS = 40;
+
+const wholeLines = (passage: string, startsLine: boolean, endsLine: boolean) =>
+  passage.trim() !== "" &&
+  (startsLine || passage.startsWith("\n")) &&
+  (endsLine || passage.endsWith("\n"));
+
 /**
- * Where a suggested passage starts in `text`, found the way the server finds it:
- * the one occurrence its surroundings still match, or the only occurrence there is.
- * `null` when the text has moved on.
+ * Where a suggested passage starts in `text`, found the way the server finds it: the one
+ * occurrence its surroundings still match, or else the only occurrence there is, when the
+ * passage is long or a whole line found as a whole line. `null` when the text has moved on.
  */
 export function locatePassage(text: string, passage: Passage): number | null {
   const surrounded = (position: number) => {
@@ -253,7 +261,22 @@ export function locatePassage(text: string, passage: Passage): number | null {
     const positions = occurrences(passage.old_text);
     const exact = positions.filter(surrounded);
     if (exact.length === 1) return exact[0]!;
-    return positions.length === 1 ? positions[0]! : null;
+    if (positions.length !== 1) return null;
+    const at = positions[0]!;
+    const end = at + passage.old_text.length;
+    const moved =
+      passage.old_text.length >= MOVED_MIN_CHARS ||
+      (wholeLines(
+        passage.old_text,
+        !passage.context_before || passage.context_before.endsWith("\n"),
+        !passage.context_after || passage.context_after.startsWith("\n"),
+      ) &&
+        wholeLines(
+          passage.old_text,
+          at === 0 || text[at - 1] === "\n",
+          end === text.length || text[end] === "\n",
+        ));
+    return moved ? at : null;
   }
   const candidates = passage.context_before
     ? occurrences(passage.context_before).map((at) => at + passage.context_before.length)

@@ -43,6 +43,10 @@ from app.services import authoring_fields
 CONTEXT_CHARS = 60
 """How much surrounding text an anchor keeps on either side."""
 
+MOVED_MIN_CHARS = 40
+"""How long a passage must be to be followed to a new place once its surroundings changed;
+a whole line is followed at any length."""
+
 
 @dataclass(frozen=True)
 class Anchor:
@@ -205,7 +209,9 @@ def locate(text: str, anchor: Anchor) -> int | None:
         exact = [position for position in positions if surrounded(position)]
         if len(exact) == 1:
             return exact[0]
-        return positions[0] if len(positions) == 1 else None
+        if len(positions) == 1 and _moved(text, positions[0], anchor):
+            return positions[0]
+        return None
     candidates = (
         [p + len(anchor.before) for p in _occurrences(text, anchor.before)]
         if anchor.before
@@ -213,6 +219,38 @@ def locate(text: str, anchor: Anchor) -> int | None:
     )
     exact = [position for position in candidates if surrounded(position)]
     return exact[0] if len(exact) == 1 else None
+
+
+def _moved(text: str, position: int, anchor: Anchor) -> bool:
+    """Whether the one occurrence of a passage whose surroundings changed is that passage.
+
+    A short phrase, such as an amount, can stand in another sentence that only holds
+    the same characters. A passage at least `MOVED_MIN_CHARS` long is taken to be the
+    one that moved, and so is a whole line found as a whole line.
+    """
+    passage = anchor.old_text
+    if len(passage) >= MOVED_MIN_CHARS:
+        return True
+    end = position + len(passage)
+    was_line = _whole_lines(
+        passage,
+        starts_line=not anchor.before or anchor.before.endswith("\n"),
+        ends_line=not anchor.after or anchor.after.startswith("\n"),
+    )
+    is_line = _whole_lines(
+        passage,
+        starts_line=position == 0 or text[position - 1] == "\n",
+        ends_line=end == len(text) or text[end] == "\n",
+    )
+    return was_line and is_line
+
+
+def _whole_lines(passage: str, *, starts_line: bool, ends_line: bool) -> bool:
+    return (
+        bool(passage.strip())
+        and (starts_line or passage.startswith("\n"))
+        and (ends_line or passage.endswith("\n"))
+    )
 
 
 def _proposed(hunk: SpecProposalHunk) -> Anchor:
