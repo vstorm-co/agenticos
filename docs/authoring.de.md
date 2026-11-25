@@ -1,5 +1,5 @@
 ---
-source_sha: "2df8b551b77c"
+source_sha: "f07977776b5c"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -96,10 +96,11 @@ er **nicht mehr zum Entwurf passt**, und lässt sich nur verwerfen. Rückgängig
 verweigert sich ebenso, wenn der angenommene Text danach von Hand bearbeitet
 wurde: Es würde diese Änderung verwerfen.
 
-Eine von Hand verschobene Passage wird weiter gefunden, solange sie nur einmal
-vorkommt und eine ganze Zeile oder mindestens 40 Zeichen lang ist. Einer kürzeren
-Wendung, etwa einem Betrag, folgt der Vorschlag nicht in einen anderen Satz: Er
-passt dann nicht mehr zum Entwurf.
+Eine von Hand verschobene Passage, oder eine neben einer zuvor angenommenen
+Änderung, wird weiter gefunden, solange sie nur einmal vorkommt und eine ganze
+Zeile ist, mindestens 40 Zeichen lang ist oder eine Seite ihrer Umgebung behalten
+hat. Einer kürzeren Wendung, etwa einem Betrag, folgt der Vorschlag nicht in einen
+anderen Satz: Er passt dann nicht mehr zum Entwurf.
 
 Die Leiste hat zwei Tabs, jeder mit einer Anzahl. **Zu prüfen** zeigt jeden noch
 wartenden Vorschlag vollständig. **Entschieden** klappt jeden angenommenen,
