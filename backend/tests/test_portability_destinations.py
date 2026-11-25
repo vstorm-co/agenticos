@@ -32,6 +32,7 @@ def actor() -> AuthContext:
         ("mcp_connection", "McpConnectionService.list_for_org", "page"),
         ("secret", "OrganizationSecretService.list_secrets", "list"),
         ("knowledge_base", "KnowledgeBaseService.list_accessible", "list"),
+        ("local_service", "LocalServiceService.list_visible", "list"),
         ("sandbox_connection", "SandboxConnectionService.list_connections", "list"),
     ],
 )

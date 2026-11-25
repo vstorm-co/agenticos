@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, m
 from app.agents.model_resolver import ModelApi, ModelRegion
 from app.schemas.context import ContextModeLiteral
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+from app.services.ingestion_config import IngestionConfig as PortableIngestionConfig
 
 
 def portable_connection_settings(
@@ -120,3 +121,39 @@ class ImportedSkillUpdate(SkillUpdate):
 
 class ImportedSkillResourceUpdate(SkillResourceUpdate):
     model_config = ConfigDict(str_strip_whitespace=False)
+
+
+class KnowledgeDocumentContent(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    # A logical asset name, deliberately not a resource binding or storage path.
+    id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    filename: str = Field(min_length=1, max_length=255)
+    filesize: int = Field(ge=0, le=2 * 1024**3)
+    filetype: str = Field(min_length=1, max_length=20)
+    ingestion_config: PortableIngestionConfig = Field(default_factory=PortableIngestionConfig)
+    organizational_unit: str | None = Field(default=None, max_length=255)
+
+
+class KnowledgeBaseContent(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=500)
+    ingestion_config: PortableIngestionConfig = Field(default_factory=PortableIngestionConfig)
+    embedding_model: str = Field(min_length=1, max_length=128)
+    embedding_provider: str = Field(min_length=1, max_length=32)
+    embedding_dim: int = Field(ge=1, le=65536)
+    embedding_secret_id: UUID | None = Field(
+        default=None, json_schema_extra={"x-resource": "secret"}
+    )
+    embedding_endpoint_id: UUID | None = Field(
+        default=None, json_schema_extra={"x-resource": "local_service"}
+    )
+    documents: tuple[KnowledgeDocumentContent, ...] = Field(default=(), max_length=1000)
+
+    @model_validator(mode="after")
+    def unique_documents(self) -> Self:
+        if len({document.id for document in self.documents}) != len(self.documents):
+            raise ValueError("A portable knowledge base declares each document once")
+        return self

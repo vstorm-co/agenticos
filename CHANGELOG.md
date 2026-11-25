@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Selectively transfer knowledge-base originals and parsed text in ZIP bundles. Imports stay private and unindexed, show parsed previews without model calls, and can be indexed explicitly after configuring destination providers.
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
@@ -73,6 +74,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0371_portable_document_snapshots.py` records imported parsed-text files. Downgrading it requires deleting documents that own parsed snapshots through the application first, preserving file cleanup ownership.
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all
   supported configured methods; an explicit `OAUTH_PROVIDERS` list keeps its

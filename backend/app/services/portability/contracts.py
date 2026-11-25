@@ -6,6 +6,7 @@ from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
 from app.schemas.resource_bundle import (
+    BundleContentLayer,
     BundlePath,
     BundleReference,
     BundleResource,
@@ -14,6 +15,7 @@ from app.schemas.resource_bundle import (
 )
 from app.services.portability.content import (
     ContextContent,
+    KnowledgeBaseContent,
     McpContent,
     ModelContent,
     SkillContent,
@@ -25,6 +27,7 @@ DEFINITION_MODELS: dict[BundleResourceKind, type[BaseModel]] = {
     BundleResourceKind.AGENT: AgentSpec,
     BundleResourceKind.AGENT_VERSION: AgentSpec,
     BundleResourceKind.CONTEXT: ContextContent,
+    BundleResourceKind.KNOWLEDGE_BASE: KnowledgeBaseContent,
     BundleResourceKind.SKILL: SkillContent,
     BundleResourceKind.SKILL_VERSION: SkillSnapshotContent,
     BundleResourceKind.SKILL_FORK: SkillSnapshotContent,
@@ -35,6 +38,7 @@ DEFINITION_MODELS: dict[BundleResourceKind, type[BaseModel]] = {
 CREATE_PERMISSIONS = {
     BundleResourceKind.AGENT: "agents:edit",
     BundleResourceKind.CONTEXT: "context:edit",
+    BundleResourceKind.KNOWLEDGE_BASE: "collections:edit",
     BundleResourceKind.SKILL: "skills:edit",
     BundleResourceKind.SKILL_VERSION: "skills:edit",
     BundleResourceKind.SKILL_FORK: "skills:edit",
@@ -44,6 +48,13 @@ CREATE_PERMISSIONS = {
 
 
 def definition_model(resource: BundleResource) -> BaseModel:
+    if (
+        resource.kind == BundleResourceKind.KNOWLEDGE_BASE
+        and BundleContentLayer.KB_INDEX in resource.included
+    ):
+        raise BadRequestError(
+            message="Portable knowledge indexes are not supported; import originals or parsed text"
+        )
     model = DEFINITION_MODELS.get(resource.kind)
     if model is None or resource.definition is None:
         raise BadRequestError(

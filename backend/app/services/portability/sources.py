@@ -13,11 +13,13 @@ from app.schemas.resource_bundle import BundleResource, BundleResourceKind
 from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.local_service import LocalServiceService
 from app.services.mcp_connection import McpConnectionService
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portability.content import (
     ContextContent,
+    KnowledgeBaseContent,
     McpContent,
     ModelContent,
     SkillContent,
@@ -173,7 +175,26 @@ class BundleSources:
             return SourceDefinition(row.id, row.name)
         if kind == BundleResourceKind.KNOWLEDGE_BASE:
             row = await KnowledgeBaseService(self.db).get(identity, ctx=ctx)
-            return SourceDefinition(row.id, row.name)
+            content = (
+                KnowledgeBaseContent.model_validate(
+                    {
+                        "name": row.name,
+                        "description": row.description,
+                        "ingestion_config": row.ingestion_config,
+                        "embedding_model": row.embedding_model,
+                        "embedding_provider": row.embedding_provider,
+                        "embedding_dim": row.embedding_dim,
+                        "embedding_secret_id": row.embedding_secret_id,
+                        "embedding_endpoint_id": row.embedding_endpoint_id,
+                    }
+                )
+                if with_content
+                else None
+            )
+            return SourceDefinition(row.id, row.name, content)
+        if kind == BundleResourceKind.LOCAL_SERVICE:
+            row = await LocalServiceService(self.db).get_visible(ctx, identity)
+            return SourceDefinition(row.id, row.name, copyable=False)
         if kind == BundleResourceKind.SANDBOX_CONNECTION:
             self._require(ctx, Perm.CONNECTIONS_VIEW)
             row = await SandboxConnectionService(self.db).get(ctx, identity)

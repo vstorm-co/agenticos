@@ -13,6 +13,7 @@ from app.schemas.resource_bundle import (
 from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.local_service import LocalServiceService
 from app.services.mcp_connection import McpConnectionService
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
@@ -138,6 +139,9 @@ class BundleDestinations:
             return _page(
                 [BundleDestinationOption(id=row.id, name=row.name) for row in bases], query
             )
+        if kind == BundleResourceKind.LOCAL_SERVICE:
+            rows = await LocalServiceService(self.db).list_visible(ctx)
+            return _page([BundleDestinationOption(id=row.id, name=row.name) for row in rows], query)
         if kind == BundleResourceKind.SANDBOX_CONNECTION:
             self._require(ctx, Perm.CONNECTIONS_VIEW)
             connections = await SandboxConnectionService(self.db).list_connections(ctx)

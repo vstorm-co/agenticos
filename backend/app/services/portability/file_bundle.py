@@ -124,6 +124,15 @@ def hydrate_text(bundle: ResourceBundle, files: Mapping[str, Path]) -> ResourceB
     replacements: dict[str, dict[str, str]] = {}
     for asset in bundle.assets:
         resource = by_key[asset.resource]
+        if resource.kind == BundleResourceKind.KNOWLEDGE_BASE:
+            if asset.layer not in (
+                BundleContentLayer.KB_DOCUMENTS,
+                BundleContentLayer.KB_PARSED_TEXT,
+            ):
+                raise BadRequestError(
+                    message="Knowledge indexes cannot be imported as portable files"
+                )
+            continue
         valid_context = (
             resource.kind == BundleResourceKind.CONTEXT
             and asset.layer == BundleContentLayer.CONTEXT_CONTENT
