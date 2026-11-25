@@ -97,7 +97,9 @@ Project files and command execution are separate:
 **Work on** is available in chat settings on web and desktop when the agent has
 command execution. Project execution needs an attached or pending project. An explicit
 choice is retained for that account, organization and chat, not inherited by a new
-chat. An agent may use `select_execution_target` explicitly within a run; selecting
+chat. An explicit request pins the executor for the whole run; the agent cannot
+change it. When the request omits that choice, the agent may use
+`select_execution_target` explicitly within a run. Selecting
 files with `select_project_context` or legacy `select_project_workspace` alone never
 changes the command target. The tool result reports both choices and availability.
 
@@ -111,7 +113,18 @@ Project text tools list up to 100 entries and read or write UTF-8 text up to 256
 They refuse reserved paths, escaping symlinks, binary files and unknown sizes. They do
 not run OCR. A write after a read refuses a changed file rather than overwriting a
 concurrent edit. A project remains on its chosen sandbox connection until an editor
-moves it explicitly.
+moves it explicitly. After an approval or question continuation, read an existing
+project file again before replacing or deleting it. A coding harness requires project
+files and commands to use the same workspace; split namespaces are refused.
+
+Delegated work receives a pinned snapshot of the selected project, generation and
+executor. Starting the first shared-workspace delegate locks these choices for the
+rest of the run, including approval and question continuations; finish and start a
+new turn to change them. Children do not receive the selector tools' mutable port.
+Each child keeps its own read-conflict guard; the root owns executor cleanup and
+records file origins. New file/command operations are refused after root cleanup.
+Already admitted remote operations retain the existing cancellation-grace and
+provider lifetime limits; cleanup does not promise they have stopped.
 
 When creating a project, **Project sandbox** lets you choose a registered sandbox
 connection, automatic selection, or **Stored files only**. Automatic selection pins

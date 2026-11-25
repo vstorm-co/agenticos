@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -744,3 +745,290 @@ async def test_cleared_private_context_never_exposes_a_wider_raw_provider(
     with pytest.raises(WorkspaceUnavailableError, match="wider audience"):
         await backend.write_bytes("leak.txt", b"private project reference")
     assert not await setup.original.exists("leak.txt")
+
+
+async def test_delegation_pins_context_across_parent_switch_race_and_approval_restore(
+    setup: SimpleNamespace,
+) -> None:
+    import asyncio
+
+    from app.agents.capabilities.subagents._capability import _LazyAgent
+    from app.services.agent_runner import PausedRunState
+
+    selected, other = uuid4(), uuid4()
+    await setup.project.write_text("notes.md", "project A")
+    await setup.selector.select(selected)
+    entered, release = asyncio.Event(), asyncio.Event()
+    project = setup.guard.return_value
+
+    async def changing_project(*_args):
+        entered.set()
+        await release.wait()
+        return project
+
+    setup.guard.side_effect = changing_project
+    switching = asyncio.create_task(setup.selector.select(other))
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    proxy = object.__new__(_LazyAgent)
+    proxy._delegate = SimpleNamespace(workspace="parent")
+    child = proxy._own_workspace({"workspace": setup.selector.workspace})["workspace"]
+    assert child is not setup.selector.workspace
+    assert child.project_id == selected
+    assert setup.selector.delegation_context_pinned
+    release.set()
+    with pytest.raises(AuthorizationError, match="Delegated work has pinned"):
+        await switching
+    setup.guard.side_effect = None
+    assert "project A" in await child.read_file("notes.md")
+    with pytest.raises(AuthorizationError, match="Delegated work has pinned"):
+        await setup.selector.select(None)
+    state = PausedRunState(
+        messages=[],
+        tool_call_ids={},
+        selected_project_id=selected,
+        selected_project_generation=setup.selector.project_generation,
+        selected_execution_target="agent",
+        project_delegation_pinned=True,
+    )
+    restored = RunProjectWorkspace(
+        setup.original,
+        setup.ctx,
+        audience=RunAudience(user_id=setup.ctx.user_id),
+        granted_scopes=setup.selector.granted_scopes,
+    )
+    state = PausedRunState.model_validate_json(state.model_dump_json())
+    restored.restore(
+        state.selected_project_id,
+        state.selected_project_generation,
+        state.selected_execution_target,
+        delegation_context_pinned=state.project_delegation_pinned,
+    )
+    with pytest.raises(AuthorizationError, match="Delegated work has pinned"):
+        await restored.select(other)
+    resumed = restored.snapshot_for_delegate()
+    assert "project A" in await resumed.read_file("notes.md")
+    with pytest.raises(AuthorizationError, match="Delegated work has pinned"):
+        await restored.select_execution("project")
+
+
+async def test_delegated_agent_executor_is_owned_and_closed_only_by_the_root(
+    setup: SimpleNamespace, tmp_path: Path
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    opened = SimpleNamespace(workspace=Workspace(LocalWorkspaceBackend(tmp_path)), row_id=uuid4())
+    factory = AsyncMock(return_value=opened)
+    root = RunProjectWorkspace(
+        setup.original,
+        setup.ctx,
+        audience=RunAudience(user_id=setup.ctx.user_id),
+        granted_scopes=setup.selector.granted_scopes,
+        open_agent_executor=factory,
+        agent_execution_available=True,
+    )
+    await root.select(uuid4())
+    first, second = root.snapshot_for_delegate(), root.snapshot_for_delegate()
+    await first.run(
+        [sys.executable, "-c", "from pathlib import Path; Path('child.txt').write_text('one')"],
+        timeout=5,
+    )
+    answer = await second.run(["/bin/cat", "child.txt"], timeout=5)
+    assert answer.stdout == "one"
+    factory.assert_awaited_once()
+    assert root.agent_workspace is opened
+    assert root.origins[opened.row_id]["kind"] == "agent"
+    setup.service.close.assert_not_awaited()
+    await root.close_agent(keep_spills=False)
+    setup.service.close.assert_awaited_once_with(opened, keep_spills=False)
+
+
+async def test_no_project_delegation_pins_agent_and_cannot_be_reselected_on_resume(
+    setup: SimpleNamespace,
+) -> None:
+    child = setup.selector.snapshot_for_delegate()
+    assert child.project_id is None
+    assert child.backend is child
+    with pytest.raises(AuthorizationError, match="Delegated work has pinned"):
+        await setup.selector.select(uuid4())
+    assert "Cleared" in await setup.selector.select(None)
+    setup.guard.assert_not_awaited()
+
+
+async def test_pinned_delegated_generation_cannot_be_silently_replaced(
+    setup: SimpleNamespace,
+) -> None:
+    selected = uuid4()
+    await setup.selector.select(selected)
+    child = setup.selector.snapshot_for_delegate()
+    setup.guard.return_value.workspace_generation = uuid4()
+    with pytest.raises(module.ConcurrentChangeError, match="Restart this run"):
+        await setup.selector.select(selected)
+    with pytest.raises(PermissionError, match="workspace changed"):
+        await child.read_file("notes.md")
+
+
+async def test_delegates_do_not_overwrite_each_others_read_revision_guards(
+    setup: SimpleNamespace,
+) -> None:
+    await setup.project.write_text("shared.md", "initial")
+    await setup.selector.select(uuid4())
+    first, second = setup.selector.snapshot_for_delegate(), setup.selector.snapshot_for_delegate()
+    await first.read_file("shared.md")
+    await second.read_file("shared.md")
+    await second.write_file("shared.md", "second writer")
+    with pytest.raises(WorkspaceUnavailableError, match="changed since"):
+        await first.write_file("shared.md", "stale first writer")
+    assert await setup.project.read_text("shared.md") == "second writer"
+
+
+async def test_finished_root_refuses_new_child_file_and_command_admission(
+    setup: SimpleNamespace,
+) -> None:
+    selected = uuid4()
+    await setup.selector.select(selected)
+    child = setup.selector.snapshot_for_delegate()
+    await setup.selector.close_agent(keep_spills=False)
+    for operation in (
+        lambda: child.read_file("notes.md"),
+        lambda: child.workspace.backend.write_bytes("late.txt", b"refused"),
+        lambda: child.run(["true"]),
+    ):
+        with pytest.raises(WorkspaceUnavailableError, match=r"closed|unavailable"):
+            await operation()
+    with pytest.raises(WorkspaceUnavailableError, match="closed"):
+        setup.selector.snapshot_for_delegate()
+    setup.service.open_project.assert_not_awaited()
+
+
+async def test_root_closure_during_authorization_cannot_open_a_project_transport(
+    setup: SimpleNamespace,
+) -> None:
+    selected = uuid4()
+    await setup.selector.select(selected)
+    child = setup.selector.snapshot_for_delegate()
+    project = setup.guard.return_value
+
+    async def close_during_auth(*_args):
+        await setup.selector.close_agent(keep_spills=False)
+        return project
+
+    setup.guard.side_effect = close_during_auth
+    with pytest.raises(WorkspaceUnavailableError, match="closed"):
+        await child.read_file("notes.md")
+    setup.service.open_project.assert_not_awaited()
+
+
+async def test_root_closure_during_provider_attach_still_closes_the_attached_transport(
+    setup: SimpleNamespace,
+) -> None:
+    await setup.selector.select(uuid4())
+    child = setup.selector.snapshot_for_delegate()
+    opened = setup.service.open_project.return_value
+
+    async def attach_after_finish(*_args):
+        await setup.selector.close_agent(keep_spills=False)
+        return opened
+
+    setup.service.open_project.side_effect = attach_after_finish
+    with pytest.raises(WorkspaceUnavailableError, match="closed"):
+        await child.read_file("notes.md")
+    setup.service.close.assert_awaited_once_with(opened)
+
+
+@pytest.mark.parametrize("flush_fails", [False, True])
+async def test_executor_open_racing_with_finish_is_closed_without_running_child_code(
+    setup: SimpleNamespace, flush_fails: bool
+) -> None:
+    opened = SimpleNamespace(workspace=setup.original, row_id=None)
+    root = RunProjectWorkspace(
+        setup.original,
+        setup.ctx,
+        audience=RunAudience(user_id=setup.ctx.user_id),
+        granted_scopes=setup.selector.granted_scopes,
+        agent_execution_available=True,
+    )
+
+    async def opening(_db, _actor):
+        await root.close_agent(keep_spills=False)
+        return opened
+
+    root.open_agent_executor = opening
+    if flush_fails:
+        setup.service.close.return_value = WorkspaceFlushFailure(
+            error=SimpleNamespace(message="late close failed")
+        )
+    child = root.snapshot_for_delegate()
+    with pytest.raises(
+        WorkspaceUnavailableError, match="late close failed" if flush_fails else "closed"
+    ):
+        async with child._open_agent():
+            pytest.fail("a finished run admitted child code")
+    assert root.agent_workspace is None
+    setup.service.close.assert_awaited_once_with(opened)
+
+
+async def test_snapshot_keeps_workspace_platform_and_root_directory_contract(
+    setup: SimpleNamespace,
+) -> None:
+    assert setup.selector.platform == setup.original.platform
+    assert await setup.selector.working_dir() == await setup.original.working_dir()
+    await setup.selector.select(uuid4())
+    child = setup.selector.snapshot_for_delegate()
+    assert child.platform == "posix"
+    assert await child.working_dir() == await setup.project.working_dir()
+
+
+async def test_retained_child_backend_cannot_bypass_root_cleanup(setup: SimpleNamespace) -> None:
+    child = setup.selector.snapshot_for_delegate()
+    retained = child.backend
+    assert retained is child
+    setup.selector.stop_admission()
+    with pytest.raises(WorkspaceUnavailableError, match="closed"):
+        await retained.write_bytes("late.txt", b"refused")
+    assert not await setup.original.exists("late.txt")
+
+
+@pytest.mark.parametrize("target", ["agent", "project"])
+async def test_explicit_request_executor_cannot_be_changed_by_model_tools(
+    setup: SimpleNamespace, target: Literal["agent", "project"]
+) -> None:
+    selected = uuid4()
+    await setup.selector.select(selected)
+    setup.selector.execution_target = target
+    setup.selector.execution_target_pin = target
+    with pytest.raises(AuthorizationError, match="user explicitly selected"):
+        await setup.selector.select_execution("project" if target == "agent" else "agent")
+    if target == "project":
+        with pytest.raises(AuthorizationError, match="user explicitly selected"):
+            await setup.selector.select(None)
+    else:
+        await setup.selector.select(uuid4())
+        await setup.selector.select(None)
+    assert setup.selector.execution_target == target
+
+
+async def test_continued_project_mutations_require_fresh_reads(setup: SimpleNamespace) -> None:
+    await setup.selector.select(uuid4())
+    await setup.project.write_text("shared.md", "updated while parked")
+    restored = RunProjectWorkspace(
+        setup.original,
+        setup.ctx,
+        audience=RunAudience(user_id=setup.ctx.user_id),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+    )
+    restored.restore(
+        setup.selector.project_id,
+        setup.selector.project_generation,
+        "agent",
+        require_fresh_reads=True,
+    )
+    child = restored.snapshot_for_delegate()
+    for workspace in (restored.workspace, child):
+        with pytest.raises(WorkspaceUnavailableError, match="after continuation"):
+            await workspace.write_text("shared.md", "stale replacement")
+        with pytest.raises(WorkspaceUnavailableError, match="after continuation"):
+            await workspace.remove("shared.md")
+    await child.write_text("new.md", "new files remain allowed")
+    assert await child.read_text("shared.md") == "updated while parked"
+    await child.write_text("shared.md", "reviewed replacement")
+    assert await setup.project.read_text("shared.md") == "reviewed replacement"

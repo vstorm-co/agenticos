@@ -86,7 +86,7 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
-from app.agents.capabilities.sandbox._project import ProjectWorkspacePort
+from app.agents.capabilities.sandbox._project import ProjectExecutionState
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.deps import AgentDeps
 from app.agents.model_context import check_model_context
@@ -103,6 +103,14 @@ from app.services.device_hub import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _project_state(workspace: Workspace) -> ProjectExecutionState | None:
+    if isinstance(workspace, ProjectExecutionState):
+        return workspace
+    backend = workspace.backend
+    return backend if isinstance(backend, ProjectExecutionState) else None
+
 
 RUN_DESCRIPTION = (
     "Hand a software task to the coding agent, which works on it in the sandbox until done."
@@ -274,6 +282,16 @@ def build_coding_toolset(
                 "characters, such as `main` or `api`.",
             )
         chosen = harness or configured
+        project_state = _project_state(ctx.workspace)
+        if (
+            runs_on == "sandbox"
+            and project_state is not None
+            and project_state.split_execution_namespace
+        ):
+            return steer(
+                ctx,
+                "The coding harness needs its files and commands in the same workspace. Project files are selected while commands target Agent. Choose the Project executor, or clear project file context before coding in Agent. If the user explicitly selected the executor, keep that choice and ask for a new turn rather than switching it automatically.",
+            )
         if runs_on != "this_computer":
             if runs_on == "sandbox" and chosen != configured:
                 return steer(
@@ -291,7 +309,7 @@ def build_coding_toolset(
         if runs_on == "personal_sandbox":
             if (
                 shared_sandbox
-                or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+                or (project_state is not None and project_state.project_context_observed)
                 or _in_room(ctx.deps)
             ):
                 return (
@@ -459,7 +477,10 @@ def build_coding_toolset(
         # everybody in the room runs in its conversation's container.
         if (
             shared_sandbox
-            or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+            or (
+                (project_state := _project_state(ctx.workspace)) is not None
+                and project_state.project_context_observed
+            )
             or (_in_room(ctx.deps) and not personal_isolated)
         ):
             return (

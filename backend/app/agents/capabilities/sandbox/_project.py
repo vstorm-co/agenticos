@@ -4,6 +4,7 @@ from typing import Literal, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.workspaces import Workspace
 
 from app.agents.capabilities._registry import CapabilityToolInfo
 from app.core.exceptions import AppException
@@ -23,6 +24,20 @@ class ProjectWorkspacePort(Protocol):
     def project_id(self) -> UUID | None: ...
 
     async def select(self, project_id: UUID | None) -> str: ...
+
+
+@runtime_checkable
+class ProjectExecutionState(Protocol):
+    @property
+    def project_context_observed(self) -> bool: ...
+
+    @property
+    def split_execution_namespace(self) -> bool: ...
+
+
+@runtime_checkable
+class ProjectWorkspaceSnapshot(Protocol):
+    def snapshot_for_delegate(self) -> Workspace: ...
 
 
 @runtime_checkable
@@ -51,6 +66,8 @@ def project_tools(port: ProjectWorkspacePort | None) -> FunctionToolset[object]:
         Omit project_id to clear project context and restore agent execution.
         This never moves the conversation. A new user turn starts fresh;
         approval continuations retain selection and recheck current access.
+        Shared-workspace delegation pins context and execution until the run ends;
+        changing targets then requires a new user turn.
 
         Args:
             project_id: An accessible project ID, or null to clear the context.

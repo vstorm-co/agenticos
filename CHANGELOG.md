@@ -127,6 +127,9 @@ Two things are versioned separately from this file and worth knowing about:
   project executor when available. Older dynamically selected approval checkpoints
   without a workspace generation must select the project again or start a new turn.
   Disabled Sandbox stays disabled, and run-scoped executor outputs remain temporary.
+  Shared-workspace delegation pins the project and executor until the run ends.
+  Legacy parks containing delegations without this pin marker must start a new
+  turn; pending child tools are never replayed on an unverified workspace.
 
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all

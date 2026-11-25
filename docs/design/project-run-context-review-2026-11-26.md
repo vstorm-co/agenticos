@@ -31,6 +31,33 @@ store, synchronization, revision checkout/publish flow or automatic mounts.
   Files from run-scoped workspaces remain temporary and are not promised after
   cleanup. Existing historical runs have no fabricated origin backfill.
 
+## Delegation and terminal admission
+
+Delegates receive a pinned workspace snapshot per invocation rather than a live
+parent selector. The first shared-workspace delegation locks the run's project,
+generation and executor through approval/Q&A continuation. A parent switch that
+races authorization is checked again after the await and refused. Each child has
+its own read-version map; sharing that map would hide another child's concurrent
+edit. Only origin metadata and the root-managed executor lifecycle are shared.
+Legacy delegated parks without the pin marker fail closed before tool replay.
+Read hashes are deliberately not checkpointed: after continuation an existing
+Project file must be read again before replacement/deletion. New files remain
+allowed. An explicit request executor pins the entire run; an omitted selection
+retains model-controlled selection. Coding harnesses refuse split Project file and
+Agent command namespaces instead of reporting a misleading empty change set.
+
+Root cleanup closes admission on all pinned views, including their raw backend.
+Closure is rechecked after authorization and provider attachment; a late attachment
+is closed instead of returned. Existing delegation cancellation only waits for its
+grace period, so already admitted remote operations may outlast it under existing
+provider lifetime/TTL rules. This change does not claim stop-before-cleanup or add
+a replacement cancellation framework.
+
+Attached project reference instructions are checked before `_in_project`, workspace
+opening or model build. Unverified rooms, publisher fallback and public workflow
+origins receive no project name/description/instructions. Shared web project chats
+and explicit authorized API project admission remain supported.
+
 ## Compatibility and limits
 
 `select_project_workspace` now selects files only. Command target changes are
@@ -47,6 +74,12 @@ retains its configured approvals and can perform arbitrary authorized project ed
 the text-tool conflict guard is not a transactional shell filesystem.
 
 ## Verification
+
+- Delegation/lifecycle follow-up: 289 selected port, coding, runner, approval
+  continuation and audience tests; 6 delegation workspace/Lazy tests; 79 scoped
+  tests reach 100% statements and branches for the project port. Cases include
+  parent-switch races, child stale writes, restored pins, closed-owner admission
+  during authorization/attachment, explicit executor choice and coding refusal.
 
 - Scoped project port and capability tests: 59 passed, 100% statements and branches
   across the port, capability and Sandbox selector modules; no provider/model calls.

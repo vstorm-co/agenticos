@@ -1982,6 +1982,8 @@ async def test_run_selected_project_never_receives_personal_coding_credentials(p
         granted_scopes=frozenset({"projects:read", "projects:write"}),
     )
     selector.project_id = uuid4()
+    selector.project_context_observed = True
+    selector.execution_target = "project"
     ctx = replace(ctx, workspace=selector.workspace)
     executor = MagicMock()
     store = _Store()
@@ -2000,4 +2002,28 @@ async def test_run_selected_project_never_receives_personal_coding_credentials(p
     )
     executor.session.assert_not_called()
     assert store.asked_for == []
+    assert shell.commands == []
+
+
+@pytest.mark.security
+async def test_coding_harness_refuses_split_project_files_and_agent_commands_before_work():
+    from dataclasses import replace
+
+    from app.core.permissions import AuthContext
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    shell = _Shell()
+    ctx = _ctx(shell)
+    selector = RunProjectWorkspace(
+        ctx.workspace,
+        AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member"),
+        audience=RunAudience(user_id=RUNNER),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+    )
+    selector.project_id = uuid4()
+    selector.project_context_observed = True
+    with pytest.raises(ModelRetry, match=r"same workspace.*explicitly selected"):
+        await _tools()["run_coding_agent"].function(
+            replace(ctx, workspace=selector.workspace), task="Edit the report"
+        )
     assert shell.commands == []

@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "0fe828747335"
+source_sha: "506e3fa30055"
 ---
 
 # Projekte { #projects }
@@ -102,7 +102,8 @@ Projektdateien und Befehlsausführung sind getrennt:
 **Arbeiten in** steht in Chat-Einstellungen auf Web und Desktop bei aktivierter
 Befehlsausführung. Projektausführung benötigt ein angehängtes oder vorab gewähltes
 Projekt. Eine explizite Auswahl gilt für Konto, Organisation und Chat, nicht für neue
-Chats. Im Lauf kann der Agent `select_execution_target` ausdrücklich verwenden;
+Chats. Die explizite Anfrage bindet den Executor für den ganzen Lauf; der Agent
+kann ihn nicht ändern. Ohne diese Auswahl darf er `select_execution_target` verwenden;
 `select_project_context` und das ältere `select_project_workspace` ändern nur Dateien.
 Das Werkzeug meldet beide Auswahlen und ihre Verfügbarkeit.
 
@@ -117,6 +118,19 @@ Projekt-Textwerkzeuge listen bis zu 100 Einträge und lesen oder schreiben UTF-8
 werden abgelehnt; OCR startet nicht. Schreiben nach dem Lesen lehnt eine inzwischen
 geänderte Datei ab. Das Projekt behält seine Sandbox-Verbindung bis zu einer
 expliziten Übertragung durch einen Editor.
+
+Nach Fortsetzung einer Freigabe oder Frage muss eine bestehende Projektdatei vor
+Ersetzen oder Löschen erneut gelesen werden. Coding-Werkzeuge benötigen denselben
+Workspace für Dateien und Befehle; getrennte Namensräume werden abgelehnt.
+
+Delegierte Arbeit erhält einen festen Projekt-, Generations- und Executor-Snapshot.
+Der erste Delegate mit geteiltem Workspace sperrt diese Auswahl bis zum Laufende,
+auch über Freigaben und Fragen hinweg; Änderungen benötigen eine neue Gesprächsrunde.
+Kinder erhalten keinen veränderlichen Auswahlport und behalten eigene Lesekonflikt-
+Prüfungen. Der Root besitzt Executor-Aufräumen und Dateiherkunftsprotokoll. Nach dem
+Aufräumen werden neue Datei- und Befehlsoperationen abgelehnt. Bereits zugelassene
+Remote-Operationen behalten bisherige Abbruchfristen und Anbieter-Lebenszeiten;
+Aufräumen garantiert nicht, dass sie bereits beendet sind.
 
 Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
 die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl

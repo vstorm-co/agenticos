@@ -66,6 +66,7 @@ class RunProjectWorkspace(Workspace):
         original_scope: str | None = None,
         allow_project_execution: bool = True,
         shell_tools_enabled: bool = True,
+        execution_target_pin: Literal["agent", "project"] | None = None,
         open_agent_executor: Callable[[AsyncSession, AuthContext], Awaitable[OpenWorkspace | None]]
         | None = None,
         agent_execution_available: bool | None = None,
@@ -81,6 +82,7 @@ class RunProjectWorkspace(Workspace):
         self.original_scope = original_scope
         self.allow_project_execution = allow_project_execution
         self.shell_tools_enabled = shell_tools_enabled
+        self.execution_target_pin = execution_target_pin
         self.open_agent_executor = open_agent_executor
         self.agent_execution_available = (
             agent_execution_available
@@ -88,6 +90,10 @@ class RunProjectWorkspace(Workspace):
             else original is not None and isinstance(original.backend, SupportsCommands)
         )
         self.project_context_observed = False
+        self.delegation_context_pinned = False
+        self._closed = False
+        self._pinned_view = False
+        self._lifecycle_owner: RunProjectWorkspace = self
         self.admitted_actor = admitted_actor
         self.agent_workspace: OpenWorkspace | None = None
         self.agent_workspace_at_start: set[str] | None = None
@@ -97,7 +103,51 @@ class RunProjectWorkspace(Workspace):
         self.project_generation: UUID | None = None
         self.project_id: UUID | None = None
         self._read_versions: dict[tuple[UUID, str], bytes] = {}
-        self.workspace = Workspace(self)
+        self._require_continuation_reads = False
+        self.workspace = self
+
+    def snapshot_for_delegate(self) -> Workspace:
+        """Pin this delegation's targets; the root retains executor cleanup and journals."""
+
+        self._require_open()
+        self.delegation_context_pinned = True
+
+        async def shared_executor(_db: AsyncSession, _actor: AuthContext) -> OpenWorkspace | None:
+            async with self._open_agent():
+                return self.agent_workspace
+
+        selected = RunProjectWorkspace(
+            self.original,
+            self.ctx,
+            require_project=self.require_project,
+            audience=self.audience,
+            granted_scopes=self.granted_scopes,
+            conversation_project_id=self.conversation_project_id,
+            original_scope=self.original_scope,
+            allow_project_execution=self.allow_project_execution,
+            shell_tools_enabled=self.shell_tools_enabled,
+            execution_target_pin=self.execution_target_pin,
+            open_agent_executor=shared_executor if self.open_agent_executor is not None else None,
+            agent_execution_available=self.agent_execution_available,
+            admitted_actor=self.admitted_actor,
+        )
+        selected.restore(
+            self.project_id,
+            self.project_generation,
+            self.execution_target,
+            self.project_context_observed,
+            delegation_context_pinned=True,
+            require_fresh_reads=self._require_continuation_reads,
+        )
+        selected._pinned_view = True
+        selected._lifecycle_owner = self._lifecycle_owner
+        selected.origins = self.origins
+        selected._read_versions = dict(self._read_versions)
+        return selected.workspace
+
+    @property
+    def split_execution_namespace(self) -> bool:
+        return self.project_id is not None and self.execution_target == "agent"
 
     @property
     def backend(self) -> WorkspaceBackend:
@@ -107,6 +157,8 @@ class RunProjectWorkspace(Workspace):
             if self.project_id is None
             and self.original is not None
             and self.open_agent_executor is None
+            and not self._lifecycle_owner._closed
+            and not self._pinned_view
             and not (self.project_context_observed and self.original_scope in ("agent", "channel"))
             else self
         )
@@ -168,8 +220,15 @@ class RunProjectWorkspace(Workspace):
             self.require_project(project)
         return ctx, project
 
+    def _require_open(self) -> None:
+        if self._lifecycle_owner._closed:
+            raise WorkspaceUnavailableError(
+                "This run's workspace is closed. Start a new turn; delegated tools cannot reopen it after cleanup."
+            )
+
     @asynccontextmanager
     async def _open(self) -> AsyncGenerator[Workspace]:
+        self._require_open()
         project_id = self.project_id
         if project_id is None:
             async with self._open_agent() as workspace:
@@ -178,6 +237,7 @@ class RunProjectWorkspace(Workspace):
         async with get_db_context() as db:
             try:
                 ctx, project = await self._project(db, project_id)
+                self._require_open()
                 if self.project_generation != project.workspace_generation:
                     raise ConcurrentChangeError(
                         message="This project workspace changed. Select the project again before using its files or commands.",
@@ -194,13 +254,34 @@ class RunProjectWorkspace(Workspace):
             except AppException as error:
                 raise PermissionError(error.message) from error
             try:
+                self._require_open()
                 yield opened.workspace
             finally:
                 failure = await service.close(opened)
                 if failure is not None:
                     raise WorkspaceUnavailableError(failure.error.message)
 
+    def _require_pinned_context(
+        self, project_id: UUID | None, execution_target: Literal["agent", "project"]
+    ) -> None:
+        if self.execution_target_pin is not None and execution_target != self.execution_target_pin:
+            raise AuthorizationError(
+                message="The user explicitly selected this run's executor. Start a new turn to change it; project context cannot override that choice.",
+                details={},
+            )
+        if self.delegation_context_pinned and (
+            project_id != self.project_id or execution_target != self.execution_target
+        ):
+            raise AuthorizationError(
+                message="Delegated work has pinned this run's project context and executor. Finish it and start a new turn to change targets; approval and question continuations keep the original target.",
+                details={},
+            )
+
     async def select(self, project_id: UUID | None) -> str:
+        self._require_open()
+        self._require_pinned_context(
+            project_id, "agent" if project_id is None else self.execution_target
+        )
         if project_id is None:
             self.project_id = None
             self.project_generation = None
@@ -218,6 +299,13 @@ class RunProjectWorkspace(Workspace):
             name, backend = project.name, project.backend
             generation = project.workspace_generation
             description, instructions = project.description, project.instructions
+        self._require_open()
+        self._require_pinned_context(project_id, self.execution_target)
+        if self.delegation_context_pinned and generation != self.project_generation:
+            raise ConcurrentChangeError(
+                message="The delegated workspace generation changed. Restart this run before selecting it again.",
+                details={},
+            )
         self.project_id = project_id
         self.project_generation = generation
         self.project_context_observed = True
@@ -247,6 +335,7 @@ class RunProjectWorkspace(Workspace):
         """Search only projects this run may disclose and select, without opening a runtime."""
         from app.services.project import ProjectService
 
+        self._require_open()
         if not self.audience.private or self.audience.shared_transcript:
             raise AuthorizationError(
                 message="Search projects in a private conversation; this audience has no project discovery grant.",
@@ -294,11 +383,15 @@ class RunProjectWorkspace(Workspace):
         generation: UUID | None,
         execution_target: Literal["agent", "project"] | None,
         project_context_observed: bool = False,
+        delegation_context_pinned: bool = False,
+        require_fresh_reads: bool = False,
     ) -> None:
         """Restore server-owned checkpoint terms; authorization is checked on the next operation."""
         self.project_context_observed = (
             self.project_context_observed or project_context_observed or project_id is not None
         )
+        self.delegation_context_pinned = self.delegation_context_pinned or delegation_context_pinned
+        self._require_continuation_reads = self._require_continuation_reads or require_fresh_reads
         if execution_target is None:
             # Older parks recorded only the selector. Require reselection of such
             # a dynamic project before exposing a potentially moved workspace.
@@ -418,6 +511,8 @@ class RunProjectWorkspace(Workspace):
 
     async def select_execution(self, target: Literal["agent", "project"]) -> str:
         """Select a command target without moving or copying files."""
+        self._require_open()
+        self._require_pinned_context(self.project_id, target)
         if not self.shell_tools_enabled:
             raise AuthorizationError(
                 message="This agent has no enabled Sandbox command tools.", details={}
@@ -453,6 +548,8 @@ class RunProjectWorkspace(Workspace):
                     raise ConcurrentChangeError(
                         message="Select this project again after its workspace changed.", details={}
                     )
+        self._require_open()
+        self._require_pinned_context(self.project_id, target)
         self.execution_target = target
         return json.dumps(
             {
@@ -487,6 +584,10 @@ class RunProjectWorkspace(Workspace):
             return
         previous = self._read_versions.get((project_id, await self._version_path(workspace, path)))
         if previous is None:
+            if self._require_continuation_reads and await workspace.exists(path):
+                raise WorkspaceUnavailableError(
+                    "Read the current project file again after continuation before changing it."
+                )
             return
         try:
             current = sha256(await workspace.read_bytes(path)).digest()
@@ -542,6 +643,7 @@ class RunProjectWorkspace(Workspace):
 
     @asynccontextmanager
     async def _open_agent(self) -> AsyncGenerator[Workspace]:
+        self._require_open()
         if self.project_context_observed and self.original_scope in ("agent", "channel"):
             raise WorkspaceUnavailableError(
                 "This agent workspace is shared with a wider audience. Use an isolated agent workspace or the project's executor."
@@ -559,6 +661,7 @@ class RunProjectWorkspace(Workspace):
                 actor = await self._actor(
                     db, project_scope=False, admitted=self.conversation_project_id is not None
                 )
+                self._require_open()
                 opened = self.agent_workspace
                 if opened is None:
                     opened = await self.open_agent_executor(db, actor)
@@ -566,6 +669,11 @@ class RunProjectWorkspace(Workspace):
                         raise WorkspaceUnavailableError(
                             "This agent has no workspace. Project files do not grant an executor."
                         )
+                    if self._lifecycle_owner._closed:
+                        failure = await SandboxWorkspaceService(db).close(opened)
+                        if failure is not None:
+                            raise WorkspaceUnavailableError(failure.error.message)
+                        self._require_open()
                     self.agent_workspace = opened
                     if opened.row_id is not None:
                         self.origins[opened.row_id] = {
@@ -574,10 +682,16 @@ class RunProjectWorkspace(Workspace):
                         }
             if created:
                 self.agent_workspace_at_start = await workspace_snapshot(opened.workspace)
+        self._require_open()
         yield opened.workspace
+
+    def stop_admission(self) -> None:
+        """Fence subsequent delegated operations before the root scans or closes providers."""
+        self._lifecycle_owner._closed = True
 
     async def close_agent(self, *, keep_spills: bool) -> WorkspaceFlushFailure | None:
         """The runner closes the independent executor only after collecting its output."""
+        self.stop_admission()
         opened, self.agent_workspace = self.agent_workspace, None
         if opened is None:
             return None
