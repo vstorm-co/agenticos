@@ -176,6 +176,8 @@ export interface ImprovementIteration {
   batch_id: string | null;
   eval_run_ids: string[];
   candidate_spec_hash: string | null;
+  /** A fingerprint of the attempt's verdict and detail; a review judging a case again changes it. */
+  result_hash?: string | null;
   included_hunk_ids?: string[] | null;
   /** What the person who asked for this attempt told its helper. */
   note?: string | null;
@@ -197,6 +199,8 @@ export interface Improvement {
   published_version_id?: string | null;
   published_version?: number | null;
   next_version?: number | null;
+  /** The draft held edits before the session started; publishing releases them unmeasured. */
+  unmeasured_draft_edits?: boolean;
   offer_automatic_check?: boolean;
   can_restart?: boolean;
   can_discard?: boolean;

@@ -16,16 +16,17 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import Perm
+from app.db.models.agent import AgentVersion
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.improvement import ImprovementRun
 from app.db.models.organization import Organization
 from app.repositories import authoring_repo, improvement_repo
-from app.schemas.improvement import ImprovementContinue, ImprovementDiscard, ImprovementFinish
+from app.schemas.improvement import ImprovementContinue, ImprovementDiscard
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_continuation import _consent
 from tests.integration.test_improvement_evidence import _serial_worker as _serial_worker
-from tests.integration.test_improvement_pipeline import _ready_proposal, _started
+from tests.integration.test_improvement_pipeline import _ready_proposal, _started, reviewed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -66,7 +67,9 @@ async def test_running_work_cannot_be_finished_continued_or_discarded(db: AsyncS
     ctx, agent, _, session = await _started(db)
     service = ImprovementPipelineService(db)
     with pytest.raises(BadRequestError, match="checked round"):
-        await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
+        await service.finish(
+            ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
+        )
     with pytest.raises(BadRequestError, match="cannot be continued"):
         await service.estimate_continuation(
             ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
@@ -103,7 +106,9 @@ async def test_finishing_refuses_unmeasured_or_unavailable_changes(
             ),
             pytest.raises(ConcurrentChangeError, match="replaced"),
         ):
-            await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
+            await service.finish(
+                ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
+            )
     elif failure == "active_check":
         with (
             patch(
@@ -112,11 +117,15 @@ async def test_finishing_refuses_unmeasured_or_unavailable_changes(
             ),
             pytest.raises(ConcurrentChangeError, match="finish"),
         ):
-            await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
+            await service.finish(
+                ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
+            )
     else:
         error = BadRequestError if failure == "no_selection" else ConcurrentChangeError
         with pytest.raises(error):
-            await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
+            await service.finish(
+                ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
+            )
     assert agent.draft_spec == before
     assert row.status == "ready"
 
@@ -145,12 +154,46 @@ async def test_accepting_a_session_refuses_a_stored_change_it_may_never_write(
 
     with pytest.raises(BadRequestError, match="may not propose"):
         await ImprovementPipelineService(db).finish(
-            ctx, agent.id, session.id, ImprovementFinish(confirmed=True)
+            ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
         )
 
     assert agent.draft_spec == before
     row = await db.get(ImprovementRun, session.id)
     assert row is not None and row.status == "ready"
+
+
+@pytest.mark.security
+async def test_publishing_edits_the_session_never_measured_needs_them_confirmed(
+    db: AsyncSession,
+) -> None:
+    """Edits made to the draft before the session started are in both sides of every
+    check, so publishing the attempt releases them unmeasured; that needs a person's yes."""
+    ctx, agent, session = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    assert not (await service.read(ctx, agent.id, session.id)).unmeasured_draft_edits
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None and row.base_version_id is not None
+    version = await db.get(AgentVersion, row.base_version_id)
+    assert version is not None
+    version.spec = {**version.spec, "description": "Before the draft was edited"}
+    await db.flush()
+    assert (await service.read(ctx, agent.id, session.id)).unmeasured_draft_edits
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.finish(
+            ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id, publish=True)
+        )
+
+    assert refused.value.details["fields"][0]["field"] == "publish_unmeasured_edits"
+    assert agent.draft_spec == before and row.status == "ready"
+    published = await service.finish(
+        ctx,
+        agent.id,
+        session.id,
+        await reviewed(db, ctx, agent.id, session.id, publish=True, publish_unmeasured_edits=True),
+    )
+    assert published.version is not None
 
 
 @pytest.mark.parametrize("operation", ["finish", "continue", "discard"])
@@ -169,7 +212,9 @@ async def test_a_resource_removed_before_its_write_lock_is_not_found(
         pytest.raises(NotFoundError, match="Agent"),
     ):
         if operation == "finish":
-            await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
+            await service.finish(
+                ctx, agent.id, session.id, await reviewed(db, ctx, agent.id, session.id)
+            )
         elif operation == "continue":
             await service.continue_run(ctx, agent.id, session.id, consent)
         else:

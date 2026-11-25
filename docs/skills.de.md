@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "f75050767f96"
 ---
 
 # Skills { #skills }
@@ -987,6 +987,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
   geprüft werden können.
+
+Jede Entscheidung nennt die Prüfung, die die Person angesehen hat - ihre
+`check_id` und ihren `result_hash` oder, bei der Rückkehr zu main, die der Prüfung
+von main allein - und wird mit `409` abgelehnt, wenn die Sitzung ein anderes
+Ergebnis hat oder eine neue Bewertung eines Falls es geändert hat: Lesen Sie die
+Sitzung erneut und sehen Sie es an.
 
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut

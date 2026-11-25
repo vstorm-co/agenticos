@@ -16639,6 +16639,7 @@
       "tool": "Ferramenta {tool}",
       "instructions": "Instruções",
       "fromVerify": "Da verificação das suas edições",
+      "reworded": "Reescrita na etapa Alterações",
       "status": {
         "accepted": "Aceita no rascunho",
         "dismissed": "Descartada"
@@ -17009,6 +17010,9 @@
     "gapsLabel": "{count, plural, =1 {1 lacuna aberta na base de conhecimento} other {# lacunas abertas na base de conhecimento}}"
   },
   "improvement": {
+    "acceptChanged": "A tentativa que você ia aceitar mudou desde que a revisou. A sessão foi atualizada; revise-a novamente.",
+    "unmeasuredEdits": "O rascunho tinha edições anteriores ao início desta sessão. Publicar também as libera, e nenhuma verificação as mediu.",
+    "publishUnmeasuredEdits": "Publicar também essas edições",
     "attributionUnconfirmed": "Alteração {number}: o resultado não foi confirmado.",
     "includeInTest": "Incluir no teste",
     "includeChange": "Incluir a alteração {number} no teste",

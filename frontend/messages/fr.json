@@ -16235,6 +16235,7 @@
       "tool": "Outil {tool}",
       "instructions": "Instructions",
       "fromVerify": "Issue de la vérification de vos modifications",
+      "reworded": "Reformulée à l’étape Modifications",
       "status": {
         "accepted": "Acceptée dans le brouillon",
         "dismissed": "Écartée"
@@ -16605,6 +16606,9 @@
     "gapsLabel": "{count, plural, =1 {1 lacune de connaissance ouverte} other {# lacunes de connaissance ouvertes}}"
   },
   "improvement": {
+    "acceptChanged": "La tentative que vous alliez accepter a changé depuis que vous l’avez examinée. La session a été actualisée ; examinez-la à nouveau.",
+    "unmeasuredEdits": "Le brouillon contenait des modifications antérieures au début de cette session. La publication les diffuse aussi, et aucun contrôle ne les a mesurées.",
+    "publishUnmeasuredEdits": "Publier aussi ces modifications",
     "attributionUnconfirmed": "Modification {number} : le résultat n’est pas confirmé.",
     "includeInTest": "Inclure dans le test",
     "includeChange": "Inclure la modification {number} dans le test",

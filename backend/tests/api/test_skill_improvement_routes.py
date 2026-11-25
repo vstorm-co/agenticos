@@ -46,9 +46,25 @@ _HASH = "a" * 64
             "POST",
             f"{_ONE}/apply",
             "apply",
-            {"confirmed": True, "pin_worse": True, "acknowledge_unknown": True},
+            {
+                "confirmed": True,
+                "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
+                "pin_worse": True,
+                "acknowledge_unknown": True,
+            },
         ),
-        ("POST", f"{_ONE}/fork", "fork", {"confirmed": True, "name": "Returns"}),
+        (
+            "POST",
+            f"{_ONE}/fork",
+            "fork",
+            {
+                "confirmed": True,
+                "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
+                "name": "Returns",
+            },
+        ),
         ("POST", f"{_ONE}/recheck/estimate", "estimate_recheck", None),
         (
             "POST",
@@ -76,7 +92,16 @@ _HASH = "a" * 64
         ("POST", f"{_ONE}/retry", "retry", None),
         ("POST", f"{_ONE}/cancel", "cancel", None),
         ("POST", f"{_ONE}/discard", "discard", {"confirmed": True}),
-        ("POST", f"{_ONE}/return-to-main", "return_to_main", {"confirmed": True}),
+        (
+            "POST",
+            f"{_ONE}/return-to-main",
+            "return_to_main",
+            {
+                "confirmed": True,
+                "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
+            },
+        ),
     ],
 )
 async def test_each_route_reaches_its_service_call_with_the_caller_and_the_path(
