@@ -16036,6 +16036,16 @@
     "cancelRun": "Zatrzymaj",
     "progress": "Odpowiedziane przypadki",
     "comparisonFailed": "Nie udało się odczytać werdyktu.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Wyszukiwanie nie zwróciło wersji roboczej dla każdej potwierdzonej poprawy.",
+      "too_few_held_out": "{missing, plural, one {Dodaj jeszcze 1 pytanie kontrolne, żeby zmierzyć zmianę.} few {Dodaj jeszcze # pytania kontrolne, żeby zmierzyć zmianę.} other {Dodaj jeszcze # pytań kontrolnych, żeby zmierzyć zmianę.}}",
+      "scoring_changed": "Oba runy oceniono przy różnych ustawieniach oceniania.",
+      "judge_changed_mid_run": "Sędzia zmienił się w trakcie oceniania przypadków tego runu, więc jego oceny nie dają się porównać. Uruchom go ponownie.",
+      "judge_instructions_changed": "Instrukcje sędziego różnią się między stronami, więc ich oceny nie dają się porównać. Uruchom ponownie wersję bazową, żeby obie strony ocenić tak samo.",
+      "judge_differs": "Strony oceniał inny sędzia, model albo inna rubryka.",
+      "knowledge_draft_changed": "Wersja robocza wiedzy zmieniła się albo została usunięta. Sprawdź ją ponownie.",
+      "held_out_ungraded": "Pytania kontrolne wciąż są nieocenione albo niekompletne."
+    },
     "compareArm": "Porównaj ten model",
     "draft": "Wersja robocza",
     "proposed": "Proponowane zmiany",
@@ -18765,6 +18775,17 @@
       "live": "Przeniesieni na main i opublikowani: {names}.",
       "drafts": "Przeniesieni na main w szkicu, który czeka na publikację: {names}.",
       "refused": "{name} zostaje na forku: {reason}",
+      "refusal": {
+        "agent_not_found": "nie możesz go zmieniać albo już nie istnieje",
+        "workflow_agent": "jest skonfigurowany w swoim kroku workflow",
+        "architect_admin_only": "tylko administrator może zmieniać AI Architect",
+        "system_agent_admin_only": "to agent systemowy, który może zmieniać tylko administrator",
+        "via_specialist": "używa skilla tylko przez specjalistę, którego zmienia się w Builderze agenta",
+        "not_bound": "nie używa tego skilla",
+        "binding_problems": "skilla nie da się tak do niego przypiąć",
+        "system_agent_parts": "agent systemowy nie może tego mieć",
+        "does_not_publish": "nie da się go jeszcze opublikować"
+      },
       "hidden": "{count, plural, one {# agent, którego nie widzisz, został bez zmian.} few {# agenty, których nie widzisz, zostały bez zmian.} many {# agentów, których nie widzisz, zostało bez zmian.} other {# agenta, którego nie widzisz, zostało bez zmian.}}",
       "archived": "Nikt już nie czyta forka, więc został zarchiwizowany.",
       "remaining": "{count, plural, =0 {Fork został bez zmian.} one {# agent nadal czyta fork, więc nie został zarchiwizowany.} few {# agenty nadal czytają fork, więc nie został zarchiwizowany.} many {# agentów nadal czyta fork, więc nie został zarchiwizowany.} other {# agenta nadal czyta fork, więc nie został zarchiwizowany.}}"

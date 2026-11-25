@@ -16263,6 +16263,16 @@
     "cancelRun": "Stop",
     "progress": "Cases answered",
     "comparisonFailed": "The verdict could not be read.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Search did not return the draft for every confirmed improvement.",
+      "too_few_held_out": "{missing, plural, =1 {Add 1 more held-out test question to measure a change.} other {Add # more held-out test questions to measure a change.}}",
+      "scoring_changed": "The two runs were scored with different scoring settings.",
+      "judge_changed_mid_run": "The judge changed while this run's cases were being graded, so its grades do not compare. Run it again.",
+      "judge_instructions_changed": "The judge's instructions changed between the two sides, so their grades do not compare. Run the baseline again to grade both the same way.",
+      "judge_differs": "The two sides were graded by a different judge, model or rubric.",
+      "knowledge_draft_changed": "The knowledge draft changed or was removed. Check it again.",
+      "held_out_ungraded": "Held-out questions remain ungraded or incomplete."
+    },
     "compareArm": "Compare this model",
     "draft": "Draft",
     "proposed": "Proposed changes",
@@ -18992,6 +19002,17 @@
       "live": "Moved to main and published: {names}.",
       "drafts": "{count, plural, =1 {Moved to main in its draft, which waits to be published: {names}.} other {Moved to main in their drafts, which wait to be published: {names}.}}",
       "refused": "{name} stays on the fork: {reason}",
+      "refusal": {
+        "agent_not_found": "you may not change it, or it is gone",
+        "workflow_agent": "it is set up in its workflow step",
+        "architect_admin_only": "only an administrator can change the AI Architect",
+        "system_agent_admin_only": "it is a system agent, which only an administrator can change",
+        "via_specialist": "it uses the skill only through a specialist, which is changed in the agent's Builder",
+        "not_bound": "it does not use the skill",
+        "binding_problems": "the skill cannot be bound to it that way",
+        "system_agent_parts": "a system agent cannot hold this",
+        "does_not_publish": "it cannot be published yet"
+      },
       "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
       "archived": "Nobody reads the fork any more, so it was archived.",
       "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
