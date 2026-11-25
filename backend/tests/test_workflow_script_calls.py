@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.permissions import AuthContext
 from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun
@@ -16,6 +17,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows.contracts.script import ScriptActionRequest
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.python_actions import ActionBinding
 
 pytestmark = pytest.mark.anyio
 
@@ -55,6 +57,65 @@ def test_checkpoint_is_validated_but_not_written_into_attempt_history(call):
     assert returned is outcome
     assert history.keys() == {"status", "reason", "resume_token", "resume_at"}
     assert history["status"] == "waiting"
+
+
+def test_an_invalid_action_version_is_reported_at_the_version_field() -> None:
+    with pytest.raises(ValidationError) as exc:
+        ActionBinding.model_validate({"type": "debug.echo", "version": 0})
+    assert [error["loc"] for error in exc.value.errors()] == [("version",)]
+
+
+async def test_a_same_size_cursor_replacement_does_not_change_storage_usage(
+    call, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run, parent, _, request, repo = call
+    monkeypatch.setattr(dispatcher, "workflow_run_repo", repo)
+    replacement = request.model_copy(update={"inputs": {"value": 84}}).model_dump(mode="json")
+
+    assert await dispatcher._replace_script_state(AsyncMock(), run, parent, replacement) is None
+
+    repo.update_run.assert_not_awaited()
+    assert repo.update_node_run.await_args.kwargs["update_data"] == {"resume_payload": replacement}
+
+
+@pytest.mark.parametrize(
+    "problem", ["missing-alias", "invalid-child-cursor", "invalid-parent-cursor"]
+)
+async def test_corrupt_script_state_cannot_dispatch_a_handler(
+    call, monkeypatch, problem: str
+) -> None:
+    run, parent, child, _, repo = call
+    node = NodeInstance(
+        id=parent.node_instance_id,
+        definition_id="code.python.actions",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+        config={
+            "code": "save(message='hello')",
+            "actions": (
+                {"other": {"type": "debug.echo"}}
+                if problem == "missing-alias"
+                else {"save": {"type": "debug.echo"}}
+            ),
+        },
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    monkeypatch.setattr(dispatcher, "resolve_graph", AsyncMock(return_value=graph))
+    repo.get_node_run_by_identity.return_value = parent
+    parent.resume_payload = {}
+    run.retry_of_run_id = None
+    auth = AuthContext(user_id=uuid4(), organization_id=run.organization_id, role="viewer")
+
+    with pytest.raises(InvalidBindingError) as exc:
+        await dispatcher._resolve_call(
+            AsyncMock(),
+            run=run,
+            node_run=parent if problem == "invalid-parent-cursor" else child,
+            auth=auth,
+        )
+    assert exc.value.details == {"node_instance_id": node.id}
+    cause = KeyError if problem == "missing-alias" else ValidationError
+    assert isinstance(exc.value.__cause__, cause)
 
 
 @pytest.mark.parametrize(

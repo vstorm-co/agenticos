@@ -642,18 +642,16 @@ def _handing_on(
 
 
 async def _reused_output(
-    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
+    db: AsyncSession, *, run: WorkflowRun, original_run_id: UUID, node_run: NodeRun
 ) -> dict[str, Any] | None:
-    """What this step handed on in the run `run` retries, if it succeeded there.
+    """What this step handed on in the original run, if it succeeded there.
 
     Matched by the step and its loop iteration, so a loop run again reuses each
     item's steps that had succeeded.
     """
-    if run.retry_of_run_id is None:
-        return None
     original = await workflow_run_repo.get_node_run_by_identity(
         db,
-        workflow_run_id=run.retry_of_run_id,
+        workflow_run_id=original_run_id,
         node_instance_id=node_run.node_instance_id,
         scope_path=node_run.scope_path,
     )
@@ -666,7 +664,7 @@ async def _reused_output(
     await import_output_files(
         db,
         organization_id=run.organization_id,
-        source_run_id=run.retry_of_run_id,
+        source_run_id=original_run_id,
         target_run_id=run.id,
         output=output,
         node_instance_id=node_run.node_instance_id,
@@ -728,8 +726,8 @@ async def _script_action_call(
 ) -> _ResolvedCall:
     binding = _script_binding(node, alias)
     definition = binding.definition()
-    if definition.handler is None:
-        raise NodeHandlerMissingError(node_id=definition.id, version=definition.version)
+    handler = definition.handler
+    assert handler is not None  # ActionBinding.definition() only returns callable definitions.
     try:
         request = await script_calls.pending_request(db, run, child)
     except PydanticValidationError as exc:
@@ -778,7 +776,7 @@ async def _script_action_call(
         graph,
         node,
         definition,
-        definition.handler if known is None else _handing_on(known),
+        handler if known is None else _handing_on(known),
         config,
         values,
         None,
@@ -833,7 +831,9 @@ async def _resolve_call(
     stands_in: StandIn | None = None
     if definition.kind != "control":
         if run.retry_of_run_id is not None and not script_calls.produces_resume_link(node):
-            known = await _reused_output(db, run=run, node_run=node_run)
+            known = await _reused_output(
+                db, run=run, original_run_id=run.retry_of_run_id, node_run=node_run
+            )
             stands_in = "reused"
         if known is None and run.mode == WorkflowRunMode.TEST.value:
             known = node.pinned_output

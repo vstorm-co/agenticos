@@ -41,6 +41,7 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.sandbox_connection import SandboxConnectionCreate
+from app.schemas.workflow_run import WorkflowStepResolve
 from app.services.file_storage import LocalFileStorage
 from app.services.workflow_execution import dispatcher
 from app.services.workflow_execution.approvals import WorkflowApprovalService, wake_approval_step
@@ -50,7 +51,7 @@ from app.services.workflow_execution.resume_link import resume_token
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.contracts.policy import NodePolicy, RetryPolicy
-from app.workflows.contracts.results import Completed, Failed, WorkflowError
+from app.workflows.contracts.results import Completed, Failed, Uncertain, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes import _sandbox_job as job
@@ -749,6 +750,92 @@ class TestScriptCursorStorage:
         async with seeded.factory() as db:
             ended = await db.get(NodeRun, parent.id)
             assert ended.resume_payload is None
+
+    async def test_an_error_that_does_not_fit_ends_the_run_instead_of_resuming_the_script(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seeded, parent, child = await self._checkpoint(engine, retries=1)
+        used = (await run_row(seeded)).inline_result_bytes
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        begun, _ = await begin(seeded, child.id)
+        failure = Failed(error=WorkflowError(code="REFUSED", message="Cannot perform action"))
+        attempt = failure.model_dump(mode="json")
+        attempt_bytes = json_byte_size(attempt, limit=2**63 - 1)
+        error_bytes = json_byte_size(attempt["error"], limit=2**63 - 1)
+        monkeypatch.setattr(
+            settings,
+            "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES",
+            used - cursor + attempt_bytes + error_bytes,
+        )
+        await settle(seeded, begun, dispatcher.HandlerOutcome(result=failure))
+        assert await _failed_code(seeded) == "WORKFLOW_INLINE_RESULT_LIMIT"
+        async with seeded.factory() as db:
+            failed_parent = await db.get(NodeRun, parent.id)
+            assert failed_parent.status == "failed" and failed_parent.resume_payload is None
+
+    async def test_accepting_a_late_script_result_releases_its_retained_cursor(
+        self, engine: AsyncEngine
+    ) -> None:
+        seeded, parent, child = await self._checkpoint(engine)
+        await tick(seeded, child.id)
+        begun, done = await begin(seeded, parent.id)
+        await settle(
+            seeded, begun, dispatcher.HandlerOutcome(result=Uncertain(detail="Worker interrupted"))
+        )
+        await settle(seeded, begun, done)
+        before = await run_row(seeded)
+        assert before.status == WorkflowRunStatus.NEEDS_ATTENTION.value
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        async with seeded.factory() as db:
+            stored = await db.get(NodeRun, parent.id)
+            assert stored.resume_payload == parent.resume_payload
+            await WorkflowExecutionService(db).resolve_step(
+                seeded.ctx, seeded.run.id, parent.id, WorkflowStepResolve(choice="use_late_result")
+            )
+            assert stored.resume_payload is None
+            run = await db.get(WorkflowRun, seeded.run.id)
+            assert run.inline_result_bytes == before.inline_result_bytes - cursor
+            await db.commit()
+        assert (await drive(seeded)).output["structured"]["result"] == 16000
+
+    async def test_marking_an_uncertain_child_failed_replaces_the_cursor_with_its_error(
+        self, engine: AsyncEngine
+    ) -> None:
+        seeded, parent, child = await self._checkpoint(engine)
+        begun, _ = await begin(seeded, child.id)
+        await settle(
+            seeded, begun, dispatcher.HandlerOutcome(result=Uncertain(detail="Action interrupted"))
+        )
+        before = await run_row(seeded)
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        async with seeded.factory() as db:
+            await WorkflowExecutionService(db).resolve_step(
+                seeded.ctx, seeded.run.id, child.id, WorkflowStepResolve(choice="fail_run")
+            )
+            stored = await db.get(NodeRun, parent.id)
+            error = stored.resume_payload
+            assert error["child_error"]["code"] == "STEP_MARKED_FAILED"
+            run = await db.get(WorkflowRun, seeded.run.id)
+            assert run.inline_result_bytes == (
+                before.inline_result_bytes - cursor + json_byte_size(error, limit=2**63 - 1)
+            )
+            await db.commit()
+        assert await _failed_code(seeded) == "STEP_MARKED_FAILED"
+
+    async def test_a_late_child_completion_is_recorded_without_the_parents_quick_log(
+        self, engine: AsyncEngine
+    ) -> None:
+        seeded, parent, child = await self._checkpoint(engine)
+        begun, done = await begin(seeded, child.id)
+        async with seeded.factory() as db:
+            await WorkflowExecutionService(db).cancel(seeded.ctx, seeded.run.id)
+            await db.commit()
+        with patch.object(dispatcher.quick_log, "log_completed", new_callable=AsyncMock) as logged:
+            await settle(seeded, begun, done)
+        logged.assert_not_awaited()
+        async with seeded.factory() as db:
+            assert (await db.get(NodeRun, child.id)).status == "succeeded"
+            assert (await db.get(NodeRun, parent.id)).status == "cancelled"
 
     async def test_a_retry_keeps_the_cursor_until_it_is_consumed(self, engine: AsyncEngine):
         seeded, parent, child = await self._checkpoint(engine, retries=2)

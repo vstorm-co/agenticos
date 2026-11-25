@@ -11,11 +11,13 @@ function Harness({
   initial = "",
   language = "python",
   argKeys = [],
+  withActionCalls = false,
   onChange = vi.fn(),
 }: {
   initial?: string;
   language?: CodeLanguage;
   argKeys?: string[];
+  withActionCalls?: boolean;
   onChange?: (next: string) => void;
 }) {
   const [value, setValue] = useState(initial);
@@ -27,6 +29,18 @@ function Harness({
         label="Code"
         value={value}
         argKeys={argKeys}
+        actionCalls={
+          withActionCalls
+            ? [
+                <option key="read" value="read(id=...)">
+                  Read
+                </option>,
+                <option key="list" value="list_items()">
+                  List
+                </option>,
+              ]
+            : undefined
+        }
         onChange={(next) => {
           onChange(next);
           setValue(next);
@@ -40,6 +54,28 @@ function Harness({
 const editor = () => screen.getByRole("textbox", { name: "Code" }) as HTMLTextAreaElement;
 
 describe("CodeEditor", () => {
+  it("inserts action calls at the selection and selects the argument placeholder", async () => {
+    render(<Harness initial="row = old" withActionCalls />);
+    editor().focus();
+    editor().setSelectionRange(6, 9);
+    const calls = screen.getByRole("combobox", { name: "Insert function call" });
+
+    fireEvent.change(calls, { target: { value: "" } });
+    expect(editor()).toHaveValue("row = old");
+
+    await userEvent.selectOptions(calls, "read(id=...)");
+
+    expect(editor()).toHaveValue("row = read(id=...)");
+    expect(editor()).toHaveFocus();
+    expect(editor().value.slice(editor().selectionStart, editor().selectionEnd)).toBe("...");
+
+    editor().setSelectionRange(6, editor().value.length);
+    await userEvent.selectOptions(calls, "list_items()");
+    expect(editor()).toHaveValue("row = list_items()");
+    expect(editor().selectionStart).toBe(editor().value.length);
+    expect(editor().selectionEnd).toBe(editor().value.length);
+  });
+
   it("indents with Tab, keeps indentation on Enter and closes brackets", async () => {
     render(<Harness />);
     await userEvent.click(editor());
