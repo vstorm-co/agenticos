@@ -84,6 +84,11 @@ class CalledTool(Protocol):
     def script_calls(self) -> ScriptCalls | None: ...
 
 
+def every_call_kept(calls: Sequence[CalledTool]) -> bool:
+    """Whether these calls are the whole trajectory: no script made more than its run kept."""
+    return not any(call.script_calls and call.script_calls["omitted"] for call in calls)
+
+
 def scored_calls(
     calls: Sequence[CalledTool], *, blocked: Collection[str]
 ) -> tuple[ScoredCall, ...]:
@@ -125,6 +130,8 @@ class ScoredAnswer:
         latency_ms: How long it took, when it ended.
         run_id: The recorded run, when there is one.
         agent_id: The agent that answered, when it is known.
+        calls_kept: False when a code-mode script made more calls than its run kept,
+            so `calls` is not the whole trajectory.
     """
 
     text: str
@@ -133,6 +140,7 @@ class ScoredAnswer:
     latency_ms: int | None = None
     run_id: UUID | None = None
     agent_id: UUID | None = None
+    calls_kept: bool = True
 
 
 @dataclass(frozen=True)
@@ -478,6 +486,7 @@ def score_trajectory(
     *,
     order_mode: str,
     required: bool,
+    complete: bool = True,
 ) -> ScorerResult | None:
     """The agent's calls against the expected ones, or nothing when none are expected.
 
@@ -485,9 +494,21 @@ def score_trajectory(
     they happened in the listed order, others allowed between. `exact`: exactly
     those calls in that order and nothing else. A call matches on its tool and on
     every argument the expectation names.
+
+    Calls that are not `complete` - a code-mode script made more than its run kept -
+    are not graded: any mode could pass or fail on the calls that were left out.
     """
     if not expected:
         return None
+    if not complete:
+        return ScorerResult(
+            scorer="trajectory",
+            name=f"tool calls ({order_mode})",
+            required=required,
+            status="skipped",
+            reason="A code-mode script made more calls than its run kept",
+            reason_code="script_calls_not_kept",
+        )
     pairing = _pair(expected, calls)
     missing = [item for i, item in enumerate(expected) if i not in pairing]
     used = set(pairing.values())

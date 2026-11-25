@@ -146,7 +146,7 @@ async def test_a_long_run_is_scored_on_its_last_answer(monkeypatch) -> None:
 
     monkeypatch.setattr(scoring.AgentRunnerService, "get_run_transcript", transcript)
     service = ScoringService(AsyncMock())
-    monkeypatch.setattr(service, "_calls_of", AsyncMock(return_value=()))
+    monkeypatch.setattr(service, "_calls_of", AsyncMock(return_value=((), True)))
 
     answer = await service.answer_of(_ctx(), run.id)
 
@@ -328,9 +328,10 @@ async def test_a_code_mode_runs_calls_are_read_as_what_its_script_called(monkeyp
         AsyncMock(return_value=[MagicMock(tool_call_id="c9__1", outcome="blocked")]),
     )
 
-    calls = await ScoringService(AsyncMock())._calls_of(_ctx(), uuid.uuid4())
+    calls, kept = await ScoringService(AsyncMock())._calls_of(_ctx(), uuid.uuid4())
 
     assert calls == (ScoredCall(tool="send_email", args={"to": "ada@example.com"}, blocked=True),)
+    assert kept
 
 
 async def test_an_eval_answer_graded_again_reads_a_scripts_calls_in_its_place(monkeypatch) -> None:
@@ -340,7 +341,14 @@ async def test_an_eval_answer_graded_again_reads_a_scripts_calls_in_its_place(mo
         latency_ms=None,
         agent_run_id=uuid.uuid4(),
         calls=[
-            {"tool": "run_code", "args": {}, "outcome": "executed", "reason": None, "script": True},
+            {
+                "tool": "run_code",
+                "args": {},
+                "outcome": "executed",
+                "reason": None,
+                "script": True,
+                "omitted": 2,
+            },
             {
                 "tool": "lookup",
                 "args": {"q": 1},
@@ -360,3 +368,4 @@ async def test_an_eval_answer_graded_again_reads_a_scripts_calls_in_its_place(mo
         ScoredCall(tool="lookup", args={"q": 1}),
         ScoredCall(tool="send_email", args={}, blocked=True),
     )
+    assert not answer.calls_kept

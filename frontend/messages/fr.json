@@ -15017,7 +15017,8 @@
         "judgeGradedTwice": "Le juge a noté ce critère plus d’une fois, donc aucune des notes ne compte.",
         "judgeUngraded": "Le juge n’a donné aucune note sur l’échelle pour ce critère.",
         "judgeReasonEcho": "Le juge a reformulé le critère au lieu d’expliquer pourquoi la réponse le satisfait.",
-        "judgeCounterUnsupported": "Le juge a validé la réponse comme différente du contre-exemple, alors que la réponse le répète ou que le juge n’a cité que ce que les deux ont en commun."
+        "judgeCounterUnsupported": "Le juge a validé la réponse comme différente du contre-exemple, alors que la réponse le répète ou que le juge n’a cité que ce que les deux ont en commun.",
+        "scriptCallsNotKept": "Un script en mode code a fait plus d’appels que son run n’en a gardé, ses appels d’outils n’ont donc pas été évalués."
       },
       "scoreRun": "Noter par rapport à un cas",
       "scoreRunBody": "Exécuter sur la réponse de ce run chaque évaluateur configuré par le dataset. Le résultat est conservé sur le dataset.",

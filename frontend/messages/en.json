@@ -15409,7 +15409,8 @@
         "judgeGradedTwice": "The judge graded this criterion more than once, so neither grade counts.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
         "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
-        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share."
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share.",
+        "scriptCallsNotKept": "A code-mode script made more calls than its run kept, so its tool calls were not graded."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",

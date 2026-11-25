@@ -107,6 +107,7 @@ from app.services.scorers import (
     ScoredAnswer,
     ScoredCall,
     case_passed,
+    every_call_kept,
     graded,
     judge_criteria,
     judge_prompt,
@@ -481,17 +482,22 @@ class ScoringService:
             if started is None or ended is None
             else int((ended - started).total_seconds() * 1000)
         )
+        calls, kept = await self._calls_of(ctx, run.id)
         return ScoredAnswer(
             text=answers[-1].content,
-            calls=await self._calls_of(ctx, run.id),
+            calls=calls,
+            calls_kept=kept,
             cost_usd=run.cost_usd,
             latency_ms=latency,
             run_id=run.id,
             agent_id=run.agent_id,
         )
 
-    async def _calls_of(self, ctx: AuthContext, run_id: UUID) -> tuple[ScoredCall, ...]:
-        """A run's tool calls in the order it made them, with the writes it was kept from.
+    async def _calls_of(
+        self, ctx: AuthContext, run_id: UUID
+    ) -> tuple[tuple[ScoredCall, ...], bool]:
+        """A run's tool calls in the order it made them, with the writes it was kept from,
+        and whether they are all of them (`every_call_kept`).
 
         A call an isolated run held back still has its row in the transcript, so
         it is joined by its call id. Only the run's own calls are read: a
@@ -506,7 +512,8 @@ class ScoringService:
         blocked = {
             call.tool_call_id for call in held if call.outcome == InterceptionOutcome.BLOCKED
         }
-        return scored_calls([call for call, _ in calls], blocked=blocked)
+        rows = [call for call, _ in calls]
+        return scored_calls(rows, blocked=blocked), every_call_kept(rows)
 
     async def score_case(
         self,
@@ -724,6 +731,7 @@ class ScoringService:
                         for call in attempt.calls
                         if not call.get("script")
                     ),
+                    calls_kept=not any(call.get("omitted") for call in attempt.calls),
                     cost_usd=attempt.cost_usd,
                     latency_ms=attempt.latency_ms,
                     run_id=attempt.agent_run_id,
@@ -823,6 +831,7 @@ class ScoringService:
                 answer.calls,
                 order_mode=case.order_mode,
                 required=scoring.trajectory.required,
+                complete=answer.calls_kept,
             )
             if trajectory is not None:
                 results.append(trajectory)

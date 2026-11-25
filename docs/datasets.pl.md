@@ -1,5 +1,5 @@
 ---
-source_sha: "c62113518480"
+source_sha: "7b689587deee"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -495,7 +495,9 @@ Agent w [trybie kodu](governance.md#code-mode) wywołuje jedno narzędzie,
 `run_code`, a pozostałe wywołuje jego skrypt. Dopasowywane są wywołania skryptu,
 w miejsce samego skryptu i w kolejności, w jakiej skrypt o nie prosił, a skrypt,
 który niczego nie wywołał, jest dopasowywany jako `run_code`. Run zachowuje
-pierwsze 100 wywołań każdego skryptu, więc dalsze wywołania nie są dopasowywane.
+pierwsze 100 wywołań każdego skryptu; gdy skrypt wykonał ich więcej, oczekiwane
+wywołania narzędzi nie są oceniane, bo pominięte wywołania mogłyby przesądzić o
+wyniku.
 Przypadek utworzony przez **Dodaj do datasetu** z odpowiedzi w trybie kodu
 oczekuje wywołań skryptu, a nie `run_code`.
 

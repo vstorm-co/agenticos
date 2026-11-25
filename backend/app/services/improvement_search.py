@@ -85,7 +85,7 @@ from app.services.improvement_data import split_seed
 from app.services.improvement_states import SEARCH_CHOICES
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.model_profile import ModelProfileService
-from app.services.scorers import CaseView, ScoredAnswer, scored_calls
+from app.services.scorers import CaseView, ScoredAnswer, every_call_kept, scored_calls
 from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 from app.services.transcript import RecordedToolCall
@@ -844,6 +844,7 @@ class SearchWorker:
             answer = ScoredAnswer(
                 text=output,
                 calls=scored_calls(calls, blocked=held_back(intercepted)),
+                calls_kept=every_call_kept(calls),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=None,
                 run_id=agent_run.id,

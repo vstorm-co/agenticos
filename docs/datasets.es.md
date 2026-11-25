@@ -1,5 +1,5 @@
 ---
-source_sha: "c62113518480"
+source_sha: "7b689587deee"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -503,7 +503,8 @@ Un agent en [modo código](governance.md#code-mode) llama a una sola herramienta
 `run_code`, y su script llama al resto. En lugar del script se comparan sus
 llamadas, en el orden en que el script las pidió, y un script que no llamó a
 nada se compara como `run_code`. Un run guarda las primeras 100 llamadas de cada
-script, así que una llamada posterior a ellas no se compara. Un caso creado con
+script; cuando un script hizo más, sus llamadas a herramientas esperadas no se
+califican, porque las llamadas omitidas podrían aprobar o suspender el caso. Un caso creado con
 **Añadir al dataset** a partir de una respuesta en modo código espera las
 llamadas del script, no `run_code`.
 

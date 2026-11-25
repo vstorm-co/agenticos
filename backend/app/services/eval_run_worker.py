@@ -90,7 +90,7 @@ from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
-from app.services.scorers import ScoredAnswer, scored_calls
+from app.services.scorers import ScoredAnswer, every_call_kept, scored_calls
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
 
@@ -241,8 +241,11 @@ def trajectory(
     rows = []
     for call in calls:
         script = _script_of(call)
+        omitted = 0 if call.script_calls is None else call.script_calls["omitted"]
         rows.append(
-            row(call.tool_name, call.args, call.tool_call_id) | ({"script": True} if script else {})
+            row(call.tool_name, call.args, call.tool_call_id)
+            | ({"script": True} if script else {})
+            | ({"omitted": omitted} if omitted else {})
         )
         rows.extend(
             row(entry["tool_name"], entry["args"], entry["tool_call_id"])
@@ -670,6 +673,7 @@ class EvalRunWorker:
             answer = ScoredAnswer(
                 text=output,
                 calls=scored_calls(calls, blocked=held_back(intercepted)),
+                calls_kept=every_call_kept(calls),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=_latency_ms(agent_run),
                 run_id=agent_run.id,

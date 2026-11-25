@@ -38,6 +38,7 @@ describe("reasonKey", () => {
     expect(reasonKey(result("judge_no_model"))).toBe("reason.judgeNoModel");
     expect(reasonKey(result("judge_missing"))).toBe("reason.judgeMissing");
     expect(reasonKey(result("judge_counter_unsupported"))).toBe("reason.judgeCounterUnsupported");
+    expect(reasonKey(result("script_calls_not_kept"))).toBe("reason.scriptCallsNotKept");
     expect(reasonKey(result("judge_graded_twice"))).toBe("reason.judgeGradedTwice");
   });
 

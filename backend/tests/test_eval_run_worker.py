@@ -73,7 +73,7 @@ def test_a_scripts_calls_follow_it_in_the_trajectory_each_with_its_outcome() -> 
                 }
                 for n, tool in ((1, "list_context"), (2, "web_fetch"))
             ],
-            "omitted": 0,
+            "omitted": 4,
         },
     )
     held = MagicMock(tool_call_id="c9__2", outcome="blocked", reason="external")
@@ -86,6 +86,6 @@ def test_a_scripts_calls_follow_it_in_the_trajectory_each_with_its_outcome() -> 
         ("web_fetch", "blocked", "c9"),
         ("answer", "executed", None),
     ]
-    assert rows[0]["script"] is True
+    assert (rows[0]["script"], rows[0]["omitted"]) == (True, 4)
     assert rows[2]["reason"] == "external"
     assert "script" not in rows[3]

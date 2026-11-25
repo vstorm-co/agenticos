@@ -1,5 +1,5 @@
 ---
-source_sha: "c62113518480"
+source_sha: "7b689587deee"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -527,8 +527,9 @@ Ein Agent im [Code-Modus](governance.md#code-mode) ruft ein einziges Tool auf,
 `run_code`, und sein Skript ruft die übrigen auf. An Stelle des Skripts werden
 seine Aufrufe abgeglichen, in der Reihenfolge, in der das Skript sie angefordert
 hat, und ein Skript, das nichts aufgerufen hat, wird als `run_code` abgeglichen.
-Ein Run behält die ersten 100 Aufrufe jedes Skripts, sodass ein Aufruf darüber
-hinaus nicht abgeglichen wird. Ein Fall, der mit **Zum Dataset hinzufügen** aus
+Ein Run behält die ersten 100 Aufrufe jedes Skripts; hat ein Skript mehr gemacht,
+werden seine erwarteten Tool-Aufrufe nicht bewertet, weil die ausgelassenen
+Aufrufe den Fall bestehen oder durchfallen lassen könnten. Ein Fall, der mit **Zum Dataset hinzufügen** aus
 einer Antwort im Code-Modus angelegt wurde, erwartet die Aufrufe des Skripts,
 nicht `run_code`.
 

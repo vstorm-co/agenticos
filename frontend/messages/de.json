@@ -15095,7 +15095,8 @@
         "judgeGradedTwice": "Der Bewerter hat dieses Kriterium mehr als einmal bewertet, daher zählt keine der Bewertungen.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
         "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
-        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen."
+        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen.",
+        "scriptCallsNotKept": "Ein Skript im Code-Modus hat mehr Aufrufe gemacht, als sein Run behalten hat, daher wurden seine Tool-Aufrufe nicht bewertet."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",

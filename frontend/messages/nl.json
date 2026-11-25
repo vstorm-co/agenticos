@@ -15293,7 +15293,8 @@
         "judgeGradedTwice": "De beoordelaar heeft dit criterium meer dan eens beoordeeld, dus geen van beide beoordelingen telt.",
         "judgeUngraded": "De beoordelaar gaf geen score op de schaal voor dit criterium.",
         "judgeReasonEcho": "De beoordelaar herhaalde het criterium in plaats van te zeggen waarom het antwoord eraan voldoet.",
-        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben."
+        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben.",
+        "scriptCallsNotKept": "Een script in codemodus deed meer aanroepen dan zijn run bewaarde, dus zijn toolaanroepen zijn niet beoordeeld."
       },
       "scoreRun": "Toetsen aan een testgeval",
       "scoreRunBody": "Voer elke scorer die de dataset instelt uit op het antwoord van deze run. Het resultaat wordt bij de dataset bewaard.",

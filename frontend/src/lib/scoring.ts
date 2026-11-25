@@ -71,6 +71,7 @@ const REASON_KEYS = {
   judge_graded_twice: "reason.judgeGradedTwice",
   judge_reason_echo: "reason.judgeReasonEcho",
   judge_counter_unsupported: "reason.judgeCounterUnsupported",
+  script_calls_not_kept: "reason.scriptCallsNotKept",
 } as const;
 
 export function reasonKey(result: ScorerResult): string | null {

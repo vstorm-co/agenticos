@@ -15182,7 +15182,8 @@
         "judgeGradedTwice": "Sędzia ocenił to kryterium więcej niż raz, więc żadna z ocen się nie liczy.",
         "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
         "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia.",
-        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią."
+        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią.",
+        "scriptCallsNotKept": "Skrypt trybu kodu wykonał więcej wywołań, niż run zachował, więc jego wywołania narzędzi nie zostały ocenione."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
