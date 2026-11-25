@@ -16642,6 +16642,7 @@
         "unknown_capability": "Keine solche Capability",
         "invalid_config": "Ihre Einstellungen sind ungültig",
         "does_not_apply": "Sie passt nicht zum Entwurf",
+        "reaches_network": "Sie fügt eine Capability hinzu, die über dieses Deployment hinausreicht. Fügen Sie sie im Builder hinzu, wo ihre Grenzen festgelegt werden",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
         "dismissed_before": "Jemand hat sie schon verworfen",
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",

@@ -16729,6 +16729,7 @@
         "unknown_capability": "Nie ma takiej capability",
         "invalid_config": "Jej ustawienia są niepoprawne",
         "does_not_apply": "Nie pasuje do wersji roboczej",
+        "reaches_network": "Dodaje capability, która sięga poza to wdrożenie. Dodaj ją w Builderze, gdzie ustawia się jej limity",
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
         "dismissed_before": "Ktoś już ją wcześniej odrzucił",
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",

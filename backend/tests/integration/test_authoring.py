@@ -41,6 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
@@ -1244,6 +1245,44 @@ class TestEdges:
 
         assert read.batch is not None
         assert [hunk.status for hunk in read.batch.hunks] == ["accepted", "dismissed"]
+        dismissed = read.batch.hunks[1]
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.target_id, (entry.details or {}).get("hunk_id")) for entry in entries] == [
+            (str(agent.id), str(dismissed.id))
+        ]
+
+    async def test_dismissing_all_audits_only_what_it_dismissed(self, db):
+        """A suggestion decided elsewhere after the list was read stays as it is, unaudited."""
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        first, second = batch.hunks
+        decide = authoring_repo.decide_hunk
+
+        async def taken_first(db, *, hunk_id, **values):
+            if hunk_id == second.id:
+                return None
+            return await decide(db, hunk_id=hunk_id, **values)
+
+        with patch("app.services.authoring.authoring_repo.decide_hunk", new=taken_first):
+            await service.dismiss_all(ctx, agent.id)
+
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.details or {}).get("hunk_id") for entry in entries] == [str(first.id)]
 
     async def test_changes_that_cannot_land_are_not_proposed(self, db):
         ctx, agent, _ = await _setup(db)

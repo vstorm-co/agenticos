@@ -16436,6 +16436,7 @@
         "unknown_capability": "Aucune capability de ce nom",
         "invalid_config": "Ses paramètres ne sont pas valides",
         "does_not_apply": "Elle ne correspond pas au brouillon",
+        "reaches_network": "Elle ajoute une capability qui sort de ce déploiement. Ajoutez-la dans le Builder, où ses limites se règlent",
         "not_grantable": "Elle ajoute quelque chose que la personne à l’origine de la demande ne peut pas accorder",
         "dismissed_before": "Quelqu’un l’a déjà écartée",
         "unsupported": "A indiqué que la modification est appuyée, sans preuve vérifiable",

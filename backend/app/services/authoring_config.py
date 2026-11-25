@@ -26,7 +26,13 @@ from app.agents.capabilities.budget import price_request
 from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, Perm
 from app.db.models.authoring import HunkKind, HunkOrigin, SpecProposalHunk
-from app.repositories import agent_run_repo, context_repo, credential_repo, mcp_connection_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    context_repo,
+    credential_repo,
+    mcp_connection_repo,
+)
 from app.schemas.authoring import FieldChange, Rejection
 from app.services import authoring_fields
 from app.services.access import CONTEXT, MCP_CONNECTION, accessible_ids
@@ -57,6 +63,16 @@ def _uuids(values: set[str]) -> list[UUID]:
 
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+async def published_spec(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID
+) -> AgentSpec | None:
+    """The agent's newest published spec, which a capability added back is judged against."""
+    version = await agent_repo.newest_version(
+        db, agent_id=agent_id, organization_id=organization_id
+    )
+    return None if version is None else AgentSpec.model_validate(version.spec)
 
 
 class ConfigurationService:
@@ -285,8 +301,13 @@ class ConfigurationService:
         """
         hunks: list[dict[str, Any]] = []
         refused: list[tuple[FieldChange, Rejection]] = []
+        published = await published_spec(
+            self.db, agent_id=agent_id, organization_id=ctx.organization_id
+        )
         for change in changes:
-            staged = authoring_fields.stage(spec, change.path, change.op, change.value)
+            staged = authoring_fields.stage(
+                spec, change.path, change.op, change.value, published=published
+            )
             if isinstance(staged, str):
                 refused.append((change, Rejection(staged)))
                 continue

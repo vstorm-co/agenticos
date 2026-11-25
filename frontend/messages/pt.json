@@ -16840,6 +16840,7 @@
         "unknown_capability": "Esta capacidade não existe",
         "invalid_config": "As configurações dela não são válidas",
         "does_not_apply": "Não se encaixa no rascunho",
+        "reaches_network": "Ela adiciona uma capability que vai além desta implantação. Adicione-a no Builder, onde se definem os limites dela",
         "not_grantable": "Ela adiciona algo que quem pediu não pode conceder",
         "dismissed_before": "Alguém a descartou antes",
         "unsupported": "Afirmou que a edição é respaldada, sem evidência verificável",

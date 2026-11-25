@@ -1,5 +1,5 @@
 ---
-source_sha: "5d4d42f2cfbd"
+source_sha: "ca19b48a11cd"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -194,7 +194,7 @@ refiere, nunca un identificador.
 | Modelo | Cambiar el perfil de modelo |
 | Ajustes del modelo | Fijar la temperatura, top-p, el máximo de tokens, el timeout o las llamadas paralelas a herramientas |
 | Límite de pasos | Fijar `max_steps` |
-| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar, se nombre como se nombre en la sugerencia |
+| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una capability cuyas herramientas llegan más allá del despliegue - a la web, a un navegador o un escritorio, a un canal de mensajería o un teléfono, a un servicio montado, a un sandbox, a un workflow o a otro agent - nunca se añade. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar, se nombre como se nombre en la sugerencia |
 | Aprobación | Hacer que una capability o una de sus herramientas pregunte antes |
 | Especialistas | Reescribir la descripción de un [especialista](reference/capabilities.md#delegation) integrado |
 | Bases de conocimiento | Vincular o desvincular una |
@@ -232,6 +232,15 @@ Nunca amplía lo que se ejecuta sin una persona:
   guardada antes se rechaza al pulsar **Aceptar**. La tarjeta muestra toda la
   vinculación que escribe, con cada carácter que no dibuja nada o reordena el
   texto a su alrededor escrito de forma visible, como `\u{202E}`.
+- Una capability cuyas herramientas llegan más allá del despliegue nunca se
+  añade: aparece bajo **ideas que el asistente no añadió**, para añadirla
+  en el Builder, donde se fijan sus límites.
+- Volver a añadir una capability que vincula la versión publicada y que el
+  borrador ya no tiene se juzga como un cambio respecto a la vinculación
+  publicada: una vinculación desactivada no se vuelve a activar, sus ajustes
+  solo cambian donde tratan únicamente de calidad, los de
+  una salvaguarda nunca, y ninguna de sus herramientas pide aprobación menos que
+  antes.
 
 Una sugerencia que vincula una base de conocimiento, un archivo de contexto, un
 perfil de modelo o un servidor MCP, o que deja al agent llamar a más herramientas
