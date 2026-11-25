@@ -180,6 +180,7 @@ async def test_sandbox_child_tools_follow_their_configured_parent_selection(
                 "edit_file",
                 "execute",
                 "select_project_workspace",
+                "select_execution_target",
             }
         )
 

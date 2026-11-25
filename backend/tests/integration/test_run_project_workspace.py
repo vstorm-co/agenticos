@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import RunAudience
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
@@ -44,12 +45,22 @@ async def test_selected_files_persist_and_revoked_membership_blocks_the_next_ope
     ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
     original = document_workspace()
     await original.write_text("private.txt", "keep in conversation")
-    selector = RunProjectWorkspace(original, ctx)
+    selector = RunProjectWorkspace(
+        original,
+        ctx,
+        audience=RunAudience(user_id=ctx.user_id),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+    )
     await selector.select(project.id)
     await selector.workspace.write_text("report.md", "saved in project")
     assert not await original.exists("report.md")
     # A different run opens the persisted document, rather than a cached handle.
-    next_run = RunProjectWorkspace(document_workspace(), ctx)
+    next_run = RunProjectWorkspace(
+        document_workspace(),
+        ctx,
+        audience=RunAudience(user_id=ctx.user_id),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+    )
     assert next_run.project_id is None
     await next_run.select(project.id)
     assert await next_run.workspace.read_text("report.md") == "saved in project"
@@ -93,6 +104,8 @@ async def test_selection_cannot_cross_tenants_or_private_project_grants(db: Asyn
     selector = RunProjectWorkspace(
         document_workspace(),
         AuthContext(user_id=person.id, organization_id=orgs[0].id, role="member"),
+        audience=RunAudience(user_id=person.id),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
     )
     for project in projects:
         with pytest.raises(NotFoundError):

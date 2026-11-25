@@ -1001,6 +1001,11 @@ MAX_RUN_FILES = 20
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None,
+        exclude_if=lambda target: target is None,
+        description="Shell executor only: agent keeps its configured toolchain, project uses the conversation project runtime; file context stays separate",
+    )
     prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,

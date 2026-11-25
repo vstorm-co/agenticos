@@ -11,6 +11,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -531,3 +532,27 @@ async def test_queued_corrections_wait_for_the_kind_to_resume(
         db, RUN_AGENT.kind, other.organization_id, reason="unrelated pause"
     )
     assert [row.id for row in await job_repo.queued_api_steers(db, job=job)] == [correction.id]
+
+
+@pytest.mark.parametrize("target", ["agent", "project"])
+async def test_steering_cannot_change_the_running_executor(
+    db: AsyncSession, stubbed, target: Literal["agent", "project"]
+) -> None:
+    ctx = await _person(db)
+    agent_id = uuid.uuid4()
+    service = ApiRunService(db)
+    parent = await service.queue(ctx, agent_id, _ask(), idempotency_key=None)
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
+    assert claimed is not None and claimed.id == parent.id
+    job = RUN_AGENT.load(claimed.payload)
+    correction = AgentRunRequest(
+        conversation_id=CONVERSATION,
+        prompt="Continue there",
+        steer=True,
+        project_execution_target=target,
+    )
+    queued = await service.queue(ctx, agent_id, correction, idempotency_key=None)
+    stored = await job_repo.get(db, queued.id)
+    assert stored is not None
+    assert RUN_AGENT.load(stored.payload).project_execution_target == target
+    assert await job_repo.queued_api_steers(db, job=job) == []

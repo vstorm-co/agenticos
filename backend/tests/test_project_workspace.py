@@ -167,70 +167,80 @@ class TestOpeningItOutsideARun:
 
 
 class TestARunInAProject:
-    def test_an_agent_with_no_workspace_is_given_the_projects(self) -> None:
+    def test_an_agent_without_sandbox_gets_project_files_but_not_shell_tools(self) -> None:
         project = _project(description="The Q3 launch.", instructions="  Cite sources.  ")
         spec = _in_project(AgentSpec(name="Writer", instructions="You write."), project)
-
-        (binding,) = spec.capabilities
-        assert binding.id == "sandbox"
-        assert binding.config["backend"] == "state"
-        assert spec.instructions.startswith("You write.\n\n## Project: Launch")
+        assert [binding.id for binding in spec.capabilities] == ["projects"]
+        assert spec.instructions.startswith("You write.\n\n## Project context")
         assert "The Q3 launch." in spec.instructions
-        # Several people talk in a project's chat: the agent is told how to tell them apart.
-        assert "Each person's message starts with their name" in spec.instructions
-        assert spec.instructions.endswith("### The project's instructions\n\nCite sources.")
+        assert "Cite sources." in spec.instructions
+        assert "<project_reference>" in spec.instructions
+        assert "within your own and the platform's rules" in spec.instructions
 
-    def test_a_coding_agent_is_left_out_where_the_project_has_no_shell(self) -> None:
-        """A project the platform keeps files for has no container: a coding
-        agent would fail every task there, so it is not run and the agent knows."""
+    def test_a_files_only_project_does_not_remove_the_agents_own_coding_toolchain(self) -> None:
         coder = AgentSpec(
             name="Coder",
             capabilities=[
                 {"id": "coding_agent", "config": {"harness": "claude_code"}},
                 {"id": "web_search"},
+                {"id": "sandbox", "config": {"backend": "service"}},
             ],
         )
-
         stored = _in_project(coder, _project())
-        assert [binding.id for binding in stored.capabilities] == ["web_search", "sandbox"]
-        assert "coding agent is not available in this project" in stored.instructions
-
-        container = _in_project(coder, _project(backend="service"))
-        assert [binding.id for binding in container.capabilities] == [
+        assert [binding.id for binding in stored.capabilities] == [
             "coding_agent",
             "web_search",
             "sandbox",
+            "projects",
         ]
-        assert "not available" not in container.instructions
+        assert stored.capabilities[2].config["backend"] == "state"
+        assert coder.capabilities[2].config["backend"] == "service"
+        assert "Files-only projects have no executor" in stored.instructions
 
     @pytest.mark.security
-    def test_an_agents_own_workspace_is_replaced_and_its_approvals_kept(self) -> None:
+    def test_explicitly_disabled_shell_capability_is_not_enabled_by_project_context(self) -> None:
+        spec = AgentSpec(
+            name="Writer",
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "enabled": False,
+                    "approval": "required",
+                    "config": {"include_execute": False},
+                }
+            ],
+        )
+        ran = _in_project(spec, _project(backend="service"))
+        assert [binding.id for binding in ran.capabilities] == ["sandbox", "projects"]
+        assert ran.capabilities[0] == spec.capabilities[0]
+        assert not ran.capabilities[0].enabled
+
+    @pytest.mark.security
+    def test_project_files_keep_the_authors_shell_visibility_and_approvals(self) -> None:
         connection = uuid4()
         project = _project(backend="service", sandbox_connection_id=connection, runtime="python")
         spec = AgentSpec(
             name="Coder",
             capabilities=[
-                {"id": "web_search"},
                 {
                     "id": "sandbox",
-                    "enabled": False,
-                    "config": {"session_scope": "agent", "include_execute": False},
+                    "config": {
+                        "backend": "service",
+                        "session_scope": "agent",
+                        "include_execute": False,
+                    },
                     "approval": "required",
-                },
+                }
             ],
         )
-
         ran = _in_project(spec, project)
-
-        assert [binding.id for binding in ran.capabilities] == ["web_search", "sandbox"]
-        sandbox = ran.capabilities[1]
+        sandbox = ran.capabilities[0]
         assert sandbox.approval == "required"
-        assert sandbox.enabled is True
-        assert sandbox.config["backend"] == "service"
+        assert sandbox.enabled
+        assert not sandbox.config["include_execute"]
         assert sandbox.config["connection_id"] == str(connection)
         assert sandbox.config["runtime"] == "python"
-        assert sandbox.config["session_scope"] != "agent"
-        assert "### The project's instructions" not in ran.instructions
+        assert spec.capabilities[0].config["session_scope"] == "agent"
 
 
 @pytest.mark.security
@@ -253,7 +263,7 @@ async def test_opening_a_project_workspace_rechecks_its_current_generation(monke
     identity = WorkspaceIdentity(
         organization_id=ctx.organization_id, agent_id=uuid4(), run_id=uuid4(), project_id=old.id
     )
-    spec = _in_project(AgentSpec(name="Writer"), old)
+    spec = _in_project(AgentSpec(name="Writer", capabilities=[{"id": "sandbox"}]), old)
     if moving:
         with pytest.raises(AlreadyExistsError):
             await service.open(spec, ctx=ctx, identity=identity, scope_override="project")

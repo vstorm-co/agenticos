@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "f78e6bb59f63"
+source_sha: "0fe828747335"
 ---
 
 # Projekte { #projects }
@@ -73,47 +73,57 @@ Zwei Wege hinein:
 Ein Chat bleibt in dem Projekt, in dem er begonnen wurde. Der Chip in einem
 bestehenden Chat führt zurück zum Projekt.
 
-Ein Agent mit Sandbox kann `select_project_workspace` mit der ID eines
-zugänglichen Projekts aufrufen, um dessen Dateien und Shell im aktuellen Lauf zu
-verwenden, auch in einem verbundenen Kanal. Die Antwort zeigt die ausgewählten
-Projekte. Ohne ID wird der ursprüngliche Workspace wiederhergestellt.
-Fortsetzungen nach Freigaben behalten die Auswahl; die nächste Nachricht beginnt
-im ursprünglichen Workspace. Die Auswahl verschiebt keinen Chatverlauf, kopiert
-keine privaten Dateien und ändert keine Anweisungen. Jede Operation prüft den
-Zugriff erneut. Routinen bleiben auf geprüfte Quellen beschränkt; isolierte
-Evaluationen können keine aktiven Projekte auswählen. Dateien bleiben im Projekt;
-zum Ausliefern eine App veröffentlichen oder eine Datei ausdrücklich senden.
+Die Capability **Projects** sucht zugängliche Projekte, wählt eine zurückgegebene
+ID und liest oder schreibt deren Dateien. AgenticOS und Architect enthalten sie.
+In einer verknüpften privaten Mattermost- oder Slack-Unterhaltung kann der Agent
+Projekt XYZ über Werkzeuge suchen und auswählen; ein Name allein gewährt keinen
+Zugriff. Unverknüpfte Absender und Räume mit ungeprüftem Publikum erhalten keinen
+privaten Projektkontext. Die Auswahl allein startet keine kostenpflichtige Laufzeit.
+
+Die Auswahl gilt für einen Lauf einschließlich Freigabe- und Fragenfortsetzungen.
+Die nächste Nachricht im gewöhnlichen Chat oder privaten Kanal beginnt ohne Auswahl;
+ein Projektchat beginnt mit seinem Projekt. Der Verlauf bleibt in seiner Unterhaltung.
+Dateien werden weder kopiert noch eingebunden. Jede Operation prüft aktuelle
+Mitgliedschaft, Scopes, Zugriff und Workspace-Generation. Routinen bleiben auf geprüfte
+Quellen beschränkt; isolierte Evaluationen wählen keine aktiven Projekte.
 
 ## Was ein Agent im Projekt bekommt { #what-an-agent-gets-in-a-project }
 
-Egal welcher Agent antwortet: Ein Run in einem Projekt-Chat arbeitet im
-**Container des Projekts** statt in einem eigenen Workspace:
+Projektdateien und Befehlsausführung sind getrennt:
 
-- Ein Agent ohne Sandbox bekommt eine, die des Projekts, sodass auch ein einfacher
-  Chat-Agent die Dateien des Projekts lesen und schreiben kann.
-- Ein Agent mit eigener Sandbox-Bindung wird in den Container des Projekts
-  verlegt. Die Freigabe-Einstellungen der Bindung gehen mit, sodass ein Autor, der
-  für die Shell **Immer fragen** gesetzt hat, diese Sperre behält.
-- Name, Beschreibung und Anweisungen des Projekts werden nach den eigenen
-  Anweisungen des Agent angefügt. Der Agent bleibt, was er ist, und arbeitet
-  hieran.
+| Auswahl | Standard und Wirkung |
+|---|---|
+| Projektkontext | Dateien und Referenzanweisungen des Projekts; Agenten- und Plattformregeln gelten weiterhin |
+| **Arbeiten in → Projekt** | Standard in Projektchats; nutzt den ausführbaren Projektcontainer, sofern Sandbox-Shellwerkzeuge aktiviert sind |
+| **Arbeiten in → Agent** | Standard außerhalb von Projektchats; nutzt den konfigurierten Agenten-Executor ohne eingebundene Projektdateien |
+| Nur Dateien speichern | Textwerkzeuge funktionieren; das Projekt führt keine Befehle aus |
+| Lokaler Arbeitsordner | Behält den vom Benutzer gewählten lokalen Executor; Projektkontext ersetzt ihn nicht |
 
-Der Container ist eine [Sandbox](sandbox.md)-Session, wenn die Installation einen
-Sandbox-Dienst betreibt, sodass die Dateien des Projekts auch ausgeführt und nicht
-nur gelesen werden können. Ohne ihn hält das Projekt seine Dateien als
-gespeicherten Workspace, der genauso liest und schreibt, aber keine Shell hat;
-schreiben zwei Chats zugleich hinein, behält jeder, was er geschrieben hat, und wo
-beide dieselbe Datei geändert haben, gilt der spätere Schreibvorgang.
-Ein Projekt bleibt auf der Sandbox-Verbindung, auf der es angelegt wurde, darum
-lässt sich diese Verbindung nicht löschen, solange ein Projekt dort Dateien hält.
+**Arbeiten in** steht in Chat-Einstellungen auf Web und Desktop bei aktivierter
+Befehlsausführung. Projektausführung benötigt ein angehängtes oder vorab gewähltes
+Projekt. Eine explizite Auswahl gilt für Konto, Organisation und Chat, nicht für neue
+Chats. Im Lauf kann der Agent `select_execution_target` ausdrücklich verwenden;
+`select_project_context` und das ältere `select_project_workspace` ändern nur Dateien.
+Das Werkzeug meldet beide Auswahlen und ihre Verfügbarkeit.
+
+Projektchats geben echten Dateizugriff auch ohne Sandbox. Sie aktivieren keine
+deaktivierte Sandbox und gewähren keine fehlenden Shellwerkzeuge. Werkzeugfreigaben
+gelten weiterhin. Nach Einsicht in privaten Projektkontext wird ein mit größerem
+Publikum geteilter Agenten-/Kanal-Executor abgelehnt; Löschen der Auswahl umgeht dies
+nicht. Stattdessen einen isolierten Gesprächs- oder Projekt-Executor verwenden.
+
+Projekt-Textwerkzeuge listen bis zu 100 Einträge und lesen oder schreiben UTF-8 bis
+256 KB. Reservierte Pfade, ausbrechende Symlinks, Binärdateien und unbekannte Größen
+werden abgelehnt; OCR startet nicht. Schreiben nach dem Lesen lehnt eine inzwischen
+geänderte Datei ab. Das Projekt behält seine Sandbox-Verbindung bis zu einer
+expliziten Übertragung durch einen Editor.
 
 Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
 die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl
 behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
 Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
 eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
-Verbindungsnamen und Laufzeitumgebung. Alle Projektchats nutzen diese Umgebung
-anstelle der Agenten-Sandbox. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+Verbindungsnamen und Laufzeitumgebung. Projektchats nutzen ihre Dateien und standardmäßig ihren Executor, wenn Befehlswerkzeuge aktiviert sind. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
 
 Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
 in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und
@@ -128,11 +138,19 @@ entfernen. Installierte Pakete und laufende Prozesse werden nicht kopiert. Beim 
 zu gespeicherten Dateien gilt zusätzlich das Größenlimit der Plattform.
 
 **Dateien und Codeausführung im Projekt** erklärt Speicherung, gemeinsame Nutzung
-und Ausführung neben der Auswahl. Das Projekt stellt Sandbox-Werkzeuge auch für
-Agenten ohne eigene Sandbox bereit. Container erlauben Codeausführung; gespeicherte
-Dateien haben keine Shell. Bestehende Werkzeugfreigaben gelten weiterhin.
+und Ausführung. Gespeicherte Dateien haben keine Shell; Kontext und Ausführung
+bleiben wie oben beschrieben getrennt.
 
 ## Dateien { #files }
+
+Im Chatbereich **Dateien** die Herkunft wählen, wenn Projektdateien und ein eigener
+Agenten-Workspace existieren. Jeder nutzt seine autorisierten Endpunkte; derselbe
+Pfad fällt nie auf eine andere Herkunft zurück. Standard ist das Gesprächsprojekt,
+sonst der verfügbare Agenten-Workspace. Erfolgreiche, fehlgeschlagene und abgebrochene
+Läufe speichern Referenzen ohne Dateikopien. Entzogener Zugriff entfernt eine Herkunft.
+Run-bezogene Dateien sind vorübergehend und verschwinden beim Aufräumen; für spätere
+Arbeit einen dauerhaften Scope wählen. Historische Läufe ohne Referenzen erhalten
+keine erfundenen Herkünfte.
 
 Der Reiter **Dateien** des Projekts ist der Container zum Durchsuchen: ein Baum
 neben einer Ansicht, die Markdown, PDFs, Bilder, Tabellen und Code direkt öffnet.

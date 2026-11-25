@@ -3445,3 +3445,13 @@ async def run_id_for_routine_activation(
         )
         .limit(1)
     )
+
+
+async def record_workspace_origins(
+    db: AsyncSession, *, run: AgentRun, origins: Sequence[dict[str, str]]
+) -> None:
+    """Merge actual opened workspace references across approval continuations."""
+    kept = {entry["workspace_id"]: entry for entry in run.workspace_origins or []}
+    kept.update({entry["workspace_id"]: entry for entry in origins})
+    run.workspace_origins = list(kept.values())
+    await db.flush()

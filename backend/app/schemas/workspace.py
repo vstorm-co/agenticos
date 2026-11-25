@@ -301,3 +301,29 @@ class WorkspaceFileContent(BaseSchema):
     path: str
     content: str
     truncated: bool = False
+
+
+class RunWorkspaceOrigin(BaseSchema):
+    """A server-owned reference to files a run actually used, never a path-based authority."""
+
+    kind: Literal["agent", "project"]
+    workspace_id: UUID
+    project_id: UUID | None = None
+
+
+class WorkspaceOriginRead(BaseSchema):
+    kind: Literal["agent", "project"]
+    workspace_id: UUID
+    project_id: UUID | None = None
+    scope: str
+    backend: str
+    owner_label: str
+
+
+class ConversationWorkspaceOrigins(BaseSchema):
+    """Materialized file origins this reader may still access; no runtime is started."""
+
+    default_origin: Literal["agent", "project"] | None = None
+    default_workspace_id: UUID | None = None
+    items: list[WorkspaceOriginRead]
+    truncated: bool = False

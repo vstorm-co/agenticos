@@ -351,6 +351,7 @@ from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.schemas.agent_run import ChatAskerRead, RunOriginRead
 from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenance
 from app.schemas.organization import OrganizationTextToSpeech
+from app.schemas.project_context import ProjectExecutionTarget
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -442,6 +443,7 @@ from app.services.sandbox_workspace import (
     SandboxWorkspaceService,
     WorkspaceFlushFailure,
     project_sandbox,
+    sandbox_config,
 )
 from app.services.screened_replay import screen_history, screened_copy
 from app.services.skill_proposal import SkillProposalService
@@ -999,6 +1001,7 @@ class AdmittedAs(BaseModel):
             "(#2305), so a run resumed after an approval keeps working there."
         ),
     )
+    project_execution_target: ProjectExecutionTarget | None = None
     approval_mode: ApprovalMode = Field(
         default=ApprovalMode.FOLLOW_AGENT,
         description=(
@@ -1155,6 +1158,9 @@ class PausedRunState(BaseModel):
         description="The decision that queued this park's server-owned channel continuation",
     )
     selected_project_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
+    selected_project_generation: UUID | None = None
+    selected_execution_target: ProjectExecutionTarget | None = None
+    project_context_observed: bool = False
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
     channel_authors: dict[str, UUID] = Field(default_factory=dict)
@@ -2151,7 +2157,9 @@ class PreparedRun:
         environment. `None` leaves the agent's own, the in-memory fallback of a
         spec run without the runner.
         """
-        if self.project_workspace is not None:
+        if self.project_workspace is not None and (
+            self.admitted_as.local is None or self.admitted_as.local.folder is None
+        ):
             return self.project_workspace.workspace
         return None if self.workspace is None else self.workspace.workspace
 
@@ -2466,60 +2474,47 @@ def _background_target(
 
 
 def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
-    """The spec as it runs in a project: in the project's container, told about it.
-
-    The container replaces whatever workspace the agent keeps for itself, and is
-    given to an agent that keeps none - which agent answered a chat in a project
-    should not decide whether it can read the project's files. Its own sandbox
-    binding's approval settings carry over, so an author who gated the shell keeps
-    the gate. The project's instructions come after the agent's own: the agent is
-    still what it is, working on this.
-    """
-    config = project_sandbox(project).model_dump(mode="json")
+    """Add scoped project context and file tools without replacing the agent's toolchain."""
     own = next(
         (binding for binding in spec.capabilities if binding.id == SANDBOX_CAPABILITY_ID), None
     )
-    binding = (
-        own.model_copy(update={"config": config, "enabled": True})
-        if own is not None
-        else CapabilityBindingSpec(id=SANDBOX_CAPABILITY_ID, config=config)
+    capabilities = list(spec.capabilities)
+    if own is not None and own.enabled:
+        config = project_sandbox(project).model_dump(mode="json")
+        configured = sandbox_config(spec)
+        if configured is not None:
+            config["include_execute"] = configured.include_execute
+        file_binding = own.model_copy(update={"config": config})
+        capabilities = [
+            file_binding if binding.id == SANDBOX_CAPABILITY_ID else binding
+            for binding in capabilities
+        ]
+    if not any(binding.id == "projects" for binding in capabilities):
+        capabilities.append(CapabilityBindingSpec(id="projects"))
+    reference = json.dumps(
+        {
+            "name": project.name,
+            "description": project.description,
+            "instructions": project.instructions,
+        },
+        ensure_ascii=True,
     )
     briefing = (
-        f"## Project: {project.name}\n\n"
-        "This conversation is part of a project. By default, its shared server workspace "
-        "contains files shared with every chat in the project and every agent that answers "
-        "in it, whoever asked - so keep work there, and look there first for what the "
-        "person refers to. An explicitly selected local environment overrides the working "
-        "folder for this run; local files remain personal and are not synchronized to "
-        "this shared workspace.\n\n"
-        "Several people may write in this chat. Each person's message starts with their "
-        'name ("Anna: ..."): that is who is speaking, not part of what they said. Address '
-        "people by name, keep track of who asked for what, and when you answer one "
-        "person in a busy chat, say whom."
+        "## Project context\n\n"
+        "This conversation belongs to a project. Its shared files are a separate namespace; "
+        "use the project file tools first for project work. Project reference guidance below "
+        "applies within your own and the platform's rules, never changes tool permissions, "
+        "and does not activate its default agent or linked resources. No private files are copied. "
+        "Shell commands use the explicitly selected executor. A project chat defaults to the "
+        "project executor; an explicitly selected local folder uses the agent executor. "
+        "Files-only projects have no executor. Your own configured coding tools remain available "
+        "in your own command environment; choose the project executor explicitly when a command "
+        "must act on service-backed project files. There is no implicit file mount or sync.\n\n"
+        "Several project members may speak here; address the person whose message you answer.\n\n"
+        f"<project_reference>\n{reference}\n</project_reference>"
     )
-    if project.description:
-        briefing += f"\n\n{project.description}"
-    if project.instructions.strip():
-        briefing += f"\n\n### The project's instructions\n\n{project.instructions.strip()}"
-    # A project the platform keeps files for has no container, and so no shell:
-    # a coding agent bound here would fail on every task. It is left out of the
-    # run, and the agent is told why rather than trying.
-    shell = project.backend == "service"
-    if not shell and any(entry.id == CODING_AGENT_ID for entry in spec.capabilities):
-        briefing += (
-            "\n\nThe coding agent is not available in this project: it keeps its files "
-            "without a container, so there is no shell to run Claude Code or Codex in. "
-            "If a task needs one, say so."
-        )
-    dropped = {SANDBOX_CAPABILITY_ID} | (set() if shell else {CODING_AGENT_ID})
     return spec.model_copy(
-        update={
-            "capabilities": [
-                *(entry for entry in spec.capabilities if entry.id not in dropped),
-                binding,
-            ],
-            "instructions": f"{spec.instructions}\n\n{briefing}",
-        }
+        update={"capabilities": capabilities, "instructions": f"{spec.instructions}\n\n{briefing}"}
     )
 
 
@@ -3911,6 +3906,7 @@ class AgentRunnerService:
         version_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
+        project_execution_target: ProjectExecutionTarget | None = None,
         on_compaction: CompactionSink | None = None,
         output_schema: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
@@ -4105,6 +4101,7 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
             local=local,
+            project_execution_target=project_execution_target,
             answer_only=aside,
             organization_mcp_only=organization_mcp_only,
             decision_model=decision_model,
@@ -4250,6 +4247,7 @@ class AgentRunnerService:
         already_started: dict[str, datetime | None],
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
+        project_execution_target: ProjectExecutionTarget | None = None,
         answer_only: bool = False,
         organization_mcp_only: bool = False,
         decision_model: bool = False,
@@ -4859,6 +4857,22 @@ class AgentRunnerService:
             else ctx
         )
         project = await ProjectService(self.db).for_run(project_ctx, conversation_id)
+        if project_execution_target == "project":
+            if local is not None and local.folder is not None:
+                raise BadRequestError(
+                    message="Project execution cannot replace an active local computer target. Start a server-only turn instead.",
+                    details={},
+                )
+            if project is None:
+                raise BadRequestError(
+                    message="Select a conversation project before choosing its executor.",
+                    details={},
+                )
+            if project.backend != "service":
+                raise BadRequestError(
+                    message="This project stores files only and cannot execute commands.",
+                    details={},
+                )
         if routine is not None:
             routine.require_project(project)
         run = existing_run
@@ -5016,8 +5030,9 @@ class AgentRunnerService:
             until=until,
         )
 
-        # A chat in a project works in the project's container and reads its
-        # instructions, whichever agent answers - see `_in_project`.
+        # Capture the agent executor before the project supplies its staging/file workspace.
+        execution_spec = spec
+        execution_config = sandbox_config(execution_spec)
         if project is not None:
             spec = _in_project(spec, project)
         if (
@@ -5035,31 +5050,32 @@ class AgentRunnerService:
         workspace_ctx = models_ctx if local is not None else ctx
         if routine is not None and local is not None:
             workspace_ctx = routine.local_context(workspace_ctx, public_origin=public_origin)
+        workspace_identity = WorkspaceIdentity(
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            run_id=run.id,
+            conversation_id=conversation_id,
+            # A publisher standing in for a visitor, or a trigger's creator as
+            # an authority rather than a person, has no workspace of their own
+            # here - the rule memory and personal connections keep. Without it a
+            # `user`-scoped workspace opened the publisher's own for every
+            # stranger on their widget, and the creator's own for every fire
+            # that may not read their notes (#2027).
+            # And a key, which is not the person it was issued by.
+            user_id=(
+                None
+                if workspace_ctx.user_id is None
+                or subject_is_publisher_fallback
+                or workspace_ctx.api_key_id is not None
+                else str(workspace_ctx.user_id)
+            ),
+            channel_key=channel_key,
+            project_id=project.id if project is not None else None,
+        )
         workspace = await self.workspaces.open(
             spec,
             ctx=workspace_ctx,
-            identity=WorkspaceIdentity(
-                organization_id=ctx.organization_id,
-                agent_id=agent.id,
-                run_id=run.id,
-                conversation_id=conversation_id,
-                # A publisher standing in for a visitor, or a trigger's creator as
-                # an authority rather than a person, has no workspace of their own
-                # here - the rule memory and personal connections keep. Without it a
-                # `user`-scoped workspace opened the publisher's own for every
-                # stranger on their widget, and the creator's own for every fire
-                # that may not read their notes (#2027).
-                # And a key, which is not the person it was issued by.
-                user_id=(
-                    None
-                    if workspace_ctx.user_id is None
-                    or subject_is_publisher_fallback
-                    or workspace_ctx.api_key_id is not None
-                    else str(workspace_ctx.user_id)
-                ),
-                channel_key=channel_key,
-                project_id=project.id if project is not None else None,
-            ),
+            identity=workspace_identity,
             # What the binding that admitted this run says, if it says anything.
             # The same agent in web chat and on a Slack bot is one agent in two
             # situations, and one value for both was the wrong shape. A project's
@@ -5079,13 +5095,28 @@ class AgentRunnerService:
             local=local,
             defer_local=request_computer_access is not None and routine is None,
         )
+        if (
+            project is not None
+            and workspace is None
+            and isolation is None
+            and not answer_only
+            and not organization_mcp_only
+            and (local is None or local.folder is None)
+        ):
+            workspace = await self.workspaces.open_project(workspace_ctx, project)
         # Defer the root's tools, preserving the author's shared requirements
         # when resolving delegates that may ask for this same computer first.
         delegation_capabilities = spec.capabilities
         spec, computer_on_use = _defer_computer_access(
             spec,
             callback=request_computer_access,
-            coding_available=_coding_available(
+            coding_available=(
+                project is not None
+                and (local is None or local.folder is None)
+                and execution_config is not None
+                and execution_config.backend == "service"
+            )
+            or _coding_available(
                 {WORKSPACE_RESOURCE: workspace.workspace} if workspace is not None else {}
             ),
             device_available=bool(
@@ -5267,7 +5298,6 @@ class AgentRunnerService:
 
         from app.agents.capabilities.coding_agent._personal import PERSONAL_EXECUTOR
         from app.services.personal_coding import PersonalCodingSessionFactory
-        from app.services.sandbox_workspace import project_sandbox, sandbox_config
 
         personal_config = project_sandbox(project) if project is not None else sandbox_config(spec)
         if (
@@ -5452,24 +5482,76 @@ class AgentRunnerService:
             surface=surface,
             public_origin=public_origin,
         )
+
+        async def open_agent_executor(db: AsyncSession, actor: AuthContext) -> OpenWorkspace | None:
+            return await SandboxWorkspaceService(db, operation_db=self.db).open(
+                execution_spec,
+                ctx=actor,
+                identity=replace(
+                    workspace_identity,
+                    user_id=None
+                    if actor.user_id is None
+                    or actor.api_key_id is not None
+                    or actor.subject_is_publisher_fallback
+                    else str(actor.user_id),
+                ),
+                scope_override=cast("SessionScope | None", exposure.session_scope)
+                if exposure is not None and exposure.session_scope
+                else None,
+                on_wait=on_sandbox_wait,
+                local=None,
+                defer_local=False,
+            )
+
         project_workspace = None
-        if (
-            workspace is not None
-            and isolation is None
-            and not answer_only
-            and not organization_mcp_only
-        ):
+        if isolation is None and not answer_only and not organization_mcp_only:
             project_actor = await self._run_owner_context(ctx, existing_run)
             project_workspace = RunProjectWorkspace(
-                workspace.workspace,
+                None if workspace is None else workspace.workspace,
                 replace(
                     project_actor or ctx,
                     user_id=run_person if project_actor is not None else None,
                     subject_is_publisher_fallback=run_person is None or project_actor is None,
                 ),
                 require_project=None if routine is None else routine.require_project,
+                audience=audience,
+                granted_scopes=DEFAULT_GRANTED_SCOPES,
+                admitted_actor=project_actor if project is not None else None,
+                conversation_project_id=None if project is None else project.id,
+                original_scope=(
+                    exposure.session_scope
+                    if exposure is not None and exposure.session_scope
+                    else execution_config.session_scope
+                    if execution_config is not None
+                    else None
+                )
+                if project is not None and (local is None or local.folder is None)
+                else None
+                if workspace is None
+                else workspace.scope,
+                allow_project_execution=local is None or local.folder is None,
+                shell_tools_enabled=execution_config is not None
+                and execution_config.include_execute,
+                open_agent_executor=open_agent_executor
+                if project is not None and (local is None or local.folder is None)
+                else None,
+                agent_execution_available=(
+                    execution_config is not None
+                    and execution_config.include_execute
+                    and execution_config.backend == "service"
+                )
+                if project is not None and (local is None or local.folder is None)
+                else None,
             )
+            if project is not None:
+                project_workspace.initialize(
+                    project,
+                    execution_target=project_execution_target
+                    or ("agent" if local is not None and local.folder is not None else "project"),
+                )
             resources[PROJECT_WORKSPACE_RESOURCE] = project_workspace
+            if workspace is not None and (local is None or local.folder is None):
+                resources[WORKSPACE_RESOURCE] = project_workspace.workspace
         hand_off: CallWorker | None = None
         handed = [] if voice is None else handed_off(spec)
         if voice is not None and handed:
@@ -5670,6 +5752,7 @@ class AgentRunnerService:
                 model_profile_id=model_profile_id,
                 approval_mode=approval_mode,
                 local=local,
+                project_execution_target=project_execution_target,
                 acts_for_sender=acts_for_sender,
                 personal_mcp_key_id=personal_mcp_key_id
                 if personal_mcp is not None and personal_mcp.required
@@ -7120,11 +7203,19 @@ class AgentRunnerService:
         """Collect files for surfaces with automatic delivery; channels use an explicit action."""
         if not prepared.automatic_outbound:
             return
-        if prepared.workspace is None or _untouched(prepared.workspace):
-            return
-        delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
-        prepared.outbound.extend(delivered.attachments)
-        prepared.outbound_refused.extend(delivered.refused)
+        if prepared.workspace is not None and not _untouched(prepared.workspace):
+            delivered = await files_written(
+                prepared.workspace.workspace, prepared.workspace_at_start
+            )
+            prepared.outbound.extend(delivered.attachments)
+            prepared.outbound_refused.extend(delivered.refused)
+        selector = prepared.project_workspace
+        if selector is not None and selector.agent_workspace is not None:
+            agent_files = await files_written(
+                selector.agent_workspace.workspace, selector.agent_workspace_at_start
+            )
+            prepared.outbound.extend(agent_files.attachments)
+            prepared.outbound_refused.extend(agent_files.refused)
 
     async def _propose_skill_changes(self, prepared: PreparedRun) -> None:
         """Record what this run wrote to its skills, as something a person decides.
@@ -7238,8 +7329,15 @@ class AgentRunnerService:
             keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
 
-        if isinstance(workspace_result, WorkspaceFlushFailure):
-            error = "; ".join(part for part in (error, workspace_result.error.message) if part)
+        failures = [workspace_result] if isinstance(workspace_result, WorkspaceFlushFailure) else []
+        if prepared.project_workspace is not None:
+            agent_result = await prepared.project_workspace.close_agent(
+                keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER)
+            )
+            if agent_result is not None:
+                failures.append(agent_result)
+        for failure in failures:
+            error = "; ".join(part for part in (error, failure.error.message) if part)
             if status in (
                 RunStatus.COMPLETED,
                 RunStatus.AWAITING_APPROVAL,
@@ -7295,6 +7393,32 @@ class AgentRunnerService:
         )
         if prepared.earlier_attachments_checked:
             await agent_run_repo.record_attachment_lookup(self.db, prepared.run)
+        origins: list[dict[str, str]] = []
+        if prepared.workspace is not None and prepared.workspace.row_id is not None:
+            original: dict[str, str] = {
+                "kind": "agent",
+                "workspace_id": str(prepared.workspace.row_id),
+            }
+            if (
+                prepared.project_workspace is not None
+                and prepared.project_workspace.conversation_project_id is not None
+                and (
+                    prepared.admitted_as.local is None or prepared.admitted_as.local.folder is None
+                )
+            ):
+                original.update(
+                    {
+                        "kind": "project",
+                        "project_id": str(prepared.project_workspace.conversation_project_id),
+                    }
+                )
+            origins.append(original)
+        if prepared.project_workspace is not None:
+            origins.extend(prepared.project_workspace.origins.values())
+        if origins:
+            await agent_run_repo.record_workspace_origins(
+                self.db, run=prepared.run, origins=origins
+            )
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
@@ -7506,6 +7630,15 @@ class AgentRunnerService:
                 "selected_project_id": None
                 if prepared.project_workspace is None
                 else prepared.project_workspace.project_id,
+                "selected_project_generation": None
+                if prepared.project_workspace is None
+                else prepared.project_workspace.project_generation,
+                "selected_execution_target": None
+                if prepared.project_workspace is None
+                else prepared.project_workspace.execution_target,
+                "project_context_observed": False
+                if prepared.project_workspace is None
+                else prepared.project_workspace.project_context_observed,
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
@@ -7680,6 +7813,7 @@ class AgentRunnerService:
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
         local: LocalTarget | None = None,
+        project_execution_target: ProjectExecutionTarget | None = None,
         message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -7817,6 +7951,7 @@ class AgentRunnerService:
             channel_directory=channel_directory,
             acts_for_sender=acts_for_sender,
             local=local,
+            project_execution_target=project_execution_target,
             exposure=exposure,
             environment_id=environment_id,
             version_id=version_id,
@@ -8198,6 +8333,7 @@ class AgentRunnerService:
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
             local=state.admitted_as.local,
+            project_execution_target=state.admitted_as.project_execution_target,
             model_profile_id=state.admitted_as.model_profile_id,
             expected_history_provenance=state.history_provenance,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
@@ -8269,7 +8405,12 @@ class AgentRunnerService:
             run_limit_usd=ceiling,
         )
         if prepared.project_workspace is not None:
-            prepared.project_workspace.project_id = state.selected_project_id
+            prepared.project_workspace.restore(
+                state.selected_project_id,
+                state.selected_project_generation,
+                state.selected_execution_target,
+                state.project_context_observed,
+            )
         prepared.output_schema = state.output_schema
         prepared.run_limit_usd = ceiling
         prepared.built.ledger.book(_spend_already_booked(run))

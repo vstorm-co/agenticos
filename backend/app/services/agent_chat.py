@@ -63,6 +63,7 @@ from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
 from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenance
 from app.schemas.mention import MentionRef
+from app.schemas.project_context import ProjectExecutionTarget
 from app.services import change_feed
 from app.services.agent_runner import (
     AgentRunnerService,
@@ -184,6 +185,20 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
         ) from exc
+
+
+def requested_project_execution_target(frame: Mapping[str, Any]) -> ProjectExecutionTarget | None:
+    raw = frame.get("project_execution_target")
+    if raw is None:
+        return None
+    if raw == "agent":
+        return "agent"
+    if raw == "project":
+        return "project"
+    raise BadRequestError(
+        message="Choose agent or project command execution.",
+        details={"field": "project_execution_target"},
+    )
 
 
 def requested_local(frame: Mapping[str, Any]) -> LocalTarget | None:
@@ -481,6 +496,7 @@ class ChatAgentRunner:
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
+        project_execution_target: ProjectExecutionTarget | None = None,
         person_time_zone: str | None = None,
         testing: Testing = Testing(test=False, draft=False),
         steering: SteeringInbox | None = None,
@@ -583,6 +599,7 @@ class ChatAgentRunner:
             # "Work on: This computer" (#2305): the sandbox's tools carried out by
             # the person's desktop app, in the folder they picked there.
             local=local,
+            project_execution_target=project_execution_target,
             request_connection=request_connection,
             request_computer_access=request_computer_access,
             # A sandbox whose image is still being built is minutes in which no

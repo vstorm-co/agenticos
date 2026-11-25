@@ -1118,6 +1118,7 @@ async def run_agent(
         conversation_id=conversation_id,
         message_history=history,
         environment_id=data.environment_id,
+        project_execution_target=data.project_execution_target,
         attachments=attachments,
         structured=structured,
         reports_failure=True,

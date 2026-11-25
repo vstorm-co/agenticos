@@ -28,6 +28,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
 
 - Selectively transfer knowledge-base originals and parsed text in ZIP bundles. Imports stay private and unindexed, show parsed previews without model calls, and can be indexed explicitly after configuring destination providers.
+- Project file context and command execution can be selected separately. The
+  Projects capability searches accessible projects and reads/writes bounded text
+  from web chat and linked private channels without granting a shell. Chat Files
+  exposes authorized project and agent workspace origins separately.
+
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
@@ -104,6 +109,17 @@ Two things are versioned separately from this file and worth knowing about:
   the pinned-share column but intentionally keeps that test-set repair.
 
 - Migration `0371_portable_document_snapshots.py` records imported parsed-text files. Downgrading it requires deleting documents that own parsed snapshots through the application first, preserving file cleanup ownership.
+- Apply `0371_run_workspace_origins.py` for run workspace-reference metadata.
+  Historical runs start with an empty reference list; existing files are not copied
+  or backfilled. Updated built-in AgenticOS and Architect templates add Projects
+  through the normal template refresh, preserving local model choices.
+- `select_project_workspace` now selects file context only. Use
+  `select_execution_target` to change command execution explicitly; no files are
+  mounted or copied between targets. Existing project chats still default to the
+  project executor when available. Older dynamically selected approval checkpoints
+  without a workspace generation must select the project again or start a new turn.
+  Disabled Sandbox stays disabled, and run-scoped executor outputs remain temporary.
+
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all
   supported configured methods; an explicit `OAUTH_PROVIDERS` list keeps its
