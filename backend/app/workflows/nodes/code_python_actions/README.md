@@ -10,6 +10,7 @@ keyword arguments cannot replace those settings.
 The interpreter has no mounts, network client or platform credentials. At each
 call it yields to the workflow engine, which owns the action, its approvals,
 its retry policy and its budget. A checkpoint is private interpreter state,
-not the step output; an unreadable checkpoint fails rather than restarting the
-script from source. Calls are sequential, at most 100 per script. Triggers and
+not the step output. If the interpreter worker exits, the configured retry
+policy can repeat the segment without repeating a completed action. An
+unreadable checkpoint fails rather than restarting the script from source. Calls are sequential, at most 100 per script. Triggers and
 workflow outputs stay on the graph.

@@ -250,16 +250,16 @@ export function safeToRebind(
     bound.columns.filter((column) => !column.archived).map((column) => [column.id, column]),
   );
   // get/query hand the full native record to Python, even on a narrowed pin.
-  // A renamed key can break a script even though a rename keeps the column revision.
-  if (labelledRecords && [...previous].some(([id, old]) => now.get(id)?.label !== old.label))
-    return false;
-  const read = new Set([...(ref.column_ids ?? previous.keys()), ...additionalColumns]);
+  // Check every returned column's key, type and meaning, as well as explicit pins.
+  const returned = labelledRecords || ref.column_ids === null ? previous.keys() : [];
+  const read = new Set([...returned, ...(ref.column_ids ?? []), ...additionalColumns]);
   return [...read].every((id) => {
     const column = previous.get(id);
     const current = now.get(id);
     return (
       column !== undefined &&
       current !== undefined &&
+      (!labelledRecords || current.label === column.label) &&
       current.type === column.type &&
       (current.revision ?? 0) === (column.revision ?? 0)
     );

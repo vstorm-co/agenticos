@@ -113,9 +113,10 @@ describe("useWorkflowTableDrift", () => {
       ],
     });
     renderHook(() => useWorkflowTableDrift(true), { wrapper });
-    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(2));
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(3));
     expect(store.getState().tableDrift.map((drift) => [drift.field, drift.requiresReview])).toEqual(
       [
+        ["actions/get/config/table", undefined],
         ["actions/query/config/table", true],
         ["actions/write/config/table", undefined],
       ],
@@ -137,17 +138,22 @@ describe("useWorkflowTableDrift", () => {
       },
     });
   });
-  it("keeps Python get/query pins for author review when a returned field label changes", async () => {
+  it.each([
+    ["label", { label: "Assignee" }],
+    ["type", { type: "number" }],
+    ["revision", { revision: 1 }],
+  ] as const)("flags unselected %s changes for Python get/query", async (_, change) => {
     const old = { ...column("owner"), label: "Owner" };
-    serve([old], [{ ...old, label: "Assignee" }, column("added")]);
+    const kept = column("kept");
+    serve([kept, old], [kept, { ...old, ...change }, column("added")]);
     seed(ref(null));
     const graph = store.getState().graph!;
-    const first = ref(["owner"]);
+    const first = ref(["kept"]);
     const config = {
       code: 'get_one(record_id=args["id"])["record"]["fields"]["Owner"]',
       actions: {
         get_one: { type: "table.record.get", config: { table: first } },
-        find: { type: "table.record.query", config: { table: ref(null) } },
+        find: { type: "table.record.query", config: { table: first } },
         exists: { type: "table.record.exists", config: { table: first } },
       },
     };
@@ -164,7 +170,7 @@ describe("useWorkflowTableDrift", () => {
     );
     expect(store.getState().graph!.nodes[0]!.config.actions).toEqual({
       ...config.actions,
-      exists: { type: "table.record.exists", config: { table: ref(["owner"], 2) } },
+      exists: { type: "table.record.exists", config: { table: ref(["kept"], 2) } },
     });
     act(() =>
       store
@@ -175,8 +181,8 @@ describe("useWorkflowTableDrift", () => {
     );
     await waitFor(() => expect(store.getState().tableDrift).toHaveLength(0));
     expect(store.getState().graph!.nodes[0]!.config.actions).toMatchObject({
-      get_one: { config: { table: ref(["owner"], 2) } },
-      find: { config: { table: ref(null, 2) } },
+      get_one: { config: { table: ref(["kept"], 2) } },
+      find: { config: { table: ref(["kept"], 2) } },
     });
   });
 

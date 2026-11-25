@@ -1144,8 +1144,8 @@ async def begin_attempt(
     # handler runs, and committed with the `in_flight` row, because it is what
     # the reconciler reads to decide an orphaned attempt it cannot ask about.
     guarantee = definition.retry_guarantee
-    if call.stands_in == "failure":
-        # Losing a worker while delivering a failure sent nothing externally.
+    if call.stands_in is not None:
+        # A stand-in delivers stored data or a known failure without invoking the action.
         guarantee = "idempotent"
     elif definition.retry_guarantee_for is not None:
         guarantee = definition.retry_guarantee_for(call.config)

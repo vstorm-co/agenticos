@@ -19,6 +19,7 @@ from pydantic_monty import (
     AsyncNameLookupSnapshot,
     ExternalReturnValue,
     MontyComplete,
+    MontyCrashedError,
     MontyError,
 )
 
@@ -39,9 +40,14 @@ _JSON = TypeAdapter(JsonValue)
 _KWARGS = TypeAdapter(dict[str, JsonValue])
 
 
-def _failed(code: str, message: str, *, bypassable: bool = True) -> Failed:
+def _failed(code: str, message: str, *, bypassable: bool = True, retryable: bool = False) -> Failed:
     return Failed(
-        error=WorkflowError(code=code, message=message[:MAX_OUTPUT_CHARS], bypassable=bypassable)
+        error=WorkflowError(
+            code=code,
+            message=message[:MAX_OUTPUT_CHARS],
+            bypassable=bypassable,
+            retryable=retryable,
+        )
     )
 
 
@@ -85,6 +91,9 @@ async def _segment(
         try:
             raw = _decode(saved.checkpoint)
             progress = await session.load_snapshot(raw, print_callback=capture)
+        except MontyCrashedError:
+            # Losing the local worker is not evidence of a damaged checkpoint.
+            raise
         except ValueError, MontyError:
             return _failed(
                 "PYTHON_CHECKPOINT_INVALID",
@@ -182,4 +191,4 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         return _failed("PYTHON_ERROR", f"The script failed: {exc}")
     except MontyError:
         logger.exception("Workflow action interpreter failed")
-        return _failed("PYTHON_SANDBOX_FAILED", "The Python sandbox failed")
+        return _failed("PYTHON_SANDBOX_FAILED", "The Python sandbox failed", retryable=True)

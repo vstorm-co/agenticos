@@ -63,6 +63,7 @@ async def test_invalid_calls_never_yield_a_request(code: str, failure: str):
     result = await segment(code)
     assert isinstance(result, Failed)
     assert result.error.code == failure
+    assert not result.error.retryable
 
 
 async def test_clips_prints_across_segments():
@@ -95,6 +96,7 @@ async def test_invalid_checkpoint_does_not_restart_the_script(damage: str):
     assert isinstance(result, Failed)
     assert result.error.code == "PYTHON_CHECKPOINT_INVALID"
     assert result.error.bypassable is False
+    assert not result.error.retryable
 
 
 async def test_call_limit_stops_before_the_next_action(monkeypatch):
@@ -117,14 +119,32 @@ async def test_no_script_fails_cleanly():
     assert result.error.code == "PYTHON_NOT_CONFIGURED"
 
 
-async def test_a_worker_that_exits_without_an_answer_is_a_sandbox_failure(monkeypatch):
+@pytest.mark.parametrize("restoring", [False, True], ids=["new-segment", "at-checkpoint"])
+async def test_a_worker_that_exits_without_an_answer_is_a_sandbox_failure(monkeypatch, restoring):
     binary = shutil.which("false")
     if not binary:
         pytest.skip("Needs a worker process that immediately exits")
-    monkeypatch.setattr(_handler, "AsyncMonty", partial(AsyncMonty, binary_path=binary))
-    outcome = await segment("42")
+    code = "echo(message='hello')['echoed']" if restoring else "'hello'"
+    saved = None
+    if restoring:
+        request = await segment(code)
+        assert isinstance(request, ScriptActionRequest)
+        saved = ScriptResume(
+            index=request.index,
+            alias=request.alias,
+            checkpoint=request.checkpoint,
+            stdout=request.stdout,
+            output={"echoed": "hello"},
+        )
+    with monkeypatch.context() as unavailable:
+        unavailable.setattr(_handler, "AsyncMonty", partial(AsyncMonty, binary_path=binary))
+        outcome = await segment(code, resume=saved)
     assert isinstance(outcome, Failed)
     assert outcome.error.code == "PYTHON_SANDBOX_FAILED"
+    assert outcome.error.retryable
+    retried = await segment(code, resume=saved)
+    assert isinstance(retried, Completed)
+    assert retried.output.result == "hello"
 
 
 async def test_a_script_can_handle_ordinary_monty_refusals():

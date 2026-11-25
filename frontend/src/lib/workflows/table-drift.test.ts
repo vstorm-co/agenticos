@@ -135,6 +135,10 @@ describe("safeToRebind", () => {
     const bound = [column("c1"), column("c2")];
     expect(safeToRebind(ref(["c1"]), table([...bound, column("c3")]), versions(bound))).toBe(true);
     expect(safeToRebind(ref(null), table([...bound, column("c3")]), versions(bound))).toBe(true);
+    expect(
+      safeToRebind(ref(["c1"]), table([...bound, column("c3")]), versions(bound), [], true),
+    ).toBe(true);
+    expect(safeToRebind(ref(["unknown"]), table(bound), versions(bound), [], true)).toBe(false);
   });
 
   it("accepts a change to a column the reference does not read", () => {
