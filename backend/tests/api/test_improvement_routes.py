@@ -116,6 +116,21 @@ async def test_service_refusals_keep_the_actor_and_frozen_resource_path(
             assert supplied[key] == value
 
 
+async def test_a_session_read_by_its_id_answers_the_services_refusal(
+    client: AsyncClient, mock_db_session: MagicMock
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.VIEWER)
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    refusal = AsyncMock(side_effect=NotFoundError(message="Improvement session not found"))
+    with patch.object(service, "read_session", refusal):
+        response = await client.get(f"{settings.API_V1_STR}/improvements/{_RUN}")
+    assert response.status_code == 404, response.text
+    call = refusal.await_args
+    assert call is not None and call.args == (ctx, _RUN)
+
+
 @pytest.mark.parametrize("target", [{}, {"dataset_id": str(_DATASET), "suite_id": str(uuid4())}])
 async def test_an_ambiguous_question_source_is_rejected_before_the_service(
     client: AsyncClient, mock_db_session: MagicMock, target: dict[str, str]

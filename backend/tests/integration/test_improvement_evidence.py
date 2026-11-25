@@ -220,6 +220,41 @@ async def test_a_knowledge_document_set_aside_stays_aside_for_the_session(db):
         await service.defer_topic(ctx, agent.id, session.id, uuid4(), TopicDeferral(later=True))
 
 
+@pytest.mark.security
+async def test_another_organizations_session_is_not_read_by_its_id(db):
+    """The Architect reads a session by its id alone; the id of another organization's
+    session reads as missing."""
+    mine, _, _, _ = await _started(db)
+    _, _, _, theirs = await _started(db)
+
+    with pytest.raises(NotFoundError, match="session not found"):
+        await ImprovementPipelineService(db).read_session(mine, theirs.id)
+
+
+@pytest.mark.security
+async def test_another_organizations_topic_is_not_set_aside_for_a_session(db):
+    from app.db.models.knowledge_gap import KnowledgeGapTopic
+    from app.schemas.improvement import TopicDeferral
+
+    ctx, agent, _, session = await _started(db)
+    other, _, _, _ = await _started(db)
+    kb = await _knowledge_base(db, other)
+    topic = KnowledgeGapTopic(
+        organization_id=other.organization_id,
+        knowledge_base_id=kb.id,
+        centroid=[0.1],
+        embedding_model="m",
+    )
+    db.add(topic)
+    await db.flush()
+    service = ImprovementPipelineService(db)
+
+    with pytest.raises(NotFoundError, match="topic not found"):
+        await service.defer_topic(ctx, agent.id, session.id, topic.id, TopicDeferral(later=True))
+
+    assert (await service.read(ctx, agent.id, session.id)).deferred_topic_ids == []
+
+
 async def test_each_example_names_the_skills_its_run_used(db):
     from app.db.models.skill import Skill
     from app.repositories import skill_usage_repo
