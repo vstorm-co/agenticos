@@ -1,5 +1,5 @@
 ---
-source_sha: "52ab8dfc3c12"
+source_sha: "95840a455250"
 ---
 
 # Umgebungen { #environments }
@@ -239,7 +239,9 @@ ursprüngliche Run gelesen hat: Sie wiederzugeben sendet nichts. Ein Binding von
 `web_fetch` oder `web_research`, das auf den eigenen Abruf oder die eigene Suche
 des Modell-Providers gesetzt ist, wird in einem isolierten Run mit dem Abruf
 oder der Suche dieses Deployments gebaut, sodass seine Aufrufe wie jeder andere
-angehalten werden.
+angehalten werden. Ein Agent im [Code-Modus](governance.md#code-mode) behält sein
+Skript-Tool: Über jeden Aufruf des Skripts wird hier entschieden, Aufruf für
+Aufruf.
 
 Ein Testschlüssel ersetzt eine Anmeldeinformation, aber eine URL oder ein Host
 in der Konfiguration der Capability kann die Schreibvorgänge weiterhin auf die

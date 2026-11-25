@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "72feafd2fd90"
 ---
 
 # Governance { #governance }
@@ -1452,6 +1452,13 @@ manifiesto y el contador de llamadas. Tras la decisión, cualquier worker puede
 continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
 El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
 no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
+
+En un eval, y en cualquier otro run aislado, `run_code` se ejecuta, y cada
+llamada del script se decide por separado con las
+[reglas de aislamiento](environments.md#in-an-eval): una lectura de los datos
+propios de este despliegue se ejecuta; una lectura de fuera o una escritura se
+retiene y se registra con sus argumentos. Ejecutar el script no deja pasar nada
+que una llamada directa no obtendría.
 
 El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
 bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un

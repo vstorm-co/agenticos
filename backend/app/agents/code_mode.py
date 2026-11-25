@@ -57,6 +57,14 @@ from app.agents.tool_errors import (
 CODE_TOOL = "run_code"
 """The one tool code mode offers the model, as `CodeMode` names it."""
 
+CODE_MODE_ID = "code_mode"
+"""The capability id code mode stamps on `run_code`, which no other tool can carry.
+
+A tool's name is the model's to see and a server's to choose; the capability id
+is assigned when the run's capabilities are set up, so it is what tells the
+script tool apart from an MCP tool that happens to be called `run_code`.
+"""
+
 PARKING_CAPABILITIES = frozenset({"ask_user", "subagents"})
 """Capabilities whose tools can end the run waiting on a person, so stay out of scripts."""
 
@@ -106,7 +114,10 @@ def code_mode(
         return tool.capability_id not in PARKING_CAPABILITIES | SHOWN_CAPABILITIES
 
     return DurableCodeMode(
-        tools=foldable, max_tool_calls=max_tool_calls, required_tool_names=approval_required
+        tools=foldable,
+        max_tool_calls=max_tool_calls,
+        required_tool_names=approval_required,
+        id=CODE_MODE_ID,
     )
 
 

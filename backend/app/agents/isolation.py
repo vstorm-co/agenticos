@@ -38,6 +38,11 @@ its own side (`kept_local` rebuilds the binding so the call comes here), and a
 remote agent behind the delegation tool (`IsolationGuard.remote_delegates`, with
 the delegate itself built so it cannot reach its endpoint).
 
+Code mode's `run_code` is let through, and is no way around any of this: the
+script runs in a sandbox with no network and no files, and every tool it calls
+comes back through this guard one call at a time, decided by the same rules.
+Nothing about a call made from a script is decided by the script having run.
+
 An isolated run has no approval channel, so a gated call is never parked: a
 parked run is resumed by rebuilding it, and nothing here is part of what a
 resume rebuilds. A call the agent gates is held and recorded as one that needed
@@ -63,6 +68,7 @@ from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.capabilities.knowledge import FoundPassage
+from app.agents.code_mode import CODE_MODE_ID
 from app.agents.deps import AgentDeps
 from app.agents.mcp import MCP_ISOLATION
 from app.agents.spec import AgentSpec
@@ -154,12 +160,16 @@ class ToolClass:
         test: Whether it reaches a test system the run's environment named.
         live: Whether it may run on the normal connection in an isolated run -
             a read that stays inside the deployment.
+        script: Whether it is code mode's `run_code`, which only runs a script:
+            every tool the script calls comes back through the guard and is
+            decided on its own, so the script itself is never the call held.
     """
 
     tool_id: str
     read_only: bool
     test: bool = False
     live: bool = False
+    script: bool = False
 
 
 def capability_tools(
@@ -214,6 +224,8 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
             test=origin.get("test") is True,
             live=read_only and annotations.get("openWorldHint") is False,
         )
+    if tool_def.capability_id == CODE_MODE_ID:
+        return ToolClass(tool_id=f"tool:{tool_def.name}", read_only=True, live=True, script=True)
     known = tools.get(tool_def.name)
     if known is not None:
         return known
@@ -444,7 +456,7 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
             if recorded is not None:
                 self._intercept(call, tool, InterceptionOutcome.REPLAYED)
                 return recorded.result
-            if not (tool.live and self.isolation.live_reads):
+            if not (tool.script or (tool.live and self.isolation.live_reads)):
                 self._intercept(call, tool, InterceptionOutcome.DIVERGENT)
                 return _divergent_notice(tool_def.name)
         elif not tool.test:

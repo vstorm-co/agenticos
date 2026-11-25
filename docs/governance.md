@@ -1359,6 +1359,13 @@ the script without another model request or repeating completed operations.
 Rejecting the call raises a `RuntimeError` inside the script; its handler never
 runs. Approving `run_code` itself does not approve any nested operation.
 
+In an eval, and in every other isolated run, `run_code` runs, and each call the
+script makes is decided on its own by the
+[isolation rules](environments.md#in-an-eval): a read of this deployment's own
+data runs, a read from outside it or a write is held and recorded with its
+arguments. Running the script lets nothing through that a direct call would not
+get.
+
 The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
 at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
 Atomic database reservations cap retained checkpoints at 8 MB per initiating

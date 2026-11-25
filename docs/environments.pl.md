@@ -1,5 +1,5 @@
 ---
-source_sha: "52ab8dfc3c12"
+source_sha: "95840a455250"
 ---
 
 # Środowiska { #environments }
@@ -225,7 +225,9 @@ nadal dostaje strony i wyniki, które przeczytał oryginalny run: ich odtworzeni
 niczego nie wysyła. Binding `web_fetch` albo `web_research` ustawiony na własne
 pobieranie lub wyszukiwanie providera modelu jest w runie w izolacji budowany z
 pobieraniem lub wyszukiwaniem tego wdrożenia, więc jego wywołania są
-wstrzymywane jak każde inne.
+wstrzymywane jak każde inne. Agent w [trybie kodu](governance.md#code-mode)
+zachowuje narzędzie skryptu: o każdym wywołaniu ze skryptu decyduje się tutaj,
+po jednym wywołaniu.
 
 Klucz testowy zastępuje poświadczenie, ale URL albo host w konfiguracji
 capability nadal może kierować zapisy na produkcję. Dlatego podmieniony klucz
