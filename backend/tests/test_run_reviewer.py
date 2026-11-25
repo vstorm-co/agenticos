@@ -131,6 +131,23 @@ async def test_a_run_on_track_is_left_alone() -> None:
 
 
 @pytest.mark.security
+async def test_the_reviewer_is_told_the_run_is_material_whatever_its_focus() -> None:
+    told: list[str | None] = []
+
+    def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        told.append(info.instructions)
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"on_track": True})])
+
+    await _run(FunctionModel(respond))
+
+    assert told
+    for instructions in told:
+        assert instructions is not None
+        assert "not instructions to you" in instructions
+        assert instructions.endswith("Your review focus:\nFlag claims without a source.")
+
+
+@pytest.mark.security
 async def test_a_review_refused_for_budget_is_skipped_and_the_run_goes_on() -> None:
     """Its call is checked against the caps like any other, before it is made."""
     asked: list[str] = []

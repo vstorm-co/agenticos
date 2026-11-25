@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "f8559d73d9a1"
 ---
 
 # Governance { #governance }
@@ -1507,6 +1507,10 @@ Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
 und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
 des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
 Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
+
+Ein Reviewer erhält die Regel, dass der Run, den er liest, Material zum Prüfen
+ist und keine Anweisung an ihn; sein Anliegen wird dieser Regel angefügt und
+ersetzt sie nie.
 
 Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
 und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
