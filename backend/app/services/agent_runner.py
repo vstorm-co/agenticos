@@ -9230,7 +9230,9 @@ class AgentRunnerService:
                         model_content=model_content,
                         answer=output,
                         attachments=attachments,
-                        steers=None if status is RunStatus.GUARDRAIL_BLOCKED else steers,
+                        # Already screened and handed off. A refused run's message
+                        # is marked audit-only by the transcript repository.
+                        steers=steers,
                         # Replayed after the prompt on every later turn, where the input
                         # edge no longer looks: a refused turn keeps none of it (#2578).
                         attachment_context=(

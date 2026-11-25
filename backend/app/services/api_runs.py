@@ -21,7 +21,7 @@ a key can neither read the run it names nor reserve it.
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from functools import partial
 from uuid import UUID
@@ -29,6 +29,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
 from app.agents.steering import SteeringInbox
 from app.core.exceptions import (
@@ -230,7 +231,7 @@ class ApiRunService:
     @staticmethod
     @asynccontextmanager
     async def _steering(
-        job: RunAgent, started_as: AuthContext, deps: AgentDeps
+        job: RunAgent, started_as: AuthContext, deps: AgentDeps, screen: Callable[[str], str]
     ) -> AsyncGenerator[list[str]]:
         """Claim corrections for this worker attempt, never across a provider call.
 
@@ -247,9 +248,20 @@ class ApiRunService:
             if not await ApiRunService(db)._may_steer(job, started_as, deps.run_id):
                 yield []
                 return
-            yield [RUN_AGENT.load(row.payload).prompt for row in pending]
+            screened: list[str] = []
+            consumed: list[UUID] = []
             for row in pending:
-                await background_job_repo.finish_run_addition(db, job_id=row.id, run_id=deps.run_id)
+                try:
+                    text = screen(RUN_AGENT.load(row.payload).prompt)
+                except GuardrailBlocked:
+                    # Don't offer it again: rejected jobs could fill the whole next batch.
+                    steering_repo.leave_api_steer_queued(row)
+                    continue
+                screened.append(text)
+                consumed.append(row.id)
+            yield screened
+            for job_id in consumed:
+                await background_job_repo.finish_run_addition(db, job_id=job_id, run_id=deps.run_id)
 
     async def _may_steer(self, job: RunAgent, started_as: AuthContext, run_id: UUID) -> bool:
         # These jobs share the exact starting key and asker. Rebuild their

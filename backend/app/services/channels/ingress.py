@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from uuid import UUID, uuid4
@@ -301,9 +301,9 @@ async def invite_admitted(
 
 @asynccontextmanager
 async def poll_steering(
-    receipt_id: UUID, incoming: IncomingMessage, deps: AgentDeps
+    receipt_id: UUID, incoming: IncomingMessage, deps: AgentDeps, screen: Callable[[str], str]
 ) -> AsyncGenerator[list[str]]:
-    yield await collect_steering(receipt_id, incoming, deps)
+    yield [screen(text) for text in await collect_steering(receipt_id, incoming, deps)]
 
 
 async def collect_steering(

@@ -252,14 +252,15 @@ async def test_durable_additions_are_polled_and_screened_once_before_the_model_r
     from app.agents.deps import AgentDeps
 
     raw = "use key sk-ant-api03-" + "x" * 90
-    poll = MagicMock(return_value=nullcontext([raw]))
+    poll = MagicMock(side_effect=lambda deps, screen: nullcontext([screen(raw)]))
     screen = MagicMock(wraps=input_screen(GuardrailsConfig(redact_secrets_in=True)))
     inbox = SteeringInbox(poll=poll, screen=screen)
     deps = AgentDeps(steering=inbox)
     last = ModelRequest(parts=[UserPromptPart(content="read the document")])
     ctx = MagicMock(deps=deps, messages=[last])
     sent = await Steering().before_model_request(ctx, _request([last]))
-    poll.assert_called_once_with(deps)
+    assert poll.call_args.args[0] is deps
+    poll.assert_called_once()
     screen.assert_called_once_with(raw)
     assert raw not in str(sent.messages)
     assert "Added by the person" in str(sent.messages)

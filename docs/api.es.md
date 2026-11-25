@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4c6fc377c9"
+source_sha: "4bccdd4e3338"
 ---
 
 # La API HTTP { #the-http-api }
@@ -376,8 +376,9 @@ Solo puede recoger una corrección una petición asíncrona de la API en curso
 para la misma conversación, agent y entorno. Debe usar la versión publicada
 seleccionada en ese momento y la misma clave de API (o el mismo usuario
 autenticado sin clave). Si ningún run de ese tipo recibe el mensaje, el worker
-lo procesa como un turno aparte. Omite `steer` para poner siempre un turno
-aparte en la cola.
+lo procesa como un turno aparte. Una corrección bloqueada por la guardrail de
+entrada queda en cola para su propio turno sin detener el run activo.
+Omite `steer` para poner siempre un turno aparte en la cola.
 
 Consulta la petición del propio mensaje de seguimiento. El estado final
 `steered` indica que el run identificado por `steered_into_run_id` ha recogido

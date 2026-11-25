@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
@@ -509,6 +509,32 @@ async def test_an_expired_attempt_cannot_take_input_even_before_rescue(
     assert new_attempt.execution_token != stale.execution_token
     assert not await steering_repo.lock_api_steering_target(db, job=stale)
     assert await steering_repo.lock_api_steering_target(db, job=new_attempt)
+
+
+async def test_a_lease_expiring_during_the_poll_transaction_cannot_take_input(
+    db: AsyncSession, stubbed
+) -> None:
+    ctx = await _person(db)
+    service = ApiRunService(db)
+    agent_id = uuid.uuid4()
+    parent = await service.queue(ctx, agent_id, _ask(), idempotency_key=None)
+    claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
+    assert claimed is not None and claimed.id == parent.id
+    job = RUN_AGENT.load(handler_payload(claimed))
+    correction = await service.queue(
+        ctx,
+        agent_id,
+        AgentRunRequest(conversation_id=CONVERSATION, prompt="Use euros", steer=True),
+        idempotency_key=None,
+    )
+    await db.execute(
+        text("UPDATE background_jobs SET lease_until = clock_timestamp() WHERE id = :id"),
+        {"id": parent.id},
+    )
+    # The candidate is still running and its expiry is later than transaction start.
+    assert [row.id for row in await steering_repo.queued_api_steers(db, job=job)] == [correction.id]
+    assert not await steering_repo.lock_api_steering_target(db, job=job)
+    assert (await service.get(ctx, correction.id)).status == "queued"
 
 
 @pytest.mark.parametrize("global_pause", [False, True], ids=["organization", "deployment"])

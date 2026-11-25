@@ -994,8 +994,8 @@ async def run_agent(
     With `steer: true`, a text follow-up can join the asynchronous run currently
     working on the same conversation, agent and environment under the same
     credential. Its poll receipt then reads `steered` and identifies the run.
-    If there is no match or no further model request takes the correction,
-    the worker handles it as a separate turn.
+    If no matching model request takes the correction, including when the
+    input guardrail blocks it, the worker handles it as a separate turn.
     """
     if respond_async and data.draft:
         raise refused_field(

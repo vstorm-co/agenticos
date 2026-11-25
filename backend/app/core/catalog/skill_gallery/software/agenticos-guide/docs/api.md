@@ -348,7 +348,8 @@ Only a running asynchronous API request for the same conversation, agent and
 environment can take a correction. It must use the currently selected published
 version and the same API key (or the same signed-in user without a key).
 If no such run takes the message, the worker processes it as a separate turn.
-Leave out `steer` to always queue a separate turn.
+A correction blocked by the input guardrail stays queued for its own turn
+without stopping the active run. Leave out `steer` to always queue a separate turn.
 
 Poll the follow-up's own request. The terminal status `steered` means the
 run identified by `steered_into_run_id` took the correction for a model

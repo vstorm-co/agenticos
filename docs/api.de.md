@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4c6fc377c9"
+source_sha: "4bccdd4e3338"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -387,8 +387,10 @@ Nur eine laufende asynchrone API-Anfrage für dieselbe Unterhaltung, denselben
 Agent und dieselbe Umgebung kann eine Korrektur übernehmen. Sie muss die aktuell
 ausgewählte veröffentlichte Version und denselben API-Schlüssel verwenden (oder
 ohne Schlüssel von derselben angemeldeten Person stammen). Übernimmt kein
-solcher Run die Nachricht, verarbeitet der Worker sie als eigenen Zug. Lassen
-Sie `steer` weg, um immer einen eigenen Zug einzureihen.
+solcher Run die Nachricht, verarbeitet der Worker sie als eigenen Zug.
+Blockiert die Eingabe-Guardrail eine Korrektur, bleibt diese als eigener Zug
+in der Warteschlange, ohne den laufenden Run zu stoppen. Lassen Sie `steer`
+weg, um immer einen eigenen Zug einzureihen.
 
 Fragen Sie die Anfrage der Folgenachricht ab. Der Endstatus `steered` bedeutet,
 dass der Run mit der ID `steered_into_run_id` die Korrektur für eine

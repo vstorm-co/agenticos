@@ -197,8 +197,8 @@ async def test_a_durable_turn_registers_a_worker_independent_steering_reader(mon
     async def inner(_incoming, _db):
         inbox = current_steering()
         assert inbox is not None and inbox.poll is not None
-        async with inbox.poll(AgentDeps()) as additions:
-            assert additions == ["new deadline"]
+        async with inbox.poll(AgentDeps(), str.upper) as additions:
+            assert additions == ["NEW DEADLINE"]
 
     router = ChannelMessageRouter()
     monkeypatch.setattr(router, "_route_inner", inner)

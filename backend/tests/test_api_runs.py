@@ -20,7 +20,7 @@ from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.capabilities.guardrails import GuardrailBlocked, GuardrailsConfig, input_screen
+from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
 from app.agents.deps import AgentDeps
 from app.agents.steering import Steering, SteeringInbox
 from app.core.exceptions import AuthenticationError, NotFoundError
@@ -123,9 +123,9 @@ async def test_only_a_screened_and_authorized_correction_is_consumed(
         model_request_parameters=ModelRequestParameters(),
     )
     if case == "blocked":
-        with pytest.raises(GuardrailBlocked):
-            await Steering().before_model_request(ctx, request)
+        assert await Steering().before_model_request(ctx, request) is request
         finish.assert_not_awaited()
+        assert "steer_target" not in row.payload
         assert ctx.messages == messages
         assert inbox.transcript == {}
     elif case == "redacted":

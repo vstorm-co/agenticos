@@ -32,13 +32,19 @@ async def api_steering_target(
     db: AsyncSession, *, job: RunAgent, for_update: bool = False
 ) -> UUID | None:
     """Pin to this attempt, not whichever run happens to read its inbox next."""
-    statement = select(BackgroundJob.id, BackgroundJob.started_at).where(
+    candidate = select(BackgroundJob.id, BackgroundJob.started_at, BackgroundJob.lease_until).where(
         _api_run_identity(job),
         BackgroundJob.status == "running",
-        BackgroundJob.lease_until > func.now(),
     )
     if for_update:
-        statement = statement.with_for_update()
+        # Materialize the locked row before checking wall time: the lock
+        # may have taken until after the lease expired.
+        locked = candidate.with_for_update().cte().prefix_with("MATERIALIZED")
+        statement = select(locked.c.id, locked.c.started_at).where(
+            locked.c.lease_until > func.clock_timestamp()
+        )
+    else:
+        statement = candidate.where(BackgroundJob.lease_until > func.clock_timestamp())
     row = (await db.execute(statement)).one_or_none()
     return None if row is None or row.started_at is None else attempt_token(row.id, row.started_at)
 
@@ -70,3 +76,8 @@ async def queued_api_steers(db: AsyncSession, *, job: RunAgent) -> list[Backgrou
         .with_for_update()
     )
     return list(rows)
+
+
+def leave_api_steer_queued(row: BackgroundJob) -> None:
+    """Stop offering a locked correction without changing its fallback job or receipt."""
+    row.payload = {key: value for key, value in row.payload.items() if key != "steer_target"}

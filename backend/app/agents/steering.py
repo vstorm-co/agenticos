@@ -61,8 +61,10 @@ class SteeringInbox:
     """
 
     on_applied: Callable[[str], Awaitable[None]] | None = None
-    poll: Callable[[AgentDeps], AbstractAsyncContextManager[list[str]]] | None = None
-    """A durable source may settle its receipts on successful exit after screening.
+    poll: (
+        Callable[[AgentDeps, Callable[[str], str]], AbstractAsyncContextManager[list[str]]] | None
+    ) = None
+    """A durable source yields screened text and may settle its receipts on successful exit.
     The context ends before the model call, so it never holds a lock across it."""
     screen: Callable[[str], GuardrailResult] | None = None
     """The agent's input guardrail, set by the runner: a steer reaches the model
@@ -147,15 +149,18 @@ class Steering(AbstractCapability["AgentDeps"]):
         # response echoed back verbatim, and nothing may be added to it.
         if not messages or not isinstance(last := messages[-1], ModelRequest):
             return request_context
-        async with inbox.poll(ctx.deps) if inbox.poll is not None else nullcontext([]) as polled:
-            for text in polled:
-                inbox.add(text)
-            steers = inbox.take()
-            if not steers:
-                return request_context
+
+        def screen(text: str) -> str:
+            return screen_steer(inbox, text)
+
+        async with (
+            inbox.poll(ctx.deps, screen) if inbox.poll is not None else nullcontext([]) as polled
+        ):
             # Screened once, and the screened words are what the transcript keeps
             # too: a redacted secret must not come back in the next turn's history.
-            said = [screen_steer(inbox, steer.text) for steer in steers]
+            said = [screen(steer.text) for steer in inbox.take()] + polled
+            if not said:
+                return request_context
             added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
             # The persistent history and this request's own list are separate lists
             # (usually holding the same message), so each takes the words explicitly:

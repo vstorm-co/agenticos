@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4c6fc377c9"
+source_sha: "4bccdd4e3338"
 ---
 
 # API HTTP { #the-http-api }
@@ -361,8 +361,9 @@ Korektę może pobrać tylko trwające asynchroniczne żądanie API dla tej same
 rozmowy, tego samego agenta i środowiska. Musi korzystać z aktualnie wybranej
 opublikowanej wersji oraz z tego samego klucza API (lub pochodzić od tej samej
 zalogowanej osoby, bez klucza). Jeśli żaden taki run nie odbierze wiadomości,
-worker przetworzy ją jako osobną turę. Pomiń `steer`, aby zawsze kolejkować
-osobną turę.
+worker przetworzy ją jako osobną turę. Korekta zablokowana przez guardrail
+wejściowy pozostaje w kolejce na osobną turę i nie zatrzymuje trwającego runa.
+Pomiń `steer`, aby zawsze kolejkować osobną turę.
 
 Odpytuj żądanie przypisane do wiadomości uzupełniającej. Końcowy stan
 `steered` oznacza, że run wskazany przez `steered_into_run_id` pobrał
