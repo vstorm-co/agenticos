@@ -522,7 +522,12 @@ async def test_a_retry_imports_nested_file_outputs_without_granting_unrelated_fi
             )
             is None
         )
-        assert await dispatcher._reused_output(db, run=retry.run, node_run=step) == output
+        assert (
+            await dispatcher._reused_output(
+                db, run=retry.run, original_run_id=source.run.id, node_run=step
+            )
+            == output
+        )
         assert (
             await file_repo.get_for_run(
                 db, file.id, organization_id=source.org.id, workflow_run_id=retry.run.id
@@ -530,11 +535,18 @@ async def test_a_retry_imports_nested_file_outputs_without_granting_unrelated_fi
             is not None
         )
         # Re-resolving the same step does not add another reference.
-        assert await dispatcher._reused_output(db, run=retry.run, node_run=step) == output
+        assert (
+            await dispatcher._reused_output(
+                db, run=retry.run, original_run_id=source.run.id, node_run=step
+            )
+            == output
+        )
         await db.delete(file)
         await db.flush()
         with pytest.raises(InvalidBindingError):
-            await dispatcher._reused_output(db, run=retry.run, node_run=step)
+            await dispatcher._reused_output(
+                db, run=retry.run, original_run_id=source.run.id, node_run=step
+            )
 
 
 # A run that failed on one leg while its sibling was still executing
