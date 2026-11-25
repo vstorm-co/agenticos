@@ -17,7 +17,37 @@ import { invitationFlowFrom } from "@/lib/invitation-links";
  * page - a role fork here quietly splits one product into two.
  */
 export function postSignInDestination(returnTo?: string | null): string {
-  return isSafeReturnPath(returnTo, window.location.origin) ? returnTo : ROUTES.CHAT;
+  return isSafeReturnPath(returnTo, window.location.origin) && !isSignInPage(returnTo)
+    ? returnTo
+    : ROUTES.CHAT;
+}
+
+/** The pages a visitor signs in or recovers an account on. */
+const SIGN_IN_PAGES = new Set<string>([
+  ROUTES.LOGIN,
+  ROUTES.REGISTER,
+  ROUTES.FORGOT_PASSWORD,
+  "/reset-password",
+  "/magic-link-sent",
+]);
+
+/**
+ * Whether `path` is one of the sign-in pages - never a place to come back to.
+ *
+ * Signing out leaves the dashboard for the login page, and the dashboard's
+ * guard, finding nobody signed in a moment later, read the address it was
+ * already on: `/login?returnTo=/login`. Signing in again then sent the fresh
+ * session to the login page, which sent it on to its `returnTo` - the login
+ * page - and the button said "Logging in..." until the app was restarted.
+ * A locale prefix (`/vi/login`) is the same page.
+ */
+export function isSignInPage(path: string): boolean {
+  const { pathname } = new URL(path, window.location.origin);
+  const bare = pathname.replace(/\/+$/, "") || "/";
+  return (
+    SIGN_IN_PAGES.has(bare) ||
+    SIGN_IN_PAGES.has(bare.replace(/^\/[a-z]{2}(?:-[A-Za-z]{2,4})?(?=\/)/, ""))
+  );
 }
 
 /** New accounts start setup; only an already staged invitation's public flow survives. */

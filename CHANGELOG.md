@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Signing out and back in no longer leaves the login button on "Logging in...". Signing
+  out sent the login page a `returnTo` of the login page itself, and the next sign-in
+  went back to the form; a sign-in page is never a place to return to now.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
