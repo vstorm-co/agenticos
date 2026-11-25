@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
+import { livePolling } from "@/lib/live-polling";
 import { qk } from "@/lib/query-keys";
 import type {
   AgentAuthoring,
@@ -36,7 +37,9 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
     queryKey: qk.authoring.agent(agentId),
     queryFn: () => apiClient.get<AgentAuthoring>(`/agents/${agentId}/authoring`),
     enabled,
-    refetchInterval: (current) => (working(current.state.data?.latest) ? AUTHORING_POLL_MS : false),
+    ...livePolling(AUTHORING_POLL_MS, (authoring: AgentAuthoring | undefined) =>
+      working(authoring?.latest),
+    ),
   });
   const refresh = () =>
     Promise.all([
@@ -152,7 +155,9 @@ function useResourceAuthoring(
     queryKey,
     queryFn: () => apiClient.get<AuthoringRequest[]>(`${base}/authoring`),
     enabled,
-    refetchInterval: (current) => (working(current.state.data?.[0]) ? AUTHORING_POLL_MS : false),
+    ...livePolling(AUTHORING_POLL_MS, (requests: AuthoringRequest[] | undefined) =>
+      working(requests?.[0]),
+    ),
   });
   const latest = query.data?.[0];
   const workingOn = latest !== undefined && working(latest) ? latest.id : null;
@@ -246,7 +251,7 @@ export function useContextAuthoringWatch() {
     queries: ids.map((id) => ({
       queryKey: qk.authoring.context(id),
       queryFn: () => apiClient.get<AuthoringRequest[]>(`/context/${id}/authoring`),
-      refetchInterval: AUTHORING_POLL_MS,
+      ...livePolling<AuthoringRequest[]>(AUTHORING_POLL_MS, () => true),
     })),
   });
 }

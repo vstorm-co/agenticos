@@ -4303,6 +4303,7 @@
       "outboxWaiting": "{count, plural, =1 {1 message en attente d’envoi} other {# messages en attente d’envoi}}",
       "unreachable": "Impossible de joindre le serveur. Affichage de ce qui a été enregistré sur cet appareil à {time}."
     },
+    "staleRead": "Une partie de cette page a cessé de se mettre à jour et peut être obsolète. {reason}",
     "install": {
       "offer": "Installez AgenticOS comme une app : sa propre fenêtre, des notifications et une icône sur l’écran d’accueil.",
       "iosHint": "Pour installer AgenticOS, touchez Partager, puis Sur l’écran d’accueil.",
@@ -9596,6 +9597,7 @@
       "nobody": "Aucun de ces agents ne peut être vérifié ; la vérification ne mesurerait donc rien. Ajoutez des questions de test pour qu’elle le puisse, ou continuez sans vérification et confirmez que personne n’a été vérifié.",
       "startUnchecked": "Continuer sans vérification",
       "noReaders": "Aucun agent ne lit cette ligne ; il n’y a donc personne à vérifier. Continuer applique le changement aussitôt.",
+      "stoppedUpdating": "Cette vérification a cessé de se mettre à jour et peut être obsolète. {reason}",
       "proposalGoneTitle": "Cette mise à jour n’est plus en attente",
       "proposalGoneDescription": "Elle a été appliquée, abandonnée ou remplacée dans une autre session. La liste a été actualisée.",
       "backToChanges": "Retour aux mises à jour"

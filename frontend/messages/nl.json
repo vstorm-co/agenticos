@@ -4396,6 +4396,7 @@
       "outboxWaiting": "{count, plural, =1 {1 bericht wacht om te worden verstuurd} other {# berichten wachten om te worden verstuurd}}",
       "unreachable": "Kan de server niet bereiken. Je ziet wat op {time} op dit apparaat is opgeslagen."
     },
+    "staleRead": "Een deel van deze pagina wordt niet meer bijgewerkt en is mogelijk verouderd. {reason}",
     "install": {
       "offer": "Installeer AgenticOS als app: een eigen venster, meldingen en een pictogram op je beginscherm.",
       "iosHint": "Tik op Deel en dan op Zet op beginscherm om AgenticOS te installeren.",
@@ -9716,6 +9717,7 @@
       "nobody": "Geen van deze agents kan worden gecontroleerd, dus de controle zou niets meten. Voeg testvragen toe zodat dat wel kan, of ga verder zonder controle en bevestig dat niemand is gecontroleerd.",
       "startUnchecked": "Verder zonder controle",
       "noReaders": "Geen agent leest deze lijn, dus er is niemand om te controleren. Doorgaan past de wijziging meteen toe.",
+      "stoppedUpdating": "Deze controle wordt niet meer bijgewerkt en is mogelijk verouderd. {reason}",
       "proposalGoneTitle": "Deze update staat niet meer open",
       "proposalGoneDescription": "Deze update is in een andere sessie toegepast, verworpen of vervangen. De lijst is vernieuwd.",
       "backToChanges": "Terug naar updates"

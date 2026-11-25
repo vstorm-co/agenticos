@@ -4396,6 +4396,7 @@
       "outboxWaiting": "{count, plural, =1 {1 message waiting to send} other {# messages waiting to send}}",
       "unreachable": "Can't reach the server. Showing what was saved on this device at {time}."
     },
+    "staleRead": "Part of this page stopped updating and may be out of date. {reason}",
     "install": {
       "offer": "Install AgenticOS as an app: its own window, notifications and a home-screen icon.",
       "iosHint": "To install AgenticOS, tap Share, then Add to Home Screen.",
@@ -9832,6 +9833,7 @@
       "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
       "startUnchecked": "Go on without a check",
       "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once.",
+      "stoppedUpdating": "This check stopped updating and may be out of date. {reason}",
       "proposalGoneTitle": "This update is no longer pending",
       "proposalGoneDescription": "It was applied, discarded or replaced in another session. The list has been refreshed.",
       "backToChanges": "Back to updates"

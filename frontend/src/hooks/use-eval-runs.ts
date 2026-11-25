@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { livePolling } from "@/lib/live-polling";
 import { qk } from "@/lib/query-keys";
 import type { Agent, AgentList, AgentSpec } from "@/types/agents";
 import type { Dataset, DatasetList } from "@/types/datasets";
@@ -40,8 +41,10 @@ export function useEvalRuns(agentId: string | null, { skip = 0, limit = 20 } = {
     queryFn: () =>
       apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?skip=${skip}&limit=${limit}`),
     enabled: agentId !== null,
-    refetchInterval: (current) =>
-      current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
+    ...livePolling(
+      LIVE_POLL_MS,
+      (runs: EvalRunList | undefined) => runs?.items.some((run) => isLive(run.status)) ?? false,
+    ),
   });
 
   // No `onError` on either: a refusal - over budget, nothing to score - is
@@ -73,8 +76,10 @@ export function useEvalRun(runId: string) {
   const query = useQuery({
     queryKey: qk.evalRuns.detail(runId),
     queryFn: () => apiClient.get<EvalRun>(`/eval-runs/${runId}`),
-    refetchInterval: (current) =>
-      current.state.data && isLive(current.state.data.status) ? LIVE_POLL_MS : false,
+    ...livePolling(
+      LIVE_POLL_MS,
+      (run: EvalRun | undefined) => run !== undefined && isLive(run.status),
+    ),
   });
   const cancel = useMutation({
     mutationFn: () => apiClient.post<EvalRun>(`/eval-runs/${runId}/cancel`, {}),
@@ -125,7 +130,7 @@ export function useEvalCases(
       return apiClient.get<EvalCaseList>(`/eval-runs/${runId}/cases?${params}`);
     },
     placeholderData: (previous) => previous,
-    refetchInterval: live ? LIVE_POLL_MS : false,
+    ...livePolling<EvalCaseList>(LIVE_POLL_MS, () => live),
   });
   return {
     cases: query.data?.items ?? [],
@@ -150,6 +155,7 @@ export function useEvalComparison(
     enabled = true,
   }: { arm?: string | null; baseline?: string | null; live?: boolean; enabled?: boolean } = {},
 ) {
+  const polling = livePolling<EvalComparison>(LIVE_POLL_MS, () => live);
   const query = useQuery({
     queryKey: qk.evalRuns.comparison(runId, { arm, baseline }),
     enabled,
@@ -165,13 +171,12 @@ export function useEvalComparison(
       error instanceof ApiError && error.status === 429
         ? Math.max(1_000, (error.retryAt ?? Date.now() + 60_000) - Date.now())
         : 1_000,
+    meta: polling.meta,
     refetchInterval: (current) =>
       current.state.fetchFailureReason instanceof ApiError &&
       current.state.fetchFailureReason.status === 429
         ? false
-        : live
-          ? LIVE_POLL_MS
-          : false,
+        : polling.refetchInterval(current),
   });
   return {
     comparison: query.data,
@@ -341,8 +346,10 @@ export function useDatasetEvalRuns(
     queryFn: () =>
       apiClient.get<EvalRunList>(`/datasets/${datasetId}/eval-runs?skip=${skip}&limit=${limit}`),
     enabled,
-    refetchInterval: (current) =>
-      current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
+    ...livePolling(
+      LIVE_POLL_MS,
+      (runs: EvalRunList | undefined) => runs?.items.some((run) => isLive(run.status)) ?? false,
+    ),
   });
   return {
     runs: query.data?.items ?? [],
@@ -388,8 +395,10 @@ export function useRecentEvalRuns(limit = 5, { skip = 0, enabled = true } = {}) 
     queryKey: qk.evalRuns.recent(limit, skip),
     queryFn: () => apiClient.get<EvalRunList>(`/eval-runs/recent?skip=${skip}&limit=${limit}`),
     enabled,
-    refetchInterval: (current) =>
-      current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
+    ...livePolling(
+      LIVE_POLL_MS,
+      (runs: EvalRunList | undefined) => runs?.items.some((run) => isLive(run.status)) ?? false,
+    ),
   });
   return {
     runs: query.data?.items ?? [],

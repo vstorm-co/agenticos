@@ -4396,6 +4396,7 @@
       "outboxWaiting": "{count, plural, =1 {1 Nachricht wartet auf den Versand} other {# Nachrichten warten auf den Versand}}",
       "unreachable": "Der Server ist nicht erreichbar. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie."
     },
+    "staleRead": "Ein Teil dieser Seite wird nicht mehr aktualisiert und ist möglicherweise veraltet. {reason}",
     "install": {
       "offer": "Installieren Sie AgenticOS als App: eigenes Fenster, Benachrichtigungen und ein Symbol auf dem Startbildschirm.",
       "iosHint": "Um AgenticOS zu installieren, tippen Sie auf Teilen und dann auf Zum Home-Bildschirm.",
@@ -9711,6 +9712,7 @@
       "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
       "startUnchecked": "Ohne Prüfung weiter",
       "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort.",
+      "stoppedUpdating": "Diese Prüfung wird nicht mehr aktualisiert und ist möglicherweise veraltet. {reason}",
       "proposalGoneTitle": "Diese Aktualisierung wartet nicht mehr",
       "proposalGoneDescription": "Sie wurde in einer anderen Sitzung angewendet, verworfen oder ersetzt. Die Liste wurde aktualisiert.",
       "backToChanges": "Zurück zu Aktualisierungen"

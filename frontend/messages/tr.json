@@ -342,6 +342,7 @@
       "outboxWaiting": "{count, plural, =1 {Gönderilmeyi bekleyen 1 mesaj} other {Gönderilmeyi bekleyen # mesaj}}",
       "unreachable": "Sunucuya ulaşılamıyor. Bu cihazda {time} tarihinde kaydedilen içerik gösteriliyor."
     },
+    "staleRead": "Bu sayfanın bir bölümü güncellenmeyi durdurdu ve güncel olmayabilir. {reason}",
     "install": {
       "offer": "AgenticOS'u uygulama olarak yükleyin: kendine ait pencere, bildirimler ve ana ekran simgesi.",
       "iosHint": "AgenticOS'u yüklemek için Paylaş'a ve ardından Ana Ekrana Ekle'ye dokunun.",
@@ -845,7 +846,8 @@
     "check": {
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
       "proposalGoneDescription": "Başka bir oturumda uygulandı, reddedildi veya değiştirildi. Liste yenilendi.",
-      "backToChanges": "Güncellemelere dön"
+      "backToChanges": "Güncellemelere dön",
+      "stoppedUpdating": "Bu kontrol güncellenmeyi durdurdu ve güncel olmayabilir. {reason}"
     }
   },
   "workflows": {

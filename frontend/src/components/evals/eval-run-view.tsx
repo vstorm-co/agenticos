@@ -115,7 +115,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   if (error instanceof ApiError && error.status === 403) {
     return <EmptyState icon={Lock} title={t("noAccess.title")} description={t("noAccess.body")} />;
   }
-  if (error || !run) {
+  // A failed refetch keeps the run on screen; `StaleReadBanner` says it stopped updating.
+  if (!run) {
     return (
       <ErrorState
         description={getErrorMessage(error, tErrors)}

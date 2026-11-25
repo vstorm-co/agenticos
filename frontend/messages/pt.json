@@ -4396,6 +4396,7 @@
       "outboxWaiting": "{count, plural, =1 {1 mensagem aguardando envio} other {# mensagens aguardando envio}}",
       "unreachable": "Não foi possível acessar o servidor. Exibindo o que foi salvo neste dispositivo às {time}."
     },
+    "staleRead": "Parte desta página deixou de ser atualizada e pode estar desatualizada. {reason}",
     "install": {
       "offer": "Instale o AgenticOS como aplicativo: com janela própria, notificações e ícone na tela inicial.",
       "iosHint": "Para instalar o AgenticOS, toque em Compartilhar e depois em Adicionar à Tela de Início.",
@@ -9716,6 +9717,7 @@
       "nobody": "Nenhum destes agentes pode ser verificado, então a verificação não mediria nada. Adicione perguntas de teste para que ela possa ser feita, ou continue sem verificação e confirme que ninguém foi verificado.",
       "startUnchecked": "Continuar sem verificação",
       "noReaders": "Nenhum agente lê esta linha, então não há ninguém para verificar. Continuar aplica a mudança imediatamente.",
+      "stoppedUpdating": "Esta verificação deixou de ser atualizada e pode estar desatualizada. {reason}",
       "proposalGoneTitle": "Esta atualização não está mais pendente",
       "proposalGoneDescription": "Ela foi aplicada, descartada ou substituída em outra sessão. A lista foi atualizada.",
       "backToChanges": "Voltar às atualizações"

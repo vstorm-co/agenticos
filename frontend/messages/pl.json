@@ -6116,6 +6116,7 @@
       "outboxWaiting": "{count, plural, =1 {1 wiadomość czeka na wysłanie} few {# wiadomości czekają na wysłanie} other {# wiadomości czeka na wysłanie}}",
       "unreachable": "Brak połączenia z serwerem. Widzisz kopię zapisaną na tym urządzeniu o {time}."
     },
+    "staleRead": "Część tej strony przestała się odświeżać i może być nieaktualna. {reason}",
     "install": {
       "offer": "Zainstaluj AgenticOS jako aplikację: własne okno, powiadomienia i ikona na ekranie głównym.",
       "iosHint": "Aby zainstalować AgenticOS, stuknij Udostępnij, a potem Do ekranu początkowego.",
@@ -8715,6 +8716,7 @@
       "nobody": "Żadnego z tych agentów nie da się sprawdzić, więc sprawdzenie niczego by nie zmierzyło. Dodaj pytania testowe, żeby mogło, albo przejdź dalej bez sprawdzenia i potwierdź, że nikogo nie sprawdzono.",
       "startUnchecked": "Dalej bez sprawdzenia",
       "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana.",
+      "stoppedUpdating": "Sprawdzanie przestało się odświeżać i może być nieaktualne. {reason}",
       "proposalGoneTitle": "Ta aktualizacja już nie oczekuje na decyzję",
       "proposalGoneDescription": "Została zastosowana, odrzucona lub zastąpiona w innej sesji. Lista została odświeżona.",
       "backToChanges": "Wróć do aktualizacji"
