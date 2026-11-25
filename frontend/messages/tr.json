@@ -623,7 +623,8 @@
     "title": "Bilgi tabanları",
     "updated": "Bilgi tabanı güncellendi",
     "uploadFailed": "Yükleme başarısız oldu",
-    "uploaded": "{name} yüklendi"
+    "uploaded": "{name} yüklendi",
+    "documentIndexingQueued": "Belge dizine ekleme işlemi kuyruğa alındı"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -681,7 +682,8 @@
     "done": "Tamamlandı",
     "error": "Başarısız oldu",
     "processing": "İşleniyor",
-    "running": "Çalışıyor"
+    "running": "Çalışıyor",
+    "stored": "Saklandı · dizine eklenmedi"
   },
   "sharing": {
     "access": "Erişim",
@@ -2915,7 +2917,12 @@
       "indexingInProgress": "{count, plural, =1 {Dizin oluşturuluyor: 1 belge işleniyor} other {Dizin oluşturuluyor: # belge işleniyor}}",
       "indexingComplete": "Dizin oluşturma tamamlandı",
       "indexingFailed": "{count, plural, =1 {1 belgenin işlenmesi başarısız oldu} other {# belgenin işlenmesi başarısız oldu}}",
-      "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
+      "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}",
+      "indexDocument": "Dizine ekle",
+      "retryDocument": "Yeniden dene",
+      "indexDocumentNamed": "{name} dosyasını dizine ekle",
+      "retryDocumentNamed": "{name} dosyasını yeniden dene",
+      "indexDocumentHint": "Bu bilgi tabanının ayarlarını kullanır ve sağlayıcı maliyetleri oluşturabilir."
     },
     "orgs": {
       "searchOrganizations": "Organizasyonlarda ara…",
@@ -11002,7 +11009,8 @@
     "citedFileGone": "Bu dosya artık bilgi tabanında değil; atıf yapıldıktan sonra silinmiş veya değiştirilmiş.",
     "embeddingEndpoint": "Uç nokta",
     "embeddingEndpointHint": "Genel OpenRouter API’si için boş bırakın veya https://eu.openrouter.ai/api/v1 gibi bölgesel URL girin. AB yönlendirmesi uygun OpenRouter planı gerektirir; ZDR, OpenRouter’da ayrıca yapılandırılır.",
-    "noConnectorsAvailable": "Kullanılabilir kaynak bağlayıcısı yok. Yönetici bu dağıtım için bağlayıcı etkinleştirebilir."
+    "noConnectorsAvailable": "Kullanılabilir kaynak bağlayıcısı yok. Yönetici bu dağıtım için bağlayıcı etkinleştirebilir.",
+    "parsedSnapshotOnly": "İçe aktarılan ayrıştırılmış metin. Orijinal dosya dahil edilmedi."
   },
   "rag": {
     "addSyncSource": "Eşitleme kaynağı ekle",

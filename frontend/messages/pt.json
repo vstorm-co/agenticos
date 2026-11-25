@@ -4342,7 +4342,8 @@
     "citedFileGone": "Este arquivo não está mais na base de conhecimento - foi excluído ou substituído depois de ser citado.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Deixe vazio para usar a API global do OpenRouter, ou informe uma URL regional como https://eu.openrouter.ai/api/v1. O roteamento na UE exige um plano elegível do OpenRouter; o ZDR é configurado separadamente no OpenRouter.",
-    "noConnectorsAvailable": "Nenhum conector de fonte está disponível. Um administrador pode habilitar um conector para esta implantação."
+    "noConnectorsAvailable": "Nenhum conector de fonte está disponível. Um administrador pode habilitar um conector para esta implantação.",
+    "parsedSnapshotOnly": "Texto analisado importado. O ficheiro original não foi incluído."
   },
   "knowledgeBases": {
     "active": "Ativa",
@@ -4372,7 +4373,8 @@
     "title": "Bases de conhecimento",
     "updated": "Base de conhecimento atualizada",
     "uploadFailed": "Falha no envio",
-    "uploaded": "{name} enviado"
+    "uploaded": "{name} enviado",
+    "documentIndexingQueued": "Indexação do documento na fila"
   },
   "layout": {
     "breadcrumb": "Trilha de navegação",
@@ -7690,7 +7692,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexando: 1 documento em andamento} other {Indexando: # documentos em andamento}}",
       "indexingComplete": "Indexação concluída",
       "indexingFailed": "{count, plural, =1 {1 documento falhou} other {# documentos falharam}}",
-      "moreUploads": "{count, plural, one {# arquivo a mais na fila de envio} other {# arquivos a mais na fila de envio}}"
+      "moreUploads": "{count, plural, one {# arquivo a mais na fila de envio} other {# arquivos a mais na fila de envio}}",
+      "indexDocument": "Indexar",
+      "retryDocument": "Tentar novamente",
+      "indexDocumentNamed": "Indexar {name}",
+      "retryDocumentNamed": "Tentar {name} novamente",
+      "indexDocumentHint": "Usa as definições desta base de conhecimento e pode gerar custos do fornecedor."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "O catálogo está compilado no backend, e ninguém adicionou um servidor próprio. Uma lista vazia aqui significa que esta implantação não inclui nenhum.",
@@ -9013,7 +9020,8 @@
     "done": "Concluído",
     "error": "Falhou",
     "processing": "Processando",
-    "running": "Em execução"
+    "running": "Em execução",
+    "stored": "Armazenado · não indexado"
   },
   "sandboxes": {
     "activityLogUnreadable": "Não foi possível ler esse registro de atividade",

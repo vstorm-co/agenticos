@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, Loader2, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Loader2, Play, RotateCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTranslations } from "next-intl";
@@ -43,6 +43,7 @@ export function DocumentsTable({
   onLoadMore,
   onPreview,
   onRemove,
+  onRetry,
   onChooseFiles,
 }: {
   kbId: string;
@@ -56,10 +57,12 @@ export function DocumentsTable({
   onLoadMore: () => void;
   onPreview: (doc: KBDocument) => void;
   onRemove: (doc: KBDocument) => void;
+  onRetry: (docId: string) => Promise<void>;
   onChooseFiles: () => void;
 }) {
   const t = useTranslations("pages.kb");
   const tErrors = useTranslations("errors");
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (doc: KBDocument) => {
@@ -71,6 +74,16 @@ export function DocumentsTable({
       toast.error(getErrorMessage(error, tErrors));
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleRetry = async (doc: KBDocument) => {
+    if (retryingId) return;
+    setRetryingId(doc.id);
+    try {
+      await onRetry(doc.id);
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -127,34 +140,57 @@ export function DocumentsTable({
           const dlBusy = downloadingId === doc.id;
           return (
             <div className="flex items-center gap-0.5">
+              {(doc.has_file || doc.has_parsed_content) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+                  onClick={() => onPreview(doc)}
+                  title={t("previewFile")}
+                  aria-label={t("previewFile2")}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {doc.has_file && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-                    onClick={() => onPreview(doc)}
-                    title={t("previewFile")}
-                    aria-label={t("previewFile2")}
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-                    onClick={() => handleDownload(doc)}
-                    disabled={!!downloadingId}
-                    title={t("downloadFile")}
-                    aria-label={t("downloadFile2")}
-                  >
-                    {dlBusy ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+                  onClick={() => handleDownload(doc)}
+                  disabled={!!downloadingId}
+                  title={t("downloadFile")}
+                  aria-label={t("downloadFile2")}
+                >
+                  {dlBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              )}
+              {mayEdit && doc.has_file && (doc.status === "stored" || doc.status === "error") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-2"
+                  onClick={() => void handleRetry(doc)}
+                  disabled={retryingId !== null}
+                  aria-label={t(
+                    doc.status === "stored" ? "indexDocumentNamed" : "retryDocumentNamed",
+                    { name: doc.filename },
+                  )}
+                  title={t("indexDocumentHint")}
+                >
+                  {retryingId === doc.id ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : doc.status === "stored" ? (
+                    <Play className="size-3.5" aria-hidden />
+                  ) : (
+                    <RotateCw className="size-3.5" aria-hidden />
+                  )}
+                  {t(doc.status === "stored" ? "indexDocument" : "retryDocument")}
+                </Button>
               )}
               {mayEdit && (
                 <Button
@@ -173,7 +209,7 @@ export function DocumentsTable({
         },
       },
     ],
-    [downloadingId, handleDownload, onPreview, onRemove, mayEdit],
+    [downloadingId, handleDownload, handleRetry, onPreview, onRemove, retryingId, mayEdit],
   );
 
   return (

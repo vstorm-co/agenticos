@@ -5,7 +5,7 @@
  *
  * | Column | What the worker writes |
  * |---|---|
- * | `rag_documents.status` | `processing`, `done`, `error` |
+ * | `rag_documents.status` | `stored`, `processing`, `done`, `error` |
  * | `sync_sources.last_sync_status` | `done`, `error` |
  * | `sync_logs.status` | `running`, `done`, `error`, `cancelled` |
  *
@@ -32,6 +32,8 @@
 
 /** How a status should read, independently of which control is drawing it. */
 export type RAGStatusTone =
+  /** Stored content awaiting an explicit indexing action. */
+  | "stored"
   /** Under way - `processing`, `running`. */
   | "progress"
   /** Finished, and nothing went wrong. */
@@ -57,6 +59,7 @@ export interface RAGStatusPresentation {
 }
 
 const KNOWN: Readonly<Record<string, RAGStatusPresentation>> = {
+  stored: { words: "stored", tone: "stored" },
   processing: { words: "processing", tone: "progress" },
   running: { words: "running", tone: "progress" },
   done: { words: "done", tone: "success" },

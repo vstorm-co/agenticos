@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, CircleSlash, Clock, Loader2 } from "lucide-react";
+import { AlertCircle, Archive, CheckCircle2, CircleSlash, Clock, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 /** How each tone is drawn. Keyed by tone so a new status needs no entry here. */
 const TONE_ICON: Record<RAGStatusTone, { Icon: LucideIcon; spin: boolean }> = {
+  stored: { Icon: Archive, spin: false },
   progress: { Icon: Loader2, spin: true },
   success: { Icon: CheckCircle2, spin: false },
   failure: { Icon: AlertCircle, spin: false },

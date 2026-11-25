@@ -4342,7 +4342,8 @@
     "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt.",
     "embeddingEndpoint": "Endpunkt",
     "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
-    "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren."
+    "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren.",
+    "parsedSnapshotOnly": "Importierter geparster Text. Die Originaldatei wurde nicht beigefügt."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -4372,7 +4373,8 @@
     "title": "Wissensdatenbanken",
     "updated": "Wissensdatenbank aktualisiert",
     "uploadFailed": "Upload fehlgeschlagen",
-    "uploaded": "{name} hochgeladen"
+    "uploaded": "{name} hochgeladen",
+    "documentIndexingQueued": "Dokumentindexierung eingereiht"
   },
   "layout": {
     "breadcrumb": "Brotkrumenpfad",
@@ -7078,7 +7080,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexierung: 1 Dokument in Bearbeitung} other {Indexierung: # Dokumente in Bearbeitung}}",
       "indexingComplete": "Indexierung abgeschlossen",
       "indexingFailed": "{count, plural, =1 {1 Dokument fehlgeschlagen} other {# Dokumente fehlgeschlagen}}",
-      "moreUploads": "{count, plural, one {# weitere Datei in der Upload-Warteschlange} other {# weitere Dateien in der Upload-Warteschlange}}"
+      "moreUploads": "{count, plural, one {# weitere Datei in der Upload-Warteschlange} other {# weitere Dateien in der Upload-Warteschlange}}",
+      "indexDocument": "Indexieren",
+      "retryDocument": "Wiederholen",
+      "indexDocumentNamed": "{name} indexieren",
+      "retryDocumentNamed": "{name} erneut versuchen",
+      "indexDocumentHint": "Verwendet die Einstellungen dieser Wissensbasis und kann Anbieterkosten verursachen."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
@@ -9008,7 +9015,8 @@
     "done": "Fertig",
     "error": "Fehlgeschlagen",
     "processing": "Wird verarbeitet",
-    "running": "Läuft"
+    "running": "Läuft",
+    "stored": "Gespeichert · nicht indexiert"
   },
   "sandboxes": {
     "activityLogUnreadable": "Dieses Aktivitätsprotokoll konnte nicht gelesen werden",

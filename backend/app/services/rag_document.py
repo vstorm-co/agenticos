@@ -701,7 +701,10 @@ class RAGDocumentService:
             logger.exception("Failed to notify about a failed ingestion for %s", doc_id)
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
-        """Parse a failed document again, from the file it was uploaded with.
+        """Index an imported original, or parse a failed document again.
+
+        Stored imports explicitly adopt the destination knowledge base's current
+        settings. Import itself never dispatches this work.
 
         It reads the stored copy rather than asking for the file again: the
         upload kept one for exactly this, and a retry that needed the original
@@ -994,18 +997,17 @@ class RAGDocumentService:
     ) -> RAGParsedContent:
         """How a document parsed: its stored chunks, grouped back into pages.
 
-        The chunks in the vector store are the parse - there is no other record
-        of what the parser produced - so this reads them back in document order
-        rather than re-running a parse that may involve OCR or a paid API.
+        Stored imports read their parsed-text snapshot; completed ingestions
+        read the indexed chunks. Both reconstruct the recorded content rather
+        than re-running a parse that may involve OCR or a paid API.
 
         `has_text` uses `has_indexable_text`, not `.strip()`: markdown
         reconstruction wraps an unreadable scan in an empty fenced block, which
         is not whitespace and would otherwise pass for content.
 
         Raises:
-            NotFoundError: If the document does not exist, or has not (yet)
-                been ingested - a parse that is still running or failed has no
-                parsed content to show.
+            NotFoundError: If the document has neither an available imported
+                parsed snapshot nor completed indexed content.
         """
         doc = await self.get_document(doc_id)
         chunks: list[DocumentChunk]

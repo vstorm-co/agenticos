@@ -1914,7 +1914,8 @@
     "syncStarted": "Synchronizacja ruszyła - dokumenty pojawią się w miarę ingestii",
     "uploadFailed": "Przesyłanie nie powiodło się",
     "uploaded": "Przesłano {name}",
-    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji"
+    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji",
+    "documentIndexingQueued": "Dodano indeksowanie dokumentu do kolejki"
   },
   "billing": {
     "title": "Rozliczenia",
@@ -2144,7 +2145,8 @@
     "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
-    "noConnectorsAvailable": "Brak dostępnych konektorów źródeł. Administrator może włączyć konektor w tej instalacji."
+    "noConnectorsAvailable": "Brak dostępnych konektorów źródeł. Administrator może włączyć konektor w tej instalacji.",
+    "parsedSnapshotOnly": "Zaimportowany tekst po parsowaniu. Oryginalny plik nie został dołączony."
   },
   "legal": {
     "eyebrow": "Dokumenty",
@@ -2962,7 +2964,12 @@
       "indexingInProgress": "{count, plural, one {Indeksowanie: 1 dokument w toku} few {Indeksowanie: # dokumenty w toku} many {Indeksowanie: # dokumentów w toku} other {Indeksowanie: # dokumentu w toku}}",
       "indexingComplete": "Indeksowanie zakończone",
       "indexingFailed": "{count, plural, one {1 dokument z błędem} few {# dokumenty z błędem} many {# dokumentów z błędem} other {# dokumentu z błędem}}",
-      "moreUploads": "{count, plural, one {Jeszcze # plik w kolejce przesyłania} few {Jeszcze # pliki w kolejce przesyłania} many {Jeszcze # plików w kolejce przesyłania} other {Jeszcze # pliku w kolejce przesyłania}}"
+      "moreUploads": "{count, plural, one {Jeszcze # plik w kolejce przesyłania} few {Jeszcze # pliki w kolejce przesyłania} many {Jeszcze # plików w kolejce przesyłania} other {Jeszcze # pliku w kolejce przesyłania}}",
+      "indexDocument": "Indeksuj",
+      "retryDocument": "Ponów",
+      "indexDocumentNamed": "Indeksuj {name}",
+      "retryDocumentNamed": "Ponów {name}",
+      "indexDocumentHint": "Używa ustawień tej bazy wiedzy i może naliczyć koszty dostawcy."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
@@ -6411,7 +6418,8 @@
     "running": "W toku",
     "done": "Gotowe",
     "error": "Niepowodzenie",
-    "cancelled": "Anulowano"
+    "cancelled": "Anulowano",
+    "stored": "Zapisany · bez indeksu"
   },
   "sandboxes": {
     "activityLogUnreadable": "Nie udało się odczytać tego logu aktywności",
