@@ -6053,6 +6053,10 @@
         "title": "Focus on one panel",
         "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       },
+      "workflow-python-actions": {
+        "title": "Call tools from Python",
+        "body": "Choose Python with actions to call MCP tools, use tables or search knowledge. Bind each action under a function name, then use Insert function call to add it to your script. Each call has its own approvals and execution record."
+      },
       "improvement-check": {
         "title": "Check",
         "body": "Today's version and the changed one answer the same questions in one test. Each bar shows how far each has got, and the result opens once the test is done."
@@ -12200,6 +12204,7 @@
     },
     "pythonActions": "Available functions",
     "pythonActionsHint": "Bind an action once, then call its function in your script with keyword arguments.",
+    "pythonActionsDiscover": "To call MCP tools, use tables or search knowledge, add a Python with actions step and bind each action under a function name.",
     "pythonSelectAction": "Select an action",
     "pythonInsertCall": "Insert function call",
     "pythonInvalidName": "Use a unique Python identifier, not a keyword or built-in name.",

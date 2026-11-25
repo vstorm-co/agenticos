@@ -5937,6 +5937,10 @@
         "title": "Foque em um painel",
         "body": "No celular, escolha configurações da etapa, entrada ou saída para dar ao painel ativo todo o espaço disponível. Trocar de painel mantém seu rascunho."
       },
+      "workflow-python-actions": {
+        "title": "Chamar ferramentas a partir do Python",
+        "body": "Escolha Python com ações para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento. Atribua um nome de função a cada ação e insira a chamada no script pelo menu abaixo do editor. Cada chamada tem suas próprias aprovações e seu próprio registro de execução."
+      },
       "improvement-check": {
         "title": "Verificar",
         "body": "A versão de hoje e a versão alterada respondem às mesmas perguntas em um único teste. Cada barra mostra o progresso de cada uma, e o resultado abre quando o teste termina."
@@ -12084,6 +12088,7 @@
     },
     "pythonActions": "Funções disponíveis",
     "pythonActionsHint": "Associe uma ação uma vez e chame a função no script com argumentos nomeados.",
+    "pythonActionsDiscover": "Para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento, adicione uma etapa Python com ações e atribua um nome de função a cada ação.",
     "pythonSelectAction": "Selecione uma ação",
     "pythonInsertCall": "Inserir chamada de função",
     "pythonInvalidName": "Use um identificador Python único, que não seja uma palavra reservada nem um nome interno.",

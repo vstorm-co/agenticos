@@ -116,6 +116,7 @@ describe("pageKey", () => {
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-python-actions",
       "workflow-input-contract",
     ]);
   });

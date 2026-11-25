@@ -980,6 +980,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "workflow-python-actions",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-python-actions",
+    permission: Perm.workflowsEdit,
+    optional: true,
+  },
+  {
     id: "workflow-input-contract",
     page: WORKFLOW_DETAIL,
     target: "workflow-input-contract",

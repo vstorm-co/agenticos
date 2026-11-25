@@ -1245,6 +1245,7 @@
     },
     "pythonActions": "Kullanılabilir işlevler",
     "pythonActionsHint": "Bir eylemi bir kez bağlayın, ardından işlevini betiğinizde adlandırılmış argümanlarla çağırın.",
+    "pythonActionsDiscover": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python adımı ekleyin ve her eyleme bir işlev adı verin.",
     "pythonSelectAction": "Bir eylem seçin",
     "pythonInsertCall": "İşlev çağrısı ekle",
     "pythonInvalidName": "Anahtar sözcük veya yerleşik ad olmayan benzersiz bir Python tanımlayıcısı kullanın.",
@@ -9047,6 +9048,10 @@
       "workflow-step-view": {
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
+      },
+      "workflow-python-actions": {
+        "title": "Python’dan araç çağırın",
+        "body": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python seçin. Her eyleme bir işlev adı verin ve düzenleyicinin altındaki menüden çağrısını betiğe ekleyin. Her çağrının kendi onayları ve yürütme kaydı vardır."
       },
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",

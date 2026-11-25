@@ -5837,6 +5837,10 @@
         "title": "Se concentrer sur un panneau",
         "body": "Sur téléphone, choisissez les paramètres de l’étape, l’entrée ou la sortie pour donner au panneau actif toute la place disponible. Changer de panneau conserve votre brouillon."
       },
+      "workflow-python-actions": {
+        "title": "Appeler des outils depuis Python",
+        "body": "Choisissez Python avec actions pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances. Donnez un nom de fonction à chaque action, puis insérez son appel dans le script avec le menu sous l’éditeur. Chaque appel a ses propres approbations et son propre historique d’exécution."
+      },
       "improvement-check": {
         "title": "Vérifier",
         "body": "La version actuelle et la version modifiée répondent aux mêmes questions dans un seul test. Chaque barre montre où en est chacune, et le résultat s’ouvre une fois le test terminé."
@@ -11846,6 +11850,7 @@
     },
     "pythonActions": "Fonctions disponibles",
     "pythonActionsHint": "Associez une action une seule fois, puis appelez sa fonction dans le script avec des arguments nommés.",
+    "pythonActionsDiscover": "Pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances, ajoutez une étape Python avec actions et donnez un nom de fonction à chaque action.",
     "pythonSelectAction": "Sélectionner une action",
     "pythonInsertCall": "Insérer un appel de fonction",
     "pythonInvalidName": "Utilisez un identifiant Python unique, différent des mots-clés et des noms prédéfinis.",

@@ -1502,6 +1502,11 @@ function NodeFields({
   return (
     <div className="space-y-6">
       {account !== undefined && <PortalAccount account={account} />}
+      {!actionAlias && definition.id === "code.python.simple" && (
+        <p className="text-muted-foreground text-xs" data-tour="workflow-python-actions">
+          {t("pythonActionsDiscover")}
+        </p>
+      )}
       {definition.id === "flow.await_reply" && (
         <ReplyMailboxPicker
           value={node.config.connection_id}

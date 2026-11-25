@@ -5937,6 +5937,10 @@
         "title": "Focus op één paneel",
         "body": "Kies op een telefoon stapinstellingen, invoer of uitvoer om het actieve paneel de beschikbare ruimte te geven. Van paneel wisselen behoudt je concept."
       },
+      "workflow-python-actions": {
+        "title": "Tools aanroepen vanuit Python",
+        "body": "Kies Python met acties om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam en voeg de aanroep toe via het menu onder de editor. Elke aanroep heeft eigen goedkeuringen en een eigen uitvoeringsrecord."
+      },
       "improvement-check": {
         "title": "Controle",
         "body": "De versie van vandaag en de gewijzigde beantwoorden dezelfde vragen in één test. Elke balk toont hoe ver elke versie is, en het resultaat opent zodra de test klaar is."
@@ -12084,6 +12088,7 @@
     },
     "pythonActions": "Beschikbare functies",
     "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonActionsDiscover": "Voeg een stap Python met acties toe om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam.",
     "pythonSelectAction": "Selecteer een actie",
     "pythonInsertCall": "Functieaanroep invoegen",
     "pythonInvalidName": "Gebruik een unieke Python-naam die geen sleutelwoord of ingebouwde naam is.",

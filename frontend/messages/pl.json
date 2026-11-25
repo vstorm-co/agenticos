@@ -7704,6 +7704,10 @@
         "title": "Skup się na jednym panelu",
         "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
       },
+      "workflow-python-actions": {
+        "title": "Wywołuj narzędzia z Pythona",
+        "body": "Wybierz Python z akcjami, aby wywoływać narzędzia MCP, korzystać z tabel lub przeszukiwać wiedzę. Nadaj każdej akcji nazwę funkcji, a następnie wstaw jej wywołanie do skryptu z menu pod edytorem. Każde wywołanie ma własne zatwierdzenia i wpis w historii wykonania."
+      },
       "improvement-check": {
         "title": "Sprawdzenie",
         "body": "Obecna wersja i zmieniona odpowiadają na te same pytania w jednym teście. Każdy pasek pokazuje, ile każda już odpowiedziała, a wynik otwiera się po zakończeniu testu."
@@ -12346,6 +12350,7 @@
     },
     "pythonActions": "Dostępne funkcje",
     "pythonActionsHint": "Przypisz akcję raz, a potem wywołuj jej funkcję w skrypcie z argumentami nazwanymi.",
+    "pythonActionsDiscover": "Aby wywoływać narzędzia MCP, korzystać z tabel lub przeszukiwać wiedzę, dodaj krok Python z akcjami i nadaj każdej akcji nazwę funkcji.",
     "pythonSelectAction": "Wybierz akcję",
     "pythonInsertCall": "Wstaw wywołanie funkcji",
     "pythonInvalidName": "Użyj unikatowego identyfikatora Pythona, który nie jest słowem kluczowym ani nazwą wbudowaną.",

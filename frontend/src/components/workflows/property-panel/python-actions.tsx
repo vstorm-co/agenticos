@@ -153,8 +153,10 @@ export function PythonActions({
 
   return (
     <div className="space-y-3">
-      <Label htmlFor="python-action-source">{t("pythonActions")}</Label>
-      <p className="text-muted-foreground text-xs">{t("pythonActionsHint")}</p>
+      <div className="space-y-2" data-tour="workflow-python-actions">
+        <Label htmlFor="python-action-source">{t("pythonActions")}</Label>
+        <p className="text-muted-foreground text-xs">{t("pythonActionsHint")}</p>
+      </div>
       <NativeSelect
         id="python-action-source"
         value={selection}

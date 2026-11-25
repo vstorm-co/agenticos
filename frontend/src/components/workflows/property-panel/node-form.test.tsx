@@ -1262,6 +1262,14 @@ describe("a code field", () => {
     input_schema: null,
   });
 
+  it("points Python script authors to the step that can call tools", () => {
+    renderForm({
+      definition: { ...code, id: "code.python.simple" },
+      config: { code: "42" },
+    });
+    expect(screen.getByText(/To call MCP tools, use tables or search knowledge/)).toBeVisible();
+  });
+
   it("is edited in the code editor, with its help and its error", async () => {
     const { updateNodeConfig } = renderForm({
       definition: code,

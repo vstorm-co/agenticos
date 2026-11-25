@@ -5932,6 +5932,10 @@
         "title": "Ein Bereich im Fokus",
         "body": "Wähle auf dem Smartphone die Schritteinstellungen, Eingabe oder Ausgabe. Der aktive Bereich erhält den verfügbaren Platz; dein Entwurf bleibt beim Wechsel erhalten."
       },
+      "workflow-python-actions": {
+        "title": "Tools aus Python aufrufen",
+        "body": "Wähle Python mit Aktionen, um MCP-Tools aufzurufen, Tabellen zu verwenden oder Wissen zu durchsuchen. Gib jeder Aktion einen Funktionsnamen und füge ihren Aufruf über das Menü unter dem Editor in dein Skript ein. Jeder Aufruf hat eigene Freigaben und einen eigenen Ausführungseintrag."
+      },
       "improvement-check": {
         "title": "Prüfung",
         "body": "Die heutige und die geänderte Fassung beantworten dieselben Fragen in einem Test. Jeder Balken zeigt, wie weit jede ist, und das Ergebnis öffnet sich, sobald der Test fertig ist."
@@ -11886,6 +11890,7 @@
     },
     "pythonActions": "Verfügbare Funktionen",
     "pythonActionsHint": "Binde eine Aktion einmal und rufe ihre Funktion dann im Skript mit Schlüsselwortargumenten auf.",
+    "pythonActionsDiscover": "Um MCP-Tools aufzurufen, Tabellen zu verwenden oder Wissen zu durchsuchen, füge einen Schritt Python mit Aktionen hinzu und gib jeder Aktion einen Funktionsnamen.",
     "pythonSelectAction": "Aktion auswählen",
     "pythonInsertCall": "Funktionsaufruf einfügen",
     "pythonInvalidName": "Verwende einen eindeutigen Python-Bezeichner, kein Schlüsselwort und keinen eingebauten Namen.",
