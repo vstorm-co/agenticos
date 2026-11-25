@@ -25,7 +25,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import notification as notification_repo
 from app.services import notification_center
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import APPROVABLE_BY, NotificationCenterService
 
 pytestmark = pytest.mark.anyio
 
@@ -953,6 +953,33 @@ class TestReadGateApprovalDegrade:
         # (`notification_delivery.py`'s `APPROVAL_PENDING` key) - never the
         # stored, decider-flavoured summary asking them to act.
         assert non_decider_gate.summary_override == "jarvis's run is held, waiting on an approval"
+
+    @pytest.mark.security
+    async def test_the_runs_person_keeps_the_link_to_their_own_platform_call(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        person = await _member(db, org, role="builder")  # no APPROVALS_DECIDE
+        other = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[person.id, other.id],
+            event_type=NotificationEventType.APPROVAL_REQUESTED,
+            occurrence_id="approval-own",
+            summary="Architect is waiting on your approval",
+            context_url="https://app.example.com/runs?tab=approvals",
+            render_context={"agent_name": "Architect", APPROVABLE_BY: str(person.id)},
+            organization_id=org.id,
+        )
+
+        rows, gates, _ = await service.list_inbox(
+            _ctx(person, org, role="builder"), after=None, limit=10
+        )
+        assert gates[rows[0].id].strip_context_url is False
+        assert gates[rows[0].id].summary_override is None
+        rows, gates, _ = await service.list_inbox(
+            _ctx(other, org, role="member"), after=None, limit=10
+        )
+        assert gates[rows[0].id].strip_context_url is True
 
 
 class TestReadGateOrgAdminOrAppAdmin:

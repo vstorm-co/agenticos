@@ -37,7 +37,7 @@ from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpe
 from app.core.config import settings
 from app.db.models.notification import NotificationEventType
 from app.services.email.templates import render_email
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import APPROVABLE_BY, NotificationCenterService
 from app.services.notifications import ROUTINE_EXCERPT_CHARS, NotificationService
 
 MODULE = "app.services.notifications"
@@ -79,6 +79,7 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
         approval.id = uuid.uuid4()
         approval.account = None
         approval.tool_id = tool_id
+        approval.always_asks = tool_id.startswith("agenticos_")
         approvals.append(approval)
     return approvals
 
@@ -706,6 +707,26 @@ class TestApprovalRequested:
         assert call["event_type"] is NotificationEventType.APPROVAL_REQUESTED
         assert set(call["recipients"]) == {boss_id, asker_id}
         assert call["render_context"]["tools"] == "send_email"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("tools", "named"),
+        [(("agenticos_accept_improvement", "send_email"), True), (("send_email",), False)],
+    )
+    async def test_the_runs_person_is_named_only_beside_their_own_platform_call(
+        self, written, tools: tuple[str, ...], named: bool
+    ):
+        person = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=person), agent=_agent(), spec=_spec(), approvals=_approvals(*tools)
+            )
+
+        context = written.calls[0]["render_context"]
+        assert context.get(APPROVABLE_BY) == (str(person) if named else None)
 
     @pytest.mark.anyio
     async def test_a_call_that_names_its_account_lists_it_beside_the_tool(self, written):

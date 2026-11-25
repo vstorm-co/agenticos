@@ -43,7 +43,12 @@ from app.services.channels.notification_send import NotificationRateLimited
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
-from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.notification_center import (
+    APPROVABLE_BY,
+    NotificationCenterService,
+    absolute_context_url,
+    approvable_by,
+)
 from app.services.notification_routes import NotificationRouteService
 from app.services.push import PushService
 from app.services.routine_notifications import allowed_channels as routine_channels
@@ -427,7 +432,9 @@ class NotificationDeliveryService:
             # Rows stored before the asker line existed have no such key, and a
             # missing one would print as a literal placeholder.
             context.setdefault("asked_by", "")
-            decides = recipient.is_app_admin or role in _DECIDING_ROLES
+            person = approvable_by(notification)
+            context.pop(APPROVABLE_BY, None)
+            decides = recipient.is_app_admin or role in _DECIDING_ROLES or person == recipient.id
             if decides:
                 return EmailKey.APPROVAL_REQUESTED, context
             # No link at all, and that is the point of it - the same "nothing

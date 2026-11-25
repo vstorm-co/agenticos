@@ -29,6 +29,7 @@ from app.repositories import deployment_settings_repo
 from app.services.email.providers.base import SendResult
 from app.services.email.service import EmailKey
 from app.services.email.templates import render_email
+from app.services.notification_center import APPROVABLE_BY
 from app.services.notification_delivery import NotificationDeliveryService
 
 pytestmark = pytest.mark.anyio
@@ -816,6 +817,42 @@ class TestRenderDispatch:
             assert service.send.call_args.kwargs["key"] is expected_key
             context = service.send.call_args.kwargs["context"]
             assert ("approvals_url" in context) is keeps_link
+
+    @pytest.mark.security
+    async def test_the_runs_person_gets_the_link_to_their_own_platform_call(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        person = await _member(db, org, role="builder")  # no approvals:decide
+        other = await _member(db, org, role="member")
+        now = datetime.now(UTC)
+
+        for recipient, expected_key, keeps_link in (
+            (person, EmailKey.APPROVAL_REQUESTED, True),
+            (other, EmailKey.APPROVAL_PENDING, False),
+        ):
+            delivery = await _delivery(
+                db,
+                recipient=recipient,
+                organization_id=org.id,
+                event_type=NotificationEventType.APPROVAL_REQUESTED,
+                render_context={
+                    "tools": "agenticos_accept_improvement",
+                    "approvals_url": "https://app.example.com/runs",
+                    APPROVABLE_BY: str(person.id),
+                },
+                claimed_at=now,
+                attempts=1,
+            )
+            service = AsyncMock()
+            service.send = AsyncMock(
+                return_value=SendResult(provider_message_id="x", accepted=True)
+            )
+            with patch(f"{MODULE}.get_email_service", return_value=service):
+                await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+            assert service.send.call_args.kwargs["key"] is expected_key
+            context = service.send.call_args.kwargs["context"]
+            assert ("approvals_url" in context) is keeps_link
+            assert APPROVABLE_BY not in context
 
     @pytest.mark.security
     async def test_an_approval_stored_before_the_asker_line_renders_without_a_placeholder(self, db):

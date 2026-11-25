@@ -382,6 +382,18 @@ def _channel_allowed(
     return channels is None or channel in channels
 
 
+APPROVABLE_BY = "approvable_by_user_id"
+"""`render_context` key of an `approval_requested` notice whose calls include the run's
+own platform call that always asks: that person may approve it without
+`approvals:decide`, so they are offered the decision like anybody holding it."""
+
+
+def approvable_by(notification: Notification) -> uuid.UUID | None:
+    """The run's own person, where the waiting calls include their own platform call."""
+    raw = (notification.render_context or {}).get(APPROVABLE_BY)
+    return uuid.UUID(raw) if isinstance(raw, str) else None
+
+
 @dataclass(frozen=True)
 class _Gate:
     """One row's outcome under Decision 7's recheck.
@@ -1444,7 +1456,7 @@ class NotificationCenterService:
                 or cache.criterion_visible_by_id.get(notification.id, False)
             )
         if gate is ContentGate.DEGRADE:
-            if ctx.has(Perm.APPROVALS_DECIDE):
+            if ctx.has(Perm.APPROVALS_DECIDE) or approvable_by(notification) == ctx.user_id:
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

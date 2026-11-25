@@ -95,7 +95,11 @@ from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
 from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.channels.base import platform_name
-from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.notification_center import (
+    APPROVABLE_BY,
+    NotificationCenterService,
+    absolute_context_url,
+)
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
 
@@ -518,6 +522,14 @@ class NotificationService:
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
+        # Imported here: the approvals service reaches this module through its chat handback.
+        from app.services.approvals import runs_as_its_person
+
+        if run.user_id is not None and any(
+            runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            for approval in approvals
+        ):
+            render_context[APPROVABLE_BY] = str(run.user_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.APPROVAL_REQUESTED,
