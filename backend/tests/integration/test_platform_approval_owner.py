@@ -30,7 +30,7 @@ from app.agents.approval import ApprovalGranted
 from app.api import deps
 from app.core.audit import set_impersonator
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
@@ -339,3 +339,146 @@ async def test_the_queue_refuses_another_persons_approval_with_403(db: AsyncSess
 
     assert response.status_code == 403, response.text
     assert response.json()["error"]["code"] == "AUTHORIZATION_ERROR"
+
+
+class TestTheRunsPersonWithoutApprovalsDecide:
+    """A Builder or a Member holds no `approvals:decide`; their own platform call is
+    still theirs to answer, and nothing else in the queue is."""
+
+    async def test_they_approve_their_own_platform_call(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(db, org, builder)
+
+        decided = await ApprovalService(db).decide(builder, approval.id, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+    async def test_they_reject_their_own_platform_call(self, db: AsyncSession):
+        org = await _org(db)
+        member = await _member(db, org, OrgRoleName.MEMBER)
+        _run, approval = await _parked(db, org, member)
+
+        decided = await ApprovalService(db).decide(member, approval.id, approved=False)
+
+        assert decided.status == ApprovalStatus.REJECTED.value
+
+    @pytest.mark.parametrize("approved", [True, False])
+    async def test_they_cannot_decide_somebody_elses_platform_call(
+        self, db: AsyncSession, approved: bool
+    ):
+        org = await _org(db)
+        admin = await _member(db, org, OrgRoleName.ADMIN)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(db, org, admin)
+
+        with pytest.raises(AuthorizationError):
+            await ApprovalService(db).decide(builder, approval.id, approved=approved)
+
+    async def test_they_cannot_decide_their_own_call_of_another_tool(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(
+            db, org, builder, tool_id="github_merge_pull_request", always_asks=True
+        )
+
+        with pytest.raises(AuthorizationError):
+            await ApprovalService(db).decide(builder, approval.id, approved=True)
+
+    async def test_they_continue_their_own_run_past_their_platform_call(self, db: AsyncSession):
+        """Past the permission check: the next refusal is the spec the fixture never published."""
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, builder, status=ApprovalStatus.APPROVED)
+
+        with pytest.raises(BadRequestError, match="no longer exists"):
+            await _parked_runs(db).resume(builder, run.id)
+
+    async def test_they_cannot_continue_somebody_elses_run(self, db: AsyncSession):
+        org = await _org(db)
+        admin = await _member(db, org, OrgRoleName.ADMIN)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, admin, status=ApprovalStatus.APPROVED)
+
+        with pytest.raises(AuthorizationError):
+            await _parked_runs(db).resume(builder, run.id)
+
+    async def test_they_cannot_continue_their_run_past_another_tool(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(
+            db,
+            org,
+            builder,
+            tool_id="github_merge_pull_request",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        with pytest.raises(AuthorizationError):
+            await _parked_runs(db).resume(builder, run.id)
+
+
+class TestWhatEachReaderIsOffered:
+    async def test_the_runs_person_reads_their_card_as_theirs_to_approve(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, builder)
+
+        [call] = await AgentRunnerService(db).parked_calls(builder, run, for_decision=True)
+
+        assert (call.may_decide, call.may_approve) == (True, True)
+
+    async def test_an_operator_reads_it_as_theirs_to_reject_only(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        run, _approval = await _parked(db, org, builder)
+
+        [call] = await AgentRunnerService(db).parked_calls(operator, run)
+
+        assert (call.may_decide, call.may_approve) == (True, False)
+
+    async def test_somebody_elses_parked_run_is_not_read_without_the_permission(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        admin = await _member(db, org, OrgRoleName.ADMIN)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, admin)
+
+        with pytest.raises(AuthorizationError):
+            await AgentRunnerService(db).parked_calls(builder, run, for_decision=True)
+
+    async def test_the_queue_offers_an_operator_approval_only_where_it_counts(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        _first, platform = await _parked(db, org, builder)
+        _second, other = await _parked(db, org, builder, tool_id="send_email", always_asks=False)
+
+        rows, _total = await ApprovalService(db).list_approvals(operator)
+
+        offered = {row.id: row.may_approve for row in rows}
+        assert offered == {platform.id: False, other.id: True}
+
+
+def _parked_runs(db: AsyncSession) -> ParkedRunService:
+    return ParkedRunService(db, runner=AgentRunnerService(db), approvals=ApprovalService(db))
+
+
+async def test_the_runs_person_approves_through_the_queue_route_without_the_permission(
+    db: AsyncSession,
+):
+    org = await _org(db)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    _run, approval = await _parked(db, org, builder)
+
+    async with _client(db, builder) as client:
+        response = await client.post(
+            f"{settings.API_V1_STR}/approvals/{approval.id}", json={"approved": True}
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == ApprovalStatus.APPROVED.value

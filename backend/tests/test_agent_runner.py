@@ -3991,6 +3991,9 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ),
             patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
+            ),
+            patch(
                 "app.services.approvals.agent_run_repo.decide_approval",
                 new=AsyncMock(return_value=approval),
             ) as decide,
@@ -4015,6 +4018,9 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
             ),
             pytest.raises(BadRequestError),
         ):
@@ -4045,6 +4051,9 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
             ),
             patch(
                 "app.services.approvals.agent_run_repo.decide_approval",

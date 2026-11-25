@@ -20,6 +20,7 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { appearanceChosenBy } from "@/lib/account-appearance";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { isPlatformTool } from "@/lib/approval-view";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -2393,9 +2394,6 @@ export function useChat(options: UseChatOptions = {}) {
     runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
-  // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2422,7 +2420,12 @@ export function useChat(options: UseChatOptions = {}) {
   // read as a reloaded parked run. Empty rows are left alone - a run decided
   // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || continuingApproval || !canDecide || decidingApprovalRef.current)
+    if (
+      pendingApproval !== null ||
+      continuingApproval ||
+      !permissionsLoaded ||
+      decidingApprovalRef.current
+    )
       return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
@@ -2432,6 +2435,9 @@ export function useChat(options: UseChatOptions = {}) {
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
         return [];
+      // Without `approvals:decide` the only call a person answers is their own
+      // platform call; anything else stays with the run's Stop.
+      if (!canDecide && !calls.some((call) => isPlatformTool(call.name))) return [];
       const key = JSON.stringify([
         message.runId,
         calls.length ? calls.map((call) => call.id).sort() : ["run", message.id],
@@ -2464,6 +2470,7 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
+          if (!canDecide && !actionable.every((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2477,6 +2484,8 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              may_decide: call.may_decide,
+              may_approve: call.may_approve,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2486,8 +2495,12 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: message.id,
           });
           return;
-        } catch {
-          // Keep the batch eligible for a later transcript refresh.
+        } catch (error) {
+          // Another person's run in a shared chat is refused for good; anything else
+          // stays eligible for a later transcript refresh.
+          if (error instanceof ApiError && error.status === 403) {
+            offeredApprovalBatchesRef.current.add(key);
+          }
         } finally {
           if (reads.get(runId) === request) reads.delete(runId);
         }
@@ -2496,7 +2509,14 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, continuingApproval, canDecide, activeConversationId]);
+  }, [
+    messages,
+    pendingApproval,
+    continuingApproval,
+    permissionsLoaded,
+    canDecide,
+    activeConversationId,
+  ]);
 
   const queryClient = useQueryClient();
 
@@ -2677,6 +2697,8 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            may_decide: call.may_decide,
+            may_approve: call.may_approve,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,

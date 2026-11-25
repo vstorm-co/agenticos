@@ -444,3 +444,47 @@ it("offers only Reject on a call this person may not approve unread", async () =
   await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
 });
+
+it("lets the run's person approve their own platform call without approvals:decide", async () => {
+  held.permissions = [];
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_accept_improvement",
+      args: { publish: true },
+      always_asks: true,
+      may_decide: true,
+      may_approve: true,
+    }),
+  ]);
+
+  expect(screen.queryByText(/needs a permission you do not hold/)).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }]);
+});
+
+it("offers only Reject on a platform call that runs as somebody else", async () => {
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_publish_agent",
+      args: {},
+      always_asks: true,
+      may_decide: true,
+      may_approve: false,
+    }),
+  ]);
+
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText("Only the person this run acts for can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
+});
+
+it("keeps the permission sentence for a call the person may not decide", () => {
+  held.permissions = [];
+  mount([action("a-1", { may_decide: false, may_approve: false })]);
+
+  expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  expect(screen.getByText(/needs a permission you do not hold/)).toBeInTheDocument();
+});

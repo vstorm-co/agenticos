@@ -1572,6 +1572,10 @@ Remembered choices are stored on the server. **Chat controls → Preferences →
 
 The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
+A platform call that always asks - accepting an improvement, publishing an agent, inviting a member - runs with the platform authority of the person its run acts for. So only that person, signed in as themselves, may approve it: not another member holding `approvals:decide`, not an API key, the person's own included, and not an administrator impersonating them. Anybody holding `approvals:decide` may still reject it. The person needs no permission beyond being that person, so a Builder or a Member approves the Architect's card in their own chat and continues the run there. Only they may continue a run past an approved platform call.
+
+A run with no person - a visitor's on a widget or a hosted page, an unlinked channel member's, or one whose starter was deleted - has nobody whose answer counts, so its platform call waits until it expires; such a run never holds platform authority in the first place. A deployment change (`change_deployment`) needs both rules at once: the run's own person, who must also be an application administrator. The Architect of anybody else cannot change it.
+
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it
 cannot express is the mood of one session — somebody working through twenty turns

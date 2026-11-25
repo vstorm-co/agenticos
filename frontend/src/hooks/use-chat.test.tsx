@@ -7025,6 +7025,72 @@ describe("human decisions inside delegated tasks", () => {
     expect(get).toHaveBeenCalledWith("/runs/r-1/parked");
   });
 
+  it.each([true, false])(
+    "offers a non-decider their own platform call only when they may decide it (%s)",
+    async (mayDecide) => {
+      get.mockImplementation(async (url: string) =>
+        url.endsWith("/parked")
+          ? [
+              {
+                id: "ar-1",
+                tool_call_id: "tc-1",
+                tool_name: "agenticos_accept_improvement",
+                tool_args: { publish: true },
+                always_asks: true,
+                may_decide: mayDecide,
+                may_approve: mayDecide,
+              },
+            ]
+          : false,
+      );
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage({
+        ...parkedTurn(),
+        toolCalls: [
+          {
+            id: "tc-1",
+            name: "agenticos_accept_improvement",
+            args: {},
+            status: "awaiting_approval" as const,
+          },
+        ],
+      });
+      const { result } = renderHook(() => useChat(), { wrapper });
+
+      await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+      await act(async () => {});
+      expect(result.current.pendingApproval?.actionRequests[0]?.may_approve ?? null).toBe(
+        mayDecide ? true : null,
+      );
+    },
+  );
+
+  it("does not ask again about a platform call on somebody else's run", async () => {
+    get.mockImplementation(async (url: string) => {
+      if (url.endsWith("/parked")) throw new ApiError(403, "Not yours", {});
+      return false;
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      toolCalls: [
+        {
+          id: "tc-1",
+          name: "agenticos_publish_agent",
+          args: {},
+          status: "awaiting_approval" as const,
+        },
+      ],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+    act(() => useChatStore.getState().addMessage({ ...parkedTurn(), id: "m-2", runId: "r-2" }));
+    await act(async () => {});
+
+    expect(result.current.pendingApproval).toBeNull();
+    expect(get.mock.calls.filter(([url]) => url === "/runs/r-1/parked")).toHaveLength(1);
+  });
+
   it("does not expose a child decision to a non-decider", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore

@@ -2784,6 +2784,8 @@ class ApprovalRow:
     """Set by the service when this reader may not see what the call quotes."""
     always_asks: bool = False
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
+    may_approve: bool = False
+    """Set by the service: whether an approval from this reader would be accepted."""
 
 
 @dataclass(frozen=True)

@@ -44,11 +44,14 @@ interface ToolApprovalDialogProps {
  * **It checks `approvals:decide` itself**, for the same reason the model picker
  * beside it checks `connections:manage`: the permission belongs to the write, and
  * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
- * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
- * `builder` hold `agents:run` and not the decision - so the everyday chat user was
- * offered a Submit and refused by the API on the first call. What stays for them is
- * the call itself and the sentence saying who can decide: a panel that goes quiet
- * leaves a stopped conversation unexplained.
+ * both of which ask for `Perm.APPROVALS_DECIDE`. Running an agent is not - `member`
+ * and `builder` hold `agents:run` and not the decision - so the everyday chat user
+ * was offered a Submit and refused by the API on the first call. What stays for them
+ * is the call itself and the sentence saying who can decide: a panel that goes quiet
+ * leaves a stopped conversation unexplained. The one exception is the server's:
+ * a platform call that always asks runs as its person, who answers it without the
+ * permission and is the only one who may approve it - each request says so in
+ * `may_decide` and `may_approve`.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
  * contents were diffed into an `edit` decision - and the backend never offered it:
@@ -76,7 +79,9 @@ export function ToolApprovalDialog({
   const feedback = useTranslations("approvalFeedback");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
-  const mayDecide = can(Perm.approvalsDecide);
+  const mayDecide =
+    can(Perm.approvalsDecide) ||
+    (actionRequests.length > 0 && actionRequests.every((action) => action.may_decide === true));
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
@@ -89,8 +94,11 @@ export function ToolApprovalDialog({
         action.tool_name === actionRequests[0]!.tool_name &&
         action.account === actionRequests[0]!.account,
     );
+  const hiddenFromThem = actionRequests.some(
+    (action) => action.always_asks && action.content_hidden,
+  );
   const mayApprove = actionRequests.every(
-    (action) => !(action.always_asks && action.content_hidden),
+    (action) => action.may_approve ?? !(action.always_asks && action.content_hidden),
   );
   const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
     onDecisions(
@@ -206,7 +214,9 @@ export function ToolApprovalDialog({
                   {t("approve")}
                 </Button>
               ) : (
-                <p className="text-muted-foreground max-w-56 text-xs">{t("approvalNeedsTheRun")}</p>
+                <p className="text-muted-foreground max-w-56 text-xs">
+                  {hiddenFromThem ? t("approvalNeedsTheRun") : t("approvalNeedsItsPerson")}
+                </p>
               )}
               {mayApprove && mayRemember && sameTool && (
                 <DropdownMenu>

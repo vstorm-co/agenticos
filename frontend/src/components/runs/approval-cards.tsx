@@ -92,7 +92,8 @@ export function PendingApproval({
       ? callSummary(approval.tool_args)
       : null;
   const askedLine = useAskedLine(approval);
-  const mayApprove = !(approval.always_asks && approval.content_hidden);
+  const hiddenFromThem = Boolean(approval.always_asks && approval.content_hidden);
+  const mayApprove = approval.may_approve ?? !hiddenFromThem;
 
   return (
     <li>
@@ -158,7 +159,9 @@ export function PendingApproval({
               {t("approve")}
             </Button>
           ) : (
-            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+            <p className="text-muted-foreground max-w-48 text-xs">
+              {hiddenFromThem ? t("approveNeedsTheRun") : t("approveNeedsItsPerson")}
+            </p>
           )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />

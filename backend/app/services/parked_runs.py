@@ -24,8 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext
+from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
@@ -37,7 +37,7 @@ from app.repositories import agent_run_repo, channel_prompt_repo
 from app.repositories.channel_prompt import SettledBy
 from app.schemas.agent import AgentRunResult, RunStep, SettledCall, SettledDelegation
 from app.services.agent_runner import AgentRunnerService, RunSegment
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, answers_for, runs_as_its_person
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
 from app.services.channels.handback_jobs import queue_segment
@@ -164,6 +164,21 @@ class ParkedRunService:
             self.db, run.id, organization_id=ctx.organization_id
         )
 
+    async def _past_own_platform_call(self, ctx: AuthContext, run: AgentRun) -> bool:
+        """Whether `ctx` is the run's person and its current park holds their platform call."""
+        if not answers_for(ctx, run.user_id):
+            return False
+        state = run.paused_state or {}
+        parked = state.get("tool_call_ids", {})
+        approvals = await agent_run_repo.list_approvals_for_run(
+            self.db, run_id=run.id, organization_id=run.organization_id
+        )
+        return any(
+            str(approval.id) in parked
+            and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            for approval in approvals
+        )
+
     async def _anything_pending(self, run: AgentRun) -> bool:
         approvals = await agent_run_repo.list_approvals_for_run(
             self.db, run_id=run.id, organization_id=run.organization_id
@@ -171,8 +186,20 @@ class ParkedRunService:
         return any(a.status == ApprovalStatus.PENDING.value for a in approvals)
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> Continued:
-        """Continue a run whose calls were decided, inline; post to its chat when it has one."""
+        """Continue a run whose calls were decided, inline; post to its chat when it has one.
+
+        Needs `approvals:decide`, or to be the run's own person continuing it past
+        their own platform call - which nobody else may continue it past.
+
+        Raises:
+            AuthorizationError: The caller is neither.
+        """
         run = await self.runner.get_run(ctx, run_id)
+        if not ctx.has(Perm.APPROVALS_DECIDE) and not await self._past_own_platform_call(ctx, run):
+            raise AuthorizationError(
+                message="Continuing a parked run needs approvals:decide",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
         if run.surface == RunSurface.WORKFLOW.value:
             raise BadRequestError(
                 message="This run is continued by its workflow",
