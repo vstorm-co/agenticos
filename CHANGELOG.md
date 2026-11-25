@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - Bound a dataset import by its size and its rows. `DATASET_IMPORT_MAX_BYTES` (default 10485760, 10 MB) and `DATASET_IMPORT_MAX_ROWS` (default 10000) set the limits, the request body limit follows the larger of them, and the import dialog states the size it accepts. A file past either limit is refused at the first row over it.
+- Let whoever may start an Improve session confirm its paid checks - of chosen changes, of a knowledge draft and of what each change did - and run them, and the session's later steps, as that person. A session the Architect started can now be checked from the console.
 
 ### Fixed
 
@@ -29,10 +30,19 @@ Two things are versioned separately from this file and worth knowing about:
 - Fail a skill Improve session's step that is refused, with its reason and a Retry, instead of leaving the session stuck; a step past the spending limit stops on its budget.
 - Parse dataset imports off the event loop, a row at a time, so a large or deeply nested file cannot stall the API.
 - Keep a regression a finished skill check stage confirmed when another stage of the agent could not finish, and say so on the agent's row.
-- Make an Improve search's units honest: the Try again note reaches the helper, each unit rechecks the actor's access, an answer's cap covers longer instructions and agents whose answers cost nothing, a unit that runs out of time keeps its answers, and the helper's prompt fences every quoted question and answer.
+- Keep an Improve search's units in step with their job and budget: the Try again note reaches the helper, an answer's cap covers longer instructions and agents whose answers cost nothing, and a unit that runs out of time keeps its answers.
 - Name a skill's test set apart from a dataset that already holds its name, discard a check and its proposal without deadlocking, and move a skill check on when its stage run is cancelled, reaped or lost.
-- Let whoever may start an Improve session confirm its paid checks, running them as that person; admit a later attempt on its own training questions; list every open session and every knowledge topic a session found to the Architect; and learn only from answers the agent itself gave.
+- Admit a later Improve attempt on its own training questions, list every open session and every knowledge topic a session found to the Architect, and learn only from answers the agent itself gave.
 - Correct the eval write-tool table, the authoring assistant's access and tools, and what a skill session's readers see in the documentation.
+
+### Security
+
+- Recheck the acting person's access to the agent, `runs:view` and the dataset before each unit of an Improve search reads questions or pays for a model call, and stop the session when it is gone.
+- Fence every quoted question, answer, failed check and earlier version in the Improve search's proposal prompt, so a dataset's text cannot read as the platform's own instructions.
+
+### Upgrading
+
+- Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
 
 ## [1.93.0] - 2026-11-24
 
