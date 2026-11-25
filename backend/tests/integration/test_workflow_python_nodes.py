@@ -541,6 +541,59 @@ class TestPythonWithActions:
             error = attempts[-1].result["error"]
             assert error["code"] == code and error["retryable"] is (not bad_args)
 
+    @pytest.mark.parametrize("limit", [5, 7])
+    async def test_graph_rows_and_script_calls_share_the_run_ceiling(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, limit: int
+    ) -> None:
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_NODE_RUNS", limit)
+        entry, loop, out = _node("core.input"), _node("control.foreach"), _node("core.output")
+        item, script, yielded = (
+            node.model_copy(update={"scope_id": loop.id})
+            for node in (
+                _node("loop.item"),
+                _node(
+                    "code.python.actions",
+                    {"code": "echo(message='hello')", "actions": {"echo": {"type": "debug.echo"}}},
+                ),
+                _node("loop.yield"),
+            )
+        )
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, loop, item, script, yielded, out),
+            edges=(
+                _edge(entry, loop),
+                _edge(loop, out, "done"),
+                _edge(item, script),
+                _edge(script, yielded),
+            ),
+            bindings=(
+                _literal(loop, "items", ["one"]),
+                _literal(yielded, "value", "done"),
+                Binding(
+                    target_node_id=out.id,
+                    target_field="structured",
+                    source=NodeOutputRef(node_id=loop.id, port="done"),
+                ),
+            ),
+        )
+        seeded = await seed_run(engine, graph)
+
+        finished = await drive(seeded)
+
+        async with seeded.factory() as db:
+            assert await workflow_run_repo.count_node_runs(db, workflow_run_id=finished.id) == limit
+            script_rows = await workflow_run_repo.list_node_runs_of(
+                db, workflow_run_id=finished.id, node_instance_ids=[script.id]
+            )
+        assert len(script_rows) == 2  # The Python step and its action both completed.
+        assert all(row.status == "succeeded" for row in script_rows)
+        if limit == 5:
+            assert finished.status == WorkflowRunStatus.FAILED.value
+            assert finished.error is not None and finished.error["code"] == "NODE_RUN_LIMIT"
+        else:
+            assert finished.status == WorkflowRunStatus.SUCCEEDED.value
+
     async def test_foreach_collects_bad_action_arguments_and_continues(self, engine: AsyncEngine):
         entry, loop, out = (
             _node("core.input"),

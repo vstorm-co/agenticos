@@ -1354,18 +1354,19 @@ async def _end_run(
     run: WorkflowRun,
     node_run: NodeRun,
     run_status: WorkflowRunStatus,
-    node_status: NodeRunStatus,
+    node_status: NodeRunStatus | None,
     event: str,
     error: WorkflowError,
     now: datetime,
 ) -> None:
-    """End `node_run` and then `run` for good.
+    """End `run` for good, preserving `node_run` if it already settled.
 
     Terminal in every column a reader checks: the node, the run's status,
     `ended_at` and `error`, and every outbox row still live for the run, so
     nothing else is claimed for it afterwards (`cleanup.stop_run_work`).
     """
-    await _end_node(db, run=run, node_run=node_run, status=node_status, now=now, error=error)
+    if node_status is not None:
+        await _end_node(db, run=run, node_run=node_run, status=node_status, now=now, error=error)
     # What every other step still had under way - queued and waiting steps, approvals,
     # parked agent runs - is closed, and the loops enclosing a node that ends the run
     # (still `running`) end with it.
@@ -2886,6 +2887,8 @@ async def _advance(
     node_scope = node_scope_map(graph)
     level = _loop_of(scope_path)
     decided = _AdvanceState(db, run=run, graph=graph, scope_path=scope_path)
+    limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
+    existing: int | None = None
     ready_pairs: list[tuple[UUID, UUID]] = []
     frontier = [completed_node_instance_id]
     while frontier:
@@ -2901,12 +2904,36 @@ async def _advance(
             verdict = await decided.verdict(target_id)
             if verdict is None:
                 continue
+            # Iteration admission checks the body size, but script calls and nested
+            # iterations can consume capacity before its remaining rows are created.
+            if existing is None:
+                existing = await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id)
+            if existing >= limit:
+                source = await decided.node_run(source_id)
+                assert source is not None  # A decided target has all its predecessors.
+                await _end_run(
+                    db,
+                    run=run,
+                    node_run=source,
+                    run_status=WorkflowRunStatus.FAILED,
+                    node_status=None,
+                    event=events.EventKind.RUN_FAILED,
+                    error=WorkflowError(
+                        code="NODE_RUN_LIMIT",
+                        message=f"This run would take more than {limit} steps",
+                        details={"limit": limit, "node_instance_id": str(target_id)},
+                        bypassable=False,
+                    ),
+                    now=datetime.now(UTC),
+                )
+                return []
             runs = verdict != "skip"
             node_run = await _create_decided_node_run(
                 db, run=run, target_id=target_id, runs=runs, scope_path=scope_path
             )
             if node_run is None:
                 continue
+            existing += 1
             decided.remember(target_id, node_run)
             if verdict == "incomplete":
                 # A Merge waiting for all, reached by only some of its legs. Publishing
