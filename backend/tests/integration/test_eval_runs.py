@@ -4567,3 +4567,9 @@ async def test_answers_to_questions_a_check_measures_on_are_told_apart(db) -> No
     assert measured == {answered[kept_aside.case_id]}
     assert in_a_test_set == {answered[learned.case_id], answered[kept_aside.case_id]}
     assert elsewhere == set()
+    assert (
+        await eval_run_repo.answers_to_measured_questions(
+            db, [], organization_id=ctx.organization_id
+        )
+        == set()
+    )
