@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -32,7 +32,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
-from app.db.models.eval_run import EvalRunArm
+from app.db.models.eval_run import EvalRun, EvalRunArm
 from app.db.models.eval_suite import EvalSuite
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, eval_suite_repo
@@ -231,6 +231,25 @@ async def test_a_reviewer_needs_runs_view_for_generated_text_and_access_to_the_f
         await service.read(ctx, uuid.uuid4())
 
 
+@pytest.mark.security
+async def test_a_context_change_holding_hidden_text_is_never_checked(db):
+    """No eval run starts, so no model reads a body a reviewer could not read whole."""
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days.\U000e0041"
+    await db.flush()
+    service = AuthoringService(db)
+    body = ProposalCheck(dataset_id=uuid.uuid4(), agent_id=agent.id, proposal_id=proposal.id)
+
+    for start in (service.estimate_context_check, service.check_context):
+        with pytest.raises(BadRequestError, match="cannot see") as refused:
+            await start(ctx, file.id, body)
+        assert refused.value.details == {"proposal_id": proposal.id, "reason": "hidden_characters"}
+
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+
 async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):
     ctx, agent, file, run_id = await _bound(db)
     await _improve_context(db, ctx, file, _proposes(db, run_id))
@@ -384,3 +403,25 @@ async def test_the_worker_stops_on_a_file_gone_or_out_of_the_starters_reach(db):
         gone.id: "The context file is gone.",
         lost.id: "Whoever started this may no longer edit the context file.",
     }
+
+
+@pytest.mark.security
+async def test_a_proposed_body_with_characters_nobody_can_see_is_never_recorded_or_applied(db):
+    """A bidi override in the body reorders what a reviewer reads; the proposal is not
+    recorded, and a row that carries one anyway is refused at Apply, the file unchanged."""
+    ctx, _agent, file, run_id = await _bound(db)
+
+    request = await _improve_context(db, ctx, file, _proposes(db, run_id, "Returns‮ 30."))
+
+    assert request.status != "completed" and "cannot be seen" in (request.error or "")
+    assert await _pending(db, file) == []
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days.\U000e0041"
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="cannot see"):
+        await ContextProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+
+    await db.refresh(file)
+    assert file.content == "Returns take 90 days."

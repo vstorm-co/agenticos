@@ -16635,6 +16635,7 @@
         "no_change": "Sie ändert nichts",
         "unknown_tool": "Der Agent hat kein solches Tool",
         "invalid_tool_change": "Ein Tool-Name oder eine Beschreibung, die der Agent nicht verwenden kann",
+        "hidden_characters": "Sein Text enthält Zeichen, die ein Mensch nicht sehen kann",
         "not_a_target": "Nichts, was der Assistent ändern darf",
         "operation": "Keine Änderung, die diese Einstellung erlaubt",
         "loosens_approval": "Sie würde die Freigabe lockern",
@@ -16716,7 +16717,8 @@
       "view": "Wie die Änderung gezeigt wird",
       "unified": "Einheitlich",
       "split": "Nebeneinander",
-      "showUnchanged": "{count, plural, one {# unveränderte Zeile anzeigen} other {# unveränderte Zeilen anzeigen}}"
+      "showUnchanged": "{count, plural, one {# unveränderte Zeile anzeigen} other {# unveränderte Zeilen anzeigen}}",
+      "hidden": "Diese Änderung enthält Zeichen, die nichts zeichnen oder den Text umordnen. Jedes ist mit seinem Code ausgeschrieben."
     },
     "instructionsEditor": {
       "current": "Aktuelle Anweisungen",

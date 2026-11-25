@@ -49,6 +49,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
@@ -165,6 +166,10 @@ _STANDING_REFUSALS = {
         "This suggestion removes or reconfigures a safeguard, which the assistant may not "
         "propose. Change safeguards in the Builder, or dismiss it."
     ),
+    "hidden_characters": (
+        "This suggestion holds characters a person cannot see, so it is never accepted. "
+        "Dismiss it, or write the change in the Builder."
+    ),
     "reaches_network": (
         "This suggestion adds a capability that reaches beyond this deployment, which the "
         "assistant may not propose. Add it in the Builder, where its limits are set, or "
@@ -199,12 +204,19 @@ _GATE_MESSAGES = {
 
 
 def refuse_never_accepted(hunk: SpecProposalHunk) -> None:
-    """Refuse a stored field change the assistant may never propose, whatever the draft holds.
+    """Refuse a stored change the assistant may never propose, whatever the draft holds.
 
     Raises:
-        BadRequestError: It is not a change the assistant may propose, or it removes
-            or reconfigures a safeguard.
+        BadRequestError: Its text holds characters a person cannot see, it is not a
+            change the assistant may propose, or it removes or reconfigures a safeguard.
     """
+    if holds_refused(
+        [hunk.new_text, hunk.edited_text, hunk.new_name, hunk.new_description, hunk.new_value]
+    ):
+        raise BadRequestError(
+            message=_STANDING_REFUSALS["hidden_characters"],
+            details={"hunk_id": hunk.id, "reason": "hidden_characters"},
+        )
     if hunk.kind != HunkKind.SPEC_FIELD.value:
         return
     refused = authoring_fields.standing_refusal(
@@ -1161,6 +1173,8 @@ class AuthoringService:
         batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
+        if decision.action == "accept":
+            refuse_never_accepted(hunk)
         if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
             if not ctx.has(Perm.SKILLS_EDIT):
                 raise AuthorizationError(message="Creating this skill requires skills:edit")
@@ -1576,6 +1590,8 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        for hunk in pending:
+            refuse_never_accepted(hunk)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )
@@ -1746,6 +1762,13 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        from app.services.skill_proposal import PROPOSAL_HIDES_TEXT, proposal_hides_text
+
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this skill to check the change on",
@@ -1863,6 +1886,13 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
+            )
+        from app.services.context_proposal import CONTEXT_HIDES_TEXT, context_hides_text
+
+        if context_hides_text(proposal):
+            raise BadRequestError(
+                message=CONTEXT_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
             )
         if body.agent_id is None:
             raise BadRequestError(
