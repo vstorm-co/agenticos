@@ -281,7 +281,8 @@ class SearchProgress(TypedDict, total=False):
     `spent_before_usd` is the session's spend when the search began, so the
     search's own cost is the session's spend now less it. `best_before` is the
     best score a round of proposals started from, and `stale_generations` counts
-    the rounds in a row that found nothing better.
+    the rounds in a row that found nothing better. `proposal_attempts` counts the
+    times the current round of proposals was claimed without an answer recorded.
     """
 
     settings: SearchSettings
@@ -292,6 +293,7 @@ class SearchProgress(TypedDict, total=False):
     generation: int
     closed_generation: int
     stale_generations: int
+    proposal_attempts: int
     seed_score: float | None
     best_before: float | None
     cost_usd: str

@@ -36,7 +36,9 @@ from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
 
+import httpx
 from pydantic import BaseModel, Field
+from pydantic_ai.exceptions import FallbackExceptionGroup, ModelAPIError, UnexpectedModelBehavior
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -111,6 +113,20 @@ ANSWER_CAP_FACTOR = 2
 MAX_SCORING_ATTEMPTS = 2
 """Times a variant's scoring may begin before a variant whose job keeps dying is given up."""
 
+MAX_PROPOSAL_ATTEMPTS = 3
+"""Times one round of proposals may begin before the search ends: a provider that keeps
+failing, or a job that keeps dying, would otherwise ask the improver once a minute."""
+
+# The provider refused, timed out or was unreachable (a `FallbackModel` groups its members'
+# errors), or answered nothing usable. Anything else is a bug here and must propagate.
+_PROVIDER_FAILURES: tuple[type[Exception], ...] = (
+    ModelAPIError,
+    FallbackExceptionGroup,
+    UnexpectedModelBehavior,
+    httpx.HTTPError,
+    TimeoutError,
+)
+
 PARENTS = 2
 """Best variants each round of proposals starts from."""
 
@@ -127,6 +143,10 @@ _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 type SearchEnd = Literal[
     "budget", "max_variants", "patience", "proposal", "questions", "no_variant"
 ]
+
+type _Unproposed = Literal["refused", "unanswered"]
+"""A round with no variants: refused by our own rules, which ends the search, or left
+unanswered by the model, which is tried again up to `MAX_PROPOSAL_ATTEMPTS` times."""
 
 
 class InstructionVariant(BaseModel):
@@ -706,6 +726,8 @@ class SearchWorker:
         elif progress.get("seed_score") is None:
             # The starting instructions could not be graded: nothing can be shown better.
             end = "no_variant"
+        elif progress.get("proposal_attempts", 0) >= MAX_PROPOSAL_ATTEMPTS:
+            end = "proposal"
         if end is not None:
             await _end(db, run, iteration, progress, end)
             return None
@@ -725,7 +747,11 @@ class SearchWorker:
             await _end(db, run, iteration, progress, "budget")
             return None
         progress = SearchProgress(
-            **{**progress, "best_before": max((p.train_score or 0 for p in parents), default=None)}
+            **{
+                **progress,
+                "best_before": max((p.train_score or 0 for p in parents), default=None),
+                "proposal_attempts": progress.get("proposal_attempts", 0) + 1,
+            }
         )
         await self._claimed(db, run, iteration, progress)
         return _Propose(
@@ -931,7 +957,7 @@ class SearchWorker:
             )
             await ImprovementSearchService(db).queue(run)
 
-    async def _propose(self, unit: _Propose) -> InstructionVariants | None:
+    async def _propose(self, unit: _Propose) -> InstructionVariants | _Unproposed:
         async with self.sessions() as db:
             try:
                 result = await SystemAgentRunner(db).run(
@@ -946,10 +972,18 @@ class SearchWorker:
                 )
             except AppException:
                 logger.exception("A search round's proposal failed for session %s", unit.run_id)
-                return None
+                return "refused"
+            except _PROVIDER_FAILURES:
+                logger.exception(
+                    "A search round's proposal got no answer from the model for session %s",
+                    unit.run_id,
+                )
+                return "unanswered"
             return result.output
 
-    async def _record_proposal(self, unit: _Propose, proposed: InstructionVariants | None) -> None:
+    async def _record_proposal(
+        self, unit: _Propose, proposed: InstructionVariants | _Unproposed
+    ) -> None:
         async with self.sessions() as db:
             found = await self._searching(db)
             if found is None or found[1].id != unit.iteration_id:
@@ -962,8 +996,17 @@ class SearchWorker:
                     "cost_usd": str(search_cost(progress, spent=spent)),
                 }
             )
-            if proposed is None:
+            if proposed == "refused" or (
+                proposed == "unanswered"
+                and progress.get("proposal_attempts", 0) >= MAX_PROPOSAL_ATTEMPTS
+            ):
                 await _end(db, run, iteration, updated, "proposal")
+                return
+            if proposed == "unanswered":
+                await improvement_repo.update_iteration(
+                    db, iteration=iteration, values={"search": updated}
+                )
+                await ImprovementSearchService(db).queue(run)
                 return
             kept = [
                 variant
@@ -983,6 +1026,7 @@ class SearchWorker:
                 ],
             )
             updated["generation"] = unit.generation
+            updated["proposal_attempts"] = 0
             await improvement_repo.update_iteration(
                 db, iteration=iteration, values={"search": updated}
             )
