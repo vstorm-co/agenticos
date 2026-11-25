@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0369_run_error_code"
-down_revision: str | None = "0364_merge_routine_and_kb"
+down_revision: str | None = "0370_console_role_presentation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
