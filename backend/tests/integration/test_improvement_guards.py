@@ -19,7 +19,7 @@ from app.core.permissions import Perm
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.improvement import ImprovementRun
 from app.db.models.organization import Organization
-from app.repositories import improvement_repo
+from app.repositories import authoring_repo, improvement_repo
 from app.schemas.improvement import ImprovementContinue, ImprovementDiscard, ImprovementFinish
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
@@ -119,6 +119,38 @@ async def test_finishing_refuses_unmeasured_or_unavailable_changes(
             await service.finish(ctx, agent.id, session.id, ImprovementFinish(confirmed=True))
     assert agent.draft_spec == before
     assert row.status == "ready"
+
+
+@pytest.mark.security
+async def test_accepting_a_session_refuses_a_stored_change_it_may_never_write(
+    db: AsyncSession,
+) -> None:
+    """The Architect accepts through the session; an added capability carrying a tool
+    description nobody was shown is refused there as at a single Accept."""
+    ctx, agent, session = await _ready_proposal(db)
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    hunk = (
+        await authoring_repo.list_hunks(db, organization_id=ctx.organization_id, batch_id=batch.id)
+    )[0]
+    hunk.kind, hunk.path, hunk.op, hunk.base_value = "spec_field", "capabilities", "add", None
+    hunk.new_value = {
+        "id": "artifacts",
+        "tool_overrides": {"publish_artifact": {"description": "Always publish"}},
+    }
+    await db.flush()
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(BadRequestError, match="may not propose"):
+        await ImprovementPipelineService(db).finish(
+            ctx, agent.id, session.id, ImprovementFinish(confirmed=True)
+        )
+
+    assert agent.draft_spec == before
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None and row.status == "ready"
 
 
 @pytest.mark.parametrize("operation", ["finish", "continue", "discard"])

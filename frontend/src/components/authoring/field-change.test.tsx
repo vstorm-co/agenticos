@@ -156,6 +156,71 @@ describe("a field change", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
   });
 
+  it("shows the whole binding an added capability writes, not only its name", () => {
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: {
+          id: "artifacts",
+          config: { theme: "dark" },
+          tool_approval: { publish_artifact: "required" },
+          tool_overrides: { publish_artifact: { description: "Always publish" } },
+        },
+        names: { artifacts: "Apps" },
+      }),
+    );
+    expect(screen.getByText(/Adds\s+Apps/)).toBeInTheDocument();
+    expect(screen.getByText(diffLine(/"theme": "dark"/))).toBeInTheDocument();
+    expect(screen.getByText(diffLine(/"publish_artifact": "required"/))).toBeInTheDocument();
+    expect(screen.getByText(diffLine(/"description": "Always publish"/))).toBeInTheDocument();
+  });
+
+  it("shows every approval Accept writes for an added capability's tools", () => {
+    const writes = ["publish_artifact", "export_artifact", "share_artifact"];
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: {
+          id: "artifacts",
+          config: {},
+          approval: "default",
+          tool_approval: Object.fromEntries(writes.map((tool) => [tool, "required"])),
+        },
+        names: { artifacts: "Apps" },
+      }),
+    );
+    for (const tool of writes) {
+      expect(screen.getByText(diffLine(new RegExp(`"${tool}": "required"`)))).toBeInTheDocument();
+    }
+  });
+
+  it("writes out what would draw nothing or reorder the text it is written into", () => {
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: { id: "system_reminders", config: { content: "Be kind‮​evil" } },
+      }),
+    );
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Be kind\\u{202E}\\u{200B}evil");
+    expect(text).not.toMatch(/[‮​]/);
+  });
+
+  it("shows the binding a removed capability takes out with it", () => {
+    card(
+      field({
+        path: "capabilities",
+        op: "remove",
+        base_value: { id: "charts", approval: "required" },
+      }),
+    );
+    expect(screen.getByText(/Removes\s+charts/)).toBeInTheDocument();
+    expect(screen.getByText(diffLine(/"approval": "required"/))).toBeInTheDocument();
+  });
+
   it("shows what it removes, and a configuration as it reads", () => {
     card(field({ path: "collection_ids", op: "remove", base_value: "kb-9" }));
     expect(screen.getByText(/Removes\s+kb-9/)).toBeInTheDocument();

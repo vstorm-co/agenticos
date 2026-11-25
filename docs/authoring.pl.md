@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "452644ae3cf2"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -218,6 +218,13 @@ poszerza tego, co działa bez udziału człowieka:
   się jako zapisujące.
 - Zatwierdzanie tylko się zaostrza: sugestia może sprawić, że capability albo
   narzędzie najpierw pyta, nigdy że przestaje pytać.
+- Capability, którą dodaje, ustawia tylko swoje ustawienia i zatwierdzanie, przez
+  które jej narzędzia najpierw pytają: nigdy innej nazwy ani opisu narzędzia,
+  które czytałby model agenta, klucza ani wyłączonego powiązania. Sugestia, która
+  niesie którąś z tych rzeczy, nie jest zapisywana, a taka zapisana wcześniej jest
+  odrzucana przy **Przyjmij**. Karta pokazuje całe powiązanie, które zapisze, z
+  każdym znakiem, który nic nie rysuje albo przestawia otaczający tekst,
+  wypisanym, na przykład `\u{202E}`.
 
 Sugestię, która podpina bazę wiedzy, plik kontekstowy, profil modelu albo serwer
 MCP, albo pozwala agentowi wywołać więcej narzędzi MCP, przyjmie tylko ktoś, kto

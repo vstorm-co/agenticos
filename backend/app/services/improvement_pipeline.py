@@ -147,7 +147,7 @@ from app.services import improvement_states as rules
 from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
-from app.services.authoring import AuthoringService
+from app.services.authoring import AuthoringService, refuse_never_accepted
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack, PackedRun
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
@@ -1530,6 +1530,9 @@ class ImprovementPipelineService:
                 message="Wait for this session's checks to finish, or stop the session"
             )
         selected, hunks = await self._measured_selection(run)
+        for hunk in hunks:
+            if hunk.status == HunkStatus.PENDING:
+                refuse_never_accepted(hunk)
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks

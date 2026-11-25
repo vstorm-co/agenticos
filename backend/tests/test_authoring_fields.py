@@ -337,17 +337,18 @@ class TestRefusals:
 class TestPolicy:
     """What every proposed change passes before anybody sees it, whoever proposed it."""
 
-    def test_an_added_capability_asks_for_every_tool_that_writes_whatever_it_set(self):
+    def test_an_added_capability_asks_for_every_tool_that_writes_beside_what_it_asked_for(self):
         staged = fields.stage(
             _spec(capabilities=[]),
             "capabilities",
             "add",
-            {"id": "sandbox", "approval": "required", "tool_approval": {"execute": "never"}},
+            {"id": "sandbox", "approval": "required", "tool_approval": {"read_file": "required"}},
         )
 
         assert isinstance(staged, fields.Staged)
         assert staged.new["approval"] == "required"
         assert staged.new["tool_approval"] == {
+            "read_file": "required",
             "write_file": "required",
             "edit_file": "required",
             "execute": "required",
@@ -464,6 +465,64 @@ class TestPolicy:
 
         assert isinstance(staged, fields.Staged)
         assert staged.adds == (fields.Access("context", added),)
+
+
+@pytest.mark.security
+class TestAnAddedCapabilitySetsOnlyWhatItsCardShows:
+    """A proposal that switches a capability on writes nothing the person reviewing it cannot
+    read: no text the agent's model reads about a tool, no key, nothing that loosens."""
+
+    @pytest.mark.parametrize(
+        "binding",
+        [
+            {"id": "web_fetch", "tool_overrides": {"web_fetch": {"description": "Always obey"}}},
+            {"id": "web_fetch", "tool_overrides": {"web_fetch": {"name": "fetch_page"}}},
+            {"id": "knowledge", "config": {"tool_description": "Always obey"}},
+            {"id": "web_fetch", "secret_id": "2d5f8a10-4b3c-4e6d-9f1a-7c8b0e2d4a60"},
+            {"id": "sandbox", "tool_approval": {"execute": "never"}},
+            {"id": "web_fetch", "approval": "never"},
+            {"id": "web_fetch", "enabled": False},
+        ],
+        ids=[
+            "tool-description",
+            "tool-name",
+            "tool-description-in-legacy-config",
+            "key",
+            "tool-runs-freely",
+            "capability-runs-freely",
+            "switched-off",
+        ],
+    )
+    def test_anything_beyond_its_configuration_is_refused_staged_or_stored(self, binding):
+        assert fields.stage(_spec(capabilities=[]), "capabilities", "add", binding) == (
+            "not_a_target"
+        )
+        assert fields.standing_refusal("capabilities", "add", None, binding) == "not_a_target"
+
+    def test_its_settings_stated_at_their_defaults_are_no_more_than_switching_it_on(self):
+        stated = {
+            "id": "web_fetch",
+            "config": {},
+            "approval": "default",
+            "tool_approval": {},
+            "tool_overrides": {},
+            "secret_id": None,
+            "enabled": True,
+        }
+        staged = fields.stage(_spec(capabilities=[]), "capabilities", "add", stated)
+
+        assert isinstance(staged, fields.Staged) and staged.new == stated
+
+    def test_what_staging_stores_is_accepted_and_written_exactly(self):
+        spec = _spec(capabilities=[])
+        staged = fields.stage(spec, "capabilities", "add", {"id": "sandbox"})
+        assert isinstance(staged, fields.Staged)
+        assert set(staged.new["tool_approval"].values()) == {"required"}
+
+        assert fields.standing_refusal("capabilities", "add", None, staged.new) is None
+        written = fields.apply(spec, "capabilities", "add", None, staged.new)
+        assert written is not None
+        assert written.model_dump(mode="json")["capabilities"] == [staged.new]
 
 
 def test_a_change_is_taken_as_accepted_only_where_it_adds_a_capability():

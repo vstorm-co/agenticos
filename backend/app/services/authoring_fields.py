@@ -32,6 +32,11 @@ MCP binding's tools raises a binding that asks for nothing to ask for the tools
 that write. Undoing that widening leaves the approval where it was raised:
 lowering it again is a loosening no person decided.
 
+**An added capability sets only what its card shows.** It is switched on with a
+configuration and, at most, approvals that make its tools ask first. A tool's
+name and description are what the agent's model reads, and a key or a binding
+switched off changes what runs, so a proposal never carries them.
+
 **A configuration is a target only where the capability opts in.** A capability
 the registry marks `tunable` has a configuration about quality alone; any other
 - one that reaches a URL, a domain, a connection, a provider or personal data -
@@ -355,7 +360,11 @@ def standing_refusal(path: str, op: str, base: Any, new: Any) -> str | None:
     """
     if weakens_protection(path, op, base):
         return "weakens_protection"
-    if parse(path) is None or _adds_untunable_config(path, op, new):
+    if (
+        parse(path) is None
+        or _adds_untunable_config(path, op, new)
+        or _adds_unshown_settings(path, op, new)
+    ):
         return "not_a_target"
     return None
 
@@ -379,6 +388,27 @@ def _adds_untunable_config(path: str, op: str, value: Any) -> bool:
     if definition is None or definition.protective or _tunable(capability):
         return False
     return capability == _SUBAGENTS or bool(value.get("config"))
+
+
+def _adds_unshown_settings(path: str, op: str, value: Any) -> bool:
+    """An added capability setting more than a configuration and approvals that ask first.
+
+    Read as the spec reads it, so a tool's name or description folded in from an
+    older configuration key counts as the override it becomes.
+    """
+    if path != "capabilities" or op != FieldOp.ADD.value or not isinstance(value, dict):
+        return False
+    try:
+        binding = CapabilityBindingSpec.model_validate(value)
+    except ValidationError:
+        return False
+    return (
+        bool(binding.tool_overrides)
+        or binding.secret_id is not None
+        or not binding.enabled
+        or binding.approval not in ("default", "required")
+        or any(mode != "required" for mode in binding.tool_approval.values())
+    )
 
 
 def weakens_protection(path: str, op: str, base: Any) -> bool:
@@ -417,7 +447,7 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
         return "not_a_target"
     if op not in {allowed.value for allowed in ops(address)}:
         return "operation"
-    if _adds_untunable_config(path, op, value):
+    if _adds_untunable_config(path, op, value) or _adds_unshown_settings(path, op, value):
         return "not_a_target"
     document = spec.model_dump(mode="json")
     adds_capability = address.pattern == "capabilities" and op == FieldOp.ADD.value

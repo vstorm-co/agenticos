@@ -7,6 +7,8 @@ made since. Undo holds to the same rule on what Accept wrote.
 
 from typing import Any
 
+import pytest
+
 from app.agents.capabilities import ToolOverride
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.db.models.authoring import SpecProposalHunk
@@ -357,7 +359,7 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     """A row staged before the rule, or by a writer that never passed staging, is
     still written with every tool that writes asking for approval."""
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"execute": "never"}}
+    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"read_file": "required"}}
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=stored)
 
     projected, skipped = hunks.projection(spec, [hunk])
@@ -365,11 +367,22 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     assert skipped == []
     (binding,) = projected.capabilities
     assert binding.tool_approval == {
+        "read_file": "required",
         "execute": "required",
         "write_file": "required",
         "edit_file": "required",
     }
     assert hunks.apply_field(spec, hunk, stored) == projected
+
+
+@pytest.mark.security
+def test_a_stored_capability_that_loosens_a_tool_is_left_out_rather_than_written():
+    spec = AgentSpec(name="Clerk", instructions="Answer.")
+    loosening = {"id": "sandbox", "tool_approval": {"execute": "never"}}
+    hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=loosening)
+
+    assert hunks.projection(spec, [hunk]) == (spec, [hunk])
+    assert not hunks.applies(spec, hunk)
 
 
 def test_identical_skill_proposals_keep_a_stable_candidate_identity_without_tool_grants():

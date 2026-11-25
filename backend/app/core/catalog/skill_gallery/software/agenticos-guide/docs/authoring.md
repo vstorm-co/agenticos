@@ -210,6 +210,12 @@ a person:
   described counts as one that writes.
 - Approval only tightens: a suggestion can make a capability or a tool ask first,
   never stop asking.
+- A capability it adds sets only its settings, and approvals that make its tools
+  ask first: never another name or description for a tool, which the agent's
+  model would read, a key, or a binding switched off. A suggestion carrying any
+  of these is not recorded, and one stored before is refused at **Accept**. The
+  card shows the whole binding it writes, with every character that draws
+  nothing or reorders the text around it written out, such as `\u{202E}`.
 
 A suggestion that binds a knowledge base, a context file, a model profile or an
 MCP server, or lets the agent call more MCP tools, is accepted only by somebody
