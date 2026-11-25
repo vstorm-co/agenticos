@@ -1,6 +1,7 @@
 """A call lives exactly as long as its socket, and every way out hangs up (#54, Q3)."""
 
 import asyncio
+import inspect
 import json
 import time
 from contextlib import asynccontextmanager
@@ -264,12 +265,28 @@ def _frame_kind(frame: object) -> str:
     return f"text:{kind}" if isinstance(kind, str) else "text"
 
 
-def _stack_of(task: asyncio.Task[object]) -> str:
-    frames = [
-        f"{Path(frame.f_code.co_filename).name}:{frame.f_lineno}:{frame.f_code.co_name}"
-        for frame in task.get_stack()
-    ]
-    return " <- ".join(frames) or "no frames"
+def _await_chain(task: asyncio.Task[object]) -> str:
+    """The task's whole await chain, outer to inner, as file:line:function only."""
+    hops: list[str] = []
+    seen: set[int] = set()
+    awaiting: object = task.get_coro()
+    while awaiting is not None and id(awaiting) not in seen:
+        seen.add(id(awaiting))
+        frame = (
+            getattr(awaiting, "cr_frame", None)
+            or getattr(awaiting, "ag_frame", None)
+            or getattr(awaiting, "gi_frame", None)
+        )
+        if frame is not None:
+            hops.append(
+                f"{Path(frame.f_code.co_filename).name}:{frame.f_lineno}:{frame.f_code.co_name}"
+            )
+        awaiting = (
+            getattr(awaiting, "cr_await", None)
+            or getattr(awaiting, "ag_await", None)
+            or getattr(awaiting, "gi_yieldfrom", None)
+        )
+    return " > ".join(hops) or "no frames"
 
 
 def _timeout_report(
@@ -285,7 +302,10 @@ def _timeout_report(
     kinds = [_frame_kind(frame) for frame in getattr(socket, "_frames", [])]
     unfinished = [task for task in tasks if not task.done()]
     # Task names can embed dynamic text, so a stable ordinal labels each task instead.
-    stacks = "\n".join(f"  - task-{n}: {_stack_of(task)}" for n, task in enumerate(unfinished, 1))
+    stacks = "\n".join(
+        f"  - task-{n} cancelling={task.cancelling()}: {_await_chain(task)}"
+        for n, task in enumerate(unfinished, 1)
+    )
     return (
         f"VoiceCallSession.run did not finish within {deadline}s\n"
         f"end_reason={reason.value if reason is not None else None}\n"
@@ -1792,36 +1812,65 @@ async def test_a_current_voice_snapshot_opens_the_provider():
     assert started.prepared.realtime.call_args.kwargs["message_history"] is history
 
 
-async def test_a_call_that_ends_normally_returns_inside_its_deadline():
+class _EndIgnoringRealtime(FakeRealtime):
+    """A provider stream in a shielded wait, so an end request cannot reach it.
+
+    The wait is bounded, longer than the stuck tests' deadline, so the call still unwinds afterwards.
+    """
+
+    async def _iter(self):
+        with anyio.CancelScope(shield=True):
+            await asyncio.sleep(1.5)
+        return
+        yield
+
+
+def test_the_default_deadline_stays_five_seconds():
+    assert inspect.signature(_run).parameters["deadline"].default == 5.0
+
+
+async def test_a_call_that_ends_normally_returns_its_result():
     socket = FakeSocket([_START, json.dumps({"type": "end"})])
-    began = time.monotonic()
 
     hung, repo = await _run(socket, _started(FakeRealtime(hold=True)))
 
-    assert time.monotonic() - began < 5.0
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
     hung.assert_awaited()
 
 
-async def test_a_stuck_call_times_out_at_its_deadline_with_a_sanitized_report():
+async def test_a_stuck_call_times_out_with_a_sanitized_report():
     # A frame carrying the fake secret waits behind a long pause, so it is still queued at the deadline.
     socket = FakeSocket([_START, 3600.0, json.dumps({"type": "end", "secret": _SECRET_VALUE})])
-    began = time.monotonic()
 
     with pytest.raises(TimeoutError) as caught:
-        await _run(socket, _started(FakeRealtime(hold=True)))
+        await _run(socket, _started(FakeRealtime(hold=True)), deadline=0.5)
 
-    elapsed = time.monotonic() - began
     report = str(caught.value)
-    assert 4.9 <= elapsed < 20.0
-    assert "did not finish within 5.0s" in report
-    assert "unfinished_tasks=" in report and "  - task-1: " in report and "session.py:" in report
+    assert "did not finish within 0.5s" in report
+    assert "_go_live" in report
+    assert "_socket" in report
+    assert "cancelling=0" in report
     assert "socket_frames_remaining=1 kinds=['text:end']" in report
     assert "end_reason=None" in report
     assert "scope_cancelled=False" in report
     assert "max_event_loop_gap_ms=" in report
     assert _SECRET_VALUE not in report
     assert "v=0" not in report and "sdp_offer" not in report
+
+
+async def test_a_call_whose_end_was_requested_but_a_child_holds_on_reports_both():
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+
+    with pytest.raises(TimeoutError) as caught:
+        await _run(socket, _started(_EndIgnoringRealtime()), deadline=0.5)
+
+    report = str(caught.value)
+    assert "end_reason=user" in report
+    assert "scope_cancelled=True" in report
+    held = [line for line in report.splitlines() if "_events" in line]
+    assert len(held) == 1
+    assert "cancelling=0" in held[0]
+    assert _SECRET_VALUE not in report
 
 
 def test_the_timeout_report_names_remaining_frames_by_type_only():
