@@ -220,9 +220,8 @@ class WorkflowWebhookDelivery(Base):
     Written in the transaction that creates the run, so the claim on a delivery
     id and the run's existence commit together or not at all. The unique
     constraint is what makes a provider's retry of the same delivery answer with
-    the first run instead of admitting a second - durable, unlike the agent
-    trigger's short-lived Redis claim, because a duplicated workflow run repeats
-    real side effects.
+    the first run instead of admitting a second. `signed_digest` extends that
+    durable identity to a replay carrying another unsigned delivery id.
     """
 
     __tablename__ = "workflow_webhook_deliveries"

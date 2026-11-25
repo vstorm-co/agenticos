@@ -13,15 +13,11 @@ That is not much of a risk behind a session. It is one on
 surface that writes bytes: five uploads a minute per address, each of them
 arbitrarily large, with no account behind any of them.
 
-So the declared length is read before the body is, which is early enough to be worth
-doing and not a complete answer:
-
-*It trusts `Content-Length`, which a caller sets.* Lying downwards does not help
-them - the per-route caps still measure the bytes - and a chunked request declares no
-length at all, so this refuses the easy version and the per-route checks remain the
-ones that hold. A deployment that wants the guarantee rather than the courtesy sets
-`client_max_body_size` on the proxy in front of it, which is what
-`docs/configuration.md` says.
+The declared length is still read before the body as a cheap refusal for an honest
+caller. The receive channel is also wrapped and counts the bytes that actually
+arrive, so a chunked, HTTP/2, malformed-length or underreported request cannot pass
+the ceiling. The chunk that would cross it is not handed to Starlette's body or
+multipart parser.
 
 *The cap is derived, not configured.* It is the largest upload the API accepts on
 any surface plus the slack a multipart envelope needs, so raising any upload ceiling
@@ -33,7 +29,7 @@ so it has to follow the largest of them or the highest one becomes unreachable.
 import logging
 
 from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
 
@@ -67,7 +63,7 @@ def max_body_bytes() -> int:
 
 
 class BodySizeLimitMiddleware:
-    """Refuse an over-large request before its body is read.
+    """Refuse a request before the application consumes a body past the ceiling.
 
     Pure ASGI rather than `BaseHTTPMiddleware`: that one wraps the receive channel in
     a task and reads the request to hand it on, which is the buffering this exists to
@@ -88,27 +84,70 @@ class BodySizeLimitMiddleware:
 
         declared = _declared_length(scope)
         limit = max_body_bytes()
+        path = str(scope.get("path", ""))
         if declared is not None and declared > limit:
-            path = str(scope.get("path", ""))
             logger.warning(
                 "request_body_too_large",
                 extra={"declared_bytes": declared, "limit_bytes": limit, "path": path},
             )
-            response = JSONResponse(
-                status_code=413,
-                content={
-                    "error": {
-                        "code": "REQUEST_TOO_LARGE",
-                        "message": "That request is too large.",
-                        "details": {"limit_mb": settings.MAX_UPLOAD_SIZE_MB},
-                    }
-                },
-                headers=_widget_cors(scope, path),
-            )
-            await response(scope, receive, send)
+            await _too_large_response(scope, path)(scope, receive, send)
             return
 
-        await self.app(scope, receive, send)
+        received = 0
+        response_started = False
+
+        async def receive_limited() -> Message:
+            nonlocal received
+            if received > limit:
+                raise _BodyTooLarge(received)
+            message = await receive()
+            if message["type"] != "http.request":
+                return message
+            received += len(message.get("body", b""))
+            if received > limit:
+                raise _BodyTooLarge(received)
+            return message
+
+        async def send_limited(message: Message) -> None:
+            nonlocal response_started
+            # FastAPI turns parser exceptions into a 400. The byte ceiling must
+            # still win even when a parser or route catches the receive refusal.
+            if received > limit:
+                raise _BodyTooLarge(received)
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive_limited, send_limited)
+        except _BodyTooLarge as exc:
+            if response_started:
+                raise
+            logger.warning(
+                "request_body_too_large",
+                extra={"received_bytes": exc.received_bytes, "limit_bytes": limit, "path": path},
+            )
+            await _too_large_response(scope, path)(scope, receive, send)
+
+
+class _BodyTooLarge(Exception):
+    def __init__(self, received_bytes: int) -> None:
+        self.received_bytes = received_bytes
+        super().__init__(received_bytes)
+
+
+def _too_large_response(scope: Scope, path: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={
+            "error": {
+                "code": "REQUEST_TOO_LARGE",
+                "message": "That request is too large.",
+                "details": {"limit_mb": settings.MAX_UPLOAD_SIZE_MB},
+            }
+        },
+        headers=_widget_cors(scope, path),
+    )
 
 
 def _widget_cors(scope: Scope, path: str) -> dict[str, str] | None:
@@ -131,10 +170,9 @@ def _widget_cors(scope: Scope, path: str) -> dict[str, str] | None:
 def _declared_length(scope: Scope) -> int | None:
     """What this request says its body weighs, or `None` if it does not say.
 
-    `None` covers a chunked request and a malformed header alike, and both are let
-    through: this is the cheap half of the answer, and refusing a request for having
-    an unparsable `Content-Length` would be a new way to fail on a header the route
-    does not otherwise read.
+    `None` covers a chunked request and a malformed header alike. Both proceed to
+    the actual-byte counter rather than being refused for a header the route does not
+    otherwise read.
     """
     for name, value in scope.get("headers", []):
         if name != b"content-length":

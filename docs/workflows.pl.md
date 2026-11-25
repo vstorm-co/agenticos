@@ -1,5 +1,5 @@
 ---
-source_sha: "29083d2aceb5"
+source_sha: "204099b80100"
 ---
 
 # Workflows { #workflows }
@@ -1149,11 +1149,11 @@ runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuś
 w jednej transakcji.
 
 Id nie jest częścią tego, co nadawca podpisuje, więc to samo podpisane żądanie pod innym
-id w ciągu 24 godzin też jest kopią: dostaje odpowiedź z pierwszym runem i niczego nie
-uruchamia, niezależnie od tego, który z dwóch nagłówków podpisu je niesie. Ta sama treść
-wysłana ponownie po 24 godzinach uruchamia run. Nadawca, który celowo wysyła to samo body
-częściej, sprawia, że każde się różni, umieszczając w nim własne id albo czas, albo
-podpisuje czas: z `X-Signature-Timestamp` (sekundy Unix) podpis obejmuje
+id zawsze jest kopią: dostaje odpowiedź z pierwszym runem i niczego nie uruchamia,
+niezależnie od tego, jak późno zostanie powtórzone i który z dwóch nagłówków podpisu je
+niesie. Nadawca, który celowo wysyła to samo body więcej niż raz, wyróżnia każde
+uwierzytelnione żądanie własnym czasem w body albo podpisuje czas:
+z `X-Signature-Timestamp` (sekundy Unix) podpis obejmuje
 `{timestamp}.{body}` i jest odrzucany, gdy różni się od zegara serwera o ponad pięć minut.
 
 Dostawy przyjęte przed zapisywaniem skrótów podpisów zachowują deduplikację po identyfikatorze dostawy. Starsze wiersze nie pozwalają rozpoznać podpisanej kopii pod innym identyfikatorem; wykrywanie kopii po podpisie zaczyna się od dostaw zapisanych przez nową wersję.

@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaedf36ba33"
+source_sha: "df55c13ceec2"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -182,9 +182,11 @@ flowchart TD
 
 El `webhook` genérico usa por defecto la firma anterior. En la consola, elige el esquema de firma y la cabecera al crear o editar un trigger de API. Mediante la API, configura `event_config` como `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` para Shopify, o usa `X-Hookdeck-Signature` para la firma predeterminada de Hookdeck. `hmac-sha256-hex` acepta un resumen hexadecimal sin prefijo. Ambos firman el cuerpo crudo exacto y requieren el secreto del proveedor como `event_secret`; los nombres de cabecera no distinguen mayúsculas.
 
-Estos modos no autentican una marca de tiempo, por lo que se pueden repetir solicitudes capturadas. La cabecera genérica de ID de entrega no está firmada y puede modificarse. Filtra en el proveedor y usa una integración específica si su contrato requiere comprobar la fecha, otra respuesta de éxito u otro esquema de firma. Estas opciones no implementan el contrato de webhooks de Linear.
+Estos modos no autentican una marca de tiempo, por lo que una firma capturada conserva su validez criptográfica. Aun así, AgenticOS guarda un resumen de la firma verificada junto con el run encolado y rechaza la misma solicitud firmada durante toda la vida del trigger. Cambiar u omitir el ID de entrega genérico sin firmar no evita ese receipt. Filtra en el proveedor y usa una integración específica si su contrato requiere comprobar la fecha, otra respuesta de éxito u otro esquema de firma. Estas opciones no implementan el contrato de webhooks de Linear.
 
-Shopify y Hookdeck no suelen enviar `X-Delivery-ID`, así que los reintentos pueden ejecutar el trigger otra vez. Este trigger no comprueba sus ID de entrega. Las firmas del cuerpo no vinculan la URL de destino ni las cabeceras del proveedor: usa un secreto distinto por límite de confianza y no autorices entregas con cabeceras de tienda o tema sin firmar. El secreto de la aplicación Shopify puede compartirse entre tiendas; no uses este modo si la firma debe demostrar la tienda o suscripción de origen.
+Shopify y Hookdeck no suelen enviar `X-Delivery-ID`; aun así, los reintentos del mismo cuerpo firmado se deduplican. Este trigger no comprueba sus ID de entrega. Si un remitente envía deliberadamente el mismo cuerpo más de una vez, una firma solo del cuerpo considera esas solicitudes una única entrega; incluye un valor autenticado que cambie o usa una integración específica que admita marcas de tiempo.
+
+Las firmas del cuerpo no vinculan la URL de destino ni las cabeceras del proveedor: usa un secreto distinto por límite de confianza y no autorices entregas con cabeceras de tienda o tema sin firmar. El secreto de la aplicación Shopify puede compartirse entre tiendas; no uses este modo si la firma debe demostrar la tienda o suscripción de origen.
 
 Rotate genera un secreto nuevo de AgenticOS; no permite instalar uno emitido por el proveedor. Si el proveedor controla el secreto, crea un trigger nuevo y actualiza su URL en el proveedor después del cambio. No se comprueba la segunda firma de Hookdeck durante una rotación diferida.
 
@@ -448,7 +450,8 @@ La API también admite filtros opcionales `event_types` y `actions` en `event_co
 AgenticOS verifica `Linear-Signature` sobre el cuerpo exacto y comprueba que el
 `webhookTimestamp` firmado no se aleje más de 60 segundos del momento actual. `200` indica
 una entrega aceptada o sin trabajo, no que el agent haya terminado. Los cuerpos
-idénticos se deduplican durante 15 minutos mientras Redis esté disponible.
+idénticos se deduplican de forma duradera durante toda la vida del trigger, incluso
+tras reinicios del proceso o de Redis.
 
 Linear reintenta las entregas fallidas al minuto, a la hora y a las seis horas.
 Si un reintento conserva la marca de tiempo original del cuerpo, la comprobación
@@ -791,13 +794,14 @@ cambian los bytes:
 Para la fuente `github` el algoritmo es idéntico; solo cambia el nombre de la
 cabecera, que pasa a ser `X-Hub-Signature-256`.
 
-**Firma también la hora, contra repeticiones.** Una firma solo del cuerpo no lleva
-hora, así que una entrega capturada se podría reenviar para siempre. Envía
-`X-Signature-Timestamp` (segundos Unix) y firma en su lugar
-`{timestamp}.{body}`: una entrega a más de cinco minutos de nuestro reloj se
-rechaza, y quitar la cabecera para repetirla también falla, porque la firma ya no
-cubre el cuerpo solo. Un remitente que no envía marca de tiempo se verifica como
-antes.
+**Firma también la hora, para limitar la vigencia y permitir repeticiones intencionadas.**
+Una firma que solo cubre el cuerpo no lleva hora y conserva su validez criptográfica para
+siempre, pero el receipt duradero solo la admite una vez. Envía
+`X-Signature-Timestamp` (segundos Unix) y firma `{timestamp}.{body}`: una entrega a
+más de cinco minutos de nuestro reloj se rechaza, y cada marca de tiempo actual da
+a una repetición intencionada una identidad autenticada distinta. Quitar la cabecera
+para repetirla también falla, porque la firma ya no cubre el cuerpo solo. Un remitente
+sin marca de tiempo se verifica y deduplica como antes.
 
 ```bash
 TS="$(date +%s)"

@@ -1,5 +1,5 @@
 ---
-source_sha: "e441c709a83c"
+source_sha: "ad535e606b1f"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -647,8 +647,9 @@ curl -X POST "$WEBHOOK_URL" \
 Es antwortet mit `202` und `{"run_id": ..., "duplicate": false}`, sobald der Run
 zugelassen ist, und wartet nie auf den Run selbst. Eine bereits zugelassene
 Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs, ebenso
-dieselbe signierte Anfrage unter einer anderen ID innerhalb von 24 Stunden. Eine
-Signatur, die sich nicht verifizieren lässt, ist ein `403`, eine Zustellung ohne ID
+dieselbe signierte Anfrage unter einer anderen ID, unabhängig davon, wie spät sie
+wiederholt wird. Eine Signatur, die sich nicht verifizieren lässt, ist ein `403`,
+eine Zustellung ohne ID
 oder mit einem Body, der kein JSON-Objekt ist, ein `400`, und ein pausierter oder
 unbekannter Webhook ein `404`.
 

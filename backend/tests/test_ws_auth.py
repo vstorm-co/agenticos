@@ -25,6 +25,8 @@ from app.services.ws_auth import authenticate_socket_token
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
+_TRUSTED_ORIGIN = "https://console.example.com"
+
 
 def _user(*, is_active: bool = True) -> MagicMock:
     user = MagicMock()
@@ -74,6 +76,7 @@ class TestSocketCookieIsolation:
             yield MagicMock(refresh=AsyncMock())
 
         authenticate = AsyncMock(return_value=_user())
+        monkeypatch.setattr(deps.settings, "CORS_ORIGINS", [_TRUSTED_ORIGIN])
         monkeypatch.setattr(deps, "get_db_context", db_context)
         monkeypatch.setattr(deps, "authenticate_socket_key", AsyncMock(return_value=None))
         monkeypatch.setattr(deps, "authenticate_socket_token", authenticate)
@@ -83,12 +86,49 @@ class TestSocketCookieIsolation:
         self, socket_auth: AsyncMock
     ) -> None:
         sent = await _handshake(
-            {"cookie": "access_token=other-app; agenticos_access_token=our-access"}
+            {
+                "cookie": "access_token=other-app; agenticos_access_token=our-access",
+                "origin": _TRUSTED_ORIGIN,
+            }
         )
 
         assert sent[0]["type"] == "websocket.accept"
         assert sent[1] == {"type": "websocket.send", "text": str(socket_auth.return_value.id)}
         assert socket_auth.await_args.args[1] == "our-access"
+
+    @pytest.mark.parametrize(
+        "origin",
+        [None, "null", "https://evil.example.com", "https://console.example.com.attacker.test"],
+    )
+    async def test_a_cookie_requires_an_exact_trusted_origin(
+        self, socket_auth: AsyncMock, origin: str | None
+    ) -> None:
+        headers = {"cookie": "agenticos_access_token=our-access"}
+        if origin is not None:
+            headers["origin"] = origin
+
+        sent = await _handshake(headers)
+
+        assert sent == [
+            {"type": "websocket.close", "code": 4003, "reason": "WebSocket origin not allowed"}
+        ]
+        socket_auth.assert_not_awaited()
+
+    async def test_an_empty_token_subprotocol_cannot_bypass_cookie_origin_check(
+        self, socket_auth: AsyncMock
+    ) -> None:
+        sent = await _handshake(
+            {
+                "cookie": "agenticos_access_token=our-access",
+                "origin": "https://evil.example.com",
+                "sec-websocket-protocol": "access_token., chat",
+            }
+        )
+
+        assert sent == [
+            {"type": "websocket.close", "code": 4003, "reason": "WebSocket origin not allowed"}
+        ]
+        socket_auth.assert_not_awaited()
 
     async def test_another_apps_cookie_does_not_authenticate_a_socket(
         self, socket_auth: AsyncMock

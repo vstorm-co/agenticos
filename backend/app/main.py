@@ -596,9 +596,9 @@ OS for your agents.
     # created row's id from a compressed answer by decoding it.
     app.add_middleware(ChangeFeedMiddleware)
 
-    # Outermost of the three, because it exists to answer before anything reads the
-    # body - a middleware under CORS or the session would run after the request had
-    # already been received.
+    # Outermost of the three, because it exists to stop the body before anything
+    # inward can consume bytes past the ceiling - a middleware under CORS or the
+    # session would run after the request had already been received.
     app.add_middleware(BodySizeLimitMiddleware)
 
     # Under the body limit and above everything else: a refused request should

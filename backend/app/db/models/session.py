@@ -4,12 +4,29 @@ import uuid
 from datetime import UTC, datetime
 
 from pydantic import JsonValue
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base import Base, TimestampMixin
+
+
+class MagicLinkClaim(Base, TimestampMixin):
+    """The server-side, single-use half of a magic-link sign-in credential."""
+
+    __tablename__ = "magic_link_claims"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    """SHA-256 of the JWT's random `jti`; the bearer itself is never stored."""
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    credential_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<MagicLinkClaim(user_id={self.user_id}, expires_at={self.expires_at})>"
 
 
 class Session(Base):

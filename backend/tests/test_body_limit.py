@@ -6,19 +6,54 @@ handler runs, so `POST /api/v1/embed/{key}/files` had spooled a stranger's entir
 body to disk and copied it into memory before `accept_upload` compared it to a 5MB
 cap. Five of those a minute per address, with no account behind any of them.
 
-What is asserted here is what a caller sees and, for the refusal, that the body was
-never asked for - a test that only checked the status would pass over a middleware
-that read the request and then refused it.
+What is asserted here is what a caller sees and, for a streamed refusal, that the
+chunk crossing the ceiling never reaches the application - a test that only checked
+the status would pass over a middleware that buffered the whole request first.
 """
 
-import pytest
-from httpx import ASGITransport, AsyncClient
+from collections.abc import AsyncIterator
 
+import pytest
+from fastapi import Body, FastAPI
+from httpx import ASGITransport, AsyncClient
+from starlette.types import Message, Receive, Scope, Send
+
+import app.core.body_limit as body_limit
 from app.core.body_limit import BodySizeLimitMiddleware, max_body_bytes
 from app.core.config import settings
 from app.main import app
 
 pytestmark = pytest.mark.anyio
+
+
+async def _stream_through_middleware(
+    headers: list[tuple[bytes, bytes]], chunks: list[bytes]
+) -> tuple[list[bytes], list[Message]]:
+    incoming: list[Message] = [
+        {"type": "http.request", "body": chunk, "more_body": index < len(chunks) - 1}
+        for index, chunk in enumerate(chunks)
+    ]
+    seen: list[bytes] = []
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return incoming.pop(0)
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    async def read_body(_scope: Scope, receive: Receive, send: Send) -> None:
+        while True:
+            message = await receive()
+            seen.append(message.get("body", b""))
+            if not message.get("more_body", False):
+                break
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    scope: Scope = {"type": "http", "path": "/api/v1/embed/key/files", "headers": headers}
+    await BodySizeLimitMiddleware(read_body)(scope, receive, send)
+    return seen, sent
 
 
 class TestTheCapItself:
@@ -139,10 +174,9 @@ class TestWhatAnOverLargeRequestGets:
 
         assert response.status_code != 413
 
-    async def test_a_request_that_declares_no_length_is_let_through(self, monkeypatch):
-        """A chunked upload declares none. Refusing it here would refuse a shape the
-        route supports for a header it does not read; the per-route caps still
-        measure the bytes."""
+    async def test_a_small_request_with_no_supplied_length_is_let_through(self, monkeypatch):
+        """A chunked upload declares none. Its shape remains supported while the
+        receive wrapper measures the bytes it actually carries."""
         monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
 
         response = await self._post(None)
@@ -151,12 +185,72 @@ class TestWhatAnOverLargeRequestGets:
 
     async def test_a_length_that_is_not_a_number_is_let_through(self, monkeypatch):
         """Same reasoning. An unparsable `Content-Length` is not a size, and turning
-        it into a refusal is a new way to fail."""
+        it into a refusal is a new way to fail; the actual-byte counter still holds."""
         monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
 
         response = await self._post("about a gigabyte")
 
         assert response.status_code != 413
+
+
+class TestWhatTheStreamActuallyCarries:
+    @pytest.mark.security
+    async def test_json_parser_cannot_turn_an_over_limit_stream_into_a_parse_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(body_limit, "max_body_bytes", lambda: 5)
+        parser_app = FastAPI()
+        parser_app.add_middleware(BodySizeLimitMiddleware)
+
+        @parser_app.post("/json")
+        async def parse(payload: dict[str, str] = Body(...)) -> dict[str, str]:
+            return payload
+
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b'{"a":'
+            yield b'"b"}'
+
+        async with AsyncClient(
+            transport=ASGITransport(app=parser_app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/json", content=chunks(), headers={"Content-Type": "application/json"}
+            )
+
+        assert response.status_code == 413
+        assert response.json()["error"]["code"] == "REQUEST_TOO_LARGE"
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            pytest.param([(b"transfer-encoding", b"chunked")], id="chunked"),
+            pytest.param([], id="http2-or-missing-length"),
+            pytest.param([(b"content-length", b"not-a-number")], id="malformed-length"),
+            pytest.param([(b"content-length", b"1")], id="underreported-length"),
+        ],
+    )
+    async def test_actual_bytes_over_the_cap_are_refused_before_the_crossing_chunk(
+        self, monkeypatch: pytest.MonkeyPatch, headers: list[tuple[bytes, bytes]]
+    ) -> None:
+        monkeypatch.setattr(body_limit, "max_body_bytes", lambda: 5)
+
+        seen, sent = await _stream_through_middleware(headers, [b"abc", b"def"])
+
+        assert seen == [b"abc"]
+        assert sent[0]["type"] == "http.response.start"
+        assert sent[0]["status"] == 413
+
+    async def test_a_multichunk_body_at_the_cap_reaches_the_application(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(body_limit, "max_body_bytes", lambda: 5)
+
+        seen, sent = await _stream_through_middleware([], [b"abc", b"de"])
+
+        assert seen == [b"abc", b"de"]
+        assert sent[0]["type"] == "http.response.start"
+        assert sent[0]["status"] == 204
 
 
 class TestWhatItDoesNotTouch:

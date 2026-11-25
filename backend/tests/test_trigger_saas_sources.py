@@ -135,6 +135,31 @@ class TestDeliveryIds:
         headers = {"x-zendesk-webhook-invocation-id": "inv-1"}
         assert trigger_events.delivery_id("zendesk", headers, {}) == "inv-1"
 
+    @pytest.mark.security
+    def test_hubspot_retry_attempts_keep_one_authenticated_replay_identity(self):
+        first = {"events": [_EVENT]}
+        retry = {"events": [{**_EVENT, "attemptNumber": 3}]}
+
+        assert trigger_events.signed_delivery_digest(
+            "hubspot", _hubspot_v3(json.dumps([_EVENT]).encode()), first
+        ) == trigger_events.signed_delivery_digest(
+            "hubspot", _hubspot_v3(json.dumps(retry["events"]).encode()), retry
+        )
+
+    @pytest.mark.security
+    def test_unsigned_zendesk_invocation_id_cannot_change_replay_identity(self):
+        body = b'{"type":"zen:event-type:ticket.created"}'
+        headers = _zendesk(body)
+
+        first = trigger_events.signed_delivery_digest(
+            "zendesk", headers | {"x-zendesk-webhook-invocation-id": "one"}, {}
+        )
+        changed = trigger_events.signed_delivery_digest(
+            "zendesk", headers | {"x-zendesk-webhook-invocation-id": "two"}, {}
+        )
+
+        assert first == changed
+
 
 class TestMatching:
     def test_a_hubspot_batch_fires_when_any_event_in_it_passes(self):
@@ -226,13 +251,13 @@ class TestTheDoor:
                 "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
                 AsyncMock(return_value=Decision(allowed=True, retry_after_seconds=0)),
             ),
-            patch.object(AgentTriggerService, "_claim", AsyncMock(return_value=True)),
             patch.object(
                 AgentTriggerService, "_polled_source_current", AsyncMock(return_value=True)
             ),
             patch("app.services.trigger_events.time.time", return_value=_NOW),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             headers = _hubspot_v3(body, url=webhook_url("hubspot", trigger_id))
             decision = await service.prepare_event_fire(
                 "hubspot", trigger_id, body=body, headers=headers

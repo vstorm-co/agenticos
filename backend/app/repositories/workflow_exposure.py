@@ -1,6 +1,6 @@
 """Workflow exposures and their webhook deliveries (#1792)."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -201,15 +201,14 @@ async def lock_signed_copy(db: AsyncSession, *, exposure_id: UUID, signed_digest
 
 
 async def get_signed_copy(
-    db: AsyncSession, *, exposure_id: UUID, signed_digest: str, within: timedelta
+    db: AsyncSession, *, exposure_id: UUID, signed_digest: str
 ) -> WorkflowWebhookDelivery | None:
-    """The delivery of the same signed request admitted within `within`, by the database's clock."""
+    """The first delivery that admitted this signed request, however late its replay."""
     result = await db.execute(
         select(WorkflowWebhookDelivery)
         .where(
             WorkflowWebhookDelivery.exposure_id == exposure_id,
             WorkflowWebhookDelivery.signed_digest == signed_digest,
-            WorkflowWebhookDelivery.created_at > func.now() - within,
         )
         .order_by(WorkflowWebhookDelivery.created_at)
         .limit(1)

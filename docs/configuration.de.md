@@ -1,5 +1,5 @@
 ---
-source_sha: "3b84a8c986cf"
+source_sha: "fedd16f66cb7"
 ---
 
 # Konfiguration { #configuration }
@@ -120,16 +120,21 @@ kann, schon.
 Eine Anfrage mit einer `Content-Length` über dem größten Wert aus
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
 `ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen erhält **413**, bevor
-ihr Body gelesen wird. Diese Grenze folgt den Upload-Einstellungen automatisch.
+ihr Body gelesen wird. Unabhängig davon zählt die Anwendung jeden ankommenden
+Request-Body-Chunk und gibt **413** zurück, bevor ein Chunk oberhalb dieser Grenze
+einen Body- oder Multipart-Parser erreicht. Chunked- und HTTP/2-Anfragen sowie
+Anfragen mit fehlender, ungültiger oder zu niedrig angegebener `Content-Length`
+haben daher dieselbe Grenze. Sie folgt den Upload-Einstellungen automatisch.
 
-`Content-Length` stammt vom Client; Chunked-Anfragen geben keine Länge an und
-unterliegen den Grenzen der jeweiligen Route, die tatsächliche Bytes messen.
-Setzen Sie zusätzlich eine Body-Grenze im Reverse Proxy. Bei Nginx ist das auch
-nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die Vorlage setzt
+Setzen Sie als zusätzliche Absicherung eine Body-Grenze im Reverse Proxy. Bei
+Nginx ist das auch nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die
+Vorlage setzt
 `client_max_body_size 55m;` auf dem API-Host und für Multipart-Upload-Locations
 der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
-die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
-Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
+die Grenze von 1 MiB. Erhöhen Sie die Proxy-Grenze zusammen mit dem größten
+Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx). Die
+Compose-Dateien starten uvicorn ohne separate Server-Grenze; die Middleware der
+Anwendung erzwingt weiterhin ihre Streaming-Grenze.
 
 ## Authentifizierung { #authentication }
 

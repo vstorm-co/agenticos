@@ -215,7 +215,7 @@ def _wired(*, grants=(), triggers=(), secret=None, claims=True):
     )
     stack.enter_context(
         patch(
-            f"{SERVICE}.trigger_dedupe.claim_event_delivery",
+            f"{SERVICE}.agent_trigger_repo.claim_webhook_delivery",
             new=AsyncMock(return_value=claims),
         )
     )
@@ -259,14 +259,12 @@ class TestDuplicateAppDeliveries:
         assert decisions == []
         allowance.assert_not_awaited()
 
-    async def test_throttled_claim_is_released_after_the_other_fires_commit(self) -> None:
-        from app.core.background import discard_deferred, drain, start_deferred
+    async def test_throttled_claim_is_removed_before_the_other_fires_commit(self) -> None:
         from app.services.rate_limit import Decision
 
         body = _body()
         trigger = _trigger()
         service = _service()
-        service.db.info = {}
         release = AsyncMock()
         with (
             _wired(grants=[_grant()], triggers=[trigger]),
@@ -274,16 +272,13 @@ class TestDuplicateAppDeliveries:
                 f"{SERVICE}.rate_limit.trigger_delivery_allowed",
                 AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=30)),
             ),
-            patch(f"{SERVICE}.trigger_dedupe.release_event_delivery", release),
+            patch(f"{SERVICE}.agent_trigger_repo.release_webhook_delivery", release),
         ):
             decisions = await service.prepare_app_fires(body=body, headers=_headers(body))
             assert decisions == []
-            release.assert_not_awaited()
-            start_deferred(service.db)
-            await drain()
-            discard_deferred(service.db)
         release.assert_awaited_once()
         assert release.await_args.kwargs["trigger_id"] == trigger.id
+        assert len(release.await_args.kwargs["signed_digest"]) == 64
 
 
 class TestWhoseDeliveryItIs:
