@@ -433,6 +433,7 @@ from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
 from app.services.routine_sources import RoutineSourcesRequired
+from app.services.routine_tools import tool_settings_of
 from app.services.run_heartbeat import run_heartbeat
 from app.services.run_project_workspace import RunProjectWorkspace
 from app.services.sandbox_workspace import (
@@ -4903,6 +4904,10 @@ class AgentRunnerService:
                         "action_consents": [
                             consent.model_dump(mode="json") for consent in routine.action_consents
                         ],
+                        "tool_settings": [
+                            setting.model_dump(mode="json")
+                            for setting in tool_settings_of(routine.tool_settings or {})
+                        ],
                     }
                 ),
                 routine_activation_at=None
@@ -5489,7 +5494,10 @@ class AgentRunnerService:
                     conversation_id=run.conversation_id,
                     user_id=None if audience_user_id is None else str(audience_user_id),
                     user_name=user_name,
-                    extra_capabilities=guard_for(routine_check, agent_id=agent.id),
+                    extra_capabilities=(
+                        *guard_for(routine_check, agent_id=agent.id),
+                        *(() if routine is None else routine.tools_off(twin_spec)),
+                    ),
                     routine_action_check=None if routine is None else routine.action_policy,
                     audience=audience,
                     run_person=run_person,
@@ -5585,6 +5593,7 @@ class AgentRunnerService:
                 ),
                 *(() if computer_on_use is None else (computer_on_use,)),
                 *guard_for(routine_check, agent_id=agent.id),
+                *(() if routine is None else routine.tools_off(spec)),
             ),
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,

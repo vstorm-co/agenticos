@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Narrow a routine's tools without changing its agent: `GET` and `PUT /api/v1/agents/{agent_id}/triggers/{trigger_id}/tools` list every tool the routine's version offers, with the agent's setting, and set a tool to ask first or off for that routine only. A routine can never release an approval the agent requires. An off tool is hidden from the model and refused; saving follows the agent's own approval settings and clears the routine's standing action consent.
+
+### Upgrading
+
+- Migration `0365_routine_tool_settings` adds `agent_triggers.tool_settings`, empty for every existing routine, so nothing changes until an owner saves a narrowing.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
