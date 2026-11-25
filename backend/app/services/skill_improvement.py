@@ -314,7 +314,7 @@ def shown(hunk: SpecProposalHunk) -> bool:
     """Whether an edit has text a person reads before it is checked or applied."""
     if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
         return bool((hunk.edited_text or hunk.new_description or "").strip())
-    return bool(hunk.old_text or hunk.edited_text or hunk.new_text)
+    return bool((hunk.old_text or "").strip() or (hunk.edited_text or hunk.new_text or "").strip())
 
 
 def filtered(
