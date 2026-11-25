@@ -16,6 +16,9 @@ import { SkillImprovementPage } from "./skill-improvement-page";
 const state = vi.hoisted(() => ({
   step: null as string | null,
   runsView: true,
+  permissionsLoaded: true,
+  permissionsError: null as Error | null,
+  permissionsRefetch: vi.fn(),
   canEdit: true,
   session: null as unknown,
 }));
@@ -30,7 +33,12 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView, isLoading: false }),
+  usePermissions: () => ({
+    can: () => state.runsView,
+    isLoaded: state.permissionsLoaded,
+    error: state.permissionsError,
+    refetch: state.permissionsRefetch,
+  }),
 }));
 vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),
@@ -98,6 +106,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.step = null;
   state.runsView = true;
+  state.permissionsLoaded = true;
+  state.permissionsError = null;
   state.canEdit = true;
   state.session = skillSession();
   serve();
@@ -191,6 +201,28 @@ describe("SkillImprovementPage", () => {
       "href",
       "/skills/k1",
     );
+  });
+
+  it("waits for the permission set before refusing", async () => {
+    state.runsView = false;
+    state.permissionsLoaded = false;
+    mount();
+
+    expect(await screen.findByText("returns-policy")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText(/needs edit access/)).toBeNull();
+  });
+
+  it("says the permission read failed instead of refusing, and reads it again", async () => {
+    state.runsView = false;
+    state.permissionsLoaded = false;
+    state.permissionsError = new Error("permissions unavailable");
+    mount();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("permissions unavailable");
+    expect(screen.queryByText(/needs edit access/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.permissionsRefetch).toHaveBeenCalled();
   });
 
   it("refuses to start a session for a reader who may not edit the skill", async () => {

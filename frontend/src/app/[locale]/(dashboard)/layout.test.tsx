@@ -5,6 +5,7 @@ import DashboardLayout from "./layout";
 import { AccountNotices } from "@/components/layout/account-notices";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { MainViewport } from "@/components/layout/main-viewport";
+import { StaleReadBanner } from "@/components/layout/stale-read-banner";
 
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -58,4 +59,10 @@ it("keeps account notices and their spacing outside the application layout", () 
   expect(
     find(tree, (el) => el.props.className?.includes("data-invitation-entry") === true),
   ).toBeNull();
+});
+
+it("says on every page when part of it stopped updating", () => {
+  expect(
+    find(DashboardLayout({ children: null }), (el) => el.type === StaleReadBanner),
+  ).not.toBeNull();
 });

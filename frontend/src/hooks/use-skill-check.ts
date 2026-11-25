@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
+import { livePolling } from "@/lib/live-polling";
 import {
   applySkillCheck,
   cancelSkillCheck,
@@ -18,7 +19,13 @@ import {
   startSkillCheck,
   startUpdateCheck,
 } from "@/lib/skill-checks-api";
-import type { SkillCheckApply, SkillCheckFork, SkillCheckStart } from "@/types/skill-checks";
+import type {
+  SkillCheck,
+  SkillCheckApply,
+  SkillCheckAwaiting,
+  SkillCheckFork,
+  SkillCheckStart,
+} from "@/types/skill-checks";
 
 /** A change to check on its line, or main's newest version on one pinned agent. */
 export type SkillCheckBody = SkillCheckStart | { update_agent_id: string };
@@ -30,6 +37,7 @@ export const SKILL_CHECK_POLL_MS = 5000;
  * A check is decided by whoever gets there first, in another tab or by another
  * reviewer, so it is read again each time it is shown and each time the window
  * comes back, rather than served from a cache that may offer what is gone.
+ * Spread after `livePolling`, whose own focus refetch covers a failed read only.
  */
 const ALWAYS_FRESH = {
   staleTime: 0,
@@ -50,9 +58,11 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     queryKey: key,
     queryFn: () => getSkillCheck(skillId, checkId as string),
     enabled: checkId !== null,
+    ...livePolling(
+      SKILL_CHECK_POLL_MS,
+      (data: SkillCheck | undefined) => data?.status === "running",
+    ),
     ...ALWAYS_FRESH,
-    refetchInterval: (current) =>
-      current.state.data?.status === "running" ? SKILL_CHECK_POLL_MS : false,
   });
   const decided = async () => {
     await Promise.all([
@@ -75,7 +85,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
   return {
     check: check.data ?? null,
     /** Reading the check by its id: on its way, or refused. */
-    reading: { isLoading: check.isLoading, error: check.error },
+    reading: { isLoading: check.isLoading, error: check.error, refetch: check.refetch },
     estimate: useMutation({
       mutationFn: (body: SkillCheckBody) =>
         "update_agent_id" in body
@@ -145,9 +155,12 @@ export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean }
     queryKey: qk.skillChecks.awaiting(),
     queryFn: listSkillChecksAwaiting,
     enabled,
+    ...livePolling(
+      SKILL_CHECK_POLL_MS,
+      (checks: SkillCheckAwaiting[] | undefined) =>
+        checks?.some((check) => check.status === "running") ?? false,
+    ),
     ...ALWAYS_FRESH,
-    refetchInterval: (current) =>
-      current.state.data?.some((check) => check.status === "running") ? SKILL_CHECK_POLL_MS : false,
   });
   return {
     checks: query.data ?? [],
@@ -162,11 +175,12 @@ function useLineChecks(skillId: string, forkId: string | null, page = 0) {
   return useQuery({
     queryKey: qk.skillChecks.line(skillId, forkId, page),
     queryFn: () => listSkillChecks(skillId, forkId, page),
+    ...livePolling(
+      SKILL_CHECK_POLL_MS,
+      (page: { items: SkillCheck[] } | undefined) =>
+        page?.items.some((check) => check.status === "running") ?? false,
+    ),
     ...ALWAYS_FRESH,
-    refetchInterval: (current) =>
-      current.state.data?.items.some((check) => check.status === "running")
-        ? SKILL_CHECK_POLL_MS
-        : false,
   });
 }
 

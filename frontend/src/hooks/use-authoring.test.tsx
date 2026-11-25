@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { agentAuthoring, authoringRequest } from "@/test-utils/authoring";
+import { pollingAfterFailedRead } from "@/test-utils/live-polling";
 
 import {
   AUTHORING_POLL_MS,
@@ -226,5 +227,40 @@ describe("useWaitingSuggestions", () => {
     const { result } = renderHook(() => useWaitingSuggestions(), { wrapper });
     await waitFor(() => expect(result.current.waiting).toEqual({ agents: [], skills: 2 }));
     expect(apiClient.get).toHaveBeenCalledWith("/authoring/waiting");
+  });
+});
+
+describe("a read of a request being worked on that fails", () => {
+  it.each([
+    [
+      "the agent's suggestions",
+      () => useAgentAuthoring("agent-1"),
+      agentAuthoring({ latest: authoringRequest({ status: "running" }) }),
+    ],
+    [
+      "a skill's requests",
+      () => useSkillAuthoring("skill-1"),
+      [authoringRequest({ status: "queued" })],
+    ],
+    [
+      "a context file request left behind",
+      () => {
+        client.setQueryData(qk.authoring.context("ctx-1"), [
+          authoringRequest({ status: "running", target: "context" }),
+        ]);
+        return useContextAuthoringWatch();
+      },
+      [authoringRequest({ status: "running", target: "context" })],
+    ],
+  ])("stops reading %s again and says it stopped", async (_what, hook, answer) => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(answer)
+      .mockRejectedValueOnce(new Error("refused"));
+    renderHook(() => hook(), { wrapper });
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: AUTHORING_POLL_MS,
+      after: false,
+      stopped: true,
+    });
   });
 });

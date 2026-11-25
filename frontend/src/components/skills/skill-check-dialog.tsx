@@ -103,6 +103,7 @@ export function SkillCheckDialog({
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
+  const common = useTranslations("common");
   const [checkId, setCheckId] = useState<string | null>(resume ?? null);
   const { check, reading, estimate, start, apply, fork, discard, cancel } = useSkillCheck(
     skillId,
@@ -196,10 +197,17 @@ export function SkillCheckDialog({
             </Button>
           </div>
         )}
-        {check === null && reading.error !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {getErrorMessage(reading.error, tErrors)}
-          </p>
+        {reading.error !== null && (
+          <div role="alert" className="flex flex-wrap items-center gap-2">
+            <p className="text-destructive min-w-0 flex-1 text-sm">
+              {check === null
+                ? getErrorMessage(reading.error, tErrors)
+                : t("stoppedUpdating", { reason: getErrorMessage(reading.error, tErrors) })}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => void reading.refetch()}>
+              {common("retry")}
+            </Button>
+          </div>
         )}
         {!pricing && reading.isLoading && <Skeleton className="h-24 w-full" />}
         {plan !== null && <CheckPlan agents={plan.agents} hidden={plan.hidden} />}

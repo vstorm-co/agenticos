@@ -27,7 +27,7 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => true, isLoading: false }),
+  usePermissions: () => ({ can: () => true, isLoaded: true }),
 }));
 vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),

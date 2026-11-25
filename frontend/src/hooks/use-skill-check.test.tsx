@@ -11,6 +11,8 @@ import {
   useSkillChecksAwaiting,
 } from "./use-skill-check";
 import * as api from "@/lib/skill-checks-api";
+import { pollingAfterFailedRead } from "@/test-utils/live-polling";
+import { finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
 
 vi.mock("@/lib/skill-checks-api", () => ({
@@ -247,4 +249,48 @@ describe("useSkillChecksAwaiting", () => {
     expect(off.result.current.checks).toEqual([]);
     expect(api.listSkillChecksAwaiting).not.toHaveBeenCalled();
   });
+});
+
+describe("a read of a running check that fails", () => {
+  const running = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+  it.each([
+    [
+      "the check",
+      () => vi.mocked(api.getSkillCheck),
+      () => useSkillCheck("s-1", running.id),
+      running,
+    ],
+    [
+      "the line's checks",
+      () => vi.mocked(api.listSkillChecks),
+      () => useSkillCheckHistory("s-1", null, 0),
+      { items: [running], total: 1 },
+    ],
+    [
+      "the checks awaiting a decision",
+      () => vi.mocked(api.listSkillChecksAwaiting),
+      () => useSkillChecksAwaiting(),
+      [{ ...running, skill_name: "returns" }],
+    ],
+  ] as const)("stops reading %s again and says it stopped", async (_what, read, hook, answer) => {
+    (read() as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(answer)
+      .mockRejectedValueOnce(new Error("refused"));
+    renderHook(() => hook(), { wrapper });
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: SKILL_CHECK_POLL_MS,
+      after: false,
+      stopped: true,
+    });
+  });
+});
+
+it("reads a check again on every return to the tab, not only after a failed read", async () => {
+  vi.mocked(api.getSkillCheck).mockResolvedValueOnce(
+    finishedCheck({ status: "running", verdict: null, outcomes: [] }),
+  );
+  renderHook(() => useSkillCheck("s-1", "c-1"), { wrapper });
+  await waitFor(() => expect(client.getQueryCache().getAll()[0]?.state.status).toBe("success"));
+  const [query] = client.getQueryCache().getAll();
+  expect(query?.observers[0]?.options.refetchOnWindowFocus).toBe(true);
 });

@@ -882,6 +882,24 @@ describe("EvalRunView", () => {
     expect(screen.getByText("You can't open this eval run")).toBeVisible();
   });
 
+  it("keeps the run on screen when reading it again fails", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ suite: { id: "suite-1", name: "Nightly", trigger: "schedule" } }),
+      error: new ApiError(502, "Bad gateway"),
+    };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText("Started by the suite Nightly on its schedule.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("closes a run whose access was taken away while it was open", () => {
+    state.run = { ...state.run, error: new ApiError(403, "Insufficient permissions") };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("You can't open this eval run")).toBeVisible();
+  });
+
   it("marks a case a person's review overturned", () => {
     state.cases = {
       cases: [

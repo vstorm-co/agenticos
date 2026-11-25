@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { pollingAfterFailedRead } from "@/test-utils/live-polling";
 import type { ImprovementEvidence } from "@/types/improvement";
 import {
   useAttemptChanges,
@@ -297,3 +298,26 @@ it("reads what a session found in the agent's skills", async () => {
   await waitFor(() => expect(result.current.skills).toEqual({ items: [] }));
   expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/skills");
 });
+
+it.each([
+  ["an agent's sessions", () => useImprovements("a1"), [{ id: "s1", status: "running" }]],
+  ["one session", () => useImprovement("a1", "s1"), { id: "s1", status: "running" }],
+  [
+    "a running session's evidence",
+    () => useImprovementEvidence("a1", { sessionId: "s1", live: true }),
+    { items: [], sample_limit: 20, training_failures: 0 },
+  ],
+])(
+  "stops reading %s again after a failed read and says it stopped",
+  async (_what, hook, answer) => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(answer)
+      .mockRejectedValueOnce(new Error("refused"));
+    renderHook(() => hook(), { wrapper });
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: 30_000,
+      after: false,
+      stopped: true,
+    });
+  },
+);
