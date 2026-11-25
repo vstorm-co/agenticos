@@ -66,7 +66,7 @@ changed since offers **Test again** instead. While the run answers it says how
 many first answers are in and the comparison waits for both sides. Answers the
 judge failed to grade say why and count as neither passed nor failed, and
 **Grade again** in the header grades them again without asking the agent, for
-whoever may run the dataset.
+whoever may run the dataset and read the run's answers.
 
 Below the verdict are the sides next to each other, how the two compare, and the
 cases - each row with a pass or fail dot per side, filtered by outcome or tag,
@@ -317,7 +317,7 @@ An answer the judge failed on or skipped is **not graded**: the run lists those 
 (`POST /api/v1/datasets/{id}/scores/rescore`) reads the answer kept on the
 attempt rather than asking the agent. A person's verdict in the
 [review queue](datasets.md#review) replaces the scorers' outcome for that case,
-and the run's numbers follow it.
+and the run's numbers follow it, as they follow a new grade.
 
 A judge that searches - [Knowledge search](concepts.md#system-agent-spec) on
 its Toolbox tab - checks an answer's facts against the knowledge bases of the agent
@@ -714,6 +714,12 @@ the dataset - a run over a dataset the reader cannot open is not listed, and
 asking for it by id answers `404`, as a run of another organization does. A
 dataset's runs also need `datasets:view` on it, and list only the agents the
 reader may see.
+
+Deciding on one of a run's answers, or grading it again, needs `runs:view` and
+the agent that answered as well as the dataset's own permission - `datasets:edit`
+to decide, `datasets:run` to grade. Either changes the run's verdict and what was
+built on it: a suite's gate, an improvement session, a skill check. A grant on the
+dataset alone does not open them.
 
 Setting up, changing, pausing or running a suite needs `agents:edit` and
 `agents:run` on the agent, `datasets:run` on the dataset and `runs:view`, and a

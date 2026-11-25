@@ -44,7 +44,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
-from app.db.models.agent import AgentKind
+from app.db.models.agent import Agent, AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
@@ -143,6 +143,32 @@ class Evaluation:
 
     results: list[ScorerResult]
     judge: JudgePin | None = None
+
+
+@dataclass(frozen=True)
+class _AnswerAccess:
+    """Whose answers a reader may see: `runs:view`, and view access to the agent that gave them.
+
+    Attributes:
+        reads_runs: The reader holds `runs:view`.
+        agents: The answering agents still in the organization, by id.
+        hidden: The ids among `agents` the reader may not view.
+        sees_every_agent: The reader may view every agent, so an answer whose
+            agent is gone is checked against nothing and still shown.
+    """
+
+    reads_runs: bool
+    agents: dict[UUID, Agent]
+    hidden: frozenset[UUID]
+    sees_every_agent: bool
+
+    def shows(self, agent_id: UUID | None, *, answered: bool) -> bool:
+        if not self.reads_runs:
+            return False
+        agent = None if agent_id is None else self.agents.get(agent_id)
+        if agent is None:
+            return not answered or self.sees_every_agent
+        return agent.id not in self.hidden
 
 
 def _rank(score: CaseScore) -> tuple[bool, datetime]:
@@ -596,11 +622,19 @@ class ScoringService:
         on is kept as it is. Every answer is read, and the judge checked, before
         any is graded, so a refusal leaves every score as it was.
 
+        A score of an eval run also needs `runs:view` and view access to the
+        agent that answered, as a person's verdict on it does, and a new grade
+        settles again what was built on its run, as that verdict would. Grading
+        one shares the verdict's comparison admission, taken before any grade.
+
         Raises:
             NotFoundError: The dataset is not one the caller may run, or it has
                 no score with one of the ids.
             AuthorizationError: An answer is read from its run, and the caller
-                may not read runs.
+                may not read runs; or a score belongs to an eval run whose answer
+                the caller may not read.
+            RateLimitError: A score of an eval run would be graded while the
+                organization's comparison admission is taken or spent.
             SystemAgentUnavailableError: The judge still cannot run, and why.
             BadRequestError: A score's answer can no longer be read, or an eval
                 run's judge has been published anew since it failed.
@@ -616,20 +650,22 @@ class ScoringService:
                 message="This dataset has no score with some of these ids",
                 details={"dataset_id": dataset_id, "missing": missing},
             )
+        await self._require_answer_access(ctx, [scores[score_id] for score_id in wanted])
         stale = [scores[score_id] for score_id in wanted if ungraded(scores[score_id])]
         kept = [score_id for score_id in wanted if not ungraded(scores[score_id])]
-        for score in stale:
-            await self._judge_unchanged(ctx, score)
-        answers = [await self.answer_for(ctx, score) for score in stale]
-        rescored = [
-            await self._rescore(ctx, score, answer)
-            for score, answer in zip(stale, answers, strict=True)
-        ]
-        graded_in = sorted({score.eval_run_id for score in rescored if score.eval_run_id})
-        if graded_in:
-            await eval_run_repo.forget_outcomes(
-                self.db, graded_in, organization_id=ctx.organization_id
-            )
+        evaluated = any(score.eval_run_id is not None for score in stale)
+        admission = rate_limit.eval_computation(ctx) if evaluated else nullcontext()
+        async with admission:
+            for score in stale:
+                await self._judge_unchanged(ctx, score)
+            answers = [await self.answer_for(ctx, score) for score in stale]
+            rescored = [
+                await self._rescore(ctx, score, answer)
+                for score, answer in zip(stale, answers, strict=True)
+            ]
+            graded_in = sorted({score.eval_run_id for score in rescored if score.eval_run_id})
+            if graded_in:
+                await self._recompute_after_review(ctx, graded_in, undo=False)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1137,11 +1173,7 @@ class ScoringService:
             ),
             organization_id=ctx.organization_id,
         )
-        agents = await agent_repo.get_many(
-            self.db,
-            list({read.agent_id for read in reads if read.agent_id is not None}),
-            organization_id=ctx.organization_id,
-        )
+        access = await self._answer_access(ctx, {read.agent_id for read in reads})
         versions = await agent_repo.get_versions_by_ids(
             self.db,
             list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
@@ -1153,21 +1185,10 @@ class ScoringService:
         attempts = await eval_run_repo.score_attempts(
             self.db, [read.id for read in reads], organization_id=ctx.organization_id
         )
-        hidden = {
-            agent.id
-            for agent in agents.values()
-            if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
-        }
-        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) >= Scope.ALL
         named = []
         for read in reads:
-            agent = None if read.agent_id is None else agents.get(read.agent_id)
-            unchecked = agent is None and read.answer is not None and not sees_every_agent
-            shown = not (
-                not ctx.has(Perm.RUNS_VIEW)
-                or unchecked
-                or (agent is not None and agent.id in hidden)
-            )
+            agent = None if read.agent_id is None else access.agents.get(read.agent_id)
+            shown = access.shows(read.agent_id, answered=read.answer is not None)
             if not shown:
                 read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
@@ -1196,6 +1217,79 @@ class ScoringService:
             )
         return named
 
+    async def _answer_access(self, ctx: AuthContext, agent_ids: set[UUID | None]) -> _AnswerAccess:
+        agents = await agent_repo.get_many(
+            self.db,
+            [agent_id for agent_id in agent_ids if agent_id is not None],
+            organization_id=ctx.organization_id,
+        )
+        hidden = frozenset(
+            {
+                agent.id
+                for agent in agents.values()
+                if not await resolve_access(
+                    self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
+                )
+            }
+        )
+        return _AnswerAccess(
+            reads_runs=ctx.has(Perm.RUNS_VIEW),
+            agents=agents,
+            hidden=hidden,
+            sees_every_agent=ctx.scope_for(Perm.AGENTS_VIEW) >= Scope.ALL,
+        )
+
+    async def _require_answer_access(self, ctx: AuthContext, scores: list[CaseScore]) -> None:
+        """Refuse a decision on an eval run's answer that the caller may not read.
+
+        A verdict or a new grade on an eval run's score moves every verdict built
+        on that run - its comparison, a suite's gate, an improvement session, a
+        skill check - so it needs what reading the answer needs. A score graded
+        on its own changes only its dataset's numbers, and keeps the dataset's
+        own permission.
+
+        Raises:
+            AuthorizationError: One of the scores belongs to an eval run, and the
+                caller lacks `runs:view` or view access to the agent that answered.
+        """
+        evaluated = [score for score in scores if score.eval_run_id is not None]
+        if not evaluated:
+            return
+        access = await self._answer_access(ctx, {score.agent_id for score in evaluated})
+        refused = [
+            score.id
+            for score in evaluated
+            if not access.shows(score.agent_id, answered=score.answer is not None)
+        ]
+        if refused:
+            raise AuthorizationError(
+                message=(
+                    "Deciding on an eval run's answer needs runs:view and access to the agent "
+                    "that gave it"
+                ),
+                details={
+                    "required": [Perm.RUNS_VIEW.value, Perm.AGENTS_VIEW.value],
+                    "score_ids": refused,
+                },
+            )
+
+    async def _recompute_after_review(
+        self, ctx: AuthContext, eval_run_ids: list[UUID], *, undo: bool
+    ) -> None:
+        """Drop the eval runs' kept outcomes, and settle again what was built on them."""
+        affected = await eval_run_repo.forget_outcomes(
+            self.db, eval_run_ids, organization_id=ctx.organization_id
+        )
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).recompute_after_review(ctx, affected, undo=undo)
+        from app.services.improvement_pipeline import ImprovementPipelineService
+
+        await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
+        from app.services.skill_check import SkillCheckService
+
+        await SkillCheckService(self.db).recompute_after_review(ctx.organization_id, affected)
+
     async def _score(self, ctx: AuthContext, dataset_id: UUID, score_id: UUID) -> CaseScore:
         await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         score = await case_score_repo.get(
@@ -1218,12 +1312,20 @@ class ScoringService:
         the score back to the review queue as :meth:`route_to_review` does, so
         it stays out when a newer score of its case and agent waits there. A
         score of an eval run drops the run's kept verdict, given or withdrawn,
-        so it is compared afresh.
+        so it is compared afresh - and so also needs `runs:view` and view
+        access to the agent that answered, as reading its answer does.
 
         Eval-backed writes share comparison admission after authorization and
         before any score or cache mutation; a rate refusal leaves them unchanged.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit, or it has
+                no such score.
+            AuthorizationError: The score belongs to an eval run whose answer the
+                caller may not read.
         """
         score = await self._score(ctx, dataset_id, score_id)
+        await self._require_answer_access(ctx, [score])
         admission = nullcontext() if score.eval_run_id is None else rate_limit.eval_computation(ctx)
         async with admission:
             decided = data.passed is not None
@@ -1241,22 +1343,7 @@ class ScoringService:
             if not decided:
                 await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
             if score.eval_run_id is not None:
-                affected = await eval_run_repo.forget_outcomes(
-                    self.db, [score.eval_run_id], organization_id=ctx.organization_id
-                )
-                from app.services.eval_suite import EvalSuiteService
-
-                await EvalSuiteService(self.db).recompute_after_review(
-                    ctx, affected, undo=not decided
-                )
-                from app.services.improvement_pipeline import ImprovementPipelineService
-
-                await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
-                from app.services.skill_check import SkillCheckService
-
-                await SkillCheckService(self.db).recompute_after_review(
-                    ctx.organization_id, affected
-                )
+                await self._recompute_after_review(ctx, [score.eval_run_id], undo=not decided)
             await record_audit(
                 self.db,
                 actor_user_id=ctx.subject_id,

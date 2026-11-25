@@ -394,6 +394,32 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
   });
 
+  it("offers no decision or new grade on an eval run's answer the reader may not see", async () => {
+    const hidden = { answer_hidden: true, answer: null, unscored_reason: "judge_budget" };
+    state.answer = {
+      scores: [
+        caseScore({ id: "a", eval_run_id: "e1", question: "From an eval run", ...hidden }),
+        caseScore({ id: "b", eval_run_id: "e1", question: "Another eval run", ...hidden }),
+      ],
+      total: 2,
+    };
+    const { unmount } = render(<ReviewPanel dataset={dataset()} />);
+    expect(screen.queryByRole("button", { name: /ungraded answers again/ })).toBeNull();
+    await userEvent.click(screen.getByText("From an eval run"));
+    expect(screen.queryByRole("button", { name: "Mark as passed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
+    unmount();
+
+    state.answer = {
+      scores: [caseScore({ eval_run_id: null, question: "From a chat", ...hidden })],
+      total: 1,
+    };
+    render(<ReviewPanel dataset={dataset()} />);
+    await userEvent.click(screen.getByText("From a chat"));
+    expect(screen.getByRole("button", { name: "Mark as passed" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Score again" })).toBeInTheDocument();
+  });
+
   it("scores an ungraded answer again, and a group's ungraded answers at once", async () => {
     const ungraded = (id: string) =>
       caseScore({
