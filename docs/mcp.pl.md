@@ -1,5 +1,5 @@
 ---
-source_sha: "0330e37378b8"
+source_sha: "6dfede33ed02"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -233,6 +233,7 @@ narzędziami bez `readOnlyHint: true`, a `all` także przed odczytami. Wskazówk
 sam serwer; wybierz `all`, jeśli nie ufasz jego klasyfikacji. Zewnętrzny klient MCP,
 np. Claude Code, stosuje własne ustawienia potwierdzania. Serwer samego AgenticOS
 oznacza `destructiveHint: true` każde wywołanie, które w AgenticOS zawsze pyta osobę,
+każdy zapis zadania lub rekordu tabeli, który może uruchomić agenta,
 oraz każde delete, discard, end i publish, a jego instrukcje każą klientowi
 potwierdzić je najpierw z osobą.
 

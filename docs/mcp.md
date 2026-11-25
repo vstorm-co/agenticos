@@ -216,7 +216,8 @@ without `readOnlyHint: true`, and `all` also asks before reads. The server suppl
 that hint; use `all` when you do not trust its classification. An external MCP
 client, such as Claude Code, applies its own confirmation settings. AgenticOS's own
 server marks `destructiveHint: true` on every call that always asks a person inside
-AgenticOS and on every delete, discard, end or publish, and its instructions tell
+AgenticOS, on every task or table-record write that may start agent work, and on
+every delete, discard, end or publish, and its instructions tell
 the client to confirm those with its person first.
 
 The platform binding enforces at least `writes`. Its trusted defaults let authorized

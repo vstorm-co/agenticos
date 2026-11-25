@@ -1427,6 +1427,7 @@ class TestWhatNeverWaitsForApproval:
         self,
     ) -> None:
         """A client outside AgenticOS has only the annotations to decide whether to ask."""
+        from app.core.platform_tool_policy import CONDITIONAL_EXECUTION
         from app.services.platform_mcp import build_platform_mcp
         from app.services.platform_mcp._tools import ALWAYS_ASKS
 
@@ -1439,7 +1440,7 @@ class TestWhatNeverWaitsForApproval:
             and declared.name.split("_")[0] in {"delete", "discard", "publish", "end"}
         }
         assert {"delete_routine", "discard_agent_draft", "publish_inbox_finding"} <= irreversible
-        for name in ALWAYS_ASKS | irreversible:
+        for name in ALWAYS_ASKS | CONDITIONAL_EXECUTION | irreversible:
             assert listed[name].destructive_hint is True, name
         for declared in platform_tool_catalog():
             if not declared.writes:

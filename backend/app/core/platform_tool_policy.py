@@ -121,8 +121,9 @@ _IRREVERSIBLE = ("delete_", "discard_", "end_", "publish_")
 def confirms_with_its_person(name: str) -> bool:
     """Whether a client should confirm this call with its person before making it.
 
-    Every call that always asks inside AgenticOS, and every delete, discard, end or
-    publish. A client outside AgenticOS has no approval gate of ours, so the platform
-    server marks these `destructiveHint` for it to ask on.
+    Every call that always asks inside AgenticOS, every write that asks when it may
+    start agent work - an annotation cannot depend on the arguments - and every
+    delete, discard, end or publish. A client outside AgenticOS has no approval gate
+    of ours, so the platform server marks these `destructiveHint` for it to ask on.
     """
-    return name in ALWAYS_ASKS or name.startswith(_IRREVERSIBLE)
+    return name in ALWAYS_ASKS or name in CONDITIONAL_EXECUTION or name.startswith(_IRREVERSIBLE)

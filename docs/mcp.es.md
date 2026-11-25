@@ -1,5 +1,5 @@
 ---
-source_sha: "0330e37378b8"
+source_sha: "6dfede33ed02"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -237,7 +237,8 @@ por herramientas sin `readOnlyHint: true` y `all` también por lecturas. El prop
 servidor proporciona esa marca; usa `all` si no confías en su clasificación. Un
 cliente MCP externo, como Claude Code, aplica sus propios ajustes de confirmación.
 El servidor propio de AgenticOS marca con `destructiveHint: true` cada llamada que en
-AgenticOS siempre pregunta a una persona y cada delete, discard, end o publish, y sus
+AgenticOS siempre pregunta a una persona, cada escritura de tareas o registros de
+tabla que puede iniciar trabajo de un agente, y cada delete, discard, end o publish, y sus
 instrucciones piden al cliente confirmarlas antes con su persona.
 
 La vinculación de la plataforma impone al menos `writes`. Sus valores de confianza
