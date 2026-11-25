@@ -384,7 +384,7 @@ class KnowledgeFinding(BaseSchema):
 
     `knowledge_base_ids` are the bases behind the collection it came from. A reader
     is shown the passage only when they may read every one of them; a passage that
-    names none is shown only to a reader of every collection.
+    names none is shown to nobody.
     """
 
     source: str | None = None

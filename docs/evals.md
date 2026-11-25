@@ -329,8 +329,8 @@ warns when that is raised.
 
 A passage it found is shown only to a reader who may see the answer and read
 the knowledge base it came from, and credentials in it are redacted before it is
-kept. A passage that does not name its knowledge base is shown only to a reader
-of every collection.
+kept. A passage that does not name its knowledge base is shown to nobody, since
+it may have come from somebody's personal knowledge base.
 
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is

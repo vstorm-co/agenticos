@@ -59,7 +59,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm, Scope
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
@@ -2725,11 +2725,7 @@ class EvalRunService:
             score_id: CaseScoreRead.model_validate(score) for score_id, score in scores.items()
         }
         bases = await readable_bases(self.db, ctx, reads.values())
-        every = ctx.scope_for(Perm.COLLECTIONS_VIEW) >= Scope.ALL
-        return {
-            score_id: with_readable_knowledge(read, bases, sees_every_collection=every)
-            for score_id, read in reads.items()
-        }
+        return {score_id: with_readable_knowledge(read, bases) for score_id, read in reads.items()}
 
     async def baseline_for(
         self, ctx: AuthContext, run: EvalRun, arm: EvalRunArm

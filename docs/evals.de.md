@@ -1,5 +1,5 @@
 ---
-source_sha: "460ea414b292"
+source_sha: "976c0a47ed12"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -374,8 +374,8 @@ zweimal gleich bewertet wird, und seine Seite warnt, wenn sie erhöht wird.
 
 Eine gefundene Stelle sieht nur, wer die Antwort sehen und die Wissensbasis
 lesen darf, aus der sie stammt, und Zugangsdaten darin werden geschwärzt, bevor
-sie gespeichert wird. Eine Stelle, die ihre Wissensbasis nicht nennt, sieht nur,
-wer jede Sammlung lesen darf.
+sie gespeichert wird. Eine Stelle, die ihre Wissensbasis nicht nennt, sieht
+niemand, da sie aus der persönlichen Wissensbasis einer Person stammen kann.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run

@@ -291,8 +291,8 @@ _SECRET = "ghp_" + "a1B2" * 9
 
 
 async def _graded_with_passages(db):
-    """An eval run's score whose judge found passages in an organization base, in the
-    owner's personal base, and one kept without naming its base, holding a token."""
+    """An eval run's score whose judge found passages in an organization base, holding
+    a token, in the owner's personal base, and one kept without naming its base."""
     from decimal import Decimal
 
     from app.db.models.case_score import CaseScore
@@ -371,7 +371,7 @@ async def _graded_with_passages(db):
                 "knowledge": [
                     {
                         "source": "SHARED_SOURCE",
-                        "quote": "SHARED_PASSAGE",
+                        "quote": f"SHARED_PASSAGE key {_SECRET}",
                         "knowledge_base_ids": [str(bases["shared"].id)],
                     },
                     {
@@ -379,7 +379,7 @@ async def _graded_with_passages(db):
                         "quote": "PERSONAL_PASSAGE",
                         "knowledge_base_ids": [str(bases["personal"].id)],
                     },
-                    {"source": "LEGACY_SOURCE", "quote": f"LEGACY_PASSAGE key {_SECRET}"},
+                    {"source": "LEGACY_SOURCE", "quote": "LEGACY_PASSAGE"},
                 ],
             }
         ],
@@ -435,12 +435,12 @@ async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_colle
         return _passages((await scores.list_scores(reader, dataset.id)).items)
 
     seen_by_owner = await seen_by(owner)
-    assert "SHARED_PASSAGE" in seen_by_owner and "PERSONAL_PASSAGE" in seen_by_owner
-    assert "LEGACY_PASSAGE key [redacted:github_token]" in seen_by_owner
-    assert _SECRET not in seen_by_owner
+    assert "SHARED_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert "PERSONAL_PASSAGE" in seen_by_owner
+    assert _SECRET not in seen_by_owner and "LEGACY" not in seen_by_owner
     seen_by_builder = await seen_by(builder)
-    assert "SHARED_PASSAGE" in seen_by_builder and "LEGACY_PASSAGE" in seen_by_builder
-    assert "PERSONAL" not in seen_by_builder
+    assert "SHARED_PASSAGE" in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder and "LEGACY" not in seen_by_builder
     assert await seen_by(keyed) == ""
     assert await seen_by(viewer) == ""
 
@@ -463,8 +463,9 @@ async def test_an_eval_run_s_cases_show_only_the_passages_their_reader_may_read(
 
     seen_by_owner = await seen_by(owner)
     assert "PERSONAL_PASSAGE" in seen_by_owner
-    assert "LEGACY_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert "SHARED_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert "LEGACY" not in seen_by_owner
     seen_by_builder = await seen_by(builder)
     assert "SHARED_PASSAGE" in seen_by_builder
-    assert "PERSONAL" not in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder and "LEGACY" not in seen_by_builder
     assert _SECRET not in seen_by_builder

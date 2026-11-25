@@ -1,5 +1,5 @@
 ---
-source_sha: "460ea414b292"
+source_sha: "976c0a47ed12"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -354,8 +354,8 @@ strona ostrzega, gdy ktoś ją podniesie.
 
 Znaleziony fragment widzi tylko czytający, który może zobaczyć odpowiedź i
 czytać bazę wiedzy, z której pochodzi, a dane uwierzytelniające są w nim
-redagowane, zanim zostanie zapisany. Fragment, który nie wskazuje swojej bazy
-wiedzy, widzi tylko czytający każdą kolekcję.
+redagowane, zanim zostanie zapisany. Fragmentu, który nie wskazuje swojej bazy
+wiedzy, nie widzi nikt, bo mógł pochodzić z czyjejś osobistej bazy wiedzy.
 
 Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
 pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego

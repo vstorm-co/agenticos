@@ -1190,7 +1190,6 @@ class ScoringService:
         )
         access = await self._answer_access(ctx, {read.agent_id for read in reads})
         bases = await readable_bases(self.db, ctx, reads)
-        sees_every_collection = ctx.scope_for(Perm.COLLECTIONS_VIEW) >= Scope.ALL
         versions = await agent_repo.get_versions_by_ids(
             self.db,
             list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
@@ -1206,12 +1205,7 @@ class ScoringService:
         for read in reads:
             agent = None if read.agent_id is None else access.agents.get(read.agent_id)
             shown = access.shows(read.agent_id, answered=read.answer is not None)
-            if not shown:
-                read = _without_answer(read)
-            else:
-                read = with_readable_knowledge(
-                    read, bases, sees_every_collection=sees_every_collection
-                )
+            read = with_readable_knowledge(read, bases) if shown else _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
                 None
@@ -1517,14 +1511,13 @@ async def readable_bases(
     return {base.id for base in bases.values() if await readable_kb(db, ctx, base)}
 
 
-def with_readable_knowledge(
-    read: CaseScoreRead, readable: set[UUID], *, sees_every_collection: bool
-) -> CaseScoreRead:
+def with_readable_knowledge(read: CaseScoreRead, readable: set[UUID]) -> CaseScoreRead:
     """A score with only the judge's passages from knowledge bases the reader may read.
 
-    A passage that names no base has nothing to check the reader against, so only
-    a reader of every collection is shown it. Each is redacted on the way out too,
-    whatever was redacted when it was kept.
+    A passage that names no base is shown to nobody: it may have come from a
+    personal base, which even a reader of every organization collection may not
+    read. Each passage is redacted on the way out too, whatever was redacted when
+    it was kept.
     """
     return read.model_copy(
         update={
@@ -1534,11 +1527,8 @@ def with_readable_knowledge(
                         "knowledge": [
                             _redacted_finding(found)
                             for found in result.knowledge
-                            if (
-                                readable.issuperset(found.knowledge_base_ids)
-                                if found.knowledge_base_ids
-                                else sees_every_collection
-                            )
+                            if found.knowledge_base_ids
+                            and readable.issuperset(found.knowledge_base_ids)
                         ]
                     }
                 )
