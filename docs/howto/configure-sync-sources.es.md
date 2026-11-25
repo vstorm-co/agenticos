@@ -1,5 +1,5 @@
 ---
-source_sha: "8819ef1c6f61"
+source_sha: "72c34809c7f5"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -316,6 +316,14 @@ siempre se rechaza, y un endpoint en la red privada, como un contenedor MinIO,
 necesita su host en
 [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). El
 `S3_RAG_ENDPOINT` del operador no se comprueba.
+
+Para el endpoint propio de una fuente, cada conexión SDK nueva comprueba DNS de
+nuevo y usa una dirección numérica autorizada. Los certificados TLS, SNI, HTTP Host
+y las firmas AWS conservan el nombre original. Los proxies del despliegue deben
+respetar el destino numérico de CONNECT o de la petición absoluta. Si un perfil
+AWS selecciona direccionamiento virtual, autoriza cada host privado real del
+bucket (por ejemplo `bucket.minio`) o un sufijo/red adecuado aprobado por el
+operador; incluir solo `minio` no autoriza `bucket.minio`.
 
 ### 2. Campos de configuración del connector de S3 { #2-s3-connector-config-fields }
 
