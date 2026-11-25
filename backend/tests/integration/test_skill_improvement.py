@@ -83,7 +83,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
 from app.services.skill_agents import SkillAgentService
-from app.services.skill_check import SkillCheckService
+from app.services.skill_check import SkillCheckService, result_hash
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -147,6 +147,23 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(SkillImprovementService, "_evidence", pack)
     monkeypatch.setattr(AuthoringService, "estimate_pack", priced)
     return state
+
+
+async def reviewed_check(
+    db: AsyncSession,
+    ctx: AuthContext,
+    skill_id: uuid.UUID,
+    run_id: uuid.UUID,
+    *,
+    main_alone: bool = False,
+) -> dict[str, Any]:
+    """The check a person deciding on the session reviewed, and its result as they read it:
+    the session's result, or main alone."""
+    session = await SkillImprovementService(db).read(ctx, skill_id, run_id)
+    check = session.main_alone_check if main_alone else session.check
+    if check is None:
+        return {"check_id": uuid.uuid4(), "result_hash": "0" * 64}
+    return {"check_id": check.id, "result_hash": check.result_hash}
 
 
 async def _skill_on_main(db: AsyncSession, ctx: AuthContext) -> Skill:
@@ -1238,10 +1255,14 @@ class FakeChecks:
     async def read(self, ctx, skill_id, check_id):
         check = await skill_check_repo.get(self.db, check_id, organization_id=ctx.organization_id)
         assert check is not None
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
         return SkillCheckRead(
             **self._estimate(SkillCheckStart(candidate=_TEXT)).model_dump(),
             id=check.id,
             skill_id=skill_id,
+            result_hash=result_hash(check, rows),
             source=check.source,
             status=check.status,
             verdict=check.verdict,
@@ -1660,7 +1681,12 @@ class TestOutcomes:
             ctx,
             run.skill_id,
             run.id,
-            SkillImprovementApply(confirmed=True, pin_worse=True, acknowledge_unknown=True),
+            SkillImprovementApply(
+                confirmed=True,
+                **await reviewed_check(db, ctx, run.skill_id, run.id),
+                pin_worse=True,
+                acknowledge_unknown=True,
+            ),
         )
 
         assert (applied.session.status, applied.session.outcome) == ("accepted", "applied_pinned")
@@ -1668,7 +1694,94 @@ class TestOutcomes:
         [(_, sent)] = [call for call in fake.calls if call[0] == "apply"]
         assert sent.pin_worse and sent.acknowledge_unknown
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
+
+    @pytest.mark.security
+    async def test_a_decision_on_a_result_other_than_the_one_reviewed_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """The session's result is checked again after a person reviewed it: applying or
+        forking names the check that was shown, and is refused for the other."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        service = SkillImprovementService(db)
+        other = {**shown, "check_id": uuid.uuid4()}
+
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+            await service.apply(
+                ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **other)
+            )
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.fork(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(confirmed=True, **other, name="Returns"),
+            )
+
+        assert refused.value.details == {
+            "check_id": shown["check_id"],
+            "reviewed_check_id": other["check_id"],
+        }
+        assert [call for call in fake.calls if call[0] in ("apply", "fork")] == []
+        applied = await service.apply(
+            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+        )
+        assert applied.session.outcome == "applied"
+
+    @pytest.mark.security
+    async def test_a_decision_on_a_result_judged_again_since_it_was_reviewed_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """A review of a case judges the check's agents again in place, keeping the check's
+        id: the confirmation given on the result as it read before is refused."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        [row] = await skill_check_repo.list_agents(
+            db, [shown["check_id"]], organization_id=ctx.organization_id
+        )
+        row.broken = row.broken + 1
+        row.regressions_confirmed = row.regressions_confirmed + 1
+        await db.flush()
+        service = SkillImprovementService(db)
+
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.apply(
+                ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+            )
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.fork(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(confirmed=True, **shown, name="Returns"),
+            )
+
+        assert [call for call in fake.calls if call[0] in ("apply", "fork")] == []
+        applied = await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
+        )
+        assert applied.session.outcome == "applied"
 
     async def test_apply_without_a_worse_agent_is_a_plain_apply(self, db, evidence, monkeypatch):
         _checked(db, monkeypatch)
@@ -1678,7 +1791,12 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="passed")
 
         applied = await SkillImprovementService(db).apply(
-            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True)
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
         )
 
         assert applied.session.outcome == "applied" and applied.pinned == []
@@ -1693,7 +1811,14 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="blocked")
 
         forked = await SkillImprovementService(db).fork(
-            ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementFork(
+                confirmed=True,
+                **await reviewed_check(db, ctx, run.skill_id, run.id),
+                name="Returns",
+            ),
         )
 
         assert (forked.session.status, forked.session.outcome) == ("accepted", "forked")
@@ -1708,7 +1833,14 @@ class TestOutcomes:
 
         with pytest.raises(ConcurrentChangeError):
             await SkillImprovementService(db).fork(
-                ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(
+                    confirmed=True,
+                    **await reviewed_check(db, ctx, run.skill_id, run.id),
+                    name="Returns",
+                ),
             )
 
     async def test_a_check_plan_that_changed_at_the_same_price_asks_again(
@@ -2061,7 +2193,14 @@ class TestCheckAgain:
         service = SkillImprovementService(db)
 
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
         before = await service.read(ctx, run.skill_id, run.id)
         rechecked = await _recheck(db, ctx, run)
         run = await _settle(db, run, status="done", verdict="passed")
@@ -2323,7 +2462,14 @@ class TestReviewFixes:
         _, run = await _with_result(db, await _owner(db), monkeypatch)
         ctx = await _owner_of(db, run)
         service = SkillImprovementService(db)
-        await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+        await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
+        )
 
         with pytest.raises(ConcurrentChangeError):
             await service.discard(ctx, run.skill_id, run.id, ImprovementDiscard(confirmed=True))

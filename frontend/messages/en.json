@@ -16755,6 +16755,7 @@
       "tool": "Tool {tool}",
       "instructions": "Instructions",
       "fromVerify": "From verifying your edits",
+      "reworded": "Reworded at the Changes step",
       "status": {
         "accepted": "Accepted into the draft",
         "dismissed": "Dismissed"
@@ -17127,6 +17128,9 @@
     "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
+    "acceptChanged": "The attempt you were about to accept changed since you reviewed it. The session was refreshed; review it again.",
+    "unmeasuredEdits": "The draft held edits before this session started. Publishing releases them too, and no check measured them.",
+    "publishUnmeasuredEdits": "Publish those edits as well",
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
     "includeInTest": "Include in the test",
     "includeChange": "Include change {number} in the test",

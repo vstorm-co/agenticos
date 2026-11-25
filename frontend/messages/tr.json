@@ -17112,7 +17112,10 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
-    }
+    },
+    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
+    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
+    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla"
   },
   "personalModelKeys": {
     "copilot": {
@@ -17200,6 +17203,24 @@
     },
     "describe": {
       "open": "{name} ile oluştur"
+    },
+    "suggestion": {
+      "tool": "Araç {tool}",
+      "instructions": "Talimatlar",
+      "fromVerify": "Düzenlemelerinizin doğrulanmasından",
+      "reworded": "Değişiklikler adımında yeniden ifade edildi",
+      "status": {
+        "accepted": "Taslağa kabul edildi",
+        "dismissed": "Reddedildi"
+      },
+      "stale": "Artık taslağa uymuyor",
+      "editLabel": "Önerinin sizin ifadeniz",
+      "saveAndAccept": "Kaydet ve kabul et",
+      "cancel": "İptal",
+      "accept": "Kabul et",
+      "edit": "Düzenle",
+      "dismiss": "Reddet",
+      "undo": "Geri al"
     }
   },
   "consoleExperience": {

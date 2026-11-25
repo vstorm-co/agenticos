@@ -243,7 +243,15 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
     onSuccess: refresh,
   });
   const finish = useMutation({
-    mutationFn: (body: { confirmed: true; publish: boolean; automatic_check: boolean }) =>
+    mutationFn: (body: {
+      confirmed: true;
+      attempt: number;
+      candidate_spec_hash: string;
+      result_hash: string;
+      publish: boolean;
+      publish_unmeasured_edits: boolean;
+      automatic_check: boolean;
+    }) =>
       apiClient.post<{ session: Improvement; version_id: string | null; version: number | null }>(
         `${base}/finish`,
         body,
