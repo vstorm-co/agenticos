@@ -484,6 +484,33 @@ class TestAnswers:
         assert len(reasons) == 5
         assert reasons.count("not answered") == 3 and reasons.count("not graded") == 1
 
+    async def test_a_judge_the_model_failed_leaves_the_question_ungraded(self, db):
+        """The other answers, already paid for, still count; the variant is scored once."""
+        ctx, _, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(db)
+        evaluate = ScoringService.evaluate
+
+        async def grading(self, ctx, case, answer, scoring, **kw):
+            if case.input == "Train question 4":
+                raise ModelHTTPError(502, "judge-test")
+            return await evaluate(self, ctx, case, answer, scoring, **kw)
+
+        with patch.object(ScoringService, "evaluate", new=grading):
+            await _units(db, ctx, read.id, model)
+
+        iteration = await _iteration(db, read.id)
+        variants = await improvement_repo.list_variants(
+            db, organization_id=ctx.organization_id, iteration_id=iteration.id
+        )
+        scored = [v for v in variants if v.status == "scored"]
+        best = next(v for v in variants if v.instructions == _WINDOW)
+        assert best.cases_scored == 12
+        assert [f["failed"] for f in best.failures if f["failed"] == ["not graded"]] == [
+            ["not graded"]
+        ]
+        assert model.asked.count("Train question 4") == len(scored)
+
 
 class TestRecovery:
     async def test_a_search_unit_waits_in_the_organizations_one_lane(self, db):

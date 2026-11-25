@@ -894,7 +894,7 @@ class SearchWorker:
                     judge_pinned=unit.judge_version_id is not None,
                     improvement_run_id=unit.run_id,
                 )
-            except AppException:
+            except (AppException, *_PROVIDER_FAILURES):
                 logger.exception("A search variant's answer to %s was not graded", question.case_id)
                 return _Answered(failed=[_UNGRADED])
             required = [r for r in evaluation.results if r.required]
