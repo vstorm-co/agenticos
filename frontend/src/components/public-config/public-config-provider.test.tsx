@@ -52,6 +52,6 @@ describe("usePublicConfig", () => {
     expect(screen.getByText(DEFAULT_PUBLIC_CONFIG.apiUrl)).toBeInTheDocument();
     expect(screen.getByText(DEFAULT_PUBLIC_CONFIG.wsUrl)).toBeInTheDocument();
     expect(screen.getByText("10")).toBeInTheDocument();
-    expect(screen.getByText("google")).toBeInTheDocument();
+    expect(screen.getByText(DEFAULT_PUBLIC_CONFIG.oauthProviders.join(","))).toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ import {
 import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-card";
 import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
 import { ApnsKeyCard } from "@/components/admin/apns-key-card";
+import { useSignInProviders } from "@/components/auth/oauth-buttons";
 import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
@@ -76,6 +77,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
   const experience = useTranslations("consoleExperience");
   const tErrors = useTranslations("errors");
   const router = useRouter();
+  const signInProviders = useSignInProviders();
   const { settings, isLoading, error, refetch, save, uploadImage, clearImage } =
     useDeploymentSettings();
 
@@ -113,6 +115,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     footer_text: settings?.footer_text,
     terms_url: settings?.terms_url,
     privacy_url: settings?.privacy_url,
+    password_sign_in_enabled: settings?.password_sign_in_enabled,
     signup_mode: settings?.signup_mode,
     allowed_email_domains: settings?.allowed_email_domains,
     announcement: settings?.announcement,
@@ -363,6 +366,31 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
         }
         access={
           <>
+            <DeploymentSettingsPanel
+              title={t("passwordSignInTitle")}
+              description={t("passwordSignInHint")}
+            >
+              <div
+                data-tour="deployment-password-sign-in"
+                className="flex items-center justify-between gap-4"
+              >
+                <Label htmlFor="password-sign-in">{t("passwordSignInEnabled")}</Label>
+                <Switch
+                  id="password-sign-in"
+                  checked={draft.password_sign_in_enabled ?? true}
+                  onCheckedChange={(checked) => set("password_sign_in_enabled", checked)}
+                  disabled={
+                    save.isPending ||
+                    ((draft.password_sign_in_enabled ?? true) && signInProviders.length === 0)
+                  }
+                />
+              </div>
+              {settings?.password_sign_in_forced && (
+                <p className="text-warning-ink text-sm" role="status">
+                  {t("passwordSignInForced")}
+                </p>
+              )}
+            </DeploymentSettingsPanel>
             <DeploymentSettingsPanel title={t("accessSignup")} description={t("accessSignupHint")}>
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField

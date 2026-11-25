@@ -1,5 +1,5 @@
 ---
-source_sha: "aba44374cf5b"
+source_sha: "206dfd32bcea"
 ---
 
 # Konfiguracja { #configuration }
@@ -167,6 +167,12 @@ Szyfrogram jest więc bezużyteczny poza tenantem, dla którego go zapieczętowa
 Walidacja produkcyjna: `API_KEY` nie może używać wartości domyślnej przy
 `ENVIRONMENT=production`.
 
+Logowanie lokalne jest sterowane w **Admin → Wdrożenie → Dostęp i konta**,
+niezależnie od filtra przycisków dostawców. Zobacz
+[logowanie wyłącznie przez dostawcę](deployment.md#provider-only-sign-in):
+zasadę, jej egzekwowanie w API i awaryjne wymuszenie operatora
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
+
 ### OAuth2 (Google) { #oauth2-google }
 
 | Zmienna | Domyślnie | Opis |
@@ -224,7 +230,7 @@ Dwa przyciski po stronie frontendu, konfigurowane tam:
 
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO. `ldap` dodaje formularz katalogowy, a `kerberos` przycisk logowania Windows, opisane niżej |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Kolejność i filtr dostawców skonfigurowanych w backendzie. Pusta wartość ukrywa przyciski. Hasła lokalne są sterowane osobno w Admin → Wdrożenie → Dostęp i konta. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
 

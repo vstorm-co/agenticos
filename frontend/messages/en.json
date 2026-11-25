@@ -1179,7 +1179,6 @@
     "confirmPassword": "Confirm Password",
     "continueWithGithub": "Continue with GitHub",
     "continueWithGoogle": "Continue with Google",
-    "googleNotConfigured": "Google sign-in is not configured for this deployment.",
     "continueWithProvider": "Continue with {provider}",
     "continueWithMicrosoft": "Continue with Microsoft",
     "createHeading": "Create an account",
@@ -1276,7 +1275,10 @@
     "directorySignIn": "Sign in with {provider}",
     "directoryUsername": "{provider} username",
     "useEmailInstead": "Use email and password instead",
-    "nativeLogoutFailed": "Signed out, but the app could not clear local access."
+    "nativeLogoutFailed": "Signed out, but the app could not clear local access.",
+    "providerSignInOnly": "Sign in through your organization’s identity provider. Local passwords and email sign-in links are disabled.",
+    "providerSignInUnavailable": "No identity provider is available. Contact your deployment administrator.",
+    "chooseSignInMethod": "Choose another sign-in method"
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -6338,6 +6340,10 @@
       "improvement-mode": {
         "title": "Step by step or search",
         "body": "Choose how the helper finds changes: one proposal per attempt, or a search of many variants of the instructions scored on training questions. Search needs at least ten training questions."
+      },
+      "deployment-password-sign-in": {
+        "title": "Sign-in methods",
+        "body": "Require your configured identity provider or allow local passwords and email sign-in links. Only the deployment administrator can change this policy."
       }
     },
     "chooseLanguage": "Language",
@@ -7273,7 +7279,11 @@
       "noMembers": "No members",
       "membersTruncated": "Showing the first {shown} of {total} members",
       "serviceMapTiles": "Map tiles",
-      "serviceMapTilesDetail": "Where maps in visuals get their background"
+      "serviceMapTilesDetail": "Where maps in visuals get their background",
+      "passwordSignInTitle": "Sign-in methods",
+      "passwordSignInHint": "Local sign-in includes passwords, account registration, password recovery and email sign-in links. Configure an identity provider before turning it off.",
+      "passwordSignInEnabled": "Allow local sign-in",
+      "passwordSignInForced": "The operator recovery override currently enables local sign-in."
     },
     "agentDetail": {
       "perMonth": "${amount} per month"

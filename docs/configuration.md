@@ -163,6 +163,12 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 Production validation: `API_KEY` cannot use the default value in
 `ENVIRONMENT=production`.
 
+Local account admission is controlled in **Admin → Deployment → Access &
+accounts**, independently of the provider-button filter. See
+[Provider-only sign-in](deployment.md#provider-only-sign-in) for the policy,
+its API enforcement and the `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` operator
+recovery override.
+
 ### OAuth2 (Google)
 
 | Variable | Default | Description |
@@ -222,7 +228,7 @@ Two buttons on the frontend, configured there:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Display order/filter for configured backend providers. Empty hides provider buttons. Local passwords are controlled separately in Admin → Deployment → Access & accounts. |
 | `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
 

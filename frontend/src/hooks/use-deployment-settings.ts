@@ -27,6 +27,7 @@ import { qk } from "@/lib/query-keys";
  */
 
 export interface DeploymentSettings extends BrandingResponse {
+  password_sign_in_forced?: boolean;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
   announcement_expires_at?: string | null;
@@ -73,6 +74,7 @@ export const DEFAULT_ORGANIZATION_ROLES = [
 export type DefaultOrganizationRole = (typeof DEFAULT_ORGANIZATION_ROLES)[number];
 
 export interface DeploymentSettingsPatch {
+  password_sign_in_enabled?: boolean;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
   announcement_expires_at?: string | null;

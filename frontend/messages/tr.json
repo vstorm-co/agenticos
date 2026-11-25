@@ -14,7 +14,6 @@
     "confirmPassword": "Şifreyi onayla",
     "continueWithGithub": "GitHub ile devam et",
     "continueWithGoogle": "Google ile devam et",
-    "googleNotConfigured": "Bu kurulumda Google ile oturum açma yapılandırılmamış.",
     "continueWithProvider": "{provider} ile devam et",
     "continueWithMicrosoft": "Microsoft ile devam et",
     "createHeading": "Hesap oluştur",
@@ -111,7 +110,10 @@
     "directorySignIn": "{provider} ile giriş yap",
     "directoryUsername": "{provider} kullanıcı adı",
     "useEmailInstead": "Bunun yerine e-posta ve şifre kullan",
-    "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi."
+    "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi.",
+    "providerSignInOnly": "Kuruluşunuzun kimlik sağlayıcısıyla oturum açın. Yerel parolalar ve e-posta oturum açma bağlantıları devre dışıdır.",
+    "providerSignInUnavailable": "Kullanılabilir kimlik sağlayıcısı yok. Dağıtım yöneticinizle iletişime geçin.",
+    "chooseSignInMethod": "Başka bir oturum açma yöntemi seçin"
   },
   "approvalFeedback": {
     "savedApproval": "Zaten onaylandı: {action}",
@@ -3167,7 +3169,11 @@
       "noMembers": "Üye yok",
       "membersTruncated": "{total} üyeden ilk {shown} tanesi gösteriliyor",
       "serviceMapTiles": "Harita döşemeleri",
-      "serviceMapTilesDetail": "Görsellerdeki haritaların arka planı"
+      "serviceMapTilesDetail": "Görsellerdeki haritaların arka planı",
+      "passwordSignInTitle": "Oturum açma yöntemleri",
+      "passwordSignInHint": "Yerel oturum açma; parolaları, hesap kaydını, parola kurtarmayı ve e-posta bağlantılarını kapsar. Kapatmadan önce bir kimlik sağlayıcısı yapılandırın.",
+      "passwordSignInEnabled": "Yerel oturum açmaya izin ver",
+      "passwordSignInForced": "Operatörün kurtarma ayarı şu anda yerel oturum açmayı etkinleştiriyor."
     },
     "channels": {
       "respondToBroadcasts": "Grup etiketlemelerine yanıt ver",
@@ -9076,6 +9082,10 @@
       "channels-binding": {
         "title": "Kimin yanıt vereceğini seçin",
         "body": "Bir agent’ı bota bağlayın veya bağlantısını kaldırın. Bot tek bir agent olarak yanıt verir; ortam, duraklatma ve aramalar agent’ın Kullanılabilirlik sekmesinde kalır."
+      },
+      "deployment-password-sign-in": {
+        "title": "Oturum açma yöntemleri",
+        "body": "Yapılandırılmış kimlik sağlayıcısını zorunlu tutun veya yerel parolalar ve e-posta bağlantılarına izin verin. Bu ilkeyi yalnızca dağıtım yöneticisi değiştirebilir."
       }
     }
   },

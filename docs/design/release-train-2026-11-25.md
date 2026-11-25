@@ -81,3 +81,32 @@ revoked key, replaced version or expired lease leaves the correction queued for
 normal admission. A consumed request is a terminal receipt pointing at the
 original run; it does not produce a second answer. Operators must update API
 replicas and workers before clients send the new flag.
+
+## Provider-only sign-in (#3303)
+
+Implemented on `codex/sign-in-method-policy`, based on #3431's integration
+branch. Deployment administrators can disable local account admission after a
+provider is configured. The six local login/registration/recovery/email-token
+routes refuse admission at the server, including previously issued reset and
+email tokens. Existing sessions and directory authentication retain their own
+contracts. Public branding publishes configured provider names without secrets;
+the console retains an explicit display filter and defaults to all supported
+configured methods. Unconfigured Google is absent, not disabled.
+
+The saved switch and the operator's temporary environment override are distinct.
+The administrator sees both; public pages see the effective policy. A missing
+provider refuses disabling local admission, and the console also checks the
+visible filter. The recovery flag never creates an account or grants a role.
+
+Verification: 190 focused backend tests (including PostgreSQL persistence), 92
+UI tests plus the added staged-invitation check, and 100% scoped statement and
+branch coverage for the provider registry and deployment-settings service. The
+new provider-only UI has 100% statement, branch, function and line coverage.
+Types, lint and strict four-language docs checks pass. Migration
+`0368_password_sign_in_policy.py` upgrades, downgrades and upgrades cleanly;
+Alembic reports no drift. Actual local console testing saved the switch and
+checked login, registration, recovery and an old reset link before restoring
+local login. Preview SSO is a local dummy provider, not a tested live IdP.
+
+Desktop/mobile captures are available locally. The aggregate CI gate and the
+remaining #3300/#3302 and #3299 work are still pending; no release is cut.

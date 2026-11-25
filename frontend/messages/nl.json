@@ -1179,7 +1179,6 @@
     "confirmPassword": "Wachtwoord bevestigen",
     "continueWithGithub": "Doorgaan met GitHub",
     "continueWithGoogle": "Doorgaan met Google",
-    "googleNotConfigured": "Inloggen met Google is niet geconfigureerd voor deze installatie.",
     "continueWithProvider": "Doorgaan met {provider}",
     "continueWithMicrosoft": "Doorgaan met Microsoft",
     "createHeading": "Een account aanmaken",
@@ -1276,7 +1275,10 @@
     "directorySignIn": "Inloggen met {provider}",
     "directoryUsername": "{provider}-gebruikersnaam",
     "useEmailInstead": "In plaats daarvan e-mail en wachtwoord gebruiken",
-    "nativeLogoutFailed": "Uitgelogd, maar de app kon de lokale toegang niet wissen."
+    "nativeLogoutFailed": "Uitgelogd, maar de app kon de lokale toegang niet wissen.",
+    "providerSignInOnly": "Meld u aan via de identiteitsprovider van uw organisatie. Lokale wachtwoorden en aanmeldlinks per e-mail zijn uitgeschakeld.",
+    "providerSignInUnavailable": "Er is geen identiteitsprovider beschikbaar. Neem contact op met uw beheerder.",
+    "chooseSignInMethod": "Een andere aanmeldmethode kiezen"
   },
   "billing": {
     "description": "Beheer je abonnement voor {org}.",
@@ -6222,6 +6224,10 @@
       "channels-binding": {
         "title": "Kies wie antwoordt",
         "body": "Koppel een agent aan een bot of maak de koppeling los. Een bot antwoordt als één agent. De omgeving, pauzestand en zoekinstellingen blijven op het tabblad Beschikbaarheid van de agent."
+      },
+      "deployment-password-sign-in": {
+        "title": "Aanmeldmethoden",
+        "body": "Vereis de ingestelde identiteitsprovider of sta lokale wachtwoorden en aanmeldlinks per e-mail toe. Alleen de beheerder kan dit beleid wijzigen."
       }
     },
     "chooseLanguage": "Taal",
@@ -7157,7 +7163,11 @@
       "noMembers": "Geen leden",
       "membersTruncated": "De eerste {shown} van {total} leden worden getoond",
       "serviceMapTiles": "Kaarttegels",
-      "serviceMapTilesDetail": "Waar kaarten in visuals hun achtergrond vandaan halen"
+      "serviceMapTilesDetail": "Waar kaarten in visuals hun achtergrond vandaan halen",
+      "passwordSignInTitle": "Aanmeldmethoden",
+      "passwordSignInHint": "Lokale aanmelding omvat wachtwoorden, registratie, wachtwoordherstel en aanmeldlinks per e-mail. Configureer een identiteitsprovider voordat u dit uitschakelt.",
+      "passwordSignInEnabled": "Lokale aanmelding toestaan",
+      "passwordSignInForced": "De herstelinstelling van de beheerder schakelt lokale aanmelding momenteel in."
     },
     "agentDetail": {
       "perMonth": "${amount} per maand"

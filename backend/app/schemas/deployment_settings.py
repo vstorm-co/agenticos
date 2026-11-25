@@ -33,6 +33,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field, field_validator
 
 from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
+from app.core.sign_in_methods import SignInProvider
 from app.schemas.base import BaseSchema
 from app.schemas.console_experience import ChatHomeOverrides
 from app.schemas.retention import RetentionDays
@@ -106,6 +107,8 @@ class BrandingRead(BaseSchema):
     terms_url: str | None = None
     privacy_url: str | None = None
 
+    password_sign_in_enabled: bool = True
+    sign_in_providers: list[SignInProvider] = Field(default_factory=list)
     signup_mode: SignupMode = "open"
     allowed_email_domains: list[str] = Field(default_factory=list)
     """Published on purpose. A sign-up form that refuses an address *after* it is
@@ -162,6 +165,7 @@ class DeploymentLimits(BaseSchema):
 class DeploymentSettingsRead(BrandingRead):
     """The administrator's view: everything, in one request."""
 
+    password_sign_in_forced: bool = False
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
         default=None,
@@ -230,6 +234,7 @@ class DeploymentSettingsUpdate(BaseSchema):
     terms_url: str | None = Field(default=None, max_length=512)
     privacy_url: str | None = Field(default=None, max_length=512)
 
+    password_sign_in_enabled: bool | None = None
     signup_mode: SignupMode | None = None
     allowed_email_domains: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_DOMAINS)
 

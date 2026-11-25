@@ -145,6 +145,11 @@ class DeploymentSettings(Base, TimestampMixin):
     with it.
     """
 
+    password_sign_in_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    """Local passwords and email sign-in links; directory sign-in is independent."""
+
     signup_mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default="open", server_default=text("'open'")
     )

@@ -23,6 +23,13 @@ from app.api.deps import get_session_service
 pytestmark = pytest.mark.security
 
 
+@pytest.fixture(autouse=True)
+def default_sign_in_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.repositories import deployment_settings_repo
+
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
+
+
 class MockUser:
     """Mock user for testing."""
 
@@ -529,3 +536,45 @@ async def test_a_refused_email_change_link_answers_401(
         app.dependency_overrides.clear()
 
     assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("path", "body", "form"),
+    [
+        ("login", {"username": "test@example.com", "password": "password123"}, True),
+        ("register", {"email": "new@example.com", "password": "Password123!"}, False),
+        ("password-reset/request", {"email": "test@example.com"}, False),
+        (
+            "password-reset/confirm",
+            {"token": "previously-issued-token", "new_password": "Password123!"},
+            False,
+        ),
+        ("magic-link/request", {"email": "test@example.com"}, False),
+        ("magic-link/verify", {"token": "previously-issued-token"}, False),
+    ],
+)
+async def test_provider_only_policy_blocks_direct_local_auth_requests(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    body: dict[str, str],
+    form: bool,
+) -> None:
+    from app.db.models.deployment_settings import DeploymentSettings
+    from app.repositories import deployment_settings_repo
+
+    monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", False)
+    monkeypatch.setattr(
+        deployment_settings_repo,
+        "get",
+        AsyncMock(return_value=DeploymentSettings(password_sign_in_enabled=False)),
+    )
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/{path}",
+        **({"data": body} if form else {"json": body}),
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["details"]["reason"] == "password_sign_in_disabled"
+    assert not mock_user_service.mock_calls

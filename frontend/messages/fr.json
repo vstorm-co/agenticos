@@ -1185,7 +1185,6 @@
     "confirmPassword": "Confirmer le mot de passe",
     "continueWithGithub": "Continuer avec GitHub",
     "continueWithGoogle": "Continuer avec Google",
-    "googleNotConfigured": "La connexion Google n'est pas configurée pour ce déploiement.",
     "continueWithProvider": "Continuer avec {provider}",
     "continueWithMicrosoft": "Continuer avec Microsoft",
     "createHeading": "Créer un compte",
@@ -1282,7 +1281,10 @@
     "directorySignIn": "Se connecter avec {provider}",
     "directoryUsername": "Nom d’utilisateur {provider}",
     "useEmailInstead": "Utiliser plutôt l’e-mail et le mot de passe",
-    "nativeLogoutFailed": "Déconnecté, mais l’application n’a pas pu effacer l’accès local."
+    "nativeLogoutFailed": "Déconnecté, mais l’application n’a pas pu effacer l’accès local.",
+    "providerSignInOnly": "Connectez-vous via le fournisseur d’identité de votre organisation. Les mots de passe locaux et les liens de connexion par e-mail sont désactivés.",
+    "providerSignInUnavailable": "Aucun fournisseur d’identité n’est disponible. Contactez l’administrateur du déploiement.",
+    "chooseSignInMethod": "Choisir une autre méthode de connexion"
   },
   "billing": {
     "description": "Gérez votre abonnement pour {org}.",
@@ -6106,6 +6108,10 @@
       "channels-binding": {
         "title": "Choisir qui répond",
         "body": "Associez un agent à un bot ou retirez l’association. Un bot répond comme un seul agent ; son environnement, sa pause et ses recherches restent dans l’onglet Disponibilité de l’agent."
+      },
+      "deployment-password-sign-in": {
+        "title": "Méthodes de connexion",
+        "body": "Exigez le fournisseur d’identité configuré ou autorisez les mots de passe locaux et les liens par e-mail. Seul l’administrateur du déploiement peut modifier cette règle."
       }
     },
     "chooseLanguage": "Langue",
@@ -7041,7 +7047,11 @@
       "noMembers": "Aucun membre",
       "membersTruncated": "Affichage des {shown} premiers membres sur {total}",
       "serviceMapTiles": "Tuiles de carte",
-      "serviceMapTilesDetail": "D’où les cartes des visuels tirent leur fond"
+      "serviceMapTilesDetail": "D’où les cartes des visuels tirent leur fond",
+      "passwordSignInTitle": "Méthodes de connexion",
+      "passwordSignInHint": "La connexion locale comprend les mots de passe, l’inscription, la récupération du mot de passe et les liens de connexion par e-mail. Configurez un fournisseur d’identité avant de la désactiver.",
+      "passwordSignInEnabled": "Autoriser la connexion locale",
+      "passwordSignInForced": "Le paramètre de récupération de l’opérateur active actuellement la connexion locale."
     },
     "agentDetail": {
       "perMonth": "${amount} par mois"

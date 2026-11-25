@@ -37,8 +37,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.field_errors import refused_field
 from app.core.maintenance import publish as publish_maintenance
+from app.core.sign_in_methods import configured_sign_in_providers
 from app.core.vault import VaultScope, current_key_version, seal
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.updates import writable
@@ -114,6 +116,17 @@ class DeploymentSettingsService:
         """
         return _branding(await deployment_settings_repo.get(self.db))
 
+    async def require_password_sign_in(self) -> None:
+        """Refuse local account admission, including old recovery/email tokens."""
+        if settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED:
+            return
+        row = await deployment_settings_repo.get(self.db)
+        if row is not None and row.password_sign_in_enabled is False:
+            raise AuthorizationError(
+                message="Use this deployment's identity provider to sign in",
+                details={"reason": "password_sign_in_disabled"},
+            )
+
     async def notice(self) -> NoticeRead:
         """What an open page has to keep asking: the banner, and whether we are shut.
 
@@ -144,8 +157,11 @@ class DeploymentSettingsService:
     async def read(self) -> DeploymentSettingsRead:
         """The administrator's whole view, so one request fills one form."""
         row = await deployment_settings_repo.get(self.db)
+        branding = _branding(row)
+        branding.password_sign_in_enabled = row.password_sign_in_enabled if row else True
         return DeploymentSettingsRead(
-            **_branding(row).model_dump(),
+            **branding.model_dump(),
+            password_sign_in_forced=settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED,
             chat_home_available=ChatHomeOverrides.model_validate(row.chat_home_available)
             if row and row.chat_home_available is not None
             else None,
@@ -232,6 +248,12 @@ class DeploymentSettingsService:
             raise BadRequestError(message="Nothing to change")
         if update_data.get("default_organization_id") is not None:
             await self._check_default_organization(update_data["default_organization_id"])
+        disables_local_sign_in = update_data.get("password_sign_in_enabled") is False
+        if disables_local_sign_in and not configured_sign_in_providers(settings):
+            raise refused_field(
+                "password_sign_in_enabled",
+                "Configure an identity provider before disabling local sign-in",
+            )
         row = await deployment_settings_repo.upsert(self.db, update_data=update_data)
         # The middleware reads its verdict from a cache with a TTL, so a saved
         # change would otherwise take up to half a minute to close or reopen the
@@ -447,7 +469,7 @@ def _branding(row: DeploymentSettings | None) -> BrandingRead:
     nothing to create and nothing to fall back through.
     """
     if row is None:
-        return BrandingRead()
+        return BrandingRead(sign_in_providers=configured_sign_in_providers(settings))
     return BrandingRead(
         app_name=row.app_name,
         tagline=row.tagline,
@@ -457,6 +479,9 @@ def _branding(row: DeploymentSettings | None) -> BrandingRead:
         footer_text=row.footer_text,
         terms_url=row.terms_url,
         privacy_url=row.privacy_url,
+        password_sign_in_enabled=settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED
+        or row.password_sign_in_enabled,
+        sign_in_providers=configured_sign_in_providers(settings),
         signup_mode=_signup_mode(row.signup_mode),
         allowed_email_domains=list(row.allowed_email_domains),
         maintenance_mode=row.maintenance_mode,

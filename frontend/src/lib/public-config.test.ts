@@ -90,8 +90,8 @@ describe("readPublicConfig", () => {
     expect(readPublicConfig({ OAUTH_PROVIDERS: "" }).oauthProviders).toEqual([]);
   });
 
-  it("offers Google when no provider list is set at all", () => {
-    expect(readPublicConfig({}).oauthProviders).toEqual(["google"]);
+  it("permits all supported configured sign-ins when no display filter is set", () => {
+    expect(readPublicConfig({}).oauthProviders).toEqual(["google", "oidc", "ldap", "kerberos"]);
   });
 
   it("accepts the generic OIDC provider, which has no mark of its own (#1419)", () => {

@@ -313,6 +313,7 @@ export default defineConfig({
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
         // the gate and is not in it yet; this file is new, so it starts inside.
         "src/components/auth/directory-login-form.tsx",
+        "src/components/auth/provider-sign-in.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",

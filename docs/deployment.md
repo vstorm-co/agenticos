@@ -126,6 +126,29 @@ origin, for the chat's speech-to-text.
     `Strict-Transport-Security`, which belongs to whatever terminates TLS; an
     existing proxy configuration that adds the others should drop them.
 
+## Provider-only sign-in
+
+In **Admin → Deployment → Access & accounts**, turn
+**Allow local sign-in** off after configuring an identity provider. This disables
+password login, local registration, password reset and email sign-in links at
+both the page and API. Existing sessions remain valid; directory passwords are
+verified by LDAP and remain a separate provider method. SSO account creation
+still obeys the deployment's sign-up and invitation policy.
+
+The public branding response names only configured providers. The console filters
+those names through `OAUTH_PROVIDERS`; its default allows `google,oidc,ldap,kerberos`.
+An unconfigured Google button is never shown. If you set an explicit display
+filter, include the provider you intend to use before disabling local sign-in.
+The console refuses to disable its last visible method; the API requires at least
+one configured provider.
+
+**Operator recovery:** set `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` in the API
+environment and restart every API replica. Local sign-in works again, while the
+saved policy stays unchanged and the administration page shows the override.
+Use an existing local administrator credential, or the console's normal password
+reset flow after enabling the override. Repair the provider, remove the override and restart the
+replicas. The flag grants no account, role or session on its own.
+
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it

@@ -1357,6 +1357,7 @@ include = [
     # every branch of the precedence, every class, and every refusal is held to
     # the gate (#1420).
     "app/core/retention.py",
+    "app/core/sign_in_methods.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
@@ -2342,6 +2343,7 @@ include = [
     # every branch of the precedence, every class, and every refusal is held to
     # the gate (#1420).
     "app/core/retention.py",
+    "app/core/sign_in_methods.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an

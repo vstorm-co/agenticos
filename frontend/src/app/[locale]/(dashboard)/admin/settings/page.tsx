@@ -1,3 +1,7 @@
 "use client";
 
-export { DeploymentSettingsForm as default } from "@/components/admin/deployment-settings-form";
+import { DeploymentSettingsForm } from "@/components/admin/deployment-settings-form";
+
+export default function DeploymentSettingsPage() {
+  return <DeploymentSettingsForm />;
+}

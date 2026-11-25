@@ -20,7 +20,10 @@ import uuid
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.exceptions import AuthorizationError
 from app.db.models.deployment_settings import DeploymentSettings
 from app.repositories import deployment_settings_repo
 from app.services.deployment_settings import DeploymentSettingsService
@@ -184,3 +187,19 @@ class TestWhatTheColumnsHold:
 
         assert row is not None
         assert row.app_name is None
+
+
+async def test_local_admission_defaults_on_and_partial_writes_preserve_disabled_policy(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", False)
+    row = await deployment_settings_repo.upsert(db, update_data={"app_name": "Policy preview"})
+    assert row.password_sign_in_enabled is True
+    service = DeploymentSettingsService(db)
+    await service.require_password_sign_in()
+    await deployment_settings_repo.upsert(db, update_data={"password_sign_in_enabled": False})
+    await deployment_settings_repo.upsert(db, update_data={"app_name": "Renamed"})
+    db.expire_all()
+    with pytest.raises(AuthorizationError, match="identity provider"):
+        await service.require_password_sign_in()
+    assert (await service.branding()).password_sign_in_enabled is False

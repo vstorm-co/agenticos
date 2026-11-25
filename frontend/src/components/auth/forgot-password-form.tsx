@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
 
+import { useBranding } from "@/components/branding/branding-provider";
+import { ProviderSignIn } from "@/components/auth/provider-sign-in";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -12,6 +14,7 @@ import { ROUTES } from "@/lib/constants";
 import { EMAIL_RE } from "@/lib/utils";
 
 export function ForgotPasswordForm() {
+  const branding = useBranding();
   const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +43,8 @@ export function ForgotPasswordForm() {
     setSubmitted(true);
     setIsLoading(false);
   };
+
+  if (!branding.passwordSignInEnabled) return <ProviderSignIn />;
 
   if (submitted) {
     return (

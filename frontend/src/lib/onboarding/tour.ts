@@ -192,6 +192,13 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "deployment-password-sign-in",
+    page: "/admin/settings",
+    target: "deployment-password-sign-in",
+    activate: "deployment-access-tab",
+    optional: true,
+  },
+  {
     id: "improvement-start",
     page: IMPROVEMENT_START,
     target: "improvement-start",

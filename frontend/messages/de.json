@@ -1179,7 +1179,6 @@
     "confirmPassword": "Passwort bestätigen",
     "continueWithGithub": "Weiter mit GitHub",
     "continueWithGoogle": "Weiter mit Google",
-    "googleNotConfigured": "Die Google-Anmeldung ist für diese Installation nicht eingerichtet.",
     "continueWithProvider": "Weiter mit {provider}",
     "continueWithMicrosoft": "Weiter mit Microsoft",
     "createHeading": "Konto erstellen",
@@ -1276,7 +1275,10 @@
     "directorySignIn": "Mit {provider} anmelden",
     "directoryUsername": "{provider}-Benutzername",
     "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden",
-    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen."
+    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen.",
+    "providerSignInOnly": "Melden Sie sich über den Identitätsanbieter Ihrer Organisation an. Lokale Passwörter und Anmeldelinks per E-Mail sind deaktiviert.",
+    "providerSignInUnavailable": "Kein Identitätsanbieter ist verfügbar. Wenden Sie sich an den Administrator Ihrer Bereitstellung.",
+    "chooseSignInMethod": "Andere Anmeldemethode wählen"
   },
   "billing": {
     "description": "Verwalten Sie das Abonnement von {org}.",
@@ -6217,6 +6219,10 @@
       "improvement-mode": {
         "title": "Schritt für Schritt oder Suche",
         "body": "Wählen Sie, wie der Helfer Änderungen findet: ein Vorschlag pro Versuch oder eine Suche vieler Varianten der Anweisungen, bewertet an Trainingsfragen. Die Suche braucht mindestens zehn Trainingsfragen."
+      },
+      "deployment-password-sign-in": {
+        "title": "Anmeldemethoden",
+        "body": "Verlangen Sie Ihren konfigurierten Identitätsanbieter oder erlauben Sie lokale Passwörter und Anmeldelinks per E-Mail. Nur der Bereitstellungsadministrator kann diese Richtlinie ändern."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6545,7 +6551,11 @@
       "noMembers": "Keine Mitglieder",
       "membersTruncated": "Es werden die ersten {shown} von {total} Mitgliedern angezeigt",
       "serviceMapTiles": "Kartenkacheln",
-      "serviceMapTilesDetail": "Woher Karten in Visuals ihren Hintergrund holen"
+      "serviceMapTilesDetail": "Woher Karten in Visuals ihren Hintergrund holen",
+      "passwordSignInTitle": "Anmeldemethoden",
+      "passwordSignInHint": "Die lokale Anmeldung umfasst Passwörter, Registrierung, Passwortwiederherstellung und Anmeldelinks per E-Mail. Konfigurieren Sie vor dem Deaktivieren einen Identitätsanbieter.",
+      "passwordSignInEnabled": "Lokale Anmeldung erlauben",
+      "passwordSignInForced": "Die Wiederherstellungsoption des Betreibers aktiviert derzeit die lokale Anmeldung."
     },
     "agentDetail": {
       "perMonth": "${amount} pro Monat"

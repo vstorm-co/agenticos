@@ -1,5 +1,5 @@
 ---
-source_sha: "aba44374cf5b"
+source_sha: "206dfd32bcea"
 ---
 
 # Configuración { #configuration }
@@ -171,6 +171,12 @@ ciphertext es por tanto inútil fuera del tenant para el que se selló.
 Validación en producción: `API_KEY` no puede usar el valor por defecto con
 `ENVIRONMENT=production`.
 
+El acceso local se controla en **Admin → Despliegue → Acceso y cuentas**,
+independientemente del filtro de proveedores. Consulte
+[Acceso solo mediante el proveedor](deployment.md#provider-only-sign-in) para la
+política, su aplicación en la API y la anulación de recuperación del operador
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
+
 ### OAuth2 (Google) { #oauth2-google }
 
 | Variable | Por defecto | Descripción |
@@ -231,7 +237,7 @@ Dos botones en el frontend, configurados allí:
 
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO. `ldap` añade el formulario del directorio y `kerberos` el botón de inicio de sesión de Windows, más abajo |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Orden y filtro de proveedores configurados en el backend. Vacío oculta los botones. Las contraseñas locales se controlan por separado en Admin → Despliegue → Acceso y cuentas. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
 

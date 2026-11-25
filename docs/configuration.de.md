@@ -1,5 +1,5 @@
 ---
-source_sha: "aba44374cf5b"
+source_sha: "206dfd32bcea"
 ---
 
 # Konfiguration { #configuration }
@@ -170,6 +170,12 @@ für den er versiegelt wurde, nutzlos.
 Prüfung für die Produktion: `API_KEY` darf bei `ENVIRONMENT=production` nicht der
 Standardwert sein.
 
+Die lokale Kontoanmeldung wird unter **Admin → Bereitstellung → Zugriff und
+Konten** unabhängig vom Anbieterfilter gesteuert. Siehe
+[Anmeldung nur über den Anbieter](deployment.md#provider-only-sign-in) für die
+Richtlinie, ihre API-Durchsetzung und die Wiederherstellungsoption
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` des Betreibers.
+
 ### OAuth2 (Google) { #oauth2-google }
 
 | Variable | Standard | Beschreibung |
@@ -232,7 +238,7 @@ Zwei Knöpfe im Frontend, dort konfiguriert:
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO. `ldap` ergänzt das Verzeichnisformular und `kerberos` den Knopf für die Windows-Anmeldung, siehe unten |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Reihenfolge und Filter der im Backend konfigurierten Anbieter. Leer blendet die Schaltflächen aus. Lokale Passwörter werden separat unter Admin → Bereitstellung → Zugriff und Konten gesteuert. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Wie der Knopf den Anbieter nennt: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (leer) | `google`, `github` oder `microsoft` — die Marken, die die Anmeldeseite ohnehin mitbringt. Alles andere zeichnet einen schlichten Schlüssel |
 

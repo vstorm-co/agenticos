@@ -55,6 +55,7 @@ def a_row(**overrides) -> DeploymentSettings:
         terms_url=None,
         privacy_url=None,
         signup_mode="open",
+        password_sign_in_enabled=True,
         allowed_email_domains=[],
         announcement=None,
         announcement_level="info",
@@ -943,3 +944,61 @@ def test_notice_deadlines_require_an_offset_and_are_normalized_to_utc() -> None:
         assert value.model_dump()[field] == datetime(2026, 11, 21, 10, tzinfo=UTC)
         cleared = DeploymentSettingsUpdate.model_validate({field: None})
         assert cleared.model_dump(exclude_unset=True) == {field: None}
+
+
+class TestLocalSignInPolicy:
+    @pytest.mark.parametrize("stored", [None, True])
+    async def test_existing_deployments_keep_local_admission(
+        self, mock_db_session, repo, monkeypatch: pytest.MonkeyPatch, stored: bool | None
+    ) -> None:
+        monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", False)
+        repo.get.return_value = None if stored is None else a_row(password_sign_in_enabled=stored)
+        await DeploymentSettingsService(mock_db_session).require_password_sign_in()
+        repo.upsert.assert_not_awaited()
+
+    async def test_disabled_local_admission_refuses_before_credentials(
+        self, mock_db_session, repo, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", False)
+        repo.get.return_value = a_row(password_sign_in_enabled=False)
+        with pytest.raises(AuthorizationError, match="identity provider"):
+            await DeploymentSettingsService(mock_db_session).require_password_sign_in()
+
+    async def test_recovery_override_restores_admission_without_a_database_read(
+        self, mock_db_session, repo, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", True)
+        await DeploymentSettingsService(mock_db_session).require_password_sign_in()
+        repo.get.assert_not_awaited()
+
+    async def test_recovery_exposes_effective_policy_but_preserves_the_saved_switch(
+        self, mock_db_session, repo, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED", True)
+        repo.get.return_value = a_row(password_sign_in_enabled=False)
+        service = DeploymentSettingsService(mock_db_session)
+        assert (await service.branding()).password_sign_in_enabled is True
+        admin = await service.read()
+        assert admin.password_sign_in_enabled is False
+        assert admin.password_sign_in_forced is True
+
+    @pytest.mark.parametrize("has_provider", [False, True])
+    async def test_cannot_disable_the_last_sign_in_method(
+        self, mock_db_session, repo, monkeypatch: pytest.MonkeyPatch, has_provider: bool
+    ) -> None:
+        monkeypatch.setattr(
+            module, "configured_sign_in_providers", lambda _: ["oidc"] if has_provider else []
+        )
+        service = DeploymentSettingsService(mock_db_session)
+        patch = DeploymentSettingsUpdate(password_sign_in_enabled=False)
+        if has_provider:
+            await service.update(actor_user_id=uuid4(), data=patch)
+            assert repo.upsert.await_args.kwargs["update_data"] == {
+                "password_sign_in_enabled": False
+            }
+        else:
+            with pytest.raises(BadRequestError, match="Configure an identity provider"):
+                await service.update(actor_user_id=uuid4(), data=patch)
+            repo.upsert.assert_not_awaited()

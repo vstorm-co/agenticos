@@ -87,7 +87,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   artifactUrl: "http://localhost:8000",
   siteUrl: "http://localhost:3000",
   chatMaxUploadSizeMb: 10,
-  oauthProviders: ["google"],
+  oauthProviders: ["google", "oidc", "ldap", "kerberos"],
   oidcDisplayName: "SSO",
   oidcIcon: null,
   ldapDisplayName: "LDAP",

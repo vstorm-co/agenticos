@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Configure provider-only sign-in in deployment settings. Local password,
+  registration, recovery and email-link endpoints enforce the policy. Show only
+  configured identity providers, retain the console display filter, and provide
+  an operator recovery override without changing the saved policy.
+
 - Send a correction to an asynchronous agent run by conversation ID. With `"steer": true`, the agent takes the message before its next model call or processes it as a new turn if no running request takes it. Webhooks can retry safely with the same `Idempotency-Key`.
 
 - Export selected agent dependencies as YAML, JSON or ZIP, then review which
@@ -63,6 +68,12 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
+  administrator disables it. The console's provider filter now defaults to all
+  supported configured methods; an explicit `OAUTH_PROVIDERS` list keeps its
+  filtering behavior. Set `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` on all API
+  replicas only for operator recovery, then remove it after repairing sign-in.
 
 - If you roll out API replicas and workers separately, update all of them before clients start sending `"steer": true`. Older versions cannot process steering requests or read their receipts. Ordinary run requests do not need a coordinated upgrade.
 

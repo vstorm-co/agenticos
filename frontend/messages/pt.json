@@ -1179,7 +1179,6 @@
     "confirmPassword": "Confirmar senha",
     "continueWithGithub": "Continuar com GitHub",
     "continueWithGoogle": "Continuar com Google",
-    "googleNotConfigured": "O login com Google não está configurado nesta implantação.",
     "continueWithProvider": "Continuar com {provider}",
     "continueWithMicrosoft": "Continuar com Microsoft",
     "createHeading": "Criar uma conta",
@@ -1276,7 +1275,10 @@
     "directorySignIn": "Entrar com {provider}",
     "directoryUsername": "Nome de usuário do {provider}",
     "useEmailInstead": "Use e-mail e senha",
-    "nativeLogoutFailed": "Você saiu, mas o app não conseguiu limpar o acesso local."
+    "nativeLogoutFailed": "Você saiu, mas o app não conseguiu limpar o acesso local.",
+    "providerSignInOnly": "Entre pelo provedor de identidade da sua organização. Senhas locais e links de acesso por e-mail estão desativados.",
+    "providerSignInUnavailable": "Nenhum provedor de identidade está disponível. Entre em contato com o administrador da implantação.",
+    "chooseSignInMethod": "Escolher outro método de acesso"
   },
   "billing": {
     "description": "Gerencie sua assinatura de {org}.",
@@ -6222,6 +6224,10 @@
       "channels-binding": {
         "title": "Escolha quem responde",
         "body": "Vincule um agente a um bot ou remova o vínculo. Um bot responde como um único agente; o ambiente, a pausa e as consultas continuam na aba Disponibilidade do agente."
+      },
+      "deployment-password-sign-in": {
+        "title": "Métodos de acesso",
+        "body": "Exija o provedor de identidade configurado ou permita senhas locais e links de acesso por e-mail. Somente o administrador da implantação pode alterar essa política."
       }
     },
     "chooseLanguage": "Idioma",
@@ -7157,7 +7163,11 @@
       "noMembers": "Sem membros",
       "membersTruncated": "Mostrando os primeiros {shown} de {total} membros",
       "serviceMapTiles": "Blocos de mapa",
-      "serviceMapTilesDetail": "De onde os mapas dos visuais obtêm o plano de fundo"
+      "serviceMapTilesDetail": "De onde os mapas dos visuais obtêm o plano de fundo",
+      "passwordSignInTitle": "Métodos de acesso",
+      "passwordSignInHint": "O acesso local inclui senhas, cadastro, recuperação de senha e links de acesso por e-mail. Configure um provedor de identidade antes de desativá-lo.",
+      "passwordSignInEnabled": "Permitir acesso local",
+      "passwordSignInForced": "A configuração de recuperação do operador está habilitando o acesso local."
     },
     "agentDetail": {
       "perMonth": "${amount} por mês"

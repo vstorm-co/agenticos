@@ -176,7 +176,6 @@
     "confirmPassword": "Potwierdź hasło",
     "continueWithGithub": "Kontynuuj z GitHub",
     "continueWithGoogle": "Kontynuuj z Google",
-    "googleNotConfigured": "Logowanie przez Google nie jest skonfigurowane w tej instalacji.",
     "continueWithProvider": "Kontynuuj z {provider}",
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz konto",
@@ -273,7 +272,10 @@
     "directorySignIn": "Zaloguj się przez {provider}",
     "directoryUsername": "Nazwa użytkownika {provider}",
     "useEmailInstead": "Użyj e-maila i hasła",
-    "nativeLogoutFailed": "Wylogowano, ale aplikacja nie mogła wyczyścić dostępu lokalnego."
+    "nativeLogoutFailed": "Wylogowano, ale aplikacja nie mogła wyczyścić dostępu lokalnego.",
+    "providerSignInOnly": "Zaloguj się przez dostawcę tożsamości organizacji. Lokalne hasła i linki logowania przez e-mail są wyłączone.",
+    "providerSignInUnavailable": "Żaden dostawca logowania nie jest dostępny. Skontaktuj się z administratorem wdrożenia.",
+    "chooseSignInMethod": "Wybierz inną metodę logowania"
   },
   "profile": {
     "title": "Profil",
@@ -2465,7 +2467,11 @@
       "noMembers": "Brak członków",
       "membersTruncated": "Pokazano pierwszych {shown} z {total} członków",
       "serviceMapTiles": "Kafelki map",
-      "serviceMapTilesDetail": "Skąd mapy w wizualizacjach biorą tło"
+      "serviceMapTilesDetail": "Skąd mapy w wizualizacjach biorą tło",
+      "passwordSignInTitle": "Metody logowania",
+      "passwordSignInHint": "Logowanie lokalne obejmuje hasła, rejestrację kont, odzyskiwanie hasła i linki logowania przez e-mail. Przed wyłączeniem skonfiguruj dostawcę tożsamości.",
+      "passwordSignInEnabled": "Zezwalaj na logowanie lokalne",
+      "passwordSignInForced": "Awaryjne ustawienie operatora obecnie włącza logowanie lokalne."
     },
     "agentDetail": {
       "perMonth": "${amount} miesięcznie"
@@ -7987,6 +7993,10 @@
       "improvement-mode": {
         "title": "Krok po kroku albo wyszukiwanie",
         "body": "Wybierz, jak pomocnik szuka zmian: jedna propozycja na próbę albo wyszukiwanie wielu wariantów instrukcji ocenianych na pytaniach treningowych. Wyszukiwanie potrzebuje co najmniej dziesięciu pytań treningowych."
+      },
+      "deployment-password-sign-in": {
+        "title": "Metody logowania",
+        "body": "Wymagaj skonfigurowanego dostawcy tożsamości lub zezwalaj na lokalne hasła i linki logowania przez e-mail. Tę zasadę zmienia tylko administrator wdrożenia."
       }
     },
     "chooseLanguage": "Język",
