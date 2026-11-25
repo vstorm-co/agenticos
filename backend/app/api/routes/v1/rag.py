@@ -527,7 +527,6 @@ async def delete_rag_document(
 @router.post(
     "/documents/{doc_id}/retry",
     response_model=RAGRetryResponse,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def retry_ingestion(
     doc_id: str,
@@ -535,7 +534,7 @@ async def retry_ingestion(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Retry a failed document ingestion."""
+    """Index an imported original or retry ingestion with this document's edit access."""
     tracked = await access.writable_document(ctx, doc_id)
     doc = await rag_doc_svc.retry_ingestion(str(tracked.id))
     return RAGRetryResponse(id=str(doc.id), status="processing", message="Retry queued")

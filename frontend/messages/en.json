@@ -4347,7 +4347,8 @@
     "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
-    "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment."
+    "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment.",
+    "parsedSnapshotOnly": "Imported parsed text. The original file was not included."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4377,7 +4378,8 @@
     "title": "Knowledge Bases",
     "updated": "Knowledge base updated",
     "uploadFailed": "Upload failed",
-    "uploaded": "Uploaded {name}"
+    "uploaded": "Uploaded {name}",
+    "documentIndexingQueued": "Document indexing queued"
   },
   "layout": {
     "breadcrumb": "Breadcrumb",
@@ -7815,7 +7817,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexing: 1 document in progress} other {Indexing: # documents in progress}}",
       "indexingComplete": "Indexing complete",
       "indexingFailed": "{count, plural, =1 {1 document failed} other {# documents failed}}",
-      "moreUploads": "{count, plural, one {# more file in the upload queue} other {# more files in the upload queue}}"
+      "moreUploads": "{count, plural, one {# more file in the upload queue} other {# more files in the upload queue}}",
+      "indexDocument": "Index",
+      "retryDocument": "Retry",
+      "indexDocumentNamed": "Index {name}",
+      "retryDocumentNamed": "Retry {name}",
+      "indexDocumentHint": "Uses this knowledge base's settings and may incur provider costs."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",
@@ -9139,7 +9146,8 @@
     "done": "Done",
     "error": "Failed",
     "processing": "Processing",
-    "running": "Running"
+    "running": "Running",
+    "stored": "Stored · not indexed"
   },
   "sandboxes": {
     "activityLogUnreadable": "That activity log could not be read",

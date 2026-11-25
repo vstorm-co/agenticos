@@ -77,3 +77,12 @@ parsed preview, replay, rollback after lease loss/cancellation, expiry ownership
 205-row vector pagination with foreign tenant/base exclusions. A scratch-schema
 migration check verifies upgrade, existing-data preservation, protected downgrade
 and downgrade/re-upgrade. No paid providers are used.
+
+## Console
+
+Stored documents have a distinct, non-progress status. Parsed-only imports open
+parsed text and JSON without requesting original bytes. Original downloads stay
+independent of indexing. Editors can explicitly index a stored original or retry
+a failed one; readers cannot start that work. The mutation clears obsolete parsed
+cache only in the active organization and refreshes ingestion state. Per-document
+retry uses the existing resource access decision, including explicit edit grants.

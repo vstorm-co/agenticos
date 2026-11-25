@@ -95,10 +95,10 @@ export async function findKBDocument(kbId: string, filename: string): Promise<KB
 }
 
 /**
- * How a KB document parsed: the indexed chunks, grouped back into pages.
+ * How a KB document parsed: a stored snapshot or indexed chunks, grouped into pages.
  *
  * The counterpart of the download URL above - original bytes there, what the
- * parser made of them here. 404 for a document still processing or failed.
+ * parser made of them here. 404 when no parsed content is available.
  */
 export async function getParsedKBDocument(kbId: string, docId: string): Promise<KBParsedContent> {
   return apiClient.get<KBParsedContent>(`/kb/${kbId}/documents/${docId}/parsed`);

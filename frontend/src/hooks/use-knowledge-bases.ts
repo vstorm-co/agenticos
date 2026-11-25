@@ -543,6 +543,23 @@ export function useKBDetail(id: string | null) {
     [id, refresh, activeOrgId, t, tErrors],
   );
 
+  const retryDocument = useCallback(
+    async (docId: string) => {
+      if (!id) return;
+      const startedIn = activeOrgId;
+      try {
+        await apiClient.post(`/rag/documents/${docId}/retry`);
+        if (!stillSameTenant(startedIn)) return;
+        queryClient.removeQueries({ queryKey: qk.kb.documentParsed(id, docId) });
+        await refreshIngestion();
+        if (stillSameTenant(startedIn)) toast.success(t("documentIndexingQueued"));
+      } catch (error) {
+        if (stillSameTenant(startedIn)) toast.error(getErrorMessage(error, tErrors));
+      }
+    },
+    [id, activeOrgId, stillSameTenant, queryClient, refreshIngestion, t, tErrors],
+  );
+
   const deleteDocument = useCallback(
     async (docId: string) => {
       if (!id) return;
@@ -750,6 +767,7 @@ export function useKBDetail(id: string | null) {
     updateEmbeddings,
     uploadDocument,
     deleteDocument,
+    retryDocument,
     deleteCollection,
     createSyncSource,
     updateSyncSource,

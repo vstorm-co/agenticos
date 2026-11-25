@@ -4347,7 +4347,8 @@
     "citedFileGone": "Dit bestand staat niet meer in de kennisbank - het is verwijderd of vervangen nadat het werd geciteerd.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Laat leeg voor de globale OpenRouter-API, of vul een regionale URL in zoals https://eu.openrouter.ai/api/v1. EU-routering vereist een geschikt OpenRouter-abonnement; ZDR wordt apart ingesteld op OpenRouter.",
-    "noConnectorsAvailable": "Er zijn geen bronconnectors beschikbaar. Een beheerder kan een connector inschakelen voor deze installatie."
+    "noConnectorsAvailable": "Er zijn geen bronconnectors beschikbaar. Een beheerder kan een connector inschakelen voor deze installatie.",
+    "parsedSnapshotOnly": "Geïmporteerde verwerkte tekst. Het oorspronkelijke bestand was niet opgenomen."
   },
   "knowledgeBases": {
     "active": "Actief",
@@ -4377,7 +4378,8 @@
     "title": "Kennisbanken",
     "updated": "Kennisbank bijgewerkt",
     "uploadFailed": "Upload mislukt",
-    "uploaded": "{name} geüpload"
+    "uploaded": "{name} geüpload",
+    "documentIndexingQueued": "Documentindexering in de wachtrij geplaatst"
   },
   "layout": {
     "breadcrumb": "Kruimelpad",
@@ -7699,7 +7701,12 @@
       "indexingInProgress": "{count, plural, =1 {1 document wordt geïndexeerd} other {# documenten worden geïndexeerd}}",
       "indexingComplete": "Indexeren voltooid",
       "indexingFailed": "{count, plural, =1 {1 document mislukt} other {# documenten mislukt}}",
-      "moreUploads": "{count, plural, one {Nog # bestand in de uploadwachtrij} other {Nog # bestanden in de uploadwachtrij}}"
+      "moreUploads": "{count, plural, one {Nog # bestand in de uploadwachtrij} other {Nog # bestanden in de uploadwachtrij}}",
+      "indexDocument": "Indexeren",
+      "retryDocument": "Opnieuw",
+      "indexDocumentNamed": "{name} indexeren",
+      "retryDocumentNamed": "{name} opnieuw proberen",
+      "indexDocumentHint": "Gebruikt de instellingen van deze kennisbank en kan providerkosten veroorzaken."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "De catalogus is in de backend ingebouwd, en niemand heeft een eigen server toegevoegd. Een lege lijst hier betekent dat deze installatie er geen meelevert.",
@@ -9023,7 +9030,8 @@
     "done": "Klaar",
     "error": "Mislukt",
     "processing": "Verwerken",
-    "running": "Bezig"
+    "running": "Bezig",
+    "stored": "Opgeslagen · niet geïndexeerd"
   },
   "sandboxes": {
     "activityLogUnreadable": "Dat activiteitenlog kon niet worden gelezen",

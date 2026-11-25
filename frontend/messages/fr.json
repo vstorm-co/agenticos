@@ -4254,7 +4254,8 @@
     "citedFileGone": "Ce fichier n’est plus dans sa base de connaissances : il a été supprimé ou remplacé après avoir été cité.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Laissez vide pour l’API OpenRouter globale, ou saisissez une URL régionale telle que https://eu.openrouter.ai/api/v1. Le routage UE nécessite une offre OpenRouter éligible ; le ZDR se configure séparément sur OpenRouter.",
-    "noConnectorsAvailable": "Aucun connecteur de source n’est disponible. Un administrateur peut activer un connecteur pour ce déploiement."
+    "noConnectorsAvailable": "Aucun connecteur de source n’est disponible. Un administrateur peut activer un connecteur pour ce déploiement.",
+    "parsedSnapshotOnly": "Texte analysé importé. Le fichier original n’était pas inclus."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4284,7 +4285,8 @@
     "title": "Bases de connaissances",
     "updated": "Base de connaissances mise à jour",
     "uploadFailed": "Échec du téléversement",
-    "uploaded": "{name} téléversé"
+    "uploaded": "{name} téléversé",
+    "documentIndexingQueued": "Indexation du document mise en attente"
   },
   "layout": {
     "breadcrumb": "Fil d’Ariane",
@@ -7585,7 +7587,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexation : 1 document en cours} other {Indexation : # documents en cours}}",
       "indexingComplete": "Indexation terminée",
       "indexingFailed": "{count, plural, =1 {1 document en échec} other {# documents en échec}}",
-      "moreUploads": "{count, plural, one {# fichier de plus dans la file de téléversement} other {# fichiers de plus dans la file de téléversement}}"
+      "moreUploads": "{count, plural, one {# fichier de plus dans la file de téléversement} other {# fichiers de plus dans la file de téléversement}}",
+      "indexDocument": "Indexer",
+      "retryDocument": "Réessayer",
+      "indexDocumentNamed": "Indexer {name}",
+      "retryDocumentNamed": "Réessayer {name}",
+      "indexDocumentHint": "Utilise les paramètres de cette base de connaissances et peut entraîner des frais du fournisseur."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Le catalogue est compilé dans le backend, et personne n’a ajouté de serveur propre. Une liste vide ici signifie que ce déploiement n’en fournit aucun.",
@@ -8903,7 +8910,8 @@
     "done": "Terminé",
     "error": "Échec",
     "processing": "Traitement",
-    "running": "En cours"
+    "running": "En cours",
+    "stored": "Stocké · non indexé"
   },
   "sandboxes": {
     "activityLogUnreadable": "Ce journal d’activité n’a pas pu être lu",

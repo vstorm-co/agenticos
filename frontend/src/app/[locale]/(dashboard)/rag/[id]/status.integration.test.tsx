@@ -79,6 +79,7 @@ function document_(id: string, status: string, error: string | null): KBDocument
     vector_document_id: error === null ? `vec-${id}` : null,
     chunk_count: error === null ? 4 : 0,
     has_file: true,
+    has_parsed_content: true,
     created_at: "2026-01-02T00:00:00Z",
     completed_at: "2026-01-02T00:01:00Z",
     parser: "pymupdf",

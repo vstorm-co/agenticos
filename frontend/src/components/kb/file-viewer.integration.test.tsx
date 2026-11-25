@@ -134,3 +134,31 @@ describe("the records a document became", () => {
     expect(screen.getByText(/No parsed content for this document/)).toBeInTheDocument();
   });
 });
+
+it("opens imported parsed text without requesting a missing original", async () => {
+  render(
+    <FileViewer
+      kbId="kb-1"
+      open
+      onClose={vi.fn()}
+      doc={{
+        id: "doc-1",
+        filename: "handbook.pdf",
+        filetype: "pdf",
+        has_file: false,
+        has_parsed_content: true,
+      }}
+    />,
+    { wrapper },
+  );
+  expect(await screen.findByText("the first chunk")).toBeInTheDocument();
+  expect(
+    screen.getByText("Imported parsed text. The original file was not included."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "JSON" }));
+  expect(await screen.findByText("chunks:")).toBeInTheDocument();
+  expect(
+    vi.mocked(apiClient.get).mock.calls.filter(([path]) => String(path).endsWith("/parsed")),
+  ).toHaveLength(1);
+});

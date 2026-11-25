@@ -1382,3 +1382,57 @@ describe("knowledge-gap helper updates", () => {
     );
   });
 });
+
+it("indexes only on request and invalidates the old parsed snapshot", async () => {
+  serveDetail();
+  const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+  await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+  client.setQueryData(qk.kb.documentParsed("kb-1", "d-1"), { content: "old imported snapshot" });
+  await act(async () => {
+    await result.current.retryDocument("d-1");
+  });
+  expect(apiClient.post).toHaveBeenCalledWith("/rag/documents/d-1/retry");
+  expect(client.getQueryData(qk.kb.documentParsed("kb-1", "d-1"))).toBeUndefined();
+  expect(toast.success).toHaveBeenCalledWith("Document indexing queued");
+});
+
+it("leaves cached parsed content alone if indexing is refused", async () => {
+  serveDetail();
+  const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+  await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+  client.setQueryData(qk.kb.documentParsed("kb-1", "d-1"), { content: "snapshot" });
+  vi.mocked(apiClient.post).mockRejectedValue(new Error("No permission"));
+  await act(async () => {
+    await result.current.retryDocument("d-1");
+  });
+  expect(client.getQueryData(qk.kb.documentParsed("kb-1", "d-1"))).toEqual({ content: "snapshot" });
+  expect(toast.error).toHaveBeenCalled();
+});
+
+it("does not invalidate another tenant's snapshot when indexing finishes after a switch", async () => {
+  useOrgStore.setState({ activeOrgId: "org-a" });
+  serveDetail();
+  const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+  await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+  let finish: () => void = () => {};
+  vi.mocked(apiClient.post).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve({ status: "processing" });
+      }),
+  );
+  let pending: Promise<void> = Promise.resolve();
+  await act(async () => {
+    pending = result.current.retryDocument("d-1");
+  });
+  await act(async () => {
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    client.setQueryData(qk.kb.documentParsed("kb-1", "d-1"), { content: "new tenant's snapshot" });
+    finish();
+    await pending;
+  });
+  expect(client.getQueryData(qk.kb.documentParsed("kb-1", "d-1"))).toEqual({
+    content: "new tenant's snapshot",
+  });
+  expect(toast.success).not.toHaveBeenCalled();
+});

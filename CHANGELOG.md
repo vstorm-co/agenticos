@@ -71,6 +71,7 @@ Two things are versioned separately from this file and worth knowing about:
   calls. Deliver app-icon quick actions to the connected iOS scene; cold-start
   shortcut delivery remains outside this fix.
 
+- Document indexing honors knowledge-base edit grants, including viewers explicitly granted edit access, and the console exposes stored originals and parsed-only imports without claiming a vector index exists.
 - A chat whose connection dropped mid-answer - a phone locked while an agent
   worked - now shows the answer once the turn lands, and the "connection
   dropped" notice goes away. The half-written answer used to be kept in place
