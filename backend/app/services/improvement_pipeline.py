@@ -2881,6 +2881,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -2902,6 +2903,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 await improvement_repo.update_iteration(
                     self.db, iteration=iteration, values={"authoring_request_id": request.id}

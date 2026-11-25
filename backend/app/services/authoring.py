@@ -535,10 +535,13 @@ class AuthoringService:
         *,
         excluded_message_ids: Sequence[UUID] = (),
         improvement_run_id: UUID | None = None,
+        train_case_ids: Sequence[UUID] | None = None,
     ) -> AuthoringRequestRead:
         """Queue an Improve or Verify on an agent, after the same checks its estimate makes.
 
         `excluded_message_ids` is kept on the request, as :meth:`estimate_agent` reads it.
+        `train_case_ids` are the learning questions of the session's attempt, which the
+        estimate is admitted on as the helper later reads them.
 
         Raises:
             BadRequestError: Nothing to read (`no_evidence`), or nothing to verify
@@ -552,6 +555,7 @@ class AuthoringService:
             body,
             excluded_message_ids=excluded_message_ids,
             improvement_run_id=improvement_run_id,
+            train_case_ids=train_case_ids,
         )
         return await self._start(
             ctx,
