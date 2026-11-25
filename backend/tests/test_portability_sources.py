@@ -128,6 +128,7 @@ async def test_source_adapters_use_scoped_services_and_never_serialize_storage_r
 
 
 @pytest.mark.parametrize("kind", ["mcp_connection", "model_profile", "sandbox_connection"])
+@pytest.mark.security
 async def test_configuration_permissions_are_checked_before_the_resource_read(
     mock_db_session: AsyncMock, kind: str
 ) -> None:

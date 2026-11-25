@@ -12,6 +12,7 @@ const env = vi.hoisted(() => ({
   data: undefined as ConsoleExperience | undefined,
   error: null as Error | null,
   refetch: vi.fn(),
+  client: { invalidateQueries: vi.fn() },
 }));
 vi.mock("@/hooks/use-console-experience", () => ({ useConsoleExperience: () => env }));
 function Probe() {
@@ -40,6 +41,7 @@ beforeEach(() => {
   env.data = undefined;
   env.error = null;
   env.refetch.mockClear();
+  env.client.invalidateQueries.mockClear();
 });
 it("never flashes allowed home items before a saved hidden policy arrives", () => {
   const view = render(content);
@@ -154,6 +156,23 @@ it("adopts role presentation without exposing stale choices after a failed read"
   };
   const view = render(content);
   expect(screen.getByTestId("presentation").textContent).toContain('"navigation":["chat"]');
+  expect(env.client.invalidateQueries).not.toHaveBeenCalled();
+  env.data = {
+    ...env.data,
+    presentation: {
+      ...env.data.presentation!,
+      organization_mcp_gallery: { mode: "allow-list", keys: ["github"] },
+      dashboard_default: { entries: [] },
+    },
+  };
+  view.rerender(
+    <ConsoleExperienceProvider>
+      <Probe />
+    </ConsoleExperienceProvider>,
+  );
+  expect(env.client.invalidateQueries).toHaveBeenCalledTimes(4);
+  expect(screen.getByTestId("presentation").textContent).toContain('"dashboardDefault":[]');
+
   env.error = new Error("Unavailable");
   view.rerender(
     <ConsoleExperienceProvider>
@@ -165,3 +184,5 @@ it("adopts role presentation without exposing stale choices after a failed read"
   screen.getByRole("button", { name: "Retry presentation" }).click();
   expect(env.refetch).toHaveBeenCalled();
 });
+
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => env.client }));

@@ -888,6 +888,10 @@ class McpCatalogEntry(BaseSchema):
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
     )
+    gallery_visible: bool = Field(
+        default=True,
+        description="False for metadata retained only to resolve an existing accessible account",
+    )
     custom: bool = Field(
         default=False, description="A saved server with no catalog or registry entry"
     )

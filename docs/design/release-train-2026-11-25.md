@@ -173,3 +173,33 @@ that a hidden Agents link does not revoke permitted direct URL access.
 This is partial #3300 coverage: catalog restrictions and organization dashboard
 defaults remain pending in the next dependent change. Full train CI remains
 pending. No merge, release or deployment is authorized at this stage.
+
+## Catalog ceilings and role dashboard defaults (remaining #3300)
+
+Implemented on `codex/console-catalog-dashboard-defaults`, based on #3449.
+Deployment, organization-role and personal catalog choices intersect before
+registry counting and pagination. Managers may configure their catalog independently
+of role presentation defaults; deployment and personal limits still apply.
+Existing accessible bindings retain metadata even when excluded from discovery.
+Skill gallery installation markers no longer expose another person's private copy.
+
+Organization administrators can copy their saved dashboard layout to a role,
+review it and explicitly save it. Person- or agent-specific filters cannot become
+role defaults. Null inherits the product default; an empty layout is intentional.
+A member's saved layout takes precedence, and widget permissions are applied last.
+Policy failures expose Retry rather than a blank or permanently loading page.
+Catalog drafts use explicit Save/Discard, owner-scoped state and unsaved guards.
+
+Verification: 299 focused backend policy, catalog, Skill and coverage-contract
+tests pass. The three new catalog/dashboard modules have 100% statement and
+branch coverage (69 statements, 16 branches). Twenty-nine real-PostgreSQL catalog
+and MCP-listing tests pass, including private-copy isolation and filtering before
+pagination. Translation and four-language documentation checks pass. Final UI
+coverage of four presentation controls reaches 100% statements, functions and
+lines; isolated branch coverage is 96.73%, below the aggregate 97.5% CI gate.
+Full-train coverage is still owed, not claimed green. Aggregate screenshots
+remain pending.
+
+The selected source patches are recorded in `release-candidates-2026-11-25.md`.
+The maintainer also authorized review and inclusion of #3402 with #3442.
+No merge or release is authorized.

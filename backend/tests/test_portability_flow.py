@@ -190,6 +190,7 @@ async def test_unreachable_same_id_is_not_reused_and_no_names_leak(
     assert preview.bundle == bundle
 
 
+@pytest.mark.security
 async def test_reuse_reads_the_destination_under_current_tenant_authority(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

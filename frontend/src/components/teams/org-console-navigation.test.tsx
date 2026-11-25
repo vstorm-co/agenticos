@@ -29,6 +29,8 @@ vi.mock("@/hooks/use-permissions", () => ({
               permissions: [
                 { permission: "agents:view", scope: "all" },
                 { permission: "runs:view", scope: "all" },
+                { permission: "mcp:manage", scope: "all" },
+                { permission: "skills:edit", scope: "shared" },
               ],
             },
           ],
@@ -98,3 +100,69 @@ it.each(["loading", "error", "missing"])(
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   },
 );
+
+vi.mock("@/components/settings/console-catalog-controls", () => ({
+  ConsoleCatalogControls: ({
+    kind,
+    onDirtyChange,
+    onSave,
+  }: {
+    kind: string;
+    onSave: (policy: { mode: "all"; keys: string[] }, onSaved: () => void) => void;
+    onDirtyChange: (dirty: boolean) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => {
+        onDirtyChange(true);
+        onSave({ mode: "all", keys: [] }, () => onDirtyChange(false));
+      }}
+    >
+      {kind}
+    </button>
+  ),
+}));
+
+vi.mock("./org-console-dashboard", () => ({
+  OrganizationConsoleDashboard: ({
+    onSave,
+  }: {
+    onSave: (value: { entries: [] }, saved: () => void) => void;
+  }) => (
+    <button type="button" onClick={() => onSave({ entries: [] }, () => {})}>
+      Save role dashboard
+    </button>
+  ),
+}));
+
+it("saves catalog and dashboard defaults only for the selected role", async () => {
+  const save = vi.fn();
+  render(
+    <OrganizationConsoleNavigation
+      defaults={{}}
+      presentation={presentation}
+      disabled={false}
+      onSave={save}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "mcp_gallery" }));
+  expect(save).toHaveBeenLastCalledWith(
+    "member",
+    { mcp_gallery: { mode: "all", keys: [] } },
+    expect.any(Function),
+  );
+  save.mock.calls.at(-1)![2]();
+  await userEvent.click(screen.getByRole("button", { name: "skill_gallery" }));
+  expect(save).toHaveBeenLastCalledWith(
+    "member",
+    { skill_gallery: { mode: "all", keys: [] } },
+    expect.any(Function),
+  );
+  save.mock.calls.at(-1)![2]();
+  await userEvent.click(screen.getByRole("button", { name: "Save role dashboard" }));
+  expect(save).toHaveBeenLastCalledWith(
+    "member",
+    { dashboard: { entries: [] } },
+    expect.any(Function),
+  );
+});

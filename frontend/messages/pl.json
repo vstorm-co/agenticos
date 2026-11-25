@@ -8029,6 +8029,10 @@
       "personal-console-notices": {
         "title": "Podpowiedzi produktowe",
         "body": "Zostaw przydatne podpowiedzi. Ograniczenia organizacji i deploymentu nadal obowiązują."
+      },
+      "personal-console-catalogs": {
+        "title": "Katalogi",
+        "body": "Wybierz galerie, które chcesz przeglądać. Nadal obowiązują ograniczenia organizacji i wdrożenia."
       }
     },
     "chooseLanguage": "Język",
@@ -21672,6 +21676,38 @@
         "viewer": "Przeglądający"
       },
       "loadError": "Nie udało się wczytać ustawień konsoli."
+    },
+    "catalogs": {
+      "personalTitle": "Katalogi",
+      "personalHint": "Wybierz galerie, które chcesz przeglądać. Nadal obowiązują ograniczenia organizacji i wdrożenia.",
+      "mcp_gallery": "Galeria MCP",
+      "skill_gallery": "Galeria Skills",
+      "hint": "Wybór katalogu nie zmienia uprawnień narzędzi ani istniejących połączeń. Własny wybór może tylko zawęzić ograniczenia organizacji i wdrożenia.",
+      "inherit": "Użyj dziedziczonego katalogu",
+      "all": "Wszystkie dostępne pozycje",
+      "mcp_galleryAvailable": "Tylko serwery podłączone przez organizację",
+      "skill_galleryAvailable": "Tylko widoczne zainstalowane Skills",
+      "allowList": "Wybierz pozycje",
+      "selected": "{count, plural, =1 {Wybrano 1 pozycję} few {Wybrano # pozycje} many {Wybrano # pozycji} other {Wybrano # pozycji}}",
+      "remove": "Usuń {name}",
+      "empty": "Brak pasujących pozycji",
+      "discard": "Odrzuć zmiany",
+      "previous": "Poprzednia",
+      "emptySelection": "Pusty wybór oznacza brak pozycji w galerii.",
+      "managerHint": "Ta rola zarządza tym katalogiem. Ograniczenia galerii organizacji dotyczą ról bez zarządzania katalogiem; ograniczenia wdrożenia i osobiste nadal obowiązują.",
+      "limit": "Wybierz maksymalnie {count, plural, one {# pozycję} few {# pozycje} many {# pozycji} other {# pozycji}} albo wszystkie dostępne pozycje."
+    },
+    "dashboard": {
+      "title": "Domyślny dashboard",
+      "hint": "Domyślny układ tej roli stanie się jej stroną główną. Własne zapisane układy mają pierwszeństwo. Widżety nadal respektują uprawnienia każdej osoby.",
+      "arrange": "Ułóż i zapisz mój dashboard",
+      "privateFilters": "Usuń filtry przypięte do osoby lub agenta przed udostępnieniem układu jako domyślnego dla organizacji.",
+      "copy": "Skopiuj mój zapisany układ",
+      "inherit": "Użyj standardowego dashboardu",
+      "standard": "Brak układu roli: używana jest standardowa strona główna.",
+      "preview": "Podgląd samego układu. Dane i uprawnienia każdej osoby są sprawdzane przy otwarciu.",
+      "empty": "Ten domyślny układ celowo nie zawiera kart.",
+      "discard": "Odrzuć zmiany"
     }
   },
   "modelSources": {

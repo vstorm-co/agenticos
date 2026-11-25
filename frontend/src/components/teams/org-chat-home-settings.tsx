@@ -66,6 +66,10 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
       await Promise.all([
         client.invalidateQueries({ queryKey: qk.organizations.list() }),
         client.invalidateQueries({ queryKey: qk.consoleExperience.all() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.catalog() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+        client.invalidateQueries({ queryKey: qk.skills.gallery() }),
       ]);
     },
     onError: (error) => toast.error(getErrorMessage(error, errors)),

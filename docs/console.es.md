@@ -1,5 +1,5 @@
 ---
-source_sha: "d10af126805f"
+source_sha: "c0b0cf70a14f"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -221,6 +221,16 @@ Los miembros pueden reducir esa selección en **Ajustes → Perfil → Mi navega
 
 La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. No suplanta a nadie ni carga contenido privado. **Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
 
+
+### Catálogos y paneles por rol { #console-catalogs }
+
+**Consola para cada rol** también controla las galerías MCP y de Skills. Se pueden ofrecer todas las entradas disponibles, una lista explícita o solo servidores conectados por la organización / Skills instalados visibles. Los límites de la organización se aplican a roles sin gestión del catálogo; quienes lo gestionan siguen sujetos a los límites del despliegue y personales. Cada miembro puede restringir sus galerías en **Ajustes → Perfil → Catálogos**. Una lista vacía no ofrece entradas de forma intencionada.
+
+Los límites del catálogo cambian el descubrimiento, no los permisos de herramientas. Las cuentas existentes accesibles siguen gestionándose en **Conectadas**, y los enlaces de agentes publicados conservan sus controles de acceso. El servidor filtra antes de contar y paginar. Un Skill privado de otra persona nunca se anuncia como copia instalada a quien no puede verlo. Al actualizar la política de la consola se invalidan los resultados de galería almacenados.
+
+Para el **Panel predeterminado** de un rol, primero organiza y guarda tu panel personal y después cópialo en los ajustes del rol. Revisa la vista previa de la disposición sin datos y guarda por separado. Antes de compartir se deben quitar los filtros fijados a una persona o agente, para no distribuir identificadores privados mediante los ajustes de la organización. Se conservan anchos, alturas, secciones y opciones compatibles; no se copian vectores ni datos de widgets.
+
+La disposición configurada del rol pasa a ser su página inicial. Una disposición personal guardada tiene prioridad, incluso si está vacía intencionadamente. Restablecerla vuelve a heredar la del rol. Sin una configuración del rol se mantiene la página inicial estándar. Los permisos de widgets se comprueban al final para cada persona. Un fallo al leer la disposición o política muestra error y reintento en lugar de otra disposición durante la carga.
 
 ### Costes en el chat { #chat-cost-visibility }
 

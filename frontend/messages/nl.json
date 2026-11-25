@@ -6260,6 +6260,10 @@
       "personal-console-notices": {
         "title": "Productsuggesties",
         "body": "Behoud nuttige suggesties. Beperkingen van organisatie en deployment blijven gelden."
+      },
+      "personal-console-catalogs": {
+        "title": "Catalogi",
+        "body": "Kies welke galerijen je wilt bekijken. De grenzen van de organisatie en installatie blijven gelden."
       }
     },
     "chooseLanguage": "Taal",
@@ -21783,6 +21787,38 @@
         "viewer": "Lezer"
       },
       "loadError": "Consolevoorkeuren konden niet worden geladen."
+    },
+    "catalogs": {
+      "personalTitle": "Catalogi",
+      "personalHint": "Kies welke galerijen je wilt bekijken. De grenzen van de organisatie en installatie blijven gelden.",
+      "mcp_gallery": "MCP-galerij",
+      "skill_gallery": "Skill-galerij",
+      "hint": "Cataloguskeuzes wijzigen geen toolrechten of bestaande verbindingen. Persoonlijke keuzes kunnen de overgenomen grenzen alleen beperken.",
+      "inherit": "Overgenomen catalogus gebruiken",
+      "all": "Alle beschikbare items",
+      "mcp_galleryAvailable": "Alleen servers die de organisatie heeft verbonden",
+      "skill_galleryAvailable": "Alleen zichtbare geïnstalleerde Skills",
+      "allowList": "Items kiezen",
+      "selected": "{count, plural, =1 {1 item geselecteerd} other {# items geselecteerd}}",
+      "remove": "{name} verwijderen",
+      "empty": "Geen overeenkomende items",
+      "discard": "Wijzigingen verwerpen",
+      "previous": "Vorige",
+      "emptySelection": "Een lege selectie biedt geen galerij-items aan.",
+      "managerHint": "Deze rol beheert de catalogus. Organisatiegrenzen gelden voor rollen zonder catalogusbeheer; installatie- en persoonlijke grenzen blijven gelden.",
+      "limit": "Kies maximaal {count, plural, one {# item} other {# items}} of alle beschikbare items."
+    },
+    "dashboard": {
+      "title": "Standaarddashboard",
+      "hint": "De standaardindeling van deze rol wordt de startpagina. Persoonlijk opgeslagen indelingen gaan voor. Widgets blijven de rechten van iedere lezer volgen.",
+      "arrange": "Mijn dashboard indelen en opslaan",
+      "privateFilters": "Verwijder persoons- en agentfilters voordat je deze indeling als organisatiestandaard deelt.",
+      "copy": "Mijn opgeslagen indeling kopiëren",
+      "inherit": "Standaarddashboard gebruiken",
+      "standard": "Geen rolstandaard: de normale startpagina wordt gebruikt.",
+      "preview": "Alleen een voorbeeld van de indeling. Gegevens en rechten worden bij het openen per persoon bepaald.",
+      "empty": "Deze rolstandaard bevat bewust geen kaarten.",
+      "discard": "Wijzigingen verwerpen"
     }
   },
   "modelSources": {

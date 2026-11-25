@@ -206,6 +206,16 @@ Members can narrow that selection under **Settings → Profile → My navigation
 The role preview shows navigation filtered by the selected role and the administrator’s own permissions. It does not impersonate a person or load their private content. **Product prompts** independently controls the desktop invitation and automatic release/mobile-installation suggestions, at deployment, organization and membership levels. A personal preference cannot override an organization or deployment restriction. Maintenance, service-availability and security notices keep their existing behavior; an installed app is not disabled by hiding its invitation.
 
 
+### Catalogs and role dashboards { #console-catalogs }
+
+**Console for each role** also controls the MCP and Skill galleries. Choose all available entries, an explicit allow-list, or only servers connected by the organization / visible installed skills. Organization gallery limits apply to roles without catalog management; managers still obey deployment and personal ceilings. Members can narrow their own galleries under **Settings → Profile → Catalogs**. Empty allow-lists deliberately offer no entries.
+
+Catalog limits change discovery, not tool authority. Existing accessible accounts remain manageable in **Connected**, and published agent bindings keep their existing access checks. Search totals and pagination are filtered at the server. A private skill belonging to somebody else is never advertised as an installed copy to a reader who cannot see it. A refreshed console policy invalidates cached gallery results.
+
+For a role's **Default dashboard**, first arrange and save your own dashboard, then copy that saved arrangement in the role settings. Review the data-free layout preview and save separately. Filters pinned to a person or agent must be removed before sharing a role default. This prevents a personal arrangement from distributing private identifiers through organization settings. Layouts retain supported widths, heights, sections and presentation options; vectors or widget data are not copied.
+
+A configured role default becomes that role's home dashboard. A person's saved arrangement takes precedence, including an intentionally empty layout. Resetting their arrangement inherits the role default again. An absent role default preserves the standard home. Widget permission checks still run last for each reader. A failed layout or policy read shows an error and retry rather than briefly rendering another layout.
+
 ### Costs in chat { #chat-cost-visibility }
 
 **Chat costs** follows a stricter hierarchy: deployment availability → organization audience → personal choice. The deployment can hide costs everywhere in chat. In the organization’s **AI & services** settings, choose **Everyone** (the default), **People with access to spend** (`budgets:manage` or `runs:view`), or **Nobody in chat**. In **Settings → Profile**, members may hide costs for themselves, but cannot override a restriction above them.

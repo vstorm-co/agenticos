@@ -219,11 +219,27 @@ async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     return set(result.scalars().all())
 
 
-async def ids_by_name(db: AsyncSession, *, organization_id: UUID) -> dict[str, UUID]:
-    """Every skill in one organization, by its name, which is unique there."""
-    result = await db.execute(
-        select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
-    )
+async def ids_by_name(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: Sequence[UUID],
+) -> dict[str, UUID]:
+    """Visible skill identities for installed gallery markers, never another person's private copy."""
+    statement = select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
+    if not see_all:
+        statement = statement.where(
+            visible_to_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
+            )
+        )
+    result = await db.execute(statement)
     return dict(result.tuples().all())
 
 

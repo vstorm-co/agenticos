@@ -72,7 +72,7 @@ class TestTheJoin:
         """What the unpaged catalog route reports beside the curated list."""
         await _mirror(db, 3)
 
-        assert await mcp_listing.mirror_size(db) == 3
+        assert (await mcp_listing.page(db, limit=1)).registry_total == 3
 
     async def test_a_mirrored_row_says_nobody_reviewed_it(self, db):
         await _mirror(db, 2)

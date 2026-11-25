@@ -150,11 +150,12 @@ async def skill_gallery(service: SkillSvc, ctx: Auth) -> Any:
     dependencies=[Depends(require(Perm.SKILLS_VIEW))],
 )
 async def preview_gallery_skill(
-    service: SkillSvc, key: str = Query(..., description="`<industry>/<folder>`")
+    service: SkillSvc, ctx: Auth, key: str = Query(..., description="`<industry>/<folder>`")
 ) -> Any:
     """One gallery skill's body and the names of its files, before installing it; 404
-    for a key the gallery does not hold. Declared before `/{skill_id}`, as the gallery is."""
-    return await service.gallery_preview(key)
+    for an unknown key or one excluded by the caller's catalog policy. Declared before
+    `/{skill_id}`, as the gallery is."""
+    return await service.gallery_preview(ctx, key)
 
 
 @router.post(

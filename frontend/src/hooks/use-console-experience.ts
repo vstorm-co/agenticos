@@ -52,8 +52,15 @@ export function useConsoleExperience() {
         throw new Error(tErrors("sessionExpired"));
       return saveConsoleExperience(ownerOrg, changes);
     },
-    onSuccess: (data, { ownerOrg, ownerUser }) =>
-      client.setQueryData(qk.consoleExperience.member(ownerOrg, ownerUser), data),
+    onSuccess: async (data, { ownerOrg, ownerUser }) => {
+      client.setQueryData(qk.consoleExperience.member(ownerOrg, ownerUser), data);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: qk.mcpServers.catalog() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+        client.invalidateQueries({ queryKey: qk.skills.gallery() }),
+      ]);
+    },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
   const save = {

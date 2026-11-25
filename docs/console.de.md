@@ -1,5 +1,5 @@
 ---
-source_sha: "d10af126805f"
+source_sha: "c0b0cf70a14f"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -221,6 +221,16 @@ Mitglieder können diese Auswahl unter **Einstellungen → Profil → Meine Navi
 
 Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. Sie imitiert niemanden und lädt keine privaten Inhalte. **Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
 
+
+### Kataloge und Rollen-Dashboards { #console-catalogs }
+
+**Konsole für jede Rolle** steuert auch die MCP- und Skill-Galerien. Zur Wahl stehen alle verfügbaren Einträge, eine ausdrückliche Positivliste oder nur von der Organisation verbundene Server / sichtbare installierte Skills. Organisationsgrenzen gelten für Rollen ohne Katalogverwaltung; verwaltende Personen beachten weiterhin Bereitstellungs- und persönliche Grenzen. Mitglieder können ihre Galerien unter **Einstellungen → Profil → Kataloge** weiter einschränken. Eine leere Positivliste bietet bewusst nichts an.
+
+Kataloggrenzen ändern die Entdeckung, nicht die Werkzeugberechtigungen. Bestehende erreichbare Konten bleiben unter **Verbunden** verwaltbar; veröffentlichte Agentenbindungen behalten ihre Zugriffsprüfungen. Der Server filtert vor Zählung und Seiteneinteilung. Ein privater Skill einer anderen Person wird ohne Zugriff nie als installierte Kopie beworben. Eine aktualisierte Konsolenrichtlinie verwirft zwischengespeicherte Galerieergebnisse.
+
+Für das **Standard-Dashboard** einer Rolle ordnest und speicherst du zuerst dein eigenes Dashboard und kopierst es anschließend in die Rolleneinstellungen. Prüfe die datenfreie Anordnungsvorschau und speichere getrennt. Personen- oder Agentenfilter müssen vor dem Teilen entfernt werden, damit private Kennungen nicht über Organisationseinstellungen verteilt werden. Unterstützte Breiten, Höhen, Abschnitte und Darstellungsoptionen bleiben erhalten; Vektoren und Widget-Daten werden nicht kopiert.
+
+Ein konfigurierter Rollenstandard wird zur Startansicht. Persönlich gespeicherte Anordnungen haben Vorrang, auch bewusst leere. Das Zurücksetzen übernimmt wieder den Rollenstandard. Ohne Rollenstandard bleibt die normale Startansicht. Widget-Berechtigungen werden zuletzt für jede Person geprüft. Ein fehlgeschlagener Abruf zeigt Fehler und Wiederholung statt vorübergehend einer anderen Anordnung.
 
 ### Kosten im Chat { #chat-cost-visibility }
 

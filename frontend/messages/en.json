@@ -6376,6 +6376,10 @@
       "personal-console-notices": {
         "title": "Product prompts",
         "body": "Keep optional prompts that help you. Organization and deployment restrictions still apply."
+      },
+      "personal-console-catalogs": {
+        "title": "Catalogs",
+        "body": "Choose the galleries you want to browse. Organization and deployment limits still apply."
       }
     },
     "chooseLanguage": "Language",
@@ -21899,6 +21903,38 @@
         "viewer": "Viewer"
       },
       "loadError": "Console preferences could not be loaded."
+    },
+    "catalogs": {
+      "personalTitle": "Catalogs",
+      "personalHint": "Choose the galleries you want to browse. Organization and deployment limits still apply.",
+      "mcp_gallery": "MCP gallery",
+      "skill_gallery": "Skill gallery",
+      "hint": "Catalog choices never change tool permissions or existing connections. Personal choices can only narrow organization and deployment limits.",
+      "inherit": "Use inherited catalog",
+      "all": "All available entries",
+      "mcp_galleryAvailable": "Only organization-connected servers",
+      "skill_galleryAvailable": "Only visible installed skills",
+      "allowList": "Choose entries",
+      "selected": "{count, plural, =1 {1 entry selected} other {# entries selected}}",
+      "remove": "Remove {name}",
+      "empty": "No matching entries",
+      "discard": "Discard changes",
+      "previous": "Previous",
+      "emptySelection": "An empty selection offers no gallery entries.",
+      "managerHint": "This role manages this catalog. Organization gallery limits apply to roles without catalog management; deployment and personal limits still apply.",
+      "limit": "Choose up to {count, plural, one {# entry} other {# entries}}, or use all available entries."
+    },
+    "dashboard": {
+      "title": "Default dashboard",
+      "hint": "This role’s default becomes its home dashboard. Personal saved arrangements take precedence. Widgets still obey each reader’s permissions.",
+      "arrange": "Arrange and save my dashboard",
+      "privateFilters": "Remove person and agent filters before sharing this arrangement as an organization default.",
+      "copy": "Copy my saved arrangement",
+      "inherit": "Use standard dashboard",
+      "standard": "No role default: the standard home is used.",
+      "preview": "Arrangement preview only. Each person’s data and permissions are resolved when they open it.",
+      "empty": "This role default intentionally has no cards.",
+      "discard": "Discard changes"
     }
   },
   "modelSources": {

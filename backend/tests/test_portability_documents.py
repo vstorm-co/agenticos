@@ -234,6 +234,7 @@ def test_textual_downloads_never_silently_drop_declared_binary_assets() -> None:
         )
 
 
+@pytest.mark.security
 def test_secret_dictionary_keys_are_not_confused_with_structural_agent_fields() -> None:
     from app.agents.spec import CapabilityBindingSpec
 
@@ -283,6 +284,7 @@ def test_download_cannot_exceed_the_import_document_limit(
         documents.document_bytes(agent_snapshot(AgentSpec(name="Agent")), file_format)
 
 
+@pytest.mark.security
 def test_secret_dictionary_keys_named_like_bindings_are_not_binding_containers() -> None:
     from app.schemas.resource_bundle import BundleReference
 
@@ -308,6 +310,7 @@ def test_secret_dictionary_keys_named_like_bindings_are_not_binding_containers()
         "http://[invalid",
     ],
 )
+@pytest.mark.security
 def test_portable_connection_definitions_never_guess_which_url_values_are_secret(url: str) -> None:
     from app.services.portability.content import McpContent
 

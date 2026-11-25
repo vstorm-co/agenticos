@@ -59,6 +59,7 @@ def catalog(monkeypatch: pytest.MonkeyPatch) -> tuple[CatalogEntry, ...]:
 
 @pytest.fixture
 def repositories(monkeypatch: pytest.MonkeyPatch) -> ListingRepositories:
+    monkeypatch.setattr(mcp_listing.ConsoleCatalogService, "policies", AsyncMock(return_value=()))
     repositories = ListingRepositories(
         organization=AsyncMock(return_value=([], 0)),
         personal=AsyncMock(return_value=([], 0)),
@@ -747,3 +748,131 @@ def test_an_old_self_hosted_check_does_not_hide_the_new_remote_bigquery() -> Non
     result = mcp_listing._curated(entry, check)
     assert result.verified
     assert result.url == "https://bigquery.googleapis.com/mcp"
+
+
+async def test_gallery_allow_list_is_applied_before_curated_paging_and_registry_queries(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.console_catalogs import CatalogPolicy
+
+    allowed = frozenset((catalog[1].key, catalog[50].key, "org.example/approved"))
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="allow-list", keys=sorted(allowed)),)),
+    )
+    result = await mcp_listing.page(AsyncMock(spec=AsyncSession), ctx=caller, skip=1, limit=1)
+    assert [item.key for item in result.items] == [catalog[50].key]
+    assert result.total == 2
+    assert repositories.search.await_args.kwargs["allowed_ids"] == allowed
+    assert mcp_registry_server_repo.count.await_args.kwargs == {"allowed_ids": allowed}
+
+
+async def test_only_organization_connections_approve_gallery_choices_without_revealing_private_accounts(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.console_catalogs import CatalogPolicy
+
+    caller = replace(caller, role="member")
+    public = _connection(caller, name="Approved", url=catalog[0].url, key=catalog[0].key)
+    private = _connection(
+        caller,
+        name="Other person's account",
+        url=catalog[1].url,
+        key=catalog[1].key,
+        visibility="private",
+        created_by=uuid4(),
+    )
+    personal = _connection(
+        caller, name="Mine", url=catalog[2].url, key=catalog[2].key, scope="user"
+    )
+    repositories.organization.return_value = ([public, private], 2)
+    repositories.personal.return_value = ([personal], 1)
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="available"),)),
+    )
+    result = await mcp_listing.page(AsyncMock(spec=AsyncSession), ctx=caller)
+    assert [item.key for item in result.items] == [catalog[0].key]
+    assert result.total == 1
+    assert repositories.search.await_args.kwargs["allowed_ids"] == {catalog[0].key}
+
+
+async def test_empty_gallery_keeps_existing_personal_bindings_manageable(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.console_catalogs import CatalogPolicy
+
+    account = _connection(
+        caller, name="Already connected", url=catalog[0].url, key=catalog[0].key, scope="user"
+    )
+    repositories.personal.return_value = ([account], 1)
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="allow-list"),)),
+    )
+    db = AsyncMock(spec=AsyncSession)
+    assert (await mcp_listing.page(db, ctx=caller)).items == ()
+    assert [
+        item.key for item in (await mcp_listing.page(db, ctx=caller, state="connected")).items
+    ] == [catalog[0].key]
+    metadata = await mcp_listing.catalog_for_reader(db, caller)
+    assert [item.key for item in metadata.items] == [catalog[0].key]
+    assert not metadata.items[0].gallery_visible
+    assert await mcp_listing._gallery_scope(db, None) == (None, ())
+
+
+async def test_unrestricted_metadata_stays_the_curated_catalog(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+) -> None:
+    metadata = await mcp_listing.catalog_for_reader(AsyncMock(spec=AsyncSession), caller)
+    assert [item.key for item in metadata.items] == [item.key for item in catalog]
+
+
+async def test_approved_custom_org_server_is_discoverable_without_org_management(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.console_catalogs import CatalogPolicy
+
+    member = replace(caller, role="member")
+    account = _connection(member, name="Approved custom", url="https://custom.example.test/mcp")
+    repositories.organization.return_value = ([account], 1)
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="available"),)),
+    )
+    db = AsyncMock(spec=AsyncSession)
+    offered = await mcp_listing.page(db, ctx=member)
+    assert len(offered.items) == 1 and offered.items[0].name == "Approved custom"
+    assert offered.items[0].custom and offered.total == 1
+    assert (await mcp_listing.catalog_for_reader(db, member)).items[0].name == "Approved custom"
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="allow-list", keys=[offered.items[0].key]),)),
+    )
+    assert (await mcp_listing.page(db, ctx=member)).items[0].name == "Approved custom"
+    monkeypatch.setattr(
+        mcp_listing.ConsoleCatalogService,
+        "policies",
+        AsyncMock(return_value=(CatalogPolicy(mode="available"), CatalogPolicy(mode="allow-list"))),
+    )
+    assert not (await mcp_listing.page(db, ctx=member)).items
+    assert not (await mcp_listing.catalog_for_reader(db, member)).items

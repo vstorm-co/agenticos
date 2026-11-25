@@ -125,6 +125,7 @@ async def test_unavailable_name_filter_is_not_silently_ignored(
 
 
 @pytest.mark.parametrize("kind", ["model_profile", "mcp_connection", "sandbox_connection"])
+@pytest.mark.security
 async def test_catalog_permission_refusal_precedes_the_lookup(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, kind: str
 ) -> None:
@@ -136,6 +137,7 @@ async def test_catalog_permission_refusal_precedes_the_lookup(
     mock_db_session.execute.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_revocation_or_cross_tenant_failure_is_not_presented_as_an_empty_picker(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

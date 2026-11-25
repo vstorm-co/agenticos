@@ -42,6 +42,7 @@ export interface McpCatalogEntry {
    */
   reviewed?: boolean;
   /** A saved server outside the curated catalog and mirrored registry. */
+  gallery_visible?: boolean;
   custom?: boolean;
   /** Accessible accounts grouped by the listing API; null uses legacy matching. */
   connection_ids?: string[] | null;

@@ -6255,6 +6255,10 @@
       "personal-console-notices": {
         "title": "Produkthinweise",
         "body": "Behalte hilfreiche Hinweise. Organisations- und Deployment-Beschränkungen gelten weiterhin."
+      },
+      "personal-console-catalogs": {
+        "title": "Kataloge",
+        "body": "Wähle die Galerien zum Durchsuchen. Die Grenzen der Organisation und Bereitstellung gelten weiterhin."
       }
     },
     "chooseLanguage": "Sprache",
@@ -21585,6 +21589,38 @@
         "viewer": "Betrachter"
       },
       "loadError": "Konsoleneinstellungen konnten nicht geladen werden."
+    },
+    "catalogs": {
+      "personalTitle": "Kataloge",
+      "personalHint": "Wähle die Galerien zum Durchsuchen. Die Grenzen der Organisation und Bereitstellung gelten weiterhin.",
+      "mcp_gallery": "MCP-Galerie",
+      "skill_gallery": "Skill-Galerie",
+      "hint": "Die Katalogauswahl ändert weder Werkzeugberechtigungen noch bestehende Verbindungen. Persönliche Einstellungen können die Grenzen nur einschränken.",
+      "inherit": "Geerbten Katalog verwenden",
+      "all": "Alle verfügbaren Einträge",
+      "mcp_galleryAvailable": "Nur von der Organisation verbundene Server",
+      "skill_galleryAvailable": "Nur sichtbare installierte Skills",
+      "allowList": "Einträge auswählen",
+      "selected": "{count, plural, =1 {1 Eintrag ausgewählt} other {# Einträge ausgewählt}}",
+      "remove": "{name} entfernen",
+      "empty": "Keine passenden Einträge",
+      "discard": "Änderungen verwerfen",
+      "previous": "Zurück",
+      "emptySelection": "Eine leere Auswahl bietet keine Galerieeinträge an.",
+      "managerHint": "Diese Rolle verwaltet den Katalog. Organisationsgrenzen gelten für Rollen ohne Katalogverwaltung; Bereitstellungs- und persönliche Grenzen gelten weiterhin.",
+      "limit": "Wähle bis zu {count, plural, one {# Eintrag} other {# Einträge}} oder alle verfügbaren Einträge."
+    },
+    "dashboard": {
+      "title": "Standard-Dashboard",
+      "hint": "Der Rollenstandard wird zur Startansicht. Persönlich gespeicherte Anordnungen haben Vorrang. Widgets beachten weiterhin die Berechtigungen der lesenden Person.",
+      "arrange": "Mein Dashboard anordnen und speichern",
+      "privateFilters": "Entferne Personen- und Agentenfilter, bevor du die Anordnung als Organisationsstandard teilst.",
+      "copy": "Meine gespeicherte Anordnung kopieren",
+      "inherit": "Standard-Dashboard verwenden",
+      "standard": "Kein Rollenstandard: Die normale Startansicht wird verwendet.",
+      "preview": "Nur Vorschau der Anordnung. Daten und Berechtigungen werden beim Öffnen für jede Person aufgelöst.",
+      "empty": "Dieser Rollenstandard enthält bewusst keine Karten.",
+      "discard": "Änderungen verwerfen"
     }
   },
   "modelSources": {

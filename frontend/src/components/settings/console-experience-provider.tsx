@@ -1,6 +1,9 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import type { StoredEntry } from "@/lib/dashboard/preference";
 import { useConsoleExperience } from "@/hooks/use-console-experience";
 import {
   DEFAULT_CHAT_HOME,
@@ -20,6 +23,8 @@ export const OnboardingReminderContext =
   createContext<OnboardingReminderOptions>(DEFAULT_REMINDERS);
 
 interface ConsolePresentationView {
+  dashboardDefault: StoredEntry[] | null;
+  pending: boolean;
   navigation: readonly string[] | null;
   desktopInstallPrompt: boolean;
   productNotices: boolean;
@@ -27,6 +32,8 @@ interface ConsolePresentationView {
 export type ConsolePresentationOptions = ConsolePresentationView &
   ({ problem: false; retry?: never } | { problem: true; retry: () => void });
 const DEFAULT_PRESENTATION: ConsolePresentationOptions = {
+  dashboardDefault: null,
+  pending: false,
   navigation: null,
   desktopInstallPrompt: true,
   productNotices: true,
@@ -34,6 +41,7 @@ const DEFAULT_PRESENTATION: ConsolePresentationOptions = {
 };
 const PENDING_PRESENTATION: ConsolePresentationOptions = {
   ...DEFAULT_PRESENTATION,
+  pending: true,
   navigation: [],
   desktopInstallPrompt: false,
   productNotices: false,
@@ -47,7 +55,31 @@ export const ChatHomeContext = createContext<ChatHomeOptions>(DEFAULT_CHAT_HOME)
 
 /** Authenticated console only: public chat and embedded builders keep their own contracts. */
 export function ConsoleExperienceProvider({ children }: { children: ReactNode }) {
-  const { data, error, refetch } = useConsoleExperience();
+  const { data, error, refetch, organizationId, userId } = useConsoleExperience();
+  const client = useQueryClient();
+  const lastCatalog = useRef<string | null>(null);
+  const catalogVersion = JSON.stringify([
+    organizationId,
+    userId,
+    data?.presentation?.available_mcp_gallery,
+    data?.presentation?.available_skill_gallery,
+    data?.presentation?.organization_mcp_gallery,
+    data?.presentation?.organization_skill_gallery,
+    data?.presentation?.preferences.mcp_gallery,
+    data?.presentation?.preferences.skill_gallery,
+  ]);
+  useEffect(() => {
+    if (!data || error) return;
+    const previous = lastCatalog.current;
+    lastCatalog.current = catalogVersion;
+    if (previous === null || previous === catalogVersion) return;
+    void Promise.all([
+      client.invalidateQueries({ queryKey: qk.mcpServers.catalog() }),
+      client.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+      client.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+      client.invalidateQueries({ queryKey: qk.skills.gallery() }),
+    ]);
+  }, [catalogVersion, client, data, error]);
   const reminders =
     !error && data ? data.reminders.effective : { enabled: false, snooze_days: 1 as const };
   const policy: ConsolePresentationView =
@@ -57,6 +89,7 @@ export function ConsoleExperienceProvider({ children }: { children: ReactNode })
         ? {
             ...DEFAULT_PRESENTATION,
             navigation: data.presentation.navigation,
+            dashboardDefault: data.presentation.dashboard_default?.entries ?? null,
             desktopInstallPrompt: data.presentation.desktop_install_prompt,
             productNotices: data.presentation.product_notices,
           }
@@ -64,6 +97,7 @@ export function ConsoleExperienceProvider({ children }: { children: ReactNode })
   const presentation: ConsolePresentationOptions = error
     ? {
         ...policy,
+        pending: false,
         problem: true,
         retry: () => {
           void refetch();

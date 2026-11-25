@@ -1,5 +1,5 @@
 ---
-source_sha: "d10af126805f"
+source_sha: "c0b0cf70a14f"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -218,6 +218,16 @@ Użytkownik może zawęzić ten wybór w **Ustawienia → Profil → Moje menu**
 
 Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. Nie działa w imieniu innej osoby i nie wczytuje jej danych. **Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
 
+
+### Katalogi i dashboardy ról { #console-catalogs }
+
+**Konsola dla każdej roli** obejmuje również galerie MCP i Skills. Można wybrać wszystkie dostępne pozycje, jawną listę dozwolonych albo tylko serwery podłączone przez organizację / widoczne zainstalowane Skills. Ograniczenia galerii organizacji dotyczą ról bez zarządzania katalogiem; zarządzających nadal ograniczają ustawienia wdrożenia i własne. Użytkownik zawęża swoje galerie w **Ustawienia → Profil → Katalogi**. Pusta lista celowo nie udostępnia pozycji.
+
+Ograniczenia katalogu zmieniają odkrywanie funkcji, nie uprawnienia narzędzi. Istniejące dostępne konta pozostają obsługiwane w **Połączone**, a powiązania opublikowanych agentów zachowują dotychczasowe kontrole dostępu. Serwer filtruje wyniki przed liczeniem i stronicowaniem. Prywatna kopia Skill innej osoby nie jest pokazywana jako zainstalowana komuś bez dostępu. Odświeżenie polityki konsoli unieważnia pamięć podręczną galerii.
+
+Aby ustawić **Domyślny dashboard** roli, najpierw ułóż i zapisz własny dashboard, a następnie skopiuj go w ustawieniach roli. Przejrzyj podgląd samego układu i osobno zapisz. Przed udostępnieniem usuń filtry przypięte do konkretnej osoby lub agenta. Zapobiega to rozprowadzaniu prywatnych identyfikatorów w ustawieniach organizacji. Układ zachowuje obsługiwane szerokości, wysokości, sekcje i opcje prezentacji; nie kopiuje wektorów ani danych widżetów.
+
+Skonfigurowany układ roli staje się jej stroną główną. Własny zapisany układ użytkownika ma pierwszeństwo, również celowo pusty. Reset własnego układu ponownie dziedziczy ustawienie roli. Brak ustawienia roli zachowuje standardową stronę główną. Uprawnienia widżetów są sprawdzane na końcu dla każdej osoby. Nieudany odczyt układu lub polityki pokazuje błąd i ponowienie zamiast chwilowo wyświetlać inny układ.
 
 ### Koszty w chacie { #chat-cost-visibility }
 

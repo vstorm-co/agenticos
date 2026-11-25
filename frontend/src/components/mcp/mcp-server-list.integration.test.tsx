@@ -1853,3 +1853,14 @@ it("shows a failed catalog request and retries without claiming an empty catalog
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
 });
+
+it("does not advertise metadata retained only for an existing connection as an onboarding suggestion", async () => {
+  catalogEntries = [{ ...CATALOG.items[0]!, gallery_visible: false }, CATALOG.items[1]!];
+  serve([], []);
+  render(
+    <McpServerList canManageOrganization presentation="onboarding" persistSelection={false} />,
+    { wrapper },
+  );
+  await screen.findByRole("group", { name: "Linear" });
+  expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+});

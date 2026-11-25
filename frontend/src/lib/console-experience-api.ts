@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import type { StoredEntry } from "./dashboard/preference";
 
 export const CHAT_HOME_ITEMS = ["inbox", "starters", "greeting", "feature_hints"] as const;
 export type ChatHomeItem = (typeof CHAT_HOME_ITEMS)[number];
@@ -31,13 +32,27 @@ export interface ConsoleNotices {
   desktop_install_prompt?: boolean | null;
   product_notices?: boolean | null;
 }
-export interface ConsolePreferences extends ConsoleNotices {
+export interface CatalogPolicy {
+  mode: "all" | "allow-list" | "available";
+  keys: string[];
+}
+export interface ConsoleCatalogPreferences {
+  mcp_gallery?: CatalogPolicy | null;
+  skill_gallery?: CatalogPolicy | null;
+}
+export interface ConsolePreferences extends ConsoleNotices, ConsoleCatalogPreferences {
   navigation?: string[] | null;
 }
-export interface ConsoleRoleDefaults {
+export interface ConsoleRoleDefaults extends ConsoleCatalogPreferences {
+  dashboard?: { entries: StoredEntry[] } | null;
   navigation?: string[] | null;
 }
 export interface ConsolePresentation {
+  dashboard_default?: { entries: StoredEntry[] } | null;
+  organization_mcp_gallery?: CatalogPolicy;
+  organization_skill_gallery?: CatalogPolicy;
+  available_mcp_gallery?: CatalogPolicy;
+  available_skill_gallery?: CatalogPolicy;
   simple_navigation: string[];
   navigation_available: string[];
   organization_navigation: string[];

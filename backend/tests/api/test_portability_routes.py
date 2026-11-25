@@ -79,6 +79,8 @@ async def test_preview_download_and_import_are_one_typed_contract(
     assert service.import_agent.await_args.args[0] == ctx
 
 
+@pytest.mark.security
+@pytest.mark.security
 async def test_collection_import_permission_is_checked_before_the_service(
     wired: tuple[AsyncClient, MagicMock, AuthContext],
 ) -> None:
@@ -101,6 +103,7 @@ async def test_invalid_file_format_is_refused_at_the_http_boundary(
     service.download_agent.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_destination_picker_is_typed_and_scoped_to_import_permission(
     wired: tuple[AsyncClient, MagicMock, AuthContext],
 ) -> None:

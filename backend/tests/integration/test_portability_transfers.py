@@ -135,6 +135,7 @@ async def test_transfer_admission_size_conflicts_and_expiry_are_explicit(
     assert await operations.get_for_worker(db, operation.id) is None
 
 
+@pytest.mark.security
 async def test_zip_asset_budget_is_checked_before_promoting_an_export(
     db: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

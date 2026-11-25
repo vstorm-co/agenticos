@@ -9118,6 +9118,10 @@
       "personal-console-notices": {
         "title": "Ürün önerileri",
         "body": "Yararlı önerileri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır."
+      },
+      "personal-console-catalogs": {
+        "title": "Kataloglar",
+        "body": "Göz atmak istediğiniz galerileri seçin. Kuruluş ve dağıtım sınırları geçerliliğini korur."
       }
     }
   },
@@ -17287,6 +17291,38 @@
         "viewer": "İzleyici"
       },
       "loadError": "Konsol tercihleri yüklenemedi."
+    },
+    "catalogs": {
+      "personalTitle": "Kataloglar",
+      "personalHint": "Göz atmak istediğiniz galerileri seçin. Kuruluş ve dağıtım sınırları geçerliliğini korur.",
+      "mcp_gallery": "MCP galerisi",
+      "skill_gallery": "Skill galerisi",
+      "hint": "Katalog seçimleri araç izinlerini veya mevcut bağlantıları değiştirmez. Kişisel seçimler devralınan sınırları yalnızca daraltabilir.",
+      "inherit": "Devralınan kataloğu kullan",
+      "all": "Kullanılabilir tüm öğeler",
+      "mcp_galleryAvailable": "Yalnızca kuruluşun bağladığı sunucular",
+      "skill_galleryAvailable": "Yalnızca görünür kurulu Skills",
+      "allowList": "Öğeleri seç",
+      "selected": "{count, plural, other {# öğe seçildi}}",
+      "remove": "{name} kaldır",
+      "empty": "Eşleşen öğe yok",
+      "discard": "Değişiklikleri iptal et",
+      "previous": "Önceki",
+      "emptySelection": "Boş seçim galeride hiçbir öğe sunmaz.",
+      "managerHint": "Bu rol kataloğu yönetir. Kuruluş galeri sınırları katalog yönetimi olmayan roller için geçerlidir; dağıtım ve kişisel sınırlar geçerliliğini korur.",
+      "limit": "En fazla {count, plural, other {# öğe}} veya kullanılabilir tüm öğeleri seçin."
+    },
+    "dashboard": {
+      "title": "Varsayılan pano",
+      "hint": "Bu rolün varsayılan düzeni ana sayfası olur. Kişisel kayıtlı düzenler önceliklidir. Bileşenler her kişinin izinlerine uymaya devam eder.",
+      "arrange": "Panomu düzenle ve kaydet",
+      "privateFilters": "Bu düzeni kuruluş varsayılanı olarak paylaşmadan önce kişi ve ajan filtrelerini kaldırın.",
+      "copy": "Kayıtlı düzenimi kopyala",
+      "inherit": "Standart panoyu kullan",
+      "standard": "Rol varsayılanı yok: standart ana sayfa kullanılır.",
+      "preview": "Yalnızca düzen önizlemesi. Veri ve izinler açılışta her kişi için belirlenir.",
+      "empty": "Bu rol varsayılanı bilinçli olarak hiç kart içermez.",
+      "discard": "Değişiklikleri iptal et"
     }
   },
   "onboardingStatus": {

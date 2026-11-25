@@ -6,6 +6,8 @@ from pydantic import ConfigDict, Field, JsonValue, StrictBool, TypeAdapter, fiel
 
 from app.core.permissions import OrgRoleName
 from app.schemas.base import BaseSchema
+from app.schemas.console_catalogs import CatalogPolicy
+from app.schemas.console_dashboard import OrganizationDashboardUpdate, StoredOrganizationDashboard
 
 NavigationEntry = Literal[
     "dashboard",
@@ -46,6 +48,8 @@ class ConsoleNotices(BaseSchema):
 
 
 class ConsolePreferences(ConsoleNotices):
+    mcp_gallery: CatalogPolicy | None = None
+    skill_gallery: CatalogPolicy | None = None
     navigation: list[NavigationEntry] | None = Field(
         default=None, max_length=len(NAVIGATION_ENTRIES)
     )
@@ -59,11 +63,16 @@ class ConsolePreferences(ConsoleNotices):
 
 
 class StoredConsolePreferences(ConsoleNotices):
+    mcp_gallery: CatalogPolicy | None = None
+    skill_gallery: CatalogPolicy | None = None
     model_config = ConfigDict(extra="ignore")
     navigation: list[str] | None = None
 
 
 class RoleConsoleUpdate(BaseSchema):
+    dashboard: OrganizationDashboardUpdate | None = None
+    mcp_gallery: CatalogPolicy | None = None
+    skill_gallery: CatalogPolicy | None = None
     model_config = ConfigDict(extra="forbid")
     navigation: list[NavigationEntry] | None = Field(
         default=None, max_length=len(NAVIGATION_ENTRIES)
@@ -81,10 +90,19 @@ class RoleConsoleUpdate(BaseSchema):
 class StoredRoleConsole(BaseSchema):
     """Unknown retired destinations are retained for settings, dropped on resolution."""
 
+    dashboard: StoredOrganizationDashboard | None = None
+
+    mcp_gallery: CatalogPolicy | None = None
+    skill_gallery: CatalogPolicy | None = None
     navigation: list[str] | None = None
 
 
 class ConsolePresentationRead(BaseSchema):
+    available_mcp_gallery: CatalogPolicy = Field(default_factory=CatalogPolicy)
+    available_skill_gallery: CatalogPolicy = Field(default_factory=CatalogPolicy)
+    dashboard_default: StoredOrganizationDashboard | None = None
+    organization_mcp_gallery: CatalogPolicy = Field(default_factory=CatalogPolicy)
+    organization_skill_gallery: CatalogPolicy = Field(default_factory=CatalogPolicy)
     simple_navigation: list[NavigationEntry] = Field(
         default_factory=lambda: list(SIMPLE_NAVIGATION)
     )
@@ -123,6 +141,11 @@ def resolve_console_presentation(
         if personal.navigation is None or entry in personal.navigation
     ]
     return ConsolePresentationRead(
+        available_mcp_gallery=available.mcp_gallery or CatalogPolicy(),
+        available_skill_gallery=available.skill_gallery or CatalogPolicy(),
+        dashboard_default=role.dashboard,
+        organization_mcp_gallery=role.mcp_gallery or CatalogPolicy(),
+        organization_skill_gallery=role.skill_gallery or CatalogPolicy(),
         navigation_available=ceiling,
         organization_navigation=organization,
         navigation=effective,

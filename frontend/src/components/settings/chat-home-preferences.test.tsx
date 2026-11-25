@@ -58,3 +58,5 @@ it.each(["organization", "account"])(
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   },
 );
+
+vi.mock("./console-catalog-controls", () => ({ ConsoleCatalogControls: () => null }));

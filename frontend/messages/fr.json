@@ -6144,6 +6144,10 @@
       "personal-console-notices": {
         "title": "Suggestions du produit",
         "body": "Gardez les suggestions utiles. Les restrictions de votre organisation et de votre déploiement restent applicables."
+      },
+      "personal-console-catalogs": {
+        "title": "Catalogues",
+        "body": "Choisissez les galeries à parcourir. Les limites de l’organisation et du déploiement restent applicables."
       }
     },
     "chooseLanguage": "Langue",
@@ -21191,6 +21195,38 @@
         "viewer": "Lecteur"
       },
       "loadError": "Impossible de charger les préférences de la console."
+    },
+    "catalogs": {
+      "personalTitle": "Catalogues",
+      "personalHint": "Choisissez les galeries à parcourir. Les limites de l’organisation et du déploiement restent applicables.",
+      "mcp_gallery": "Galerie MCP",
+      "skill_gallery": "Galerie de Skills",
+      "hint": "Le choix du catalogue ne modifie ni les permissions des outils ni les connexions existantes. Les choix personnels peuvent uniquement restreindre les limites héritées.",
+      "inherit": "Utiliser le catalogue hérité",
+      "all": "Toutes les entrées disponibles",
+      "mcp_galleryAvailable": "Uniquement les serveurs connectés par l’organisation",
+      "skill_galleryAvailable": "Uniquement les Skills installés visibles",
+      "allowList": "Choisir des entrées",
+      "selected": "{count, plural, =1 {1 entrée sélectionnée} other {# entrées sélectionnées}}",
+      "remove": "Retirer {name}",
+      "empty": "Aucune entrée correspondante",
+      "discard": "Annuler les modifications",
+      "previous": "Précédent",
+      "emptySelection": "Une sélection vide ne propose aucune entrée de galerie.",
+      "managerHint": "Ce rôle gère ce catalogue. Les limites de galerie de l’organisation concernent les rôles sans gestion du catalogue ; les limites du déploiement et personnelles restent applicables.",
+      "limit": "Choisissez jusqu’à {count, plural, one {# entrée} other {# entrées}}, ou toutes les entrées disponibles."
+    },
+    "dashboard": {
+      "title": "Tableau de bord par défaut",
+      "hint": "La disposition de ce rôle devient sa page d’accueil. Les dispositions personnelles enregistrées ont priorité. Les widgets respectent toujours les permissions de chaque personne.",
+      "arrange": "Organiser et enregistrer mon tableau de bord",
+      "privateFilters": "Retirez les filtres de personne et d’agent avant de partager cette disposition comme valeur par défaut.",
+      "copy": "Copier ma disposition enregistrée",
+      "inherit": "Utiliser le tableau de bord standard",
+      "standard": "Aucune disposition du rôle : l’accueil standard est utilisé.",
+      "preview": "Aperçu de la disposition uniquement. Les données et permissions sont résolues pour chaque personne à l’ouverture.",
+      "empty": "Cette disposition par défaut ne contient volontairement aucune carte.",
+      "discard": "Annuler les modifications"
     }
   },
   "portability": {

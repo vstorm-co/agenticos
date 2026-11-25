@@ -6260,6 +6260,10 @@
       "personal-console-notices": {
         "title": "Sugestões do produto",
         "body": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se."
+      },
+      "personal-console-catalogs": {
+        "title": "Catálogos",
+        "body": "Escolha as galerias que deseja explorar. Os limites da organização e da implantação continuam válidos."
       }
     },
     "chooseLanguage": "Idioma",
@@ -21783,6 +21787,38 @@
         "viewer": "Leitor"
       },
       "loadError": "Não foi possível carregar as preferências da consola."
+    },
+    "catalogs": {
+      "personalTitle": "Catálogos",
+      "personalHint": "Escolha as galerias que deseja explorar. Os limites da organização e da implantação continuam válidos.",
+      "mcp_gallery": "Galeria MCP",
+      "skill_gallery": "Galeria de Skills",
+      "hint": "A escolha do catálogo não altera permissões de ferramentas nem conexões existentes. Escolhas pessoais só podem restringir os limites herdados.",
+      "inherit": "Usar catálogo herdado",
+      "all": "Todas as entradas disponíveis",
+      "mcp_galleryAvailable": "Apenas servidores conectados pela organização",
+      "skill_galleryAvailable": "Apenas Skills instalados visíveis",
+      "allowList": "Escolher entradas",
+      "selected": "{count, plural, =1 {1 entrada selecionada} other {# entradas selecionadas}}",
+      "remove": "Remover {name}",
+      "empty": "Nenhuma entrada correspondente",
+      "discard": "Descartar alterações",
+      "previous": "Anterior",
+      "emptySelection": "Uma seleção vazia não oferece entradas na galeria.",
+      "managerHint": "Esta função gerencia o catálogo. Os limites da organização se aplicam a funções sem gerenciamento do catálogo; os limites da implantação e pessoais continuam válidos.",
+      "limit": "Escolha até {count, plural, one {# entrada} other {# entradas}} ou todas as entradas disponíveis."
+    },
+    "dashboard": {
+      "title": "Painel padrão",
+      "hint": "O layout padrão desta função se torna sua página inicial. Layouts pessoais salvos têm prioridade. Os widgets continuam respeitando as permissões de cada pessoa.",
+      "arrange": "Organizar e salvar meu painel",
+      "privateFilters": "Remova os filtros de pessoa e agente antes de compartilhar este layout como padrão da organização.",
+      "copy": "Copiar meu layout salvo",
+      "inherit": "Usar painel padrão",
+      "standard": "Sem padrão da função: a página inicial padrão é usada.",
+      "preview": "Apenas prévia do layout. Os dados e as permissões são resolvidos para cada pessoa ao abrir.",
+      "empty": "Este padrão da função intencionalmente não contém cartões.",
+      "discard": "Descartar alterações"
     }
   },
   "modelSources": {

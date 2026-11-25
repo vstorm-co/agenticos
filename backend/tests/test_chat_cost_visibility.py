@@ -251,6 +251,7 @@ def test_non_accounting_frames_and_unmeasured_usage_are_unchanged() -> None:
         cost_bearing_chat_frame("complete", object())
 
 
+@pytest.mark.security
 async def test_key_scope_cannot_borrow_the_owners_spend_permission(costs: Costs) -> None:
     costs.org.chat_cost_visibility = "spend_privileged"
     assert not (

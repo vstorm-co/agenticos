@@ -25,7 +25,9 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import CheckOutcome, McpServerCheck
 from app.repositories import mcp_registry_server_repo, mcp_server_check_repo
+from app.schemas.console_catalogs import catalog_intersection
 from app.services import mcp_catalog
+from app.services.console_catalogs import ConsoleCatalogService
 from app.services.mcp_audit import BUNDLED_CHECKS, StoredCheck, auth_found, verified
 from app.services.mcp_catalog import CatalogEntry
 from app.services.mcp_connection import McpConnectionService
@@ -63,6 +65,7 @@ class ListedServer:
     check: ListedCheck | None
     custom: bool = False
     connection_ids: tuple[UUID, ...] | None = None
+    gallery_visible: bool = True
 
 
 @dataclass(frozen=True)
@@ -76,16 +79,6 @@ class ServerPage:
     registry_total: int
     """What the mirror holds, which is what the list *reaches* rather than what
     this page matched. Zero until `agenticos cmd mcp-registry-sync` has run."""
-
-
-async def mirror_size(db: AsyncSession) -> int:
-    """How many servers the mirror holds.
-
-    Here rather than reached for from a route: a route calls services and never a
-    repository, and `tests/test_route_layering.py` is what says so. It caught
-    this one importing `mcp_registry_server_repo` for a single count.
-    """
-    return await mcp_registry_server_repo.count(db)
 
 
 def _listed_check(check: McpServerCheck | StoredCheck | None) -> ListedCheck | None:
@@ -159,7 +152,12 @@ def _normalize_url(url: str) -> str:
 
 
 async def _connected(
-    db: AsyncSession, ctx: AuthContext | None, *, query: str, auth: str
+    db: AsyncSession,
+    ctx: AuthContext | None,
+    *,
+    query: str,
+    auth: str,
+    organization_only: bool = False,
 ) -> list[ListedServer]:
     """Resolve only accessible saved accounts, including servers no longer offered.
 
@@ -171,10 +169,10 @@ async def _connected(
         return []
     service = McpConnectionService(db)
     connections: list[McpConnection] = []
-    if ctx.has(Perm.MCP_MANAGE):
+    if organization_only or ctx.has(Perm.MCP_MANAGE):
         organization, _ = await service.list_for_org(ctx)
         connections.extend(organization)
-    if ctx.user_id is not None and ctx.key_allows(Perm.AGENTS_RUN):
+    if not organization_only and ctx.user_id is not None and ctx.key_allows(Perm.AGENTS_RUN):
         personal, _ = await service.list_for_user(user_id=ctx.user_id)
         connections.extend(personal)
     if not connections:
@@ -260,6 +258,44 @@ async def _connected(
     return rows
 
 
+async def _gallery_scope(
+    db: AsyncSession, ctx: AuthContext | None
+) -> tuple[frozenset[str] | None, tuple[ListedServer, ...]]:
+    if ctx is None:
+        return None, ()
+    policies = await ConsoleCatalogService(db).policies(ctx, "mcp_gallery")
+    connected = (
+        await _connected(db, ctx, query="", auth="", organization_only=True)
+        if any(policy.mode != "all" for policy in policies)
+        else []
+    )
+    return catalog_intersection(policies, available={entry.key for entry in connected}), tuple(
+        connected
+    )
+
+
+async def catalog_for_reader(db: AsyncSession, ctx: AuthContext) -> ServerPage:
+    """Gallery metadata plus accessible existing bindings, including retired choices."""
+    allowed, approved = await _gallery_scope(db, ctx)
+    connected = await _connected(db, ctx, query="", auth="") if allowed is not None else []
+    saved_keys = {entry.key for entry in connected}
+    entries = tuple(
+        replace(entry, gallery_visible=allowed is None or entry.key in allowed)
+        for entry in await curated(db)
+        if allowed is None or entry.key in allowed or entry.key in saved_keys
+    )
+    entries += tuple(
+        replace(entry, connection_ids=None)
+        for entry in approved
+        if entry.custom and (allowed is None or entry.key in allowed)
+    )
+    return ServerPage(
+        items=entries,
+        total=len(entries),
+        registry_total=await mcp_registry_server_repo.count(db, allowed_ids=allowed),
+    )
+
+
 def _matches(row: ListedServer, *, query: str, category: str, auth: str) -> bool:
     if category and row.category != category:
         return False
@@ -308,7 +344,8 @@ async def page(
     manageable. Every filter is applied before counting and pagination.
     """
     connected = await _connected(db, ctx, query=query, auth=auth)
-    mirror_total = await mcp_registry_server_repo.count(db)
+    allowed, approved = await _gallery_scope(db, ctx)
+    mirror_total = await mcp_registry_server_repo.count(db, allowed_ids=allowed)
     if state == "connected":
         matched = [
             row for row in connected if _matches(row, query=query, category=category, auth=auth)
@@ -329,6 +366,7 @@ async def page(
         entry
         for entry in mcp_catalog.matching(query, category=category)
         if not auth or entry.auth.value == auth
+        if allowed is None or entry.key in allowed
         if state != "not-connected" or entry.key not in accounts
     )
     shown = matched_curated[skip : skip + limit]
@@ -350,6 +388,7 @@ async def page(
         skip=max(0, skip - len(matched_curated)),
         limit=max(wanted, 1),
         excluded_ids=set(accounts) if state == "not-connected" else None,
+        allowed_ids=allowed,
     )
     if wanted > 0:
         items += [
@@ -359,8 +398,9 @@ async def page(
 
     customs = [
         row
-        for row in connected
+        for row in {item.key: item for item in (*connected, *approved)}.values()
         if row.custom
+        and (allowed is None or row.key in allowed)
         and state == "all"
         and _matches(row, query=query, category=category, auth=auth)
     ]

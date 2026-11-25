@@ -81,6 +81,7 @@ async def test_missing_and_contradictory_version_pins_are_refused(
         )
 
 
+@pytest.mark.security
 async def test_fork_identity_and_secret_metadata_delegate_to_existing_access_checks(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

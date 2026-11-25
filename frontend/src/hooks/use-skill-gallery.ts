@@ -47,6 +47,7 @@ export function useSkillGallery(enabled: boolean) {
     industries: query.data?.industries ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
+    refetch: query.refetch,
     // `mutate`, not `mutateAsync`: nothing awaits this at the call site, and a
     // rejected promise nobody catches is an unhandled rejection. `onError`
     // already shows the refusal.

@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { SectionCard } from "./settings-section";
 import { OnboardingReminderControls } from "./onboarding-reminder-controls";
+import { ConsoleCatalogControls } from "./console-catalog-controls";
 import { ConsoleNavigationControls } from "./console-navigation-controls";
 import { ConsoleNoticeControls } from "./console-notice-controls";
 import { PersonalChatCostControl } from "./chat-cost-controls";
@@ -35,6 +36,32 @@ export function ChatHomePreferences() {
             disabled={experience.save.isPending}
             onSave={(navigation, onSaved) =>
               experience.save.mutate({ console: { navigation } }, onSaved)
+            }
+          />
+        </SectionCard>
+      )}
+      {experience.data?.presentation && (
+        <SectionCard
+          title={t("catalogs.personalTitle")}
+          description={t("catalogs.personalHint")}
+          tour="personal-console-catalogs"
+        >
+          <ConsoleCatalogControls
+            key={`${experience.organizationId}-${experience.userId}-mcp`}
+            kind="mcp_gallery"
+            value={experience.data.presentation.preferences.mcp_gallery}
+            disabled={experience.save.isPending}
+            onSave={(mcp_gallery, onSaved) =>
+              experience.save.mutate({ console: { mcp_gallery } }, onSaved)
+            }
+          />
+          <ConsoleCatalogControls
+            key={`${experience.organizationId}-${experience.userId}-skills`}
+            kind="skill_gallery"
+            value={experience.data.presentation.preferences.skill_gallery}
+            disabled={experience.save.isPending}
+            onSave={(skill_gallery, onSaved) =>
+              experience.save.mutate({ console: { skill_gallery } }, onSaved)
             }
           />
         </SectionCard>

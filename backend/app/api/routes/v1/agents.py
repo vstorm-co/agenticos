@@ -289,8 +289,8 @@ async def install_agent_template(
     response_model=McpCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_mcp_catalog(db: DBSession) -> Any:
-    """The whole curated catalog, unpaged, plus what the mirror reaches.
+async def list_mcp_catalog(db: DBSession, ctx: Auth) -> Any:
+    """The caller's curated catalog and metadata for accessible saved bindings.
 
     Unpaged on purpose and not the browsable list: a caller resolving a
     *connection* to the entry it points at needs every entry to compare against,
@@ -298,13 +298,15 @@ async def list_mcp_catalog(db: DBSession) -> Any:
 
     Hand-curated rather than mirrored: each entry is a small promise that the
     auth flow works and the description is honest. `registry_total` says how many
-    the mirror holds beside them, so a count line can say what searching reaches.
+    the reader's filtered mirror holds beside them. Entries retained only to resolve
+    existing bindings have `gallery_visible=false` and are not offered for discovery.
     """
-    items = [McpCatalogEntry(**vars(server)) for server in await mcp_listing.curated(db)]
+    catalog = await mcp_listing.catalog_for_reader(db, ctx)
+    items = [McpCatalogEntry(**vars(server)) for server in catalog.items]
     return McpCatalog(
         items=items,
         total=len(items),
-        registry_total=await mcp_listing.mirror_size(db),
+        registry_total=catalog.registry_total,
     )
 
 

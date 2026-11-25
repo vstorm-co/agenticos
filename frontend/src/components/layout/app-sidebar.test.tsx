@@ -471,6 +471,8 @@ it("reports a failed navigation policy and lets the reader retry", () => {
     <ConsolePresentationContext.Provider
       value={{
         navigation: [],
+        dashboardDefault: null,
+        pending: false,
         desktopInstallPrompt: false,
         productNotices: false,
         problem: true,

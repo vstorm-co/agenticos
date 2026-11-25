@@ -61,6 +61,7 @@ async def search(
     skip: int = 0,
     limit: int = 50,
     excluded_ids: set[str] | None = None,
+    allowed_ids: frozenset[str] | None = None,
 ) -> tuple[list[tuple[McpRegistryServer, McpServerCheck | None]], int]:
     """One page of matching servers, best first, each with its last check, and the total.
 
@@ -87,6 +88,8 @@ async def search(
         conditions.append(McpRegistryServer.category == category)
     if auth:
         conditions.append(McpServerCheck.auth == auth)
+    if allowed_ids is not None:
+        conditions.append(McpRegistryServer.id.in_(allowed_ids))
     if excluded_ids:
         conditions.append(McpRegistryServer.id.not_in(excluded_ids))
 
@@ -163,8 +166,11 @@ async def get(db: AsyncSession, server_id: str) -> McpRegistryServer | None:
     return result.scalar_one_or_none()
 
 
-async def count(db: AsyncSession) -> int:
-    return await db.scalar(select(func.count()).select_from(McpRegistryServer)) or 0
+async def count(db: AsyncSession, *, allowed_ids: frozenset[str] | None = None) -> int:
+    statement = select(func.count()).select_from(McpRegistryServer)
+    if allowed_ids is not None:
+        statement = statement.where(McpRegistryServer.id.in_(allowed_ids))
+    return await db.scalar(statement) or 0
 
 
 async def upsert_many(db: AsyncSession, entries: Sequence[dict[str, Any]]) -> int:

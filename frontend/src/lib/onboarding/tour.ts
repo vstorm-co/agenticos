@@ -221,6 +221,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "personal-console-catalogs",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-catalogs",
+    optional: true,
+  },
+  {
     id: "personal-console-notices",
     page: SETTINGS_DETAIL,
     target: "personal-console-notices",

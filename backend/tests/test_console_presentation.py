@@ -104,3 +104,48 @@ def test_notice_choices_cannot_override_organization_or_deployment(
         ceiling is not False and organization is not False and personal is not False
     )
     assert result.product_notices is result.desktop_install_prompt
+
+
+def test_role_dashboard_inherits_until_a_person_saves_a_layout_and_retains_retired_entries() -> (
+    None
+):
+    from uuid import uuid4
+
+    from app.schemas.console_dashboard import OrganizationDashboardUpdate
+
+    empty = OrganizationDashboardUpdate(entries=[])
+    assert empty.entries == []
+    with pytest.raises(ValidationError):
+        OrganizationDashboardUpdate.model_validate(
+            {
+                "entries": [
+                    {"widget": "projects", "span": "s6", "options": {"agent_id": str(uuid4())}}
+                ]
+            }
+        )
+    with pytest.raises(ValidationError):
+        OrganizationDashboardUpdate.model_validate(
+            {
+                "entries": [
+                    {"widget": "projects", "span": "s6", "options": {"user_id": str(uuid4())}}
+                ]
+            }
+        )
+    valid = OrganizationDashboardUpdate.model_validate(
+        {
+            "entries": [
+                {"kind": "section", "label": "My work"},
+                {"widget": "projects", "span": "s6"},
+                {"widget": "runs", "span": "s6", "options": {"period": "7d"}},
+            ]
+        }
+    )
+    assert len(valid.entries) == 3
+    stored = StoredRoleConsole.model_validate(
+        {"dashboard": {"entries": [{"widget": "retired-card", "span": "retired-width"}]}}
+    )
+    result = resolve_console_presentation(
+        StoredConsolePreferences(), stored, ConsoleNotices(), StoredConsolePreferences()
+    )
+    assert result.dashboard_default is not None
+    assert result.dashboard_default.entries[0].widget == "retired-card"

@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { widgetCatalog } from "@/lib/dashboard/preference";
+import { OrganizationConsoleDashboard } from "./org-console-dashboard";
+import { ConsoleCatalogControls } from "@/components/settings/console-catalog-controls";
 import { ConsoleNavigationControls } from "@/components/settings/console-navigation-controls";
 import { NAV_GROUPS, presentedNavigation } from "@/lib/nav-sections";
 import type { ConsolePresentation, ConsoleRoleDefaults } from "@/lib/console-experience-api";
@@ -33,13 +36,25 @@ export function OrganizationConsoleNavigation({
   const id = useId();
   const t = useTranslations("consoleExperience.presentation");
   const nav = useTranslations("nav");
+  const catalogs = useTranslations("consoleExperience.catalogs");
   const [role, setRole] = useState<OrgRole>("member");
-  const [dirty, setDirty] = useState(false);
+  const [navDirty, setDirty] = useState(false);
+  const [mcpDirty, setMcpDirty] = useState(false);
+  const [skillDirty, setSkillDirty] = useState(false);
+  const [dashboardDirty, setDashboardDirty] = useState(false);
+  const dirty = navDirty || mcpDirty || skillDirty || dashboardDirty;
   const { catalog, isLoading, error } = useRoleCatalog();
   const { can } = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
   if (error || !catalog) return <ErrorState />;
   const target = catalog.roles.find((entry) => entry.name === role);
+  const managesMcp = target?.permissions.some(
+    (entry) => entry.permission === "mcp:manage" && entry.scope !== "none",
+  );
+  const managesSkills = target?.permissions.some(
+    (entry) =>
+      entry.permission === "skills:edit" && ["shared", "team", "all"].includes(entry.scope),
+  );
   const previewCan = (permission: Permission) =>
     can(permission) &&
     !!target?.permissions.some(
@@ -103,6 +118,42 @@ export function OrganizationConsoleNavigation({
             </ul>
           </aside>
         )}
+      />
+      {managesMcp ? (
+        <p className="text-muted-foreground text-xs">
+          {catalogs("mcp_gallery")}: {catalogs("managerHint")}
+        </p>
+      ) : (
+        <ConsoleCatalogControls
+          key={`${role}-mcp`}
+          kind="mcp_gallery"
+          value={defaults?.[role]?.mcp_gallery}
+          disabled={disabled}
+          onDirtyChange={setMcpDirty}
+          onSave={(mcp_gallery, onSaved) => onSave(role, { mcp_gallery }, onSaved)}
+        />
+      )}
+      {managesSkills ? (
+        <p className="text-muted-foreground text-xs">
+          {catalogs("skill_gallery")}: {catalogs("managerHint")}
+        </p>
+      ) : (
+        <ConsoleCatalogControls
+          key={`${role}-skills`}
+          kind="skill_gallery"
+          value={defaults?.[role]?.skill_gallery}
+          disabled={disabled}
+          onDirtyChange={setSkillDirty}
+          onSave={(skill_gallery, onSaved) => onSave(role, { skill_gallery }, onSaved)}
+        />
+      )}
+      <OrganizationConsoleDashboard
+        key={`${role}-dashboard`}
+        value={defaults?.[role]?.dashboard}
+        catalog={widgetCatalog(previewCan, false)}
+        disabled={disabled}
+        onDirtyChange={setDashboardDirty}
+        onSave={(dashboard, onSaved) => onSave(role, { dashboard }, onSaved)}
       />
     </div>
   );
