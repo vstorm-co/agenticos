@@ -565,4 +565,23 @@ describe("CheckAgents", () => {
       expect(screen.getByText("Nothing worse or unknown to look at")).toBeVisible();
     });
   });
+
+  it("describes each agent's row by its state and why it was not checked", () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Refunds", "worse", { fixed: 1, broken: 3 }),
+            checkAgent("Billing", "unknown", { unknown_reason: "no_budget" }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Details of Refunds" })).toHaveAccessibleDescription(
+      /Worse/,
+    );
+    expect(screen.getByRole("button", { name: "Details of Billing" })).toHaveAccessibleDescription(
+      "Not checked: its budget is spent. Not verified",
+    );
+  });
 });

@@ -2,7 +2,7 @@
 
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -25,6 +25,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
   const readOnly = useReadOnly();
   const [choice, setChoice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ids = useId();
   const measured = session.iterations.filter(
     (round) => round.verdict !== null && round.number <= session.max_iterations,
   );
@@ -76,10 +77,18 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
               setError(null);
               setChoice(round.id);
             }}
-            aria-label={t("option", { number: round.number })}
+            // Named "Keep attempt N" and its verdict, which the visible summary shows.
+            aria-labelledby={`${ids}-${round.id}-keep ${ids}-${round.id}-verdict`}
             className={NATIVE_CHOICE}
           />
-          <AttemptSummary session={session} round={round} />
+          <span id={`${ids}-${round.id}-keep`} className="sr-only">
+            {t("option", { number: round.number })}
+          </span>
+          <AttemptSummary
+            session={session}
+            round={round}
+            verdictId={`${ids}-${round.id}-verdict`}
+          />
         </label>
       ))}
       {pending && (
