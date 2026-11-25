@@ -15842,6 +15842,9 @@
       "number": "Número do caso"
     },
     "helpers": {
+      "guidance": "Orientações específicas do dataset",
+      "guidanceHint": "Adicionadas abaixo das regras da plataforma para este assistente. As regras sempre se aplicam; as orientações não podem alterá-las nem removê-las.",
+      "platformRules": "Regras da plataforma (somente leitura)",
       "generatorTitle": "Geração de casos",
       "generatorDescription": "Escolha o modelo e as instruções usados para rascunhar casos para este dataset. Os casos gerados aguardam sua aprovação.",
       "improverTitle": "Melhoria do agente",
@@ -16974,7 +16977,8 @@
       "view": "Como mostrar a alteração",
       "unified": "Unificado",
       "split": "Lado a lado",
-      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}"
+      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}",
+      "hidden": "Esta alteração contém caracteres que não desenham nada ou reordenam o texto. Cada um está escrito pelo seu código."
     },
     "instructionsEditor": {
       "current": "Instruções atuais",
@@ -17678,6 +17682,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
     "analysisEstimate": "Custo estimado da análise",
+    "guidance": {
+      "title": "Orientações do dataset para o assistente",
+      "hint": "O assistente as lê abaixo das regras da plataforma, que sempre se aplicam. Quem edita este dataset as escreveu.",
+      "changed": "{who, select, named {Última alteração por {name}.} former {Última alteração por um ex-membro.} other {}}",
+      "changedOn": "{who, select, named {Última alteração por {name} em {date}.} former {Última alteração por um ex-membro em {date}.} other {Última alteração em {date}.}}"
+    },
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {

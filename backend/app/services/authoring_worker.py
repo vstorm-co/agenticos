@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, ToolOverride, load_builtins
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER
+from app.agents.system_agents import IMPROVER, with_dataset_guidance
 from app.core.exceptions import (
     AppException,
     AuthenticationError,
@@ -640,7 +640,7 @@ class AuthoringRun:
                 key=IMPROVER.key,
                 agent_id=self.request.improver_agent_id,
                 model_profile_id=helper.model_profile_id,
-                instructions=helper.instructions,
+                instructions=with_dataset_guidance(IMPROVER.instructions, helper.instructions),
                 prompt=prompt,
                 output_type=output_type,
                 improvement_run_id=self.request.improvement_run_id,

@@ -15842,6 +15842,9 @@
       "number": "Nummer"
     },
     "helpers": {
+      "guidance": "Richtlijnen voor deze dataset",
+      "guidanceHint": "Worden onder de platformregels voor deze helper toegevoegd. De regels gelden altijd; richtlijnen kunnen ze niet wijzigen of verwijderen.",
+      "platformRules": "Platformregels (alleen-lezen)",
       "generatorTitle": "Testgevallen genereren",
       "generatorDescription": "Kies het model en de instructies waarmee testgevallen voor deze dataset worden opgesteld. Gegenereerde testgevallen wachten op je goedkeuring.",
       "improverTitle": "Agents verbeteren",
@@ -16974,7 +16977,8 @@
       "view": "Weergave van de wijziging",
       "unified": "Samengevoegd",
       "split": "Naast elkaar",
-      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}"
+      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}",
+      "hidden": "Deze wijziging bevat tekens die niets tekenen of de tekst herschikken. Elk staat uitgeschreven met zijn code."
     },
     "instructionsEditor": {
       "current": "Huidige instructies",
@@ -17678,6 +17682,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
+    "guidance": {
+      "title": "Datasetrichtlijnen voor de helper",
+      "hint": "De helper leest ze onder de platformregels, die altijd gelden. Iemand die deze dataset bewerkt, heeft ze geschreven.",
+      "changed": "{who, select, named {Laatst gewijzigd door {name}.} former {Laatst gewijzigd door een voormalig lid.} other {}}",
+      "changedOn": "{who, select, named {Laatst gewijzigd door {name} op {date}.} former {Laatst gewijzigd door een voormalig lid op {date}.} other {Laatst gewijzigd op {date}.}}"
+    },
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {

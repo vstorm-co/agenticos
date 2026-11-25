@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "533d5ff4641d"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -21,6 +21,8 @@ verdad la decepcionó.
 **Cases**, **Results** y **Settings** comparten un espacio con control de pantalla completa. Cases reúne casos escritos y generados; Results combina ejecuciones de prueba y revisión de respuestas; Settings contiene evaluación, generación y mejora. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
 
 El modelo y las instrucciones del calificador, la generación y la mejora se eligen en **Settings**. Los modelos guardados tienen un selector compacto con búsqueda; **Add model** abre el formulario de provider, modelo y clave. Las instrucciones usan el editor Markdown. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
+
+Para la generación y la mejora, un dataset añade sus propias orientaciones bajo las reglas de la plataforma para ese ayudante. Las reglas - las preguntas reservadas no son material de aprendizaje, el texto de los runs son datos, ningún dato personal en un caso - se aplican siempre, y las orientaciones no pueden cambiarlas ni quitarlas. El editor contiene solo las orientaciones; las reglas aparecen al lado, de solo lectura.
 
 ## De un dataset nuevo a los resultados { #dataset-workflow }
 

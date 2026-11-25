@@ -27,7 +27,7 @@ It does three things:
 
 In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
-**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and any dataset-specific guidance, added below the platform's rules for the helper and never in place of them; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
@@ -145,11 +145,11 @@ The check is not one of the suite's runs: it is in no suite's history and
 notifies nobody, and the run's own verdict is what Accept goes by. A skill or
 context change checked on a suite of the agent it runs on gets the same.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
 A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
@@ -428,7 +428,7 @@ A session lives at `/agents/<agent>/improve/<session>`; the page can be closed a
 
 A step opens once it has work to show or a decision to ask for; the page follows the step the session is on, and after you open another one, **Go to the current step** brings it back. At a stop the footer holds the next step with its price, for example **Next step: write the changes · about $0.04**; nothing is spent before you press it. When the price moved since it was shown, the footer says so - **The price changed to about $0.05. Press again to go on.** - and when the step costs more than the session has left, it offers to raise the session's limit right there.
 
-**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written.
+**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written. When the dataset has guidance for the improver, the dialog shows it with who last changed it: a member by name, and somebody who has left as a former member.
 
 The analysis cost and whole-session spending limit appear before **Start improving**. Each later step has its own estimate and waits for your decision. **Show details** holds the spending-limit input, question distribution, today's test and a link to the dataset's helper settings. The running session opens its own page after you start. Closing the setup dialog returns to the agent; existing `/improve/new` links open the same dialog.
 

@@ -48,6 +48,7 @@ async def _session(db: AsyncSession, ctx: AuthContext, agent: Agent) -> Improvem
         base_draft_hash="a" * 64,
         dataset_id=dataset.id,
         dataset_version=1,
+        holdout_share=Decimal("0.5"),
         suite_id=None,
         suite_hash=None,
         scoring_hash="s" * 64,
