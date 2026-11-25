@@ -1174,7 +1174,8 @@
     "observationSaveFailed": "Enregistrement impossible. Vos modifications restent dans ce formulaire ; réessayez.",
     "observationSave": "Enregistrer les paramètres de participation",
     "connectionSettings": "Paramètres de connexion · {provider} · {endpoint}",
-    "customEndpoint": "Endpoint personnalisé"
+    "customEndpoint": "Endpoint personnalisé",
+    "testedSpecUnread": "La version testée par ce run n’a pas pu être lue. {reason}"
   },
   "auth": {
     "agreeToTerms": "En créant un compte, vous acceptez nos <terms>Conditions d’utilisation</terms> et notre <privacy>Politique de confidentialité</privacy>.",

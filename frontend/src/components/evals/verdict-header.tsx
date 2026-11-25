@@ -42,6 +42,7 @@ export function VerdictHeader({
   run,
   candidate,
   canPublish,
+  canEdit,
   canEditDataset,
   comparison,
   onCancel,
@@ -57,6 +58,8 @@ export function VerdictHeader({
   candidate: EvalRunArm | undefined;
   /** Whether the caller may publish this agent - the role's publish and an edit on it. */
   canPublish: boolean;
+  /** Whether the caller may edit this agent, which reading a tested draft's spec takes. */
+  canEdit: boolean;
   canEditDataset: boolean;
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
@@ -340,7 +343,8 @@ export function VerdictHeader({
               )}
               {baseline !== null &&
                 baseline.version_number !== null &&
-                candidate.version_number !== baseline.version_number && (
+                candidate.version_number !== baseline.version_number &&
+                (candidate.version_number !== null || canEdit) && (
                   <Button size="sm" variant="outline" asChild>
                     <Link
                       href={`${ROUTES.AGENTS}/${agentId}?tab=history&from=${baseline.version_number}&${

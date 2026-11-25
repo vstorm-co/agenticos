@@ -1168,7 +1168,8 @@
     "appWide": "Em toda a aplicação",
     "appWideNotForAgents": "Agentes não podem usar bases de conhecimento de toda a aplicação. Desmarque a base para removê-la.",
     "otherOrganization": "Outra organização",
-    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la."
+    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la.",
+    "testedSpecUnread": "Não foi possível ler a versão que este run testou. {reason}"
   },
   "auth": {
     "agreeToTerms": "Ao criar uma conta, você concorda com nossos <terms>Termos</terms> e com nossa <privacy>Política de Privacidade</privacy>.",

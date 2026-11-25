@@ -277,7 +277,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const testedRun = searchParams.get("run");
   const testedArm = searchParams.get("arm");
   const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
-  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
+  const { spec: testedSpec, error: testedSpecError } = useEvalArmSpec(testedRun, testedArm);
   const publishAsked = searchParams.get("publish") === "1";
   const router = useRouter();
   const {
@@ -2416,6 +2416,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   compareFrom={compareFrom}
                   compareTo={compareTo}
                   testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
+                  testedSpecError={testedSpecError}
                 />
               </CardContent>
             </Card>

@@ -1168,7 +1168,8 @@
     "observationSave": "Teilnahmeeinstellungen speichern",
     "connectionSettings": "Verbindungseinstellungen · {provider} · {endpoint}",
     "customEndpoint": "Eigener Endpunkt",
-    "noMatchingModels": "Keine passenden Modelle."
+    "noMatchingModels": "Keine passenden Modelle.",
+    "testedSpecUnread": "Die Version, die dieser Run getestet hat, konnte nicht gelesen werden. {reason}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
