@@ -72,6 +72,8 @@ def project_tools(port: ProjectContextPort | None) -> FunctionToolset[AgentDeps]
         agent workspace. Omit the ID to clear the project and use agent execution.
         Selection opens no container and does not move the conversation. New user
         turns start fresh; approval continuations retain this run's selection.
+        A shared-workspace delegation pins the project's context and executor
+        until this run ends; finish and start a new turn to switch targets.
 
         Args:
             project_id: An accessible returned project ID, or null to clear it.

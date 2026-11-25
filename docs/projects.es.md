@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "0fe828747335"
+source_sha: "506e3fa30055"
 ---
 
 # Proyectos { #projects }
@@ -101,8 +101,9 @@ Los archivos del proyecto y la ejecución de comandos están separados:
 **Trabajar en** aparece en ajustes del chat web y desktop si el agente puede ejecutar
 comandos. Ejecutar en un proyecto requiere uno adjunto o seleccionado antes del
 mensaje. La elección explícita se conserva por cuenta, organización y chat, sin
-heredarse a chats nuevos. El agente puede usar `select_execution_target` en una
-ejecución; `select_project_context` y el antiguo `select_project_workspace` solo cambian
+heredarse a chats nuevos. La solicitud explícita fija el ejecutor durante toda la
+ejecución; el agente no puede cambiarlo. Sin esa selección puede usar
+`select_execution_target`; `select_project_context` y el antiguo `select_project_workspace` solo cambian
 archivos. El resultado muestra ambas elecciones y su disponibilidad.
 
 Los chats del proyecto dan acceso real a archivos sin Sandbox. No activan un Sandbox
@@ -116,6 +117,19 @@ Las herramientas de texto listan hasta 100 entradas y leen o escriben UTF-8 de h
 desconocidos. No ejecutan OCR. Escribir después de leer rechaza un archivo modificado
 en paralelo. El proyecto mantiene su conexión sandbox hasta que un editor lo traslada
 explícitamente.
+
+Tras continuar una aprobación o pregunta hay que volver a leer cada archivo
+existente del proyecto antes de reemplazarlo o borrarlo. El agente de código requiere
+el mismo workspace para archivos y comandos; los espacios separados se rechazan.
+
+El trabajo delegado recibe un snapshot fijo del proyecto, generación y ejecutor.
+El primer delegado que comparte workspace bloquea estas opciones hasta terminar la
+ejecución, incluidas aprobaciones y preguntas; cambiarlas requiere un turno nuevo.
+Los hijos no reciben el puerto mutable de selección y conservan su propia protección
+contra conflictos de lectura. El root controla la limpieza y el registro de orígenes.
+Tras la limpieza se rechazan nuevas operaciones de archivos y comandos. Las operaciones
+remotas ya admitidas conservan los plazos de cancelación y vida útil del proveedor;
+la limpieza no garantiza que hayan terminado.
 
 Al crear un proyecto, **Sandbox del proyecto** permite elegir una conexión
 registrada, la selección automática o **Solo almacenar archivos**. La selección

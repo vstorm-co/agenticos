@@ -3827,6 +3827,7 @@ class TestStoppingANonStreamingRun:
             agent_workspace=None,
             origins={origin["workspace_id"]: origin},
             close_agent=AsyncMock(return_value=None),
+            stop_admission=MagicMock(),
         )
 
         with (
@@ -12000,3 +12001,72 @@ async def test_personal_context_refresh_uses_the_admitted_interactive_subject(ca
         queue.assert_awaited_once_with(finished.organization_id, person)
     else:
         queue.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_legacy_delegated_approval_cannot_resume_on_an_unverified_workspace() -> None:
+    service = AgentRunnerService(_db())
+    run = _parked_run(
+        paused_state={
+            "messages": [],
+            "tool_call_ids": {},
+            "delegations": [
+                {"tool_call_id": "task-a", "task_id": "child-a", "subagent": "research"}
+            ],
+        }
+    )
+    with (
+        patch(
+            "app.services.agent_runner.agent_run_repo.claim_parked_run",
+            new=AsyncMock(return_value=run),
+        ),
+        pytest.raises(BadRequestError, match="workspace target pinning") as refused,
+    ):
+        await service.resume(_ctx(), run.id)
+    assert refused.value.details["code"] == "DELEGATED_WORKSPACE_UNVERIFIED"
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("audience", ["room", "publisher", "public", "workflow"])
+async def test_project_reference_never_reaches_an_unverified_audience_before_model_build(
+    audience: str,
+) -> None:
+    ctx = replace(_ctx(), subject_is_publisher_fallback=audience == "publisher")
+    service = AgentRunnerService(_db())
+    agent = MagicMock(
+        id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
+    project = SimpleNamespace(id=uuid.uuid4())
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, AgentSpec(name="Writer"), agent.current_version_id)),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
+        ),
+        patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ),
+        patch(
+            "app.services.agent_runner.ProjectService.for_run", new=AsyncMock(return_value=project)
+        ),
+        patch("app.services.agent_runner._in_project") as reference,
+        patch("app.services.agent_runner.build_agent") as build,
+        patch.object(service.workspaces, "open", new=AsyncMock()) as opening,
+        pytest.raises(AuthorizationError, match="project context cannot be disclosed"),
+    ):
+        await service.prepare(
+            ctx,
+            agent.id,
+            conversation_id=uuid.uuid4(),
+            surface=RunSurface.WORKFLOW if audience == "workflow" else RunSurface.WEB,
+            memory_room_key="room:mattermost:channel" if audience == "room" else None,
+            public_origin=audience == "public",
+        )
+    reference.assert_not_called()
+    build.assert_not_called()
+    opening.assert_not_awaited()

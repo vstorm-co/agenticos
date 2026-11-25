@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "0fe828747335"
+source_sha: "506e3fa30055"
 ---
 
 # Projekty { #projects }
@@ -99,7 +99,8 @@ Pliki projektu i wykonywanie poleceń są rozdzielone:
 **Pracuj w** jest w ustawieniach czatu web i desktop, gdy agent może wykonywać
 polecenia. Wykonanie w projekcie wymaga przypiętego lub wybranego przed wysłaniem
 projektu. Jawny wybór jest zachowywany dla konta, organizacji i czatu, ale nie
-przechodzi do nowego czatu. W runie agent może jawnie użyć `select_execution_target`;
+przechodzi do nowego czatu. Jawny wybór blokuje wykonawcę na cały run; agent nie
+może go zmienić. Jeśli żądanie pomija wybór, agent może użyć `select_execution_target`;
 `select_project_context` i starsze `select_project_workspace` zmieniają tylko pliki.
 Wynik narzędzia pokazuje oba wybory i dostępność.
 
@@ -114,6 +115,18 @@ Tekstowe narzędzia projektu pokazują do 100 wpisów i czytają lub zapisują U
 nieznany rozmiar. Nie uruchamiają OCR. Zapis po odczycie odmawia nadpisania pliku
 zmienionego równolegle. Projekt pozostaje na wybranym połączeniu sandboxa, dopóki
 edytor jawnie go nie przeniesie.
+
+Po wznowieniu po zatwierdzeniu lub pytaniu trzeba ponownie odczytać istniejący plik
+projektu przed zastąpieniem lub usunięciem. Narzędzie kodujące wymaga wspólnego
+środowiska dla plików i poleceń; rozdzielone przestrzenie są odrzucane.
+
+Delegowana praca dostaje przypięty projekt, generację i środowisko wykonawcze.
+Pierwszy subagent współdzielący workspace blokuje te wybory do końca runu, także
+wznowień po pytaniu lub zatwierdzeniu; zmiana wymaga nowej tury. Dzieci nie dostają
+mutowalnego portu wyboru. Każde ma własną ochronę konfliktów odczytu, a root sprząta
+środowisko i zapisuje źródła plików. Po sprzątaniu nowe operacje plikowe i polecenia
+są odmawiane. Wcześniej dopuszczone operacje zdalne zachowują dotychczasowy okres
+oczekiwania na anulowanie i czas życia dostawcy; sprzątanie nie gwarantuje ich końca.
 
 Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
 połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny

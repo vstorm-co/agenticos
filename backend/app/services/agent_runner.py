@@ -1161,6 +1161,7 @@ class PausedRunState(BaseModel):
     selected_project_generation: UUID | None = None
     selected_execution_target: ProjectExecutionTarget | None = None
     project_context_observed: bool = False
+    project_delegation_pinned: bool = False
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
     channel_authors: dict[str, UUID] = Field(default_factory=dict)
@@ -4856,7 +4857,36 @@ class AgentRunnerService:
             and routine.source_policy.project_id is not None
             else ctx
         )
+        # A workflow step runs as the workflow's principal, so only the dispatch
+        # knows whether an outsider supplied the run's input. Read here rather
+        # than trusted to every caller: a step parked before the flag existed
+        # wakes with it unset, and a step that forgets to pass it must not lend
+        # the run the principal as its person. With no dispatch at all a workflow
+        # run counts as public - both callers run inside one.
+        #
+        # Imported here: `workflow_execution` reaches the `agent.run` node, which
+        # imports this module at load.
+        from app.services.workflow_execution import context as workflow_context
+
+        dispatching = workflow_context.active()
+        public_origin = public_origin or (
+            surface is RunSurface.WORKFLOW and (dispatching is None or dispatching.public_origin)
+        )
         project = await ProjectService(self.db).for_run(project_ctx, conversation_id)
+        project_audience = restored_audience or derive_audience(
+            user_id=owner_user_id or ctx.user_id,
+            subject_is_publisher_fallback=subject_is_publisher_fallback,
+            fired_as_creator=ctx.fired_as_creator,
+            room_key=memory_room_key,
+            via_api_key=ctx.api_key_id is not None,
+        )
+        if project is not None and (
+            not project_audience.private or subject_is_publisher_fallback or public_origin
+        ):
+            raise AuthorizationError(
+                message="This conversation's project context cannot be disclosed to an unverified room or public audience. Use a linked private conversation.",
+                details={"project_id": str(project.id)},
+            )
         if project_execution_target == "project":
             if local is not None and local.folder is not None:
                 raise BadRequestError(
@@ -5447,21 +5477,6 @@ class AgentRunnerService:
             shared_transcript=project is not None
             or await self._shared_for_editing(ctx, conversation_id),
         )
-        # A workflow step runs as the workflow's principal, so only the dispatch
-        # knows whether an outsider supplied the run's input. Read here rather
-        # than trusted to every caller: a step parked before the flag existed
-        # wakes with it unset, and a step that forgets to pass it must not lend
-        # the run the principal as its person. With no dispatch at all a workflow
-        # run counts as public - both callers run inside one.
-        #
-        # Imported here: `workflow_execution` reaches the `agent.run` node, which
-        # imports this module at load.
-        from app.services.workflow_execution import context as workflow_context
-
-        dispatching = workflow_context.active()
-        public_origin = public_origin or (
-            surface is RunSurface.WORKFLOW and (dispatching is None or dispatching.public_origin)
-        )
         # Whether an administrator started this run as its person: stated by a
         # resume from the stored terms, otherwise read from the request that is
         # starting it or the workflow dispatch it runs inside - the only places
@@ -5504,7 +5519,15 @@ class AgentRunnerService:
             )
 
         project_workspace = None
-        if isolation is None and not answer_only and not organization_mcp_only:
+        project_capable = (
+            project is not None
+            or workspace is not None
+            or any(
+                binding.enabled and binding.id in ("projects", SANDBOX_CAPABILITY_ID)
+                for binding in spec.capabilities
+            )
+        )
+        if project_capable and isolation is None and not answer_only and not organization_mcp_only:
             project_actor = await self._run_owner_context(ctx, existing_run)
             project_workspace = RunProjectWorkspace(
                 None if workspace is None else workspace.workspace,
@@ -5532,6 +5555,7 @@ class AgentRunnerService:
                 allow_project_execution=local is None or local.folder is None,
                 shell_tools_enabled=execution_config is not None
                 and execution_config.include_execute,
+                execution_target_pin=project_execution_target,
                 open_agent_executor=open_agent_executor
                 if project is not None and (local is None or local.folder is None)
                 else None,
@@ -7314,6 +7338,10 @@ class AgentRunnerService:
         author's to raise, the organization's is not. `budget` is the refusal
         itself, for the limit and spend its notification states.
         """
+        # A timed-out cancellation may leave a delegate alive; refuse its next
+        # operation before collecting outputs and closing providers.
+        if prepared.project_workspace is not None:
+            prepared.project_workspace.stop_admission()
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
         await self._collect_outbound(prepared)
@@ -7640,6 +7668,9 @@ class AgentRunnerService:
                 if prepared.project_workspace is None
                 else prepared.project_workspace.project_context_observed,
                 "channel_destination": prepared.channel_destination,
+                "project_delegation_pinned": False
+                if prepared.project_workspace is None
+                else prepared.project_workspace.delegation_context_pinned,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
                 "channel_authors": dict(prepared.channel_authors),
@@ -8240,6 +8271,11 @@ class AgentRunnerService:
                 details={"run_id": str(run_id)},
             )
         state = PausedRunState.model_validate(run.paused_state)
+        if state.delegations and "project_delegation_pinned" not in state.model_fields_set:
+            raise BadRequestError(
+                message="This delegated run paused before workspace target pinning was available. Start a new turn instead of replaying its pending tools.",
+                details={"run_id": str(run_id), "code": "DELEGATED_WORKSPACE_UNVERIFIED"},
+            )
         if state.history_provenance is None and state.messages:
             raise BadRequestError(
                 message="This run paused before model destination verification was available. Start a new turn.",
@@ -8410,6 +8446,8 @@ class AgentRunnerService:
                 state.selected_project_generation,
                 state.selected_execution_target,
                 state.project_context_observed,
+                delegation_context_pinned=state.project_delegation_pinned,
+                require_fresh_reads=True,
             )
         prepared.output_schema = state.output_schema
         prepared.run_limit_usd = ceiling
