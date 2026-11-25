@@ -286,6 +286,10 @@ export interface EvalCall {
   args: Record<string, unknown>;
   outcome: CallOutcome;
   reason: string | null;
+  /** A code-mode script whose own calls follow it, each naming it as `parent`. */
+  script?: boolean;
+  /** For a call a code-mode script made, the script's call id. */
+  parent?: string | null;
 }
 
 export interface EvalAttempt {

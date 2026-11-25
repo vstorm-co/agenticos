@@ -924,6 +924,51 @@ describe("CaseDetail", () => {
     expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();
   });
 
+  it("lists the calls a code-mode script made under the script", () => {
+    render(
+      <CaseDetail
+        arms={[arm()]}
+        attempts={[
+          attempt({
+            calls: [
+              {
+                tool: "run_code",
+                args: { code: "await lookup()" },
+                outcome: "executed",
+                reason: null,
+                script: true,
+              },
+              {
+                tool: "lookup",
+                args: { q: "returns" },
+                outcome: "executed",
+                reason: null,
+                parent: "c1",
+              },
+              {
+                tool: "web_fetch",
+                args: { url: "u" },
+                outcome: "blocked",
+                reason: "external",
+                parent: "c1",
+              },
+              { tool: "answer", args: {}, outcome: "executed", reason: null },
+            ],
+          }),
+        ]}
+        expectation={null}
+        datasetId="ds-1"
+        caseId="case-1"
+      />,
+    );
+
+    const script = screen.getByText('run_code({"code":"await lookup()"})').closest("li")!;
+    expect(within(script).getByText('lookup({"q":"returns"})')).toBeInTheDocument();
+    expect(within(script).getByText('web_fetch({"url":"u"})')).toBeInTheDocument();
+    expect(within(script).queryByText("answer({})")).toBeNull();
+    expect(screen.getByText("answer({})")).toBeInTheDocument();
+  });
+
   it("heads a skill check's answers with the agent and which skill each side read", () => {
     render(
       <CaseDetail

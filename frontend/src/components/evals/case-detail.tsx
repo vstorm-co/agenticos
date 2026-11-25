@@ -13,11 +13,34 @@ import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
-import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
+import type { CallOutcome, EvalAttempt, EvalCall, EvalRunArm } from "@/types/eval-runs";
 import { CheckSummary } from "./check-summary";
 import { percent, seconds, usd } from "./format";
 import { sideName, type SideCheck } from "./names";
 import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
+
+/** Each call with the calls its code-mode script made, which follow it in the list. */
+function scripted(calls: EvalCall[]): { call: EvalCall; inner: EvalCall[] }[] {
+  const groups: { call: EvalCall; inner: EvalCall[] }[] = [];
+  for (const call of calls) {
+    const last = groups.at(-1);
+    if (call.parent && last) last.inner.push(call);
+    else groups.push({ call, inner: [] });
+  }
+  return groups;
+}
+
+function Call({ call }: { call: EvalCall }) {
+  const t = useTranslations("evals.case");
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
+      <code className="break-all">
+        {call.tool}({JSON.stringify(call.args)})
+      </code>
+    </div>
+  );
+}
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   executed: "secondary",
@@ -76,12 +99,18 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         )}
         {attempt.calls.length > 0 && (
           <ul className="space-y-1">
-            {attempt.calls.map((call, index) => (
-              <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
-                <code className="break-all">
-                  {call.tool}({JSON.stringify(call.args)})
-                </code>
+            {scripted(attempt.calls).map(({ call, inner }, index) => (
+              <li key={index} className="space-y-1">
+                <Call call={call} />
+                {inner.length > 0 && (
+                  <ul className="ms-2 space-y-1 border-s ps-3">
+                    {inner.map((made, position) => (
+                      <li key={position}>
+                        <Call call={made} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
