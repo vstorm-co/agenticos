@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21e67c33ea"
+source_sha: "30b2b39dc658"
 ---
 
 # Skille { #skills }
@@ -280,6 +280,8 @@ Każdy skill ma jeden zestaw, zaczynany na stronie skilla w sekcji **Pytania tes
 `POST /api/v1/skills/{id}/test-set`, albo przyciskiem **Dodaj pytania testowe** przy
 agencie, którego [Popraw](#improving-a-skill) nie mogło sprawdzić, i edytowany jak
 każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla.
+Zestaw nosi nazwę skilla, z numerem, gdy jakiś dataset ma już tę nazwę - na
+przykład zestaw, który zostawił usunięty skill o tej samej nazwie.
 
 Zestaw ocenia sędzia, porównując każdą odpowiedź z tą, którą ludzie ocenili w
 górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, którą

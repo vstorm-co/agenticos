@@ -269,7 +269,9 @@ has one set, started on the skill page under **Test questions** - from recent an
 that loaded the skill, or empty - or through the API,
 `POST /api/v1/skills/{id}/test-set`, or with **Add test questions** beside an agent
 [Improve](#improving-a-skill) could not check, and edited like any other
-[dataset](datasets.md), which Datasets marks as the skill's.
+[dataset](datasets.md), which Datasets marks as the skill's. The set is named
+after the skill, numbered when a dataset already has that name - one a deleted
+skill of the same name left behind, say.
 
 A judge grades the set, comparing each answer with the one people rated up. Made
 from recent answers, each question is asked once: an answer someone rated wins
