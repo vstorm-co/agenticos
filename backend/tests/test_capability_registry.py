@@ -647,6 +647,20 @@ class TestReadOnlyDeclarations:
 
         assert writes == self.WRITES
 
+    def test_the_capabilities_page_lists_exactly_the_tools_an_eval_holds(self):
+        """`docs/reference/capabilities.md` is where an eval's author reads what is held."""
+        page = (
+            Path(__file__).resolve().parents[2] / "docs" / "reference" / "capabilities.md"
+        ).read_text(encoding="utf-8")
+        table = page.split("| id | Tools that write |\n|---|---|\n", 1)[1].split("\n\n", 1)[0]
+        listed = {
+            (capability, tool)
+            for capability, tools in re.findall(r"^\| `([a-z0-9_]+)` \| (.+) \|$", table, re.M)
+            for tool in re.findall(r"`([a-z0-9_]+)`", tools)
+        }
+
+        assert listed == self.WRITES
+
     def test_a_capability_that_declares_nothing_writes(self):
         tool = CapabilityToolInfo(id="send_email", description="Send it.")
         definition = CapabilityDef(

@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "d3626077915d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -223,15 +223,26 @@ ein Eval anhält und aufzeichnet:
 
 | id | Tools, die schreiben |
 | --- | --- |
-| `artifacts` | `publish_artifact` |
+| `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
+| `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `drafts` | `write_draft` |
+| `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
+| `follow_ups` | `suggest_next_steps`, `propose_setup` |
 | `image_generation` | `generate_image` |
-| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
-| `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
+| `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
+| `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
+| `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `text_to_speech` | `generate_speech` |
+| `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
+| `workflows` | `run_workflow` |
 
 Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
 eines Delegaten unterliegen ihren eigenen Erklärungen. `side_effecting` und
