@@ -16599,6 +16599,7 @@
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
       "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}.",
+      "hidden": "{count, plural, one {1 przytoczony fragment pochodzi z agenta, którego nie widzisz, i nie został pokazany.} few {# przytoczone fragmenty pochodzą z agentów, których nie widzisz, i nie zostały pokazane.} other {# przytoczonych fragmentów pochodzi z agentów, których nie widzisz, i nie zostało pokazanych.}}",
       "conversation": "rozmowa {number}",
       "testQuestion": "pytanie testowe {number}",
       "aConversation": "jedna z rozmów"
@@ -18568,6 +18569,17 @@
       "part": "Fragment {number}",
       "unchangedLines": "{count, plural, one {# linia bez zmian po obu stronach} few {# linie bez zmian po obu stronach} many {# linii bez zmian po obu stronach} other {# linii bez zmian po obu stronach}}",
       "files": "Pliki",
+      "file": {
+        "side": "{side, select, base {Wspólny początek} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Wspólny początek} fork {Fork} other {Main}}: nie ma tego pliku",
+        "show": "Pokaż, co się zmieniło",
+        "hide": "Ukryj, co się zmieniło",
+        "compare": "{side, select, fork {Co zmienił fork} other {Co zmienił main}}",
+        "tooLarge": "Za duży, żeby porównać go tutaj. Pobierz każdą stronę, żeby go przeczytać.",
+        "notText": "To nie jest tekst, więc nie da się go tu porównać. Pobierz każdą stronę, żeby go przeczytać.",
+        "download": "{side, select, base {Pobierz wspólny początek} fork {Pobierz wersję forka} other {Pobierz wersję main}}",
+        "readFailed": "Nie udało się odczytać pliku. {reason}"
+      },
       "state": {
         "same": "Bez zmian",
         "fork": "Z forka",

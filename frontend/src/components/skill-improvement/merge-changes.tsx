@@ -104,6 +104,8 @@ export function MergeChanges({
         ),
       )}
       <MergeFiles
+        skillId={merge.skill_id}
+        versions={{ base: merge.base.id, fork: merge.fork.id, main: merge.main.id }}
         files={merge.files}
         editable={editable}
         saving={actions.pickFile.isPending}

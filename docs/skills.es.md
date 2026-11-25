@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "a6ab34072e8a"
 ---
 
 # Skills { #skills }
@@ -561,7 +561,11 @@ modelo propone un texto para ella. En **Changes** una persona puede reescribir
 cualquier parte, también la del modelo (`GET …/improvements/{run_id}/merge`, y luego
 `PATCH …/merge/description` o `…/merge/parts/{index}`). En un archivo que ambos lados
 cambiaron de forma distinta, una persona se queda con un lado
-(`PATCH …/merge/files`); el modelo nunca escribe un archivo. La comprobación empieza
+(`PATCH …/merge/files`); el modelo nunca escribe un archivo. Cada archivo muestra la
+descripción y el tamaño que le da cada lado y, al abrirlo, lo que cambió cada lado
+respecto a la versión de la que partieron ambos, leído de la versión de ese lado
+(`GET …/versions/{version_id}/resources/{name}`). Un archivo de más de 200 KB, o que
+no es texto, se ofrece en su lugar como descarga de cada lado. La comprobación empieza
 solo cuando no queda nada sin resolver. Pregunta a los agents del fork por la
 combinación y, salvo que se desactive `main_alone` al poner precio a la
 comprobación en Changes, por la versión más reciente de main sola. Esa segunda

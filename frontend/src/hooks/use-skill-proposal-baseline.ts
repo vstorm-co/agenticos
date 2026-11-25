@@ -2,9 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getMainLatest, getSkillVersion, listSkillForks } from "@/lib/skill-versions-api";
+import {
+  getMainLatest,
+  getSkillVersion,
+  getSkillVersionFile,
+  listSkillForks,
+} from "@/lib/skill-versions-api";
 
 /** Resolve the line being reviewed, then read immutable files from that version. */
 export function useSkillProposalBaseline(skillId: string | null, forkId: string | null) {
@@ -28,18 +32,16 @@ export function useSkillProposalBaseline(skillId: string | null, forkId: string 
   });
 }
 
-export function useSkillProposalFile(
+/** One file as a version holds it; idle until all three are known. Versions never change. */
+export function useSkillVersionFile(
   skillId: string | null,
   versionId: string | null,
   name: string | null,
 ) {
   return useQuery({
-    queryKey: [...qk.skills.all(), "proposal-file", skillId, versionId, name],
+    queryKey: [...qk.skills.all(), "version-file", skillId, versionId, name],
     enabled: skillId !== null && versionId !== null && name !== null,
     staleTime: Infinity,
-    queryFn: () =>
-      apiClient.get<{ content: string }>(
-        `/skills/${skillId}/versions/${versionId}/resources/${name!.split("/").map(encodeURIComponent).join("/")}`,
-      ),
+    queryFn: () => getSkillVersionFile(skillId!, versionId!, name!),
   });
 }

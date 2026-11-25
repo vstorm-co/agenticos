@@ -37,10 +37,7 @@ import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
-import {
-  useSkillProposalBaseline,
-  useSkillProposalFile,
-} from "@/hooks/use-skill-proposal-baseline";
+import { useSkillProposalBaseline, useSkillVersionFile } from "@/hooks/use-skill-proposal-baseline";
 import { FileTree } from "./skill-files";
 import { buildTree } from "@/lib/file-tree";
 import { UsedBy } from "@/components/agents/used-by";
@@ -129,7 +126,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const current = useSkillProposalBaseline(open ? change.skill_id : null, change.fork_id);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const oldFile = current.data?.resources.find((file) => file.name === selectedFile);
-  const originalFile = useSkillProposalFile(
+  const originalFile = useSkillVersionFile(
     open ? change.skill_id : null,
     current.data?.id ?? null,
     oldFile?.name ?? null,

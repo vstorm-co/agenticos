@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "a6ab34072e8a"
 ---
 
 # Skille { #skills }
@@ -546,7 +546,11 @@ model proponuje jeden tekst. Na kroku **Changes** osoba może przepisać każdy
 fragment, także propozycję modelu (`GET …/improvements/{run_id}/merge`, a potem
 `PATCH …/merge/description` albo `…/merge/parts/{index}`). Dla pliku zmienionego po
 obu stronach różnie osoba wybiera jedną stronę (`PATCH …/merge/files`); model nigdy
-nie pisze pliku. Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
+nie pisze pliku. Każdy plik pokazuje opis i rozmiar, jakie podaje mu każda strona, a po
+rozwinięciu to, co każda strona zmieniła względem wersji, od której obie wyszły,
+odczytane z wersji tej strony (`GET …/versions/{version_id}/resources/{name}`). Plik
+większy niż 200 KB albo niebędący tekstem można zamiast tego pobrać z każdej strony.
+Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
 Pyta agentów forka o wynik scalenia i, jeśli nie wyłączy się `main_alone` przy
 wycenie sprawdzenia na kroku Changes, o samą najnowszą wersję main. To drugie
 sprawdzenie mówi, czy fork jest jeszcze potrzebny, a wycena podaje jego cenę
