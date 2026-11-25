@@ -51,6 +51,8 @@ class Rejection(StrEnum):
     UNKNOWN_CAPABILITY = "unknown_capability"
     INVALID_CONFIG = "invalid_config"
     DOES_NOT_APPLY = "does_not_apply"
+    REACHES_NETWORK = "reaches_network"
+    """It adds a capability that reaches beyond the deployment, which is added in the Builder."""
     NOT_GRANTABLE = "not_grantable"
     """It adds something the person who asked may not grant."""
     DISMISSED_BEFORE = "dismissed_before"

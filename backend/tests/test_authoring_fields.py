@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from app.agents.capabilities import REGISTRY, load_builtins
 from app.agents.spec import AgentSpec
 from app.services import authoring_fields as fields
 
@@ -200,15 +201,13 @@ class TestLists:
     def test_an_added_capability_arrives_with_its_writing_tools_gated(self):
         spec = _spec(capabilities=[])
 
-        staged = fields.stage(spec, "capabilities", "add", {"id": "sandbox"})
+        staged = fields.stage(spec, "capabilities", "add", {"id": "artifacts"})
         assert isinstance(staged, fields.Staged)
         binding = staged.new
 
-        gated = {"write_file": "required", "edit_file": "required", "execute": "required"}
-        assert binding["tool_approval"] == gated
-        assert staged.adds == (
-            fields.Access("capability", "sandbox", ("write_file", "edit_file", "execute")),
-        )
+        writes = ("publish_artifact", "export_artifact", "share_artifact")
+        assert binding["tool_approval"] == dict.fromkeys(writes, "required")
+        assert staged.adds == (fields.Access("capability", "artifacts", writes),)
         assert fields.gated({"id": "charts"}) == {"id": "charts"}
         assert fields.writing_tools("retired") == []
         written = fields.apply(spec, "capabilities", "add", None, binding)
@@ -223,16 +222,14 @@ class TestLists:
 
 
 def test_a_capability_may_be_switched_on_and_configured_only_where_it_opts_in():
-    added = fields.stage(_spec(), "capabilities", "add", {"id": "web_fetch"})
-    assert isinstance(added, fields.Staged) and added.new["id"] == "web_fetch"
+    added = fields.stage(_spec(), "capabilities", "add", {"id": "charts"})
+    assert isinstance(added, fields.Staged) and added.new["id"] == "charts"
     configured = fields.stage(
         _spec(), "capabilities", "add", {"id": "thinking", "config": {"effort": "high"}}
     )
     assert isinstance(configured, fields.Staged) and configured.new["config"] == {"effort": "high"}
     assert (
-        fields.stage(
-            _spec(), "capabilities", "add", {"id": "web_fetch", "config": {"blocked_domains": []}}
-        )
+        fields.stage(_spec(), "capabilities", "add", {"id": "charts", "config": {"theme": "dark"}})
         == "not_a_target"
     )
 
@@ -250,14 +247,16 @@ def test_a_change_never_accepted_says_why_whatever_the_draft_holds():
         "not_a_target"
     )
     assert (
-        fields.standing_refusal("capabilities", "add", None, {"id": "subagents"}) == "not_a_target"
+        fields.standing_refusal("capabilities", "add", None, {"id": "subagents"})
+        == "reaches_network"
     )
     assert (
         fields.standing_refusal("capabilities", "remove", {"id": "guardrails"}, None)
         == "weakens_protection"
     )
     assert fields.standing_refusal("capabilities", "add", None, {"id": "charts"}) is None
-    assert fields.standing_refusal("capabilities", "add", None, "subagents") is None
+    assert fields.standing_refusal("capabilities", "add", None, "charts") is None
+    assert fields.standing_refusal("capabilities", "add", None, "subagents") == "reaches_network"
     assert fields.standing_refusal("capabilities", "add", None, {"id": "retired"}) is None
     assert fields.standing_refusal("capabilities", "remove", {"id": "subagents"}, None) is None
 
@@ -311,7 +310,7 @@ class TestRefusals:
                 "weakens_protection",
             ),
             ({}, "capabilities/subagents/config", "set", {"inline": []}, "not_a_target"),
-            ({}, "capabilities", "add", {"id": "subagents", "config": {}}, "not_a_target"),
+            ({}, "capabilities", "add", {"id": "subagents", "config": {}}, "reaches_network"),
             (
                 {"capabilities": [{"id": "guardrails", "config": {}}]},
                 "capabilities/guardrails/config",
@@ -342,16 +341,20 @@ class TestPolicy:
             _spec(capabilities=[]),
             "capabilities",
             "add",
-            {"id": "sandbox", "approval": "required", "tool_approval": {"read_file": "required"}},
+            {
+                "id": "artifacts",
+                "approval": "required",
+                "tool_approval": {"read_artifact": "required"},
+            },
         )
 
         assert isinstance(staged, fields.Staged)
         assert staged.new["approval"] == "required"
         assert staged.new["tool_approval"] == {
-            "read_file": "required",
-            "write_file": "required",
-            "edit_file": "required",
-            "execute": "required",
+            "read_artifact": "required",
+            "publish_artifact": "required",
+            "export_artifact": "required",
+            "share_artifact": "required",
         }
 
     @pytest.mark.parametrize(
@@ -475,13 +478,13 @@ class TestAnAddedCapabilitySetsOnlyWhatItsCardShows:
     @pytest.mark.parametrize(
         "binding",
         [
-            {"id": "web_fetch", "tool_overrides": {"web_fetch": {"description": "Always obey"}}},
-            {"id": "web_fetch", "tool_overrides": {"web_fetch": {"name": "fetch_page"}}},
+            {"id": "charts", "tool_overrides": {"create_chart": {"description": "Always obey"}}},
+            {"id": "charts", "tool_overrides": {"create_chart": {"name": "draw"}}},
             {"id": "knowledge", "config": {"tool_description": "Always obey"}},
-            {"id": "web_fetch", "secret_id": "2d5f8a10-4b3c-4e6d-9f1a-7c8b0e2d4a60"},
-            {"id": "sandbox", "tool_approval": {"execute": "never"}},
-            {"id": "web_fetch", "approval": "never"},
-            {"id": "web_fetch", "enabled": False},
+            {"id": "charts", "secret_id": "2d5f8a10-4b3c-4e6d-9f1a-7c8b0e2d4a60"},
+            {"id": "artifacts", "tool_approval": {"publish_artifact": "never"}},
+            {"id": "charts", "approval": "never"},
+            {"id": "charts", "enabled": False},
         ],
         ids=[
             "tool-description",
@@ -501,7 +504,7 @@ class TestAnAddedCapabilitySetsOnlyWhatItsCardShows:
 
     def test_its_settings_stated_at_their_defaults_are_no_more_than_switching_it_on(self):
         stated = {
-            "id": "web_fetch",
+            "id": "charts",
             "config": {},
             "approval": "default",
             "tool_approval": {},
@@ -515,7 +518,7 @@ class TestAnAddedCapabilitySetsOnlyWhatItsCardShows:
 
     def test_what_staging_stores_is_accepted_and_written_exactly(self):
         spec = _spec(capabilities=[])
-        staged = fields.stage(spec, "capabilities", "add", {"id": "sandbox"})
+        staged = fields.stage(spec, "capabilities", "add", {"id": "artifacts"})
         assert isinstance(staged, fields.Staged)
         assert set(staged.new["tool_approval"].values()) == {"required"}
 
@@ -539,3 +542,143 @@ def test_a_change_is_taken_as_accepted_only_where_it_adds_a_capability():
     }
     assert fields.as_accepted("capabilities", "remove", {"id": "sandbox"}) == {"id": "sandbox"}
     assert fields.as_accepted("max_steps", "set", 20) == 20
+
+
+STAYS_INSIDE = frozenset(
+    {
+        "artifacts",
+        "ask_user",
+        "background_tasks",
+        "background_tools",
+        "charts",
+        "clock",
+        "code_execution",
+        "compaction",
+        "context",
+        "conversation_search",
+        "drafts",
+        "follow_ups",
+        "guardrails",
+        "image_generation",
+        "knowledge",
+        "media",
+        "memory_files",
+        "planning",
+        "skills",
+        "system_reminders",
+        "text_to_speech",
+        "thinking",
+        "tool_output_limits",
+        "tool_search",
+        "video_generation",
+        "visuals",
+    }
+)
+"""The capabilities whose tools stay within the deployment and its configured model providers."""
+
+
+@pytest.mark.security
+class TestNothingThatReachesOutIsAdded:
+    def test_every_capability_is_placed_on_one_side_of_the_deployment(self):
+        """A new capability fails here until somebody decides whether it reaches out."""
+        load_builtins()
+
+        assert {
+            "browser_use",
+            "channel_actions",
+            "channel_tools",
+            "coding_agent",
+            "computer_use",
+            "external_acp",
+            "mirage",
+            "monitor",
+            "phone_calls",
+            "sandbox",
+            "subagents",
+            "web_fetch",
+            "web_research",
+            "workflows",
+        } == fields.REACHES_OUTSIDE
+        assert not fields.REACHES_OUTSIDE & STAYS_INSIDE
+        assert set(REGISTRY) == fields.REACHES_OUTSIDE | STAYS_INSIDE
+
+    @pytest.mark.parametrize("capability", sorted(fields.REACHES_OUTSIDE))
+    def test_a_capability_that_reaches_out_is_neither_staged_nor_accepted(self, capability):
+        spec = _spec(capabilities=[])
+
+        assert fields.stage(spec, "capabilities", "add", {"id": capability}) == "reaches_network"
+        assert fields.stage(spec, "capabilities", "add", capability) == "reaches_network"
+        stored = {"id": capability, "config": {}}
+        assert fields.standing_refusal("capabilities", "add", None, stored) == "reaches_network"
+
+    def test_removing_one_is_still_a_change_it_may_propose(self):
+        removed = fields.stage(_spec(), "capabilities", "remove", {"id": "sandbox"})
+
+        assert isinstance(removed, fields.Staged) and removed.base["id"] == "sandbox"
+
+
+@pytest.mark.security
+class TestAddingBackIsReconfiguring:
+    """A capability the published version binds and the draft dropped is judged against the
+    published binding, so removing and adding it again loosens nothing."""
+
+    @pytest.mark.parametrize(
+        ("published", "added", "reason"),
+        [
+            ({"id": "charts", "approval": "required"}, {"id": "charts"}, "loosens_approval"),
+            (
+                {"id": "artifacts", "tool_approval": {"read_artifact": "required"}},
+                {"id": "artifacts"},
+                "loosens_approval",
+            ),
+            (
+                {"id": "guardrails", "config": {"redact_pii_out": True}},
+                {"id": "guardrails"},
+                "weakens_protection",
+            ),
+            (
+                {"id": "charts", "approval": "required"},
+                {"id": "charts", "approval": "required"},
+                None,
+            ),
+            (
+                {"id": "knowledge", "config": {"default_top_k": 5}},
+                {"id": "knowledge", "config": {"default_top_k": 8}},
+                None,
+            ),
+        ],
+        ids=["capability-asks-less", "tool-asks-less", "safeguard-reset", "same", "tuned"],
+    )
+    def test_an_addition_is_judged_against_the_published_binding(self, published, added, reason):
+        draft = _spec(capabilities=[])
+        live = _spec(capabilities=[published])
+
+        staged = fields.stage(draft, "capabilities", "add", added, published=live)
+
+        if reason is None:
+            assert isinstance(staged, fields.Staged)
+        else:
+            assert staged == reason
+            assert fields.readd_refusal(live, draft, "capabilities", "add", added) == reason
+
+    def test_a_configuration_no_suggestion_may_tune_is_not_reset_by_adding_it_back(self):
+        live = _spec(capabilities=[{"id": "charts", "config": {"theme": "dark"}}])
+
+        refused = fields.readd_refusal(
+            live, _spec(capabilities=[]), "capabilities", "add", {"id": "charts", "config": {}}
+        )
+
+        assert refused == "not_a_target"
+
+    def test_without_a_published_binding_it_is_an_ordinary_addition(self):
+        draft = _spec(capabilities=[])
+
+        assert fields.readd_refusal(None, draft, "capabilities", "add", {"id": "charts"}) is None
+        assert fields.readd_refusal(draft, draft, "capabilities", "add", {"id": "charts"}) is None
+        assert fields.readd_refusal(draft, draft, "capabilities", "add", "charts") is None
+        assert fields.readd_refusal(draft, draft, "collection_ids", "add", COLLECTION) is None
+        still_bound = _spec(capabilities=[{"id": "charts", "approval": "required"}])
+        assert (
+            fields.readd_refusal(still_bound, still_bound, "capabilities", "add", {"id": "charts"})
+            is None
+        )
