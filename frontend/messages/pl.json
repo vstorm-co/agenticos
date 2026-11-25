@@ -17011,7 +17011,7 @@
       "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",
       "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
       "topics": "W bazie wiedzy {count, plural, one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}.",
-      "topicsUnread": "Nie udało się odczytać, czy w bazie wiedzy czegoś brakuje.",
+      "topicsUnread": "Nie udało się odczytać wszystkich tematów znalezionych w tej sesji. Lista poniżej mówi, których i dlaczego.",
       "limit": "{max, plural, one {To była jedyna próba, na którą pozwala ta sesja.} few {To wykorzystało wszystkie # próby, na które pozwala ta sesja.} many {To wykorzystało wszystkie # prób, na które pozwala ta sesja.} other {To wykorzystało wszystkie # próby, na które pozwala ta sesja.}}",
       "hint": {
         "no_change": "Dwie próby z rzędu niczego nie zmieniły, więc kolejna raczej nie pomoże.",
@@ -17514,6 +17514,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "linkedDatasetUnusable": "Nie można użyć datasetu z linku: został usunięty albo nie możesz go uruchamiać. Zamiast niego użyto zwykłego.",
+    "linkedDatasetUnread": "Nie udało się odczytać datasetu z linku, więc nic jeszcze nie zostało wycenione. {reason}",
     "analysisEstimate": "Szacowany koszt analizy",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
     "measuredOn": "Mierzone na {name}.",

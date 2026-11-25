@@ -29,7 +29,7 @@ import { useDataset, useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
-import { getErrorMessage, problemList } from "@/lib/api-error";
+import { ApiError, getErrorMessage, problemList } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
 import type { Improvement, ImprovementEstimate, ImprovementMode } from "@/types/improvement";
@@ -89,7 +89,13 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const linked = useDataset(unlisted && listsRead ? chosen : "");
   const usable =
     unlisted && linked.dataset?.id === chosen && linked.dataset.can_run ? linked.dataset : null;
-  const linkedRefused = unlisted && (linked.error !== null || linked.dataset?.can_run === false);
+  // Only a definite answer - gone, refused or not runnable - moves to the usual dataset; a
+  // failed read is shown and prices nothing, so an outage never changes what is measured.
+  const linkedGone =
+    linked.error instanceof ApiError &&
+    (linked.error.status === 403 || linked.error.status === 404);
+  const linkedRefused = unlisted && (linkedGone || linked.dataset?.can_run === false);
+  const linkedFailed = unlisted && linked.error !== null && !linkedGone;
   const choices = usable ? [usable, ...listed] : listed;
   const fallback =
     (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
@@ -169,6 +175,16 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         <p role="status" className="text-muted-foreground text-xs">
           {t("linkedDatasetUnusable")}
         </p>
+      )}
+      {linkedFailed && (
+        <div role="alert" className="flex flex-wrap items-center gap-2">
+          <p className="text-destructive-ink min-w-0 flex-1 text-xs">
+            {t("linkedDatasetUnread", { reason: getErrorMessage(linked.error, tErrors) })}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => void linked.refetch()}>
+            {t("retryRead")}
+          </Button>
+        </div>
       )}
     </div>
   );

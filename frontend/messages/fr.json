@@ -16718,7 +16718,7 @@
       "noneBetter": "{count, plural, =0 {Aucune tentative n’a été mesurée, rien ne montre donc si {agent} s’est amélioré.} one {La tentative n’a pas amélioré {agent}.} other {Aucune des # tentatives n’a amélioré {agent}.}}",
       "worse": "La tentative {number} l’a dégradé : {broken, plural, one {# question a cassé} other {# questions ont cassé}}.",
       "topics": "{count, plural, one {# sujet manque} other {# sujets manquent}} dans la base de connaissances.",
-      "topicsUnread": "Impossible de lire s’il manque quelque chose dans la base de connaissances.",
+      "topicsUnread": "Tous les sujets trouvés par cette session n’ont pas pu être lus. La liste ci-dessous indique lesquels et pourquoi.",
       "limit": "{max, plural, one {C’était l’unique tentative que cette session autorise.} other {Cela a utilisé les # tentatives que cette session autorise.}}",
       "hint": {
         "no_change": "Deux tentatives de suite n’ont rien changé, une autre n’aidera donc probablement pas.",
@@ -17214,6 +17214,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choisissez les cas utilisés pour vérifier les réponses de cet agent.",
     "linkedDatasetUnusable": "Le dataset du lien ne peut pas être utilisé : il a été supprimé, ou vous ne pouvez pas l’exécuter. Le dataset habituel est utilisé à la place.",
+    "linkedDatasetUnread": "Le dataset du lien n’a pas pu être lu ; rien n’est encore chiffré. {reason}",
     "analysisEstimate": "Coût estimé de l’analyse",
     "startCostHint": "L’analyse vient en premier. Chaque tentative suivante est estimée séparément, autour de {cost}, dans la limite de la session.",
     "measuredOn": "Mesuré sur {name}.",

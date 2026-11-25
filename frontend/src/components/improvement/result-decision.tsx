@@ -54,7 +54,7 @@ export function ResultStep({
           session={session}
           agent={agent}
           candidate={candidate}
-          topics={topicsError ? null : topics.length}
+          topics={topicsError || skipped > 0 || more > 0 ? null : topics.length}
           canAccept={canAccept}
           onAccept={onAccept}
           onStarted={onStarted}
@@ -251,7 +251,7 @@ function ResultDecision({
   agent: string;
   /** A checked candidate is waiting for a person to accept it. */
   candidate: boolean;
-  /** Missing topics; null when they could not be read. */
+  /** Missing topics; null when not all of them could be read. */
   topics: number | null;
   /** False while the change selection differs from what was measured. */
   canAccept: boolean;

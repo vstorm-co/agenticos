@@ -106,7 +106,8 @@ export function useKnowledgeGapTopics(topicIds: string[]) {
   });
   const failed = reads.filter((read) => read.error !== null);
   return {
-    topics: reads.flatMap((read) => (read.data ? [read.data] : [])),
+    // A refetch refused with 403 or 404 keeps the earlier answer; it is not shown.
+    topics: reads.flatMap((read) => (read.data && !unreachable(read.error) ? [read.data] : [])),
     skipped: failed.filter((read) => unreachable(read.error)).length,
     error: failed.find((read) => !unreachable(read.error))?.error ?? null,
     isLoading: reads.some((read) => read.isLoading),

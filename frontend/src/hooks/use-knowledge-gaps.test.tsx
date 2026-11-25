@@ -363,4 +363,15 @@ describe("useKnowledgeGapTopics", () => {
         .sort(),
     ).toEqual(["/knowledge-gaps/broken", "/knowledge-gaps/gone", "/knowledge-gaps/refused"]);
   });
+
+  it("drops a topic it read before once a new read of it is refused", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "t1", status: "open" });
+    const { result } = renderHook(() => useKnowledgeGapTopics(["t1"]), { wrapper: own });
+    await waitFor(() => expect(result.current.topics).toHaveLength(1));
+
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(404, "Topic not found"));
+    await act(() => stable.refetchQueries());
+    await waitFor(() => expect(result.current.skipped).toBe(1));
+    expect(result.current.topics).toEqual([]);
+  });
 });

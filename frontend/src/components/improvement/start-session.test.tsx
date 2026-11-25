@@ -32,6 +32,7 @@ const state = vi.hoisted(() => ({
   /** A dataset read by its id: one the lists do not hold, or why it could not be read. */
   linked: {} as Record<string, { name: string; can_run: boolean } | Error>,
   linkedReads: [] as string[],
+  refetchLinked: vi.fn(),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({
   useAgentEvalSuites: () => ({ suites: state.suites }),
@@ -45,8 +46,13 @@ vi.mock("@/hooks/use-datasets", () => ({
     if (id) state.linkedReads.push(id);
     const found = state.linked[id] ?? { name: `Dataset ${id}`, can_run: true };
     return found instanceof Error
-      ? { dataset: undefined, isLoading: false, error: found }
-      : { dataset: id ? { id, ...found } : undefined, isLoading: false, error: null };
+      ? { dataset: undefined, isLoading: false, error: found, refetch: state.refetchLinked }
+      : {
+          dataset: id ? { id, ...found } : undefined,
+          isLoading: false,
+          error: null,
+          refetch: state.refetchLinked,
+        };
   },
   useDatasets: (query: { agent?: string }) => {
     state.datasetQueries.push(query);
@@ -330,6 +336,23 @@ it("never prices or starts a linked dataset it cannot read or run, and says so",
     expect(state.estimate).not.toHaveBeenCalledWith(expect.objectContaining({ dataset_id: id }));
     view.unmount();
   }
+});
+
+it("shows a linked dataset that failed to read, and prices nothing until it is read", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    flaky: new ApiError(502, "Bad gateway", {
+      error: { code: "BAD_GATEWAY", message: "Bad gateway" },
+    }),
+  };
+  state.params = new URLSearchParams("improveDataset=flaky");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The dataset in the link could not be read, so nothing is priced yet. Bad gateway",
+  );
+  expect(screen.queryByText(/The dataset in the link cannot be used/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
+  await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
 });
 
 it("points to the one session still open instead of every past one", () => {

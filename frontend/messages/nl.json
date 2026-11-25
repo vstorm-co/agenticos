@@ -17122,7 +17122,7 @@
       "noneBetter": "{count, plural, =0 {Er werd geen poging gemeten, dus het is niet bekend of {agent} beter werd.} one {De poging maakte {agent} niet beter.} other {Geen van de # pogingen maakte {agent} beter.}}",
       "worse": "Poging {number} maakte het slechter: {broken, plural, one {# vraag verslechterde} other {# vragen verslechterden}}.",
       "topics": "{count, plural, one {# onderwerp ontbreekt} other {# onderwerpen ontbreken}} in de kennisbank.",
-      "topicsUnread": "Of er iets ontbreekt in de kennisbank, kon niet worden gelezen.",
+      "topicsUnread": "Niet elk onderwerp dat deze sessie vond, kon worden gelezen. De lijst hieronder zegt welke en waarom.",
       "limit": "{max, plural, one {Dat was de enige poging die deze sessie toelaat.} other {Daarmee zijn alle # pogingen gebruikt die deze sessie toelaat.}}",
       "hint": {
         "no_change": "Twee pogingen na elkaar veranderden niets, dus nog een helpt waarschijnlijk niet.",
@@ -17625,6 +17625,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "linkedDatasetUnusable": "De dataset uit de link kan niet worden gebruikt: hij is verwijderd, of je mag hem niet uitvoeren. In plaats daarvan wordt de gebruikelijke gebruikt.",
+    "linkedDatasetUnread": "De dataset uit de link kon niet worden gelezen, dus er is nog niets geprijsd. {reason}",
     "analysisEstimate": "Geschatte kosten van de analyse",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
     "measuredOn": "Gemeten op {name}.",
