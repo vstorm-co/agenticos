@@ -105,6 +105,24 @@ describe("CheckAgents", () => {
     ).toHaveLength(1);
   });
 
+  it("says an agent its own questions left unknown after the skill's showed no regression", () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Quotes", "unknown", { unknown_reason: "failed" }),
+            checkAgent("Orders", "unknown", { unknown_reason: "failed", stages: [] }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText(catalog.skillImprovement.agents.unknown.unfinished),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not checked: its check failed.")).toBeInTheDocument();
+  });
+
   it("says an agent had too few questions to be sure, with what they showed", async () => {
     render(
       <CheckAgents

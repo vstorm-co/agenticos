@@ -18338,7 +18338,8 @@
         "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
         "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn.",
-        "too_few_questions": "Zu wenige Testfragen, um die Änderung zu bestätigen. Geprüfte Fragen: {heldOut}."
+        "too_few_questions": "Zu wenige Testfragen, um die Änderung zu bestätigen. Geprüfte Fragen: {heldOut}.",
+        "unfinished": "Seine eigenen Fragen wurden nicht fertig. Die Fragen des Skills zeigten keine Regression, was allein nicht zeigt, dass die Änderung für ihn sicher ist."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {

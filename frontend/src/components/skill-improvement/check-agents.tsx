@@ -52,6 +52,16 @@ const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
     ? row.unknown_reason
     : "other";
 
+/** Reasons the check reached from the stages it measured, rather than a stage left unfinished. */
+const MEASURED: (UnknownReason | null)[] = ["inconclusive", "too_few_questions", "own_not_asked"];
+
+/** Unknown after a stage that finished without a regression, because a later one did not
+ * finish: acknowledging it applies a change only part of its check has seen. */
+const unfinished = (row: SkillCheckAgent): boolean =>
+  row.state === "unknown" &&
+  row.stages.some((stage) => stage.eval_run_id !== null) &&
+  !MEASURED.includes(row.unknown_reason);
+
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
 /** The worst-hit first among the worse, the most helped first among the better. */
@@ -239,11 +249,13 @@ function AgentRow({
           <span className="block truncate text-sm font-medium">{row.agent.name}</span>
           {row.unknown_reason !== null && (
             <span className="text-muted-foreground mt-1 block max-w-xl text-xs">
-              {t(`unknown.${reasonOf(row)}`, {
-                fixed: row.fixed,
-                broken: row.broken,
-                heldOut: row.held_out,
-              })}
+              {unfinished(row)
+                ? t("unknown.unfinished")
+                : t(`unknown.${reasonOf(row)}`, {
+                    fixed: row.fixed,
+                    broken: row.broken,
+                    heldOut: row.held_out,
+                  })}
             </span>
           )}
           {row.via_specialist !== null && (

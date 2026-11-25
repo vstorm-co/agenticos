@@ -18425,7 +18425,8 @@
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano, zanim jego runy się skończyły.",
         "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują.",
-        "too_few_questions": "Za mało pytań testowych, aby potwierdzić zmianę. Sprawdzono: {heldOut}."
+        "too_few_questions": "Za mało pytań testowych, aby potwierdzić zmianę. Sprawdzono: {heldOut}.",
+        "unfinished": "Jego własne pytania się nie zakończyły. Pytania skilla nie pokazały regresji, ale to samo w sobie nie dowodzi, że zmiana jest dla niego bezpieczna."
       },
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {
