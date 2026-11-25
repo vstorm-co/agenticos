@@ -74,12 +74,12 @@ async def test_only_a_screened_and_authorized_correction_is_consumed(
 
     monkeypatch.setattr(api_runs, "get_db_context", session)
     monkeypatch.setattr(
-        api_runs.background_job_repo,
+        api_runs.steering_repo,
         "lock_api_steering_target",
         AsyncMock(return_value=case != "lease_lost"),
     )
     pending = AsyncMock(return_value=[] if case == "no_correction" else [row])
-    monkeypatch.setattr(api_runs.background_job_repo, "queued_api_steers", pending)
+    monkeypatch.setattr(api_runs.steering_repo, "queued_api_steers", pending)
     finish = AsyncMock()
     monkeypatch.setattr(api_runs.background_job_repo, "finish_run_addition", finish)
     context = AsyncMock(

@@ -43,6 +43,7 @@ from app.db.models.agent_run import RunSurface
 from app.db.models.background_job import BackgroundJob, JobStatus
 from app.db.session import get_db_context
 from app.repositories import agent_run_repo
+from app.repositories import api_run as steering_repo
 from app.repositories import background_job as background_job_repo
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
@@ -145,7 +146,7 @@ class ApiRunService:
                     digest=fingerprint,
                 )
                 if request.steer:
-                    target = await background_job_repo.api_steering_target(self.db, job=payload)
+                    target = await steering_repo.api_steering_target(self.db, job=payload)
                     payload = payload.model_copy(update={"steer_target": target})
                 # One run of a conversation at a time: a follow-up sent before the
                 # previous answer was written would read the history without it,
@@ -239,8 +240,8 @@ class ApiRunService:
         """
         assert deps.run_id is not None, "an API run is persisted before its first model request"
         async with get_db_context() as db:
-            pending = await background_job_repo.queued_api_steers(db, job=job)
-            if not pending or not await background_job_repo.lock_api_steering_target(db, job=job):
+            pending = await steering_repo.queued_api_steers(db, job=job)
+            if not pending or not await steering_repo.lock_api_steering_target(db, job=job):
                 yield []
                 return
             if not await ApiRunService(db)._may_steer(job, started_as, deps.run_id):

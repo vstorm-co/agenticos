@@ -43,7 +43,7 @@ from app.repositories import background_worker as worker_repo
 from app.repositories.background_job import ClaimedJob, FailOutcome
 from app.worker.attempt import Attempt
 from app.worker.executors import Died, Executor, Failed, Outcome, Slot, Succeeded
-from app.worker.jobs import Pool, SettleLater, TaskKind
+from app.worker.jobs import RUN_AGENT, Pool, SettleLater, TaskKind
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,16 @@ Listen = Callable[[Callable[[str], None]], Coroutine[object, object, None]]
 
 TRANSIENT = (SQLAlchemyError, OSError, TimeoutError)
 """What a database that is down, restarting or unreachable raises."""
+
+
+def handler_payload(job: ClaimedJob) -> dict[str, JsonValue]:
+    """Add the live API attempt token only at dispatch; the stored payload stays portable."""
+    if job.kind == RUN_AGENT.kind:
+        return {
+            **job.payload,
+            "execution_token": str(job_repo.attempt_token(job.id, job.started_at)),
+        }
+    return job.payload
 
 
 @dataclass(frozen=True)
@@ -209,7 +219,7 @@ class Worker:
             else:
                 outcome = await slot.run(
                     job.kind,
-                    job.payload,
+                    handler_payload(job),
                     timeout=task.timeout,
                     attempt=Attempt(job.attempts, job.max_attempts),
                 )

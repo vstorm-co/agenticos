@@ -21,7 +21,7 @@ import pytest
 from app.repositories.background_job import ClaimedJob, FailOutcome
 from app.worker import runtime
 from app.worker.executors import Died, Failed, InProcessExecutor, Outcome, Succeeded
-from app.worker.jobs import Pool
+from app.worker.jobs import EXPIRE_APPROVALS, RUN_AGENT, Pool, TaskKind
 from app.worker.runtime import Worker, WorkerSettings
 
 pytestmark = pytest.mark.anyio
@@ -77,6 +77,7 @@ def _job() -> ClaimedJob:
         max_attempts=3,
         organization_id=None,
         schedule_name=None,
+        started_at=datetime.now(UTC),
     )
 
 
@@ -207,6 +208,25 @@ async def test_a_settle_the_database_never_takes_is_given_up_after_its_attempts(
         "background_settle_failed",
         "background_settle_abandoned",
     ]
+
+
+@pytest.mark.parametrize("task", [RUN_AGENT, EXPIRE_APPROVALS], ids=["run-agent", "other-kind"])
+async def test_only_an_api_run_receives_an_execution_token_at_handler_handoff(
+    repos: MagicMock, task: TaskKind
+) -> None:
+    job = replace(_job(), kind=task.kind)
+    worker = _worker(_sessions()[0])
+    worker.tasks = {task.kind: task}
+    slot = MagicMock(run=AsyncMock(return_value=Succeeded()))
+
+    await worker._execute(MagicMock(), slot, job)
+
+    sent_to_handler = slot.run.await_args.args[1]
+    if task == RUN_AGENT:
+        assert set(sent_to_handler) == {"execution_token"}
+    else:
+        assert sent_to_handler == {}
+    assert job.payload == {}
 
 
 async def test_the_heartbeat_renews_only_the_jobs_still_owed(repos: MagicMock) -> None:

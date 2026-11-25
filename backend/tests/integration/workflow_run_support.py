@@ -51,6 +51,7 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.workflow_execution import dispatcher
 from app.worker import handlers
+from app.worker.runtime import handler_payload
 from app.workflows.graph.model import WorkflowGraph
 
 
@@ -378,7 +379,7 @@ async def run_next_job(
     if job is None:
         return False
     try:
-        result = await handlers.production()[job.kind].execute(job.payload)
+        result = await handlers.production()[job.kind].execute(handler_payload(job))
     except Exception as exc:
         async with factory() as db:
             await job_repo.fail(

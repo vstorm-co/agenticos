@@ -39,8 +39,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.background_job import JOB_STATUSES, BackgroundJob, JobStatus
-from app.db.models.background_task_kind import BackgroundTaskKind
-from app.worker.jobs import RUN_AGENT, RunAgent
 
 NOTIFY_CHANNEL = "background_jobs"
 """What a worker `LISTEN`s on; the payload is the pool that has new work."""
@@ -49,6 +47,11 @@ ERROR_LIMIT = 4000
 """Characters of an error kept on the row: enough for a traceback's last frames."""
 
 ACTIVE_STATUSES = ("queued", "running")
+
+
+def attempt_token(job_id: UUID, started_at: datetime) -> UUID:
+    # The attempt count alone repeats if an operator requeues a dead job.
+    return uuid5(job_id, started_at.astimezone(UTC).isoformat())
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,7 @@ class ClaimedJob:
     max_attempts: int
     organization_id: UUID | None
     schedule_name: str | None
+    started_at: datetime
 
 
 class FailOutcome(enum.StrEnum):
@@ -169,7 +173,7 @@ _CLAIM = text(
         attempts = attempts + 1,
         lease_until = now() + make_interval(secs => :lease_seconds),
         worker_id = :worker_id,
-        started_at = clock_timestamp(),
+        started_at = now(),
         updated_at = now()
     WHERE id = (
         SELECT j.id FROM background_jobs j
@@ -209,19 +213,15 @@ async def claim(
     ).one_or_none()
     if row is None:
         return None
-    payload = row.payload
-    if row.kind == RUN_AGENT.kind:
-        # Handler-only metadata: an older API replica can still read the stored
-        # payload of an ordinary run during a rolling upgrade.
-        payload = {**payload, "execution_token": str(_api_attempt_token(row.id, row.started_at))}
     return ClaimedJob(
         id=row.id,
         kind=row.kind,
-        payload=payload,
+        payload=row.payload,
         attempts=row.attempts,
         max_attempts=row.max_attempts,
         organization_id=row.organization_id,
         schedule_name=row.schedule_name,
+        started_at=row.started_at,
     )
 
 
@@ -938,73 +938,6 @@ async def retained_payload_usage(
         )
     ).one()
     return count, size
-
-
-def _api_run_identity(job: RunAgent) -> ColumnElement[bool]:
-    """An issuer's other key (or session) must not drive this credential's tools."""
-    return (
-        (BackgroundJob.kind == RUN_AGENT.kind)
-        & (BackgroundJob.organization_id == job.organization_id)
-        & (BackgroundJob.concurrency_key == f"conversation:{job.conversation_id}")
-        & BackgroundJob.payload.contains(
-            job.model_dump(
-                mode="json", include={"agent_id", "user_id", "api_key_id", "environment_id"}
-            )
-        )
-    )
-
-
-def _api_attempt_token(job_id: UUID, started_at: datetime) -> UUID:
-    # The attempt count alone repeats if an operator requeues a dead job.
-    return uuid5(job_id, started_at.astimezone(UTC).isoformat())
-
-
-async def api_steering_target(
-    db: AsyncSession, *, job: RunAgent, for_update: bool = False
-) -> UUID | None:
-    """Pin to this attempt, not whichever run happens to read its inbox next."""
-    statement = select(BackgroundJob.id, BackgroundJob.started_at).where(
-        _api_run_identity(job),
-        BackgroundJob.status == "running",
-        BackgroundJob.lease_until > func.now(),
-    )
-    if for_update:
-        statement = statement.with_for_update()
-    row = (await db.execute(statement)).one_or_none()
-    return (
-        None
-        if row is None or row.started_at is None
-        else _api_attempt_token(row.id, row.started_at)
-    )
-
-
-async def lock_api_steering_target(db: AsyncSession, *, job: RunAgent) -> bool:
-    """Do not let settlement or rescue race this attempt's transfer of queued input."""
-    target = await api_steering_target(db, job=job, for_update=True)
-    return target is not None and target == job.execution_token
-
-
-async def queued_api_steers(db: AsyncSession, *, job: RunAgent) -> list[BackgroundJob]:
-    """Only pending additions for this exact attempt; all other jobs remain ordinary turns."""
-    rows = await db.scalars(
-        select(BackgroundJob)
-        .where(
-            _api_run_identity(job),
-            BackgroundJob.status == "queued",
-            BackgroundJob.payload["steer_target"].astext == str(job.execution_token),
-            # Taking a correction starts queued work, just as a worker claim does.
-            ~exists().where(
-                BackgroundTaskKind.kind == RUN_AGENT.kind,
-                BackgroundTaskKind.paused_at.is_not(None),
-                BackgroundTaskKind.organization_id.is_(None)
-                | (BackgroundTaskKind.organization_id == job.organization_id),
-            ),
-        )
-        .order_by(BackgroundJob.created_at, BackgroundJob.id)
-        .limit(8)
-        .with_for_update()
-    )
-    return list(rows)
 
 
 async def queued_channel_additions(
