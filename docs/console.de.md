@@ -1,5 +1,5 @@
 ---
-source_sha: "11debd5eabee"
+source_sha: "d10af126805f"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -212,6 +212,15 @@ Eine ausgeblendete Posteingangsvorschau entzieht weder den vollständigen Postei
 Installationseinstellungen bieten außerdem einen optionalen Zeitpunkt **Ankündigung läuft ab**. Danach liefert der Server die Ankündigung nicht mehr aus; offene Seiten erhalten dies über die reguläre Statusabfrage. **Geplantes Wartungsende** ist nur informativ und öffnet die Anwendung niemals automatisch. Ein Administrator beendet die Wartung ausdrücklich. Datumsfelder zeigen die Gerätezeitzone und speichern Zeitpunkte mit Zeitzone in UTC.
 
 Die Administration befindet sich im Kontomenü. Ihre Einstellungen verwenden gemeinsame Register und bewahren Entwürfe beim Abschnittswechsel. Erinnerungen und Notizen füllen den verbleibenden Arbeitsbereich, scrollen ihre eigenen Zeilen und behalten die Fußzeile **1 / 1**. Der normale Architect nutzt dieselbe Familie generierter Porträts wie andere Agenten; eigene hochgeladene Bilder bleiben erhalten. Posteingangsansichten teilen die Zeilendarstellung, und Kanban zeigt beim Ziehen die tatsächliche Karte. Spätere Einrichtungsschritte behalten den einheitlichen Aufbau aus Überschrift, Formular und Illustration; das Fortsetzen eines unveränderten Profils meldet keinen Speichervorgang.
+
+### Navigation und Produkthinweise { #console-presentation }
+
+Unter **Admin → Deployment → Identität → Verfügbarkeit der Konsole** wählt der Betreiber Navigationspunkte und optionale Produkthinweise für Organisationen. Unter **KI & Dienste → Konsole pro Rolle** wählt die Organisation eine integrierte Rolle, entwirft deren Navigation, prüft die Vorschau und speichert sie. **Einfacher Assistent** wählt Chat, Inbox, Projekte und Dokumente. Dies ist eine optionale Vorlage, kein neuer Standard für bestehende Konten.
+
+Mitglieder können diese Auswahl unter **Einstellungen → Profil → Meine Navigation** weiter einschränken. Eine leere Auswahl blendet bewusst alle primären Einträge aus; eine geerbte Auswahl folgt Organisation und Deployment. Navigationsentwürfe erfordern **Speichern** und warnen vor dem Verlassen mit ungespeicherten Änderungen. Kontoeinstellungen, Organisationswechsel und Administratorzugriff bleiben erreichbar. Das Ausblenden einer Seite entzieht keine Berechtigung: Berechtigte Personen können ihre URL weiterhin öffnen. Die normale Berechtigungsprüfung erfolgt nach dem Darstellungsfilter.
+
+Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. Sie imitiert niemanden und lädt keine privaten Inhalte. **Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
+
 
 ### Kosten im Chat { #chat-cost-visibility }
 

@@ -27,12 +27,35 @@ export interface ChatCostPolicy {
   permitted: boolean;
   effective: boolean;
 }
+export interface ConsoleNotices {
+  desktop_install_prompt?: boolean | null;
+  product_notices?: boolean | null;
+}
+export interface ConsolePreferences extends ConsoleNotices {
+  navigation?: string[] | null;
+}
+export interface ConsoleRoleDefaults {
+  navigation?: string[] | null;
+}
+export interface ConsolePresentation {
+  simple_navigation: string[];
+  navigation_available: string[];
+  organization_navigation: string[];
+  navigation: string[];
+  preferences: ConsolePreferences;
+  notices_available: ConsoleNotices;
+  organization_notices: ConsoleNotices;
+  desktop_install_prompt: boolean;
+  product_notices: boolean;
+}
 export interface ConsoleExperienceChanges {
+  console?: ConsolePreferences | null;
   chat_costs?: boolean | null;
   preferences?: ChatHomeOverrides | null;
   reminders?: OnboardingReminderOverrides | null;
 }
 export interface ConsoleExperience {
+  presentation?: ConsolePresentation;
   costs?: ChatCostPolicy;
   reminders: OnboardingReminderRead;
   availability: ChatHomeOptions;

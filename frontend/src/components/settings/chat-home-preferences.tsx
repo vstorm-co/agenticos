@@ -6,6 +6,8 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { SectionCard } from "./settings-section";
 import { OnboardingReminderControls } from "./onboarding-reminder-controls";
+import { ConsoleNavigationControls } from "./console-navigation-controls";
+import { ConsoleNoticeControls } from "./console-notice-controls";
 import { PersonalChatCostControl } from "./chat-cost-controls";
 import { ChatHomeControls } from "./chat-home-controls";
 import { CHAT_HOME_ITEMS, DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
@@ -19,6 +21,46 @@ export function ChatHomePreferences() {
     defaults[field] = experience.data?.organization_defaults[field] ?? true;
   return (
     <>
+      {experience.data?.presentation && (
+        <SectionCard
+          title={t("presentation.personalTitle")}
+          description={t("presentation.personalHint")}
+          tour="personal-console-navigation"
+        >
+          <ConsoleNavigationControls
+            key={`${experience.organizationId}-${experience.userId}`}
+            showUnavailable={false}
+            value={experience.data.presentation.preferences.navigation}
+            allowed={experience.data.presentation.organization_navigation}
+            disabled={experience.save.isPending}
+            onSave={(navigation, onSaved) =>
+              experience.save.mutate({ console: { navigation } }, onSaved)
+            }
+          />
+        </SectionCard>
+      )}
+      {experience.data?.presentation && (
+        <SectionCard
+          title={t("presentation.noticesTitle")}
+          description={t("presentation.personalNoticesHint")}
+          tour="personal-console-notices"
+        >
+          <ConsoleNoticeControls
+            mode="preference"
+            value={experience.data.presentation.preferences}
+            ceiling={{
+              desktop_install_prompt:
+                experience.data.presentation.notices_available.desktop_install_prompt !== false &&
+                experience.data.presentation.organization_notices.desktop_install_prompt !== false,
+              product_notices:
+                experience.data.presentation.notices_available.product_notices !== false &&
+                experience.data.presentation.organization_notices.product_notices !== false,
+            }}
+            disabled={experience.save.isPending}
+            onChange={(console) => experience.save.mutate({ console })}
+          />
+        </SectionCard>
+      )}
       <SectionCard title={t("title")} description={t("personalHint")}>
         {experience.isPending ? (
           <LoadingState variant="skeleton-list" rows={4} />

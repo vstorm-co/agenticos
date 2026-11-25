@@ -19,6 +19,7 @@ interface ServiceCardProps {
   onOpenChange?: (open: boolean) => void;
   id?: string;
   testId?: string;
+  toggleTour?: string;
 }
 
 /** The shared appearance and disclosure for each organization AI service. */
@@ -35,6 +36,7 @@ export function ServiceCard({
   onOpenChange,
   id,
   testId,
+  toggleTour,
 }: ServiceCardProps) {
   const generatedId = useId();
   const panelId = id ?? generatedId;
@@ -65,6 +67,7 @@ export function ServiceCard({
             {expandable ? (
               <button
                 id={`${panelId}-toggle`}
+                data-tour={toggleTour}
                 type="button"
                 aria-label={title}
                 aria-describedby={`${panelId}-description`}

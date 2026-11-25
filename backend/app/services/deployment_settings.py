@@ -46,6 +46,7 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.updates import writable
 from app.repositories import deployment_settings_repo, organization_repo
 from app.schemas.console_experience import ChatHomeOverrides
+from app.schemas.console_presentation import StoredConsolePreferences
 from app.schemas.deployment_settings import (
     BrandingRead,
     DefaultOrganizationRole,
@@ -163,6 +164,9 @@ class DeploymentSettingsService:
             **branding.model_dump(),
             password_sign_in_forced=settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED,
             chat_costs_available=row.chat_costs_available if row else None,
+            console_availability=StoredConsolePreferences.model_validate(row.console_availability)
+            if row and row.console_availability is not None
+            else None,
             chat_home_available=ChatHomeOverrides.model_validate(row.chat_home_available)
             if row and row.chat_home_available is not None
             else None,

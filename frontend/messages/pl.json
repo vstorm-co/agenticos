@@ -8009,6 +8009,26 @@
       "personal-chat-costs": {
         "title": "Koszty w chacie",
         "body": "Możesz ukryć koszty we własnych chatach. Nie możesz obejść ograniczeń organizacji ani deploymentu."
+      },
+      "deployment-console-navigation": {
+        "title": "Dostępność konsoli",
+        "body": "Wybierz sekcje i opcjonalne podpowiedzi dostępne dla organizacji. Uprawnienia do zasobów pozostają bez zmian."
+      },
+      "organization-console-navigation": {
+        "title": "Konsola dla każdej roli",
+        "body": "Wybierz widoczne sekcje dla każdej wbudowanej roli. Zmieniasz widok, a nie uprawnienia dostępu."
+      },
+      "organization-console-notices": {
+        "title": "Podpowiedzi produktowe",
+        "body": "Wybierz opcjonalne podpowiedzi dla organizacji. Komunikaty o dostępności i bezpieczeństwie pozostają bez zmian."
+      },
+      "personal-console-navigation": {
+        "title": "Moje menu",
+        "body": "Zostaw sekcje, których używasz. Ograniczenia organizacji i deploymentu nadal obowiązują."
+      },
+      "personal-console-notices": {
+        "title": "Podpowiedzi produktowe",
+        "body": "Zostaw przydatne podpowiedzi. Ograniczenia organizacji i deploymentu nadal obowiązują."
       }
     },
     "chooseLanguage": "Język",
@@ -21618,6 +21638,40 @@
       "restricted": "Organizacja lub deployment ukrywa koszty w chacie dla tego konta.",
       "deploymentHint": "Pozwól organizacjom wyświetlać koszty w chacie. Wyłączenie ukrywa je dla wszystkich.",
       "available": "Pozwalaj pokazywać koszty w chacie"
+    },
+    "presentation": {
+      "organizationTitle": "Konsola dla każdej roli",
+      "organizationHint": "Wybierz widoczne sekcje dla każdej wbudowanej roli. Zmieniasz widok, a nie uprawnienia dostępu.",
+      "personalTitle": "Moje menu",
+      "personalHint": "Zostaw sekcje, których używasz. Ograniczenia organizacji i deploymentu nadal obowiązują.",
+      "deploymentTitle": "Dostępność konsoli",
+      "deploymentHint": "Wybierz sekcje i opcjonalne podpowiedzi dostępne dla organizacji. Uprawnienia do zasobów pozostają bez zmian.",
+      "navigationHint": "Ukryte strony nadal można otwierać po adresie URL, jeśli ma się uprawnienia. Ustawienia konta i zmiana organizacji pozostają dostępne.",
+      "simple": "Prosty asystent",
+      "inheritNavigation": "Użyj odziedziczonego menu",
+      "role": "Rola",
+      "preview": "Podgląd menu",
+      "previewRole": "Podgląd jako {role}",
+      "previewHint": "Tylko menu, z uwzględnieniem uprawnień tej roli i Twoich. Podgląd nie działa w imieniu innej osoby i nie wczytuje jej danych.",
+      "saveBeforeRole": "Zapisz lub odrzuć zmiany przed wybraniem innej roli.",
+      "noticesTitle": "Podpowiedzi produktowe",
+      "noticesHint": "Wybierz opcjonalne podpowiedzi dla organizacji. Komunikaty o dostępności i bezpieczeństwie pozostają bez zmian.",
+      "personalNoticesHint": "Zostaw przydatne podpowiedzi. Ograniczenia organizacji i deploymentu nadal obowiązują.",
+      "desktop_install_prompt": "Zaproszenie do aplikacji desktopowej",
+      "desktop_install_promptHint": "Sugeruj instalację aplikacji desktopowej. Istniejące instalacje i lokalne odrzucenia pozostają bez zmian.",
+      "product_notices": "Nowości produktu",
+      "product_noticesHint": "Automatyczne informacje o wydaniach i sugestie instalacji na telefonie. Komunikaty o usłudze i bezpieczeństwie nadal się pojawiają.",
+      "restricted": "Organizacja lub deployment ogranicza tę opcję.",
+      "discard": "Odrzuć zmiany",
+      "roles": {
+        "owner": "Właściciel",
+        "admin": "Administrator",
+        "builder": "Twórca",
+        "operator": "Operator",
+        "member": "Członek",
+        "viewer": "Przeglądający"
+      },
+      "loadError": "Nie udało się wczytać ustawień konsoli."
     }
   },
   "modelSources": {

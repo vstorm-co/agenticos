@@ -197,6 +197,15 @@ Deployment settings also offer an optional **Announcement expires** time. The se
 
 Administration is reached from the account menu. Its settings use the shared tabs and preserve drafts when changing sections. Memory and Notes fill their remaining workspace, scroll their own rows and retain a **1 / 1** footer. The ordinary Architect now uses the same generated portrait family as other agents; custom uploads remain intact. Inbox views share their row treatment, and Kanban dragging previews the actual card. Guided setup keeps a consistent heading, form and illustration layout through its later steps; continuing an unchanged profile does not report a save.
 
+### Navigation and product prompts { #console-presentation }
+
+Under **Admin → Deployment → Identity → Console availability**, an operator chooses which navigation entries and optional product prompts organizations may offer. Organizations configure **Console for each role** in **AI & services**: select a built-in role, draft its navigation, review the preview and save. **Simple assistant** selects Chat, Inbox, Projects and Documents; it is an optional preset, not a new default for existing accounts.
+
+Members can narrow that selection under **Settings → Profile → My navigation**. An empty selection intentionally hides every primary entry; an inherited selection follows the organization and deployment. Navigation drafts require **Save** and warn before leaving with unsaved changes. Account settings, organization switching and administrator recovery remain reachable. Hiding a page does not revoke its permission: an authorized person can still open its URL. Normal permission checks run after presentation filtering.
+
+The role preview shows navigation filtered by the selected role and the administrator’s own permissions. It does not impersonate a person or load their private content. **Product prompts** independently controls the desktop invitation and automatic release/mobile-installation suggestions, at deployment, organization and membership levels. A personal preference cannot override an organization or deployment restriction. Maintenance, service-availability and security notices keep their existing behavior; an installed app is not disabled by hiding its invitation.
+
+
 ### Costs in chat { #chat-cost-visibility }
 
 **Chat costs** follows a stricter hierarchy: deployment availability → organization audience → personal choice. The deployment can hide costs everywhere in chat. In the organization’s **AI & services** settings, choose **Everyone** (the default), **People with access to spend** (`budgets:manage` or `runs:view`), or **Nobody in chat**. In **Settings → Profile**, members may hide costs for themselves, but cannot override a restriction above them.

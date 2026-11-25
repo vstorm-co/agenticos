@@ -36,6 +36,7 @@ from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
 from app.core.sign_in_methods import SignInProvider
 from app.schemas.base import BaseSchema
 from app.schemas.console_experience import ChatHomeOverrides
+from app.schemas.console_presentation import ConsolePreferences, StoredConsolePreferences
 from app.schemas.retention import RetentionDays
 
 SignupMode = Literal["open", "invite_only", "closed"]
@@ -166,6 +167,7 @@ class DeploymentSettingsRead(BrandingRead):
     """The administrator's view: everything, in one request."""
 
     password_sign_in_forced: bool = False
+    console_availability: StoredConsolePreferences | None = None
     chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
@@ -218,6 +220,7 @@ class DeploymentSettingsUpdate(BaseSchema):
     a path is written only by the upload route, which puts the bytes there itself.
     """
 
+    console_availability: ConsolePreferences | None = None
     chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(

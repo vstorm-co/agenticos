@@ -1,5 +1,5 @@
 ---
-source_sha: "11debd5eabee"
+source_sha: "d10af126805f"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -212,6 +212,15 @@ Los **Recordatorios de configuración** siguen la misma jerarquía: disponibilid
 Los ajustes de instalación también ofrecen una fecha opcional de **Caducidad del anuncio**. Después del plazo el servidor deja de devolverlo, y las páginas abiertas lo reciben mediante su consulta periódica de avisos. El **Fin previsto del mantenimiento** solo es informativo: nunca vuelve a abrir la aplicación automáticamente. Un administrador termina el mantenimiento expresamente. Los campos muestran la zona horaria del dispositivo y guardan instantes con zona horaria en UTC.
 
 La administración se abre desde el menú de cuenta. Sus ajustes usan pestañas comunes y conservan borradores al cambiar de sección. Memorias y Notas llenan el espacio restante, desplazan sus propias filas y mantienen el pie **1 / 1**. El Architect normal usa la misma familia de retratos generados que otros agentes; las imágenes personales subidas se conservan. Las vistas de la bandeja comparten el diseño de filas, y al arrastrar Kanban se ve la tarjeta real. Los últimos pasos de configuración mantienen el mismo diseño de título, formulario e ilustración; continuar un perfil sin cambios no anuncia que se haya guardado.
+
+### Navegación y sugerencias del producto { #console-presentation }
+
+En **Admin → Deployment → Identidad → Disponibilidad de la consola**, el operador elige la navegación y las sugerencias opcionales que pueden ofrecer las organizaciones. En **IA y servicios → Consola por rol**, la organización elige un rol integrado, prepara su navegación, revisa la vista previa y guarda. **Asistente sencillo** selecciona Chat, Inbox, Proyectos y Documentos. Es una plantilla opcional, no un nuevo valor predeterminado para las cuentas existentes.
+
+Los miembros pueden reducir esa selección en **Ajustes → Perfil → Mi navegación**. Una selección vacía oculta intencionadamente todas las entradas principales; una heredada sigue la organización y el despliegue. Los borradores de navegación requieren **Guardar** y avisan antes de salir con cambios pendientes. Los ajustes de cuenta, el cambio de organización y el acceso del administrador siguen disponibles. Ocultar una página no revoca permisos: una persona autorizada aún puede abrir su URL. La comprobación normal de permisos se aplica después del filtro de presentación.
+
+La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. No suplanta a nadie ni carga contenido privado. **Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
+
 
 ### Costes en el chat { #chat-cost-visibility }
 

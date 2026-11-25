@@ -9098,6 +9098,26 @@
       "personal-chat-costs": {
         "title": "Sohbet maliyetleri",
         "body": "Kendi sohbetlerinizde maliyetleri gizleyin. Kuruluş veya deployment kısıtlamaları geçerli kalır."
+      },
+      "deployment-console-navigation": {
+        "title": "Konsol kullanılabilirliği",
+        "body": "Kuruluşlara sunulan gezinmeyi ve isteğe bağlı ürün önerilerini seçin. Kaynak izinleri değişmez."
+      },
+      "organization-console-navigation": {
+        "title": "Her rol için konsol",
+        "body": "Her yerleşik rol için görünür gezinmeyi seçin. Bu, sunumu değiştirir; erişim izinlerini değiştirmez."
+      },
+      "organization-console-notices": {
+        "title": "Ürün önerileri",
+        "body": "Bu kuruluş için isteğe bağlı önerileri seçin. Kullanılabilirlik ve güvenlik bildirimleri etkilenmez."
+      },
+      "personal-console-navigation": {
+        "title": "Gezinmem",
+        "body": "Kullandığınız bölümleri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır."
+      },
+      "personal-console-notices": {
+        "title": "Ürün önerileri",
+        "body": "Yararlı önerileri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır."
       }
     }
   },
@@ -17233,6 +17253,40 @@
       "restricted": "Kuruluşunuz veya deployment bu hesap için sohbet maliyetlerini gizliyor.",
       "deploymentHint": "Kuruluşların sohbette maliyet göstermesine izin verin. Kapatmak bunları herkesten gizler.",
       "available": "Sohbette maliyetlere izin ver"
+    },
+    "presentation": {
+      "organizationTitle": "Her rol için konsol",
+      "organizationHint": "Her yerleşik rol için görünür gezinmeyi seçin. Bu, sunumu değiştirir; erişim izinlerini değiştirmez.",
+      "personalTitle": "Gezinmem",
+      "personalHint": "Kullandığınız bölümleri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır.",
+      "deploymentTitle": "Konsol kullanılabilirliği",
+      "deploymentHint": "Kuruluşlara sunulan gezinmeyi ve isteğe bağlı ürün önerilerini seçin. Kaynak izinleri değişmez.",
+      "navigationHint": "Gizli sayfalara izin varsa URL üzerinden erişilebilir. Hesap ayarları ve kuruluş değiştirme kullanılabilir kalır.",
+      "simple": "Basit asistan",
+      "inheritNavigation": "Devralınan gezinmeyi kullan",
+      "role": "Rol",
+      "preview": "Gezinme önizlemesi",
+      "previewRole": "{role} olarak önizle",
+      "previewHint": "Yalnızca bu rol ve kendi izinlerinizle filtrelenen gezinme. Kimsenin kimliğine bürünülmez ve özel veri yüklenmez.",
+      "saveBeforeRole": "Başka bir rol seçmeden önce değişiklikleri kaydedin veya atın.",
+      "noticesTitle": "Ürün önerileri",
+      "noticesHint": "Bu kuruluş için isteğe bağlı önerileri seçin. Kullanılabilirlik ve güvenlik bildirimleri etkilenmez.",
+      "personalNoticesHint": "Yararlı önerileri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır.",
+      "desktop_install_prompt": "Masaüstü uygulaması daveti",
+      "desktop_install_promptHint": "Masaüstü uygulamasının kurulumunu önerin. Mevcut kurulumlar ve yerel kapatmalar değişmez.",
+      "product_notices": "Ürün duyuruları",
+      "product_noticesHint": "Otomatik sürüm notları ve mobil kurulum önerileri. Hizmet ve güvenlik bildirimleri görünmeye devam eder.",
+      "restricted": "Kuruluşunuz veya deployment bu seçeneği kısıtlıyor.",
+      "discard": "Değişiklikleri at",
+      "roles": {
+        "owner": "Sahip",
+        "admin": "Yönetici",
+        "builder": "Oluşturucu",
+        "operator": "Operatör",
+        "member": "Üye",
+        "viewer": "İzleyici"
+      },
+      "loadError": "Konsol tercihleri yüklenemedi."
     }
   },
   "onboardingStatus": {

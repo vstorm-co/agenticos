@@ -6240,6 +6240,26 @@
       "personal-chat-costs": {
         "title": "Custos do chat",
         "body": "Oculte custos nos seus chats. As restrições da organização ou do deployment continuam a aplicar-se."
+      },
+      "deployment-console-navigation": {
+        "title": "Disponibilidade da consola",
+        "body": "Escolha a navegação e as sugestões opcionais disponíveis para as organizações. As permissões dos recursos permanecem inalteradas."
+      },
+      "organization-console-navigation": {
+        "title": "Consola por função",
+        "body": "Escolha a navegação visível para cada função integrada. Isto altera a apresentação, nunca as permissões de acesso."
+      },
+      "organization-console-notices": {
+        "title": "Sugestões do produto",
+        "body": "Escolha sugestões opcionais para esta organização. Os avisos de disponibilidade e segurança não são afetados."
+      },
+      "personal-console-navigation": {
+        "title": "A minha navegação",
+        "body": "Mantenha as secções que utiliza. As restrições da organização e do deployment continuam a aplicar-se."
+      },
+      "personal-console-notices": {
+        "title": "Sugestões do produto",
+        "body": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se."
       }
     },
     "chooseLanguage": "Idioma",
@@ -21729,6 +21749,40 @@
       "restricted": "A sua organização ou deployment oculta os custos do chat para esta conta.",
       "deploymentHint": "Permita que as organizações mostrem custos no chat. Desativar oculta-os para todos.",
       "available": "Permitir custos no chat"
+    },
+    "presentation": {
+      "organizationTitle": "Consola por função",
+      "organizationHint": "Escolha a navegação visível para cada função integrada. Isto altera a apresentação, nunca as permissões de acesso.",
+      "personalTitle": "A minha navegação",
+      "personalHint": "Mantenha as secções que utiliza. As restrições da organização e do deployment continuam a aplicar-se.",
+      "deploymentTitle": "Disponibilidade da consola",
+      "deploymentHint": "Escolha a navegação e as sugestões opcionais disponíveis para as organizações. As permissões dos recursos permanecem inalteradas.",
+      "navigationHint": "As páginas ocultas continuam acessíveis por URL com as permissões necessárias. As definições da conta e a mudança de organização continuam disponíveis.",
+      "simple": "Assistente simples",
+      "inheritNavigation": "Usar a navegação herdada",
+      "role": "Função",
+      "preview": "Pré-visualização da navegação",
+      "previewRole": "Pré-visualizar como {role}",
+      "previewHint": "Apenas navegação, filtrada por esta função e pelas suas permissões. Ninguém é personificado e não são carregados dados privados.",
+      "saveBeforeRole": "Guarde ou descarte as alterações antes de escolher outra função.",
+      "noticesTitle": "Sugestões do produto",
+      "noticesHint": "Escolha sugestões opcionais para esta organização. Os avisos de disponibilidade e segurança não são afetados.",
+      "personalNoticesHint": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se.",
+      "desktop_install_prompt": "Convite para a aplicação de desktop",
+      "desktop_install_promptHint": "Sugira a instalação da aplicação de desktop. As instalações existentes e as dispensas locais permanecem inalteradas.",
+      "product_notices": "Novidades do produto",
+      "product_noticesHint": "Notas de versão automáticas e sugestões de instalação em dispositivos móveis. Os avisos de serviço e segurança continuam visíveis.",
+      "restricted": "A sua organização ou deployment restringe esta opção.",
+      "discard": "Descartar alterações",
+      "roles": {
+        "owner": "Proprietário",
+        "admin": "Administrador",
+        "builder": "Criador",
+        "operator": "Operador",
+        "member": "Membro",
+        "viewer": "Leitor"
+      },
+      "loadError": "Não foi possível carregar as preferências da consola."
     }
   },
   "modelSources": {

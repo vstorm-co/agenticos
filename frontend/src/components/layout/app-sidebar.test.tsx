@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ConsolePresentationContext } from "@/components/settings/console-experience-provider";
 import { scrollWithin } from "@/lib/scroll-within";
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 
@@ -462,4 +463,25 @@ it("keeps the active destination in view when collapsing the navigation", () => 
     "instant",
   );
   currentPath.mockReturnValue("/dashboard");
+});
+
+it("reports a failed navigation policy and lets the reader retry", () => {
+  const retry = vi.fn();
+  render(
+    <ConsolePresentationContext.Provider
+      value={{
+        navigation: [],
+        desktopInstallPrompt: false,
+        productNotices: false,
+        problem: true,
+        retry,
+      }}
+    >
+      <SidebarNav />
+    </ConsolePresentationContext.Provider>,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("loadError");
+  expect(screen.queryByRole("link", { name: "chat" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "retry" }));
+  expect(retry).toHaveBeenCalledOnce();
 });

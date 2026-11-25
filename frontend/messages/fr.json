@@ -6124,6 +6124,26 @@
       "personal-chat-costs": {
         "title": "Coûts du chat",
         "body": "Masquez les coûts dans vos chats. Les restrictions de votre organisation ou de votre déploiement restent applicables."
+      },
+      "deployment-console-navigation": {
+        "title": "Disponibilité de la console",
+        "body": "Choisissez la navigation et les suggestions facultatives accessibles aux organisations. Les droits sur les ressources restent inchangés."
+      },
+      "organization-console-navigation": {
+        "title": "Console par rôle",
+        "body": "Choisissez la navigation visible pour chaque rôle intégré. Cela change la présentation, jamais les droits d’accès."
+      },
+      "organization-console-notices": {
+        "title": "Suggestions du produit",
+        "body": "Choisissez les suggestions facultatives de cette organisation. Les avis de disponibilité et de sécurité restent inchangés."
+      },
+      "personal-console-navigation": {
+        "title": "Ma navigation",
+        "body": "Gardez les sections que vous utilisez. Les restrictions de votre organisation et de votre déploiement restent applicables."
+      },
+      "personal-console-notices": {
+        "title": "Suggestions du produit",
+        "body": "Gardez les suggestions utiles. Les restrictions de votre organisation et de votre déploiement restent applicables."
       }
     },
     "chooseLanguage": "Langue",
@@ -21137,6 +21157,40 @@
       "restricted": "Votre organisation ou déploiement masque les coûts du chat pour ce compte.",
       "deploymentHint": "Autorisez les organisations à afficher les coûts dans le chat. Désactiver les masque pour tout le monde.",
       "available": "Autoriser les coûts dans le chat"
+    },
+    "presentation": {
+      "organizationTitle": "Console par rôle",
+      "organizationHint": "Choisissez la navigation visible pour chaque rôle intégré. Cela change la présentation, jamais les droits d’accès.",
+      "personalTitle": "Ma navigation",
+      "personalHint": "Gardez les sections que vous utilisez. Les restrictions de votre organisation et de votre déploiement restent applicables.",
+      "deploymentTitle": "Disponibilité de la console",
+      "deploymentHint": "Choisissez la navigation et les suggestions facultatives accessibles aux organisations. Les droits sur les ressources restent inchangés.",
+      "navigationHint": "Les pages masquées restent accessibles par URL avec les droits requis. Les réglages du compte et le changement d’organisation restent disponibles.",
+      "simple": "Assistant simple",
+      "inheritNavigation": "Utiliser la navigation héritée",
+      "role": "Rôle",
+      "preview": "Aperçu de la navigation",
+      "previewRole": "Aperçu en tant que {role}",
+      "previewHint": "Navigation uniquement, filtrée selon ce rôle et vos propres droits. Aucune identité n’est usurpée et aucune donnée privée n’est chargée.",
+      "saveBeforeRole": "Enregistrez ou annulez vos modifications avant de choisir un autre rôle.",
+      "noticesTitle": "Suggestions du produit",
+      "noticesHint": "Choisissez les suggestions facultatives de cette organisation. Les avis de disponibilité et de sécurité restent inchangés.",
+      "personalNoticesHint": "Gardez les suggestions utiles. Les restrictions de votre organisation et de votre déploiement restent applicables.",
+      "desktop_install_prompt": "Invitation à l’application de bureau",
+      "desktop_install_promptHint": "Suggérez l’installation de l’application de bureau. Les installations existantes et les refus locaux restent inchangés.",
+      "product_notices": "Actualités du produit",
+      "product_noticesHint": "Notes de version automatiques et suggestions d’installation sur mobile. Les avis de service et de sécurité restent affichés.",
+      "restricted": "Votre organisation ou déploiement restreint cette option.",
+      "discard": "Annuler les modifications",
+      "roles": {
+        "owner": "Propriétaire",
+        "admin": "Administrateur",
+        "builder": "Créateur",
+        "operator": "Opérateur",
+        "member": "Membre",
+        "viewer": "Lecteur"
+      },
+      "loadError": "Impossible de charger les préférences de la console."
     }
   },
   "portability": {

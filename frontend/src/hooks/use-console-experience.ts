@@ -58,10 +58,19 @@ export function useConsoleExperience() {
   });
   const save = {
     ...mutation,
-    mutate: (changes: ConsoleExperienceChanges) =>
-      mutation.mutate({ changes, ownerOrg: organizationId, ownerUser: userId }),
+    mutate: (changes: ConsoleExperienceChanges, onSaved?: () => void) =>
+      mutation.mutate(
+        { changes, ownerOrg: organizationId, ownerUser: userId },
+        { onSuccess: onSaved },
+      ),
     mutateAsync: (changes: ConsoleExperienceChanges) =>
       mutation.mutateAsync({ changes, ownerOrg: organizationId, ownerUser: userId }),
   };
-  return { ...query, effective: query.data?.effective ?? DEFAULT_CHAT_HOME, save };
+  return {
+    ...query,
+    organizationId,
+    userId,
+    effective: query.data?.effective ?? DEFAULT_CHAT_HOME,
+    save,
+  };
 }

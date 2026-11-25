@@ -6240,6 +6240,26 @@
       "personal-chat-costs": {
         "title": "Chatkosten",
         "body": "Verberg kosten in je eigen chats. Beperkingen van je organisatie of deployment blijven gelden."
+      },
+      "deployment-console-navigation": {
+        "title": "Beschikbaarheid van de console",
+        "body": "Kies navigatie en optionele productsuggesties voor organisaties. Rechten op resources blijven ongewijzigd."
+      },
+      "organization-console-navigation": {
+        "title": "Console per rol",
+        "body": "Kies de zichtbare navigatie voor elke ingebouwde rol. Dit wijzigt de weergave, nooit toegangsrechten."
+      },
+      "organization-console-notices": {
+        "title": "Productsuggesties",
+        "body": "Kies optionele suggesties voor deze organisatie. Beschikbaarheids- en beveiligingsmeldingen blijven ongewijzigd."
+      },
+      "personal-console-navigation": {
+        "title": "Mijn navigatie",
+        "body": "Behoud de onderdelen die je gebruikt. Beperkingen van organisatie en deployment blijven gelden."
+      },
+      "personal-console-notices": {
+        "title": "Productsuggesties",
+        "body": "Behoud nuttige suggesties. Beperkingen van organisatie en deployment blijven gelden."
       }
     },
     "chooseLanguage": "Taal",
@@ -21729,6 +21749,40 @@
       "restricted": "Je organisatie of deployment verbergt chatkosten voor dit account.",
       "deploymentHint": "Sta organisaties toe kosten in de chat te tonen. Uitschakelen verbergt ze voor iedereen.",
       "available": "Kosten in de chat toestaan"
+    },
+    "presentation": {
+      "organizationTitle": "Console per rol",
+      "organizationHint": "Kies de zichtbare navigatie voor elke ingebouwde rol. Dit wijzigt de weergave, nooit toegangsrechten.",
+      "personalTitle": "Mijn navigatie",
+      "personalHint": "Behoud de onderdelen die je gebruikt. Beperkingen van organisatie en deployment blijven gelden.",
+      "deploymentTitle": "Beschikbaarheid van de console",
+      "deploymentHint": "Kies navigatie en optionele productsuggesties voor organisaties. Rechten op resources blijven ongewijzigd.",
+      "navigationHint": "Verborgen pagina’s blijven met de juiste rechten via hun URL bereikbaar. Accountinstellingen en wisselen van organisatie blijven beschikbaar.",
+      "simple": "Eenvoudige assistent",
+      "inheritNavigation": "Overgenomen navigatie gebruiken",
+      "role": "Rol",
+      "preview": "Navigatievoorbeeld",
+      "previewRole": "Voorbeeld als {role}",
+      "previewHint": "Alleen navigatie, gefilterd op deze rol en je eigen rechten. Er wordt niemand nagebootst en er worden geen privégegevens geladen.",
+      "saveBeforeRole": "Sla wijzigingen op of verwerp ze voordat je een andere rol kiest.",
+      "noticesTitle": "Productsuggesties",
+      "noticesHint": "Kies optionele suggesties voor deze organisatie. Beschikbaarheids- en beveiligingsmeldingen blijven ongewijzigd.",
+      "personalNoticesHint": "Behoud nuttige suggesties. Beperkingen van organisatie en deployment blijven gelden.",
+      "desktop_install_prompt": "Uitnodiging voor de desktop-app",
+      "desktop_install_promptHint": "Stel installatie van de desktop-app voor. Bestaande installaties en lokale afwijzingen blijven ongewijzigd.",
+      "product_notices": "Productnieuws",
+      "product_noticesHint": "Automatische release-informatie en suggesties voor mobiele installatie. Service- en beveiligingsmeldingen blijven verschijnen.",
+      "restricted": "Je organisatie of deployment beperkt deze optie.",
+      "discard": "Wijzigingen verwerpen",
+      "roles": {
+        "owner": "Eigenaar",
+        "admin": "Beheerder",
+        "builder": "Bouwer",
+        "operator": "Operator",
+        "member": "Lid",
+        "viewer": "Lezer"
+      },
+      "loadError": "Consolevoorkeuren konden niet worden geladen."
     }
   },
   "modelSources": {

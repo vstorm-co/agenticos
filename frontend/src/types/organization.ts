@@ -2,6 +2,8 @@ import type {
   ChatHomeOverrides,
   OnboardingReminderOverrides,
   ChatCostVisibility,
+  ConsoleRoleDefaults,
+  ConsoleNotices,
 } from "@/lib/console-experience-api";
 // Mirrors OrgRoleName in the backend permission catalog - the roles a member
 // can hold. What each role may actually do lives in ROLE_PERMS server-side and
@@ -72,6 +74,8 @@ export interface TextToSpeechSettingsUpdate {
 }
 
 export interface Organization {
+  console_role_defaults?: Partial<Record<OrgRole, ConsoleRoleDefaults>>;
+  console_notices?: ConsoleNotices;
   chat_cost_visibility?: ChatCostVisibility;
   chat_home_defaults?: ChatHomeOverrides | null;
   onboarding_reminders?: OnboardingReminderOverrides | null;

@@ -5,9 +5,10 @@ import uuid
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, cast, func, null, select
+from pydantic import JsonValue
+from sqlalchemy import ColumnElement, Select, Text, cast, func, null, select
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import JSONB, distinct_on
+from sqlalchemy.dialects.postgresql import JSONB, array, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.chat_costs import ChatCostVisibility
@@ -694,3 +695,59 @@ async def set_chat_cost_visibility(
     await db.flush()
     await db.refresh(org)
     return org
+
+
+async def set_console_role_defaults(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, dict[str, JsonValue] | None] | None,
+) -> Organization:
+    """Patch role fields atomically; clearing one role never replaces its neighbours."""
+    value = func.coalesce(Organization.console_role_defaults, cast({}, JSONB))
+    if changes is not None:
+        for role, fields in changes.items():
+            if fields is None:
+                value = value.op("-")(role)
+            else:
+                merged = func.jsonb_strip_nulls(
+                    func.coalesce(value.op("->")(role), cast({}, JSONB)).op("||")(
+                        cast(fields, JSONB)
+                    )
+                )
+                value = func.jsonb_set(value, array([role], type_=Text), merged, True)
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(console_role_defaults=null() if changes is None else value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_console_notices(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, JsonValue] | None,
+) -> Organization:
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(Organization.console_notices, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(console_notices=value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()

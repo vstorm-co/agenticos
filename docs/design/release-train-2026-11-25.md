@@ -139,3 +139,37 @@ New policy and projection modules have 100% scoped statement/branch coverage
 100% statements/functions/lines and 98.07% branches. Migration
 `0369_chat_cost_visibility.py` upgrades, downgrades and upgrades without model
 drift. Full aggregate CI and the rest of the release train remain pending.
+
+## Role navigation and optional prompts (first part of #3300)
+
+Implemented on `codex/console-role-experience`, based on #3437. Deployment
+availability bounds each built-in role's organization navigation and each
+membership's personal selection. Null inherits; an empty selection stays empty.
+The simple preset keeps Chat, Inbox, Projects and Documents. Sidebar and command
+navigation agree, while URL access and resource permissions remain unchanged.
+Account settings and organization switching remain available for recovery.
+
+Organization and personal switches govern desktop invitations and optional
+product announcements. They do not hide security or service availability
+notices. The administrator's preview renders navigation for a role, bounded by
+the administrator's own permissions, without loading another person's data.
+It is a navigation preview, not a complete impersonated console.
+
+Navigation edits use an explicit draft, Save and Discard. Unsaved changes block
+role switching and use the existing navigation guard. Cached account or tenant
+changes cannot carry a draft into another membership. Failed policy reads show
+an explicit retry instead of an unexplained blank sidebar.
+
+Verification: 141 focused backend policy/HTTP tests, 100% scoped statement and
+branch coverage (100 statements, 22 branches), and a real-PostgreSQL merge,
+reset and tenant-isolation test. The latest seven-file UI regression batch has
+57 passing tests; the isolated four new controls have 100% statements, lines
+and functions and 97.61% branches. Type checks, translation checks and strict
+four-language documentation checks pass. Migration
+`0370_console_role_presentation.py` upgrades, downgrades and upgrades without
+model drift. Actual local UI testing saves the Member preset and confirms
+that a hidden Agents link does not revoke permitted direct URL access.
+
+This is partial #3300 coverage: catalog restrictions and organization dashboard
+defaults remain pending in the next dependent change. Full train CI remains
+pending. No merge, release or deployment is authorized at this stage.

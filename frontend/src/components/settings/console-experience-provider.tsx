@@ -19,20 +19,64 @@ const DEFAULT_REMINDERS: OnboardingReminderOptions = { enabled: true, snooze_day
 export const OnboardingReminderContext =
   createContext<OnboardingReminderOptions>(DEFAULT_REMINDERS);
 
+interface ConsolePresentationView {
+  navigation: readonly string[] | null;
+  desktopInstallPrompt: boolean;
+  productNotices: boolean;
+}
+export type ConsolePresentationOptions = ConsolePresentationView &
+  ({ problem: false; retry?: never } | { problem: true; retry: () => void });
+const DEFAULT_PRESENTATION: ConsolePresentationOptions = {
+  navigation: null,
+  desktopInstallPrompt: true,
+  productNotices: true,
+  problem: false,
+};
+const PENDING_PRESENTATION: ConsolePresentationOptions = {
+  ...DEFAULT_PRESENTATION,
+  navigation: [],
+  desktopInstallPrompt: false,
+  productNotices: false,
+};
+export const ConsolePresentationContext =
+  createContext<ConsolePresentationOptions>(DEFAULT_PRESENTATION);
+
 export const ChatCostContext = createContext(true);
 
 export const ChatHomeContext = createContext<ChatHomeOptions>(DEFAULT_CHAT_HOME);
 
 /** Authenticated console only: public chat and embedded builders keep their own contracts. */
 export function ConsoleExperienceProvider({ children }: { children: ReactNode }) {
-  const { data, error } = useConsoleExperience();
+  const { data, error, refetch } = useConsoleExperience();
   const reminders =
     !error && data ? data.reminders.effective : { enabled: false, snooze_days: 1 as const };
+  const policy: ConsolePresentationView =
+    !data || error
+      ? PENDING_PRESENTATION
+      : data.presentation
+        ? {
+            ...DEFAULT_PRESENTATION,
+            navigation: data.presentation.navigation,
+            desktopInstallPrompt: data.presentation.desktop_install_prompt,
+            productNotices: data.presentation.product_notices,
+          }
+        : DEFAULT_PRESENTATION;
+  const presentation: ConsolePresentationOptions = error
+    ? {
+        ...policy,
+        problem: true,
+        retry: () => {
+          void refetch();
+        },
+      }
+    : { ...policy, problem: false };
   return (
     <ChatHomeContext.Provider value={data?.effective ?? HIDDEN_CHAT_HOME}>
       <OnboardingReminderContext.Provider value={reminders}>
         <ChatCostContext.Provider value={!error && !!data && (data.costs?.effective ?? true)}>
-          {children}
+          <ConsolePresentationContext.Provider value={presentation}>
+            {children}
+          </ConsolePresentationContext.Provider>
         </ChatCostContext.Provider>
       </OnboardingReminderContext.Provider>
     </ChatHomeContext.Provider>
@@ -48,4 +92,8 @@ export function useOnboardingReminderPolicy(): OnboardingReminderOptions {
 
 export function useChatCostsVisible(): boolean {
   return useContext(ChatCostContext);
+}
+
+export function useConsolePresentation(): ConsolePresentationOptions {
+  return useContext(ConsolePresentationContext);
 }

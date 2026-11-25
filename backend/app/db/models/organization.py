@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -237,6 +238,13 @@ class Organization(Base, TimestampMixin):
         JSONB(none_as_null=True), nullable=True
     )
 
+    console_role_defaults: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    console_notices: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     chat_cost_visibility: Mapped[str | None] = mapped_column(String(24), nullable=True)
     """Null inherits everyone; affects disclosure in chat, never the spend ledger."""
 
@@ -355,6 +363,10 @@ class OrganizationMember(Base):
     # so on the membership, never the account, which every organization reads.
     # Null until the first look, which the agent's own starters stand in for.
     onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    console_preferences: Mapped[dict[str, JsonValue] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
 

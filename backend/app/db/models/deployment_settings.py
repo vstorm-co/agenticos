@@ -23,6 +23,7 @@ serves whichever one a query happened to order first.
 import uuid
 from datetime import datetime
 
+from pydantic import JsonValue
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -144,6 +145,10 @@ class DeploymentSettings(Base, TimestampMixin):
     under it a delete - which takes its version history and its run attribution
     with it.
     """
+
+    console_availability: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     chat_costs_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     """Deployment disclosure ceiling; null retains chat cost visibility."""

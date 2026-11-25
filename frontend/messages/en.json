@@ -6356,6 +6356,26 @@
       "personal-chat-costs": {
         "title": "Chat costs",
         "body": "Hide costs in your own chats. Your choice cannot override organization or deployment restrictions."
+      },
+      "deployment-console-navigation": {
+        "title": "Console availability",
+        "body": "Choose navigation and optional product prompts available to organizations. Resource permissions stay unchanged."
+      },
+      "organization-console-navigation": {
+        "title": "Console for each role",
+        "body": "Choose visible navigation for each built-in role. This changes presentation, never access permissions."
+      },
+      "organization-console-notices": {
+        "title": "Product prompts",
+        "body": "Choose optional prompts for this organization. Availability and security notices are unaffected."
+      },
+      "personal-console-navigation": {
+        "title": "My navigation",
+        "body": "Keep the sections you use. Organization and deployment restrictions still apply."
+      },
+      "personal-console-notices": {
+        "title": "Product prompts",
+        "body": "Keep optional prompts that help you. Organization and deployment restrictions still apply."
       }
     },
     "chooseLanguage": "Language",
@@ -21845,6 +21865,40 @@
       "restricted": "Your organization or deployment hides chat costs for this account.",
       "deploymentHint": "Allow organizations to display costs in chat. Turning this off hides chat costs for everyone.",
       "available": "Allow costs in chat"
+    },
+    "presentation": {
+      "organizationTitle": "Console for each role",
+      "organizationHint": "Choose visible navigation for each built-in role. This changes presentation, never access permissions.",
+      "personalTitle": "My navigation",
+      "personalHint": "Keep the sections you use. Organization and deployment restrictions still apply.",
+      "deploymentTitle": "Console availability",
+      "deploymentHint": "Choose navigation and optional product prompts available to organizations. Resource permissions stay unchanged.",
+      "navigationHint": "Hidden pages remain reachable by URL when permitted. Account settings and organization switching stay available.",
+      "simple": "Simple assistant",
+      "inheritNavigation": "Use inherited navigation",
+      "role": "Role",
+      "preview": "Navigation preview",
+      "previewRole": "Preview as {role}",
+      "previewHint": "Navigation only, filtered by this role and your own permissions. No person is impersonated and no private data is loaded.",
+      "saveBeforeRole": "Save or discard your changes before choosing another role.",
+      "noticesTitle": "Product prompts",
+      "noticesHint": "Choose optional prompts for this organization. Availability and security notices are unaffected.",
+      "personalNoticesHint": "Keep optional prompts that help you. Organization and deployment restrictions still apply.",
+      "desktop_install_prompt": "Desktop app invitation",
+      "desktop_install_promptHint": "Suggest installing the desktop app. Existing installations and local dismissals stay unchanged.",
+      "product_notices": "Product announcements",
+      "product_noticesHint": "Automatic release notes and mobile installation suggestions. Service and security notices still appear.",
+      "restricted": "Your organization or deployment restricts this option.",
+      "discard": "Discard changes",
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "builder": "Builder",
+        "operator": "Operator",
+        "member": "Member",
+        "viewer": "Viewer"
+      },
+      "loadError": "Console preferences could not be loaded."
     }
   },
   "modelSources": {

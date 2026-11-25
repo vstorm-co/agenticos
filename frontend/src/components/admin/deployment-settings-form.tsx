@@ -13,6 +13,9 @@ import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-car
 import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
 import { ApnsKeyCard } from "@/components/admin/apns-key-card";
 import { useSignInProviders } from "@/components/auth/oauth-buttons";
+import { ConsoleNavigationSelection } from "@/components/settings/console-navigation-controls";
+import { ConsoleNoticeControls } from "@/components/settings/console-notice-controls";
+import { NAV_GROUPS } from "@/lib/nav-sections";
 import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
@@ -20,6 +23,7 @@ import { DomainListField } from "@/components/admin/domain-list-field";
 import { ErrorState } from "@/components/states";
 import { LoadingForm } from "@/components/states/loading-form";
 import {
+  Button,
   FormField,
   Label,
   Input,
@@ -131,6 +135,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     dictation_compressed_audio: settings?.dictation_compressed_audio,
     onboarding_reminders_available: settings?.onboarding_reminders_available,
     chat_costs_available: settings?.chat_costs_available,
+    console_availability: settings?.console_availability,
     announcement_expires_at: settings?.announcement_expires_at,
     maintenance_planned_end_at: settings?.maintenance_planned_end_at,
     ...edits,
@@ -235,6 +240,43 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
         }}
         identity={
           <>
+            <DeploymentSettingsPanel
+              title={experience("presentation.deploymentTitle")}
+              description={experience("presentation.deploymentHint")}
+            >
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={save.isPending || isLoading}
+                  data-tour="deployment-console-navigation"
+                  onClick={() =>
+                    set("console_availability", { ...draft.console_availability, navigation: null })
+                  }
+                >
+                  {experience("presentation.inheritNavigation")}
+                </Button>
+                <ConsoleNavigationSelection
+                  value={draft.console_availability?.navigation}
+                  allowed={NAV_GROUPS.filter(
+                    (group) => !group.adminOnly && !group.switcherOnly,
+                  ).flatMap((group) => group.items.map((item) => item.labelKey))}
+                  disabled={save.isPending || isLoading}
+                  onChange={(navigation) =>
+                    set("console_availability", { ...draft.console_availability, navigation })
+                  }
+                />
+              </div>
+              <ConsoleNoticeControls
+                mode="availability"
+                value={draft.console_availability ?? undefined}
+                disabled={save.isPending || isLoading}
+                onChange={(changes) =>
+                  set("console_availability", { ...draft.console_availability, ...changes })
+                }
+              />
+            </DeploymentSettingsPanel>
             <DeploymentSettingsPanel
               title={experience("title")}
               description={experience("deploymentHint")}

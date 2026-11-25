@@ -320,3 +320,23 @@ export function navSectionFor(
   }
   return null;
 }
+
+/** Presentation first, permissions last. Identity/admin switcher entries stay reachable. */
+export function presentedNavigation(
+  groups: readonly NavGroup[],
+  allowed: readonly string[] | null,
+): NavGroup[] {
+  if (allowed === null) return [...groups];
+  const selected = new Set(allowed);
+  return groups
+    .map((group) => {
+      if (group.adminOnly || group.switcherOnly) return group;
+      const items = group.items.filter((item) => selected.has(item.labelKey));
+      return {
+        ...group,
+        items,
+        collapsible: group.collapsible && (items.length === group.items.length || items.length > 1),
+      };
+    })
+    .filter((group) => group.items.length > 0);
+}

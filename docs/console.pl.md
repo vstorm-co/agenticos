@@ -1,5 +1,5 @@
 ---
-source_sha: "11debd5eabee"
+source_sha: "d10af126805f"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -209,6 +209,15 @@ Ukrycie podglądu skrzynki pozostawia dostęp do pełnej skrzynki i kolejki zgó
 Ustawienia instalacji mają też opcjonalny termin **Wygaśnięcia ogłoszenia**. Po tym terminie serwer przestaje zwracać ogłoszenie, a otwarte strony otrzymują zmianę podczas zwykłego odpytywania o komunikaty. **Planowany koniec prac** to wyłącznie informacja: nie otwiera automatycznie aplikacji. Tryb konserwacji kończy administrator. Pola dat pokazują strefę urządzenia i zapisują daty ze strefą w UTC.
 
 Administracja jest dostępna w menu konta. Jej ustawienia używają wspólnych zakładek i zachowują draft podczas przełączania sekcji. Pamięć i Notatki wypełniają pozostały obszar, przewijają własne wiersze i zachowują stopkę **1 / 1**. Zwykły Architect używa tej samej rodziny generowanych portretów co inni agenci; własne przesłane obrazy pozostają zachowane. Widoki skrzynki współdzielą wygląd wierszy, a przeciąganie Kanbana pokazuje rzeczywistą kartę. Późniejsze kroki konfiguracji zachowują spójny układ nagłówka, formularza i ilustracji; kontynuacja niezmienionego profilu nie zgłasza zapisu.
+
+### Menu i podpowiedzi produktowe { #console-presentation }
+
+W **Admin → Deployment → Tożsamość → Dostępność konsoli** operator wybiera sekcje menu i opcjonalne podpowiedzi dostępne dla organizacji. Organizacja ustawia **Konsolę dla każdej roli** w **AI i usługi**: wybiera wbudowaną rolę, zmienia menu, sprawdza podgląd i zapisuje. **Prosty asystent** wybiera Chat, Inbox, Projekty i Dokumenty. To opcjonalny preset, a nie nowa konfiguracja obecnych kont.
+
+Użytkownik może zawęzić ten wybór w **Ustawienia → Profil → Moje menu**. Pusta lista celowo ukrywa wszystkie główne pozycje; wybór odziedziczony podąża za organizacją i deploymentem. Zmiany menu wymagają **Zapisu**, a opuszczenie strony z niezapisanym wyborem wyświetla ostrzeżenie. Ustawienia konta, przełączanie organizacji i dostęp administratora pozostają osiągalne. Ukrycie strony nie odbiera uprawnień: uprawniona osoba nadal otworzy jej URL. Zwykłe sprawdzenie uprawnień działa po filtrowaniu widoku.
+
+Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. Nie działa w imieniu innej osoby i nie wczytuje jej danych. **Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
+
 
 ### Koszty w chacie { #chat-cost-visibility }
 

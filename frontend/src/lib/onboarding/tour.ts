@@ -192,6 +192,41 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "deployment-console-navigation",
+    page: "/admin/settings",
+    target: "deployment-console-navigation",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-console-navigation",
+    page: ORG_MEMBERS,
+    target: "organization-console-navigation",
+    activate: ["org-tab-assistant", "organization-console-navigation-expand"],
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "organization-console-notices",
+    page: ORG_MEMBERS,
+    target: "organization-console-notices",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-console-navigation",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-navigation",
+    optional: true,
+  },
+  {
+    id: "personal-console-notices",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-notices",
+    optional: true,
+  },
+  {
     id: "deployment-chat-costs",
     page: "/admin/settings",
     target: "deployment-chat-costs",

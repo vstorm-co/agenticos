@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { MessageSquare, BellRing, Coins } from "lucide-react";
+import { MessageSquare, BellRing, Coins, PanelLeft, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useConsoleExperience } from "@/hooks/use-console-experience";
@@ -14,18 +14,27 @@ import type {
   ChatHomeOverrides,
   OnboardingReminderOverrides,
   ChatCostVisibility,
+  ConsoleRoleDefaults,
+  ConsoleNotices,
 } from "@/lib/console-experience-api";
 import { Perm } from "@/types/permissions";
-import type { Organization } from "@/types/organization";
+import type { Organization, OrgRole } from "@/types/organization";
 import { ErrorState } from "@/components/states";
 import { ServiceCard } from "@/components/settings/service-card";
 import { OnboardingReminderControls } from "@/components/settings/onboarding-reminder-controls";
 import { OrganizationChatCostControl } from "@/components/settings/chat-cost-controls";
+import { OrganizationConsoleNavigation } from "./org-console-navigation";
+import { ConsoleNoticeControls } from "@/components/settings/console-notice-controls";
 import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 
 type OrganizationExperience = Pick<
   Organization,
-  "id" | "chat_home_defaults" | "onboarding_reminders" | "chat_cost_visibility"
+  | "id"
+  | "chat_home_defaults"
+  | "onboarding_reminders"
+  | "chat_cost_visibility"
+  | "console_role_defaults"
+  | "console_notices"
 >;
 
 export function OrgChatHomeSettings({ org }: { org: OrganizationExperience }) {
@@ -44,6 +53,8 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
     mutationFn: (changes: {
       chat_home_defaults?: ChatHomeOverrides;
       chat_cost_visibility?: ChatCostVisibility;
+      console_role_defaults?: Partial<Record<OrgRole, ConsoleRoleDefaults | null>>;
+      console_notices?: ConsoleNotices;
       onboarding_reminders?: OnboardingReminderOverrides;
     }) => {
       if (useOrgStore.getState().activeOrgId !== org.id) throw new Error(errors("sessionExpired"));
@@ -61,6 +72,42 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
   });
   return (
     <>
+      <ServiceCard
+        icon={PanelLeft}
+        action={null}
+        title={t("presentation.organizationTitle")}
+        description={t("presentation.organizationHint")}
+        collapsible
+        toggleTour="organization-console-navigation-expand"
+      >
+        {data?.presentation && (
+          <OrganizationConsoleNavigation
+            key={org.id}
+            defaults={org.console_role_defaults}
+            presentation={data.presentation}
+            disabled={save.isPending}
+            onSave={(role, changes, onSaved) =>
+              save.mutate({ console_role_defaults: { [role]: changes } }, { onSuccess: onSaved })
+            }
+          />
+        )}
+      </ServiceCard>
+      <ServiceCard
+        icon={Megaphone}
+        action={null}
+        title={t("presentation.noticesTitle")}
+        description={t("presentation.noticesHint")}
+      >
+        <div data-tour="organization-console-notices">
+          <ConsoleNoticeControls
+            mode="availability"
+            value={org.console_notices}
+            ceiling={data?.presentation?.notices_available}
+            disabled={save.isPending || !data}
+            onChange={(console_notices) => save.mutate({ console_notices })}
+          />
+        </div>
+      </ServiceCard>
       <ServiceCard
         icon={MessageSquare}
         action={null}

@@ -6235,6 +6235,26 @@
       "personal-chat-costs": {
         "title": "Chatkosten",
         "body": "Blende Kosten in deinen Chats aus. Organisations- und Deployment-Beschränkungen gelten weiterhin."
+      },
+      "deployment-console-navigation": {
+        "title": "Verfügbarkeit der Konsole",
+        "body": "Wähle Navigation und optionale Produkthinweise für Organisationen. Ressourcenberechtigungen bleiben unverändert."
+      },
+      "organization-console-navigation": {
+        "title": "Konsole pro Rolle",
+        "body": "Wähle die sichtbare Navigation für jede integrierte Rolle. Dies ändert die Darstellung, niemals Zugriffsrechte."
+      },
+      "organization-console-notices": {
+        "title": "Produkthinweise",
+        "body": "Wähle optionale Hinweise für diese Organisation. Verfügbarkeits- und Sicherheitshinweise bleiben unverändert."
+      },
+      "personal-console-navigation": {
+        "title": "Meine Navigation",
+        "body": "Behalte die Bereiche, die du nutzt. Organisations- und Deployment-Beschränkungen gelten weiterhin."
+      },
+      "personal-console-notices": {
+        "title": "Produkthinweise",
+        "body": "Behalte hilfreiche Hinweise. Organisations- und Deployment-Beschränkungen gelten weiterhin."
       }
     },
     "chooseLanguage": "Sprache",
@@ -21531,6 +21551,40 @@
       "restricted": "Deine Organisation oder dein Deployment blendet Chatkosten für dieses Konto aus.",
       "deploymentHint": "Erlaube Organisationen, Kosten im Chat anzuzeigen. Ausschalten blendet sie für alle aus.",
       "available": "Kosten im Chat erlauben"
+    },
+    "presentation": {
+      "organizationTitle": "Konsole pro Rolle",
+      "organizationHint": "Wähle die sichtbare Navigation für jede integrierte Rolle. Dies ändert die Darstellung, niemals Zugriffsrechte.",
+      "personalTitle": "Meine Navigation",
+      "personalHint": "Behalte die Bereiche, die du nutzt. Organisations- und Deployment-Beschränkungen gelten weiterhin.",
+      "deploymentTitle": "Verfügbarkeit der Konsole",
+      "deploymentHint": "Wähle Navigation und optionale Produkthinweise für Organisationen. Ressourcenberechtigungen bleiben unverändert.",
+      "navigationHint": "Verborgene Seiten sind mit Berechtigung weiterhin per URL erreichbar. Kontoeinstellungen und Organisationswechsel bleiben verfügbar.",
+      "simple": "Einfacher Assistent",
+      "inheritNavigation": "Geerbte Navigation verwenden",
+      "role": "Rolle",
+      "preview": "Navigationsvorschau",
+      "previewRole": "Vorschau als {role}",
+      "previewHint": "Nur Navigation, gefiltert nach dieser Rolle und deinen Berechtigungen. Niemand wird imitiert und keine privaten Daten werden geladen.",
+      "saveBeforeRole": "Speichere oder verwerfe Änderungen, bevor du eine andere Rolle wählst.",
+      "noticesTitle": "Produkthinweise",
+      "noticesHint": "Wähle optionale Hinweise für diese Organisation. Verfügbarkeits- und Sicherheitshinweise bleiben unverändert.",
+      "personalNoticesHint": "Behalte hilfreiche Hinweise. Organisations- und Deployment-Beschränkungen gelten weiterhin.",
+      "desktop_install_prompt": "Einladung zur Desktop-App",
+      "desktop_install_promptHint": "Schlage die Installation der Desktop-App vor. Bestehende Installationen und lokale Ablehnungen bleiben unverändert.",
+      "product_notices": "Produktneuigkeiten",
+      "product_noticesHint": "Automatische Versionshinweise und Installationsvorschläge auf Mobilgeräten. Dienst- und Sicherheitshinweise erscheinen weiterhin.",
+      "restricted": "Deine Organisation oder dein Deployment schränkt diese Option ein.",
+      "discard": "Änderungen verwerfen",
+      "roles": {
+        "owner": "Inhaber",
+        "admin": "Administrator",
+        "builder": "Builder",
+        "operator": "Operator",
+        "member": "Mitglied",
+        "viewer": "Betrachter"
+      },
+      "loadError": "Konsoleneinstellungen konnten nicht geladen werden."
     }
   },
   "modelSources": {

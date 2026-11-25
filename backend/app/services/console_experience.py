@@ -16,6 +16,13 @@ from app.schemas.console_experience import (
     resolve_chat_home,
     resolve_onboarding_reminders,
 )
+from app.schemas.console_presentation import (
+    ConsoleNotices,
+    StoredConsolePreferences,
+    StoredRoleConsole,
+    resolve_console_presentation,
+    stored_role_defaults,
+)
 
 
 class ConsoleExperienceService:
@@ -46,6 +53,16 @@ class ConsoleExperienceService:
         defaults = ChatHomeOverrides.model_validate(organization.chat_home_defaults or {})
         preferences = ChatHomeOverrides.model_validate(member.chat_home_preferences or {})
         return ConsoleExperienceRead(
+            presentation=resolve_console_presentation(
+                StoredConsolePreferences.model_validate(
+                    deployment.console_availability or {} if deployment else {}
+                ),
+                stored_role_defaults(organization.console_role_defaults).get(
+                    member.role, StoredRoleConsole()
+                ),
+                ConsoleNotices.model_validate(organization.console_notices or {}),
+                StoredConsolePreferences.model_validate(member.console_preferences or {}),
+            ),
             costs=resolve_chat_costs(
                 deployment.chat_costs_available if deployment else None,
                 chat_cost_policy(organization.chat_cost_visibility),
@@ -70,6 +87,15 @@ class ConsoleExperienceService:
         member = await self._member(ctx)
         if not data.model_fields_set:
             raise BadRequestError(message="Nothing to change", details={})
+        if "console" in data.model_fields_set:
+            updated = await member_repo.set_console_presentation(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=member.user_id,
+                changes=data.console.changes() if data.console is not None else None,
+            )
+            if updated is None:
+                raise NotFoundError(message="Organization membership not found", details={})
         if "chat_costs" in data.model_fields_set:
             updated_member = await member_repo.set_chat_cost_preference(
                 self.db,

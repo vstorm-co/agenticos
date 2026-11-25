@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import and_, cast, func, null, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -699,6 +700,36 @@ async def set_chat_cost_preference(
             OrganizationMember.user_id == user_id,
         )
         .values(chat_costs_visible=visible)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one_or_none()
+
+
+async def set_console_presentation(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, JsonValue] | None,
+) -> OrganizationMember | None:
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.console_preferences, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(console_preferences=value)
         .returning(OrganizationMember)
         .execution_options(populate_existing=True)
     )

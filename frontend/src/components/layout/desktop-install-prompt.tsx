@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { MonitorDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useShell } from "@/hooks/use-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useAuthStore } from "@/stores";
@@ -26,6 +27,7 @@ function dismissedUntil(key: string): number {
 /** A quiet native-app invitation, separate from the phone's PWA install prompt. */
 export function DesktopInstallPrompt() {
   const t = useTranslations("layout.desktopInstall");
+  const { desktopInstallPrompt } = useConsolePresentation();
   const shell = useShell();
   const mounted = useMounted();
   const account = useAuthStore((state) => state.user?.id);
@@ -53,7 +55,7 @@ export function DesktopInstallPrompt() {
   const snapshot = useCallback(() => dismissedUntil(key) > Date.now(), [key]);
   const dismissed = useSyncExternalStore(subscribe, snapshot, () => true);
 
-  if (!mounted || shell !== null || !account || dismissed) return null;
+  if (!desktopInstallPrompt || !mounted || shell !== null || !account || dismissed) return null;
   const mobile =
     /Android|iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);

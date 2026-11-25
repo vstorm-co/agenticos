@@ -29,6 +29,7 @@ from app.repositories import (
     organization_repo,
 )
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
+from app.schemas.console_presentation import ConsoleNotices, stored_role_defaults
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -92,6 +93,8 @@ def _org_read(
         onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
         if org.onboarding_reminders is not None
         else None,
+        console_role_defaults=stored_role_defaults(org.console_role_defaults),
+        console_notices=ConsoleNotices.model_validate(org.console_notices or {}),
         chat_cost_visibility=chat_cost_policy(org.chat_cost_visibility),
         chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
         if org.chat_home_defaults is not None
@@ -522,6 +525,37 @@ class OrganizationService:
                     "Changing whether pages may show data publicly is not allowed while "
                     "impersonating another account."
                 )
+            )
+
+        if "console_role_defaults" in data.model_fields_set:
+            org = await organization_repo.set_console_role_defaults(
+                self.db,
+                org,
+                changes={
+                    role.value: value.changes() if value is not None else None
+                    for role, value in data.console_role_defaults.items()
+                }
+                if data.console_role_defaults is not None
+                else None,
+            )
+        if "console_notices" in data.model_fields_set:
+            org = await organization_repo.set_console_notices(
+                self.db,
+                org,
+                changes=data.console_notices.changes()
+                if data.console_notices is not None
+                else None,
+            )
+        console_fields = data.model_fields_set & {"console_role_defaults", "console_notices"}
+        if console_fields:
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                organization_id=org.id,
+                action="organization.console_presentation_changed",
+                target_type="organization",
+                target_id=str(org.id),
+                details={"fields": sorted(console_fields)},
             )
 
         if "onboarding_reminders" in data.model_fields_set:

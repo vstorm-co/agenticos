@@ -1,5 +1,7 @@
 "use client";
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
+import { presentedNavigation } from "@/lib/nav-sections";
 import { COMMAND_ITEM_FOCUS, MENU_ROW, SEARCH_FIELD_FOCUS } from "@/components/ui/control-styles";
 
 import {
@@ -77,6 +79,7 @@ interface ConversationItem {
 }
 
 export function CommandPalette() {
+  const { navigation } = useConsolePresentation();
   const router = useRouter();
   const t = useTranslations("nav");
   const common = useTranslations("common");
@@ -272,7 +275,7 @@ export function CommandPalette() {
           />
         </Group>
 
-        {NAV_GROUPS.map((group) => {
+        {presentedNavigation(NAV_GROUPS, navigation).map((group) => {
           if (group.adminOnly && !admin) return null;
           const items = group.items.filter((item) => !item.permission || can(item.permission));
           if (items.length === 0) return null;
