@@ -2815,6 +2815,26 @@ class TestARefusedStep:
             .where(SkillImprovementIteration.run_id == read.id)
         )
 
+    @pytest.mark.security
+    async def test_an_organization_out_of_budget_after_the_start_stops_the_step(self, db, evidence):
+        """What the improver or the organization has left is checked again at each step,
+        not only when the session started."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        read = await service.start(ctx, skill.id, _start())
+        evidence["affordable"] = False
+
+        await service.advance(read.id, ctx.organization_id)
+
+        run = await _row(db, read)
+        assert (run.status, run.stop_reason, run.analysis_request_id) == (
+            "stopped",
+            "budget",
+            None,
+        )
+
+    @pytest.mark.security
     async def test_a_spending_limit_refused_mid_step_stops_the_session_on_its_budget(
         self, db, evidence, monkeypatch
     ):

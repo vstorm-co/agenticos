@@ -1629,10 +1629,11 @@ class SkillImprovementService:
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.NO_DATA)
             )
             return
-        price = (
-            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
-        ).estimate_usd
-        if not await self._affordable(run, price):
+        estimate = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=run.improver_agent_id
+        )
+        price = estimate.estimate_usd
+        if not estimate.affordable or not await self._affordable(run, price):
             await self._move(
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.BUDGET)
             )
@@ -1706,12 +1707,11 @@ class SkillImprovementService:
             merge = await self._merge(run)
             if merge.conflicts:
                 prompt = MERGE_ASK + self.merges.conflicts_prompt(merge)
-                price = (
-                    await self.authoring.estimate_call(
-                        ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
-                    )
-                ).estimate_usd
-                if await self._affordable(run, price):
+                estimate = await self.authoring.estimate_call(
+                    ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
+                )
+                price = estimate.estimate_usd
+                if estimate.affordable and await self._affordable(run, price):
                     request = await self.authoring.start_for_skill_session(
                         ctx,
                         kind=AuthoringKind.IMPROVE,
@@ -1788,12 +1788,11 @@ class SkillImprovementService:
         iteration = await self._iteration(run)
         if iteration.authoring_request_id is None:
             pack = await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
-            price = (
-                await self.authoring.estimate_pack(
-                    ctx, pack, improver_agent_id=run.improver_agent_id
-                )
-            ).estimate_usd
-            if not await self._affordable(run, price):
+            estimate = await self.authoring.estimate_pack(
+                ctx, pack, improver_agent_id=run.improver_agent_id
+            )
+            price = estimate.estimate_usd
+            if not estimate.affordable or not await self._affordable(run, price):
                 await self._move(
                     run, rules.Transition(Status.STOPPED, Stage.PROPOSING, StopReason.BUDGET)
                 )

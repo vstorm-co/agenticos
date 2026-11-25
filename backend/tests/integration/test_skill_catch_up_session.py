@@ -971,6 +971,25 @@ class TestTheEdgesOfAMerge:
 
         assert (run.status, run.stage) == ("running", "proposing")
 
+    @pytest.mark.security
+    async def test_conflicts_the_organization_can_no_longer_afford_wait_for_a_person(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx, conflict=True)
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        call_price["affordable"] = False
+
+        await _advance(db, run)
+
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert (run.status, run.stage) == ("waiting", "filtering")
+        assert iteration is not None and iteration.authoring_request_id is None
+
     async def test_a_helper_refused_on_the_conflicts_fails_the_merge_with_why(
         self, db, call_price, monkeypatch
     ):
