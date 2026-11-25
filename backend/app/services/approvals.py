@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.approval import private_approval_fields
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
+from app.agents.mcp import PLATFORM_MCP_NAME
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -83,6 +84,29 @@ def _parked_tool_call_ids(run: AgentRun) -> list[str]:
 
 def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
+
+
+def runs_as_its_person(approval: ToolApproval) -> bool:
+    """Whether this is a platform call that always asks.
+
+    Such a call runs with the platform authority of the person its run acts for,
+    so only that person's answer may release it.
+    """
+    return approval.always_asks and approval.tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
+
+
+def answers_as_runs_person(ctx: AuthContext, run: AgentRun | None) -> bool:
+    """Whether `ctx` is the person `run` acts for, signed in as themselves.
+
+    Neither a key, the person's own included, nor an administrator impersonating
+    them gives the fresh answer a call that always asks waits for.
+    """
+    return (
+        run is not None
+        and _own_run(ctx, run.user_id)
+        and not ctx.subject_is_publisher_fallback
+        and current_impersonator() is None
+    )
 
 
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
@@ -311,7 +335,9 @@ class ApprovalService:
 
         Raises:
             AuthorizationError: If this is an approval of a call that only a person's
-                answer may let run, by somebody who may not see what it quotes.
+                answer may let run, by somebody who may not see what it quotes - or,
+                for a platform call, by anybody but the run's own person signed in
+                as themselves.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -340,6 +366,23 @@ class ApprovalService:
         if approved and approval.tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
             raise AuthorizationError(
                 message="An application administrator must approve this deployment change"
+            )
+        if (
+            approved
+            and runs_as_its_person(approval)
+            and not answers_as_runs_person(
+                ctx,
+                await agent_run_repo.get_run(
+                    self.db, approval.run_id, organization_id=ctx.organization_id
+                ),
+            )
+        ):
+            raise AuthorizationError(
+                message=(
+                    "Only the person this run acts for may approve this platform call, "
+                    "signed in as themselves; you may reject it"
+                ),
+                details={"approval_id": approval_id},
             )
         if approved and approval.always_asks and await self.hidden_fields(ctx, approval):
             raise AuthorizationError(
