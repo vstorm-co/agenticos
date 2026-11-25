@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The judge prompt fences the case and the answer and ends on the rule that they are data; its version moves to 5. Scores graded with the earlier prompt are no longer reused as cached baselines or compared with new ones, so the first eval run or Improve session after the upgrade grades its answers from scratch, and grading an older eval score again asks to run the eval again.
+- Secret redaction recognises more shapes: passwords in URLs, keys in query strings and form bodies, Basic and opaque Bearer authorization, and more provider key prefixes. Live chats with `redact_secrets_*` on may mask more than before.
+- A person's read of an eval run compares it again under the organization's comparison limit. A single run read returns 429 while another comparison runs; run lists and the Builder's model gate show the verdict they have.
+
+### Fixed
+
+- A failed background job keeps only messages AgenticOS wrote as its last error. Another exception names its type, and its message stays in the worker log.
+- A manual eval checks before every case that its starter may still run the agent and the dataset.
+
+### Security
+
+- Deciding or rescoring an eval score needs access to the answer it scores, and the judge's knowledge passages are shown only to readers of their knowledge base.
+- Credentials in conversations no longer reach the Improve helper's model, its kept quotes or the knowledge gaps classifier. A suggestion or a proposed skill or context file change that would write one reads redacted, and accepting, applying or checking it is refused until it is edited.
+- Text written from a dataset's cases needs access to that dataset: an Improve session's changes, a skill session's quotes from eval answers, and the run records of eval answers and of platform agents such as the judge.
+- A case generated from a chat stays masked once the chat is deleted, and masked cases no longer show through the duplicate-question check or key coverage. The source-privacy check refuses a message outside the caller's reach as it refuses an unknown id.
+- Skill check reads no longer return ids of agents, datasets or eval runs the reader may not see.
+- Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
+
+### Upgrading
+
+- Migration `0368_case_from_conversation` adds `dataset_cases.from_conversation` and backfills it from each case's source, its conversation, message and run links, and its recorded asker. A case generated from an anonymous visitor's chat that was deleted before the upgrade has none of these left and stays readable to every reader of its dataset.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
