@@ -78,6 +78,13 @@ const DialogContent = React.forwardRef<
             const target = opener.current;
             opener.current = null;
             if (event.defaultPrevented || !target?.isConnected) return;
+            // Focus a dialog's own action moved elsewhere stays where it was put.
+            const focused = document.activeElement;
+            const lost =
+              focused === null ||
+              focused === document.body ||
+              (event.target instanceof Node && event.target.contains(focused));
+            if (!lost) return;
             event.preventDefault();
             target.focus({ preventScroll: true });
           }}

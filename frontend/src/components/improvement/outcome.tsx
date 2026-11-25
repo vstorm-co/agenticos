@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { BookOpen, CheckCircle2, Coins, Gauge, ListChecks, Puzzle, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
@@ -9,7 +10,7 @@ import { useAgentEnvironments } from "@/hooks/use-agent-environments";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
-import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
+import { useKnowledgeGapTopics } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { criteriaTotals } from "./criteria";
@@ -27,18 +28,28 @@ function counts(round: ImprovementIteration | undefined) {
 /** Where the result step lists what its missing-topics counter counts. */
 export const DOCUMENTS_ANCHOR = "improvement-documents";
 
+/** As many of a session's topics as its result reads; the agent's gaps tab lists the rest. */
+export const SESSION_TOPICS = 50;
+
 /**
  * The open topics this session's own examples led to, drafted or not: a draft is
  * written only when somebody asks for one. `added` are its topics a document
- * covers since, which have nothing left to draft.
+ * covers since, which have nothing left to draft. Each is read by its id, so a topic
+ * asked about less than the agent's others is never pushed off a page.
  */
 export function useSessionTopics(session: Improvement) {
-  const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
   const sources = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
-  const ours = new Set(sources.evidence?.items.map((item) => item.topic_id).filter(Boolean));
+  const ours = [
+    ...new Set(sources.evidence?.items.flatMap((item) => (item.topic_id ? [item.topic_id] : []))),
+  ];
+  const gaps = useKnowledgeGapTopics(ours.slice(0, SESSION_TOPICS));
   return {
-    topics: gaps.topics.filter((topic) => topic.status === "open" && ours.has(topic.id)),
-    added: gaps.topics.filter((topic) => topic.status === "covered" && ours.has(topic.id)),
+    topics: gaps.topics.filter((topic) => topic.status === "open"),
+    added: gaps.topics.filter((topic) => topic.status === "covered"),
+    /** Topics removed since, or that the reader may not see. */
+    skipped: gaps.skipped,
+    /** Topics past the ones read. */
+    more: Math.max(0, ours.length - SESSION_TOPICS),
     error: gaps.error ?? sources.error,
     isLoading: gaps.isLoading || sources.isLoading,
     retry: () => Promise.all([gaps.refetch(), sources.refetch()]),
@@ -59,7 +70,7 @@ export function ResultSummary({
   const t = useTranslations("improvement");
   const locale = useLocale();
   const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
-  const { topics, added } = useSessionTopics(session);
+  const { topics, added, error: topicsError } = useSessionTopics(session);
   const totals = criteriaTotals(round);
   const runId = round?.eval_run_ids.at(-1);
   const { comparison, error, refetch } = useEvalComparison(runId ?? "", {
@@ -69,7 +80,9 @@ export function ResultSummary({
   const unconfirmed = (flip: "fixed" | "regression") =>
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
-  const knowledge = t("resultKnowledge", { count: topics.length, added: added.length });
+  const knowledge = topicsError
+    ? t("resultKnowledgeUnread")
+    : t("resultKnowledge", { count: topics.length, added: added.length });
   if (error) return <StepError error={error} retry={refetch} />;
   if (comparison?.verdict === "invalid" && runId) {
     return (
@@ -176,7 +189,7 @@ export function KnowledgeDocuments({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { topics, error, isLoading, retry } = useSessionTopics(session);
+  const { topics, skipped, more, error, isLoading, retry } = useSessionTopics(session);
   const actions = useImprovement(subjectOf(session), session.id);
   const [open, setOpen] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -185,7 +198,9 @@ export function KnowledgeDocuments({
   const drafted = shown.filter((topic) => topic.has_draft && !topic.drafting);
   const stale = drafted.filter((topic) => topic.draft_stale).length;
   const ready = drafted.filter((topic) => !topic.draft_stale && topic.can_edit).length;
-  if (hideEmpty && !isLoading && !error && shown.length === 0 && open === null) return null;
+  const unlisted = skipped > 0 || more > 0;
+  if (hideEmpty && !isLoading && !error && !unlisted && shown.length === 0 && open === null)
+    return null;
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-knowledge">
       <h3 className="text-sm font-medium">
@@ -193,8 +208,9 @@ export function KnowledgeDocuments({
           ? t("acceptKnowledge", { missing: shown.length, ready, stale })
           : t("cause.missing_knowledge")}
       </h3>
-      {error && <StepError error={error} retry={retry} />}
-      {isLoading ? (
+      {error ? (
+        <StepError error={error} retry={retry} />
+      ) : isLoading ? (
         <div role="status" aria-label={t("knowledgeLoading")} className="space-y-2">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
@@ -203,6 +219,21 @@ export function KnowledgeDocuments({
         <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
       ) : (
         !accept && <p className="text-muted-foreground text-xs">{t("knowledgeDraftCost")}</p>
+      )}
+      {skipped > 0 && (
+        <p className="text-muted-foreground text-xs">{t("topicsSkipped", { count: skipped })}</p>
+      )}
+      {more > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t.rich("topicsMore", {
+            count: more,
+            link: (chunks) => (
+              <Link className="underline" href={`/agents/${session.agent_id}?tab=gaps`}>
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
       )}
       {shown.map((topic) => (
         <SessionTopic

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -85,6 +85,34 @@ export function useKnowledgeGap(topicId: string) {
     refetchInterval: (query) => (query.state.data?.drafting ? DRAFTING_POLL_MS : false),
   });
   return { topic: data, isLoading, error, refetch };
+}
+
+/** A topic removed since, or in a knowledge base the reader cannot see. */
+function unreachable(cause: unknown): boolean {
+  return cause instanceof ApiError && (cause.status === 403 || cause.status === 404);
+}
+
+/**
+ * Topics read one by one, whatever their status: the ones a session found. A topic
+ * the reader cannot reach is counted in `skipped`, not shown and not an error.
+ */
+export function useKnowledgeGapTopics(topicIds: string[]) {
+  const reads = useQueries({
+    queries: topicIds.map((topicId) => ({
+      queryKey: qk.knowledgeGaps.detail(topicId),
+      queryFn: () => apiClient.get<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}`),
+      retry: (failures: number, cause: unknown) => !unreachable(cause) && failures < 1,
+    })),
+  });
+  const failed = reads.filter((read) => read.error !== null);
+  return {
+    // A refetch refused with 403 or 404 keeps the earlier answer; it is not shown.
+    topics: reads.flatMap((read) => (read.data && !unreachable(read.error) ? [read.data] : [])),
+    skipped: failed.filter((read) => unreachable(read.error)).length,
+    error: failed.find((read) => !unreachable(read.error))?.error ?? null,
+    isLoading: reads.some((read) => read.isLoading),
+    refetch: () => Promise.all(failed.map((read) => read.refetch())),
+  };
 }
 
 /** What one draft of a topic would cost; refused like the draft itself. */

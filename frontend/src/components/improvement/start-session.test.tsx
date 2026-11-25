@@ -29,6 +29,10 @@ const state = vi.hoisted(() => ({
     { id: "forbidden", name: "Cannot run", can_run: false },
   ],
   suites: [] as { dataset_id: string; name: string }[],
+  /** A dataset read by its id: one the lists do not hold, or why it could not be read. */
+  linked: {} as Record<string, { name: string; can_run: boolean; error?: Error } | Error>,
+  linkedReads: [] as string[],
+  refetchLinked: vi.fn(),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({
   useAgentEvalSuites: () => ({ suites: state.suites }),
@@ -38,6 +42,18 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => state.params,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
+  useDataset: (id: string) => {
+    if (id) state.linkedReads.push(id);
+    const found = state.linked[id] ?? { name: `Dataset ${id}`, can_run: true };
+    return found instanceof Error
+      ? { dataset: undefined, isLoading: false, error: found, refetch: state.refetchLinked }
+      : {
+          dataset: id ? { id, name: found.name, can_run: found.can_run } : undefined,
+          isLoading: false,
+          error: found.error ?? null,
+          refetch: state.refetchLinked,
+        };
+  },
   useDatasets: (query: { agent?: string }) => {
     state.datasetQueries.push(query);
     return query.agent
@@ -103,6 +119,8 @@ const QUOTE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.linked = {};
+  state.linkedReads = [];
   state.params = new URLSearchParams();
   state.sessionError = state.datasetError = null;
   state.testSetLoading = false;
@@ -286,6 +304,67 @@ it("starts from the question set a link names", async () => {
   render(<StartSession agentId="a1" onClose={vi.fn()} />);
   await screen.findByRole("button", { name: "Start improving" });
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "d1", max_iterations: 3 });
+});
+
+it("names a linked dataset the lists do not hold, and prices the session on it", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = { elsewhere: { name: "Another team's questions", can_run: true } };
+  state.params = new URLSearchParams("improveDataset=elsewhere");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent(
+    "Another team's questions",
+  );
+  expect(await screen.findByText("Measured on Another team's questions.")).toBeInTheDocument();
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "elsewhere", max_iterations: 3 });
+});
+
+it("never prices or starts a linked dataset it cannot read or run, and says so", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    gone: new ApiError(404, "Dataset not found"),
+    locked: { name: "Locked questions", can_run: false },
+  };
+  for (const id of ["gone", "locked"]) {
+    state.estimate.mockClear();
+    state.params = new URLSearchParams(`improveDataset=${id}`);
+    const view = render(<StartSession agentId="a1" onClose={vi.fn()} />);
+    expect(
+      screen.getByText(/The dataset in the link cannot be used: it was removed/),
+    ).toBeInTheDocument();
+    await screen.findByText("Measured on Refund desk - test questions.");
+    expect(state.estimate).not.toHaveBeenCalledWith(expect.objectContaining({ dataset_id: id }));
+    view.unmount();
+  }
+});
+
+it("shows a linked dataset that failed to read, and prices nothing until it is read", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    flaky: new ApiError(502, "Bad gateway", {
+      error: { code: "BAD_GATEWAY", message: "Bad gateway" },
+    }),
+  };
+  state.params = new URLSearchParams("improveDataset=flaky");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The dataset in the link could not be read, so nothing is priced yet. Bad gateway",
+  );
+  expect(screen.queryByText(/The dataset in the link cannot be used/)).not.toBeInTheDocument();
+  await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.refetchLinked).toHaveBeenCalled();
+});
+
+it("prices nothing on a linked dataset whose read failed again after an earlier answer", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    flaky: { name: "Flaky questions", can_run: true, error: new ApiError(502, "Bad gateway") },
+  };
+  state.params = new URLSearchParams("improveDataset=flaky");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(/nothing is priced yet/);
+  await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
 });
 
 it("points to the one session still open instead of every past one", () => {

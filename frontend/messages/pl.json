@@ -8689,7 +8689,8 @@
         "unscorable": "Nie sprawdzono: nic nie oceni jego pytań. Ustaw ocenianie w ich datasecie.",
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których ta zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano przed końcem.",
-        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, gdy pytania skilla pokazały, że jest gorzej."
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, gdy pytania skilla pokazały, że jest gorzej.",
+        "too_few_questions": "Nie sprawdzono: ma za mało pytań testowych, żeby zweryfikować zmianę."
       },
       "verdict": {
         "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
@@ -16988,6 +16989,7 @@
     "causedBreak": "Ta zmiana zepsuła odpowiedź: {question}",
     "causedFix": "Ta zmiana naprawiła odpowiedź: {question}",
     "openCheck": "Otwórz pełne sprawdzenie",
+    "changedMore": "{count, plural, one {Jeszcze 1 zmieniona odpowiedź jest w sprawdzeniu.} few {Jeszcze # zmienione odpowiedzi są w sprawdzeniu.} other {Jeszcze # zmienionych odpowiedzi jest w sprawdzeniu.}}",
     "permission": "Poprawianie wymaga uprawnień do edycji tego agenta i przeglądania runów.",
     "retryRead": "Spróbuj odczytać ponownie",
     "stepsLabel": "Kroki poprawiania",
@@ -17011,6 +17013,7 @@
       "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",
       "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
       "topics": "W bazie wiedzy {count, plural, one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}.",
+      "topicsUnread": "Nie udało się odczytać wszystkich tematów znalezionych w tej sesji. Lista poniżej mówi, których i dlaczego.",
       "limit": "{max, plural, one {To była jedyna próba, na którą pozwala ta sesja.} few {To wykorzystało wszystkie # próby, na które pozwala ta sesja.} many {To wykorzystało wszystkie # prób, na które pozwala ta sesja.} other {To wykorzystało wszystkie # próby, na które pozwala ta sesja.}}",
       "hint": {
         "no_change": "Dwie próby z rzędu niczego nie zmieniły, więc kolejna raczej nie pomoże.",
@@ -17243,8 +17246,11 @@
     "resultAgent": "W agencie: nowo naprawione {fixed}, nowo zepsute {broken}.",
     "resultAgentUnknown": "W agencie: jeszcze brak zmierzonego wyniku.",
     "resultKnowledge": "W bazie wiedzy: {count, plural, =0 {niczego nie brakuje} one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}{added, plural, =0 {} one {, # temat dodano od tego czasu} few {, # tematy dodano od tego czasu} many {, # tematów dodano od tego czasu} other {, # tematu dodano od tego czasu}}.",
+    "resultKnowledgeUnread": "W bazie wiedzy: nie udało się odczytać, czego brakuje.",
     "acceptKnowledge": "{missing, plural, =0 {W bazie wiedzy: nic do dodania} one {W bazie wiedzy nadal brakuje # tematu} few {W bazie wiedzy nadal brakuje # tematów} many {W bazie wiedzy nadal brakuje # tematów} other {W bazie wiedzy nadal brakuje # tematu}}{missing, plural, =0 {} other {{ready, plural, =0 {: przygotuj szkice tych, których potrzebujesz} other {: szkice gotowe do dodania: #}}{stale, plural, =0 {} other {, nieaktualne szkice: #}}}}",
     "noKnowledgeDocuments": "W bazie wiedzy niczego nie brakuje.",
+    "topicsSkipped": "{count, plural, one {Nie udało się odczytać 1 tematu znalezionego w tej sesji: został usunięty albo go nie widzisz.} few {Nie udało się odczytać # tematów znalezionych w tej sesji: zostały usunięte albo ich nie widzisz.} other {Nie udało się odczytać # tematów znalezionych w tej sesji: zostały usunięte albo ich nie widzisz.}}",
+    "topicsMore": "{count, plural, one {Jeszcze 1 temat znaleziony w tej sesji jest na liście <link>luk w wiedzy agenta</link>.} few {Jeszcze # tematy znalezione w tej sesji są na liście <link>luk w wiedzy agenta</link>.} other {Jeszcze # tematów znalezionych w tej sesji jest na liście <link>luk w wiedzy agenta</link>.}}",
     "reviewAndAdd": "Przejrzyj i dodaj",
     "notNow": "Nie teraz",
     "acceptAgent": "W agencie: {version, plural, =0 {nowa wersja} other {wersja #}} naprawi {fixed}, zepsuje {broken}{costKnown, select, yes {, koszt odpowiedzi zmieni się o {cost}} other {}}. Przetestowano na {total, plural, one {# pytaniu} other {# pytaniach}}, z czego {heldOut} nie posłużyło do pisania zmian.",
@@ -17509,8 +17515,11 @@
     "startDescription": "Zaproponuj ulepszenia na podstawie feedbacku i przypadków testowych. Przejrzysz każdy krok przed zastosowaniem zmian.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
+    "linkedDatasetUnusable": "Nie można użyć datasetu z linku: został usunięty albo nie możesz go uruchamiać. Zamiast niego użyto zwykłego.",
+    "linkedDatasetUnread": "Nie udało się odczytać datasetu z linku, więc nic jeszcze nie zostało wycenione. {reason}",
     "analysisEstimate": "Szacowany koszt analizy",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
+    "measuredOn": "Mierzone na {name}.",
     "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
     "skills": {
       "title": "Należy do skilla",
@@ -18537,7 +18546,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
-      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} failed {sprawdzenie się nie powiodło} unscorable {nic nie może ocenić jego pytań} all_evidence {każde pytanie pochodzi z rozmów, z których wyciągnięto tę zmianę} cancelled {sprawdzenie zatrzymano przed końcem} own_not_asked {nie zadano jego własnych pytań} too_few_questions {ma za mało pytań testowych, żeby zweryfikować zmianę} other {sprawdzenie nie mogło go zmierzyć}}.",
       "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
     },

@@ -8,13 +8,21 @@ import { ResultStep } from "./result-decision";
 
 const state = vi.hoisted(() => ({
   topics: [] as { id: string }[],
+  topicsError: null as Error | null,
+  skipped: 0,
   discard: vi.fn(),
   select: vi.fn(),
   judges: [{ id: "judge-1", system_key: "eval_judge" }] as { id: string; system_key: string }[],
 }));
 vi.mock("./outcome", () => ({
   DOCUMENTS_ANCHOR: "improvement-documents",
-  useSessionTopics: () => ({ topics: state.topics, added: [] }),
+  useSessionTopics: () => ({
+    topics: state.topics,
+    added: [],
+    skipped: state.skipped,
+    more: 0,
+    error: state.topicsError,
+  }),
   ResultSummary: () => <p>Counters</p>,
   KnowledgeDocuments: () => <p>Topic list</p>,
 }));
@@ -81,6 +89,8 @@ const primary = (name: string | RegExp) =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.topics = [];
+  state.topicsError = null;
+  state.skipped = 0;
   state.judges = [{ id: "judge-1", system_key: "eval_judge" }];
 });
 
@@ -127,6 +137,26 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
     "improvement-documents",
   );
   expect(screen.getAllByText(/^Row \d$/)).toHaveLength(3);
+});
+
+it("leads to the topics' error, not to ending, when they could not be read", () => {
+  state.topicsError = new Error("Server error");
+  show(EXHAUSTED);
+  expect(
+    screen.getByText(/Not every topic this session found could be read\./),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Draft the ones you need" })).toHaveClass("bg-action");
+  expect(screen.getByText("Topic list")).toBeInTheDocument();
+});
+
+it("does not call a session done while some of its topics could not be read", () => {
+  state.skipped = 1;
+  show(EXHAUSTED);
+  expect(
+    screen.getByText(/Not every topic this session found could be read\./),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Draft the ones you need" })).toHaveClass("bg-action");
+  expect(screen.getByText("Topic list")).toBeInTheDocument();
 });
 
 it("offers to end, or to start over with better test questions, when nothing is left", async () => {

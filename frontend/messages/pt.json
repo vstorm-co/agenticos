@@ -9691,7 +9691,8 @@
         "unscorable": "Não verificado: nada consegue avaliar as perguntas dele. Configure a avaliação no dataset delas.",
         "all_evidence": "Não verificado: todas as perguntas vieram das conversas de onde esta alteração foi aprendida.",
         "cancelled": "Não verificado: a verificação foi interrompida antes de terminar.",
-        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora."
+        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora.",
+        "too_few_questions": "Não verificado: ele tem poucas perguntas de teste para verificar a mudança."
       },
       "verdict": {
         "passed": "Nenhum agente piorou e pelo menos um melhorou.",
@@ -17099,6 +17100,7 @@
     "causedBreak": "Quebrada por esta mudança: {question}",
     "causedFix": "Corrigida por esta mudança: {question}",
     "openCheck": "Abrir a verificação completa",
+    "changedMore": "{count, plural, =1 {Mais 1 resposta alterada está na verificação.} other {Mais # respostas alteradas estão na verificação.}}",
     "permission": "Para melhorar este agente, é necessário poder editá-lo e ver as execuções.",
     "retryRead": "Tentar ler novamente",
     "stepsLabel": "Etapas de melhoria",
@@ -17122,6 +17124,7 @@
       "noneBetter": "{count, plural, =0 {Nenhuma tentativa foi medida, então nada mostra se {agent} melhorou.} one {A tentativa não tornou {agent} melhor.} other {Nenhuma das # tentativas tornou {agent} melhor.}}",
       "worse": "A tentativa {number} piorou o resultado: {broken, plural, one {# pergunta quebrou} other {# perguntas quebraram}}.",
       "topics": "{count, plural, one {# tópico está} other {# tópicos estão}} ausente{count, plural, one {} other {s}} da base de conhecimento.",
+      "topicsUnread": "Nem todos os tópicos encontrados nesta sessão puderam ser lidos. A lista abaixo diz quais e por quê.",
       "limit": "{max, plural, one {Foi a única tentativa permitida nesta sessão.} other {Isso usou todas as # tentativas permitidas nesta sessão.}}",
       "hint": {
         "no_change": "Duas tentativas seguidas não mudaram nada, então outra provavelmente não ajudará.",
@@ -17354,8 +17357,11 @@
     "resultAgent": "No agente: {fixed, plural, one {# pergunta corrigida} other {# perguntas corrigidas}}, {broken} com novo problema.",
     "resultAgentUnknown": "No agente: ainda não há resultado medido.",
     "resultKnowledge": "Na base de conhecimento: {count, plural, =0 {nada ausente} one {# tema ausente} other {# temas ausentes}}{added, plural, =0 {} one {, # adicionado desde então} other {, # adicionados desde então}}.",
+    "resultKnowledgeUnread": "Na base de conhecimento: não foi possível ler o que falta.",
     "acceptKnowledge": "{missing, plural, =0 {Na base de conhecimento: nada a adicionar} one {# tema ainda está ausente da base de conhecimento} other {# temas ainda estão ausentes da base de conhecimento}}{missing, plural, =0 {} other {{ready, plural, =0 {: escreva rascunhos dos que você quiser} other {: # com rascunho, prontos para adicionar}}{stale, plural, =0 {} other {, # com rascunho desatualizado}}}}",
     "noKnowledgeDocuments": "Nada está ausente na base de conhecimento.",
+    "topicsSkipped": "{count, plural, =1 {Não foi possível ler 1 tópico encontrado nesta sessão: ele foi removido ou você não pode vê-lo.} other {Não foi possível ler # tópicos encontrados nesta sessão: foram removidos ou você não pode vê-los.}}",
+    "topicsMore": "{count, plural, =1 {Mais 1 tópico encontrado nesta sessão está nas <link>lacunas de conhecimento do agente</link>.} other {Mais # tópicos encontrados nesta sessão estão nas <link>lacunas de conhecimento do agente</link>.}}",
     "reviewAndAdd": "Revisar e adicionar",
     "notNow": "Agora não",
     "acceptAgent": "No agente: {version, plural, =0 {a nova versão} other {versão #}} vai corrigir {fixed, plural, one {# pergunta} other {# perguntas}}, quebrar {broken}{costKnown, select, yes {, custo {cost} por resposta} other {}}. Testado em {total, plural, one {# pergunta} other {# perguntas}}, sendo {heldOut} delas não usadas para escrever as alterações.",
@@ -17620,8 +17626,11 @@
     "startDescription": "Use feedback e casos de teste para propor melhorias. Revise cada passo antes de aplicar alterações.",
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
+    "linkedDatasetUnusable": "O dataset do vínculo não pode ser usado: foi removido ou você não pode executá-lo. O habitual é usado no lugar dele.",
+    "linkedDatasetUnread": "Não foi possível ler o dataset do vínculo, então nada foi orçado ainda. {reason}",
     "analysisEstimate": "Custo estimado da análise",
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
+    "measuredOn": "Medido em {name}.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {
       "title": "Pertence a uma habilidade",
@@ -18648,7 +18657,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Nenhum agente desta linha pode ser verificado.} =1 {Será verificado em 1 agente: {names}.} other {Será verificado em # agentes: {names}.}}",
-      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} other {a verificação dele falhou}}.",
+      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} failed {a verificação dele falhou} unscorable {nada pode avaliar as perguntas dele} all_evidence {todas as perguntas vieram das conversas de onde esta mudança foi aprendida} cancelled {a verificação foi interrompida antes de terminar} own_not_asked {as próprias perguntas dele não foram feitas} too_few_questions {ele tem poucas perguntas de teste para verificar a mudança} other {a verificação não conseguiu medi-lo}}.",
       "hidden": "{count, plural, =1 {Mais 1 agente que você não vê usa esta linha.} other {Mais # agentes que você não vê usam esta linha.}}",
       "thorough": "A descrição mudou, e ela define quando os agentes abrem a skill; por isso, as perguntas próprias de cada agente também são feitas."
     },
