@@ -309,14 +309,21 @@ def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tup
     return description, content
 
 
+def shown(hunk: SpecProposalHunk) -> bool:
+    """Whether an edit has text a person reads before it is checked or applied."""
+    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        return bool((hunk.edited_text or hunk.new_description or "").strip())
+    return bool(hunk.old_text or hunk.edited_text or hunk.new_text)
+
+
 def filtered(
     hunks: Sequence[SpecProposalHunk], base: SkillVersion
 ) -> tuple[list[SpecProposalHunk], list[DroppedHunk]]:
     """The edits a session offers, and the ones its policy drops with why.
 
     An edit repeating one already kept is dropped, and so is one whose passage an
-    edit kept before it already changed - both cannot be applied - and every
-    description after the first.
+    edit kept before it already changed - both cannot be applied - every
+    description after the first, and an edit with no text to show.
     """
     kept: list[SpecProposalHunk] = []
     dropped: list[DroppedHunk] = []
@@ -325,7 +332,9 @@ def filtered(
     described = False
     for hunk in hunks:
         reason: str | None = None
-        if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        if not shown(hunk):
+            reason = "nothing_to_show"
+        elif hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
             reason = "repeated" if described else None
             described = True
         elif (hunk.old_text, hunk.new_text) in seen:
@@ -1858,7 +1867,14 @@ class SkillImprovementService:
         *,
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
+        chosen = await self._chosen(ctx, iteration)
+        if not all(shown(hunk) for hunk in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change has no text to show, so it is neither checked nor applied; "
+                "leave it out",
+            )
+        text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
                 "hunk_ids",
@@ -2552,8 +2568,8 @@ class SkillImprovementService:
             kind=hunk.kind,
             origin=hunk.origin,
             status=hunk.status,
-            old_text=hunk.old_text,
-            new_text=hunk.new_text,
+            old_text=(hunk.base_description or "") if description else hunk.old_text,
+            new_text=(hunk.new_description or "") if description else hunk.new_text,
             edited_text=hunk.edited_text,
             accepted_text=hunk.accepted_text,
             context_before=hunk.context_before,
