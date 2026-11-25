@@ -33,6 +33,22 @@ class DatasetHelpers(BaseSchema):
     improver: DatasetHelper = Field(default_factory=DatasetHelper)
 
 
+class DatasetHelperRead(BaseSchema):
+    """A helper as a dataset's readers see it: when its guidance last changed, not who.
+
+    Who changed it is named, by a member's name alone, where Improve starts.
+    """
+
+    model_profile_id: UUID | None = None
+    instructions: str | None = None
+    instructions_updated_at: datetime | None = None
+
+
+class DatasetHelpersRead(BaseSchema):
+    generator: DatasetHelperRead = Field(default_factory=DatasetHelperRead)
+    improver: DatasetHelperRead = Field(default_factory=DatasetHelperRead)
+
+
 class DatasetHelperDefaults(BaseSchema):
     """The platform's rules for each helper, which a dataset's guidance is added below."""
 

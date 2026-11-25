@@ -80,7 +80,7 @@ from app.schemas.dataset import (
     DatasetVersionRead,
     EditedCaseContent,
 )
-from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers, DatasetHelpersRead
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
@@ -326,7 +326,7 @@ def _dataset_read(
         run_needs=run_needs,
         pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
-        helper_settings=DatasetHelpers.model_validate(dataset.helper_settings or {}),
+        helper_settings=DatasetHelpersRead.model_validate(dataset.helper_settings or {}),
         helper_defaults=DatasetHelperDefaults(
             judge=JUDGE.instructions,
             generator=CASE_GENERATOR.instructions,
