@@ -15,6 +15,7 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID, uuid5
 
@@ -356,6 +357,8 @@ class ClassifyGaps(Payload):
 
 class DraftTopic(Payload):
     """One knowledge gap topic drafted, as the person - or through the key - that asked."""
+
+    quoted_usd: Decimal | None = Field(default=None, ge=0)
 
     organization_id: UUID
     topic_id: UUID

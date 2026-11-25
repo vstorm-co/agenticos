@@ -9,12 +9,14 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import record_ambient_cost
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     SystemAgentOutputError,
 )
@@ -524,6 +526,23 @@ async def _document(db, kb, filename, *, added=None) -> RAGDocument:
     return document
 
 
+@pytest.mark.security
+async def test_a_draft_dearer_than_its_quote_is_refused_and_one_within_it_is_queued(db):
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        price = (await service.draft_estimate(ctx, gap.id)).total_usd
+        assert price is not None
+        with pytest.raises(ConcurrentChangeError):
+            await service.request_draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
+        assert await _draft_jobs(db) == []
+        queued = await service.request_draft(ctx, gap.id, quoted_usd=price)
+    assert queued.drafting
+    [job] = await _draft_jobs(db)
+    assert DraftTopic.model_validate(job.payload).quoted_usd == price
+
+
 async def test_a_draft_asked_for_runs_once_reads_the_knowledge_base_now_and_goes_stale(
     db, knowledge_search
 ):
@@ -707,3 +726,39 @@ async def test_a_document_that_failed_to_ingest_leaves_the_knowledge_missing(db)
         await db.flush()
         items = (await ImprovementPipelineService(db).evidence(ctx, agent.id, run_id=read.id)).items
     assert all(item.knowledge_added is None for item in items)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("current_price", [None, Decimal("999")])
+async def test_a_queued_draft_refuses_an_unpriced_or_more_expensive_worker_start(
+    db: AsyncSession,
+    current_price: Decimal | None,
+) -> None:
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx) as model:
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        price = (await service.draft_estimate(ctx, gap.id)).total_usd
+        assert price is not None
+        await service.request_draft(ctx, gap.id, quoted_usd=price)
+        [job] = await _draft_jobs(db)
+        before = len(model.prompts)
+        with (
+            patch("app.services.knowledge_gaps.price_request", return_value=current_price),
+            pytest.raises(ConcurrentChangeError),
+        ):
+            await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
+        assert len(model.prompts) == before
+
+
+@pytest.mark.security
+async def test_an_unpriced_draft_cannot_be_queued_against_a_known_quote(db: AsyncSession) -> None:
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        with (
+            patch("app.services.knowledge_gaps.price_request", return_value=None),
+            pytest.raises(ConcurrentChangeError),
+        ):
+            await KnowledgeGapService(db).request_draft(ctx, gap.id, quoted_usd=Decimal("0.40"))
+        assert await _draft_jobs(db) == []

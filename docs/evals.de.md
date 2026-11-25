@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5cc200b1d8e2"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -187,6 +187,18 @@ Ergebnissen, den Richter und Wiederholungen der Baseline, auch bei einer
 wiederverwendeten Baseline. Tatsächliche Kosten können abweichen. Jede
 Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
 beendet den Run als `budget_exceeded`.
+
+Ein Start kann `total_usd` als `quoted_usd` und die geschätzte
+`dataset_version` übergeben. Ist die aktuelle Startschätzung höher, lehnt der
+Server mit `409` ab. Der Architect übergibt beide Werte; die Freigabekarte zeigt
+das Angebot. Dies vergleicht Schätzungen und begrenzt nicht die endgültige
+Rechnung des Anbieters. Skill-Update-Prüfungen, Wissensentwürfe und Promotion-
+Wächter akzeptieren ebenfalls `quoted_usd`; `GET .../gate/estimate` bepreist die
+noch zu startenden Wächter.
+
+Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
+Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder
+unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unverändert.
 
 Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
 Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende

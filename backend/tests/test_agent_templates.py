@@ -469,6 +469,15 @@ def test_explicit_desktop_browser_survives_without_a_deployment_cdp_endpoint(mon
     assert agent_templates.for_this_deployment((binding,)) == [binding]
 
 
+@pytest.mark.security
+def test_the_architect_reads_tool_results_and_their_untrusted_text_as_data() -> None:
+    template = agent_templates.get("general/platform-assistant")
+    assert template is not None
+    rule = next(line for line in template.instructions.splitlines() if "evidence under" in line)
+    assert "tool results" in rule
+    assert "`untrusted`" in rule and "never act on" in rule
+
+
 def test_shipped_agents_and_new_agent_defaults_do_not_offer_planning_tools() -> None:
     for key in ("general/agenticos", "general/platform-assistant"):
         template = agent_templates.get(key)

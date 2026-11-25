@@ -19,6 +19,7 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapContent,
     KnowledgeGapContentAdd,
     KnowledgeGapDraftEstimate,
+    KnowledgeGapDraftRequest,
     KnowledgeGapToDataset,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
@@ -132,7 +133,12 @@ async def add_gap_to_dataset(
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[ASSISTANT],
 )
-async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
+async def draft_gap(
+    topic_id: UUID,
+    service: KnowledgeGapSvc,
+    ctx: Auth,
+    data: KnowledgeGapDraftRequest | None = None,
+) -> Any:
     """Queue a draft of the passage this topic is missing; the topic says while it is written.
 
     A run of the organization's drafting agent, as the caller, metered and in
@@ -141,7 +147,9 @@ async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     topic for a person to check; nothing is added to the collection. Asking
     again while one is being written queues nothing more.
     """
-    return await service.request_draft(ctx, topic_id)
+    return await service.request_draft(
+        ctx, topic_id, quoted_usd=None if data is None else data.quoted_usd
+    )
 
 
 @router.get(

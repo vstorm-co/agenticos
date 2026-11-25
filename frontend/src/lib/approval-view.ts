@@ -33,6 +33,38 @@ function sentence(words: string[]): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Whether a tool name is this deployment's own platform tool, `agenticos_<action>`. */
+export function isPlatformTool(toolName: string): boolean {
+  return toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length;
+}
+
+const QUOTE_ARGUMENTS = ["quoted_usd", "estimate_usd", "total_usd"] as const;
+
+/**
+ * The price a paid platform call was quoted at, as the decimal string it carries;
+ * `null` for any other call. Paid starts compare their current estimate with this
+ * quote; the quote is not a provider bill cap.
+ */
+export function quotedPrice(
+  toolName: string,
+  args: Record<string, unknown>,
+  context?: Record<string, string> | null,
+): string | null {
+  if (!isPlatformTool(toolName) || context?.platform_tool !== "true") return null;
+  for (const name of QUOTE_ARGUMENTS) {
+    const value = args[name];
+    if (
+      typeof value === "string" &&
+      value.trim() !== "" &&
+      Number.isFinite(Number(value)) &&
+      Number(value) >= 0
+    )
+      return value;
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return String(value);
+  }
+  return null;
+}
+
 /**
  * The service and action an MCP tool name carries.
  *

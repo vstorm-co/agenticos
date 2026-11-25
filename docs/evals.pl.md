@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5cc200b1d8e2"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -175,6 +175,17 @@ zmianę wyniku każdego przypadku, wszystkie próby potwierdzające, sędziego i
 powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się różnić.
 Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
 kończy run jako `budget_exceeded`.
+
+Start może odesłać `total_usd` z wyceny jako `quoted_usd` i wskazać jej
+`dataset_version`. Jeśli aktualny szacunek startu jest wyższy od tej kwoty,
+serwer zwraca `409`. Architekt przekazuje oba pola, a karta zatwierdzenia pokazuje
+wycenę. To porównanie szacunków, a nie twardy limit końcowego rachunku dostawcy.
+Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy promocji też przyjmują
+`quoted_usd`; `GET .../gate/estimate` wycenia strażników oczekujących na start.
+
+Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
+przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo
+nieznanej. Istniejący klienci i zadania bez wyceny zachowują wcześniejsze działanie.
 
 Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
 porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako

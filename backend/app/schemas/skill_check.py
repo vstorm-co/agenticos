@@ -85,6 +85,17 @@ class SkillUpdateCheck(BaseSchema):
         default=CheckMode.QUICK,
         description="As for a change; a newer description is always checked thoroughly",
     )
+    base_version_id: UUID | None = Field(
+        default=None,
+        description="The estimate's `base_version`; a start that would check another "
+        "version is refused, and omitted it is not checked",
+    )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `at_most_usd` the person agreed to; a start that would "
+        "now cost more is refused, and omitted it is not checked",
+    )
 
 
 class AgentRef(BaseSchema):

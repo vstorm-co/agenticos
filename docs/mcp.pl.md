@@ -1,5 +1,5 @@
 ---
-source_sha: "cecb91d8da63"
+source_sha: "84fc9ce4a382"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -231,7 +231,11 @@ nie dowodzi niższego kosztu.
 Dla zewnętrznego serwera `approval: none` przepuszcza wywołania, `writes` pyta przed
 narzędziami bez `readOnlyHint: true`, a `all` także przed odczytami. Wskazówkę podaje
 sam serwer; wybierz `all`, jeśli nie ufasz jego klasyfikacji. Zewnętrzny klient MCP,
-np. Claude Code, stosuje własne ustawienia potwierdzania.
+np. Claude Code, stosuje własne ustawienia potwierdzania. Serwer samego AgenticOS
+oznacza `destructiveHint: true` każde wywołanie, które w AgenticOS zawsze pyta osobę,
+każdy zapis zadania lub rekordu tabeli, który może uruchomić agenta,
+oraz każde delete, discard, end i publish, a jego instrukcje każą klientowi
+potwierdzić je najpierw z osobą.
 
 Powiązanie platformy wymusza co najmniej `writes`. Zaufane wartości domyślne pozwalają
 bez potwierdzenia wykonywać autoryzowane odczyty, przygotowywać wersje robocze,

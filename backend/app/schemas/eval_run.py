@@ -152,6 +152,12 @@ class EvalRunRequest(BaseSchema):
         max_length=1000,
         description="Only these case identities in the selected version; omitted runs every case",
     )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `total_usd` the person agreed to; a start that would now "
+        "cost more is refused, and omitted it is not checked",
+    )
 
     @field_validator("case_ids")
     @classmethod
@@ -196,6 +202,7 @@ class EvalRunEstimate(BaseSchema):
     """
 
     cases: int
+    dataset_version: int = Field(description="The dataset version priced; pin it on the start")
     arms: list[ArmEstimate]
     judge_usd: Decimal
     judge_model_profile_id: UUID | None = Field(

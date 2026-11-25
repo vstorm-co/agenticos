@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { callSummary, serviceAction, spokenArgs } from "./approval-view";
+import { callSummary, quotedPrice, serviceAction, spokenArgs } from "./approval-view";
 
 describe("serviceAction", () => {
   it("reads an MCP tool as its service and the action, without the service twice", () => {
@@ -156,4 +156,38 @@ it("names a platform operation and its nested task before opaque IDs", () => {
   expect(callSummary({ payload: { data: { title: "Prepare the report" } } })).toBe(
     "Prepare the report",
   );
+});
+
+describe("quotedPrice", () => {
+  it("reads the price a paid platform call carries", () => {
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" }, { platform_tool: "true" }),
+    ).toBe("0.40");
+    expect(
+      quotedPrice("agenticos_improve_again", { estimate_usd: 0.2 }, { platform_tool: "true" }),
+    ).toBe("0.2");
+    expect(
+      quotedPrice(
+        "agenticos_run_next_improvement_step",
+        { total_usd: "1.5" },
+        { platform_tool: "true" },
+      ),
+    ).toBe("1.5");
+  });
+
+  it("reads nothing from another tool or an argument that is not an amount", () => {
+    expect(quotedPrice("send_email", { quoted_usd: "0.40" })).toBeNull();
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: "soon" }, { platform_tool: "true" }),
+    ).toBeNull();
+    expect(quotedPrice("agenticos_publish_agent", {}, { platform_tool: "true" })).toBeNull();
+  });
+});
+
+it("does not present a lookalike MCP service's argument as an enforced platform quote", () => {
+  expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" })).toBeNull();
+  for (const value of [" ", "-1", -1, Infinity, NaN, null, {}])
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: value }, { platform_tool: "true" }),
+    ).toBeNull();
 });
