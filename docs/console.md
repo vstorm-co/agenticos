@@ -121,7 +121,7 @@ Generated portraits use a constrained set of Blobatar 2.7 silhouettes and bright
 Chat settings show Browser and Work on before Permissions. Conversation notifications
 and account connections remain below the permissions controls.
 
-Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and local services use compact panels that fit their content, with explanatory text behind information icons.
+Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and service connections use compact panels that fit their content, with explanatory text behind information icons.
 
 Conversation agents are ordered by their latest message or top-level run, newest first. The collapsed chat rail keeps full-size avatars, overlaps up to three, and hides older participants; the full participant list remains available in the tooltip.
 

@@ -79,6 +79,12 @@ plainly because a review will find it:
   equality, not vault-sealed. Whoever holds the value can use it, so they are
   protected by expiry and single use rather than encryption. Session refresh
   tokens are the exception that is hashed at rest (`sessions.refresh_token_hash`).
+- **Embedding test tokens** - the proof that a Test passed, which a save presents - are signed
+  JWTs (HS256 with `SECRET_KEY`), valid for 10 minutes and bound to the exact values tested. They are
+  not credentials: access-token authentication refuses any token whose type is not `access`, so one
+  cannot sign anybody in. A connection row holds the id of a Vault secret, never its value, and the
+  audit entries for a connection or an embedding change hold no key, token or URL query string.
+
 - **Uploaded and chat files** sit wherever `FILE_STORAGE_BACKEND` puts them
   (`app/services/file_storage.py`). On `local`, the default, that is the API
   container's filesystem in the clear, protected only by volume encryption. On
@@ -123,7 +129,7 @@ colleague's account must not delete the agent the team depends on.
 | `organization_members` | Cascade | Which organizations, as what, since when | A row naming them directly, already visible to an administrator |
 | `channel_identities` | **Purged explicitly** | Yes | `SET NULL` left the row holding a Slack id, a username and a display name about somebody who is gone, linked to nobody |
 | `agent_runs` | `SET NULL` — retained | Runs they started, and what each cost | Spend is the organization's record; an anonymous run still counts against the month |
-| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — retained | No | Created *for the organization*. Removing them would take the team's work with the person |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `service_connections` | `SET NULL` — retained | No | Created *for the organization*. Removing them would take the team's work with the person |
 | `organization_secrets` | `SET NULL`, with a private secret promoted to the organization | No | A credential the organization runs on. The promotion is what keeps an ownerless private secret from blocking the deletion |
 | `organizations` | Personal org deleted; a shared one they created is reassigned to another owner | No | Nobody may be left with an organization that has no owner |
 | `resource_grants` | Cascade on the grantee; `SET NULL` on the granter | No | A grant *to* them is theirs; a grant they *made* is the organization's record of who may do what |

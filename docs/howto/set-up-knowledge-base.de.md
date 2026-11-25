@@ -1,5 +1,5 @@
 ---
-source_sha: "bd9c21e1a80b"
+source_sha: "c07aa10da6a0"
 ---
 
 # Eine Knowledge Base einrichten { #set-up-a-knowledge-base }
@@ -41,11 +41,15 @@ Provider und Schlüssel lassen sich später ändern, das Model nicht — siehe
 
 **Ollama** steht ebenfalls in der Provider-Liste. Sie nimmt keinen Schlüssel:
 Wählen Sie sie, eines ihrer Models und den **Server**, unter dem sie antwortet —
-einen lokalen Dienst, registriert unter Knowledge → Integrations, den eigenen der
+eine Dienstverbindung, registriert unter Knowledge → Integrations, den eigenen der
 Organisation oder einen, den der Administrator des Deployments für alle
 registriert hat — und die Dokumente der Collection verlassen das Netz des
 Deployments nie. Derselbe Tab hält die OCR-Server für LiteParse, gewählt in den
-Parsing-Einstellungen.
+Parsing-Einstellungen. Um stattdessen über ein OpenAI-kompatibles Gateway zu embedden, fügen Sie es dort als
+Verbindung mit dem API-Stil *OpenAI-compatible* hinzu und, wenn es einen Schlüssel will, mit einem
+Vault-Schlüssel der Organisation; wählen Sie dann **Custom (OpenAI-compatible)**, geben Sie das Model ein und
+drücken Sie **Test**, bevor Sie die Collection anlegen. Eine spätere Verschiebung auf einen anderen Endpunkt
+wird genauso gegen die gespeicherten Chunks getestet.
 
 Eine Knowledge Base, die auf einem bereits bestehenden Collection-Namen angelegt
 wird, übernimmt stattdessen Provider und Schlüssel jener Collection — einen

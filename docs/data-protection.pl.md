@@ -1,5 +1,5 @@
 ---
-source_sha: "d9d30f54c654"
+source_sha: "1e23167abea3"
 ---
 
 # Ochrona danych { #data-protection }
@@ -47,8 +47,8 @@ tak i oprogramowanie współpracuje:
 | Zagadnienie | Lokalna odpowiedź |
 | --- | --- |
 | Model czatowy | Profil `ollama` albo `litellm` — bezkluczowy, wskazujący endpoint, który hostujesz. Każdy z 28 providerów z `base_url` przyjmie też Twój gateway |
-| Parsowanie dokumentów | `pymupdf`, wartość domyślna, działa w workerze. OCR LiteParse też działa w workerze albo na serwerze OCR zarejestrowanym jako usługa lokalna. LlamaParse to wybór per kolekcja, wymagający klucza w vault; bez niego nic nie jest parsowane poza wdrożeniem |
-| Embeddingi | Ollama, którą hostujesz, zarejestrowana jako usługa lokalna w Knowledge → Integrations i wybrana per kolekcja jako provider `ollama`. Bezkluczowa i jedyny provider, którego może użyć kolekcja app-scoped |
+| Parsowanie dokumentów | `pymupdf`, wartość domyślna, działa w workerze. OCR LiteParse też działa w workerze albo na serwerze OCR zarejestrowanym jako połączenie usługi. LlamaParse to wybór per kolekcja, wymagający klucza w vault; bez niego nic nie jest parsowane poza wdrożeniem |
+| Embeddingi | Ollama, którą hostujesz, albo gateway zgodny z OpenAI, który wybierasz, zarejestrowane jako połączenie usługi w Knowledge → Integrations i wybrane per kolekcja jako provider `ollama` albo `openai_compatible`. Ollama jest bezkluczowa i to jedyny provider, którego może użyć kolekcja app-scoped; gateway może leżeć poza wdrożeniem |
 | Trace'y | Zostaw `LOGFIRE_TOKEN` nieustawiony i nie wiąż żadnego tokenu `observability` ze specem ani ze środowiskiem. Runy dalej zapisują id trace'u lokalnie |
 | Wyszukiwanie, przeglądanie, pamięć, narzędzia | Nie wiąż sekretu `search`, żadnej capability `web_fetch` ani `browser_use`, żadnego połączenia MCP. Przeglądarka może zostać, gdy każda strona, którą może otworzyć, jest na `allowed_domains`, a jej kroki idą do modelu, który sam hostujesz |
 | Poczta | Twój własny relay SMTP |
@@ -56,10 +56,14 @@ tak i oprogramowanie współpracuje:
 
 Embeddingi w to wliczone: katalog wymienia OpenRouter i OpenAI, do których
 kolekcja sięga kluczem z vaultu, oraz `ollama`, do której kolekcja sięga przez
-usługę lokalną — wiersz wskazujący serwer prowadzony przez organizację albo
+połączenie usługi — wiersz wskazujący serwer prowadzony przez organizację albo
 wdrożenie. Kolekcja na `ollama` wysyła swoje chunki i zapytania wyłącznie na ten
 host i nikomu nie płaci. Wdrożenie, które musi trzymać dokumenty na własnym
-sprzęcie, tam tworzy każdą kolekcję.
+sprzęcie, tam tworzy każdą kolekcję. Własny provider `openai_compatible` też sięga do gatewaya przez połączenie, a ten
+gateway może leżeć poza wdrożeniem: każdy chunk i zapytanie trafia tam, gdzie wskazuje jego adres, z kluczem
+z vaultu organizacji, jeśli połączenie go ma. [Raport ochrony danych](#verifying-one-deployment) wymienia
+połączenia jako **Service connections**, z kolumną **Vault key**, która mówi, czy każde z nich wysyła
+poświadczenie.
 
 ## Kto za co odpowiada { #who-is-responsible-for-what }
 
@@ -218,9 +222,9 @@ włączona. To jest pełna lista celów, wraz z konfiguracją, która o każdym 
 | Model generatora przypadków | Instrukcje testowanego agenta, fragmenty jego skilli i opisy narzędzi; fragmenty dokumentów z jego bazy wiedzy; pytania, które zadali mu ludzie, z komentarzem przy odpowiedzi ocenionej łapką w dół. Poświadczenia są redagowane z fragmentów i pytań przed wysłaniem | Model generowania skonfigurowany na datasecie, wyłącznie po uruchomieniu przez osobę z `datasets:edit`. Źródła rozmów wymagają dodatkowo `runs:view`. | Providera. Weryfikuj per profil |
 | Model ekstraktora kluczy | Cała zapisana odpowiedź referencyjna przypadku, która mogła zostać skopiowana z rozmowy osoby | Model generowania skonfigurowany w datasecie, tylko gdy o klucze przypadku poprosi osoba z `datasets:edit`, która może czytać jego tekst | Providera. Weryfikuj per profil |
 | Model agenta pokrycia źródeł | Etykiety kluczy datasetu - nigdy ich wartości - oraz, z każdego źródła agenta, które zlecający widzi, fragmenty baz wiedzy znalezione dla każdej etykiety, fragmenty plików kontekstu i skilli, w których pada etykieta, oraz nazwy i opisy narzędzi MCP | Model generowania skonfigurowany w datasecie, tylko gdy o raport pokrycia poprosi osoba, która może edytować i uruchamiać agenta | Providera. Weryfikuj per profil |
-| Model embeddingowy | Każdy chunk każdego dokumentu w kolekcji, każde zapytanie wyszukujące i ponownie zapytania, które nic nie znalazły, gdy [luki w wiedzy](knowledge-gaps.md#topics) je grupują | Per kolekcja i tylko tam: `embedding_provider` (`openrouter`, `openai` albo `ollama`, z katalogu), a dla dwóch pierwszych klucz z vaultu `embedding_secret_id`, który płaci. Nie ma klucza embeddingowego na poziomie wdrożenia; kolekcja z kluczem, ale bez wskazanego, odmawia indeksowania i wyszukiwania. `ollama` jest bezkluczowa i sięgana pod usługą lokalną, którą kolekcja wskazuje (`embedding_endpoint_id`), na hoście, który prowadzisz | Providera albo Twój własny host. [Wybór na stałe](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| Model embeddingowy | Każdy chunk każdego dokumentu w kolekcji, każde zapytanie wyszukujące i ponownie zapytania, które nic nie znalazły, gdy [luki w wiedzy](knowledge-gaps.md#topics) je grupują | Per kolekcja i tylko tam: `embedding_provider` (`openrouter`, `openai`, `ollama` albo `openai_compatible`, z katalogu), a dla dwóch pierwszych klucz z vaultu `embedding_secret_id`, który płaci. Nie ma klucza embeddingowego na poziomie wdrożenia; kolekcja z kluczem, ale bez wskazanego, odmawia indeksowania i wyszukiwania. `ollama` jest bezkluczowa i sięgana pod połączeniem usługi, które kolekcja wskazuje (`embedding_endpoint_id`), na hoście, który prowadzisz; `openai_compatible` też jest sięgana przez połączenie, endpoint, który rejestrujesz, z opcjonalnym kluczem z vaultu tego połączenia | Providera albo Twój własny host. [Wybór na stałe](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Cały dokument | Kolekcja, której `pdf_parser` to `llamaparse`; musi wskazać klucz z vaultu (`llamaparse_secret_id`), nie ma klucza wdrożenia. Domyślny `pymupdf` parsuje w workerze | LlamaCloud, jeśli użyty |
-| Serwer OCR | Wyrenderowane strony dokumentu | Kolekcja, której `pdf_parser` to `liteparse` **i** której `ocr_endpoint_id` wskazuje usługę lokalną; bez tego OCR działa w workerze | Twój własny host — usługa lokalna jest z definicji w sieci wdrożenia |
+| Serwer OCR | Wyrenderowane strony dokumentu | Kolekcja, której `pdf_parser` to `liteparse` **i** której `ocr_endpoint_id` wskazuje połączenie usługi; bez tego OCR działa w workerze | Twój własny host — połączenie usługi rodzaju OCR jest z definicji w sieci wdrożenia |
 | Model opisujący obrazy | Obrazy wewnątrz dokumentów | `image_description_model` kolekcji | Providera tego modelu |
 | Web research | Zapytanie wyszukiwania, które ułożył agent | `web_research.method` w specu: `duckduckgo` (bez klucza), `tavily`, `brave` albo `exa` (każde z sekretem `search`), albo `native`, gdzie szuka provider modelu czatowego | Dostawcy wyszukiwania albo providera modelu |
 | Pobieranie stron i przeglądarka | URL; dla przeglądarki to, co wpisuje na otwieranych stronach | Capability w specu; przeglądarka potrzebuje też endpointu CDP na `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pustej | Pobieranej strony; hosta przeglądarki i stron, które otwiera |

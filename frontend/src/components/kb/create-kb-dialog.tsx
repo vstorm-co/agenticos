@@ -36,6 +36,9 @@ import {
 } from "@/components/kb/embedding-picker";
 import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
+import { ProbeResult } from "@/components/kb/probe-result";
+import { useProbeGate } from "@/hooks/use-probe-gate";
+import { probeNewEmbedding } from "@/lib/embedding-probe-api";
 import { useKnowledgeBases } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import {
@@ -73,6 +76,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
   const [embeddingBaseUrl, setEmbeddingBaseUrl] = useState("");
   const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
+  const [customModel, setCustomModel] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
@@ -95,9 +99,17 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   );
   const offered = endpointModels?.models ?? providerEntry?.models ?? [];
   const firstOffered = offered[0]?.model ?? "";
-  const model = offered.some((entry) => entry.model === embeddingModel)
-    ? (embeddingModel ?? firstOffered)
-    : firstOffered;
+  // A custom endpoint lists no models: the model is whatever was typed, and it is
+  // only good once a Test of that exact endpoint and model has passed.
+  const custom = providerEntry?.any_model === true;
+  const typedModel = customModel.trim();
+  const model = custom
+    ? typedModel
+    : offered.some((entry) => entry.model === embeddingModel)
+      ? (embeddingModel ?? firstOffered)
+      : firstOffered;
+  const scope = audience.mode === "private" ? "personal" : "org";
+  const gate = useProbeGate({ endpoint: embeddingEndpointId, model: typedModel, scope });
 
   // Nobody has chosen an ingestion configuration until it differs from what is
   // shown, and sending one they did not choose is not a harmless default: the
@@ -106,7 +118,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // form's starting values would quietly overrule that.
   const chosen = !sameIngestion(ingestion, DEFAULT_INGESTION_CONFIG);
   const localProblems = chosen ? ingestionProblems(ingestion, t) : {};
-  const canSubmit = name.trim().length > 0 && Object.keys(localProblems).length === 0;
+  const canSubmit =
+    name.trim().length > 0 &&
+    Object.keys(localProblems).length === 0 &&
+    (!custom || gate.token !== null);
   // The parsing details open themselves when they hold something required -
   // LlamaParse's key - or something refused, and never close themselves: a
   // fold shutting the moment its last problem is fixed takes the field being
@@ -128,8 +143,31 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingSecretId(null);
     setEmbeddingEndpointId(null);
     setEmbeddingBaseUrl("");
+    setCustomModel("");
     setDetailsOpen(false);
     setErrors({});
+  };
+
+  const runTest = async () => {
+    if (embeddingEndpointId === null) return;
+    setErrors({});
+    try {
+      await gate.test(() =>
+        probeNewEmbedding({
+          embedding_endpoint_id: embeddingEndpointId,
+          embedding_model: typedModel,
+          scope,
+        }),
+      );
+    } catch (error) {
+      const failure = submitFailure(
+        error,
+        { fields: ["embedding_model", "embedding_endpoint_id"] },
+        tErrors,
+      );
+      setErrors(failure.fields);
+      if (failure.toast) toast.error(failure.toast);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -155,6 +193,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
+      if (custom && gate.token !== null) input.probe_token = gate.token;
       if (provider === "openrouter" && embeddingBaseUrl.trim())
         input.embedding_base_url = embeddingBaseUrl.trim();
       const kb = await createKB(input);
@@ -181,6 +220,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             "embedding_secret_id",
             "embedding_endpoint_id",
             "embedding_base_url",
+            "probe_token",
             ...INGESTION_FORM_FIELDS,
           ],
         },
@@ -262,22 +302,58 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       onProvider={setEmbeddingProvider}
                       onSecretId={setEmbeddingSecretId}
                       onEndpointId={setEmbeddingEndpointId}
+                      model={customModel}
+                      onModel={setCustomModel}
+                      allowFreeModel
                       idPrefix="kb-new-embedding"
                     />
+                    {custom && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              gate.status === "testing" ||
+                              embeddingEndpointId === null ||
+                              typedModel === ""
+                            }
+                            onClick={runTest}
+                          >
+                            {gate.status === "testing" ? t("testingSettings") : t("testSettings")}
+                          </Button>
+                          <span className="text-muted-foreground text-xs">
+                            {t("testCost", { count: 1 })}
+                          </span>
+                        </div>
+                        {gate.result ? (
+                          <ProbeResult result={gate.result} />
+                        ) : (
+                          <p className="text-muted-foreground text-xs">{t("testBeforeCreating")}</p>
+                        )}
+                      </div>
+                    )}
                     {(errors.embedding_provider ??
                       errors.embedding_secret_id ??
                       errors.embedding_endpoint_id ??
-                      errors.embedding_base_url) !== undefined && (
+                      errors.embedding_base_url ??
+                      errors.probe_token) !== undefined && (
                       <p className="text-destructive text-xs">
                         {errors.embedding_provider ??
                           errors.embedding_secret_id ??
                           errors.embedding_endpoint_id ??
-                          errors.embedding_base_url}
+                          errors.embedding_base_url ??
+                          errors.probe_token}
                       </p>
                     )}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="kb-embedding-model">{t("model")}</Label>
-                      {/*
+                    {custom && errors.embedding_model !== undefined && (
+                      <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                    )}
+                    {!custom && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="kb-embedding-model">{t("model")}</Label>
+                        {/*
                       Mounted only once the list is, never mounted empty. A Radix
                       select inside a form keeps a hidden native `<select>` in step
                       with its value: the `<option>` elements are registered by the
@@ -285,51 +361,54 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       options is assigned to a `<select>` that has none, reads back
                       as `""`, and clobbers the state it was about to display.
                     */}
-                      <Select value={model} onValueChange={setEmbeddingModel}>
-                        <SelectTrigger id="kb-embedding-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {offered.map((entry) => (
-                            <SelectItem
-                              key={entry.model}
-                              value={entry.model}
-                              // Without this every row answers to the provider's
-                              // name - the mark's title is part of the item's text -
-                              // and typing a model id finds nothing.
-                              textValue={entry.model}
-                              // In the list rather than in the row: the trigger draws
-                              // whatever the row draws, and the width is a comparison
-                              // against the other options.
-                              trailing={
-                                <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                  {t("dimensions", { count: entry.dim })}
-                                </span>
-                              }
-                            >
-                              <ProviderRow provider={provider} name={entry.model} />
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
-                      {checkingEndpoint ? (
-                        <p className="text-muted-foreground text-xs">
-                          {t("checkingEndpointModels")}
-                        </p>
-                      ) : endpointModels?.source === "curated" ? (
-                        <p className="text-muted-foreground text-xs">
-                          {t("endpointModelsUnconfirmed")}
-                        </p>
-                      ) : endpointModels !== undefined && offered.length === 0 ? (
-                        <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
-                      ) : endpointModels !== undefined ? (
-                        <p className="text-muted-foreground text-xs">{t("endpointModelsListed")}</p>
-                      ) : null}
-                      {errors.embedding_model !== undefined && (
-                        <p className="text-destructive text-xs">{errors.embedding_model}</p>
-                      )}
-                    </div>
+                        <Select value={model} onValueChange={setEmbeddingModel}>
+                          <SelectTrigger id="kb-embedding-model">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {offered.map((entry) => (
+                              <SelectItem
+                                key={entry.model}
+                                value={entry.model}
+                                // Without this every row answers to the provider's
+                                // name - the mark's title is part of the item's text -
+                                // and typing a model id finds nothing.
+                                textValue={entry.model}
+                                // In the list rather than in the row: the trigger draws
+                                // whatever the row draws, and the width is a comparison
+                                // against the other options.
+                                trailing={
+                                  <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
+                                    {t("dimensions", { count: entry.dim })}
+                                  </span>
+                                }
+                              >
+                                <ProviderRow provider={provider} name={entry.model} />
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                        {checkingEndpoint ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("checkingEndpointModels")}
+                          </p>
+                        ) : endpointModels?.source === "curated" ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("endpointModelsUnconfirmed")}
+                          </p>
+                        ) : endpointModels !== undefined && offered.length === 0 ? (
+                          <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
+                        ) : endpointModels !== undefined ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("endpointModelsListed")}
+                          </p>
+                        ) : null}
+                        {errors.embedding_model !== undefined && (
+                          <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </section>

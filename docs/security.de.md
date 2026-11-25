@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "7ff2edf55896"
 ---
 
 # Sicherheit { #security }
@@ -91,6 +91,13 @@ steht hier klar, weil eine Prüfung es findet:
   hat, kann ihn nutzen, sie sind also durch Ablauf und Einmalverwendung
   geschützt, nicht durch Verschlüsselung. Session-Refresh-Token sind die
   Ausnahme, die im Ruhezustand gehasht ist (`sessions.refresh_token_hash`).
+- **Embedding-Test-Tokens** - der Nachweis, dass ein Test bestanden wurde, den ein Speichern vorlegt - sind
+  signierte JWTs (HS256 mit `SECRET_KEY`), 10 Minuten gültig und an genau die getesteten Werte gebunden.
+  Sie sind keine Credentials: Die Authentifizierung per Access-Token lehnt jedes Token ab, dessen Typ nicht
+  `access` ist, sodass keines jemanden anmelden kann. Eine Verbindungszeile hält die ID eines
+  Vault-Secrets, nie dessen Wert, und die Audit-Einträge für eine Verbindung oder eine Embedding-Änderung
+  enthalten weder Schlüssel noch Token noch URL-Query-String.
+
 - **Hochgeladene Dateien und Chat-Dateien** liegen dort, wohin
   `FILE_STORAGE_BACKEND` sie legt (`app/services/file_storage.py`). Bei `local`,
   der Voreinstellung, ist das im Klartext das Dateisystem des API-Containers,
@@ -139,7 +146,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | `organization_members` | Kaskade | Welche Organisationen, als was, seit wann | Eine Zeile, die sie direkt benennt und die eine Administratorin ohnehin sieht |
 | `channel_identities` | **Ausdrücklich bereinigt** | Ja | `SET NULL` ließ die Zeile mit einer Slack-ID, einem Benutzernamen und einem Anzeigenamen einer Person zurück, die es nicht mehr gibt, verknüpft mit niemandem |
 | `agent_runs` | `SET NULL` — behalten | Runs, die sie gestartet haben, und was jeder kostete | Ausgaben sind die Aufzeichnung der Organisation; ein anonymer Run zählt weiter für den Monat |
-| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — behalten | Nein | *Für die Organisation* erstellt. Sie zu entfernen nähme die Arbeit des Teams mit der Person mit |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `service_connections` | `SET NULL` — behalten | Nein | *Für die Organisation* erstellt. Sie zu entfernen nähme die Arbeit des Teams mit der Person mit |
 | `organization_secrets` | `SET NULL`, ein privates Secret steigt zur Organisation auf | Nein | Ein Credential, auf dem die Organisation läuft. Der Aufstieg ist, was ein herrenloses Secret daran hindert, die Löschung zu blockieren |
 | `organizations` | Persönliche Org gelöscht; eine geteilte, die sie erstellt haben, geht an einen anderen Owner | Nein | Niemand darf mit einer Organisation ohne Owner zurückbleiben |
 | `resource_grants` | Kaskade beim Empfänger; `SET NULL` beim Erteilenden | Nein | Eine Berechtigung *für* sie ist ihre; eine, die sie *erteilt* haben, ist die Aufzeichnung der Organisation darüber, wer was darf |

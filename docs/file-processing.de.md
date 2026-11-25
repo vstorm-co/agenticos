@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a1ea4798cd"
+source_sha: "dce334aed524"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -724,7 +724,82 @@ Alle drei werden **pro Collection** entschieden, nicht pro Deployment, von
 |---|---|
 | **Modell und Breite** | Bei der Erstellung auf der Wissensdatenbank festgehalten (`embedding_model`, `embedding_dim`) und danach nie geändert — `PgVectorStore` schreibt `embedding vector(N)` ein einziges Mal, ein zweites Modell lässt sich also entweder nicht schreiben oder wird still gegen Vektoren aus einem anderen Raum verglichen. Eine neue Collection wählt eines der Models, die ihr Provider bereitstellt; einen Deployment-Standard gibt es nicht. |
 | **Provider** | Welcher OpenAI-kompatible Endpunkt dieses Modell bedient (`embedding_provider`). **Änderbar**, anders als das Modell: dasselbe Modell in derselben Breite erzeugt Vektoren im selben Raum, von wo aus es auch bedient wird, `PATCH /kb/{id}` verschiebt eine Collection also zwischen Providern und lässt alles bereits Indexierte gültig. |
-| **Zugangsdaten** | Der auf der Collection gewählte Vault-Schlüssel (`embedding_secret_id`), der der Organisation in Rechnung gestellt wird und der ein Schlüssel **für diesen Provider** sein muss. Einen deploymentweiten Embedding-Schlüssel gibt es nicht: Eine neue persönliche oder Organisations-Collection muss einen benennen, und eine Collection ohne brauchbaren Schlüssel verweigert Indexierung und Suche, bis sie einen hat. Der Provider `ollama` ist **schlüssellos** — ein Ollama im Netz des Deployments selbst — eine Collection auf ihm benennt also keinen Schlüssel und wird abgelehnt, wenn sie es versucht; sie benennt stattdessen einen **lokalen Dienst** (`embedding_endpoint_id`), eine Zeile unter Knowledge → Integrations, die die Adresse trägt, den eigenen der Organisation oder einen deploymentweiten, den der App-Administrator registriert hat. Eine **app-scoped** Collection gehört zu keiner Organisation und hat damit keinen Vault, aus dem sie einen Schlüssel benennen könnte; sie darf nur über einen schlüssellosen Provider an einem deploymentweiten Dienst einbetten, und die Wahl eines Providers mit Schlüssel wird für sie dort abgelehnt, wo der Provider gewählt wurde. |
+| **Zugangsdaten** | Der auf der Collection gewählte Vault-Schlüssel (`embedding_secret_id`), der der Organisation in Rechnung gestellt wird und der ein Schlüssel **für diesen Provider** sein muss. Einen deploymentweiten Embedding-Schlüssel gibt es nicht: Eine neue persönliche oder Organisations-Collection muss einen benennen, und eine Collection ohne brauchbaren Schlüssel verweigert Indexierung und Suche, bis sie einen hat. Der Provider `ollama` ist **schlüssellos** — ein Ollama im Netz des Deployments selbst — eine Collection auf ihm benennt also keinen Schlüssel und wird abgelehnt, wenn sie es versucht; sie benennt stattdessen eine **Dienstverbindung** (`embedding_endpoint_id`), eine Zeile unter Knowledge → Integrations, die die Adresse trägt, die eigene der Organisation oder eine deploymentweite, die der App-Administrator registriert hat. Der eigene Provider `openai_compatible` wird genauso erreicht, und sein Schlüssel liegt an der Verbindung ([unten](#a-custom-openai-compatible-endpoint-and-the-test)). Eine **app-scoped** Collection gehört zu keiner Organisation und hat damit keinen Vault, aus dem sie einen Schlüssel benennen könnte; sie darf nur über einen schlüssellosen Provider an einer deploymentweiten Verbindung einbetten, und die Wahl eines Providers mit Schlüssel wird für sie dort abgelehnt, wo der Provider gewählt wurde. |
+
+#### Ein eigener OpenAI-kompatibler Endpunkt und der Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+Der Katalogeintrag `openai_compatible`, angezeigt als **Custom (OpenAI-compatible)**,
+listet keine Models. Er embeddet über jeden OpenAI-kompatiblen Endpunkt, den die
+Organisation als **Dienstverbindung** registriert (Knowledge → Integrations →
+**Add server**, API-Stil *OpenAI-compatible*); das Model wird als freier Text
+eingegeben. Die Verbindung kann einen Vault-Schlüssel der Organisation tragen (Zweck
+`openai_compatible`): nur eine Verbindung der Organisation kann einen halten, und das
+Binden eines Schlüssels verleiht ihn an jede Collection auf der Verbindung, weshalb
+seine Auswahl `secrets:view` auf diesem Schlüssel braucht. Eine Verbindung verlangt
+einen Schlüssel, wenn beim Anlegen einer angegeben oder später einer hinzugefügt wurde;
+den Schlüssel aus einer Verbindung mit Schlüssel zu entfernen wird abgelehnt. Eine
+deploymentweite Verbindung ist schlüssellos. Ein gelöschter Schlüssel lässt die
+Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden.
+
+Ein eigener Endpunkt kann jedes Model bereitstellen, also darf nichts angenommen werden.
+Zwei Tests verhindern, dass sich der Vektorraum einer Collection versehentlich
+verschiebt:
+
+- **Eine Collection anlegen.** **Test** macht einen Aufruf mit einem festen Text und
+  misst die Breite, die zwischen 1 und 4000 liegen muss (Indexgrenze). **Create** bleibt
+  deaktiviert, bis der Test genau dieses Endpunkts und Models aus dem Formular bestanden
+  hat. Beim Anlegen gibt es keine Umgehung.
+- **Eine bestehende ändern.** Jede Änderung, die den Vektorraum verschieben könnte,
+  braucht einen bestandenen Test der neuen Werte oder ein bestätigtes ungeprüftes
+  Speichern: eine Änderung von Provider, Schlüssel, Endpunkt oder Model an einer
+  Wissensbasis sowie eine Änderung von Adresse oder Schlüssel einer
+  Embedding-Verbindung. Eine Verbindung umzubenennen, zu pausieren oder eine
+  OCR-Verbindung zu ändern braucht keinen.
+
+Was ein Test tut:
+
+- Er embeddet bis zu **3 gespeicherte Chunks** jeder betroffenen Wissensbasis erneut -
+  die zwei kürzesten mit mindestens 100 Zeichen und den längsten - eine Anfrage je Chunk,
+  über die neuen Einstellungen. Die Vektoren werden normalisiert und mit den
+  gespeicherten verglichen; er besteht, wenn die niedrigste Kosinus-Ähnlichkeit
+  **0,995 oder höher** ist und die Breiten exakt übereinstimmen.
+- Schlägt der erste Vergleich fehl, wird er **einmal wiederholt**, bevor der Test
+  fehlschlägt.
+- Eine Wissensbasis ohne Gespeichertes besteht ohne Aufruf. Eine Verbindung, die mehrere
+  Wissensbasen teilen, testet jede davon in ihrem eigenen Scope, und das Ergebnis nennt
+  jede einzelne.
+- Vor dem Start zeigt der Dialog die Zahl der **abgerechneten Aufrufe**
+  (`GET .../estimate`); das Doppelte davon ist das Höchste, was er machen kann. Ein
+  Fehlschlag ist eine normale Antwort, kein Fehler, und nennt die Ursache je
+  Wissensbasis: `unreachable`, `key_refused`, `model_unknown`, `wrong_width` oder
+  `vectors_differ`.
+- Ein Bestehen liefert ein **10 Minuten gültiges Token**, gebunden an genau die
+  getesteten Werte: Verbindung, Adresse, Schlüssel samt seiner Generation, Model,
+  gemessene Breite und die bestandenen Wissensbasen. Jede geänderte Eingabe, eine
+  Schlüsselrotation oder eine weitere an die Verbindung gehängte Wissensbasis macht es
+  ungültig. Der Server testet beim Speichern nicht erneut, Speichern kostet also nichts.
+
+**Save without testing** sendet nach einer Bestätigung `unverified: true`. Es wird als
+`knowledge_base.embedding_changed_unverified` oder `service_connection.updated_unverified`
+auditiert, mit den vorherigen und neuen Einstellungen, die nicht geheim sind. Es gibt
+kein Zurücksetzen, und außer dem Audit-Eintrag wird nichts gespeichert. Eine getestete
+Verschiebung einer Wissensbasis ist auch dann erlaubt, wenn ihre Collection mit anderen
+Wissensbasen geteilt wird; eine ungeprüfte Verschiebung wird abgelehnt, wenn die
+Collection geteilt wird und ihre Einstellungen von denen der anderen abwichen.
+
+Einschränkungen:
+
+- Ein fehlgeschlagener Test hat keinen Weg weiter außer einer neuen Wissensbasis: Es gibt
+  **keinen Neuaufbau** eines bestehenden Index auf ein anderes Model.
+- Testaufrufe **zählen nicht zu den Ausgaben der Organisation**: drei kurze Aufrufe je
+  betroffener Wissensbasis, nach einer Wiederholung doppelt so viele.
+- Ein im Vault nach dem Speichern an Ort und Stelle rotierter Schlüssel wird **nicht
+  erneut getestet** - dieselbe Schlüssel-ID besteht weiterhin.
+- Ein Test prüft **3 Chunks**. Ein Endpunkt, der damit übereinstimmt und sonst abweicht,
+  wird nicht erkannt.
+- Chat-, Sprach- und Bild-Provider nutzen noch keine Dienstverbindungen.
+- Das Platform-MCP-Tool `create_knowledge_base` kann keine eigene Wissensbasis anlegen:
+  Es hat kein Test-Token. Nutzen Sie die Konsole.
 
 Auf welche Wissensdatenbank sich der Name einer Collection auflöst, ist selbst
 eine Tenant-Frage. `collection_name` ist indiziert, aber **nicht eindeutig** —

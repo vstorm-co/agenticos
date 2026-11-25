@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7621fe2df920"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -202,6 +202,14 @@ klucza albo endpointu - wymaga `secrets:view` na tym kluczu. Usunięty klucz
 zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego, także
 profil przed gatewayem. Bez klucza dalej działa tylko profil celowo zapisany bez
 klucza ([Profil bez klucza](models.md#a-profile-without-a-key)).
+
+**Połączenia usług.** Połączenie embeddingowe w stylu zgodnym z OpenAI może wskazywać klucz z
+vaultu, klucz API o przeznaczeniu `openai_compatible`. Tylko połączenie należące do organizacji może go
+mieć; połączenie ogólnowdrożeniowe jest bezkluczowe. Przypięcie klucza to jego użyczenie, jak przy
+profilu modelu: jego wybór, przy tworzeniu i przy każdej zmianie klucza, wymaga `secrets:view` na tym
+kluczu. Usunięty klucz sprawia, że połączenie odmawia z nazwą zamiast wysyłać żądania bez niego, a
+wartość klucza nigdy nie trafia do wiersza połączenia, jego odpowiedzi API ani wpisów audytu. Rotacja
+wartości w miejscu nie testuje połączenia ponownie.
 
 **Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
 wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie

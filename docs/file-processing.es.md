@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a1ea4798cd"
+source_sha: "dce334aed524"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -696,7 +696,77 @@ Los tres se deciden **por colección**, no por deployment, en
 |---|---|
 | **Modelo y anchura** | Se registran en la base de conocimiento al crearla (`embedding_model`, `embedding_dim`) y no cambian nunca después — `PgVectorStore` escribe `embedding vector(N)` una sola vez, así que un segundo modelo o no se puede escribir o se compara en silencio con vectores de otro espacio. Una colección nueva elige uno de los modelos que sirve su provider; no hay valor por defecto del deployment. |
 | **Provider** | Qué endpoint compatible con OpenAI sirve ese modelo (`embedding_provider`). **Es modificable**, a diferencia del modelo: el mismo modelo con la misma anchura produce vectores del mismo espacio se sirva desde donde se sirva, así que `PATCH /kb/{id}` mueve una colección entre providers y deja válido todo lo ya indexado. |
-| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. No hay clave de embeddings a nivel de deployment: una colección nueva personal o de organización tiene que nombrar una, y una colección sin clave utilizable rechaza indexar y buscar hasta que tenga una. El provider `ollama` es **sin clave** — un Ollama en la red del propio deployment — así que una colección en él no nombra ninguna clave y se rechaza si lo intenta; nombra en su lugar un **servicio local** (`embedding_endpoint_id`), una fila bajo Knowledge → Integrations que lleva la dirección, la propia de la organización o una de todo el deployment que haya registrado el administrador de la aplicación. Una colección **app-scoped** no pertenece a ninguna organización y por tanto no tiene vault del que nombrar una clave; solo puede generar embeddings a través de un provider sin clave en un servicio de todo el deployment, y elegir uno con clave se rechaza donde se eligió el provider. |
+| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. No hay clave de embeddings a nivel de deployment: una colección nueva personal o de organización tiene que nombrar una, y una colección sin clave utilizable rechaza indexar y buscar hasta que tenga una. El provider `ollama` es **sin clave** — un Ollama en la red del propio deployment — así que una colección en él no nombra ninguna clave y se rechaza si lo intenta; nombra en su lugar una **conexión de servicio** (`embedding_endpoint_id`), una fila bajo Knowledge → Integrations que lleva la dirección, la propia de la organización o una de todo el deployment que haya registrado el administrador de la aplicación. El provider propio `openai_compatible` se alcanza igual, y su clave vive en la conexión ([más abajo](#a-custom-openai-compatible-endpoint-and-the-test)). Una colección **app-scoped** no pertenece a ninguna organización y por tanto no tiene vault del que nombrar una clave; solo puede generar embeddings a través de un provider sin clave en una conexión de todo el deployment, y elegir uno con clave se rechaza donde se eligió el provider. |
+
+#### Un endpoint propio compatible con OpenAI y el Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+La entrada del catálogo `openai_compatible`, mostrada como **Custom (OpenAI-compatible)**,
+no lista ningún modelo. Genera embeddings a través de cualquier endpoint compatible con
+OpenAI que la organización registre como **conexión de servicio** (Knowledge →
+Integrations → **Add server**, estilo de API *OpenAI-compatible*), y el modelo se escribe
+como texto libre. La conexión puede llevar una clave del vault de la organización
+(propósito `openai_compatible`): solo una conexión propiedad de la organización puede
+tenerla, y vincular una clave la presta a cada colección de la conexión, así que elegirla
+exige `secrets:view` sobre esa clave. Una conexión exige clave si se dio una al crearla o
+se añadió después, y quitar la clave de una conexión con clave se rechaza. Una conexión de
+todo el deployment no tiene clave. Una clave eliminada hace que la conexión rechace con su
+nombre en lugar de enviar peticiones sin ella.
+
+Un endpoint propio puede servir cualquier modelo, así que no se puede dar nada por hecho.
+Dos Tests evitan que el espacio vectorial de una colección se mueva por accidente:
+
+- **Crear una colección.** **Test** hace una llamada con un texto fijo y mide la anchura,
+  que debe estar entre 1 y 4000 (el límite del índice). **Create** sigue desactivado hasta
+  que el Test de ese endpoint y ese modelo exactos del formulario haya pasado. Al crear no
+  hay anulación.
+- **Cambiar una existente.** Todo cambio que pueda mover el espacio vectorial necesita un
+  Test aprobado de los valores nuevos o un guardado sin verificar confirmado: un cambio de
+  provider, clave, endpoint o modelo en una base de conocimiento, y una edición de la
+  dirección o la clave de una conexión de embeddings. Renombrar una conexión, pausarla o
+  editar una conexión OCR no necesita ninguno.
+
+Qué hace un Test:
+
+- Vuelve a generar embeddings de hasta **3 chunks almacenados** de cada base de
+  conocimiento afectada - los dos más cortos de al menos 100 caracteres y el más largo -
+  una petición por chunk, con los ajustes nuevos. Los vectores se normalizan y se
+  comparan con los almacenados; pasa si la similitud coseno más baja es **0,995 o más** y
+  las anchuras coinciden exactamente.
+- Si la primera comparación falla, se **repite una vez** antes de que el Test falle.
+- Una base de conocimiento sin nada almacenado pasa sin ninguna llamada. Una conexión
+  compartida por varias bases de conocimiento prueba cada una, en su propio ámbito, y el
+  resultado nombra todas.
+- Antes de ejecutarse, el diálogo muestra el número de **llamadas facturadas**
+  (`GET .../estimate`), y el doble es lo máximo que puede hacer. El fallo es una respuesta
+  normal, no un error, y nombra la causa por base de conocimiento: `unreachable`,
+  `key_refused`, `model_unknown`, `wrong_width` o `vectors_differ`.
+- Si pasa, devuelve un **token válido durante 10 minutos**, ligado a los valores exactos
+  probados: la conexión, la dirección, la clave y su generación, el modelo, la anchura
+  medida y las bases de conocimiento que pasaron. Cambiar cualquier valor, rotar la clave
+  o adjuntar otra base de conocimiento a la conexión lo anula. El servidor no vuelve a
+  probar al guardar, así que guardar no cuesta nada.
+
+**Save without testing** envía `unverified: true` tras una confirmación. Se audita como
+`knowledge_base.embedding_changed_unverified` o `service_connection.updated_unverified`,
+con los ajustes anteriores y nuevos que no son secretos. No hay reversión y no se guarda
+nada más allá de la entrada de auditoría. Un traslado probado de una base de conocimiento
+se permite aunque su colección esté compartida con otras bases de conocimiento; un
+traslado sin verificar se rechaza cuando la colección está compartida y sus ajustes
+diferirían de los de las demás.
+
+Limitaciones:
+
+- Un Test fallido no tiene más salida que una base de conocimiento nueva: **no hay
+  reconstrucción** de un índice existente sobre otro modelo.
+- Las llamadas de prueba **no cuentan en el gasto de la organización**: tres llamadas
+  cortas por base de conocimiento afectada, y el doble tras un reintento.
+- Una clave rotada en el sitio en el vault después de guardar **no se vuelve a probar** -
+  el mismo id de clave sigue pasando.
+- Un Test muestrea **3 chunks**. Un endpoint que coincide en ellos y difiere en otros
+  sitios no se detecta.
+- Los providers de chat, voz e imagen todavía no usan conexiones de servicio.
+- La herramienta de la plataforma MCP `create_knowledge_base` no puede crear una base de
+  conocimiento propia: no tiene token de prueba. Usa la consola.
 
 Qué base de conocimiento resuelve un nombre de colección es cuestión de tenants.
 `collection_name` está indexado pero **no es único** — dos organizaciones pueden

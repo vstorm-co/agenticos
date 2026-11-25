@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
-import { useLocalServices, useModelProviders, usePermissions, useSecrets } from "@/hooks";
+import { useServiceConnections, useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
   hintOf,
@@ -101,7 +101,7 @@ export function IngestionSettings({
   const llamaparseKeys = secrets.filter((secret) => secret.purpose === LLAMAPARSE);
   // Only LiteParse sends pages anywhere, so the list of OCR servers is fetched
   // only while it is the parser on screen.
-  const { services } = useLocalServices(value.pdf_parser === "liteparse");
+  const { connections: services } = useServiceConnections(value.pdf_parser === "liteparse");
   const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   // Every change goes through `settleHiddenFields`, so turning a setting off

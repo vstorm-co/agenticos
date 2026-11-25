@@ -6,22 +6,22 @@ import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
 import {
-  createLocalService,
-  deleteLocalService,
-  listLocalServices,
-  updateLocalService,
-  type LocalServiceInput,
-  type LocalServicePatch,
-  type LocalServiceRecord,
-} from "@/lib/local-services-api";
+  createServiceConnection,
+  deleteServiceConnection,
+  listServiceConnections,
+  updateServiceConnection,
+  type ServiceConnectionInput,
+  type ServiceConnectionPatch,
+  type ServiceConnectionRecord,
+} from "@/lib/service-connections-api";
 import { qk } from "@/lib/query-keys";
 
-interface UseLocalServicesResult {
-  services: LocalServiceRecord[];
+interface UseServiceConnectionsResult {
+  connections: ServiceConnectionRecord[];
   isLoading: boolean;
   error: string | null;
-  create: (input: LocalServiceInput) => Promise<LocalServiceRecord>;
-  update: (id: string, patch: LocalServicePatch) => Promise<LocalServiceRecord>;
+  create: (input: ServiceConnectionInput) => Promise<ServiceConnectionRecord>;
+  update: (id: string, patch: ServiceConnectionPatch) => Promise<ServiceConnectionRecord>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -31,32 +31,32 @@ interface UseLocalServicesResult {
  * offers both and a person choosing does not care which table owns the row.
  *
  * `enabled` is what lets a picker hold the hook without firing the request: the
- * embedding picker only needs the list once a keyless provider is chosen, and a
+ * embedding picker only needs the list once a provider reached through a connection is chosen, and a
  * section hidden for want of `connections:manage` should ask for nothing rather
  * than collect a refusal.
  */
-export function useLocalServices(enabled = true): UseLocalServicesResult {
+export function useServiceConnections(enabled = true): UseServiceConnectionsResult {
   const t = useTranslations("kb");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
-    data: services = [],
+    data: connections = [],
     isLoading,
     error: queryError,
   } = useQuery({
-    queryKey: qk.localServices.list(),
-    queryFn: listLocalServices,
+    queryKey: qk.serviceConnections.list(),
+    queryFn: listServiceConnections,
     enabled,
   });
 
   const invalidate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: qk.localServices.all() });
+    await queryClient.invalidateQueries({ queryKey: qk.serviceConnections.all() });
   }, [queryClient]);
 
   const create = useCallback(
-    async (input: LocalServiceInput) => {
-      const created = await createLocalService(input);
+    async (input: ServiceConnectionInput) => {
+      const created = await createServiceConnection(input);
       await invalidate();
       return created;
     },
@@ -64,8 +64,8 @@ export function useLocalServices(enabled = true): UseLocalServicesResult {
   );
 
   const update = useCallback(
-    async (id: string, patch: LocalServicePatch) => {
-      const updated = await updateLocalService(id, patch);
+    async (id: string, patch: ServiceConnectionPatch) => {
+      const updated = await updateServiceConnection(id, patch);
       await invalidate();
       return updated;
     },
@@ -74,16 +74,18 @@ export function useLocalServices(enabled = true): UseLocalServicesResult {
 
   const remove = useCallback(
     async (id: string) => {
-      await deleteLocalService(id);
+      await deleteServiceConnection(id);
       await invalidate();
     },
     [invalidate],
   );
 
   return {
-    services,
+    connections,
     isLoading: enabled && isLoading,
-    error: queryError ? getErrorMessage(queryError, tErrors, t("failedLoadLocalServices")) : null,
+    error: queryError
+      ? getErrorMessage(queryError, tErrors, t("failedLoadServiceConnections"))
+      : null,
     create,
     update,
     remove,

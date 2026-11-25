@@ -1,5 +1,5 @@
 ---
-source_sha: "d9d30f54c654"
+source_sha: "1e23167abea3"
 ---
 
 # Datenschutz { #data-protection }
@@ -51,8 +51,8 @@ entsprechend, und die Software macht mit:
 | Thema | Die lokale Antwort |
 | --- | --- |
 | Das Chat-Model | Ein `ollama`- oder `litellm`-Profil — schlüssellos, auf einen Endpunkt gerichtet, den Sie selbst betreiben. Jeder der 28 Provider mit `base_url` nimmt auch ein Gateway von Ihnen |
-| Dokumenten-Parsing | `pymupdf`, der Standard, läuft im Worker. LiteParse-OCR läuft ebenfalls im Worker oder an einem OCR-Server, den Sie als lokalen Dienst registrieren. LlamaParse ist eine Wahl je Collection und braucht einen Vault-Schlüssel; ohne einen wird nichts außer Haus geparst |
-| Embeddings | Ein Ollama, das Sie betreiben, unter Knowledge → Integrations als lokaler Dienst registriert und je Collection als Provider `ollama` gewählt. Schlüssellos, und der einzige Provider, den eine app-scoped Collection nutzen darf |
+| Dokumenten-Parsing | `pymupdf`, der Standard, läuft im Worker. LiteParse-OCR läuft ebenfalls im Worker oder an einem OCR-Server, den Sie als Dienstverbindung registrieren. LlamaParse ist eine Wahl je Collection und braucht einen Vault-Schlüssel; ohne einen wird nichts außer Haus geparst |
+| Embeddings | Ein Ollama, das Sie betreiben, oder ein OpenAI-kompatibles Gateway Ihrer Wahl, unter Knowledge → Integrations als Dienstverbindung registriert und je Collection als Provider `ollama` oder `openai_compatible` gewählt. Ein Ollama ist schlüssellos und der einzige Provider, den eine app-scoped Collection nutzen darf; ein Gateway kann außerhalb des Deployments liegen |
 | Traces | Lassen Sie `LOGFIRE_TOKEN` ungesetzt und binden Sie kein `observability`-Token an einen Spec oder ein Environment. Runs halten die Trace-Id weiterhin lokal fest |
 | Suche, Browsing, Memory, Tools | Binden Sie kein `search`-Secret, keine Capability `web_fetch` oder `browser_use`, keine MCP-Verbindung. Der Webbrowser kann bleiben, wenn jede Seite, die er öffnen darf, auf `allowed_domains` steht und seine Schritte an ein Modell gehen, das Sie selbst betreiben |
 | E-Mail | Ihr eigenes SMTP-Relay |
@@ -60,11 +60,15 @@ entsprechend, und die Software macht mit:
 
 Embeddings eingeschlossen: Der Katalog nennt OpenRouter und OpenAI, die eine
 Collection mit einem Vault-Schlüssel erreicht, und `ollama`, das eine Collection
-an einem lokalen Dienst erreicht — einer Zeile, die einen Server benennt, den die
+an einer Dienstverbindung erreicht — einer Zeile, die einen Server benennt, den die
 Organisation oder das Deployment betreibt. Eine Collection auf `ollama` schickt
 ihre Chunks und Anfragen an keinen anderen Host und zahlt niemandem etwas. Ein
 Deployment, das Dokumente auf eigener Hardware halten muss, legt dort jede
-Collection an.
+Collection an. Der eigene Provider `openai_compatible` erreicht ein Gateway ebenfalls über eine Verbindung, und dieses
+Gateway kann außerhalb des Deployments liegen: Jeder Chunk und jede Anfrage geht dorthin, wohin seine Adresse zeigt, mit
+einem Vault-Schlüssel der Organisation, wenn die Verbindung einen hat. Der [Datenschutzbericht](#verifying-one-deployment)
+führt die Verbindungen als **Service connections** auf, mit einer Spalte **Vault key**, die sagt, ob jede einzelne
+ein Credential sendet.
 
 ## Wer wofür verantwortlich ist { #who-is-responsible-for-what }
 
@@ -228,9 +232,9 @@ standardmäßig aktiv. Dies ist die vollständige Liste der Ziele, mit der Konfi
 | Das Model des Fallgenerators | Die Anweisungen, Skill-Auszüge und Tool-Beschreibungen des getesteten Agents; Abschnitte der Dokumente seiner Wissensbasis; die Fragen, die Menschen ihm gestellt haben, mit dem Kommentar zu einer negativ bewerteten Antwort. Zugangsdaten werden vor dem Senden aus Abschnitten und Fragen geschwärzt | Das im Dataset konfigurierte Generierungsmodell, nur nach einem Start durch eine Person mit `datasets:edit`. Gesprächsquellen benötigen zusätzlich `runs:view`. | Die des Providers. Je Profil prüfen |
 | Das Model des Schlüssel-Extraktors | Die ganze gespeicherte Referenzantwort eines Falls, die aus dem Gespräch einer Person kopiert sein kann | Das im Dataset konfigurierte Generierungsmodell, nur wenn eine Person mit `datasets:edit`, die den Text des Falls lesen darf, seine Schlüssel anfordert | Die des Providers. Je Profil prüfen |
 | Das Model des Agenten für Quellenabdeckung | Die Bezeichnungen der Schlüssel eines Datasets - nie ihre Werte - und, aus jeder Quelle des Agenten, die die fragende Person sehen darf, für jede Bezeichnung gefundene Stellen aus Wissensbasen, die Stellen aus Kontextdateien und Skills, die eine Bezeichnung nennen, sowie Namen und Beschreibungen von MCP-Tools | Das im Dataset konfigurierte Generierungsmodell, nur wenn eine Person, die den Agenten bearbeiten und ausführen darf, einen Abdeckungsbericht anfordert | Die des Providers. Je Profil prüfen |
-| Das Embedding-Model | Jeder Chunk jedes Dokuments einer Collection, jede Retrieval-Anfrage und noch einmal die Anfragen, die nichts gefunden haben, wenn [Wissenslücken](knowledge-gaps.md#topics) sie gruppieren | Je Collection, und nur dort: `embedding_provider` (`openrouter`, `openai` oder `ollama`, aus dem Katalog) und, für die ersten beiden, der Vault-Schlüssel `embedding_secret_id`, der zahlt. Einen deploymentweiten Embedding-Schlüssel gibt es nicht; eine schlüsselpflichtige Collection ohne einen verweigert Indexierung und Suche. `ollama` ist schlüssellos und wird an dem lokalen Dienst erreicht, den die Collection benennt (`embedding_endpoint_id`), einem Host, den Sie betreiben | Die des Providers oder Ihr eigener Host. [Eine dauerhafte Wahl](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| Das Embedding-Model | Jeder Chunk jedes Dokuments einer Collection, jede Retrieval-Anfrage und noch einmal die Anfragen, die nichts gefunden haben, wenn [Wissenslücken](knowledge-gaps.md#topics) sie gruppieren | Je Collection, und nur dort: `embedding_provider` (`openrouter`, `openai`, `ollama` oder `openai_compatible`, aus dem Katalog) und, für die ersten beiden, der Vault-Schlüssel `embedding_secret_id`, der zahlt. Einen deploymentweiten Embedding-Schlüssel gibt es nicht; eine schlüsselpflichtige Collection ohne einen verweigert Indexierung und Suche. `ollama` ist schlüssellos und wird an der Dienstverbindung erreicht, die die Collection benennt (`embedding_endpoint_id`), einem Host, den Sie betreiben; `openai_compatible` wird ebenfalls an einer Verbindung erreicht, einem Endpunkt, den Sie registrieren, mit dem optionalen Vault-Schlüssel der Verbindung | Die des Providers oder Ihr eigener Host. [Eine dauerhafte Wahl](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Das ganze Dokument | Eine Collection, deren `pdf_parser` `llamaparse` ist; sie muss einen Vault-Schlüssel benennen (`llamaparse_secret_id`), einen Deployment-Schlüssel gibt es nicht. Der Standard `pymupdf` parst im Worker | Die von LlamaCloud, falls genutzt |
-| Ein OCR-Server | Gerenderte Seiten eines Dokuments | Eine Collection, deren `pdf_parser` `liteparse` ist **und** deren `ocr_endpoint_id` einen lokalen Dienst benennt; ohne einen läuft OCR im Worker | Ihr eigener Host — ein lokaler Dienst liegt konstruktionsbedingt im Netz des Deployments |
+| Ein OCR-Server | Gerenderte Seiten eines Dokuments | Eine Collection, deren `pdf_parser` `liteparse` ist **und** deren `ocr_endpoint_id` eine Dienstverbindung benennt; ohne eine läuft OCR im Worker | Ihr eigener Host — eine Dienstverbindung der Art OCR liegt konstruktionsbedingt im Netz des Deployments |
 | Ein Bildbeschreibungs-Model | Bilder in Dokumenten | Das `image_description_model` einer Collection | Die dieses Model-Providers |
 | Web-Recherche | Die Suchanfrage, die der Agent formuliert hat | `web_research.method` auf dem Spec: `duckduckgo` (kein Schlüssel), `tavily`, `brave` oder `exa` (je ein `search`-Secret), oder `native`, wobei der Provider des Chat-Models sucht | Die des Suchanbieters oder des Model-Providers |
 | Web-Fetch und der Webbrowser | Die URL; beim Browser, was er auf den geöffneten Seiten eintippt | Die Capability auf dem Spec; der Browser braucht zusätzlich einen CDP-Endpunkt auf `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Die abgerufene Seite; der Browser-Host und die Seiten, die er öffnet |

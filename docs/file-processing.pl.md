@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a1ea4798cd"
+source_sha: "dce334aed524"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -683,7 +683,78 @@ przez `app/services/embedding_resolution.py` w oparciu o katalog w
 |---|---|
 | **Model i szerokość** | Zapisywane na bazie wiedzy przy tworzeniu (`embedding_model`, `embedding_dim`) i nigdy potem niezmieniane — `PgVectorStore` zapisuje `embedding vector(N)` raz, więc drugi model albo nie da się zapisać, albo jest po cichu porównywany z wektorami z innej przestrzeni. Nowa kolekcja wybiera jeden z modeli, które serwuje jej provider; nie ma wartości domyślnej wdrożenia. |
 | **Provider** | Który endpoint zgodny z OpenAI obsługuje ten model (`embedding_provider`). **Zmienialny**, inaczej niż model: ten sam model o tej samej szerokości produkuje wektory w tej samej przestrzeni niezależnie od tego, skąd jest serwowany, więc `PATCH /kb/{id}` przenosi kolekcję między providerami i zostawia wszystko, co już zaindeksowane, ważne. |
-| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Nie ma klucza embeddingowego na poziomie wdrożenia: nowa kolekcja osobista albo organizacyjna musi wskazać klucz, a kolekcja bez używalnego klucza odmawia indeksowania i wyszukiwania, dopóki go nie dostanie. Provider `ollama` jest **bezkluczowy** — to Ollama w sieci samego wdrożenia — więc kolekcja u niego nie wskazuje żadnego klucza i zostaje odrzucona, jeśli spróbuje; zamiast tego wskazuje **usługę lokalną** (`embedding_endpoint_id`), wiersz w Knowledge → Integrations, który niesie adres, własny organizacji albo ogólnowdrożeniowy, zarejestrowany przez administratora aplikacji. Kolekcja **app-scoped** nie należy do żadnej organizacji, więc nie ma vaultu, z którego mogłaby wskazać klucz; może embedować wyłącznie przez providera bezkluczowego na usłudze ogólnowdrożeniowej, a wybór providera z kluczem jest dla niej odrzucany tam, gdzie provider był wybierany. |
+| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Nie ma klucza embeddingowego na poziomie wdrożenia: nowa kolekcja osobista albo organizacyjna musi wskazać klucz, a kolekcja bez używalnego klucza odmawia indeksowania i wyszukiwania, dopóki go nie dostanie. Provider `ollama` jest **bezkluczowy** — to Ollama w sieci samego wdrożenia — więc kolekcja u niego nie wskazuje żadnego klucza i zostaje odrzucona, jeśli spróbuje; zamiast tego wskazuje **połączenie usługi** (`embedding_endpoint_id`), wiersz w Knowledge → Integrations, który niesie adres, własny organizacji albo ogólnowdrożeniowy, zarejestrowany przez administratora aplikacji. Własny provider `openai_compatible` osiąga się tak samo, a jego klucz mieszka na połączeniu ([niżej](#a-custom-openai-compatible-endpoint-and-the-test)). Kolekcja **app-scoped** nie należy do żadnej organizacji, więc nie ma vaultu, z którego mogłaby wskazać klucz; może embedować wyłącznie przez providera bezkluczowego na połączeniu ogólnowdrożeniowym, a wybór providera z kluczem jest dla niej odrzucany tam, gdzie provider był wybierany. |
+
+#### Własny endpoint zgodny z OpenAI i Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+Wpis katalogu `openai_compatible`, widoczny jako **Custom (OpenAI-compatible)**, nie
+wymienia żadnych modeli. Embeduje przez dowolny endpoint zgodny z OpenAI, który
+organizacja rejestruje jako **połączenie usługi** (Knowledge → Integrations →
+**Add server**, styl API *OpenAI-compatible*), a model wpisuje się jako dowolny tekst.
+Połączenie może nieść klucz z vaultu organizacji (przeznaczenie `openai_compatible`):
+klucz może mieć tylko połączenie należące do organizacji, a przypięcie klucza
+użycza go każdej kolekcji na tym połączeniu, więc jego wybór wymaga `secrets:view`
+na tym kluczu. Połączenie wymaga klucza, jeśli podano go przy tworzeniu albo dodano
+później, a usunięcie klucza z połączenia z kluczem jest odrzucane. Połączenie
+ogólnowdrożeniowe jest bezkluczowe. Usunięty klucz sprawia, że połączenie odmawia
+z nazwą zamiast wysyłać żądania bez niego.
+
+Własny endpoint może serwować dowolny model, więc o niczym nie wolno zakładać. Dwa
+Testy chronią przestrzeń wektorów kolekcji przed przypadkowym przesunięciem:
+
+- **Tworzenie kolekcji.** **Test** wykonuje jedno wywołanie na stałym tekście i mierzy
+  szerokość, która musi mieścić się między 1 a 4000 (limit indeksu). **Create** pozostaje
+  nieaktywne, dopóki Test dokładnie tego endpointu i modelu z formularza nie przejdzie.
+  Przy tworzeniu nie ma obejścia.
+- **Zmiana istniejącej.** Każda zmiana, która mogłaby przesunąć przestrzeń wektorów,
+  wymaga zaliczonego Testu nowych wartości albo potwierdzonego zapisu niesprawdzonego:
+  zmiana providera, klucza, endpointu lub modelu na bazie wiedzy oraz edycja adresu lub
+  klucza połączenia embeddingowego. Zmiana nazwy połączenia, jego wstrzymanie czy edycja
+  połączenia OCR nie wymaga żadnej.
+
+Co robi Test:
+
+- Embeduje ponownie do **3 zapisanych chunków** każdej objętej bazy wiedzy - dwa
+  najkrótsze liczące co najmniej 100 znaków i najdłuższy - jedno żądanie na chunk, przez
+  nowe ustawienia. Wektory są normalizowane i porównywane z zapisanymi; test przechodzi,
+  jeśli najniższe podobieństwo cosinusowe wynosi **0,995 lub więcej**, a szerokości są
+  dokładnie równe.
+- Jeśli pierwsze porównanie się nie powiedzie, jest **powtarzane raz**, zanim Test
+  zawiedzie.
+- Baza wiedzy bez niczego zapisanego przechodzi bez wywołania. Połączenie współdzielone
+  przez kilka baz wiedzy testuje każdą z nich, w jej własnym zakresie, a wynik wymienia
+  każdą.
+- Przed uruchomieniem okno pokazuje liczbę **płatnych wywołań** (`GET .../estimate`), a
+  dwukrotność to najwięcej, ile Test może wykonać. Porażka to zwykła odpowiedź, nie błąd;
+  wskazuje przyczynę dla każdej bazy wiedzy: `unreachable`, `key_refused`,
+  `model_unknown`, `wrong_width` albo `vectors_differ`.
+- Zaliczenie zwraca **token ważny 10 minut**, związany z dokładnie przetestowanymi
+  wartościami: połączeniem, adresem, kluczem i jego generacją, modelem, zmierzoną
+  szerokością i bazami wiedzy, które przeszły. Zmiana którejkolwiek wartości, rotacja
+  klucza albo podpięcie kolejnej bazy wiedzy do połączenia go unieważnia. Serwer nie
+  testuje ponownie przy zapisie, więc zapis nic nie kosztuje.
+
+**Save without testing** wysyła `unverified: true` po potwierdzeniu. Jest zapisywane w
+audycie jako `knowledge_base.embedding_changed_unverified` albo
+`service_connection.updated_unverified`, z poprzednimi i nowymi ustawieniami, które nie
+są sekretne. Nie ma cofnięcia i nic poza wpisem audytu nie jest przechowywane. Przeniesienie
+bazy wiedzy po zaliczonym Teście jest dozwolone, nawet gdy jej kolekcja jest współdzielona
+z innymi bazami wiedzy; przeniesienie niesprawdzone jest odrzucane, gdy kolekcja jest
+współdzielona, a jej ustawienia różniłyby się od ustawień pozostałych.
+
+Ograniczenia:
+
+- Nieudany Test nie ma dalszej drogi poza nową bazą wiedzy: **nie ma przebudowy**
+  istniejącego indeksu na inny model.
+- Wywołania testowe **nie liczą się do wydatków organizacji**: trzy krótkie wywołania na
+  objętą bazę wiedzy, a po ponowieniu dwa razy tyle.
+- Klucz zrotowany w miejscu w vaulcie po zapisie **nie jest testowany ponownie** - ten sam
+  identyfikator klucza nadal przechodzi.
+- Test próbkuje **3 chunki**. Endpoint, który się z nimi zgadza, a gdzie indziej różni,
+  nie zostanie wykryty.
+- Providery czatu, mowy i obrazów nie używają jeszcze połączeń usług.
+- Narzędzie platform MCP `create_knowledge_base` nie utworzy własnej bazy wiedzy: nie ma
+  tokenu testu. Użyj konsoli.
 
 To, do której bazy wiedzy rozwiązuje się nazwa kolekcji, jest samo w sobie
 pytaniem o tenanta. `collection_name` jest indeksowane, ale **nieunikalne** — dwie

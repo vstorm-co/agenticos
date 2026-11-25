@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "c092f6e7b73c"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -127,7 +127,7 @@ Die Chat-Einstellungen zeigen Browser und Work on vor Permissions.
 Gesprächsbenachrichtigungen und Kontoverbindungen bleiben unter den
 Freigabeeinstellungen.
 
-Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und lokale Dienste ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
+Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und Dienstverbindungen ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
 
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 

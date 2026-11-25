@@ -59,7 +59,7 @@ export interface IngestionConfig {
    */
   llamaparse_secret_id?: string | null;
   /**
-   * The OCR server LiteParse sends pages to - a local service of kind `ocr`.
+   * The OCR server LiteParse sends pages to - a service connection of kind `ocr`.
    * Null runs the Tesseract bundled with the worker.
    */
   ocr_endpoint_id?: string | null;
@@ -138,8 +138,9 @@ export interface KnowledgeBase {
   embedding_provider: string;
   embedding_secret_id: string | null;
   /**
-   * The server a keyless provider is reached at - a local service of kind
-   * `embedding`. Null for a keyed provider, whose address is the vendor's.
+   * The connection a keyless or custom provider is reached at - a service
+   * connection of kind `embedding`. Null for a keyed catalog provider, whose
+   * address is the vendor's.
    */
   embedding_endpoint_id: string | null;
   embedding_base_url?: string | null;
@@ -200,9 +201,11 @@ export interface CreateKnowledgeBaseInput {
    * key to fall back to.
    */
   embedding_secret_id?: string;
-  /** The local service a keyless provider is reached at. Required for one. */
+  /** The service connection a keyless or custom provider is reached at. Required for one. */
   embedding_endpoint_id?: string;
   embedding_base_url?: string | null;
+  /** From a passing test of exactly these values. Required for a custom provider. */
+  probe_token?: string;
 }
 
 /**
@@ -216,6 +219,12 @@ export interface EmbeddingProviderInput {
   embedding_secret_id?: string;
   embedding_endpoint_id?: string;
   embedding_base_url?: string | null;
+  /** Only a custom provider may change the model. */
+  embedding_model?: string;
+  /** From a passing test of exactly these values. */
+  probe_token?: string;
+  /** Save without a test; the server audits it. */
+  unverified?: boolean;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -229,6 +238,12 @@ export interface EmbeddingProvider {
    * app-scoped collection may embed through.
    */
   keyless: boolean;
+  /**
+   * Serves any model its endpoint names - a custom OpenAI-compatible gateway.
+   * It lists no models, the model is typed, and the endpoint is a service
+   * connection.
+   */
+  any_model: boolean;
 }
 
 export interface EmbeddingModels {

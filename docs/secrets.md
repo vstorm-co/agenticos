@@ -194,6 +194,14 @@ deleted key leaves its profiles marked `missing_key` until they get another,
 including one in front of a gateway. Only a profile saved with no key on purpose
 keeps running without one ([A profile without a key](models.md#a-profile-without-a-key)).
 
+**Service connections.** An embedding connection of the OpenAI-compatible style may name a
+Vault key, an API key whose purpose is `openai_compatible`. Only an organization-owned connection can
+hold one; a deployment-wide connection is keyless. Binding a key is lending it, as for a model
+profile: choosing it, at creation and on every key change, needs `secrets:view` on that key. A deleted
+key leaves the connection refusing by name instead of sending requests without it, and the key's value
+is never in the connection's row, its API responses or its audit entries. Rotating the value in place
+does not retest the connection.
+
 **Speech to text.** An API key whose purpose is the provider, named by id next to
 the provider and model wherever speech to text is set up: the organization's
 default, an agent's override and a channel bot's own pair. Nothing looks a key

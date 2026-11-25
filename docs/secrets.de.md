@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7621fe2df920"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -213,6 +213,15 @@ gelöschter Key hinterlässt seine Profile mit `missing_key`, bis sie einen ande
 bekommen, auch eines vor einem Gateway. Ohne Key läuft nur ein Profil weiter, das
 absichtlich ohne Key gespeichert wurde
 ([Ein Profil ohne Schlüssel](models.md#a-profile-without-a-key)).
+
+**Dienstverbindungen.** Eine Embedding-Verbindung im OpenAI-kompatiblen Stil kann einen
+Vault-Schlüssel benennen, einen API-Schlüssel mit dem Zweck `openai_compatible`. Nur eine Verbindung der
+Organisation kann einen halten; eine deploymentweite Verbindung ist schlüssellos. Einen Schlüssel zu
+binden heißt, ihn zu verleihen, wie bei einem Modellprofil: Seine Auswahl, beim Anlegen und bei jeder
+Schlüsseländerung, braucht `secrets:view` auf diesem Schlüssel. Ein gelöschter Schlüssel lässt die
+Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden, und der Wert des Schlüssels steht nie
+in der Zeile der Verbindung, in ihren API-Antworten oder in ihren Audit-Einträgen. Das Rotieren des
+Werts an Ort und Stelle testet die Verbindung nicht erneut.
 
 **Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
 neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:

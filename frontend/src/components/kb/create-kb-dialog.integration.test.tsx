@@ -59,6 +59,7 @@ const EMBEDDING_MODELS = {
       provider: "openrouter",
       name: "OpenRouter",
       keyless: false,
+      any_model: false,
       models: [
         { model: "text-embedding-3-large", dim: 3072 },
         { model: "text-embedding-3-small", dim: 1536 },
@@ -68,6 +69,7 @@ const EMBEDDING_MODELS = {
       provider: "openai",
       name: "OpenAI",
       keyless: false,
+      any_model: false,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
     },
     // An Ollama on the deployment's own network: offered only where the
@@ -76,7 +78,17 @@ const EMBEDDING_MODELS = {
       provider: "ollama",
       name: "Ollama",
       keyless: true,
+      any_model: false,
       models: [{ model: "nomic-embed-text", dim: 768 }],
+    },
+    // A gateway that serves any model it is asked for: no list, a typed model,
+    // and a service connection that holds the key.
+    {
+      provider: "openai_compatible",
+      name: "Custom (OpenAI-compatible)",
+      keyless: false,
+      any_model: true,
+      models: [],
     },
   ],
 };
@@ -123,6 +135,19 @@ const LOCAL_SERVICES = [
     created_at: "2026-09-01T00:00:00Z",
     updated_at: null,
   },
+  {
+    id: "conn-1",
+    organization_id: "org-1",
+    kind: "embedding",
+    provider: "openai_compatible",
+    name: "Corp gateway",
+    base_url: "https://gw.example/v1",
+    is_active: true,
+    secret_id: "s-9",
+    requires_key: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
   // An OCR sidecar is not somewhere to embed, so it must not be offered here.
   {
     id: "ls-3",
@@ -155,7 +180,8 @@ const state = {
 function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return state.secrets;
-    if (path === "/local-services") return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
+    if (path === "/service-connections")
+      return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
     if (path.startsWith("/rag/embedding-models/openrouter?base_url=")) {
       if (state.endpointModels === undefined) throw new Error("not asked in this test");
       return state.endpointModels;
@@ -183,6 +209,7 @@ function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_
             secret_kind: "api_key",
             supports_base_url: false,
             keyless: false,
+            any_model: false,
             apis: ["responses", "chat"],
             native_api: "responses",
           },
@@ -729,5 +756,111 @@ describe("a custom OpenRouter endpoint", () => {
         "This endpoint does not serve the embedding model 'text-embedding-3-large'.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A custom OpenAI-compatible endpoint serves whatever model it names, so nothing
+ * here can be trusted until the exact endpoint and model have been tested.
+ */
+describe("a custom OpenAI-compatible provider", () => {
+  const PASSED = {
+    passed: true,
+    outcome: "passed",
+    dim: 1024,
+    calls: 1,
+    knowledge_bases: [],
+    probe_token: "tok",
+    expires_at: "2026-11-25T12:10:00Z",
+  };
+
+  async function chooseCustom() {
+    show();
+    await embeddingsShown();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(
+      await screen.findByRole("option", { name: /Custom \(OpenAI-compatible\)/ }),
+    );
+  }
+
+  async function fillIn() {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /Corp gateway/ }));
+    await userEvent.type(screen.getByLabelText("Model"), "corp-embed");
+  }
+
+  it("offers Custom (OpenAI-compatible) last with a free-text model", async () => {
+    show();
+    await embeddingsShown();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    const options = await screen.findAllByRole("option");
+    expect(options.at(-1)).toHaveTextContent("Custom (OpenAI-compatible)");
+    await userEvent.click(options.at(-1)!);
+
+    expect(screen.getByLabelText("Model").tagName).toBe("INPUT");
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    await userEvent.click(screen.getByLabelText("Server"));
+    expect(await screen.findByRole("option", { name: /Corp gateway/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /GPU box/ })).toBeNull();
+  });
+
+  it("registers a gateway inline without letting the kind or style change", async () => {
+    await chooseCustom();
+    await userEvent.click(screen.getByRole("button", { name: "Add server" }));
+
+    const dialogs = screen.getAllByRole("dialog");
+    const inline = dialogs[dialogs.length - 1]!;
+    expect(inline.querySelector("#service-connection-kind")).toBeDisabled();
+    expect(inline.querySelector("#service-connection-style")).toBeDisabled();
+  });
+
+  it("creates a custom knowledge base only after a passing test, with its token", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
+    await chooseCustom();
+    await fillIn();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByText("1 billed call")).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Test" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
+    expect(apiClient.post).toHaveBeenCalledWith("/kb/embedding-probe", {
+      embedding_endpoint_id: "conn-1",
+      embedding_model: "corp-embed",
+      scope: "org",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(apiClient.post).mock.calls[1]?.[0]).toBe("/kb");
+    expect(vi.mocked(apiClient.post).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        embedding_provider: "openai_compatible",
+        embedding_endpoint_id: "conn-1",
+        embedding_model: "corp-embed",
+        probe_token: "tok",
+      }),
+    );
+  });
+
+  it("shows the measured width from the test", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
+    await chooseCustom();
+    await fillIn();
+    await userEvent.click(screen.getByRole("button", { name: "Test" }));
+
+    expect(await screen.findByText("Measured width: 1,024 dimensions")).toBeVisible();
+  });
+
+  it("blocks Create again when the model text changes after the test", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
+    await chooseCustom();
+    await fillIn();
+    await userEvent.click(screen.getByRole("button", { name: "Test" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
+
+    await userEvent.type(screen.getByLabelText("Model"), "-v2");
+
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 });

@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { LocalServiceRecord } from "@/lib/local-services-api";
+import type { ServiceConnectionRecord } from "@/lib/service-connections-api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,12 +16,12 @@ import {
   Button,
 } from "@/components/ui";
 
-export function LocalServiceRemove({
+export function ServiceConnectionRemove({
   service,
   canRemove,
   onDelete,
 }: {
-  service: LocalServiceRecord;
+  service: ServiceConnectionRecord;
   canRemove: boolean;
   onDelete: () => void;
 }) {

@@ -42,8 +42,8 @@ that way and the software cooperates:
 | Concern | The local answer |
 | --- | --- |
 | The chat model | An `ollama` or `litellm` profile - keyless, pointed at an endpoint you host. Any of the 28 providers with a `base_url` also takes a gateway of yours |
-| Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR runs in the worker too, or at an OCR server you register as a local service. LlamaParse is a per-collection choice that needs a vault key; without one, nothing is parsed off-site |
-| Embeddings | An Ollama you host, registered as a local service under Knowledge → Integrations and chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
+| Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR runs in the worker too, or at an OCR server you register as a service connection. LlamaParse is a per-collection choice that needs a vault key; without one, nothing is parsed off-site |
+| Embeddings | An Ollama you host, or an OpenAI-compatible gateway you choose, registered as a service connection under Knowledge → Integrations and chosen per collection as the `ollama` or `openai_compatible` provider. An Ollama is keyless and the only provider an app-scoped collection may use; a gateway may sit outside the deployment |
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch` or `browser_use` capability, no MCP connection. The web browser can stay when every site it may open is on `allowed_domains` and its steps go to a model you host |
 | Mail | Your own SMTP relay |
@@ -51,10 +51,14 @@ that way and the software cooperates:
 
 Embeddings included: the catalog names OpenRouter and OpenAI, which a
 collection reaches with a vault key, and `ollama`, which a collection reaches
-at a local service - a row naming a server the organization or the deployment
+at a service connection - a row naming a server the organization or the deployment
 runs. A collection on `ollama` sends its chunks and queries nowhere but that
 host, and pays nobody. A deployment that must keep documents on its own
-hardware creates every collection there.
+hardware creates every collection there. The custom `openai_compatible` provider reaches a gateway
+through a connection too, and that gateway may be outside the deployment: every chunk and query goes
+where its address points, with an organization Vault key if the connection has one. The
+[data-protection report](#verifying-one-deployment) lists the connections as **Service connections**, with a
+**Vault key** column that says whether each one sends a credential.
 
 ## Who is responsible for what
 
@@ -213,9 +217,9 @@ complete list of destinations, with the configuration that decides each.
 | The case generator's model | The tested agent's instructions, skill excerpts and tool descriptions; passages of its knowledge-base documents; the questions people asked it, with the comment left on a rated-down answer. Credentials are redacted from the passages and questions before they are sent | The generation model configured on the dataset, only when a person with `datasets:edit` starts a generation. Conversation sources additionally require `runs:view`. | The provider's. Verify per profile |
 | The key extractor's model | A case's whole saved reference answer, which may have been copied from a person's conversation | The generation model configured on the dataset, only when a person with `datasets:edit` who may read the case's text asks for its keys | The provider's. Verify per profile |
 | The source coverage agent's model | The labels of a dataset's keys - never their values - and, from each of the agent's sources the person who asked may see, knowledge-base passages found for each label, the passages of context files and skills that name a label, and the names and descriptions of MCP tools | The generation model configured on the dataset, only when a person who may edit and run the agent asks for a coverage report | The provider's. Verify per profile |
-| The embedding model | Every chunk of every document in a collection, every retrieval query, and again the queries that found nothing, when [knowledge gaps](knowledge-gaps.md#topics) group them | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at the local service the collection names (`embedding_endpoint_id`), a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| The embedding model | Every chunk of every document in a collection, every retrieval query, and again the queries that found nothing, when [knowledge gaps](knowledge-gaps.md#topics) group them | Per collection, and only there: `embedding_provider` (`openrouter`, `openai`, `ollama` or `openai_compatible`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at the service connection the collection names (`embedding_endpoint_id`), a host you run; `openai_compatible` is reached at a connection too, an endpoint you register, with the connection's own optional vault key | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse`; it must name a vault key (`llamaparse_secret_id`), there is no deployment key. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
-| An OCR server | Rendered pages of a document | A collection whose `pdf_parser` is `liteparse` **and** whose `ocr_endpoint_id` names a local service; with none, OCR runs in the worker | Your own host - a local service is on the deployment's network by construction |
+| An OCR server | Rendered pages of a document | A collection whose `pdf_parser` is `liteparse` **and** whose `ocr_endpoint_id` names a service connection; with none, OCR runs in the worker | Your own host - a service connection of the OCR kind is on the deployment's network by construction |
 | An image-description model | Images inside documents | A collection's `image_description_model` | That model provider's |
 | Web research | The search query the agent composed | `web_research.method` on the spec: `duckduckgo` (no key), `tavily`, `brave` or `exa` (a `search` secret each), or `native`, where the chat model provider searches | The search vendor's, or the model provider's |
 | Web fetch and the web browser | The URL; for the browser, what it types into the sites it opens | The capability on the spec; the browser also needs a CDP endpoint on `BROWSER_CDP_ALLOWED_HOSTS`, empty by default | The site fetched; the browser host and the sites it opens |

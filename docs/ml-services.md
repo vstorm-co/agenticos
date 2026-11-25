@@ -103,7 +103,7 @@ refused at the boundary instead. A deployment that installs more packs widens th
 list in the same change.
 
 `ocr_service_id` names an OCR server registered under
-[local services](configuration.md), so a deployment running its own recognition
+[service connections](configuration.md), so a deployment running its own recognition
 sidecar sends the pages there; omit it and the engine bundled with the parser
 reads them. Either way the pages stay on the deployment's own network.
 
@@ -150,7 +150,7 @@ in the vault, the one named is the one that pays.
     Every catalogued provider is reached at its own address, with a key. A
     keyless server on your own network - a Whisper behind an OpenAI-compatible
     API - is not reachable today. It is a planned follow-up: a
-    [local service](configuration.md) of a new kind, `speech`, named in place of
+    [service connection](configuration.md) of a new kind, `speech`, named in place of
     a key, as collections already name an embedding or an OCR server.
 
 A refusal says why in `details.reason`, here and on

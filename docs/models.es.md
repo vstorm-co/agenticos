@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "7347ebc121ae"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -567,6 +567,12 @@ clave archivada bajo el nombre de un proveedor habla de ese proveedor.
 desplegable ofrece lo que tu servidor sirve de verdad. El identificador del
 modelo sigue siendo texto libre: un servidor que no publica ninguna lista se
 puede usar escribiendo el identificador a mano.
+
+**Embeddings a través del mismo gateway.** Un gateway al que llega un perfil de chat `openai_compatible` también
+puede generar embeddings: regístralo en Knowledge → Integrations como **conexión de servicio** con estilo de
+API *OpenAI-compatible* y elige la misma clave del vault (su propósito es `openai_compatible`). La colección
+usa entonces el provider de embeddings **Custom (OpenAI-compatible)** con un modelo que escribes, tras un Test
+contra sus chunks almacenados. Consulta [Procesamiento de archivos](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Cuando la credencial no es una clave de API { #when-the-credential-is-not-an-api-key }
 

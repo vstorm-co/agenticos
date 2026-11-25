@@ -5,16 +5,21 @@ import { Plus, Server } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, Input, Label } from "@/components/ui";
-import { useLocalServices, usePermissions } from "@/hooks";
+import { useServiceConnections, usePermissions } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
-import type { LocalServiceKind } from "@/lib/local-services-api";
+import { ServiceConnectionDialog } from "@/components/kb/service-connection-dialog";
+import {
+  KEYED_STYLES,
+  type ServiceConnectionKind,
+  type ServiceConnectionStyle,
+} from "@/lib/service-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
-interface InlineLocalServiceProps {
-  kind: LocalServiceKind;
+interface InlineServiceConnectionProps {
+  kind: ServiceConnectionKind;
   /** The catalog id the server answers for - the embedding provider, or the parser. */
-  provider: string;
+  provider: ServiceConnectionStyle;
   /** Called with the new row's id once it is registered. */
   onCreated: (serviceId: string) => void;
   disabled?: boolean;
@@ -33,16 +38,16 @@ interface InlineLocalServiceProps {
  * for a write the server would refuse; the sentence in its place says who has to
  * do it instead.
  */
-export function InlineLocalService({
+export function InlineServiceConnection({
   kind,
   provider,
   onCreated,
   disabled,
-}: InlineLocalServiceProps) {
+}: InlineServiceConnectionProps) {
   const t = useTranslations("kb");
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
-  const { create } = useLocalServices(false);
+  const { create, update } = useServiceConnections(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -51,6 +56,36 @@ export function InlineLocalService({
 
   if (!can(Perm.connectionsManage)) {
     return <p className="text-muted-foreground text-xs">{t("registeringNeedsPermission")}</p>;
+  }
+
+  // A style that carries a key needs the key picker, which the full dialog has.
+  if (KEYED_STYLES.has(provider)) {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("addServer")}
+        </Button>
+        <ServiceConnectionDialog
+          open={open}
+          onOpenChange={setOpen}
+          canRegisterDeploymentWide={false}
+          defaults={{ kind, style: provider }}
+          onCreate={async (input) => {
+            const created = await create(input);
+            onCreated(created.id);
+            return created;
+          }}
+          onUpdate={update}
+        />
+      </>
+    );
   }
 
   if (!open) {
@@ -94,11 +129,11 @@ export function InlineLocalService({
       </p>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div className="space-y-1.5">
-          <Label htmlFor="inline-local-service-name" className="text-xs">
+          <Label htmlFor="inline-service-connection-name" className="text-xs">
             {t("name")}
           </Label>
           <Input
-            id="inline-local-service-name"
+            id="inline-service-connection-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             aria-invalid={errors.name !== undefined}
@@ -106,11 +141,11 @@ export function InlineLocalService({
           {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="inline-local-service-url" className="text-xs">
+          <Label htmlFor="inline-service-connection-url" className="text-xs">
             {t("address")}
           </Label>
           <Input
-            id="inline-local-service-url"
+            id="inline-service-connection-url"
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
             placeholder={t(kind === "embedding" ? "ollamaAddressExample" : "ocrAddressExample")}

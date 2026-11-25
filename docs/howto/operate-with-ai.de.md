@@ -1,5 +1,5 @@
 ---
-source_sha: "d2ccce975127"
+source_sha: "f20102760a53"
 ---
 
 # AgenticOS mit einem KI-Client bedienen { #operate-agenticos-with-an-ai-client }
@@ -36,7 +36,7 @@ sind Beispiele und keine abschließende Liste unterstützter Anwendungsfälle.
 
 Modellprofile können vorhandene Vault-IDs verwenden. `list_secret_references`
 zeigt nur zugängliche Namen, IDs, Arten und Zwecke, keine Werte oder Hinweise.
-Die Endpunktsuche ermittelt lokale Embedding-Dienste. `get_setup_link` übergibt
+Die Endpunktsuche ermittelt Dienstverbindungen für Embeddings. `get_setup_link` übergibt
 Geheimniseingabe und OAuth-Zustimmung an die eigene Konsolensitzung der Person.
 Fügen Sie weder Zugangsdaten noch OAuth-Callback-Adressen in Unterhaltung oder Paket ein.
 

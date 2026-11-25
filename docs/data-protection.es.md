@@ -1,5 +1,5 @@
 ---
-source_sha: "d9d30f54c654"
+source_sha: "1e23167abea3"
 ---
 
 # Protección de datos { #data-protection }
@@ -50,20 +50,23 @@ configura así y el software coopera:
 | Asunto | La respuesta local |
 | --- | --- |
 | El modelo de chat | Un perfil `ollama` o `litellm` — sin clave, apuntando a un endpoint que alojas tú. Cualquiera de los 28 providers con `base_url` admite también una pasarela tuya |
-| Parseo de documentos | `pymupdf`, el valor por defecto, se ejecuta en el worker. El OCR de LiteParse también, o en un servidor de OCR que registres como servicio local. LlamaParse es una elección por colección que necesita una clave del vault; sin ella no se parsea nada fuera |
-| Embeddings | Un Ollama que alojas tú, registrado como servicio local en Knowledge → Integrations y elegido por colección como provider `ollama`. Sin clave, y el único provider que puede usar una colección app-scoped |
+| Parseo de documentos | `pymupdf`, el valor por defecto, se ejecuta en el worker. El OCR de LiteParse también, o en un servidor de OCR que registres como conexión de servicio. LlamaParse es una elección por colección que necesita una clave del vault; sin ella no se parsea nada fuera |
+| Embeddings | Un Ollama que alojas tú, o una pasarela compatible con OpenAI que elijas, registrado como conexión de servicio en Knowledge → Integrations y elegido por colección como provider `ollama` u `openai_compatible`. Un Ollama no lleva clave y es el único provider que puede usar una colección app-scoped; una pasarela puede estar fuera del deployment |
 | Trazas | Deja `LOGFIRE_TOKEN` sin definir y no vincules ningún token `observability` a un spec ni a un entorno. Los runs siguen registrando localmente un id de traza |
 | Búsqueda, navegación, memoria, herramientas | No vincules ningún secreto `search`, ninguna capability `web_fetch` ni `browser_use`, ninguna conexión MCP. El navegador web puede quedarse si cada sitio que puede abrir está en `allowed_domains` y sus pasos van a un modelo que alojas tú |
 | Correo | Tu propio relay SMTP |
 | Voz, imágenes y vídeo | Para la voz a texto, ningún provider: deja el dictado en `off` o `browser` y los bots de canal desactivados, porque todavía no se puede nombrar un servidor propio de voz a texto (un paso previsto). Para la síntesis de voz y el vídeo, ninguna capability `text_to_speech` ni `video_generation`. Para las imágenes, perfiles en un provider que alojes tú, o ningún perfil de ese tipo |
 
 Los embeddings incluidos: el catálogo nombra OpenRouter y OpenAI, a los que una
-colección llega con una clave del vault, y `ollama`, al que una colección llega a
-través de un servicio local — una fila que nombra un servidor que opera la
+colección llega con una clave del vault, y `ollama`, al que una colección llega a través de una conexión de servicio — una fila que nombra un servidor que opera la
 organización o el deployment. Una colección en `ollama` no envía sus chunks ni
 sus consultas a ningún host que no sea ese, y no le paga a nadie. Un deployment
 que deba mantener los documentos en su propio hardware crea allí todas sus
-colecciones.
+colecciones. El provider propio `openai_compatible` también llega a una pasarela a través de una conexión, y esa
+pasarela puede estar fuera del deployment: cada chunk y cada consulta va adonde apunte su dirección, con una clave
+del vault de la organización si la conexión la tiene. El [informe de protección de datos](#verifying-one-deployment)
+lista las conexiones como **Service connections**, con una columna **Vault key** que dice si cada una envía una
+credencial.
 
 ## Quién es responsable de qué { #who-is-responsible-for-what }
 
@@ -227,9 +230,9 @@ decide cada uno.
 | El modelo del generador de casos | Las instrucciones, extractos de skills y descripciones de herramientas del agent probado; fragmentos de los documentos de su base de conocimiento; las preguntas que la gente le hizo, con el comentario dejado en una respuesta valorada negativamente. Las credenciales se ocultan de los fragmentos y las preguntas antes de enviarlos | El modelo de generación configurado en el dataset, solo cuando una persona con `datasets:edit` inicia la generación. Las fuentes de conversaciones también requieren `runs:view`. | La del provider. Verifícalo por perfil |
 | El modelo del key extractor | La respuesta de referencia guardada entera de un caso, que puede haberse copiado de la conversación de una persona | El modelo de generación configurado en el dataset, solo cuando una persona con `datasets:edit` que puede leer el texto del caso pide sus claves | La del provider. Verifícalo por perfil |
 | El modelo del agent de cobertura de fuentes | Las etiquetas de las claves de un dataset - nunca sus valores - y, de cada fuente del agent que la persona que lo pidió puede ver, pasajes de bases de conocimiento hallados para cada etiqueta, los pasajes de archivos de contexto y skills que nombran una etiqueta, y los nombres y descripciones de herramientas MCP | El modelo de generación configurado en el dataset, solo cuando una persona que puede editar y ejecutar el agent pide un informe de cobertura | La del provider. Verifícalo por perfil |
-| El modelo de embeddings | Cada chunk de cada documento de una colección, cada consulta de recuperación y, de nuevo, las consultas que no encontraron nada, cuando las [lagunas de conocimiento](knowledge-gaps.md#topics) las agrupan | Por colección, y solo ahí: `embedding_provider` (`openrouter`, `openai` u `ollama`, del catálogo) y, para los dos primeros, la clave del vault `embedding_secret_id` que paga. No hay clave de embeddings a nivel de deployment; una colección con clave que no nombre ninguna rechaza indexar y buscar. `ollama` no lleva clave y se alcanza en el servicio local que nombra la colección (`embedding_endpoint_id`), un host que operas tú | La del provider, o tu propio host. [Una elección permanente](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| El modelo de embeddings | Cada chunk de cada documento de una colección, cada consulta de recuperación y, de nuevo, las consultas que no encontraron nada, cuando las [lagunas de conocimiento](knowledge-gaps.md#topics) las agrupan | Por colección, y solo ahí: `embedding_provider` (`openrouter`, `openai`, `ollama` u `openai_compatible`, del catálogo) y, para los dos primeros, la clave del vault `embedding_secret_id` que paga. No hay clave de embeddings a nivel de deployment; una colección con clave que no nombre ninguna rechaza indexar y buscar. `ollama` no lleva clave y se alcanza en la conexión de servicio que nombra la colección (`embedding_endpoint_id`), un host que operas tú; `openai_compatible` también se alcanza en una conexión, un endpoint que registras, con la clave opcional del vault de la conexión | La del provider, o tu propio host. [Una elección permanente](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | El documento entero | Una colección cuyo `pdf_parser` sea `llamaparse`; tiene que nombrar una clave del vault (`llamaparse_secret_id`), no hay clave de deployment. El `pymupdf` por defecto parsea en el worker | La de LlamaCloud, si se usa |
-| Un servidor de OCR | Páginas renderizadas de un documento | Una colección cuyo `pdf_parser` sea `liteparse` **y** cuyo `ocr_endpoint_id` nombre un servicio local; sin él, el OCR se ejecuta en el worker | Tu propio host — un servicio local está por construcción en la red del deployment |
+| Un servidor de OCR | Páginas renderizadas de un documento | Una colección cuyo `pdf_parser` sea `liteparse` **y** cuyo `ocr_endpoint_id` nombre una conexión de servicio; sin ella, el OCR se ejecuta en el worker | Tu propio host — una conexión de servicio de tipo OCR está por construcción en la red del deployment |
 | Un modelo de descripción de imágenes | Las imágenes dentro de los documentos | El `image_description_model` de una colección | La de ese provider de modelos |
 | Investigación web | La consulta de búsqueda que compuso el agent | `web_research.method` en el spec: `duckduckgo` (sin clave), `tavily`, `brave` o `exa` (un secreto `search` cada uno), o `native`, donde busca el provider del modelo de chat | La del proveedor de búsqueda, o la del provider del modelo |
 | Web fetch y el navegador web | La URL; para el navegador, lo que escribe en los sitios que abre | La capability en el spec; el navegador necesita además un endpoint CDP en `BROWSER_CDP_ALLOWED_HOSTS`, vacía por defecto | El sitio consultado; el host del navegador y los sitios que abre |

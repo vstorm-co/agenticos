@@ -3,15 +3,15 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useLocalServices } from "./use-local-services";
-import * as api from "@/lib/local-services-api";
-import type { LocalServiceRecord } from "@/lib/local-services-api";
+import { useServiceConnections } from "./use-service-connections";
+import * as api from "@/lib/service-connections-api";
+import type { ServiceConnectionRecord } from "@/lib/service-connections-api";
 
-vi.mock("@/lib/local-services-api", () => ({
-  listLocalServices: vi.fn(),
-  createLocalService: vi.fn(),
-  updateLocalService: vi.fn(),
-  deleteLocalService: vi.fn(),
+vi.mock("@/lib/service-connections-api", () => ({
+  listServiceConnections: vi.fn(),
+  createServiceConnection: vi.fn(),
+  updateServiceConnection: vi.fn(),
+  deleteServiceConnection: vi.fn(),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -19,7 +19,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function service(overrides: Partial<LocalServiceRecord> = {}): LocalServiceRecord {
+function service(overrides: Partial<ServiceConnectionRecord> = {}): ServiceConnectionRecord {
   return {
     id: "ls-1",
     organization_id: "org-1",
@@ -28,6 +28,8 @@ function service(overrides: Partial<LocalServiceRecord> = {}): LocalServiceRecor
     name: "GPU box",
     base_url: "http://ollama:11434/v1",
     is_active: true,
+    secret_id: null,
+    requires_key: false,
     created_at: "2026-09-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -36,31 +38,31 @@ function service(overrides: Partial<LocalServiceRecord> = {}): LocalServiceRecor
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.listLocalServices).mockResolvedValue([service()]);
-  vi.mocked(api.createLocalService).mockResolvedValue(service({ id: "ls-2" }));
-  vi.mocked(api.updateLocalService).mockResolvedValue(service({ is_active: false }));
-  vi.mocked(api.deleteLocalService).mockResolvedValue(undefined);
+  vi.mocked(api.listServiceConnections).mockResolvedValue([service()]);
+  vi.mocked(api.createServiceConnection).mockResolvedValue(service({ id: "ls-2" }));
+  vi.mocked(api.updateServiceConnection).mockResolvedValue(service({ is_active: false }));
+  vi.mocked(api.deleteServiceConnection).mockResolvedValue(undefined);
 });
 
-describe("useLocalServices", () => {
+describe("useServiceConnections", () => {
   it("lists what the organization may reach", async () => {
-    const { result } = renderHook(() => useLocalServices(), { wrapper });
+    const { result } = renderHook(() => useServiceConnections(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.services).toEqual([service()]);
+    expect(result.current.connections).toEqual([service()]);
     expect(result.current.error).toBeNull();
   });
 
   it("asks for nothing while disabled, and reports no loading", () => {
-    const { result } = renderHook(() => useLocalServices(false), { wrapper });
+    const { result } = renderHook(() => useServiceConnections(false), { wrapper });
 
-    expect(api.listLocalServices).not.toHaveBeenCalled();
+    expect(api.listServiceConnections).not.toHaveBeenCalled();
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.services).toEqual([]);
+    expect(result.current.connections).toEqual([]);
   });
 
   it("refetches the list after each write, so a picker sees the new row", async () => {
-    const { result } = renderHook(() => useLocalServices(), { wrapper });
+    const { result } = renderHook(() => useServiceConnections(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -80,16 +82,16 @@ describe("useLocalServices", () => {
       await result.current.remove("ls-1");
     });
 
-    expect(api.deleteLocalService).toHaveBeenCalledWith("ls-1");
+    expect(api.deleteServiceConnection).toHaveBeenCalledWith("ls-1");
     // The initial read plus one per write.
-    await waitFor(() => expect(api.listLocalServices).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(api.listServiceConnections).toHaveBeenCalledTimes(4));
   });
 
   it("says when the list could not be read", async () => {
-    vi.mocked(api.listLocalServices).mockRejectedValue(new Error("502"));
-    const { result } = renderHook(() => useLocalServices(), { wrapper });
+    vi.mocked(api.listServiceConnections).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useServiceConnections(), { wrapper });
 
     await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.services).toEqual([]);
+    expect(result.current.connections).toEqual([]);
   });
 });

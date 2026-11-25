@@ -2,12 +2,12 @@
 
 import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
-import { Copy, Plug, Plus, Server, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plug, Plus, Server, Trash2 } from "lucide-react";
 
-import { LocalServiceIcon } from "@/components/kb/local-service-icon";
-import { LocalServiceDialog } from "@/components/kb/local-service-dialog";
-import { LocalServiceRemove } from "@/components/kb/local-services";
-import type { LocalServiceRecord } from "@/lib/local-services-api";
+import { ServiceConnectionIcon } from "@/components/kb/service-connection-icon";
+import { ServiceConnectionDialog } from "@/components/kb/service-connection-dialog";
+import { ServiceConnectionRemove } from "@/components/kb/service-connections";
+import type { ServiceConnectionRecord } from "@/lib/service-connections-api";
 import { ConnectorIcon } from "@/components/rag/connector-icon";
 import { ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
+  Badge,
   DataTable,
   ListCard,
   type Column,
@@ -41,7 +42,7 @@ import {
   SelectValue,
   Spinner,
 } from "@/components/ui";
-import { useLocalServices, usePermissions, useReusableIntegrations } from "@/hooks";
+import { useServiceConnections, usePermissions, useReusableIntegrations } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
@@ -54,6 +55,12 @@ interface KnowledgeIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
   targets: KnowledgeBase[];
 }
+
+const API_STYLE_LABELS = {
+  ollama: "apiStyleOllama",
+  openai_compatible: "apiStyleOpenAICompatible",
+  liteparse: "apiStyleLiteparse",
+} as const;
 
 /**
  * Connectors configured once and cloned into collections as they are needed.
@@ -74,6 +81,7 @@ interface KnowledgeIntegrationsProps {
  */
 export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
   const t = useTranslations("kb");
+  const tc = useTranslations("common");
   const { can, isAppAdmin } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const mayManage = can(Perm.connectionsManage);
@@ -81,8 +89,9 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
   const { integrations, connectors, isLoading, error, create, remove, cloneInto } =
     useReusableIntegrations(mayManage ? activeOrgId : null);
 
-  const local = useLocalServices(mayManage);
+  const local = useServiceConnections(mayManage);
   const [addingServer, setAddingServer] = useState(false);
+  const [editing, setEditing] = useState<ServiceConnectionRecord | null>(null);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -103,10 +112,11 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
   };
 
   type Row =
-    { kind: "source"; source: SyncSourceRead } | { kind: "service"; service: LocalServiceRecord };
+    | { kind: "source"; source: SyncSourceRead }
+    | { kind: "service"; service: ServiceConnectionRecord };
   const rows: Row[] = [
     ...integrations.map((source): Row => ({ kind: "source", source })),
-    ...local.services.map((service): Row => ({ kind: "service", service })),
+    ...local.connections.map((service): Row => ({ kind: "service", service })),
   ];
   const columns: Column<Row>[] = [
     {
@@ -118,7 +128,11 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
             <ConnectorIcon type={row.source.connector_type} size="sm" />
           ) : (
             <span className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-lg">
-              <LocalServiceIcon kind={row.service.kind} className="size-4" />
+              <ServiceConnectionIcon
+                kind={row.service.kind}
+                provider={row.service.provider}
+                className="size-4"
+              />
             </span>
           )}
           <span className="min-w-0 font-medium break-words">
@@ -133,7 +147,7 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
     },
     {
       key: "kind",
-      header: t("localServiceKind"),
+      header: t("serviceConnectionKind"),
       cell: (row) =>
         row.kind === "source"
           ? (connectors.find((entry) => entry.type === row.source.connector_type)?.name ??
@@ -149,7 +163,16 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
             ? row.source.schedule_minutes
               ? t("everyMinutes", { minutes: row.source.schedule_minutes })
               : t("manualSchedule")
-            : row.service.base_url}
+            : null}
+          {row.kind === "service" && (
+            <span className="flex flex-wrap items-center gap-2">
+              <span>{row.service.base_url}</span>
+              <span className="text-xs">{t(API_STYLE_LABELS[row.service.provider])}</span>
+              {row.service.secret_id !== null && (
+                <Badge variant="secondary">{t("connectionHasKey")}</Badge>
+              )}
+            </span>
+          )}
         </span>
       ),
     },
@@ -167,11 +190,24 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
             onDelete={() => remove(row.source.id)}
           />
         ) : (
-          <LocalServiceRemove
-            service={row.service}
-            canRemove={row.service.organization_id !== null || isAppAdmin}
-            onDelete={() => local.remove(row.service.id)}
-          />
+          <div className="flex items-center justify-end gap-1">
+            {(row.service.organization_id !== null || isAppAdmin) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground h-8 w-8 p-0"
+                aria-label={tc("editNamed", { name: row.service.name })}
+                onClick={() => setEditing(row.service)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <ServiceConnectionRemove
+              service={row.service}
+              canRemove={row.service.organization_id !== null || isAppAdmin}
+              onDelete={() => local.remove(row.service.id)}
+            />
+          </div>
         ),
     },
   ];
@@ -191,9 +227,9 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
       controls={
         <div className="flex flex-wrap items-center gap-2">
           <ContextHelp>{t("integrationsDescription")}</ContextHelp>
-          <span data-tour="knowledge-local-services">
+          <span data-tour="knowledge-service-connections">
             <Button
-              data-tour="knowledge-add-local-service"
+              data-tour="knowledge-add-service-connection"
               variant="outline"
               size="sm"
               onClick={() => setAddingServer(true)}
@@ -240,12 +276,25 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
           )
         }
       />
-      <LocalServiceDialog
+      <ServiceConnectionDialog
         open={addingServer}
         onOpenChange={setAddingServer}
         canRegisterDeploymentWide={isAppAdmin}
-        onSubmit={local.create}
+        onCreate={local.create}
+        onUpdate={local.update}
       />
+      {editing && (
+        <ServiceConnectionDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setEditing(null);
+          }}
+          canRegisterDeploymentWide={isAppAdmin}
+          connection={editing}
+          onCreate={local.create}
+          onUpdate={local.update}
+        />
+      )}
       <SyncSourceWizard
         open={wizardOpen}
         onOpenChange={setWizardOpen}

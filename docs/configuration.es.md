@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "af9646108f6e"
 ---
 
 # Configuración { #configuration }
@@ -757,14 +757,17 @@ fija cada archivo compose de aquí.
 
 Nada aquí. Cada colección nombra el provider a través del cual genera sus
 embeddings, el modelo, y o bien la clave del vault de la organización que lo
-paga o bien — para el provider sin clave `ollama` — un **servicio local**, una
+paga o bien — para el provider sin clave `ollama` — una **conexión de servicio**, una
 fila bajo Knowledge → Integrations que dice dónde responde el Ollama del
-deployment o de la organización. Consulta [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+deployment o de la organización. El provider propio `openai_compatible` también toma una conexión, con un
+modelo escrito como texto y una clave opcional del vault de la organización; solo una conexión propiedad
+de la organización puede tener clave, una conexión que la tiene no puede perderla, y una conexión de todo
+el deployment no tiene clave. La API es `/api/v1/service-connections`. Consulta [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Antes había aquí dos variables. `EMBEDDING_MODEL` preseleccionaba un modelo para
 las colecciones nuevas y ha desaparecido: el formulario ofrece los modelos que
 sirve el provider elegido. `EMBEDDING_OLLAMA_BASE_URL` nombraba un único Ollama
-para todo el deployment y ahora es un servicio local, por organización o de todo
+para todo el deployment y ahora es una conexión de servicio, por organización o de todo
 el deployment.
 
 ### Parseo de documentos — se configura por colección, no aquí { #document-parsing-configured-per-collection-not-here }
@@ -786,7 +789,7 @@ Dos cosas que antes se quedaban aquí son ahora filas en el producto. Una clave
 de LlamaParse es una entrada del vault que nombra la configuración de ingesta de
 la colección (`llamaparse_secret_id`), y una colección en LlamaParse sin ella se
 rechaza ya en el formulario: `LLAMAPARSE_API_KEY` ha desaparecido. Un servidor de
-OCR al que LiteParse envía páginas es un servicio local de tipo `ocr` bajo
+OCR al que LiteParse envía páginas es una conexión de servicio de tipo `ocr` bajo
 Knowledge → Integrations, elegido por colección (`ocr_endpoint_id`), registrado
 por el operador de una organización o — para todas las organizaciones — por el
 administrador del deployment; `LITEPARSE_OCR_SERVER_URL` también ha

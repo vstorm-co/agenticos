@@ -157,7 +157,7 @@ describe("IngestionSettings", () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path === "/me/permissions")
         return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
-      if (path === "/local-services")
+      if (path === "/service-connections")
         return {
           items: [
             {

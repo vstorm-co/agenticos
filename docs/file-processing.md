@@ -653,7 +653,72 @@ All three are decided **per collection**, not per deployment, by
 |---|---|
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. A new collection chooses one of the models its provider serves; there is no deployment default. |
 | **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **local service** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide service, and choosing a keyed one for it is refused where the provider was chosen. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **service connection** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. The custom `openai_compatible` provider is reached the same way, and its key lives on the connection ([below](#a-custom-openai-compatible-endpoint-and-the-test)). An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide connection, and choosing a keyed one for it is refused where the provider was chosen. |
+
+#### A custom OpenAI-compatible endpoint, and the Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+The catalog entry `openai_compatible`, shown as **Custom (OpenAI-compatible)**, lists no
+models. It embeds through any OpenAI-compatible endpoint the organization registers as a
+**service connection** (Knowledge → Integrations → **Add server**, API style
+*OpenAI-compatible*), and the model is typed as free text. The connection may carry an
+organization Vault key (purpose `openai_compatible`): only an organization-owned
+connection can hold one, and binding a key lends it to every collection on the connection,
+so choosing it needs `secrets:view` on that key. A connection requires a key if one was
+given at creation or added later, and removing the key from a keyed connection is refused.
+A deployment-wide connection is keyless. A deleted key makes the connection refuse by name
+instead of sending requests without it.
+
+A custom endpoint may serve any model, so nothing about it can be assumed. Two Tests keep
+a collection's vector space from moving by accident:
+
+- **Creating a collection.** **Test** makes one call on a fixed text and measures the
+  width, which must be between 1 and 4000 (the index limit). **Create** stays disabled until
+  the Test of the exact endpoint and model in the form has passed. There is no override on
+  create.
+- **Changing one.** Any change that could move the vector space needs a passing Test of the
+  new values or a confirmed unverified save: a provider, key, endpoint or model change on a
+  knowledge base, and an address or key edit on an embedding connection. Renaming a
+  connection, pausing it, or editing an OCR connection needs none.
+
+What a Test does:
+
+- It re-embeds up to **3 stored chunks** of each affected knowledge base - the two shortest
+  of at least 100 characters, and the longest - one request each, through the new
+  settings. The vectors are normalized and compared with the stored ones; it passes if the
+  lowest cosine similarity is **0.995 or higher** and the widths match exactly.
+- If the first comparison fails it is **repeated once** before the Test fails.
+- A knowledge base with nothing stored passes with no call. A connection shared by several
+  knowledge bases tests each of them, in its own scope, and the result names every one.
+- Before it runs, the dialog shows the number of **billed calls** (`GET .../estimate`), and
+  twice that is the most it can make. Failure is a normal answer, not an error, naming the
+  cause per knowledge base: `unreachable`, `key_refused`, `model_unknown`, `wrong_width` or
+  `vectors_differ`.
+- A pass returns a **token valid for 10 minutes**, bound to the exact values tested: the
+  connection, address, key and the key's generation, model, measured width and the
+  knowledge bases that passed. Changing any value, rotating the key, or attaching another
+  knowledge base to the connection voids it. The server does not test again on save, so
+  saving costs nothing.
+
+**Save without testing** sends `unverified: true` after a confirmation. It is audited as
+`knowledge_base.embedding_changed_unverified` or `service_connection.updated_unverified`,
+with the previous and new settings that are not secret. There is no revert and nothing is
+stored beyond the audit entry. A tested move of a knowledge base is allowed even when its
+collection is shared with other knowledge bases; an unverified move is refused when the
+collection is shared and its settings would differ from the others'.
+
+Limitations:
+
+- A failed Test has no way forward but a new knowledge base: there is **no rebuild** of an
+  existing index onto another model.
+- Probe calls are **not counted toward the organization's spend**: three short calls per
+  affected knowledge base, and twice that after a retry.
+- A key rotated in place in the Vault after a save is **not tested again** - the same key id
+  still passes.
+- A Test samples **3 chunks**. An endpoint that matches those and differs elsewhere is not
+  caught.
+- Chat, speech and image providers do not use service connections yet.
+- The platform MCP tool `create_knowledge_base` cannot create a custom knowledge base: it
+  has no probe token. Use the console.
 
 Which knowledge base a collection name resolves to is itself a tenant question.
 `collection_name` is indexed but **not unique** — two organizations can name a

@@ -451,7 +451,7 @@ describe("stepsForPage", () => {
       "knowledge-groups",
       "knowledge-integrations",
       "knowledge-add-integration",
-      "knowledge-local-services",
+      "knowledge-service-connections",
       ...KB_STEPS,
     ]);
   });

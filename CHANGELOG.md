@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
+
+### Changed
+
+- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. Knowledge → Integrations shows each connection's API style and key, and local services are now called service connections.
+
+### Upgrading
+
+- `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
+- Migration `0365_service_connections` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

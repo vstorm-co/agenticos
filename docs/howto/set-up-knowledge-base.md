@@ -33,11 +33,14 @@ one. The provider and the key can be changed later, the model cannot - see
 [File processing](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 **Ollama** is in the provider list too. It takes no key: choose it, one of its
-models, and the **server** it answers at - a local service registered under
+models, and the **server** it answers at - a service connection registered under
 Knowledge → Integrations, the organization's own or one the deployment's
 administrator registered for everyone - and the collection's documents never
 leave the deployment's own network. The same tab holds OCR servers for
-LiteParse, chosen under the parsing settings.
+LiteParse, chosen under the parsing settings. To embed through an OpenAI-compatible gateway instead, add
+it there as a connection with API style *OpenAI-compatible* and, if it wants a key, an organization
+vault key; then choose **Custom (OpenAI-compatible)**, type the model and press **Test** before creating
+the collection. A move to another endpoint later is tested against the stored chunks the same way.
 
 A knowledge base created against a collection name that already exists adopts
 that collection's provider and key instead - a missing one included, because

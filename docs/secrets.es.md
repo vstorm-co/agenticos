@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7621fe2df920"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -204,6 +204,15 @@ requiere `secrets:view` sobre esa clave. Una clave borrada deja sus perfiles
 marcados con `missing_key` hasta que reciban otra, también uno delante de un
 gateway. Solo un perfil guardado sin clave a propósito sigue ejecutándose sin
 ella ([Un perfil sin clave](models.md#a-profile-without-a-key)).
+
+**Conexiones de servicio.** Una conexión de embeddings del estilo compatible con OpenAI puede nombrar
+una clave del vault, una clave de API cuyo propósito es `openai_compatible`. Solo una conexión propiedad
+de la organización puede tenerla; una conexión de todo el deployment no tiene clave. Vincular una clave
+es prestarla, como en un perfil de modelo: elegirla, al crear y en cada cambio de clave, exige
+`secrets:view` sobre esa clave. Una clave eliminada deja la conexión rechazando con su nombre en lugar
+de enviar peticiones sin ella, y el valor de la clave nunca está en la fila de la conexión, en sus
+respuestas de API ni en sus entradas de auditoría. Rotar el valor en el sitio no vuelve a probar la
+conexión.
 
 **Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
 id junto al proveedor y el modelo allí donde se configura la voz a texto: la

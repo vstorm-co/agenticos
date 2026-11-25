@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "c092f6e7b73c"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -124,7 +124,7 @@ Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7
 Ustawienia czatu pokazują Browser i Work on przed Permissions. Powiadomienia rozmowy
 i połączenia kont pozostają pod kontrolkami uprawnień.
 
-Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i usługi lokalne mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
+Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i połączenia usług mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 

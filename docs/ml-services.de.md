@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "c01e9aa9beef"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -110,7 +110,7 @@ wird er schon an der Grenze abgelehnt. Ein Deployment, das weitere Pakete
 installiert, erweitert die Liste in derselben Änderung.
 
 `ocr_service_id` benennt einen OCR-Server, der unter den
-[lokalen Diensten](configuration.md) registriert ist, sodass ein Deployment mit
+[Dienstverbindungen](configuration.md) registriert ist, sodass ein Deployment mit
 eigenem Erkennungs-Sidecar die Seiten dorthin schickt; lässt man es weg, liest
 sie die im Parser mitgelieferte Engine. So oder so bleiben die Seiten im eigenen
 Netz des Deployments.
@@ -159,7 +159,7 @@ benannte.
     Jeder Anbieter im Katalog wird unter seiner eigenen Adresse erreicht, mit
     einem Schlüssel. Ein schlüsselloser Server im eigenen Netz - ein Whisper
     hinter einer OpenAI-kompatiblen API - ist heute nicht erreichbar. Das ist ein
-    geplanter Folgeschritt: ein [lokaler Dienst](configuration.md) einer neuen
+    geplanter Folgeschritt: eine [Dienstverbindung](configuration.md) einer neuen
     Art, `speech`, benannt anstelle eines Schlüssels, so wie Collections schon
     einen Embedding- oder OCR-Server benennen.
 

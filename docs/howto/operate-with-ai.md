@@ -32,7 +32,7 @@ bundles are examples, not the limit of supported use cases.
 
 Model profiles can reference existing vault IDs. `list_secret_references` exposes
 only accessible names, IDs, kinds and purposes; it omits values and hints.
-Embedding endpoint discovery identifies local services. `get_setup_link` hands
+Embedding endpoint discovery identifies service connections. `get_setup_link` hands
 credential entry and OAuth consent back to the person's own console session.
 Never paste a credential or OAuth callback into the conversation or a bundle.
 

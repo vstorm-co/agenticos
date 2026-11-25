@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "7347ebc121ae"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -554,6 +554,12 @@ zapisany pod nazwą dostawcy mówi o tym dostawcy.
 lista w polu oferuje to, co Twój serwer faktycznie udostępnia. Identyfikator
 modelu pozostaje wolnym tekstem: serwer, który nie publikuje listy, nadal da
 się użyć, wpisując identyfikator ręcznie.
+
+**Embeddingi przez ten sam gateway.** Gateway osiągany przez profil czatu `openai_compatible` może też
+embedować: zarejestruj go w Knowledge → Integrations jako **połączenie usługi** ze stylem API
+*OpenAI-compatible* i wybierz ten sam klucz z vaultu (jego przeznaczenie to `openai_compatible`). Kolekcja
+używa wtedy providera embeddingów **Custom (OpenAI-compatible)** z modelem, który wpisujesz, po Teście
+na jej zapisanych chunkach. Zobacz [Przetwarzanie plików](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Kiedy poświadczeniem nie jest klucz API { #when-the-credential-is-not-an-api-key }
 

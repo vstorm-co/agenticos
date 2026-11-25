@@ -1,5 +1,5 @@
 ---
-source_sha: "bd9c21e1a80b"
+source_sha: "c07aa10da6a0"
 ---
 
 # Monta una base de conocimiento { #set-up-a-knowledge-base }
@@ -39,12 +39,15 @@ junto al selector guarda una. El provider y la clave se pueden cambiar después,
 el modelo no — consulta [Procesamiento de archivos](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 **Ollama** también está en la lista de providers. No toma clave: elígela, uno de
-sus modelos y el **servidor** donde responde — un servicio local registrado en
+sus modelos y el **servidor** donde responde — una conexión de servicio registrada en
 Knowledge → Integrations, el propio de la organización o uno que el
 administrador del deployment haya registrado para todos — y los documentos de la
 colección no salen nunca de la red del propio deployment. La misma pestaña
 guarda los servidores OCR para LiteParse, que se eligen en los ajustes de
-parseo.
+parseo. Para generar embeddings a través de una pasarela compatible con OpenAI, añádela allí como conexión con
+estilo de API *OpenAI-compatible* y, si pide clave, con una clave del vault de la organización; luego elige
+**Custom (OpenAI-compatible)**, escribe el modelo y pulsa **Test** antes de crear la colección. Un traslado
+posterior a otro endpoint se prueba igual contra los chunks almacenados.
 
 Una knowledge base creada sobre un nombre de colección que ya existe adopta en
 su lugar el provider y la clave de esa colección — la ausencia de clave

@@ -82,6 +82,7 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
             provider: "openrouter",
             name: "OpenRouter",
             keyless: false,
+            any_model: false,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],

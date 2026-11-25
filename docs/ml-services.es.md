@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "c01e9aa9beef"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -107,8 +107,8 @@ endpoint acepta: un código sin paquete de idioma detrás falla dentro del parse
 así que se rechaza en la frontera. Un despliegue que instale más paquetes amplía
 la lista en el mismo cambio.
 
-`ocr_service_id` nombra un servidor OCR registrado entre los
-[servicios locales](configuration.md), de modo que un despliegue con su propio
+`ocr_service_id` nombra un servidor OCR registrado entre las
+[conexiones de servicio](configuration.md), de modo que un despliegue con su propio
 sidecar de reconocimiento envía allí las páginas; omítelo y las lee el motor
 incluido con el parser. En cualquier caso las páginas se quedan en la red del
 propio despliegue.
@@ -156,7 +156,7 @@ de OpenAI en el vault, paga la nombrada.
     Cada proveedor del catálogo se alcanza en su propia dirección, con una
     clave. Un servidor sin clave en tu propia red - un Whisper detrás de una API
     compatible con OpenAI - no es alcanzable hoy. Es un paso previsto: un
-    [servicio local](configuration.md) de un tipo nuevo, `speech`, nombrado en
+    [conexión de servicio](configuration.md) de un tipo nuevo, `speech`, nombrado en
     lugar de una clave, como las colecciones ya nombran un servidor de
     embeddings o de OCR.
 

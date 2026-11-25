@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "c01e9aa9beef"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -107,7 +107,7 @@ już na granicy. Wdrożenie, które doinstaluje więcej pakietów, poszerza tę 
 tej samej zmianie.
 
 `ocr_service_id` nazywa serwer OCR zarejestrowany wśród
-[usług lokalnych](configuration.md), więc wdrożenie z własnym sidecarem
+[połączeń usług](configuration.md), więc wdrożenie z własnym sidecarem
 rozpoznawania wysyła strony tam; pomiń je, a odczyta je silnik wbudowany w
 parser. Tak czy inaczej strony zostają w sieci samego wdrożenia.
 
@@ -152,7 +152,7 @@ kluczach OpenAI w vaulcie płaci ten, który wskazano.
     Każdy dostawca z katalogu jest osiągany pod własnym adresem, z kluczem.
     Serwer bez klucza w twojej sieci — Whisper za API zgodnym z OpenAI — nie
     jest dziś osiągalny. To planowany kolejny krok:
-    [usługa lokalna](configuration.md) nowego rodzaju, `speech`, wskazywana
+    [połączenie usługi](configuration.md) nowego rodzaju, `speech`, wskazywana
     zamiast klucza, tak jak kolekcje wskazują już serwer embeddingów albo OCR.
 
 Odmowa mówi dlaczego w `details.reason`, tutaj i przy
