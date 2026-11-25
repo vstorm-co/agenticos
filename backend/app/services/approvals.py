@@ -137,6 +137,25 @@ def may_approve(
     return ctx.has(Perm.APPROVALS_DECIDE)
 
 
+async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentRun) -> bool:
+    """Whether `ctx` is the run's person and its current park holds their platform call.
+
+    Such a person may continue the run past that call without `approvals:decide`.
+    """
+    if not answers_for(ctx, run.user_id):
+        return False
+    state = run.paused_state or {}
+    parked = state.get("tool_call_ids", {})
+    approvals = await agent_run_repo.list_approvals_for_run(
+        db, run_id=run.id, organization_id=run.organization_id
+    )
+    return any(
+        str(approval.id) in parked
+        and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        for approval in approvals
+    )
+
+
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
     return ChatNotice(
         organization_id=run.organization_id, run_id=run.id, destination=destination, text=text
@@ -279,7 +298,7 @@ class ApprovalService:
                     ctx,
                     tool_id=row.tool_id,
                     always_asks=row.always_asks,
-                    person_id=row.triggered_by_user_id,
+                    person_id=row.acts_for_user_id,
                     content_hidden=row.content_hidden,
                 ),
             )

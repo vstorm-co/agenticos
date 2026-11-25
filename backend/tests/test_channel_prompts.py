@@ -7,6 +7,7 @@ its call's questions is answered; and whatever was decided is said in the chat.
 """
 
 import uuid
+from contextlib import ExitStack
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -132,7 +133,11 @@ class _Patched:
             # Still open, unless a test says somebody decided it elsewhere.
             patch(
                 f"{_MODULE}.agent_run_repo.get_approval",
-                new=AsyncMock(return_value=MagicMock(status=ApprovalStatus.PENDING.value)),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        status=ApprovalStatus.PENDING.value, tool_id="send_email", always_asks=False
+                    )
+                ),
             ),
             patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock(return_value=None)),
             patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
@@ -154,6 +159,24 @@ class _Patched:
 
     def said(self) -> list[str]:
         return [call.args[1].text for call in self.adapter.send_message.await_args_list]
+
+
+def _parked_platform_call(*, of: uuid.UUID) -> list[Any]:
+    """Patches making the pressed approval a platform call that always asks, on `of`'s run."""
+    return [
+        patch(f"{_MODULE}.agent_run_repo.{target}", new=AsyncMock(return_value=value))
+        for target, value in (
+            (
+                "get_approval",
+                MagicMock(
+                    status=ApprovalStatus.PENDING.value,
+                    tool_id="agenticos_accept_improvement",
+                    always_asks=True,
+                ),
+            ),
+            ("get_run", MagicMock(id=RUN, user_id=of, status=RunStatus.AWAITING_APPROVAL.value)),
+        )
+    ]
 
 
 def _segment(output: str = "Sent.") -> MagicMock:
@@ -392,12 +415,16 @@ class TestPressingAnApproval:
         pending: bool = False,
         prompt=None,
         segment=None,
+        platform_call_of: uuid.UUID | None = None,
     ):
         bot = _bot()
         prompt = prompt or _prompt()
         service = ChannelPrompts(_session())
         approvals = [MagicMock(status=ApprovalStatus.PENDING.value)] if pending else []
-        with _Patched(bot=bot, prompt=prompt, role=role) as env:
+        with _Patched(bot=bot, prompt=prompt, role=role) as env, ExitStack() as stack:
+            if platform_call_of is not None:
+                for patched in _parked_platform_call(of=platform_call_of):
+                    stack.enter_context(patched)
             with (
                 patch(f"{_MODULE}.ApprovalService") as approvals_service,
                 patch(
@@ -440,6 +467,25 @@ class TestPressingAnApproval:
     @pytest.mark.security
     async def test_somebody_who_may_not_approve_is_refused(self):
         env, decide, _resume, _offered = await self._press(choice=0, role="viewer")
+
+        decide.assert_not_awaited()
+        assert env.said() == [NOT_YOURS]
+
+    @pytest.mark.security
+    async def test_the_runs_person_decides_their_own_platform_call_in_chat(self):
+        env, decide, resume, _offered = await self._press(
+            choice=0, role="member", platform_call_of=USER
+        )
+
+        assert decide.await_args.kwargs == {"approved": True}
+        resume.assert_awaited_once()
+        assert env.said() == ["Sent."]
+
+    @pytest.mark.security
+    async def test_a_member_cannot_decide_somebody_elses_platform_call_in_chat(self):
+        env, decide, _resume, _offered = await self._press(
+            choice=0, role="member", platform_call_of=uuid.uuid4()
+        )
 
         decide.assert_not_awaited()
         assert env.said() == [NOT_YOURS]
@@ -812,7 +858,11 @@ class TestAPressThatLostTheRace:
             _Patched(bot=bot, prompt=prompt, role=role) as env,
             patch(
                 f"{_MODULE}.agent_run_repo.get_approval",
-                new=AsyncMock(return_value=MagicMock(status=approval_status)),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        status=approval_status, tool_id="send_email", always_asks=False
+                    )
+                ),
             ),
             patch(f"{_MODULE}.ApprovalService") as approvals_service,
         ):

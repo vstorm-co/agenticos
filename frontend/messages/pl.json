@@ -1673,6 +1673,7 @@
     "approvalRememberChat": "Zezwalaj na ten tool w tej rozmowie",
     "approvalRememberAgent": "Zawsze zezwalaj na ten tool dla tego agenta",
     "approvalNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
+    "approvalOthersWait": "Twoja odpowiedź dotyczy tylko Twoich wywołań platformy. Pozostałe czekają na kogoś, kto może decydować o zatwierdzeniach.",
     "approvalNeedsItsPerson": "Zatwierdzić to może tylko osoba, w której imieniu działa ten run. Możesz to odrzucić.",
     "approvalRememberedTitle": "Zapamiętane akceptacje tooli",
     "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",

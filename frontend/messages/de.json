@@ -2672,6 +2672,7 @@
     "approvalRememberChat": "Dieses Tool in diesem Chat erlauben",
     "approvalRememberAgent": "Dieses Tool für diesen Agenten immer erlauben",
     "approvalNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
+    "approvalOthersWait": "Ihre Antwort gilt nur für Ihre eigenen Plattformaufrufe. Die anderen warten auf jemanden, der über Freigaben entscheiden darf.",
     "approvalNeedsItsPerson": "Freigeben kann das nur die Person, für die dieser Run handelt. Sie können es ablehnen.",
     "approvalRememberedTitle": "Gespeicherte Tool-Freigaben",
     "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",

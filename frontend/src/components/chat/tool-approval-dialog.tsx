@@ -33,7 +33,8 @@ interface ToolApprovalDialogProps {
   savedDecisions?: PendingApproval["savedDecisions"];
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
-  onDecisions: (decisions: Decision[]) => void;
+  /** Decisions for `requests`, or for the whole batch when it is omitted. */
+  onDecisions: (decisions: Decision[], requests?: ActionRequest[]) => void;
   disabled?: boolean;
   mayRemember?: boolean;
 }
@@ -51,7 +52,8 @@ interface ToolApprovalDialogProps {
  * leaves a stopped conversation unexplained. The one exception is the server's:
  * a platform call that always asks runs as its person, who answers it without the
  * permission and is the only one who may approve it - each request says so in
- * `may_decide` and `may_approve`.
+ * `may_decide` and `may_approve`. In a batch mixing the two, that person answers
+ * their own calls and the rest waits for somebody who may decide it.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
  * contents were diffed into an `edit` decision - and the backend never offered it:
@@ -79,30 +81,33 @@ export function ToolApprovalDialog({
   const feedback = useTranslations("approvalFeedback");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
-  const mayDecide =
-    can(Perm.approvalsDecide) ||
-    (actionRequests.length > 0 && actionRequests.every((action) => action.may_decide === true));
+  const decidesAll = can(Perm.approvalsDecide);
+  const yours = decidesAll
+    ? actionRequests
+    : actionRequests.filter((action) => action.may_decide === true);
+  const partial = yours.length < actionRequests.length;
+  const mayDecide = decidesAll || yours.length > 0;
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
   const sameTool =
-    actionRequests.length > 0 &&
-    actionRequests.every(
+    yours.length > 0 &&
+    yours.every(
       (action) =>
         action.can_remember === true &&
         !action.subagent_name &&
-        action.tool_name === actionRequests[0]!.tool_name &&
-        action.account === actionRequests[0]!.account,
+        action.tool_name === yours[0]!.tool_name &&
+        action.account === yours[0]!.account,
     );
-  const hiddenFromThem = actionRequests.some(
-    (action) => action.always_asks && action.content_hidden,
-  );
-  const mayApprove = actionRequests.every(
+  const hiddenFromThem = yours.some((action) => action.always_asks && action.content_hidden);
+  const mayApprove = yours.every(
     (action) => action.may_approve ?? !(action.always_asks && action.content_hidden),
   );
+  const decide = (decisions: Decision[]) =>
+    partial ? onDecisions(decisions, yours) : onDecisions(decisions);
   const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
-    onDecisions(
-      actionRequests.map((_, index) => ({
+    decide(
+      yours.map((_, index) => ({
         type,
         ...(index === 0 && scope ? { remember_scope: scope } : {}),
       })),
@@ -190,6 +195,11 @@ export function ToolApprovalDialog({
           </Button>
         ) : mayDecide ? (
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            {partial && (
+              <p className="text-muted-foreground w-full text-right text-xs">
+                {t("approvalOthersWait")}
+              </p>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -199,13 +209,13 @@ export function ToolApprovalDialog({
               {t("reject")}
             </Button>
             <RejectionFeedback
-              requests={actionRequests.map((action) => ({
+              requests={yours.map((action) => ({
                 id: action.id,
                 label: phrase(action.tool_name),
               }))}
               disabled={disabled}
               onReject={(notes) =>
-                onDecisions(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
+                decide(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
               }
             />
             <div className="flex items-center gap-1">

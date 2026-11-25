@@ -488,3 +488,19 @@ it("keeps the permission sentence for a call the person may not decide", () => {
   expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
   expect(screen.getByText(/needs a permission you do not hold/)).toBeInTheDocument();
 });
+
+it("lets the run's person answer their own call of a mixed batch and leaves the rest", async () => {
+  held.permissions = [];
+  const own = action("a-1", {
+    tool_name: "agenticos_accept_improvement",
+    args: { publish: true },
+    always_asks: true,
+    may_decide: true,
+    may_approve: true,
+  });
+  const onDecisions = mount([own, action("a-2", { may_decide: false, may_approve: false })]);
+
+  expect(screen.getByText(/The others wait for somebody who can decide/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }], [own]);
+});

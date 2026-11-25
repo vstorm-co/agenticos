@@ -7091,15 +7091,89 @@ describe("human decisions inside delegated tasks", () => {
     expect(get.mock.calls.filter(([url]) => url === "/runs/r-1/parked")).toHaveLength(1);
   });
 
-  it("does not expose a child decision to a non-decider", async () => {
+  it.each([true, false])(
+    "restores a child approval to a non-decider only when it is theirs to decide (%s)",
+    async (mayDecide) => {
+      get.mockImplementation(async (url: string) =>
+        url.endsWith("/parked")
+          ? [
+              {
+                id: "child-approval",
+                tool_call_id: "child-tool",
+                tool_name: mayDecide ? "agenticos_accept_improvement" : "execute",
+                tool_args: {},
+                always_asks: mayDecide,
+                may_decide: mayDecide,
+                may_approve: mayDecide,
+              },
+            ]
+          : false,
+      );
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore
+        .getState()
+        .addMessage({ ...parkedTurn(), runWaitingFor: "approval", toolCalls: [] });
+      const { result } = renderHook(() => useChat(), { wrapper });
+
+      await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+      await act(async () => {});
+      expect(result.current.pendingApproval?.actionRequests[0]?.id ?? null).toBe(
+        mayDecide ? "child-approval" : null,
+      );
+    },
+  );
+
+  it("decides a non-decider's own call of a mixed batch and leaves the rest waiting", async () => {
+    get.mockImplementation(async (url: string) =>
+      url.endsWith("/parked")
+        ? [
+            {
+              id: "ar-own",
+              tool_call_id: "tc-own",
+              tool_name: "agenticos_accept_improvement",
+              tool_args: {},
+              always_asks: true,
+              may_decide: true,
+              may_approve: true,
+            },
+            {
+              id: "ar-other",
+              tool_call_id: "tc-other",
+              tool_name: "send_email",
+              tool_args: {},
+              may_decide: false,
+              may_approve: false,
+            },
+          ]
+        : false,
+    );
+    post.mockResolvedValue({ status: "approved" });
     useConversationStore.getState().setCurrentConversationId("c-1");
-    useChatStore
-      .getState()
-      .addMessage({ ...parkedTurn(), runWaitingFor: "approval", toolCalls: [] });
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      toolCalls: [
+        {
+          id: "tc-own",
+          name: "agenticos_accept_improvement",
+          args: {},
+          status: "awaiting_approval" as const,
+        },
+        { id: "tc-other", name: "send_email", args: {}, status: "awaiting_approval" as const },
+      ],
+    });
     const { result } = renderHook(() => useChat(), { wrapper });
-    await act(async () => {});
-    expect(result.current.pendingApproval).toBeNull();
-    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(0);
+    await waitFor(() => expect(result.current.pendingApproval?.actionRequests).toHaveLength(2));
+    const own = result.current.pendingApproval!.actionRequests[0]!;
+
+    await act(async () => result.current.sendResumeDecisions([{ type: "approve" }], [own]));
+
+    expect(post.mock.calls.map(([url]) => url)).toEqual(["/approvals/ar-own"]);
+    expect(result.current.pendingApproval?.actionRequests.map((request) => request.id)).toEqual([
+      "ar-other",
+    ]);
+    expect(result.current.pendingApproval?.savedDecisions).toEqual([
+      { request: own, approved: true },
+    ]);
   });
 
   it("restores a child question absent from the parent's task timeline", async () => {

@@ -2639,6 +2639,7 @@
     "approvalRememberChat": "Autoriser cet outil dans ce chat",
     "approvalRememberAgent": "Toujours autoriser cet outil pour cet agent",
     "approvalNeedsTheRun": "Seule une personne qui peut voir le run peut approuver ceci. Vous pouvez le rejeter.",
+    "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
     "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
     "approvalRememberedTitle": "Approbations d’outils mémorisées",
     "approvalRememberedEmpty": "Aucune approbation mémorisée.",

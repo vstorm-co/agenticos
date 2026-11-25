@@ -2672,6 +2672,7 @@
     "approvalRememberChat": "Allow this tool in this chat",
     "approvalRememberAgent": "Always allow this tool for this agent",
     "approvalNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
+    "approvalOthersWait": "Your answer covers only your own platform calls. The others wait for somebody who can decide approvals.",
     "approvalNeedsItsPerson": "Only the person this run acts for can approve this. You can reject it.",
     "approvalRememberedTitle": "Remembered tool approvals",
     "approvalRememberedEmpty": "No remembered approvals.",

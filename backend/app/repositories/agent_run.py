@@ -2786,6 +2786,9 @@ class ApprovalRow:
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
     may_approve: bool = False
     """Set by the service: whether an approval from this reader would be accepted."""
+    acts_for_user_id: UUID | None = None
+    """Whose authority the run carries: who started it, or the binding's publisher for
+    a run a chat account asked. Decides who may approve; never shown."""
 
 
 @dataclass(frozen=True)
@@ -2933,6 +2936,7 @@ async def list_approvals(
             note=approval.note,
             created_at=approval.created_at,
             always_asks=approval.always_asks,
+            acts_for_user_id=run_user_id,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(

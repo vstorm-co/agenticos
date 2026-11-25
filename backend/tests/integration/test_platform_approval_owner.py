@@ -34,6 +34,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
@@ -462,6 +463,29 @@ class TestWhatEachReaderIsOffered:
 
         offered = {row.id: row.may_approve for row in rows}
         assert offered == {platform.id: False, other.id: True}
+
+    async def test_the_queue_offers_the_publisher_approval_of_a_call_a_chat_account_asked_for(
+        self, db: AsyncSession
+    ):
+        """A chat account asked, and the run carries the publisher's authority: the
+        publisher answers for it, though the queue names the chat account instead."""
+        org = await _org(db)
+        publisher = await _member(db, org, OrgRoleName.BUILDER)
+        run, approval = await _parked(db, org, publisher)
+        identity = ChannelIdentity(
+            id=uuid.uuid4(), platform="slack", platform_user_id=f"U{uuid.uuid4().hex[:8]}"
+        )
+        db.add(identity)
+        await db.flush()
+        run.initiated_by_publisher_fallback = True
+        run.channel_identity_id = identity.id
+        await db.flush()
+
+        [row], _total = await ApprovalService(db).list_approvals(publisher)
+
+        assert row.id == approval.id
+        assert row.triggered_by_user_id is None
+        assert row.may_approve is True
 
 
 def _parked_runs(db: AsyncSession) -> ParkedRunService:

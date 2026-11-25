@@ -2435,9 +2435,11 @@ export function useChat(options: UseChatOptions = {}) {
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
         return [];
-      // Without `approvals:decide` the only call a person answers is their own
-      // platform call; anything else stays with the run's Stop.
-      if (!canDecide && !calls.some((call) => isPlatformTool(call.name))) return [];
+      // Without `approvals:decide` a person answers only their own platform call, so
+      // a turn showing only other calls is not asked about. One showing none - a
+      // delegated child's approval - is, and the rows say whose it is.
+      if (!canDecide && calls.length > 0 && !calls.some((call) => isPlatformTool(call.name)))
+        return [];
       const key = JSON.stringify([
         message.runId,
         calls.length ? calls.map((call) => call.id).sort() : ["run", message.id],
@@ -2470,7 +2472,9 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
-          if (!canDecide && !actionable.every((call) => call.may_decide === true)) continue;
+          // Without `approvals:decide` the only call a person answers is their own
+          // platform call; a run holding none of those stays with its Stop.
+          if (!canDecide && !actionable.some((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2862,13 +2866,15 @@ export function useChat(options: UseChatOptions = {}) {
     ) ?? null;
 
   const sendResumeDecisions = useCallback(
-    async (decisions: Decision[]) => {
+    async (decisions: Decision[], requests?: ActionRequest[]) => {
       if (stoppingRef.current !== null || decidingApprovalRef.current) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null || decisions.length !== parked.actionRequests.length) return;
+      // `requests` is the part of the batch this person may answer, when not all of it.
+      const deciding = requests ?? parked?.actionRequests ?? [];
+      if (parked === null || decisions.length !== deciding.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -2903,11 +2909,26 @@ export function useChat(options: UseChatOptions = {}) {
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        for (const [index, request] of parked.actionRequests.entries()) {
+        for (const [index, request] of deciding.entries()) {
           const decision = decisions[index]!;
           const decided = await decideApproval(request.id, decision);
           recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
+        }
+        const waiting = parked.actionRequests.filter(
+          (request) => !decidedApprovalIdsRef.current.has(request.id),
+        );
+        if (waiting.length > 0) {
+          // The rest is for somebody who may decide it; the run continues after them.
+          if (decidingApprovalRef.current === decisionToken) {
+            setPendingApproval({
+              ...parked,
+              actionRequests: waiting,
+              savedDecisions,
+              continuesInChat,
+            });
+          }
+          return;
         }
         await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
         void queryClient.invalidateQueries({ queryKey: qk.runs.all() });

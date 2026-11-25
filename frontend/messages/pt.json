@@ -2672,6 +2672,7 @@
     "approvalRememberChat": "Permitir esta ferramenta neste chat",
     "approvalRememberAgent": "Sempre permitir esta ferramenta para este agente",
     "approvalNeedsTheRun": "Somente alguém que possa ver a execução pode aprovar isso. Você pode rejeitar.",
+    "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
     "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
     "approvalRememberedTitle": "Aprovações de ferramentas lembradas",
     "approvalRememberedEmpty": "Nenhuma aprovação lembrada.",
