@@ -33,6 +33,11 @@ from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.eval_run import ArmRole, ArmSource, EvalRun, EvalRunArm, EvalRunCase
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementSearchVariant,
+)
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
@@ -1133,6 +1138,93 @@ class TestCopiesOfACaseThatLostATurn:
 
         await db.refresh(attempt)
         assert (attempt.answer, attempt.calls) == (None, [])
+
+
+async def _search(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    dataset_id: UUID,
+    started_by: UUID | None = None,
+) -> tuple[ImprovementRun, ImprovementIteration, ImprovementSearchVariant]:
+    """A cancelled Improve search on a dataset, with one scored variant and a note."""
+    session = ImprovementRun(
+        organization_id=organization_id,
+        agent_id=agent_id,
+        created_by_user_id=started_by,
+        status="cancelled",
+        base_draft_hash="0" * 64,
+        dataset_id=dataset_id,
+        dataset_version=1,
+        scoring_hash="0" * 64,
+        window_days=30,
+        estimate_usd=Decimal("1"),
+        budget_usd=Decimal("1"),
+    )
+    db.add(session)
+    await db.flush()
+    attempt = ImprovementIteration(
+        organization_id=organization_id,
+        run_id=session.id,
+        number=1,
+        note=f"Mind the account {MARKER}",
+    )
+    db.add(attempt)
+    await db.flush()
+    variant = ImprovementSearchVariant(
+        organization_id=organization_id,
+        iteration_id=attempt.id,
+        generation=1,
+        instructions=f"When account {MARKER} is charged twice, refund one charge.",
+        text_hash="1" * 64,
+        rationale=f"A reader with account {MARKER} was charged twice.",
+        status="scored",
+        train_score=0.75,
+        cases_scored=4,
+        cases_passed=3,
+    )
+    db.add(variant)
+    await db.flush()
+    return session, attempt, variant
+
+
+class TestWhatAnImproveSearchWrote:
+    @pytest.mark.security
+    async def test_a_search_over_their_case_loses_its_text_and_keeps_its_score(
+        self, db, world
+    ) -> None:
+        org = world.ctx.organization_id
+        _, mine, written = await _search(
+            db,
+            organization_id=org,
+            agent_id=world.agent.id,
+            dataset_id=world.dataset_id,
+            started_by=world.person.id,
+        )
+        _, theirs, elsewhere = await _search(
+            db, organization_id=org, agent_id=world.agent.id, dataset_id=uuid4()
+        )
+        other = Organization(id=uuid4(), name="Globex", slug=f"g-{uuid4().hex[:8]}")
+        other.created_by_user_id = world.colleague.id
+        db.add(other)
+        await db.flush()
+        stranger = Agent(organization_id=other.id, slug="clerk", name="Clerk", draft_spec={})
+        db.add(stranger)
+        await db.flush()
+        _, _, outside = await _search(
+            db, organization_id=other.id, agent_id=stranger.id, dataset_id=world.dataset_id
+        )
+
+        purged = await PersonalDataService(db).purge(world.person.id)
+        for row in (mine, theirs, written, elsewhere, outside):
+            await db.refresh(row)
+
+        assert (written.instructions, written.rationale) == ("", "")
+        assert (written.train_score, written.cases_scored, written.cases_passed) == (0.75, 4, 3)
+        assert MARKER in elsewhere.instructions and MARKER in outside.instructions
+        assert mine.note is None and theirs.note is not None
+        assert (purged.search_variants, purged.attempt_notes) == (1, 1)
 
 
 class TestTheirScoredAnswers:
