@@ -17624,8 +17624,10 @@
     "startDescription": "Gebruik feedback en testgevallen om verbeteringen voor te stellen. Review elke stap voordat je wijzigingen toepast.",
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
+    "linkedDatasetUnusable": "De dataset uit de link kan niet worden gebruikt: hij is verwijderd, of je mag hem niet uitvoeren. In plaats daarvan wordt de gebruikelijke gebruikt.",
     "analysisEstimate": "Geschatte kosten van de analyse",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
+    "measuredOn": "Gemeten op {name}.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {
       "title": "Hoort bij een skill",

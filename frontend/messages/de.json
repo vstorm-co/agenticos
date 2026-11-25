@@ -17426,8 +17426,10 @@
     "startDescription": "Schlagen Sie Verbesserungen anhand von Feedback und Testfällen vor. Prüfen Sie jeden Schritt, bevor Änderungen übernommen werden.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
+    "linkedDatasetUnusable": "Das Dataset aus dem Link kann nicht verwendet werden: Es wurde entfernt, oder Sie dürfen es nicht ausführen. Stattdessen wird das übliche verwendet.",
     "analysisEstimate": "Geschätzte Analysekosten",
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",
+    "measuredOn": "Gemessen mit {name}.",
     "comparisonInvalid": "Diese Ergebnisse sind nicht vergleichbar. Prüfe die einzelnen Antworten, ohne Unterschiede als Verbesserungen oder Regressionen zu werten.",
     "skills": {
       "title": "Gehört zu einem Skill",

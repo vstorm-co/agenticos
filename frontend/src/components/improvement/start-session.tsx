@@ -25,7 +25,7 @@ import { MIN_SEARCH_QUESTIONS, StartMode } from "./start-search";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
-import { useDatasets } from "@/hooks/use-datasets";
+import { useDataset, useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
@@ -78,8 +78,23 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const searchReady = searchMode === "steps" || Number(searchLimit) > 0;
   // A set made for this agent wins over one it was only run against or guarded by.
   const runnable = own.datasets.filter((dataset) => dataset.can_run);
-  const target =
-    chosen ?? (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
+  const listed = [
+    ...own.datasets,
+    ...datasets.datasets.filter((dataset) => !own.datasets.some((item) => item.id === dataset.id)),
+  ].filter((dataset) => dataset.can_run);
+  const listsRead = !own.isLoading && !datasets.isLoading;
+  // A dataset only the address names - a link, or questions just written - is read
+  // before it is priced: it may be gone, or one this person may not run.
+  const unlisted = chosen !== null && !listed.some((dataset) => dataset.id === chosen);
+  const linked = useDataset(unlisted && listsRead ? chosen : "");
+  const usable =
+    unlisted && linked.dataset?.id === chosen && linked.dataset.can_run ? linked.dataset : null;
+  const linkedRefused = unlisted && (linked.error !== null || linked.dataset?.can_run === false);
+  const choices = usable ? [usable, ...listed] : listed;
+  const fallback =
+    (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
+  const target = chosen === null || linkedRefused ? fallback : usable || !unlisted ? chosen : "";
+  const targetName = choices.find((dataset) => dataset.id === target)?.name;
   const body = {
     dataset_id: target,
     max_iterations: 3,
@@ -93,10 +108,6 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const quote = quoted?.key === key ? quoted.value : null;
   const refused = refusal?.key === key ? refusal.message : null;
   const limit = budget !== null ? limitValue(budget) : quote ? sessionLimit(quote) : "";
-  const choices = [
-    ...own.datasets,
-    ...datasets.datasets.filter((dataset) => !own.datasets.some((item) => item.id === dataset.id)),
-  ].filter((dataset) => dataset.can_run);
   const estimateSession = sessions.estimate.mutateAsync;
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
@@ -154,6 +165,11 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         </SelectContent>
       </Select>
       <p className="text-muted-foreground text-xs">{t("startDatasetHint")}</p>
+      {linkedRefused && (
+        <p role="status" className="text-muted-foreground text-xs">
+          {t("linkedDatasetUnusable")}
+        </p>
+      )}
     </div>
   );
   const writeOwn = (
@@ -275,6 +291,11 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 </dd>
               </div>
             </dl>
+            {targetName && (
+              <p className="text-muted-foreground text-xs">
+                {t("measuredOn", { name: targetName })}
+              </p>
+            )}
             <p className="text-muted-foreground text-xs">
               {t("startCostHint", { cost: usd(quote.per_round_usd, locale) })}
             </p>

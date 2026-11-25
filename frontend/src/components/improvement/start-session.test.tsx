@@ -29,6 +29,9 @@ const state = vi.hoisted(() => ({
     { id: "forbidden", name: "Cannot run", can_run: false },
   ],
   suites: [] as { dataset_id: string; name: string }[],
+  /** A dataset read by its id: one the lists do not hold, or why it could not be read. */
+  linked: {} as Record<string, { name: string; can_run: boolean } | Error>,
+  linkedReads: [] as string[],
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({
   useAgentEvalSuites: () => ({ suites: state.suites }),
@@ -38,6 +41,13 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => state.params,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
+  useDataset: (id: string) => {
+    if (id) state.linkedReads.push(id);
+    const found = state.linked[id] ?? { name: `Dataset ${id}`, can_run: true };
+    return found instanceof Error
+      ? { dataset: undefined, isLoading: false, error: found }
+      : { dataset: id ? { id, ...found } : undefined, isLoading: false, error: null };
+  },
   useDatasets: (query: { agent?: string }) => {
     state.datasetQueries.push(query);
     return query.agent
@@ -103,6 +113,8 @@ const QUOTE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.linked = {};
+  state.linkedReads = [];
   state.params = new URLSearchParams();
   state.sessionError = state.datasetError = null;
   state.testSetLoading = false;
@@ -286,6 +298,38 @@ it("starts from the question set a link names", async () => {
   render(<StartSession agentId="a1" onClose={vi.fn()} />);
   await screen.findByRole("button", { name: "Start improving" });
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "d1", max_iterations: 3 });
+});
+
+it("names a linked dataset the lists do not hold, and prices the session on it", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = { elsewhere: { name: "Another team's questions", can_run: true } };
+  state.params = new URLSearchParams("improveDataset=elsewhere");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent(
+    "Another team's questions",
+  );
+  expect(await screen.findByText("Measured on Another team's questions.")).toBeInTheDocument();
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "elsewhere", max_iterations: 3 });
+});
+
+it("never prices or starts a linked dataset it cannot read or run, and says so", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    gone: new ApiError(404, "Dataset not found"),
+    locked: { name: "Locked questions", can_run: false },
+  };
+  for (const id of ["gone", "locked"]) {
+    state.estimate.mockClear();
+    state.params = new URLSearchParams(`improveDataset=${id}`);
+    const view = render(<StartSession agentId="a1" onClose={vi.fn()} />);
+    expect(
+      screen.getByText(/The dataset in the link cannot be used: it was removed/),
+    ).toBeInTheDocument();
+    await screen.findByText("Measured on Refund desk - test questions.");
+    expect(state.estimate).not.toHaveBeenCalledWith(expect.objectContaining({ dataset_id: id }));
+    view.unmount();
+  }
 });
 
 it("points to the one session still open instead of every past one", () => {

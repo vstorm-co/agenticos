@@ -17740,8 +17740,10 @@
     "startDescription": "Use feedback and test cases to propose improvements. Review each step before applying changes.",
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
+    "linkedDatasetUnusable": "The dataset in the link cannot be used: it was removed, or you may not run it. The usual one is used instead.",
     "analysisEstimate": "Estimated analysis cost",
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
+    "measuredOn": "Measured on {name}.",
     "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions.",
     "skills": {
       "title": "Belongs to a skill",

@@ -17513,8 +17513,10 @@
     "startDescription": "Zaproponuj ulepszenia na podstawie feedbacku i przypadków testowych. Przejrzysz każdy krok przed zastosowaniem zmian.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
+    "linkedDatasetUnusable": "Nie można użyć datasetu z linku: został usunięty albo nie możesz go uruchamiać. Zamiast niego użyto zwykłego.",
     "analysisEstimate": "Szacowany koszt analizy",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
+    "measuredOn": "Mierzone na {name}.",
     "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
     "skills": {
       "title": "Należy do skilla",
