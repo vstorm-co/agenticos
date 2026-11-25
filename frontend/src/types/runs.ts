@@ -430,6 +430,12 @@ export interface ToolApproval {
    */
   always_asks?: boolean;
   /**
+   * Whether the server would accept an approval from this reader. False with
+   * `content_hidden` on a call that always asks, and for a platform call that
+   * always asks on somebody else's run: only that run's person may approve it.
+   */
+  may_approve?: boolean;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */
@@ -613,6 +619,10 @@ export interface ParkedCall {
   content_hidden?: boolean;
   /** As `ToolApproval.always_asks`. */
   always_asks?: boolean;
+  /** Whether the caller may answer this call at all. */
+  may_decide?: boolean;
+  /** As `ToolApproval.may_approve`. */
+  may_approve?: boolean;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */

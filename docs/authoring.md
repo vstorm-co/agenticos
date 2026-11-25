@@ -370,6 +370,8 @@ running, waiting, ready, stopped or failed - so starting another answers `409`
 until the open one ends. The creator or an organization administrator can post to
 `/{run_id}/cancel`.
 
+Stopping does not require `runs:view`. Without it, the response contains only `id` and `status`, with no budget, dataset, progress or error metadata.
+
 The person who took the last step is notified at each stop and each end: the
 analysis read, changes ready to review, a checked result, stopped, failed or stale,
 decided outside the wizard, and a finished knowledge or attribution check. Read the

@@ -31,7 +31,9 @@ are removed from mail render data.
 
 Improve session reads, lists and by-ID reads require `runs:view` after agent
 visibility resolution. Stopping a session without that permission does not
-hydrate attempts, timeline, knowledge evidence or measurement noise. The MCP
+hydrate attempts, timeline, knowledge evidence or measurement noise. The typed
+stop receipt contains only the session ID and status, excluding financial,
+dataset, progress and error metadata; the console clears its cached details. The MCP
 adapter relies on the service's guard rather than a second permissions fetch.
 
 Verification records belong to the source commit and combined release CI.

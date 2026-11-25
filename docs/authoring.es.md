@@ -1,5 +1,5 @@
 ---
-source_sha: "6d90175cae33"
+source_sha: "8354c821c472"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -389,6 +389,8 @@ resultado se cierra como obsoleta, con el motivo `expired`. Un agente tiene una
 sesión abierta a la vez - en cola, en curso, en espera, lista, detenida o fallida -,
 así que empezar otra responde `409` hasta que la abierta termine. El creador o un
 administrador puede enviar una petición a `/{run_id}/cancel`.
+
+Detener una sesión no requiere `runs:view`. Sin ese permiso, la respuesta contiene solo `id` y `status`, sin presupuesto, dataset, progreso ni metadatos del error.
 
 Quien dio el último paso recibe una notificación en cada parada y en cada final:
 el análisis leído, cambios listos para revisar, un resultado comprobado, detenida,

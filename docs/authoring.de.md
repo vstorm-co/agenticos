@@ -1,5 +1,5 @@
 ---
-source_sha: "6d90175cae33"
+source_sha: "8354c821c472"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -402,6 +402,8 @@ hat jeweils eine offene Sitzung - in der Warteschlange, laufend, wartend, fertig
 angehalten oder fehlgeschlagen -, daher beantwortet der Start einer weiteren
 `409`, bis die offene endet. Ersteller oder Organisationsadministratoren können
 `/{run_id}/cancel` aufrufen.
+
+Das Stoppen erfordert kein `runs:view`. Ohne diese Berechtigung enthält die Antwort nur `id` und `status`, ohne Budget, Dataset, Fortschritt oder Fehler-Metadaten.
 
 Wer den letzten Schritt ausgeführt hat, wird an jedem Halt und bei jedem Ende
 benachrichtigt: Analyse gelesen, Änderungen zur Prüfung bereit, geprüftes

@@ -20,6 +20,7 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { appearanceChosenBy } from "@/lib/account-appearance";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { isPlatformTool } from "@/lib/approval-view";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -2420,9 +2421,6 @@ export function useChat(options: UseChatOptions = {}) {
     runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
-  // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2449,7 +2447,12 @@ export function useChat(options: UseChatOptions = {}) {
   // read as a reloaded parked run. Empty rows are left alone - a run decided
   // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || continuingApproval || !canDecide || decidingApprovalRef.current)
+    if (
+      pendingApproval !== null ||
+      continuingApproval ||
+      !permissionsLoaded ||
+      decidingApprovalRef.current
+    )
       return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
@@ -2458,6 +2461,11 @@ export function useChat(options: UseChatOptions = {}) {
         !message.runId ||
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
+        return [];
+      // Without `approvals:decide` a person answers only their own platform call, so
+      // a turn showing only other calls is not asked about. One showing none - a
+      // delegated child's approval - is, and the rows say whose it is.
+      if (!canDecide && calls.length > 0 && !calls.some((call) => isPlatformTool(call.name)))
         return [];
       const key = JSON.stringify([
         message.runId,
@@ -2491,6 +2499,9 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
+          // Without `approvals:decide` the only call a person answers is their own
+          // platform call; a run holding none of those stays with its Stop.
+          if (!canDecide && !actionable.some((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2504,6 +2515,8 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              may_decide: call.may_decide,
+              may_approve: call.may_approve,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2513,8 +2526,12 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: message.id,
           });
           return;
-        } catch {
-          // Keep the batch eligible for a later transcript refresh.
+        } catch (error) {
+          // Another person's run in a shared chat is refused for good; anything else
+          // stays eligible for a later transcript refresh.
+          if (error instanceof ApiError && error.status === 403) {
+            offeredApprovalBatchesRef.current.add(key);
+          }
         } finally {
           if (reads.get(runId) === request) reads.delete(runId);
         }
@@ -2523,7 +2540,14 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, continuingApproval, canDecide, activeConversationId]);
+  }, [
+    messages,
+    pendingApproval,
+    continuingApproval,
+    permissionsLoaded,
+    canDecide,
+    activeConversationId,
+  ]);
 
   const queryClient = useQueryClient();
 
@@ -2704,6 +2728,8 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            may_decide: call.may_decide,
+            may_approve: call.may_approve,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,
@@ -2867,13 +2893,15 @@ export function useChat(options: UseChatOptions = {}) {
     ) ?? null;
 
   const sendResumeDecisions = useCallback(
-    async (decisions: Decision[]) => {
+    async (decisions: Decision[], requests?: ActionRequest[]) => {
       if (stoppingRef.current !== null || decidingApprovalRef.current) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null || decisions.length !== parked.actionRequests.length) return;
+      // `requests` is the part of the batch this person may answer, when not all of it.
+      const deciding = requests ?? parked?.actionRequests ?? [];
+      if (parked === null || decisions.length !== deciding.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -2908,11 +2936,26 @@ export function useChat(options: UseChatOptions = {}) {
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        for (const [index, request] of parked.actionRequests.entries()) {
+        for (const [index, request] of deciding.entries()) {
           const decision = decisions[index]!;
           const decided = await decideApproval(request.id, decision);
           recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
+        }
+        const waiting = parked.actionRequests.filter(
+          (request) => !decidedApprovalIdsRef.current.has(request.id),
+        );
+        if (waiting.length > 0) {
+          // The rest is for somebody who may decide it; the run continues after them.
+          if (decidingApprovalRef.current === decisionToken) {
+            setPendingApproval({
+              ...parked,
+              actionRequests: waiting,
+              savedDecisions,
+              continuesInChat,
+            });
+          }
+          return;
         }
         await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
         void queryClient.invalidateQueries({ queryKey: qk.runs.all() });

@@ -4801,6 +4801,7 @@
       "askedFor": "{email} için",
       "contentHidden": "Bu çağrının run’ından alıntıladığı içeriği yalnızca o run’ı görebilenler görür.",
       "approveNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
+      "approveNeedsItsPerson": "Bunu yalnızca bu run’ın adına çalıştığı kişi onaylayabilir. Reddedebilirsiniz.",
       "account": "Hesap: {account}",
       "openTheRun": "Runı aç",
       "decidedByWhom": "{email} tarafından",
@@ -4884,7 +4885,8 @@
       "inputTokenCacheRead": "Önbellekten okunan",
       "inputTokenCacheWrite": "Önbelleğe yazılan",
       "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez.",
-      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)"
+      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)",
+      "approveNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -10500,6 +10502,8 @@
     "approvalRememberChat": "Bu sohbette bu araca izin ver",
     "approvalRememberAgent": "Bu ajan için bu araca her zaman izin ver",
     "approvalNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
+    "approvalOthersWait": "Yanıtınız yalnızca kendi platform çağrılarınızı kapsar. Diğerleri onaylara karar verebilecek birini bekler.",
+    "approvalNeedsItsPerson": "Bunu yalnızca bu run’ın adına çalıştığı kişi onaylayabilir. Reddedebilirsiniz.",
     "approvalRememberedTitle": "Hatırlanan araç onayları",
     "approvalRememberedEmpty": "Hatırlanan onay yok.",
     "approvalRememberForget": "Tekrar sor",
@@ -10561,7 +10565,8 @@
     "queuedPaused": "Kuyruk duraklatıldı",
     "resumeQueue": "Kuyruğu sürdür",
     "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
-    "routineContinueChat": "Yeni sohbette devam et"
+    "routineContinueChat": "Yeni sohbette devam et",
+    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
   },
   "admin": {
     "actions": "Eylemler",
@@ -17882,7 +17887,8 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
-    }
+    },
+    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
   },
   "personalModelKeys": {
     "copilot": {

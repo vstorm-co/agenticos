@@ -65,7 +65,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission does not return attempts, timeline or evidence.
+- Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission returns only the session ID and status; cached session details are cleared.
 - Complete French and Turkish Improve/eval/assistant translations. Translate comparison, merge-refusal and stored failure reasons from stable codes while retaining technical details and compatibility with uncoded historical results.
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
@@ -130,6 +130,7 @@ Two things are versioned separately from this file and worth knowing about:
   Shared-workspace delegation pins the project and executor until the run ends.
   Legacy parks containing delegations without this pin marker must start a new
   turn; pending child tools are never replayed on an unverified workspace.
+- Clients stopping an agent Improve session without `runs:view` must accept a minimal `{id, status}` receipt. Full session details are returned only to readers with that permission.
 
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all

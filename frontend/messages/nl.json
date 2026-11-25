@@ -2761,7 +2761,10 @@
     "queuedPaused": "Wachtrij gepauzeerd",
     "resumeQueue": "Wachtrij hervatten",
     "routineHistoryReadOnly": "Dit is een alleen-lezen routinegeschiedenis. Fork een antwoord om verder te gaan in een nieuwe chat.",
-    "routineContinueChat": "Verder in een nieuwe chat"
+    "routineContinueChat": "Verder in een nieuwe chat",
+    "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
+    "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -8095,6 +8098,7 @@
       "askedFor": "Voor {email}",
       "contentHidden": "Wat deze aanroep uit zijn run citeert, wordt alleen getoond aan mensen die die run kunnen zien.",
       "approveNeedsTheRun": "Alleen iemand die de run kan zien, kan dit goedkeuren. Je kunt het afwijzen.",
+      "approveNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
       "account": "Account: {account}",
       "openTheRun": "De run openen",
       "decidedByWhom": "door {email}",
@@ -8224,7 +8228,8 @@
       "inputTokenCacheRead": "Gelezen uit cache",
       "inputTokenCacheWrite": "Geschreven naar cache",
       "inputTokenHint": "Totalen over de vastgelegde modelverzoeken. Cachetokens zitten in de invoer, ze worden er niet bij opgeteld.",
-      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)"
+      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)",
+      "approveNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
     },
     "sandboxes": {
       "noAccess": "Geen toegang tot sandboxkoppelingen",
@@ -17827,7 +17832,8 @@
       "exactChange": "De exacte formulering vergelijken",
       "invalid": "De test kon de versies niet betrouwbaar vergelijken. Review de test voordat je conclusies trekt.",
       "noExamples": "Er zijn geen veranderde antwoorden om te tonen. Open de volledige test om elke vraag te zien."
-    }
+    },
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang."
   },
   "unsaved": {
     "title": "Je hebt niet-opgeslagen wijzigingen",

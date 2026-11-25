@@ -74,7 +74,7 @@ export function quotedPrice(
  * A built-in tool (`known`) has no service; it keeps the catalog's own name.
  */
 export function serviceAction(toolName: string, known: boolean): ServiceAction {
-  if (toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length) {
+  if (isPlatformTool(toolName)) {
     return {
       service: "AgenticOS",
       action: sentence(toolName.slice("agenticos_".length).split("_")),

@@ -67,8 +67,22 @@ async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_s
     stopped = await ImprovementPipelineService(db).cancel(demoted, agent.id, session.id)
 
     assert stopped.status == "cancelled"
-    assert stopped.iterations == [] and stopped.timeline == []
-    assert (stopped.error, stopped.error_code, stopped.error_params) == (None, None, None)
+    assert stopped.model_dump(mode="json") == {"id": str(session.id), "status": "cancelled"}
+    assert set(stopped.model_dump()).isdisjoint(
+        {
+            "budget_usd",
+            "spent_usd",
+            "estimate_usd",
+            "dataset_id",
+            "dataset_version",
+            "iteration",
+            "iterations",
+            "timeline",
+            "error",
+            "error_code",
+            "error_params",
+        }
+    )
 
 
 @pytest.mark.security

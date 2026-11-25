@@ -2761,7 +2761,10 @@
     "queuedPaused": "Fila pausada",
     "resumeQueue": "Retomar fila",
     "routineHistoryReadOnly": "Este é um histórico de rotina somente leitura. Bifurque uma resposta para continuar em um novo chat.",
-    "routineContinueChat": "Continuar em um novo chat"
+    "routineContinueChat": "Continuar em um novo chat",
+    "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
+    "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -8095,6 +8098,7 @@
       "askedFor": "Para {email}",
       "contentHidden": "O que esta chamada cita da sua execução é mostrado somente para quem pode ver essa execução.",
       "approveNeedsTheRun": "Somente quem pode ver a execução pode aprovar isto. Você pode rejeitar.",
+      "approveNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
       "account": "Conta: {account}",
       "openTheRun": "Abrir a execução",
       "decidedByWhom": "por {email}",
@@ -8224,7 +8228,8 @@
       "inputTokenCacheRead": "Leitura do cache",
       "inputTokenCacheWrite": "Escrita no cache",
       "inputTokenHint": "Totais das requisições de modelo registradas. Os tokens de cache estão incluídos na entrada, não somados a ela.",
-      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)"
+      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)",
+      "approveNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
     },
     "sandboxes": {
       "noAccess": "Sem acesso às conexões de sandbox",
@@ -17827,7 +17832,8 @@
       "exactChange": "Compare a redação exata",
       "invalid": "O teste não conseguiu comparar as versões de forma confiável. Revise o teste antes de tirar conclusões.",
       "noExamples": "Não há respostas alteradas para mostrar. Abra o teste completo para ver todas as perguntas."
-    }
+    },
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização."
   },
   "unsaved": {
     "title": "Você tem alterações não salvas",

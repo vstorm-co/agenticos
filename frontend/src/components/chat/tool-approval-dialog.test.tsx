@@ -456,3 +456,80 @@ it("shows the price a paid platform call was quoted at", () => {
   ]);
   expect(screen.getByText("Quoted estimate: $0.40")).toBeInTheDocument();
 });
+
+it("lets the run's person approve their own platform call without approvals:decide", async () => {
+  held.permissions = [];
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_accept_improvement",
+      args: { publish: true },
+      always_asks: true,
+      may_decide: true,
+      may_approve: true,
+    }),
+  ]);
+
+  expect(screen.queryByText(/needs a permission you do not hold/)).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }]);
+});
+
+it("offers only Reject on a platform call that runs as somebody else", async () => {
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_publish_agent",
+      args: {},
+      always_asks: true,
+      may_decide: true,
+      may_approve: false,
+    }),
+  ]);
+
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText("Only the person this run acts for can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
+});
+
+it("keeps the permission sentence for a call the person may not decide", () => {
+  held.permissions = [];
+  mount([action("a-1", { may_decide: false, may_approve: false })]);
+
+  expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  expect(screen.getByText(/needs a permission you do not hold/)).toBeInTheDocument();
+});
+
+it("lets the run's person answer their own call of a mixed batch and leaves the rest", async () => {
+  held.permissions = [];
+  const own = action("a-1", {
+    tool_name: "agenticos_accept_improvement",
+    args: { publish: true },
+    always_asks: true,
+    may_decide: true,
+    may_approve: true,
+  });
+  const onDecisions = mount([own, action("a-2", { may_decide: false, may_approve: false })]);
+
+  expect(screen.getByText(/The others wait for somebody who can decide/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }], [own]);
+});
+
+it("explains the application administration requirement for deployment changes", () => {
+  mount([
+    action("deployment", {
+      tool_name: "agenticos_change_deployment",
+      always_asks: true,
+      may_decide: true,
+      may_approve: false,
+    }),
+  ]);
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText(
+      "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    ),
+  ).toBeInTheDocument();
+});

@@ -2724,7 +2724,10 @@
       "empty": "Vous êtes à jour. Les nouveaux constats et les sujets importants apparaîtront ici.",
       "failed": "Impossible de charger votre boîte de réception.",
       "refreshFailed": "Impossible d’actualiser votre boîte de réception. Affichage des derniers éléments chargés."
-    }
+    },
+    "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
+    "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
+    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
   },
   "common": {
     "archiveNamedConfirm": "Archiver {name} ?",
@@ -7979,6 +7982,7 @@
       "askedFor": "Pour {email}",
       "contentHidden": "Ce que cet appel cite de son run n’est montré qu’aux personnes qui peuvent voir ce run.",
       "approveNeedsTheRun": "Seule une personne qui peut voir le run peut approuver ceci. Vous pouvez le rejeter.",
+      "approveNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
       "account": "Compte : {account}",
       "openTheRun": "Ouvrir le run",
       "decidedByWhom": "par {email}",
@@ -8106,7 +8110,8 @@
       "inputTokenCacheRead": "Lecture du cache",
       "inputTokenCacheWrite": "Écriture du cache",
       "inputTokenHint": "Totaux sur les requêtes au modèle consignées. Les tokens de cache sont inclus dans l’entrée, pas ajoutés en plus.",
-      "systemRoleChannelDecision": "Décision de participation au canal (système)"
+      "systemRoleChannelDecision": "Décision de participation au canal (système)",
+      "approveNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
     },
     "sandboxes": {
       "noAccess": "Aucun accès aux connexions sandbox",
@@ -17478,7 +17483,8 @@
       "exactChange": "Comparer la formulation exacte",
       "invalid": "Le test n’a pas pu comparer les versions de façon fiable. Examinez le test avant de tirer des conclusions.",
       "noExamples": "Aucune réponse modifiée à afficher. Ouvrez le test complet pour voir chaque question."
-    }
+    },
+    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation."
   },
   "unsaved": {
     "title": "Vous avez des modifications non enregistrées",
