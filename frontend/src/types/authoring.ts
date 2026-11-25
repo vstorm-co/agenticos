@@ -81,6 +81,7 @@ export type Rejection =
   | "unknown_capability"
   | "invalid_config"
   | "does_not_apply"
+  | "reaches_network"
   | "not_grantable"
   | "dismissed_before"
   | "unsupported"

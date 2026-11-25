@@ -16955,6 +16955,7 @@
         "unknown_capability": "No such capability",
         "invalid_config": "Its settings are not valid",
         "does_not_apply": "It does not fit the draft",
+        "reaches_network": "It adds a capability that reaches beyond this deployment. Add it in the Builder, where its limits are set",
         "not_grantable": "It adds something the person who asked may not grant",
         "dismissed_before": "Somebody dismissed it before",
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
