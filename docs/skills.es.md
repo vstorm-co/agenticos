@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "8f718c783682"
 ---
 
 # Skills { #skills }
@@ -352,6 +352,14 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
   mismo uno cuyos runs calificaron cada respuesta en menos preguntas apartadas de
   las que necesita un resultado: su fila dice cuántas salieron mejor y peor, y que
   son demasiado pocas para estar seguros.
+- Un agent cuyas propias preguntas no terminaron - su run falló o se detuvo, se
+  rechazó, o la comprobación caducó - después de que las preguntas del skill
+  confirmaran una regresión sigue **peor**: el cambio aún tiene que fijarse o
+  rodearse con un fork. Uno en el que las preguntas del skill no mostraron
+  regresión es **desconocido**: su fila dice que sus propias preguntas no
+  terminaron y que las del skill no mostraron regresión, y sus detalles conservan
+  lo que dieron las preguntas del skill, así que reconocerlo es una decisión
+  tomada sobre media comprobación.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo

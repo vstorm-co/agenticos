@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "8f718c783682"
 ---
 
 # Skills { #skills }
@@ -367,6 +367,14 @@ andere Fragen hinzuzufügen sind.
   auf weniger zurückgelegten Fragen bewertet haben, als ein Ergebnis braucht:
   Seine Zeile sagt, wie viele besser und schlechter ausfielen und dass es zu
   wenige sind, um sicher zu sein.
+- Ein Agent, dessen eigene Fragen nicht fertig wurden - ihr Run schlug fehl oder
+  wurde angehalten, wurde abgelehnt, oder die Prüfung lief ab -, nachdem die
+  Fragen des Skills eine Regression bestätigt haben, bleibt **schlechter**: Die
+  Änderung muss weiterhin angeheftet oder per Fork umgangen werden. Einer, bei dem
+  die Fragen des Skills keine Regression zeigten, ist **unbekannt**: Seine Zeile
+  sagt, dass seine eigenen Fragen nicht fertig wurden und die des Skills keine
+  Regression zeigten, und seine Details behalten, was die Fragen des Skills
+  ergaben, sodass ihn zu bestätigen eine Entscheidung auf einer halben Prüfung ist.
 
 Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
 sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.
