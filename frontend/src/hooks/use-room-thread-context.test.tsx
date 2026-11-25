@@ -3,16 +3,31 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  threadRootFromAction,
   useRoomThreadContextActions,
+  useRoomThreadContextCandidates,
   useRoomThreadContextConversationSearch,
+  useRoomThreadContextSource,
+  useRoomThreadContextSourceConversation,
 } from "./use-room-thread-context";
+import { announceRoomChange, onRoomChange } from "@/lib/room-events";
 import { useAuthStore, useConversationStore, useOrgStore } from "@/stores";
 import type {
   RoomThreadContextActionRead,
   RoomThreadContextUpdateInput,
 } from "@/types/room-thread-context";
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), search: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(),
+  move: vi.fn(),
+  giveBack: vi.fn(),
+  search: vi.fn(),
+  candidates: vi.fn(),
+  conversation: vi.fn(),
+  page: vi.fn(),
+  current: vi.fn(() => true),
+}));
 let queryClient: QueryClient;
 
 vi.mock("@/hooks/use-room", () => ({
@@ -20,16 +35,16 @@ vi.mock("@/hooks/use-room", () => ({
     accountId: "member",
     organizationId: "org-a",
     tenant: "org-a",
-    current: () => true,
+    current: mocks.current,
   }),
 }));
 vi.mock("@/lib/room-thread-context-api", () => ({
-  createRoomThreadFromRange: vi.fn(),
-  getRoomThreadContextCandidates: vi.fn(),
-  getRoomThreadContextSourceConversation: vi.fn(),
-  getRoomThreadContextSourcePage: vi.fn(),
-  moveRoomThreadContext: vi.fn(),
-  returnRoomThreadContext: vi.fn(),
+  createRoomThreadFromRange: mocks.create,
+  getRoomThreadContextCandidates: mocks.candidates,
+  getRoomThreadContextSourceConversation: mocks.conversation,
+  getRoomThreadContextSourcePage: mocks.page,
+  moveRoomThreadContext: mocks.move,
+  returnRoomThreadContext: mocks.giveBack,
   searchRoomThreadContextConversations: mocks.search,
   updateRoomThreadContext: mocks.update,
 }));
@@ -86,7 +101,8 @@ function conversation(id: string, title: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  mocks.current.mockReturnValue(true);
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   useAuthStore.setState({
     user: {
@@ -180,4 +196,212 @@ describe("useRoomThreadContextActions response scope", () => {
       });
     },
   );
+});
+
+const scope = { accountId: "member", organizationId: "org-a" };
+const sourcePage = (id: string, nextCursor: string | null = null, total = 1) => ({
+  items: [{ id }],
+  total,
+  rawCount: 1,
+  nextCursor,
+});
+
+describe("useRoomThreadContextSource", () => {
+  it("lists older pages first and rereads when the source room changes", async () => {
+    mocks.page.mockImplementation(async (_id: string, before: string | null) =>
+      before === null ? sourcePage("newer", "newer", 2) : sourcePage("older", "older", 2),
+    );
+    const { result } = renderHook(() => useRoomThreadContextSource("room-b"), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() =>
+      expect(result.current.messages.map((item) => item.id)).toEqual(["older", "newer"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+
+    const reads = mocks.page.mock.calls.length;
+    act(() => announceRoomChange({ ...scope, conversationId: "unrelated" }));
+    expect(mocks.page).toHaveBeenCalledTimes(reads);
+    act(() => announceRoomChange({ ...scope, conversationId: "room-b" }));
+    await waitFor(() => expect(mocks.page.mock.calls.length).toBeGreaterThan(reads));
+  });
+
+  it("reads nothing without a source or while closed", () => {
+    renderHook(() => useRoomThreadContextSource(null), { wrapper });
+    renderHook(() => useRoomThreadContextSource("room-b", false), { wrapper });
+    expect(mocks.page).not.toHaveBeenCalled();
+  });
+
+  it.each(["before", "after"] as const)(
+    "fails the read when the identity changes %s the request",
+    async (when) => {
+      mocks.current.mockReturnValue(false);
+      if (when === "after") mocks.current.mockReturnValueOnce(true);
+      mocks.page.mockResolvedValue(sourcePage("one"));
+      const { result } = renderHook(() => useRoomThreadContextSource("room-b"), { wrapper });
+      await waitFor(() =>
+        expect(result.current.error?.message).toBe("ROOM_THREAD_CONTEXT_SCOPE_CHANGED"),
+      );
+      expect(result.current.messages).toEqual([]);
+    },
+  );
+});
+
+describe("the other room thread context reads", () => {
+  /** One probe hook for the three reads, so each case fails or passes on its error alone. */
+  function useRead(read: "search" | "conversation" | "candidates"): { error: Error | null } {
+    const search = useRoomThreadContextConversationSearch("needle");
+    const source = useRoomThreadContextSourceConversation("room-b", read === "conversation");
+    const candidates = useRoomThreadContextCandidates("room-a", "root-a", 1, read === "candidates");
+    return { search, conversation: source, candidates }[read];
+  }
+
+  it.each(
+    (["search", "conversation", "candidates"] as const).flatMap((read) =>
+      (["before", "after"] as const).map((when) => [read, when] as const),
+    ),
+  )("fails the %s read when the identity changes %s the request", async (read, when) => {
+    mocks.current.mockReturnValue(false);
+    if (when === "after") mocks.current.mockReturnValueOnce(true);
+    mocks[read].mockResolvedValue({ items: [], nextCursor: null });
+    const { result } = renderHook(() => useRead(read), { wrapper });
+    await waitFor(() =>
+      expect(result.current.error?.message).toBe("ROOM_THREAD_CONTEXT_SCOPE_CHANGED"),
+    );
+  });
+
+  it("returns the source conversation and skips it when there is none", async () => {
+    mocks.conversation.mockResolvedValue({ id: "room-b" });
+    const { result } = renderHook(() => useRoomThreadContextSourceConversation("room-b"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.data).toEqual({ id: "room-b" }));
+    renderHook(() => useRoomThreadContextSourceConversation(null), { wrapper });
+    expect(mocks.conversation).toHaveBeenCalledTimes(1);
+  });
+
+  it("orders search results by their last change", async () => {
+    mocks.search.mockResolvedValue({
+      items: [
+        conversation("old", "Old"),
+        { ...conversation("new", "New"), updated_at: "2026-11-05T00:00:00Z" },
+      ],
+      nextCursor: null,
+    });
+    const { result } = renderHook(() => useRoomThreadContextConversationSearch("needle"), {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.items.map((item) => item.id)).toEqual(["new", "old"]),
+    );
+  });
+
+  it("rereads candidates when either room changes", async () => {
+    mocks.candidates.mockResolvedValue({ source_conversation_id: "room-b", items: [] });
+    const { result } = renderHook(
+      () => useRoomThreadContextCandidates("room-a", "root-a", 1, true, "room-b"),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    for (const conversationId of ["room-a", "room-b"]) {
+      const reads = mocks.candidates.mock.calls.length;
+      act(() => announceRoomChange({ ...scope, conversationId }));
+      await waitFor(() => expect(mocks.candidates.mock.calls.length).toBeGreaterThan(reads));
+    }
+    const reads = mocks.candidates.mock.calls.length;
+    act(() => announceRoomChange({ ...scope, conversationId: "unrelated" }));
+    expect(mocks.candidates).toHaveBeenCalledTimes(reads);
+  });
+
+  it("refuses candidates read from a different source", async () => {
+    mocks.candidates.mockResolvedValue({ source_conversation_id: "room-c", items: [] });
+    const { result } = renderHook(
+      () => useRoomThreadContextCandidates("room-a", "root-a", 1, true, "room-b"),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.error?.message).toBe("ROOM_THREAD_CONTEXT_CANDIDATES_SCOPE_MISMATCH"),
+    );
+  });
+});
+
+describe("useRoomThreadContextActions writes", () => {
+  const mutation = { expected_context_revision: 1 };
+
+  it("sends each write for the open thread and tells the room", async () => {
+    for (const write of [mocks.create, mocks.update, mocks.move, mocks.giveBack]) {
+      write.mockResolvedValue(actionRead());
+    }
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+    const { result } = renderHook(() => useRoomThreadContextActions("room-a", "root-a"), {
+      wrapper,
+    });
+
+    await act(async () => {
+      expect(await result.current.createFromRange(input)).toEqual(actionRead());
+      expect(await result.current.updateContext(input)).toEqual(actionRead());
+      expect(await result.current.moveContext(mutation)).toEqual(actionRead());
+      expect(await result.current.returnContext(mutation)).toEqual(actionRead());
+    });
+
+    expect(mocks.create).toHaveBeenCalledWith("room-a", input);
+    expect(mocks.move).toHaveBeenCalledWith("room-a", "root-a", mutation);
+    expect(mocks.giveBack).toHaveBeenCalledWith("room-a", "root-a", mutation);
+    expect(changed).toHaveBeenCalledTimes(4);
+    expect(result.current.isPending).toBe(false);
+    unsubscribe();
+  });
+
+  it("creates without a thread but writes nothing else", async () => {
+    mocks.create.mockResolvedValue(actionRead());
+    const { result } = renderHook(() => useRoomThreadContextActions("room-a"), { wrapper });
+    await act(async () => {
+      expect(await result.current.createFromRange(input)).toEqual(actionRead());
+      expect(await result.current.updateContext(input)).toBeNull();
+      expect(await result.current.moveContext(mutation)).toBeNull();
+      expect(await result.current.returnContext(mutation)).toBeNull();
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.move).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing without a conversation or after the view moved on", async () => {
+    const none = renderHook(() => useRoomThreadContextActions(null, "root-a"), { wrapper });
+    const other = renderHook(() => useRoomThreadContextActions("room-z", "root-a"), { wrapper });
+    await act(async () => {
+      expect(await none.result.current.createFromRange(input)).toBeNull();
+      expect(await none.result.current.updateContext(input)).toBeNull();
+      expect(await none.result.current.moveContext(mutation)).toBeNull();
+      expect(await none.result.current.returnContext(mutation)).toBeNull();
+      expect(await other.result.current.updateContext(input)).toBeNull();
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failure only to the view that asked", async () => {
+    const { result } = renderHook(() => useRoomThreadContextActions("room-a", "root-a"), {
+      wrapper,
+    });
+    mocks.update.mockRejectedValueOnce(new Error("refused"));
+    await act(async () => {
+      await expect(result.current.updateContext(input)).rejects.toThrow("refused");
+    });
+
+    mocks.update.mockImplementationOnce(async () => {
+      useConversationStore.setState({ currentConversationId: "room-b", selectionVersion: 2 });
+      throw new Error("late");
+    });
+    await act(async () => {
+      expect(await result.current.updateContext(input)).toBeNull();
+    });
+  });
+
+  it("opens the thread the server named", () => {
+    expect(threadRootFromAction(actionRead())).toBe("root-a");
+  });
 });
