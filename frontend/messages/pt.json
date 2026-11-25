@@ -15789,6 +15789,9 @@
       "number": "Número do caso"
     },
     "helpers": {
+      "guidance": "Orientações específicas do dataset",
+      "guidanceHint": "Adicionadas abaixo das regras da plataforma para este assistente. As regras sempre se aplicam; as orientações não podem alterá-las nem removê-las.",
+      "platformRules": "Regras da plataforma (somente leitura)",
       "generatorTitle": "Geração de casos",
       "generatorDescription": "Escolha o modelo e as instruções usados para rascunhar casos para este dataset. Os casos gerados aguardam sua aprovação.",
       "improverTitle": "Melhoria do agente",

@@ -15905,6 +15905,9 @@
       "number": "Case number"
     },
     "helpers": {
+      "guidance": "Dataset-specific guidance",
+      "guidanceHint": "Added below the platform's rules for this helper. The rules always apply; guidance cannot change or remove them.",
+      "platformRules": "Platform rules (read-only)",
       "generatorTitle": "Case generation",
       "generatorDescription": "Choose the model and instructions used to draft cases for this dataset. Generated cases wait for your approval.",
       "improverTitle": "Agent improvement",

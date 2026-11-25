@@ -15591,6 +15591,9 @@
       "number": "Fallnummer"
     },
     "helpers": {
+      "guidance": "Hinweise für dieses Dataset",
+      "guidanceHint": "Werden unter den Plattformregeln für diesen Helfer ergänzt. Die Regeln gelten immer; Hinweise können sie weder ändern noch entfernen.",
+      "platformRules": "Plattformregeln (nur lesbar)",
       "generatorTitle": "Testfälle generieren",
       "generatorDescription": "Wähle das Modell und die Anweisungen für Testfälle dieses Datensatzes. Generierte Fälle warten auf deine Freigabe.",
       "improverTitle": "Agent verbessern",
