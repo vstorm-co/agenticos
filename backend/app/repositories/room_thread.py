@@ -33,7 +33,7 @@ def is_context_message(
 ) -> ColumnElement[bool]:
     """Whether a moved range row is part of its exact saved context snapshot.
 
-    The expression accepts ``Message`` itself or an ORM alias, so history and
+    The expression accepts `Message` itself or an ORM alias, so history and
     aggregate queries can exclude moved context without loading its IDs first.
     """
     return (

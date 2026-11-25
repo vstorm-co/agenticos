@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "332b4df65de9"
 ---
 
 # Die Konsole { #the-console }
@@ -836,6 +836,8 @@ anzufordern. Raum-Anhänge, Emoji-Reaktionen, Thread-Beobachtung und
 Ungelesen-Markierungen nutzen denselben gespeicherten Verlauf. Mehr zu
 Mitgliedschaft, Antwortverhalten und Threads steht unter
 [Teamräume](projects.md#team-rooms).
+
+**Kontext auswählen (Select context)** erstellt einen Thread aus einem gewählten Nachrichtenbereich. Der Thread hält den Kontext getrennt von den Antworten und unterstützt das Verschieben, Zurückholen oder Bearbeiten des Bereichs. Du kannst auch eine kompatible Quellunterhaltung referenzieren. Auswahl- und Zugriffsregeln stehen unter [Ausgewählter Thread-Kontext](projects.md#selected-thread-context).
 
 Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
 ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf

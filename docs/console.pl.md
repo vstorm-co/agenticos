@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "332b4df65de9"
 ---
 
 # Konsola { #the-console }
@@ -783,6 +783,8 @@ powiadomić, albo agenta, aby poprosić o jego odpowiedź. Załączniki do wiado
 pokoju, reakcje emoji, obserwowanie wątków i wskaźniki nieprzeczytanych wiadomości
 korzystają z tej samej zapisanej transkrypcji. Zobacz [pokoje zespołu](projects.md#team-rooms),
 aby poznać członkostwo, odpowiadających i działanie wątków.
+
+**Wybierz kontekst (Select context)** tworzy wątek z wybranego zakresu wiadomości. Wątek trzyma kontekst osobno od odpowiedzi i umożliwia przenoszenie, zwracanie lub edycję zakresu. Możesz też odwołać się do zgodnej rozmowy źródłowej. Zasady wyboru i dostępu opisuje [wybrany kontekst wątku](projects.md#selected-thread-context).
 
 Widoki przeglądarki i komputera pozostają oddzielne. Panele są początkowo zamknięte;
 zamknięty panel pozostaje zamknięty także po nadejściu nowych wyników narzędzi. Na

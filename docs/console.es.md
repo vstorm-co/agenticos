@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "332b4df65de9"
 ---
 
 # La consola { #the-console }
@@ -807,6 +807,8 @@ notificarla o a un agent para pedirle una respuesta. Los archivos adjuntos, las
 reacciones con emoji, el seguimiento de hilos y los indicadores de mensajes sin
 leer usan la misma transcripción guardada. Consulta [salas de equipo](projects.md#team-rooms)
 para conocer la pertenencia, las respuestas y el comportamiento de los hilos.
+
+**Seleccionar contexto (Select context)** crea un hilo a partir de un rango de mensajes elegido. El hilo mantiene el contexto separado de las respuestas y permite mover, devolver o editar el rango. También puedes hacer referencia a una conversación de origen compatible. Consulta [contexto de hilo seleccionado](projects.md#selected-thread-context) para conocer las reglas de selección y acceso.
 
 Las vistas de navegador y equipo permanecen separadas. Los paneles empiezan
 cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de
