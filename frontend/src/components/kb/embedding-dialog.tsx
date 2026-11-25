@@ -87,7 +87,19 @@ export function EmbeddingDialog({
   // and a save elsewhere must not leave a stale draft to be posted over it.
   // Both called unconditionally and combined after: `||` would skip the second.
   const opened = useChanged(open);
-  const rowMoved = useChanged(kb);
+  // Keyed on the stored settings, not the row: the ingest poll hands over a new
+  // row object every few seconds, and resetting on that threw away a draft and
+  // its passing Test mid-edit.
+  const rowMoved = useChanged(
+    JSON.stringify([
+      kb.id,
+      kb.embedding_provider,
+      kb.embedding_secret_id,
+      kb.embedding_endpoint_id,
+      kb.embedding_base_url,
+      kb.embedding_model,
+    ]),
+  );
   if (opened || rowMoved) {
     setProvider(kb.embedding_provider);
     setSecretId(kb.embedding_secret_id);

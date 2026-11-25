@@ -495,6 +495,30 @@ describe("testing a move against the stored chunks", () => {
     );
   });
 
+  it("keeps the draft and its passing test when the ingest poll refreshes the row", async () => {
+    const { rerender } = render(
+      <EmbeddingDialog open onOpenChange={vi.fn()} kb={KB} onSave={save} />,
+      { wrapper },
+    );
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Test" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+
+    // A poll answers with a new row object; only the counts moved.
+    rerender(
+      <EmbeddingDialog
+        open
+        onOpenChange={vi.fn()}
+        kb={{ ...KB, document_count: KB.document_count + 1 }}
+        onSave={save}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByText("1 knowledge base keeps its vectors")).toBeVisible();
+  });
+
   it("moves a collection unverified only after the confirmation", async () => {
     await moveToOpenAI();
 
