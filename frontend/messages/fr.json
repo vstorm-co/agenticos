@@ -15686,6 +15686,16 @@
     "cancelRun": "Arrêter",
     "progress": "Cas traités",
     "comparisonFailed": "Le verdict n’a pas pu être lu.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "La recherche n’a pas renvoyé le brouillon pour chaque amélioration confirmée.",
+      "too_few_held_out": "{missing, plural, =1 {Ajoutez encore 1 question de test mise de côté pour mesurer un changement.} other {Ajoutez encore # questions de test mises de côté pour mesurer un changement.}}",
+      "scoring_changed": "Les deux runs ont été notés avec des paramètres de notation différents.",
+      "judge_changed_mid_run": "Le juge a changé pendant la notation des cas de ce run : ses notes ne sont pas comparables. Relancez-le.",
+      "judge_instructions_changed": "Les instructions du juge diffèrent entre les deux côtés : leurs notes ne sont pas comparables. Relancez la référence pour noter les deux de la même façon.",
+      "judge_differs": "Les deux côtés ont été notés par un juge, un modèle ou une grille différents.",
+      "knowledge_draft_changed": "Le brouillon de connaissances a changé ou a été supprimé. Vérifiez-le à nouveau.",
+      "held_out_ungraded": "Des questions mises de côté restent non notées ou incomplètes."
+    },
     "compareArm": "Comparer ce modèle",
     "draft": "Brouillon",
     "proposed": "Modifications proposées",
@@ -18206,6 +18216,17 @@
       "live": "Déplacé sur main et publié : {names}.",
       "drafts": "{count, plural, =1 {Déplacé sur main dans son brouillon, qui attend d’être publié : {names}.} other {Déplacés sur main dans leurs brouillons, qui attendent d’être publiés : {names}.}}",
       "refused": "{name} reste sur le fork : {reason}",
+      "refusal": {
+        "agent_not_found": "vous ne pouvez pas le modifier, ou il n’existe plus",
+        "workflow_agent": "il est configuré dans son étape de workflow",
+        "architect_admin_only": "seul un administrateur peut modifier l’AI Architect",
+        "system_agent_admin_only": "c’est un agent système, que seul un administrateur peut modifier",
+        "via_specialist": "il n’utilise le skill qu’à travers un spécialiste, qui se modifie dans le Builder de l’agent",
+        "not_bound": "il n’utilise pas le skill",
+        "binding_problems": "le skill ne peut pas lui être lié ainsi",
+        "system_agent_parts": "un agent système ne peut pas contenir cela",
+        "does_not_publish": "il ne peut pas encore être publié"
+      },
       "hidden": "{count, plural, =1 {1 agent que vous ne pouvez pas voir a été laissé tel quel.} other {# agents que vous ne pouvez pas voir ont été laissés tels quels.}}",
       "archived": "Plus personne ne lit le fork, il a donc été archivé.",
       "remaining": "{count, plural, =0 {Le fork a été laissé tel quel.} =1 {1 agent lit encore le fork, il n’a donc pas été archivé.} other {# agents lisent encore le fork, il n’a donc pas été archivé.}}"

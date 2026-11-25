@@ -17266,6 +17266,16 @@
       "details": "Test yöntemi · ölçütler, maliyet ve ayrıntılar",
       "answers": "Yanıtları inceleyin",
       "answersHint": "Yanıtı ve değerlendirmesini görmek için bir soru açın."
+    },
+    "invalidReason": {
+      "knowledge_not_retrieved": "Arama, doğrulanmış her iyileştirme için taslağı döndürmedi.",
+      "too_few_held_out": "{missing, plural, =1 {Bir değişimi ölçmek için 1 ayrılmış test sorusu daha ekleyin.} other {Bir değişimi ölçmek için # ayrılmış test sorusu daha ekleyin.}}",
+      "scoring_changed": "İki run farklı puanlama ayarlarıyla puanlandı.",
+      "judge_changed_mid_run": "Bu run'ın vakaları puanlanırken hakem değişti, bu yüzden puanları karşılaştırılamaz. Run'ı yeniden çalıştırın.",
+      "judge_instructions_changed": "Hakemin talimatları iki taraf arasında değişti, bu yüzden puanları karşılaştırılamaz. İkisini de aynı şekilde puanlamak için temel ölçümü yeniden çalıştırın.",
+      "judge_differs": "İki taraf farklı bir hakem, model veya değerlendirme yönergesiyle puanlandı.",
+      "knowledge_draft_changed": "Bilgi taslağı değişti veya kaldırıldı. Yeniden kontrol edin.",
+      "held_out_ungraded": "Ayrılmış sorular hâlâ puanlanmamış veya eksik."
     }
   },
   "knowledgeGaps": {
@@ -17315,6 +17325,19 @@
         "notText": "Metin değil, bu yüzden burada karşılaştırılamaz. Okumak için her tarafı indirin.",
         "download": "{side, select, base {Ortak başlangıcı indir} fork {Fork sürümünü indir} other {Main sürümünü indir}}",
         "readFailed": "Dosya okunamadı. {reason}"
+      }
+    },
+    "returned": {
+      "refusal": {
+        "agent_not_found": "onu değiştiremezsiniz ya da artık yok",
+        "workflow_agent": "workflow adımında yapılandırılmış",
+        "architect_admin_only": "AI Architect'i yalnızca bir yönetici değiştirebilir",
+        "system_agent_admin_only": "yalnızca bir yöneticinin değiştirebileceği bir sistem agent'ı",
+        "via_specialist": "skill'i yalnızca bir uzman üzerinden kullanıyor; bu, agent'ın Builder'ında değiştirilir",
+        "not_bound": "skill'i kullanmıyor",
+        "binding_problems": "skill ona bu şekilde bağlanamıyor",
+        "system_agent_parts": "bir sistem agent'ı bunu içeremez",
+        "does_not_publish": "henüz yayınlanamıyor"
       }
     }
   },

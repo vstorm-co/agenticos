@@ -178,11 +178,7 @@ function MeasuredResult({
       )}
       {comparison && <AnswerCost comparison={comparison} />}
       {comparison && !comparable && (
-        <IncomparableResult
-          agentId={run.agent_id}
-          runId={runId}
-          reason={comparison.invalid_reason}
-        />
+        <IncomparableResult agentId={run.agent_id} runId={runId} comparison={comparison} />
       )}
       {comparison &&
         comparable &&

@@ -104,14 +104,28 @@ export interface BehindMainList {
   hidden: number;
 }
 
+/** Why an agent stayed on the fork, as a code the console puts in its own words. */
+export type ReturnRefusal =
+  | "agent_not_found"
+  | "workflow_agent"
+  | "architect_admin_only"
+  | "system_agent_admin_only"
+  | "via_specialist"
+  | "not_bound"
+  | "binding_problems"
+  | "system_agent_parts"
+  | "does_not_publish";
+
 /** What returning a fork's agents to main did, agent by agent. */
 export interface ReturnedToMain {
   agents: {
     agent: { id: string; name: string };
     published: boolean;
     agent_version: number | null;
-    /** Why it stayed on the fork. */
+    /** Why it stayed on the fork, as an English sentence. */
     refused: string | null;
+    /** `refused` as a code the console translates; null for one it has no code for. */
+    refused_code?: ReturnRefusal | null;
   }[];
   hidden: number;
   /** Agents still reading the fork; a move waiting in a draft leaves it read. */
