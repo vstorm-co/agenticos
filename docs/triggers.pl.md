@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaedf36ba33"
+source_sha: "df55c13ceec2"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -178,9 +178,9 @@ flowchart TD
 
 Ogólny `webhook` domyślnie używa powyższego podpisu. W konsoli wybierz schemat podpisu i nagłówek podczas tworzenia lub edycji triggera API. Przez API ustaw `event_config` na `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` dla Shopify albo użyj `X-Hookdeck-Signature` dla domyślnego podpisu Hookdeck. `hmac-sha256-hex` przyjmuje skrót szesnastkowy bez prefiksu. Oba podpisują dokładne surowe body i wymagają sekretu dostawcy jako `event_secret`; wielkość liter w nazwie nagłówka nie ma znaczenia.
 
-Te tryby nie uwierzytelniają czasu, więc przechwycone żądanie można ponowić. Ogólny nagłówek ID dostarczenia nie jest podpisany i można go zmienić. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear.
+Te tryby nie uwierzytelniają czasu, więc przechwycony podpis pozostaje kryptograficznie ważny. AgenticOS zapisuje jednak skrót zweryfikowanego podpisu razem z zakolejkowanym runem i odrzuca to samo podpisane żądanie przez cały okres życia triggera. Zmiana lub pominięcie niepodpisanego ogólnego ID dostarczenia nie omija tego receiptu. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear.
 
-Shopify i Hookdeck zwykle nie wysyłają `X-Delivery-ID`, więc ponowienia mogą ponownie uruchomić trigger. Ten trigger nie sprawdza ich identyfikatorów dostarczenia. Podpis body nie wiąże docelowego URL ani nagłówków dostawcy: używaj osobnego sekretu dla każdej granicy zaufania i nie autoryzuj dostarczeń na podstawie niepodpisanych nagłówków sklepu lub tematu. Sekret aplikacji Shopify może być współdzielony przez sklepy; nie używaj tego trybu, gdy podpis ma dowodzić, z którego sklepu lub subskrypcji pochodzi zdarzenie.
+Shopify i Hookdeck zwykle nie wysyłają `X-Delivery-ID`; ponowienia tego samego podpisanego body są mimo to deduplikowane. Ten trigger nie sprawdza ich identyfikatorów dostarczenia. Jeśli nadawca celowo wysyła to samo body więcej niż raz, podpis samego body traktuje te żądania jako jedno dostarczenie; dodaj zmienną uwierzytelnioną wartość albo użyj dedykowanej integracji obsługującej czas. Podpis body nie wiąże docelowego URL ani nagłówków dostawcy: używaj osobnego sekretu dla każdej granicy zaufania i nie autoryzuj dostarczeń na podstawie niepodpisanych nagłówków sklepu lub tematu. Sekret aplikacji Shopify może być współdzielony przez sklepy; nie używaj tego trybu, gdy podpis ma dowodzić, z którego sklepu lub subskrypcji pochodzi zdarzenie.
 
 Rotate generuje nowy sekret AgenticOS; nie pozwala wprowadzić nowego sekretu wydanego przez dostawcę. Gdy sekretem zarządza dostawca, utwórz nowy trigger i po zmianie sekretu zaktualizuj jego URL u dostawcy. Drugi podpis Hookdeck przy opóźnionej rotacji nie jest sprawdzany.
 
@@ -440,7 +440,8 @@ API obsługuje też opcjonalne filtry `event_types` i `actions` w `event_config`
 AgenticOS weryfikuje `Linear-Signature` na dokładnym body i sprawdza, czy
 podpisany w body `webhookTimestamp` mieści się w 60-sekundowym oknie ważności. Odpowiedź `200`
 oznacza przyjęcie dostarczenia lub brak pracy, a nie zakończenie działania agenta.
-Identyczne body jest deduplikowane przez 15 minut, gdy Redis jest dostępny.
+Identyczne body jest trwale deduplikowane przez cały okres życia triggera, także po
+restartach procesu i Redis.
 
 Linear ponawia nieudane dostarczenia po minucie, godzinie i sześciu godzinach.
 Jeśli ponowienie zachowa pierwotny czas w body, kontrola świeżości je odrzuci;
@@ -776,13 +777,14 @@ bo obie zmieniają bajty:
 Dla źródła `github` algorytm jest identyczny; zmienia się tylko nazwa nagłówka na
 `X-Hub-Signature-256`.
 
-**Podpisz też czas, przeciw odtworzeniom.** Podpis samego body nie niesie czasu,
-więc przechwycone dostarczenie można wysyłać ponownie w nieskończoność. Wyślij
-`X-Signature-Timestamp` (sekundy Uniksa) i podpisz zamiast tego
+**Podpisz też czas, dla świeżości i zamierzonych powtórzeń.** Podpis samego body
+nie zawiera czasu i pozostaje kryptograficznie ważny bez końca, ale trwały receipt
+wpuszcza go tylko raz. Wyślij `X-Signature-Timestamp` (sekundy Uniksa) i podpisz
 `{timestamp}.{body}`: dostarczenie odległe o ponad pięć minut od naszego zegara
-jest odrzucane, a usunięcie nagłówka, żeby je odtworzyć, też zawodzi, bo podpis
-nie obejmuje już samego body. Nadawca, który nie wysyła znacznika czasu, jest
-weryfikowany jak dotąd.
+zostanie odrzucone, a każdy aktualny czas nada zamierzonemu powtórzeniu odrębną
+uwierzytelnioną tożsamość. Usunięcie nagłówka w celu ponowienia też się nie
+powiedzie, bo podpis nie obejmuje już samego body. Nadawca bez czasu jest
+weryfikowany i deduplikowany jak wcześniej.
 
 ```bash
 TS="$(date +%s)"

@@ -117,11 +117,6 @@ logger = logging.getLogger(__name__)
 # for HubSpot's batches.
 _SIGNED_SOURCES = ("webhook", "github")
 
-# A signed request seen again under another delivery id within this window is a copy of
-# the first, not a new delivery: the id is not part of what either scheme signs. Past it,
-# identical content starts a run again, for a sender that sends the same body on purpose.
-_SIGNED_COPY_WINDOW = timedelta(hours=24)
-
 # The portal whose connected account registers a GitHub trigger's hook.
 _GITHUB_PORTAL = "github"
 
@@ -1279,9 +1274,9 @@ class WorkflowExposureService:
         delivery as one run or skip one the trigger does not name.
 
         A redelivery is looked up by its delivery id, and then as a copy of a signed
-        request seen within `_SIGNED_COPY_WINDOW`, before the current filters and run
-        permission apply, so it gets `duplicate: true` even after the trigger was
-        republished or its member lost access.
+        request already admitted, before the current filters and run permission
+        apply, so it gets `duplicate: true` even after the trigger was republished
+        or its member lost access.
 
         Called with no auth context: the delivery is authenticated by GitHub's
         `X-Hub-Signature-256` under the exposure's own secret, and the run acts as
@@ -1393,8 +1388,8 @@ class WorkflowExposureService:
         member. Every delivery must name itself (`X-Delivery-Id`, or GitHub's
         `X-GitHub-Delivery`); the id is recorded in the transaction that admits
         the run, so a retry of it - however late - returns the first run. The id is
-        not signed, so the same signed request under another id within
-        `_SIGNED_COPY_WINDOW` returns the first run too.
+        not signed, so the same signed request under another id returns the first
+        run too, however late it is replayed.
 
         A version whose graph holds a Respond to webhook step is answered by it:
         the admission is committed here, so the run can start, and the delivery
@@ -1516,7 +1511,7 @@ class WorkflowExposureService:
             )
 
     async def _signed_copy(self, exposure_id: UUID, signed_digest: str) -> UUID | None:
-        """The run a copy of this signed request admitted within `_SIGNED_COPY_WINDOW`."""
+        """The run that first admitted this signed request, independent of its claimed id."""
         await workflow_exposure_repo.lock_signed_copy(
             self.db, exposure_id=exposure_id, signed_digest=signed_digest
         )
@@ -1524,7 +1519,6 @@ class WorkflowExposureService:
             self.db,
             exposure_id=exposure_id,
             signed_digest=signed_digest,
-            within=_SIGNED_COPY_WINDOW,
         )
         return None if copy is None else copy.workflow_run_id
 

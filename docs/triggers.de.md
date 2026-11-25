@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaedf36ba33"
+source_sha: "df55c13ceec2"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -186,9 +186,9 @@ flowchart TD
 
 Der generische `webhook` verwendet standardmäßig die obige Signatur. Wählen Sie in der Konsole beim Erstellen oder Bearbeiten eines API-Triggers das Signaturverfahren und den Header. Über die API setzt `event_config` mit `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` das Shopify-Verfahren; für Hookdecks Standardsignatur dient `X-Hookdeck-Signature`. `hmac-sha256-hex` erwartet einen Hex-Digest ohne Präfix. Beide signieren den unveränderten Body und benötigen das Secret des Providers als `event_secret`; Headernamen unterscheiden keine Groß- und Kleinschreibung.
 
-Diese Verfahren authentifizieren keinen Zeitstempel; abgefangene Anfragen sind erneut abspielbar. Der generische Delivery-ID-Header ist nicht signiert und lässt sich ändern. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag.
+Diese Verfahren authentifizieren keinen Zeitstempel, daher bleibt eine abgefangene Signatur kryptografisch gültig. AgenticOS speichert dennoch einen Digest der verifizierten Signatur zusammen mit dem eingereihten Run und lehnt dieselbe signierte Anfrage während der gesamten Lebensdauer des Triggers ab. Das Ändern oder Weglassen der unsignierten generischen Delivery-ID umgeht diesen Receipt nicht. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag.
 
-Shopify und Hookdeck senden normalerweise kein `X-Delivery-ID`; Wiederholungen können daher erneut auslösen. Ihre eigenen Delivery-IDs prüft dieser Trigger nicht. Body-Signaturen binden weder Ziel-URL noch Provider-Header: Verwenden Sie für jede Vertrauensgrenze ein eigenes Secret und verlassen Sie sich zur Autorisierung nicht auf unsignierte Shop- oder Topic-Header. Shopifys App-Secret kann für mehrere Shops gelten; verwenden Sie diesen Modus nicht, wenn die Signatur den Shop oder das Abonnement nachweisen muss.
+Shopify und Hookdeck senden normalerweise kein `X-Delivery-ID`; Wiederholungen desselben signierten Bodys werden trotzdem dedupliziert. Ihre eigenen Delivery-IDs prüft dieser Trigger nicht. Sendet ein Absender absichtlich denselben Body mehrfach, behandelt eine reine Body-Signatur diese Anfragen als eine Zustellung; nehmen Sie einen wechselnden authentifizierten Wert auf oder verwenden Sie eine eigene Integration mit Zeitstempelunterstützung. Body-Signaturen binden weder Ziel-URL noch Provider-Header: Verwenden Sie für jede Vertrauensgrenze ein eigenes Secret und verlassen Sie sich zur Autorisierung nicht auf unsignierte Shop- oder Topic-Header. Shopifys App-Secret kann für mehrere Shops gelten; verwenden Sie diesen Modus nicht, wenn die Signatur den Shop oder das Abonnement nachweisen muss.
 
 Rotate erzeugt ein neues AgenticOS-Secret; ein vom Provider ausgestellter Ersatz lässt sich nicht einsetzen. Erstellen Sie bei einem Provider-Secret einen neuen Trigger und ändern Sie nach dem Secret-Wechsel die URL beim Provider. Hookdecks zweite Signatur bei verzögerter Rotation wird nicht geprüft.
 
@@ -466,7 +466,8 @@ Die API unterstützt zusätzlich optionale Filter `event_types` und `actions` in
 AgenticOS prüft `Linear-Signature` über den exakten Body und kontrolliert, ob der
 im Body signierte `webhookTimestamp` höchstens 60 Sekunden abweicht. `200` heißt
 angenommen oder nichts zu tun, nicht dass der Agent fertig ist. Identische Bodys
-werden bei verfügbarem Redis 15 Minuten lang dedupliziert.
+werden während der gesamten Lebensdauer des Triggers dauerhaft dedupliziert, auch
+über Prozess- und Redis-Neustarts hinweg.
 
 Linear wiederholt fehlgeschlagene Zustellungen nach einer Minute, einer Stunde
 und sechs Stunden. Behält ein Versuch den ursprünglichen Zeitstempel im Body,
@@ -819,13 +820,15 @@ Signatur verifiziert, denn beide verändern die Bytes:
 Für die Quelle `github` ist der Algorithmus identisch; nur der Headername wechselt
 zu `X-Hub-Signature-256`.
 
-**Signieren Sie auch die Zeit, gegen Wiederholungen.** Eine Signatur nur über den
-Body trägt keine Zeit, eine abgefangene Zustellung könnte also für immer erneut
-geschickt werden. Senden Sie `X-Signature-Timestamp` (Unix-Sekunden) und signieren
-Sie stattdessen `{timestamp}.{body}`: eine Zustellung, die mehr als fünf Minuten
-von unserer Uhr abweicht, wird abgelehnt, und den Header wegzulassen, um sie
+**Signieren Sie auch die Zeit, für Aktualität und beabsichtigte Wiederholungen.**
+Eine Signatur nur über den Body trägt keine Zeit und bleibt daher kryptografisch
+für immer gültig, der dauerhafte Receipt lässt sie aber nur einmal zu. Senden Sie
+`X-Signature-Timestamp` (Unix-Sekunden) und signieren Sie stattdessen
+`{timestamp}.{body}`: eine Zustellung, die mehr als fünf Minuten von unserer Uhr
+abweicht, wird abgelehnt, und jeder aktuelle Zeitstempel gibt einer beabsichtigten
+Wiederholung eine eigene authentifizierte Identität. Den Header wegzulassen, um sie
 wiederzugeben, scheitert ebenfalls, weil die Signatur den bloßen Body nicht mehr
-abdeckt. Ein Absender, der keinen Zeitstempel schickt, wird wie bisher verifiziert.
+abdeckt. Ein Absender ohne Zeitstempel wird wie bisher verifiziert und dedupliziert.
 
 ```bash
 TS="$(date +%s)"

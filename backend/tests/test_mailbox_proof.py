@@ -81,10 +81,11 @@ async def test_proof_does_not_cross_to_a_password_session_of_the_same_account(mo
     assert not await service.has_mailbox_proof(user_id, "owner@example.com", password_id)
 
 
-def test_new_mail_links_bind_the_address_without_granting_proof_to_legacy_links():
+def test_magic_links_carry_one_time_and_credential_claims_with_optional_mailbox_binding():
     bound = verify_special_token(
         create_magic_link_token("person", email="owner@example.com"), expected_type="magic_link"
     )
-    legacy = verify_special_token(create_magic_link_token("person"), expected_type="magic_link")
+    unbound = verify_special_token(create_magic_link_token("person"), expected_type="magic_link")
     assert bound is not None and bound["email"] == "owner@example.com"
-    assert legacy is not None and "email" not in legacy
+    assert bound["cv"] == 0 and isinstance(bound["jti"], str) and bound["jti"]
+    assert unbound is not None and "email" not in unbound

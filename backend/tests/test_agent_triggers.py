@@ -1419,6 +1419,32 @@ class TestQueueingDeliveredFires:
         assert not await service.queue_event_fire("github", uuid.uuid4(), body=b"{}", headers={})
         assert queued_fires == []
 
+    async def test_a_decision_that_queues_no_job_releases_its_durable_receipt(self):
+        service = _service()
+        decision = EventFireDecision(
+            source_policy_id=uuid.UUID(int=42),
+            trigger_id=uuid.uuid4(),
+            event_context="ISSUE #7",
+            organization_id=uuid.uuid4(),
+            signed_digest="a" * 64,
+        )
+        service.prepare_event_fire = AsyncMock(return_value=decision)
+        service.queue_fire = AsyncMock(return_value=None)
+        release = AsyncMock()
+
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.release_webhook_delivery", release
+        ):
+            assert not await service.queue_event_fire(
+                "github", decision.trigger_id, body=b"{}", headers={}
+            )
+
+        release.assert_awaited_once_with(
+            service.db,
+            trigger_id=decision.trigger_id,
+            signed_digest=decision.signed_digest,
+        )
+
     async def test_one_app_delivery_queues_a_fire_for_every_trigger_it_matched(
         self, queued_fires: list[FireTrigger]
     ):
@@ -1454,6 +1480,53 @@ class TestQueueingDeliveredFires:
             (d.trigger_id, d.event_context) for d in decisions
         ]
         assert queued_scopes == [d.organization_id for d in decisions]
+
+    async def test_an_app_decision_that_queues_no_job_releases_its_receipt(self):
+        service = _service()
+        decision = EventFireDecision(
+            source_policy_id=uuid.UUID(int=42),
+            trigger_id=uuid.uuid4(),
+            event_context="ISSUE #7",
+            organization_id=uuid.uuid4(),
+            signed_digest="a" * 64,
+        )
+        service.prepare_app_fires = AsyncMock(return_value=[decision])
+        service.queue_fire = AsyncMock(return_value=None)
+        release = AsyncMock()
+
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.release_webhook_delivery", release
+        ):
+            assert await service.queue_app_fires(body=b"{}", headers={}) == 0
+
+        release.assert_awaited_once_with(
+            service.db,
+            trigger_id=decision.trigger_id,
+            signed_digest=decision.signed_digest,
+        )
+
+    async def test_an_app_decision_without_a_receipt_can_skip_and_continue_the_batch(self):
+        service = _service()
+        decisions = [
+            EventFireDecision(
+                source_policy_id=uuid.UUID(int=42),
+                trigger_id=uuid.uuid4(),
+                event_context=f"ISSUE #{index}",
+                organization_id=uuid.uuid4(),
+            )
+            for index in range(2)
+        ]
+        service.prepare_app_fires = AsyncMock(return_value=decisions)
+        service.queue_fire = AsyncMock(side_effect=[None, uuid.uuid4()])
+        release = AsyncMock()
+
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.release_webhook_delivery", release
+        ):
+            assert await service.queue_app_fires(body=b"{}", headers={}) == 1
+
+        assert service.queue_fire.await_count == 2
+        release.assert_not_awaited()
 
 
 class TestFiring:
@@ -2365,6 +2438,7 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.unseal", return_value="secret"),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             decision = await service.prepare_event_fire(
                 "webhook", trigger.id, body=body, headers={"x-provider": digest}
             )
@@ -2434,7 +2508,6 @@ class TestPreparingAnEventFire:
 
         service = _service()
         trigger = _event_trigger()
-        claim = AsyncMock(return_value=True)
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.unseal", return_value="secret"),
@@ -2443,15 +2516,15 @@ class TestPreparingAnEventFire:
                 "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
                 AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=17)),
             ),
-            patch.object(type(service), "_claim", claim),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
             with pytest.raises(RateLimitError) as refused:
                 await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
         assert refused.value.details == {"retry_after_seconds": 17}
-        claim.assert_awaited_once()
+        repo.claim_webhook_delivery.assert_awaited_once()
 
     async def test_duplicate_deliveries_do_not_spend_the_run_allowance(self):
         service = _service()
@@ -2462,12 +2535,12 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.unseal", return_value="secret"),
             patch("app.services.agent_trigger.trigger_events") as events,
             patch("app.services.agent_trigger.rate_limit.trigger_delivery_allowed", allowance),
-            patch.object(type(service), "_claim", AsyncMock(return_value=False)),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=False)
             events.verify_signature.return_value = True
             events.event_matches.return_value = True
-            events.delivery_id.return_value = "already-accepted"
+            events.signed_delivery_digest.return_value = "a" * 64
             assert (
                 await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
                 is None
@@ -2501,6 +2574,7 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.trigger_events") as events,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=False)
             events.github_filter_reason = MagicMock(return_value=None)
@@ -2518,8 +2592,10 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.trigger_events") as events,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
+            events.signed_delivery_digest = MagicMock(return_value="a" * 64)
             events.render_context = MagicMock(return_value="ISSUE #7 opened")
             decision = await service.prepare_event_fire(
                 "github", trigger.id, body=b'{"action": "opened"}', headers={}
@@ -2529,6 +2605,7 @@ class TestPreparingAnEventFire:
             trigger_id=trigger.id,
             event_context="ISSUE #7 opened",
             organization_id=trigger.organization_id,
+            signed_digest="a" * 64,
             # The delivery's whole body, in the workflow trigger's shape - the
             # mocked door names no event, repository, sender or delivery id.
             event_payload={
@@ -2541,22 +2618,21 @@ class TestPreparingAnEventFire:
             },
         )
 
-    async def test_a_first_delivery_is_claimed_and_fires(self):
+    async def test_a_first_authenticated_delivery_is_durably_claimed_and_fires(self):
         service = _service()
         trigger = _event_trigger()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.unseal", return_value="secret"),
             patch("app.services.agent_trigger.trigger_events") as events,
-            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
-            patch("app.services.agent_trigger.spawn_after_rollback") as on_rollback,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
             events.delivery_id = MagicMock(return_value="delivery-1")
+            events.signed_delivery_digest = MagicMock(return_value="a" * 64)
             events.render_context = MagicMock(return_value="ISSUE #7")
-            dedupe.claim_event_delivery = AsyncMock(return_value=True)
             decision = await service.prepare_event_fire(
                 "github",
                 trigger.id,
@@ -2568,6 +2644,7 @@ class TestPreparingAnEventFire:
             trigger_id=trigger.id,
             event_context="ISSUE #7",
             organization_id=trigger.organization_id,
+            signed_digest="a" * 64,
             event_payload={
                 "event": "",
                 "action": "opened",
@@ -2577,63 +2654,58 @@ class TestPreparingAnEventFire:
                 "payload": {"action": "opened"},
             },
         )
-        dedupe.claim_event_delivery.assert_awaited_once()
-        # The fire is a job row in this transaction; rolled back, the claim goes with it.
-        dedupe.release_event_delivery.assert_called_once_with(
-            trigger_id=trigger.id, delivery_id="delivery-1"
-        )
-        assert on_rollback.call_args.args == (
-            service.db,
-            dedupe.release_event_delivery.return_value,
+        repo.claim_webhook_delivery.assert_awaited_once_with(
+            service.db, trigger=trigger, signed_digest="a" * 64
         )
 
-    async def test_a_redelivered_event_already_claimed_does_not_fire_again(self):
-        """At-least-once: a redelivery carrying the same provider delivery id is
-        deduplicated to the same nothing-to-do None a mismatch gets, so it fires no
-        second run and no second spend."""
+    @pytest.mark.security
+    async def test_a_replay_under_another_unsigned_id_does_not_fire_again(self):
+        """The authenticated digest, not the caller-controlled id, owns admission."""
         service = _service()
         trigger = _event_trigger()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.unseal", return_value="secret"),
             patch("app.services.agent_trigger.trigger_events") as events,
-            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=False)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
-            events.delivery_id = MagicMock(return_value="delivery-1")
-            dedupe.claim_event_delivery = AsyncMock(return_value=False)
+            events.delivery_id = MagicMock(return_value="attacker-changed-id")
+            events.signed_delivery_digest = MagicMock(return_value="a" * 64)
             decision = await service.prepare_event_fire(
                 "github",
                 trigger.id,
                 body=b'{"action": "opened"}',
-                headers={"x-github-delivery": "delivery-1"},
+                headers={"x-github-delivery": "attacker-changed-id"},
             )
         assert decision is None
 
-    async def test_a_delivery_with_no_provider_id_fires_without_a_claim(self):
-        """A source that sends no delivery id cannot be deduplicated, so it fires
-        every time rather than being dropped, and no claim is taken."""
+    @pytest.mark.security
+    async def test_a_delivery_with_no_unsigned_provider_id_is_still_claimed(self):
+        """Omitting an unauthenticated header cannot turn replay protection off."""
         service = _service()
         trigger = _event_trigger()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.unseal", return_value="secret"),
             patch("app.services.agent_trigger.trigger_events") as events,
-            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
             events.delivery_id = MagicMock(return_value=None)
+            events.signed_delivery_digest = MagicMock(return_value="a" * 64)
             events.render_context = MagicMock(return_value="a delivery")
-            dedupe.claim_event_delivery = AsyncMock()
             decision = await service.prepare_event_fire(
                 "github", trigger.id, body=b'{"action": "opened"}', headers={}
             )
         assert decision is not None
-        dedupe.claim_event_delivery.assert_not_called()
+        repo.claim_webhook_delivery.assert_awaited_once_with(
+            service.db, trigger=trigger, signed_digest="a" * 64
+        )
 
     async def test_a_body_that_is_not_json_is_a_400(self):
         service = _service()
@@ -2644,6 +2716,7 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.trigger_events") as events,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             with pytest.raises(BadRequestError):
                 await service.prepare_event_fire("github", trigger.id, body=b"not json", headers={})
@@ -2727,6 +2800,7 @@ class TestGithubEventPayload:
             patch("app.services.agent_trigger.trigger_events") as events,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.claim_webhook_delivery = AsyncMock(return_value=True)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=True)
             events.render_context = MagicMock(return_value="HOOK")
@@ -5889,9 +5963,9 @@ async def test_linear_signed_matching_delivery_produces_a_decision():
     with (
         patch("app.services.agent_trigger.agent_trigger_repo") as repo,
         patch("app.services.agent_trigger.unseal", return_value=_SIGNING_SECRET),
-        patch.object(service, "_claim", new=AsyncMock(return_value=True)),
     ):
         repo.get_by_id = AsyncMock(return_value=trigger)
+        repo.claim_webhook_delivery = AsyncMock(return_value=True)
         decision = await service.prepare_event_fire(
             "linear", trigger.id, body=body, headers={"linear-signature": signature}
         )

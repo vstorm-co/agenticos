@@ -163,9 +163,24 @@ flowchart TD
 
 The generic `webhook` defaults to the signature above. In the console, choose the signature scheme and header for an API trigger when creating or editing it. Through the API, set `event_config` to `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` for Shopify, or use `X-Hookdeck-Signature` for Hookdeck's default signature. Use `hmac-sha256-hex` for an unprefixed hex digest. Both sign the exact raw body and require the provider's secret as `event_secret`; header names are case-insensitive.
 
-These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract.
+These modes do not authenticate a timestamp, so a captured signature remains cryptographically
+valid. AgenticOS nevertheless stores a digest of the verified signature with the queued run and
+refuses the same signed request for the trigger's lifetime. Changing or omitting the unsigned
+generic delivery ID does not bypass that receipt. Configure provider-side filtering and use a
+dedicated integration when its contract requires timestamp checks, a different success response,
+or another signature scheme. In particular, these options alone do not implement Linear's
+webhook contract.
 
-Shopify and Hookdeck do not normally send `X-Delivery-ID`, so retries can fire again. Their provider delivery IDs are not checked by this trigger. Body signatures do not bind the destination URL or provider headers: use a separate secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a delivery. Shopify's app secret may be shared across shops, so do not use this mode when a signature must prove which shop or subscription sent the event.
+Shopify and Hookdeck do not normally send `X-Delivery-ID`; retries of the same signed body are
+still deduplicated. Their provider delivery IDs are not checked by this trigger. If a sender
+deliberately sends the same body more than once, a body-only signature treats those requests as
+one delivery; include a changing authenticated value or use a timestamp-capable dedicated
+integration.
+
+Body signatures do not bind the destination URL or provider headers: use a separate
+secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a
+delivery. Shopify's app secret may be shared across shops, so do not use this mode when a
+signature must prove which shop or subscription sent the event.
 
 Rotate generates a new AgenticOS secret; it cannot install a replacement issued by a provider. For a provider-controlled secret, create a new trigger and update the provider's URL after changing the secret. Hookdeck's second signature during delayed rotation is not checked.
 
@@ -409,8 +424,8 @@ The API also accepts optional `event_types` and `actions` filters in `event_conf
 AgenticOS verifies `Linear-Signature` against the exact body and checks the
 body's signed `webhookTimestamp` is within 60 seconds. It returns `200` when a
 delivery is accepted or has nothing to do; this does not mean the agent has
-finished. Repeated identical bodies are deduplicated for 15 minutes while Redis
-is available.
+finished. Repeated identical bodies are durably deduplicated for the trigger's
+lifetime, including across process and Redis restarts.
 
 Linear retries failed deliveries after one minute, one hour and six hours. If a
 retry retains the original body timestamp, the freshness check rejects it;
@@ -745,12 +760,14 @@ change the bytes:
 For the `github` source the algorithm is identical; only the header name changes to
 `X-Hub-Signature-256`.
 
-**Sign the time too, against replays.** A body-only signature carries no time, so a
-captured delivery could be sent again for ever. Send `X-Signature-Timestamp` (Unix
-seconds) and sign `{timestamp}.{body}` instead: a delivery more than five minutes
-from our clock is refused, and dropping the header to replay it fails too, since
-the signature no longer covers the bare body. A sender that sends no timestamp is
-verified as before.
+**Sign the time too, for freshness and intentional repeats.** A body-only signature
+carries no time, so it remains cryptographically valid for ever, but the durable
+receipt admits it only once. Send `X-Signature-Timestamp` (Unix seconds) and sign
+`{timestamp}.{body}` instead: a delivery more than five minutes from our clock is
+refused, and each current timestamp gives an intentional repeat a distinct
+authenticated identity. Dropping the header to replay it fails too, since the
+signature no longer covers the bare body. A sender that sends no timestamp is
+verified and deduplicated as before.
 
 ```bash
 TS="$(date +%s)"

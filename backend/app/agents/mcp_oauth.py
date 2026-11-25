@@ -153,9 +153,10 @@ def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     it separates a server we could not reach from one that refused us, and a
     class name has never carried an endpoint or a key.
 
-    The token-payload case is the exception: its text *is* the credential, so the
-    log beside that raise carries only :func:`_validation_detail` - the field
-    locations and error types, never the values (#1626).
+    Token endpoint failures are the exception: transport errors can carry the
+    credential-bearing URL, and payload errors can echo tokens. Those logs keep
+    only controlled origin, status and error metadata; payload validation adds
+    :func:`_validation_detail`, never the rejected values (#1626).
     """
     return f"{summary} ({type(exc).__name__}) - {advice}. The server log has the full error."
 
@@ -607,18 +608,50 @@ async def refresh_tokens(
     )
 
 
+# OAuth and OIDC error codes safe to retain as diagnostics. The token endpoint
+# controls the `error` value, so anything outside this closed set stays out of
+# logs as well as consent-state decisions.
+_TOKEN_ERROR_CODES = frozenset(
+    {
+        "access_denied",
+        "account_selection_required",
+        "authorization_pending",
+        "consent_required",
+        "expired_token",
+        "interaction_required",
+        "invalid_client",
+        "invalid_grant",
+        "invalid_request",
+        "invalid_scope",
+        "login_required",
+        "server_error",
+        "slow_down",
+        "temporarily_unavailable",
+        "unauthorized_client",
+        "unsupported_grant_type",
+    }
+)
+
 # The token endpoint's answers that only the person signing in again can fix.
 _NEEDS_CONSENT = frozenset({"invalid_grant", "interaction_required", "consent_required"})
 
 
 def _error_code(response: httpx2.Response) -> str | None:
-    """The OAuth `error` code of a refusal, or None when the body names none."""
+    """An allowlisted OAuth `error` code, or None when the body names none."""
     try:
         body = response.json()
     except ValueError:
         return None
     code = body.get("error") if isinstance(body, dict) else None
-    return code if isinstance(code, str) else None
+    return code if isinstance(code, str) and code in _TOKEN_ERROR_CODES else None
+
+
+def _endpoint_origin(url: httpx2.URL) -> str:
+    """The scheme and authority of *url*, excluding credentials, path, and query."""
+    host = f"[{url.host}]" if ":" in url.host else url.host
+    default_port = {"http": 80, "https": 443}.get(url.scheme)
+    port = f":{url.port}" if url.port not in (None, default_port) else ""
+    return f"{url.scheme}://{host}{port}"
 
 
 async def _token_request(
@@ -640,7 +673,13 @@ async def _token_request(
         try:
             response = await _send(client, request)
         except httpx2.HTTPError as exc:
-            logger.exception("MCP token request to %s failed", token_endpoint)
+            logger.error(
+                "mcp_oauth_token_transport_failed",
+                extra={
+                    "endpoint_origin": _endpoint_origin(request.url),
+                    "error_type": type(exc).__name__,
+                },
+            )
             raise OAuthError(
                 _flow_failed(
                     exc,
@@ -649,15 +688,19 @@ async def _token_request(
                 )
             ) from exc
     if response.status_code != 200:
-        # The body is whatever the endpoint chose to return, and this message
-        # ends up in the user's browser - log the detail, show the status.
+        # The endpoint has just received live credentials and may reflect them in
+        # any body representation. Keep the entire body out of logs; only a
+        # closed OAuth code is safe to retain from it.
+        error_code = _error_code(response)
         logger.warning(
-            "MCP token endpoint %s returned %s: %s",
-            token_endpoint,
-            response.status_code,
-            response.text[:200],
+            "mcp_oauth_token_refused",
+            extra={
+                "endpoint_origin": _endpoint_origin(response.request.url),
+                "oauth_error": error_code,
+                "status": response.status_code,
+            },
         )
-        if _error_code(response) in _NEEDS_CONSENT:
+        if error_code in _NEEDS_CONSENT:
             raise OAuthGrantRevoked(
                 f"Token endpoint returned {response.status_code}: the grant is no longer valid."
             )
@@ -670,9 +713,12 @@ async def _token_request(
         # carry a live credential. Log the field locations and error types, never
         # the values, and do not let `logger.exception` append the raw text.
         logger.error(
-            "MCP token endpoint %s returned an unreadable token response: %s",
-            token_endpoint,
-            _validation_detail(exc),
+            "mcp_oauth_token_unreadable",
+            extra={
+                "endpoint_origin": _endpoint_origin(response.request.url),
+                "status": response.status_code,
+                "validation_error": _validation_detail(exc),
+            },
         )
         raise OAuthError(
             _flow_failed(

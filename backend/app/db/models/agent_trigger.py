@@ -51,6 +51,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     select,
     text,
@@ -580,6 +581,45 @@ class AgentTrigger(Base, TimestampMixin):
             f"<AgentTrigger(id={self.id}, agent_id={self.agent_id}, "
             f"type={self.trigger_type}, active={self.is_active})>"
         )
+
+
+class AgentTriggerWebhookReceipt(Base, TimestampMixin):
+    """A durable claim on one authenticated webhook request.
+
+    The receipt commits with the queued fire, so a rollback makes the request
+    retryable while a committed request remains idempotent across process and
+    Redis restarts. It contains only a digest of authenticated material; the
+    unsigned provider delivery id remains run metadata, never replay authority.
+    """
+
+    __tablename__ = "agent_trigger_webhook_receipts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    trigger_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_triggers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    signed_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "trigger_id",
+            "signed_digest",
+            name="uq_agent_trigger_webhook_receipt_signed",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AgentTriggerWebhookReceipt(id={self.id}, trigger_id={self.trigger_id})>"
 
 
 class TriggerAttempt(Base):

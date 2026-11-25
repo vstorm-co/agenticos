@@ -145,9 +145,9 @@ def spawn_after_rollback(
     The mirror of `spawn_after_commit`: started by `start_after_rollback` when the
     transaction rolls back, is cancelled or never commits, and closed unrun when
     it commits. For a side effect taken *before* the commit that the commit is
-    what makes true - a Redis claim on a webhook delivery, whose job row is in
-    this transaction: rolled back, the claim would answer the provider's retry
-    as a duplicate of a fire that never happened.
+    what makes true - a Redis claim on a polled or channel delivery, whose job
+    row is in this transaction: rolled back, the claim would answer the
+    provider's retry as a duplicate of a fire that never happened.
 
     Args:
         session: The unit of work whose fate decides.

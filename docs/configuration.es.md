@@ -1,5 +1,5 @@
 ---
-source_sha: "f14baa485e99"
+source_sha: "4d24982e3e12"
 ---
 
 # Configuración { #configuration }
@@ -120,18 +120,21 @@ alcanzar un desconocido con un enlace, sí lo es.
 Una petición con `Content-Length` superior al mayor de
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
 `ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart, recibe **413** antes
-de leer su cuerpo. Este límite sigue automáticamente los ajustes de carga.
+de leer su cuerpo. De forma independiente, la aplicación cuenta cada chunk del
+cuerpo según llega y devuelve **413** antes de que un chunk que supere ese límite
+alcance un parser de cuerpo o multipart. Por tanto, las peticiones chunked y
+HTTP/2, y las que tienen un `Content-Length` ausente, mal formado o inferior al
+real, comparten el mismo límite. Este sigue automáticamente los ajustes de carga.
 
-El cliente proporciona `Content-Length`; las peticiones chunked no declaran
-longitud y quedan sujetas a los límites por ruta que miden los bytes reales.
-Fija también un límite en el proxy para esas peticiones. En Nginx es necesario
-además para permitir cargas por encima del valor predeterminado de 1 MiB:
+Fija también un límite en el reverse proxy como defensa adicional. En Nginx es
+necesario además para permitir cargas por encima del valor predeterminado de 1 MiB:
 la plantilla fija `client_max_body_size 55m;` en el host de la API y las rutas
 multipart de la consola. Las páginas de la consola, la autenticación y el JSON
-ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumentar
-el mayor ajuste. Consulta el
-[despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
-un límite de cuerpo propio.
+ordinario conservan el límite de 1 MiB. Sube el límite del proxy al aumentar el
+mayor ajuste de carga. Consulta el
+[despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin un
+límite separado del servidor; el middleware de la aplicación sigue aplicando su
+límite durante el streaming.
 
 ## Autenticación { #authentication }
 

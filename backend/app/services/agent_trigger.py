@@ -249,6 +249,11 @@ class EventFireDecision:
     delivery's `GithubTriggerOutput`-shaped dict, or `None` for any event whose
     source sends none. Untrusted external content, fenced again where the run
     reads it."""
+    signed_digest: str | None = None
+    """The durable inbound receipt to retain only if this decision queues a fire.
+
+    `None` for polled events, whose provider ids still use the short-lived claim.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -2074,17 +2079,22 @@ class AgentTriggerService:
         ):
             await self._record_filtered_event(trigger, headers, payload)
             return None
-        # At-least-once delivery: a redelivery of an event already dispatched must
-        # not fire a second run and a second spend. Claim the provider's delivery
-        # id; a delivery that carries none, or a Redis that cannot be reached, fails
-        # open and fires, and a duplicate answers the same nothing-to-do `None` an
-        # unmatched delivery does, so it stays unprobeable. A transaction that
-        # then rolls back queued nothing and gives the claim back (`_claim`).
+        # At-least-once delivery: a redelivery already dispatched must not fire a
+        # second run and a second spend. The provider id is unsigned, so it remains
+        # metadata only; the durable claim is a digest of authenticated material.
+        # It commits with the queued job and rolls back with it, making retries safe
+        # across process and Redis restarts. A duplicate answers the same
+        # nothing-to-do `None` an unmatched delivery does, so it stays unprobeable.
         delivery = trigger_events.delivery_id(source, headers, payload)
-        if delivery is not None and not await self._claim(trigger.id, delivery):
+        signed_digest = trigger_events.signed_delivery_digest(
+            source, headers, payload, config=trigger.event_config
+        )
+        if not await agent_trigger_repo.claim_webhook_delivery(
+            self.db, trigger=trigger, signed_digest=signed_digest
+        ):
             return None
         # Only a newly admitted delivery spends the allowance. A refusal raises
-        # past the transaction boundary, which releases its claim on rollback.
+        # past the transaction boundary, which rolls the receipt back too.
         allowance = await rate_limit.trigger_delivery_allowed(trigger.id)
         if not allowance.allowed:
             raise RateLimitError(
@@ -2102,6 +2112,7 @@ class AgentTriggerService:
                 else None
             ),
             organization_id=trigger.organization_id,
+            signed_digest=signed_digest,
         )
 
     async def prepare_app_fires(
@@ -2168,6 +2179,9 @@ class AgentTriggerService:
         triggers = await agent_trigger_repo.list_active_for_event_source(
             self.db, organization_id=organization_id, event_source=EventSource.GITHUB.value
         )
+        signed_digest = trigger_events.signed_delivery_digest(
+            EventSource.GITHUB.value, headers, payload
+        )
         decisions: list[EventFireDecision] = []
         for trigger in triggers:
             if not await self._polled_source_current(trigger):
@@ -2185,19 +2199,17 @@ class AgentTriggerService:
                 await self._record_filtered_event(trigger, headers, payload)
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
-            if delivery is not None and not await self._claim(trigger.id, delivery):
+            if not await agent_trigger_repo.claim_webhook_delivery(
+                self.db, trigger=trigger, signed_digest=signed_digest
+            ):
                 continue
             # One App delivery may fire several triggers. A throttled trigger is
-            # skipped while the others commit, so return its claim on commit too.
+            # skipped while the others commit, so remove only its receipt before
+            # this transaction commits.
             if not (await rate_limit.trigger_delivery_allowed(trigger.id)).allowed:
-                if delivery is not None:
-                    spawn_after_commit(
-                        self.db,
-                        trigger_dedupe.release_event_delivery(
-                            trigger_id=trigger.id, delivery_id=delivery
-                        ),
-                        name="release a throttled trigger delivery claim",
-                    )
+                await agent_trigger_repo.release_webhook_delivery(
+                    self.db, trigger_id=trigger.id, signed_digest=signed_digest
+                )
                 logger.warning(
                     "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
                 )
@@ -2213,6 +2225,7 @@ class AgentTriggerService:
                         headers=headers, payload=payload, delivery_id=delivery
                     ),
                     organization_id=trigger.organization_id,
+                    signed_digest=signed_digest,
                 )
             )
         return decisions
@@ -2682,27 +2695,43 @@ class AgentTriggerService:
         decision = await self.prepare_event_fire(source, trigger_id, body=body, headers=headers)
         if decision is None:
             return False
-        await self.queue_fire(
+        job_id = await self.queue_fire(
             decision.trigger_id,
             organization_id=decision.organization_id,
             event_context=decision.event_context,
             event_payload=decision.event_payload,
             source_policy_id=decision.source_policy_id,
         )
-        return True
+        if job_id is None and decision.signed_digest is not None:
+            await agent_trigger_repo.release_webhook_delivery(
+                self.db,
+                trigger_id=decision.trigger_id,
+                signed_digest=decision.signed_digest,
+            )
+        return job_id is not None
 
     async def queue_app_fires(self, *, body: bytes, headers: Mapping[str, str]) -> int:
         """Authenticate a GitHub App delivery and queue a fire for every trigger it matches."""
         decisions = await self.prepare_app_fires(body=body, headers=headers)
+        queued = 0
         for decision in decisions:
-            await self.queue_fire(
+            job_id = await self.queue_fire(
                 decision.trigger_id,
                 organization_id=decision.organization_id,
                 event_context=decision.event_context,
                 event_payload=decision.event_payload,
                 source_policy_id=decision.source_policy_id,
             )
-        return len(decisions)
+            if job_id is None:
+                if decision.signed_digest is not None:
+                    await agent_trigger_repo.release_webhook_delivery(
+                        self.db,
+                        trigger_id=decision.trigger_id,
+                        signed_digest=decision.signed_digest,
+                    )
+                continue
+            queued += 1
+        return queued
 
     async def claim_and_advance(self, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
         """Claim the triggers due now, advance each so no later tick re-fires it, and queue its fire.

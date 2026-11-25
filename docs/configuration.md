@@ -113,17 +113,20 @@ reach, it is.
 A request declaring a `Content-Length` larger than the largest of
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
 `ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing, receives **413** before
-its body is read. This ceiling follows the upload settings automatically.
+its body is read. Independently, the application counts every request-body chunk
+as it arrives and returns **413** before a chunk crossing that ceiling reaches a
+body or multipart parser. Chunked and HTTP/2 requests, and requests with a missing,
+malformed or underreported `Content-Length`, therefore have the same bound. The
+ceiling follows the upload settings automatically.
 
-The caller supplies `Content-Length`; chunked requests declare none and remain
-subject to the per-route limits, which measure actual bytes. Set a body limit on
-the reverse proxy to bound those too. With Nginx this is also necessary to allow
-uploads above its default 1 MiB: the shipped template sets
+Set a body limit on the reverse proxy as defense in depth. With Nginx this is also
+necessary to allow uploads above its default 1 MiB: the shipped template sets
 `client_max_body_size 55m;` on the API host and the console's multipart upload
 locations. Console pages, authentication and ordinary JSON keep a 1 MiB limit.
-Raise both upload allowances when raising
-the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
-The Compose files run uvicorn without its own body limit.
+Raise the proxy allowance when raising the largest upload setting. See
+[Nginx deployment](deploy.md#option-b-nginx). The Compose files run uvicorn
+without a separate server limit; the application middleware still enforces its
+streamed ceiling.
 
 ## Authentication
 
