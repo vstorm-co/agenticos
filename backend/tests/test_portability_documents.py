@@ -297,3 +297,56 @@ def test_secret_dictionary_keys_named_like_bindings_are_not_binding_containers()
         ),
     )
     assert agent_omissions(resource) == {}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://mcp.example.test/?anything=PRIVATE",
+        "https://mcp.example.test/#PRIVATE",
+        "https://user:PRIVATE@mcp.example.test/",
+        "http://[invalid",
+    ],
+)
+def test_portable_connection_definitions_never_guess_which_url_values_are_secret(url: str) -> None:
+    from app.services.portability.content import McpContent
+
+    resource = BundleResource(
+        key="mcp_connection/source",
+        kind=BundleResourceKind.MCP_CONNECTION,
+        name="Connection",
+        definition={"name": "custom", "url": url},
+        included=frozenset({BundleContentLayer.DEFINITION}),
+    )
+    with pytest.raises(BadRequestError) as exc:
+        definition_model(resource)
+    assert "PRIVATE" not in str(exc.value.details)
+    assert McpContent(name="custom", url="https://mcp.example.test/endpoint").url.endswith(
+        "/endpoint"
+    )
+
+
+def test_portable_model_settings_keep_generation_parameters_but_not_transport_credentials() -> None:
+    from app.services.portability.content import ModelContent, portable_connection_settings
+
+    assert portable_connection_settings(None)
+    assert portable_connection_settings(
+        "https://models.example.test/api", {"temperature": 0.2, "extra_headers": {}}
+    )
+    assert ModelContent(
+        label="Model", provider="openai", model="test", params={"temperature": 0.2}
+    ).params == {"temperature": 0.2}
+    with pytest.raises(ValidationError, match="destination"):
+        ModelContent(
+            label="Model",
+            provider="openai",
+            model="test",
+            params={"extra_headers": {"X-Unknown": "PRIVATE"}},
+        )
+    with pytest.raises(ValidationError, match="destination"):
+        ModelContent(
+            label="Model",
+            provider="openai",
+            model="test",
+            base_url="https://models.example.test/?custom=PRIVATE",
+        )

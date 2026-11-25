@@ -61,7 +61,7 @@ from app.services.portability.documents import (
 )
 from app.services.portability.mapping import rebind_definition
 from app.services.portability.snapshots import agent_snapshot
-from app.services.portability.sources import BundleSources
+from app.services.portability.sources import BundleSources, agent_spec_from_source
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 
@@ -135,7 +135,7 @@ class PortabilityService:
         self, ctx: AuthContext, agent_id: UUID, *, metadata_only: bool = False
     ) -> BundlePreview:
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
-        bundle = agent_snapshot(AgentSpec.model_validate(agent.draft_spec), source_id=agent.id)
+        bundle = agent_snapshot(agent_spec_from_source(agent.draft_spec), source_id=agent.id)
         resources = {item.key: item for item in bundle.resources}
         options: dict[str, BundleResourceOption] = {}
         pending = list(resources)
@@ -220,7 +220,7 @@ class PortabilityService:
             key=item.key,
             available=True,
             layers=frozenset({BundleContentLayer.DEFINITION})
-            if item.kind in DEFINITION_MODELS
+            if source.copyable and item.kind in DEFINITION_MODELS
             else frozenset(),
             reusable_id=source.id,
             reusable_name=source.name,
@@ -250,10 +250,6 @@ class PortabilityService:
         if any(request.choices[key].action == "skip" for key in request.bundle.roots):
             raise BadRequestError(message="An import cannot skip its root resource")
         reviewed = request.model_dump(mode="json")
-        reviewed["bundle"]["resources"] = [
-            {**item.model_dump(mode="json"), "included": sorted(item.included)}
-            for item in request.bundle.resources
-        ]
         fingerprint = hashlib.sha256(
             json.dumps(reviewed, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()

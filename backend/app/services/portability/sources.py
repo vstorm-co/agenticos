@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic import BaseModel, JsonValue, TypeAdapter
+from pydantic import BaseModel, ConfigDict, JsonValue, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -23,11 +23,22 @@ from app.services.portability.content import (
     SkillContent,
     SkillFileContent,
     SkillSnapshotContent,
+    portable_connection_settings,
 )
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.skill_versions import SkillVersionService
 
-_OBJECT = TypeAdapter(dict[str, JsonValue])
+_OBJECT = TypeAdapter(dict[str, JsonValue], config=ConfigDict(allow_inf_nan=False))
+
+
+def agent_spec_from_source(value: object) -> AgentSpec:
+    """Reject non-JSON source values before JSON-mode serialization can lose them."""
+    try:
+        return AgentSpec.model_validate(_OBJECT.validate_python(value))
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="The source agent configuration cannot be represented in a portable bundle"
+        ) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +48,7 @@ class SourceDefinition:
     content: BaseModel | None = None
     parent_id: UUID | None = None
     version_number: int | None = None
+    copyable: bool = True
 
     @property
     def definition(self) -> dict[str, JsonValue] | None:
@@ -74,7 +86,7 @@ class BundleSources:
         if kind == BundleResourceKind.AGENT:
             row = await AgentRegistryService(self.db).get(ctx, identity)
             return SourceDefinition(
-                row.id, row.name, AgentSpec.model_validate(row.draft_spec) if with_content else None
+                row.id, row.name, agent_spec_from_source(row.draft_spec) if with_content else None
             )
         if kind == BundleResourceKind.AGENT_VERSION:
             if resource.source_parent_id is None:
@@ -85,7 +97,7 @@ class BundleSources:
             return SourceDefinition(
                 row.id,
                 "agent_version",
-                AgentSpec.model_validate(row.spec) if with_content else None,
+                agent_spec_from_source(row.spec) if with_content else None,
                 parent_id=resource.source_parent_id,
             )
         if kind == BundleResourceKind.CONTEXT:
@@ -118,27 +130,34 @@ class BundleSources:
             row = await ModelProfileService(self.db).profile_for_organization(
                 ctx.organization_id, profile_id=identity
             )
-            if not with_content:
-                return SourceDefinition(row.id, row.label)
-            payload = ModelContent.model_validate(
-                {
-                    "label": row.label,
-                    "provider": row.provider,
-                    "model": row.model,
-                    "secret_id": row.secret_id,
-                    "base_url": row.base_url,
-                    "api": row.api,
-                    "region": row.region,
-                    "params": row.params,
-                    "fallback_profile_ids": row.fallback_profile_ids,
-                }
-            )
+            copyable = portable_connection_settings(row.base_url, row.params)
+            if not with_content or not copyable:
+                return SourceDefinition(row.id, row.label, copyable=copyable)
+            try:
+                payload = ModelContent.model_validate(
+                    {
+                        "label": row.label,
+                        "provider": row.provider,
+                        "model": row.model,
+                        "secret_id": row.secret_id,
+                        "base_url": row.base_url,
+                        "api": row.api,
+                        "region": row.region,
+                        "params": row.params,
+                        "fallback_profile_ids": row.fallback_profile_ids,
+                    }
+                )
+            except ValidationError as exc:
+                raise BadRequestError(
+                    message="The source model configuration cannot be represented in a portable bundle"
+                ) from exc
             return SourceDefinition(row.id, row.label, payload)
         if kind == BundleResourceKind.MCP_CONNECTION:
             self._require(ctx, Perm.MCP_MANAGE)
             row = await McpConnectionService(self.db).get_org_connection(ctx, identity)
-            if not with_content:
-                return SourceDefinition(row.id, row.label or row.name)
+            copyable = portable_connection_settings(row.url)
+            if not with_content or not copyable:
+                return SourceDefinition(row.id, row.label or row.name, copyable=copyable)
             payload = McpContent(
                 name=row.name,
                 label=row.label,

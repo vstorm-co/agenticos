@@ -21551,7 +21551,7 @@
   "portability": {
     "exportTitle": "Agent exportieren",
     "exportDescription": "Wählen Sie die Agentendefinition und die verknüpften Inhalte aus.",
-    "secretsHint": "Zugangsdaten und Freigaben sind ausgeschlossen. Verbinden Sie Schlüssel oder OAuth nach dem Import erneut.",
+    "secretsHint": "Vault-Geheimnisse und Freigaben bleiben hier. Verbinde OAuth erneut und konfiguriere URL-Parameter sowie eigene Header am Ziel.",
     "loading": "Abhängigkeiten werden geladen…",
     "includedContent": "Enthaltene Inhalte",
     "rootDefinition": "Agentendefinition · erforderlich",

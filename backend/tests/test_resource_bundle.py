@@ -626,7 +626,7 @@ def test_archive_manifest_refuses_duplicate_keys_and_invalid_json() -> None:
 def test_portable_definitions_refuse_nonfinite_json_numbers_before_database_writes(
     number: float,
 ) -> None:
-    with pytest.raises(ValidationError, match="finite JSON numbers"):
+    with pytest.raises(ValidationError, match="finite number"):
         BundleResource(
             key="agent/one",
             kind=BundleResourceKind.AGENT,
@@ -641,3 +641,54 @@ def test_portable_definitions_refuse_nonfinite_json_numbers_before_database_writ
         definition={"params": {"nested": [1.5]}},
         included=frozenset({BundleContentLayer.DEFINITION}),
     ).definition["params"] == {"nested": [1.5]}
+
+
+def test_layer_order_is_stable_when_an_import_retries_in_another_process() -> None:
+    import json
+    import os
+    import subprocess
+    import sys
+
+    code = """
+import json
+from app.schemas.resource_bundle import (
+    BundleContentLayer, BundleResource, BundleResourceKind,
+    BundleSelection, BundleResourceOption,
+)
+layers = frozenset(BundleContentLayer)
+resource = BundleResource(key="skill/policy", kind=BundleResourceKind.SKILL,
+    name="Policy", definition={"content":"Keep exact text"}, included=layers)
+selection = BundleSelection(resources={resource.key: layers})
+option = BundleResourceOption(key=resource.key, available=True, layers=layers)
+print(json.dumps([value.model_dump(mode="json") for value in (resource, selection, option)], sort_keys=True))
+"""
+    outputs = [
+        subprocess.run(
+            [sys.executable, "-c", code],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        ).stdout
+        for seed in ("1", "97")
+    ]
+    assert outputs[0] == outputs[1]
+    resource, selection, option = json.loads(outputs[0])
+    expected = [
+        "app_assets",
+        "context_content",
+        "definition",
+        "kb_documents",
+        "kb_index",
+        "kb_parsed_text",
+        "project_files",
+        "skill_files",
+        "table_rows",
+    ]
+    assert (
+        resource["included"]
+        == selection["resources"]["skill/policy"]
+        == option["layers"]
+        == expected
+    )

@@ -1,5 +1,6 @@
 """Reviewed imports preserve bindings, retry safely and never edit reused resources."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -623,3 +624,33 @@ async def test_download_loads_only_selected_current_content_and_refuses_stale_gr
             await service.download_agent(actor(), identity, selection)
         if mode in ("unknown", "unavailable"):
             read.assert_not_awaited()
+
+
+async def test_export_does_not_offer_inline_copy_of_opaque_connection_credentials(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.portability.documents import document_bytes
+
+    identity, model_id = uuid4(), uuid4()
+    spec = AgentSpec(name="Agent", model_profile_id=model_id)
+    monkeypatch.setattr(
+        "app.services.portability.facade.AgentRegistryService.get",
+        AsyncMock(
+            return_value=Agent(id=identity, name="Agent", draft_spec=spec.model_dump(mode="json"))
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.portability.sources.ModelProfileService.profile_for_organization",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=model_id,
+                label="Provider",
+                base_url="https://example.test/?unknown=PRIVATE",
+                params={},
+            )
+        ),
+    )
+    preview = await PortabilityService(mock_db_session).export_agent(actor(), identity)
+    option = next(item for item in preview.options if item.reusable_id == model_id)
+    assert option.available and not option.layers and not option.can_create
+    assert "PRIVATE" not in document_bytes(preview.bundle, "json").decode()

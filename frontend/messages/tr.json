@@ -17311,7 +17311,7 @@
   "portability": {
     "exportTitle": "Ajanı dışa aktar",
     "exportDescription": "Dahil edilecek ajan tanımını ve bağlı içerikleri seçin.",
-    "secretsHint": "Kimlik bilgileri ve paylaşım izinleri aktarılmaz. İçe aktardıktan sonra anahtarları veya OAuth bağlantısını yeniden bağlayın.",
+    "secretsHint": "Vault gizli bilgileri ve paylaşım ayarları burada kalır. OAuth’u yeniden bağlayın; URL parametrelerini ve özel başlıkları hedefte yapılandırın.",
     "loading": "Bağımlılıklar yükleniyor…",
     "includedContent": "Dahil edilen içerik",
     "rootDefinition": "Ajan tanımı · zorunlu",

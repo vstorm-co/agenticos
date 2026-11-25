@@ -4,7 +4,7 @@ import json
 from typing import Literal
 
 import yaml
-from pydantic import ValidationError
+from pydantic import ConfigDict, JsonValue, TypeAdapter, ValidationError
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
@@ -14,6 +14,7 @@ from app.services.portability.snapshots import agent_snapshot
 
 MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
 MAX_DOCUMENT_EVENTS = 100_000
+_JSON_DATA = TypeAdapter(JsonValue, config=ConfigDict(allow_inf_nan=False))
 
 
 def parse_document(text: str) -> ResourceBundle:
@@ -54,6 +55,7 @@ def parse_document(text: str) -> ResourceBundle:
     except (yaml.YAMLError, RecursionError) as exc:
         raise BadRequestError(message="The file is not a valid YAML or JSON configuration") from exc
     try:
+        data = _JSON_DATA.validate_python(data)
         if isinstance(data, dict) and data.get("format") == "agenticos.bundle":
             return ResourceBundle.model_validate(data)
         return agent_snapshot(AgentSpec.model_validate(data))
@@ -106,8 +108,6 @@ def document_bytes(bundle: ResourceBundle, file_format: Literal["yaml", "json"])
     if bundle.assets:
         raise BadRequestError(message="This export includes files; download it as a ZIP bundle")
     data = bundle.model_dump(mode="json")
-    for item in data["resources"]:
-        item["included"] = sorted(item["included"])
     encoded = (
         (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         if file_format == "json"

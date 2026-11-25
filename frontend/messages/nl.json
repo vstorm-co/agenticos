@@ -21749,7 +21749,7 @@
   "portability": {
     "exportTitle": "Agent exporteren",
     "exportDescription": "Kies de agentdefinitie en gekoppelde inhoud om mee te nemen.",
-    "secretsHint": "Inloggegevens en gedeelde toegang worden niet geëxporteerd. Verbind sleutels of OAuth opnieuw na import.",
+    "secretsHint": "Vault-geheimen en deelinstellingen blijven hier. Verbind OAuth opnieuw en configureer URL-parameters en aangepaste headers op de bestemming.",
     "loading": "Afhankelijkheden laden…",
     "includedContent": "Opgenomen inhoud",
     "rootDefinition": "Agentdefinitie · verplicht",

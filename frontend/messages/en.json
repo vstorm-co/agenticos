@@ -21865,7 +21865,7 @@
   "portability": {
     "exportTitle": "Export agent",
     "exportDescription": "Choose the agent definition and linked content to include.",
-    "secretsHint": "Credentials and sharing are excluded. Reconnect keys or OAuth after import.",
+    "secretsHint": "Vault secrets and sharing stay here. Reconnect OAuth; configure URL parameters and custom headers at the destination.",
     "loading": "Loading dependencies…",
     "includedContent": "Included content",
     "rootDefinition": "Agent definition · required",

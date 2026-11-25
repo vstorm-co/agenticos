@@ -310,3 +310,111 @@ async def test_reusing_a_large_skill_needs_only_identity_and_version_metadata(
     assert result.id == (owner if kind == "skill" else fork if kind == "skill_fork" else version)
     assert result.parent_id == (None if kind == "skill" else owner)
     files.assert_not_awaited()
+
+
+@pytest.mark.parametrize("with_content", [True, False])
+@pytest.mark.parametrize(
+    "kind,method,fields",
+    [
+        (
+            "mcp_connection",
+            "McpConnectionService.get_org_connection",
+            {
+                "name": "custom",
+                "label": None,
+                "url": "https://mcp.example.test/endpoint?arbitrary=PRIVATE-URL-VALUE",
+            },
+        ),
+        (
+            "model_profile",
+            "ModelProfileService.profile_for_organization",
+            {
+                "label": "Custom model",
+                "base_url": "https://models.example.test/api?arbitrary=PRIVATE-URL-VALUE",
+                "params": {},
+            },
+        ),
+        (
+            "model_profile",
+            "ModelProfileService.profile_for_organization",
+            {
+                "label": "Custom model",
+                "base_url": None,
+                "params": {"extra_headers": {"X-Custom": "PRIVATE-HEADER-VALUE"}},
+            },
+        ),
+    ],
+)
+async def test_opaque_connection_parameters_are_references_not_exported_credentials(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    with_content: bool,
+    kind: str,
+    method: str,
+    fields: dict[str, object],
+) -> None:
+    identity = uuid4()
+    monkeypatch.setattr(
+        f"app.services.portability.sources.{method}",
+        AsyncMock(return_value=SimpleNamespace(id=identity, **fields)),
+    )
+    source = await BundleSources(mock_db_session).read(
+        AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+        BundleResource(
+            key=f"{kind}/{identity}",
+            kind=BundleResourceKind(kind),
+            name="Connection",
+            source_id=identity,
+        ),
+        with_content=with_content,
+    )
+    assert source.id == identity and not source.copyable
+    assert source.definition is None
+    assert "PRIVATE-" not in source.name
+
+
+@pytest.mark.parametrize("kind", ["agent", "agent_version", "model_profile"])
+async def test_nonfinite_stored_configuration_is_refused_without_exposing_values(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    identity, parent = uuid4(), uuid4()
+    if kind == "model_profile":
+        method = "ModelProfileService.profile_for_organization"
+        fields = {
+            "label": "Model",
+            "provider": "openai",
+            "model": "model",
+            "secret_id": None,
+            "base_url": None,
+            "api": "responses",
+            "region": None,
+            "params": {"temperature": float("nan")},
+            "fallback_profile_ids": [],
+        }
+    else:
+        method = (
+            "AgentRegistryService.get" if kind == "agent" else "AgentRegistryService.get_version"
+        )
+        fields = {
+            "name": "Agent",
+            "draft_spec" if kind == "agent" else "spec": {
+                "name": "Agent",
+                "model": {"params": {"temperature": float("nan")}},
+            },
+        }
+    monkeypatch.setattr(
+        f"app.services.portability.sources.{method}",
+        AsyncMock(return_value=SimpleNamespace(id=identity, **fields)),
+    )
+    with pytest.raises(BadRequestError, match="cannot be represented") as error:
+        await BundleSources(mock_db_session).read(
+            AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+            BundleResource(
+                key=f"{kind}/source",
+                kind=BundleResourceKind(kind),
+                name="Source",
+                source_id=identity,
+                source_parent_id=parent if kind == "agent_version" else None,
+            ),
+        )
+    assert error.value.details is None or "nan" not in str(error.value.details).lower()

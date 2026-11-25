@@ -21638,7 +21638,7 @@
   "portability": {
     "exportTitle": "Eksportuj agenta",
     "exportDescription": "Wybierz definicję agenta i powiązaną zawartość do pobrania.",
-    "secretsHint": "Dane dostępowe i uprawnienia nie są eksportowane. Po imporcie podłącz klucze lub OAuth.",
+    "secretsHint": "Sekrety Vault i udostępnienia zostają tutaj. Po imporcie połącz OAuth oraz skonfiguruj parametry URL i własne nagłówki.",
     "loading": "Wczytywanie zależności…",
     "includedContent": "Dołączana zawartość",
     "rootDefinition": "Definicja agenta · wymagana",

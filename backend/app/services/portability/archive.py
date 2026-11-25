@@ -149,8 +149,6 @@ def write_bundle(
         raise _refuse("A bundle output must be an empty staging file")
     target.seek(0)
     data = manifest.model_dump(mode="json")
-    for resource in data["resources"]:
-        resource["included"] = sorted(resource["included"])
     encoded = (json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
     expected = {asset.sha256 for asset in manifest.assets}
     if expected != files.keys():

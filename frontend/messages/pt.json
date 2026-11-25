@@ -21749,7 +21749,7 @@
   "portability": {
     "exportTitle": "Exportar agente",
     "exportDescription": "Escolha a definição do agente e os conteúdos associados a incluir.",
-    "secretsHint": "As credenciais e partilhas são excluídas. Volte a ligar chaves ou OAuth após importar.",
+    "secretsHint": "Os segredos do Vault e as partilhas ficam aqui. Reconecte o OAuth e configure os parâmetros de URL e os cabeçalhos personalizados no destino.",
     "loading": "A carregar dependências…",
     "includedContent": "Conteúdo incluído",
     "rootDefinition": "Definição do agente · obrigatória",

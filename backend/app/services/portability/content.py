@@ -1,12 +1,37 @@
 """Owned, credential-free payloads carried by resource definitions."""
 
+from collections.abc import Mapping
+from typing import Self
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.agents.model_resolver import ModelApi, ModelRegion
 from app.schemas.context import ContextModeLiteral
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+
+
+def portable_connection_settings(
+    url: str | None, params: Mapping[str, JsonValue] | None = None
+) -> bool:
+    """Opaque URL parameters and transport headers can carry credentials.
+
+    Their meaning is server-specific. Do not guess which query/header values are
+    safe, or strip them and pretend the resulting connection is equivalent.
+    Such resources travel as references and need destination configuration.
+    """
+    try:
+        endpoint = urlsplit(url or "")
+    except ValueError:
+        return False
+    return (
+        endpoint.username is None
+        and endpoint.password is None
+        and not endpoint.query
+        and not endpoint.fragment
+        and not (params and params.get("extra_headers"))
+    )
 
 
 class ContextContent(BaseModel):
@@ -43,7 +68,7 @@ class SkillSnapshotContent(SkillContent):
 
 
 class ModelContent(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False, allow_inf_nan=False)
 
     label: str = Field(min_length=1, max_length=128)
     provider: str = Field(min_length=1, max_length=32)
@@ -57,6 +82,14 @@ class ModelContent(BaseModel):
         default_factory=list, json_schema_extra={"x-resource": "model_profile"}
     )
 
+    @model_validator(mode="after")
+    def connection_fields(self) -> Self:
+        if not portable_connection_settings(self.base_url, self.params):
+            raise ValueError(
+                "Configure connection URLs and transport headers at the destination; do not put them in a portable model definition"
+            )
+        return self
+
 
 class McpContent(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
@@ -68,6 +101,15 @@ class McpContent(BaseModel):
     include_instructions: bool = False
     trust_read_only_hints: bool = False
     catalog_key: str | None = None
+
+    @field_validator("url")
+    @classmethod
+    def connection_url(cls, value: str) -> str:
+        if not portable_connection_settings(value):
+            raise ValueError(
+                "Configure URL parameters at the destination; do not put them in a portable MCP definition"
+            )
+        return value
 
 
 class ImportedSkillUpdate(SkillUpdate):

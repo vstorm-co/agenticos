@@ -5,7 +5,6 @@ identify entries within a file and never grant access to either organization.
 """
 
 from enum import StrEnum
-from math import isfinite
 from pathlib import PurePosixPath
 from typing import Annotated, Literal, Self
 from uuid import UUID
@@ -14,6 +13,7 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
+    PlainSerializer,
     StrictInt,
     StrictStr,
     field_validator,
@@ -63,6 +63,16 @@ class BundleContentLayer(StrEnum):
     TABLE_ROWS = "table_rows"
     APP_ASSETS = "app_assets"
     PROJECT_FILES = "project_files"
+
+
+def _serialized_layers(value: frozenset[BundleContentLayer]) -> list[str]:
+    return sorted(layer.value for layer in value)
+
+
+type BundleLayers = Annotated[
+    frozenset[BundleContentLayer],
+    PlainSerializer(_serialized_layers, return_type=list[str], when_used="json"),
+]
 
 
 class BundleReference(BaseSchema):
@@ -135,7 +145,9 @@ class BundleAsset(BaseSchema):
 class BundleResource(BaseSchema):
     """A reference-only entry or a selected definition, independent of activation."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, str_strip_whitespace=False, allow_inf_nan=False
+    )
 
     key: BundleKey
     kind: BundleResourceKind
@@ -145,23 +157,7 @@ class BundleResource(BaseSchema):
     source_version: str | None = Field(default=None, max_length=256)
     definition: dict[str, JsonValue] | None = None
     references: tuple[BundleReference, ...] = Field(default=(), max_length=10_000)
-    included: frozenset[BundleContentLayer] = frozenset()
-
-    @field_validator("definition")
-    @classmethod
-    def finite_json_values(cls, value: dict[str, JsonValue] | None) -> dict[str, JsonValue] | None:
-        if value is None:
-            return value
-        pending = list(value.values())
-        while pending:
-            item = pending.pop()
-            if isinstance(item, dict):
-                pending.extend(item.values())
-            elif isinstance(item, list):
-                pending.extend(item)
-            elif isinstance(item, float) and not isfinite(item):
-                raise ValueError("Portable definitions require finite JSON numbers")
-        return value
+    included: BundleLayers = frozenset()
 
     @model_validator(mode="after")
     def consistent_definition(self) -> Self:
@@ -218,7 +214,7 @@ class BundleSelection(BaseSchema):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
-    resources: dict[BundleKey, frozenset[BundleContentLayer]] = Field(max_length=10_000)
+    resources: dict[BundleKey, BundleLayers] = Field(max_length=10_000)
 
 
 class BundleImportChoice(BaseSchema):
@@ -250,7 +246,7 @@ class BundleImportCreate(BaseSchema):
 
 
 class BundleResourceOption(BaseSchema):
-    layers: frozenset[BundleContentLayer] = frozenset()
+    layers: BundleLayers = frozenset()
     key: BundleKey
     available: bool
     can_create: bool = False

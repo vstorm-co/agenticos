@@ -36,14 +36,19 @@ Reference-only dependencies are re-authorized in the destination. Supported
 destinations are selected by name from paginated, authorized catalogs. Changing
 a destination owner clears its dependent version selection. Export previews
 omit linked bodies and Skill file contents; downloads load only selected content.
-Imports are
-transactional and replay an operation receipt after a retry; they never publish,
+Connections containing URL parameters/fragments or custom transport headers
+remain references: their values can be credentials, so the destination must
+configure them rather than receiving an edited, apparently equivalent endpoint.
+Selected instructions and files retain their contents and should be reviewed
+before sharing.
+Imports are transactional and replay an operation receipt after a retry; they never publish,
 run or index anything. A local cross-organization import/export round trip has
 been exercised through the real UI and database.
 
 This is not yet the complete portability implementation. Binary/large bundles,
 full knowledge-base content, advanced workflow bundles, durable transfer
-operations and the runtime separation below are still implementation work. The PR remains a draft until that scope is complete.
+operations and the runtime separation below are still implementation work. The
+PR remains a draft until that scope is complete.
 
 ## Invariants
 
