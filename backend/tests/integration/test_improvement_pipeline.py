@@ -989,6 +989,10 @@ async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
     assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
 
 
+ADMITTED = ("model_profile_id", "instructions")
+"""What a session keeps of the helper settings it was admitted with; who wrote them is the dataset's."""
+
+
 async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instructions(db):
     from app.schemas.dataset import DatasetUpdate
     from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
@@ -1010,7 +1014,9 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     )
     run = await db.get(ImprovementRun, read.id)
     assert run is not None
-    assert run.helper_settings == original.model_dump(mode="json")
+    assert {key: run.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
     await DatasetService(db).update(
         ctx,
         dataset.id,
@@ -1026,7 +1032,9 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     current = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, current.iterations[0].authoring_request_id)
     assert request is not None
-    assert request.helper_settings == original.model_dump(mode="json")
+    assert {key: request.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
 
 
 @pytest.mark.security
