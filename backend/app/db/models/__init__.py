@@ -14,6 +14,7 @@ from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
 from app.db.models.session import MagicLinkClaim, Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.accepted_queued_message import AcceptedQueuedMessage
 from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.room_submission import RoomSubmission
@@ -326,6 +327,7 @@ __all__ = [
     "MagicLinkClaim",
     "Session",
     "Conversation",
+    "AcceptedQueuedMessage",
     "ConversationMessagePin",
     "CodingTaskChange",
     "ConversationTask",

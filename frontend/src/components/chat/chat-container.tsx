@@ -543,6 +543,7 @@ export function ChatContainer({
     notifyTyping,
     isConnected,
     isProcessing,
+    liveSteerAgentId,
     isStopping,
     canStopParked,
     compacting,
@@ -572,6 +573,7 @@ export function ChatContainer({
     cancelQueued,
     retryQueued,
     sendQueuedNow,
+    runQueuedAsTask,
     moveQueued,
     clearQueued,
     steers,
@@ -594,6 +596,14 @@ export function ChatContainer({
     reportVisual,
   } = useChat({
     conversationId: currentConversationId,
+    queueReceiptsEnabled: Boolean(
+      currentConversationId &&
+      !scoped &&
+      !isRoom &&
+      !agentFixed &&
+      threadRootId === null &&
+      !testing,
+    ),
     onConversationCreated: handleConversationCreated,
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
@@ -601,6 +611,14 @@ export function ChatContainer({
     pageContext,
     requestedQuestionRunId,
   });
+  const runQueuedAsTaskAndOpen = useCallback(
+    (id: string) => {
+      void runQueuedAsTask(id).then((taskConversationId) => {
+        if (taskConversationId) void selectConversation(taskConversationId);
+      });
+    },
+    [runQueuedAsTask, selectConversation],
+  );
   const startCall = useCallback(
     (transport: VoiceTransport) => {
       if (selectedAgentId === null || compactionStatus === "running") return;
@@ -1380,9 +1398,19 @@ export function ChatContainer({
         slashContext={slashContext}
         slashCommands={slashCommands}
         queuedMessages={queuedMessages}
+        queueReceiptsEnabled={Boolean(
+          currentConversationId &&
+          !scoped &&
+          !isRoom &&
+          !agentFixed &&
+          threadRootId === null &&
+          !testing,
+        )}
         onCancelQueued={cancelQueued}
         onRetryQueued={retryQueued}
         onSendQueuedNow={sendQueuedNow}
+        steerAgentId={liveSteerAgentId}
+        onRunQueuedAsTask={runQueuedAsTaskAndOpen}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
         bindScroller={bindScroller}
@@ -1562,11 +1590,16 @@ interface ChatUIProps {
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
+  queueReceiptsEnabled?: boolean;
   onCancelQueued?: (id: string) => void;
   /** Sends a message the server refused again, in its place in the queue. */
   onRetryQueued?: (id: string) => void;
   /** Sends one queued message into the running task instead of after it. */
   onSendQueuedNow?: (id: string) => void;
+  /** Agent addressing the active turn, for receipt-backed Send now eligibility. */
+  steerAgentId?: string | null;
+  /** Transfers an accepted queued message into a new personal task. */
+  onRunQueuedAsTask?: (id: string) => void;
   /** Moves one queued message to another place in the order they are sent. */
   onMoveQueued?: (id: string, to: number) => void;
   /** What a message typed while the agent works does (#2087). */
@@ -1694,9 +1727,12 @@ function ChatUI({
   slashContext,
   slashCommands,
   queuedMessages,
+  queueReceiptsEnabled = false,
   onCancelQueued,
   onRetryQueued,
   onSendQueuedNow,
+  steerAgentId,
+  onRunQueuedAsTask,
   onMoveQueued,
   steers = [],
   transcriptRef,
@@ -2542,11 +2578,14 @@ function ChatUI({
               {!isRoom && onCancelQueued && (
                 <PendingMessages
                   messages={queuedMessages ?? []}
+                  queueReceiptsEnabled={queueReceiptsEnabled}
                   steers={steers}
                   onCancel={onCancelQueued}
                   onRetry={onRetryQueued}
                   waitingForNetwork={!isConnected}
                   onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
+                  steerAgentId={steerAgentId}
+                  onRunAsTask={onRunQueuedAsTask}
                   onMove={onMoveQueued}
                 />
               )}

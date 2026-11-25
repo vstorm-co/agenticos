@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "744357532f30"
 ---
 
 # Konsola { #the-console }
@@ -722,8 +722,31 @@ czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
 **Send now** wysyła ją zamiast tego do trwającego zadania - agent czyta ją w
 następnym kroku i zmienia kurs bez zaczynania od nowa, a w rozmowie pojawia się
-tam, gdzie dotarła. Wiadomość z plikami zawsze czeka na odpowiedź. Slack, Telegram
+tam, gdzie dotarła. Wiadomość z plikami, wzmiankami lub cytowaną odpowiedzią pozostaje pełną turą. Slack, Telegram
 i Mattermost działają po swojemu, jak opisuje [Kanały](channels.md).
+
+W twoim osobistym czacie przyjęte wiadomości z kolejki są zapisywane dla twojego
+konta i organizacji. Odświeżenie lub ponowne połączenie przywraca nierozstrzygnięte
+pozycje. Każda zachowuje agenta, tekst, pliki, wzmianki, cytat oraz obsługiwany
+kontekst strony lub workspace wybrany podczas dodawania do kolejki. Nieudane
+przyjęcie pozostawia pozycję widoczną i zatrzymuje automatyczne wysyłanie do czasu
+potwierdzenia jej stanu.
+
+Wybierz **Run as task**, aby przenieść przyjętą pozycję do oddzielnego prywatnego
+czatu zadania. Pierwotny agent może pracować dalej, a nowe zadanie podlega zwykłym
+kontrolom uprawnień i budżetu. Zadanie wymaga obsługiwanego celu: tymczasowego
+uprawnienia do całego komputera ani uprawnienia rutyny nie można przenieść, a praca
+lokalna musi wskazywać urządzenie. Odmowa przeniesienia pozostawia pierwotną pozycję
+w kolejce.
+
+**Send now** pozostaje dostępne dla zwykłego tekstu skierowanego do pracującego
+agenta. Wiadomości z plikami, wzmiankami, cytatami lub utrwalonym kontekstem strony
+czy workspace wymagają pełnej tury albo zadania, aby zachować swój kontekst.
+Wysłanie, przekazanie korekty, utworzenie zadania i anulowanie współdzielą jeden
+zapisany wynik. Ponowienie po utracie odpowiedzi sprawdza go przed kolejnym
+działaniem. Niezastosowana korekta wraca do tej samej pozycji kolejki; niepewny
+wynik przekazania korekty pozostaje widoczny i nie uruchamia się ponownie
+automatycznie.
 
 **Wychodzenie w trakcie odpowiedzi.** Nie musisz czekać. Zamknij kartę, wyjdź z
 aplikacji albo otwórz inną rozmowę, a agent dokończy odpowiedź sam: trafi ona do

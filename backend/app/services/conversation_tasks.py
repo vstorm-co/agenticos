@@ -278,6 +278,10 @@ class ConversationTaskService:
         transcript distinguishes main from a subthread without a second stored
         copy of the scope. A deleted source never defaults to the main room.
         """
+        if task.queue_receipt_id is not None:
+            raise BadRequestError(message="A queued personal task has no return turn")
+        if task.source_run_id is None:
+            raise BadRequestError(message="This task has no source run to return to")
         ctx = await self.authority(task)
         scope = await conversation_repo.message_scope_for_run(
             self.db,
@@ -366,12 +370,15 @@ class ConversationTaskService:
             if task.job_id is not None:
                 await job_repo.cancel_queued(self.db, task.job_id)
             task.outcome = "Stopped by the person who started it."
-            await self.queue_return(task)
+            if task.queue_receipt_id is not None:
+                task.delivery = "delivered"
+            else:
+                await self.queue_return(task)
         await task_repo.save(self.db, task)
         return ConversationTaskRead.model_validate(task)
 
     async def queue_return(self, task: ConversationTask, *, delay_seconds: int = 0) -> None:
-        if task.delivery != "pending":
+        if task.queue_receipt_id is not None or task.delivery != "pending":
             return
         await enqueue(
             self.db,
@@ -401,7 +408,9 @@ class ConversationTaskService:
                     in {"completed", "cancelled", "awaiting_approval", "awaiting_answer"}
                     else "failed"
                 )
-            if not parked:
+            if not parked and task.queue_receipt_id is not None:
+                task.delivery = "delivered"
+            elif not parked:
                 await self.queue_return(task)
         await task_repo.save(self.db, task)
 
@@ -415,5 +424,8 @@ class ConversationTaskService:
         elif task.status not in TERMINAL:
             task.status = "interrupted"
             task.outcome = "The worker stopped. This task may have changed external state; it was not restarted automatically."
-            await self.queue_return(task)
+            if task.queue_receipt_id is not None:
+                task.delivery = "delivered"
+            else:
+                await self.queue_return(task)
         await task_repo.save(self.db, task)

@@ -706,8 +706,28 @@ it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
 the running task instead - the agent reads it at its next step and adjusts course
 without starting over, and it appears in the conversation where it landed. A
-message carrying files always waits for the answer. Slack, Telegram and
+message carrying files, mentions or a quoted reply stays a complete turn. Slack, Telegram and
 Mattermost keep their own behaviour, described in [Channels](channels.md).
+
+In your personal chat, accepted queued messages are saved for your account and
+organization. Reloading or reconnecting restores unresolved items. Each item keeps
+the agent, text, files, mentions, quote and supported page or workspace context
+selected when you queued it. A failed acceptance keeps the item visible and stops
+automatic sending until its status can be confirmed.
+
+Choose **Run as task** to move an accepted item into a separate private task chat.
+The original agent can continue working while the new task runs with its own normal
+permissions and budget checks. A task needs a supported target: a temporary
+whole-computer or routine grant cannot be transferred, and local work must name
+the intended device. A refused transfer leaves the original queued item available.
+
+**Send now** remains available for plain text addressed to the running agent.
+Messages with files, mentions, quotes or frozen page or workspace context need a
+complete turn or task so that their context is preserved. Sending, steering,
+creating a task and cancelling share one saved disposition. Retrying after a lost
+response checks that disposition before acting again. An unapplied correction
+returns to the same queue item; an uncertain steering outcome stays visible and
+does not automatically run again.
 
 **Leaving while it answers.** You do not have to wait for it. Close the tab, quit
 the app or open another conversation, and the agent finishes the answer on its

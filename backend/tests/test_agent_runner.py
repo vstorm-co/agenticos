@@ -486,6 +486,60 @@ class TestPrepare:
         assert prepared.deps is built.deps
 
     @pytest.mark.anyio
+    async def test_replaying_an_accepted_full_send_is_refused_before_provider_execution(self):
+        """An accepted receipt already linked to a run cannot open another provider turn."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        receipt_id = uuid.uuid4()
+        conversation_id = uuid.uuid4()
+        prior_run = MagicMock(id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model())
+            ) as resolve,
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.for_accepted_queue",
+                new=AsyncMock(return_value=prior_run),
+            ) as existing_run,
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run", new=AsyncMock()
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent") as build_agent,
+            patch.object(service, "_run", new=AsyncMock()) as execute_provider,
+            pytest.raises(AlreadyExistsError, match="already has a run"),
+        ):
+            await service.execute(
+                ctx,
+                agent.id,
+                "Queued work",
+                surface=RunSurface.WEB,
+                conversation_id=conversation_id,
+                accepted_queue_id=receipt_id,
+                acts_for_sender=True,
+            )
+
+        existing_run.assert_awaited_once_with(
+            service.db,
+            organization_id=ctx.organization_id,
+            accepted_queue_id=receipt_id,
+        )
+        resolve.assert_not_awaited()
+        create_run.assert_not_awaited()
+        build_agent.assert_not_called()
+        execute_provider.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_a_conversation_override_onto_a_speech_model_is_refused_before_the_run(self):
         """The override comes from a socket frame or an API body, past every
         picker and past publish (#2487): a model the catalogs know is not a chat

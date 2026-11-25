@@ -158,6 +158,11 @@ def _session() -> AgentSession:
     return AgentSession(websocket, user, organization)
 
 
+@asynccontextmanager
+async def _fake_db_context() -> AsyncIterator[MagicMock]:
+    yield MagicMock()
+
+
 def _frames(
     session: AgentSession,
     *,
@@ -3945,8 +3950,9 @@ class TestAddingToARunningTurn:
             await release.wait()
             # What the model's next request does with it: tells the surface.
             steering = kwargs["steering"]
+            assert steering.on_applied is not None
             for steer in steering.take():
-                await steering.on_applied(steer.text)
+                await steering.on_applied(steer, steer.text)
             return _finished_turn()
 
         with _chat(AsyncMock(side_effect=runs_until_released)) as chat:
@@ -3992,6 +3998,195 @@ class TestAddingToARunningTurn:
         await session.handle_frame({"type": "steer", "text": "   "})
 
         assert _sent_events(session) == [("steer_unapplied", {"texts": ["hello"]})]
+
+    async def test_a_receipt_frame_after_turn_end_reconciles_the_durable_status(self):
+        session = _session()
+        conversation_id = uuid4()
+        receipt_id = uuid4()
+        session.current_conversation_id = str(conversation_id)
+        service = MagicMock()
+        service.get_for_owner = AsyncMock(
+            return_value=SimpleNamespace(state="pending", steering_run_id=None)
+        )
+
+        with (
+            patch("app.services.agent_session.get_db_context", side_effect=_fake_db_context),
+            patch.object(session, "_chat_context", new=AsyncMock(return_value=MagicMock())),
+            patch("app.services.agent_session.AcceptedQueuedMessageService", return_value=service),
+        ):
+            await session.handle_frame(
+                {"type": "steer", "accepted_queue_id": str(receipt_id), "text": "ignored"}
+            )
+
+        assert _sent_events(session) == [
+            (
+                "steer_unapplied",
+                {"accepted_queue_id": str(receipt_id), "run_id": None},
+            )
+        ]
+        service.claim_for_steer.assert_not_called()
+
+    async def test_replaying_a_terminal_receipt_does_not_echo_unscreened_payload(self):
+        session = _session()
+        conversation_id = uuid4()
+        receipt_id = uuid4()
+        run_id = uuid4()
+        agent_id = uuid4()
+        session.current_conversation_id = str(conversation_id)
+        session._turn_agent_id = agent_id
+        session._turn_runs = [OpenedRun(run_id=run_id, model_label="m", agent_version_id=None)]
+        session._steering = SteeringInbox()
+        blocked = asyncio.Event()
+        turn_task = asyncio.create_task(blocked.wait())
+        session._turn_task = turn_task
+        service = MagicMock()
+        service.get_for_owner = AsyncMock(
+            return_value=SimpleNamespace(
+                state="steered", steering_run_id=run_id, content="raw unscreened secret"
+            )
+        )
+        service.claim_for_steer = AsyncMock(return_value="steered")
+
+        try:
+            with (
+                patch("app.services.agent_session.get_db_context", side_effect=_fake_db_context),
+                patch.object(session, "_chat_context", new=AsyncMock(return_value=MagicMock())),
+                patch.object(session, "_reauthorize_write", new=AsyncMock(return_value=True)),
+                patch(
+                    "app.services.agent_session.AcceptedQueuedMessageService",
+                    return_value=service,
+                ),
+            ):
+                await session.handle_frame({"type": "steer", "accepted_queue_id": str(receipt_id)})
+        finally:
+            blocked.set()
+            await turn_task
+
+        assert _sent_events(session) == [
+            (
+                "steer_applied",
+                {"accepted_queue_id": str(receipt_id), "run_id": str(run_id)},
+            )
+        ]
+
+    async def test_a_claimed_receipt_without_an_inbox_copy_stays_blocked(self):
+        session = _session()
+        conversation_id = uuid4()
+        receipt_id = uuid4()
+        run_id = uuid4()
+        agent_id = uuid4()
+        session.current_conversation_id = str(conversation_id)
+        session._turn_agent_id = agent_id
+        session._turn_runs = [OpenedRun(run_id=run_id, model_label="m", agent_version_id=None)]
+        inbox = SteeringInbox()
+        session._steering = inbox
+        blocked = asyncio.Event()
+        turn_task = asyncio.create_task(blocked.wait())
+        session._turn_task = turn_task
+        service = MagicMock()
+        service.get_for_owner = AsyncMock(
+            return_value=SimpleNamespace(
+                state="steering", steering_run_id=run_id, content="uncertain payload"
+            )
+        )
+        service.claim_for_steer = AsyncMock(return_value="steering")
+
+        try:
+            with (
+                patch("app.services.agent_session.get_db_context", side_effect=_fake_db_context),
+                patch.object(session, "_chat_context", new=AsyncMock(return_value=MagicMock())),
+                patch.object(session, "_reauthorize_write", new=AsyncMock(return_value=True)),
+                patch(
+                    "app.services.agent_session.AcceptedQueuedMessageService",
+                    return_value=service,
+                ),
+            ):
+                await session.handle_frame({"type": "steer", "accepted_queue_id": str(receipt_id)})
+        finally:
+            blocked.set()
+            await turn_task
+
+        assert inbox.receipt(receipt_id) is None
+        assert _sent_events(session) == [
+            (
+                "steer_claimed",
+                {"accepted_queue_id": str(receipt_id), "run_id": str(run_id)},
+            )
+        ]
+
+    async def test_a_turn_ending_during_claim_releases_only_the_never_enqueued_receipt(self):
+        session = _session()
+        conversation_id = uuid4()
+        receipt_id = uuid4()
+        run_id = uuid4()
+        agent_id = uuid4()
+        session.current_conversation_id = str(conversation_id)
+        session._turn_agent_id = agent_id
+        session._turn_runs = [OpenedRun(run_id=run_id, model_label="m", agent_version_id=None)]
+        inbox = SteeringInbox()
+        session._steering = inbox
+        turn_finished = asyncio.Event()
+        turn_task = asyncio.create_task(turn_finished.wait())
+        session._turn_task = turn_task
+        claim_started = asyncio.Event()
+        allow_claim_to_finish = asyncio.Event()
+        service = MagicMock()
+        service.get_for_owner = AsyncMock(
+            return_value=SimpleNamespace(state="pending", steering_run_id=None, content="queued")
+        )
+
+        async def claim(*_args: Any, **_kwargs: Any) -> str:
+            claim_started.set()
+            await allow_claim_to_finish.wait()
+            return "claimed"
+
+        service.claim_for_steer = AsyncMock(side_effect=claim)
+        service.release_unconsumed_steer = AsyncMock(return_value=True)
+        processing = asyncio.create_task(
+            session.handle_frame(
+                {"type": "steer", "accepted_queue_id": str(receipt_id), "text": "ignored"}
+            )
+        )
+
+        try:
+            with (
+                patch("app.services.agent_session.get_db_context", side_effect=_fake_db_context),
+                patch.object(session, "_chat_context", new=AsyncMock(return_value=MagicMock())),
+                patch.object(session, "_reauthorize_write", new=AsyncMock(return_value=True)),
+                patch(
+                    "app.services.agent_session.AcceptedQueuedMessageService",
+                    return_value=service,
+                ),
+            ):
+                await _wait(claim_started)
+                turn_finished.set()
+                await turn_task
+                # This models the turn's finally having cleared its live inbox
+                # while the database claim was still waiting.
+                session._steering = None
+                allow_claim_to_finish.set()
+                await processing
+        finally:
+            if not turn_task.done():
+                turn_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await turn_task
+            if not processing.done():
+                processing.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await processing
+
+        assert inbox.receipt(receipt_id) is None
+        service.release_unconsumed_steer.assert_awaited_once()
+        release_args, release_kwargs = service.release_unconsumed_steer.await_args
+        assert release_args[1:] == (conversation_id, receipt_id)
+        assert release_kwargs == {"run_id": run_id}
+        assert _sent_events(session) == [
+            (
+                "steer_unapplied",
+                {"accepted_queue_id": str(receipt_id), "run_id": str(run_id)},
+            )
+        ]
 
 
 class TestTellingThePersonWhoLeft:

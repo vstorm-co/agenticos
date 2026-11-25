@@ -35,7 +35,7 @@ from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
-from app.agents.steering import SteeringInbox
+from app.agents.steering import Steer, SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
 from app.core.config import settings
@@ -63,6 +63,7 @@ from app.schemas.conversation import (
     MessagePart,
 )
 from app.services import chat_room, live_turn, redis_view
+from app.services.accepted_queued_message import AcceptedQueuedMessageService
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -442,18 +443,137 @@ class AgentSession:
             return
 
         if msg_type == "steer":
+            raw_receipt_id = data.get("accepted_queue_id")
             text = str(data.get("text") or "").strip()
-            if not text:
+            if raw_receipt_id is None and not text:
                 return
             inbox = self._steering
+            if raw_receipt_id is None:
+                if inbox is None or self._turn_task is None or self._turn_task.done():
+                    # The turn ended between the click and the frame: nothing left
+                    # to steer, so the client sends it as an ordinary message.
+                    await self._emit("steer_unapplied", {"texts": [text]})
+                    return
+                if not await self._reauthorize_write():
+                    return
+                if self._steering is not inbox or self._turn_task is None or self._turn_task.done():
+                    await self._emit("steer_unapplied", {"texts": [text]})
+                    return
+                inbox.add(text)
+                return
+            try:
+                receipt_id = UUID(str(raw_receipt_id))
+            except ValueError:
+                await self._emit("error", {"message": "That is not a valid accepted queue id"})
+                return
             if inbox is None or self._turn_task is None or self._turn_task.done():
-                # The turn ended between the click and the frame: nothing left to
-                # steer, so the client sends it as an ordinary message instead.
-                await self._emit("steer_unapplied", {"texts": [text]})
+                if not await self._reauthorize():
+                    return
+                await self._reconcile_accepted_steer(receipt_id)
                 return
             if not await self._reauthorize_write():
                 return
-            inbox.add(text)
+            turn_task = self._turn_task
+            if (
+                self.current_conversation_id is None
+                or self._turn_agent_id is None
+                or not self._turn_runs
+                or self._steering is not inbox
+                or turn_task is None
+                or turn_task.done()
+            ):
+                await self._reconcile_accepted_steer(receipt_id)
+                return
+            conversation_id = UUID(self.current_conversation_id)
+            conversation_ref = self.current_conversation_id
+            active_agent_id = self._turn_agent_id
+            run_id = self._turn_runs[0].run_id
+            try:
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    service = AcceptedQueuedMessageService(db)
+                    receipt = await service.get_for_owner(ctx, conversation_id, receipt_id)
+                    state = await service.claim_for_steer(
+                        ctx,
+                        conversation_id,
+                        receipt_id,
+                        run_id=run_id,
+                        active_agent_id=active_agent_id,
+                    )
+            except AppException as exc:
+                await self._emit(
+                    "error",
+                    {"message": exc.message, "accepted_queue_id": str(receipt_id)},
+                )
+                return
+            if state == "steered":
+                await self._emit(
+                    "steer_applied",
+                    {
+                        "accepted_queue_id": str(receipt_id),
+                        "run_id": str(run_id),
+                    },
+                )
+                return
+            if state == "claimed":
+                still_same_live_turn = (
+                    self._steering is inbox
+                    and self._turn_task is turn_task
+                    and not turn_task.done()
+                    and self.current_conversation_id == conversation_ref
+                    and self._turn_agent_id == active_agent_id
+                    and bool(self._turn_runs)
+                    and self._turn_runs[0].run_id == run_id
+                    and inbox.receipt(receipt_id) is None
+                )
+                if not still_same_live_turn:
+                    # The row is committed but has never entered any inbox. This
+                    # exact claim can therefore be safely released if its run is
+                    # still the owner. Failures leave it visible as `steering`.
+                    released = False
+                    try:
+                        async with get_db_context() as db:
+                            ctx = await self._chat_context(db)
+                            released = await AcceptedQueuedMessageService(
+                                db
+                            ).release_unconsumed_steer(
+                                ctx,
+                                conversation_id,
+                                receipt_id,
+                                run_id=run_id,
+                            )
+                    except Exception:
+                        logger.info(
+                            "Accepted steering claim could not be safely released",
+                            exc_info=True,
+                        )
+                    await self._emit(
+                        "steer_unapplied" if released else "steer_claimed",
+                        {
+                            "accepted_queue_id": str(receipt_id),
+                            "run_id": str(run_id),
+                        },
+                    )
+                    return
+                inbox.add(receipt.content, accepted_queue_id=receipt_id)
+                await self._emit(
+                    "steer_claimed",
+                    {
+                        "accepted_queue_id": str(receipt_id),
+                        "run_id": str(run_id),
+                    },
+                )
+                return
+            # Same-run retry. The receipt is durable and blocked. It may not be in
+            # this inbox after a process/socket boundary, so the client reconciles
+            # its state by id and never injects it a second time.
+            await self._emit(
+                "steer_claimed",
+                {
+                    "accepted_queue_id": str(receipt_id),
+                    "run_id": str(run_id),
+                },
+            )
             return
 
         if msg_type == "visual_report":
@@ -822,6 +942,72 @@ class AgentSession:
             role=membership.role,
         )
 
+    async def _reconcile_accepted_steer(self, receipt_id: UUID) -> None:
+        """Answer a receipt steer that arrived after this socket's turn ended."""
+        if self.current_conversation_id is None:
+            await self._emit(
+                "error",
+                {
+                    "message": "The accepted message cannot be reconciled in this conversation",
+                    "accepted_queue_id": str(receipt_id),
+                },
+            )
+            return
+        try:
+            async with get_db_context() as db:
+                ctx = await self._chat_context(db)
+                receipt = await AcceptedQueuedMessageService(db).get_for_owner(
+                    ctx, UUID(self.current_conversation_id), receipt_id
+                )
+        except AppException as exc:
+            await self._emit(
+                "error",
+                {"message": exc.message, "accepted_queue_id": str(receipt_id)},
+            )
+            return
+        except Exception:
+            logger.info("Accepted steering receipt could not be reconciled", exc_info=True)
+            await self._emit(
+                "error",
+                {
+                    "message": "The accepted message could not be reconciled; check its queue status",
+                    "accepted_queue_id": str(receipt_id),
+                },
+            )
+            return
+
+        common = {"accepted_queue_id": str(receipt_id)}
+        if receipt.state == "pending":
+            await self._emit("steer_unapplied", {**common, "run_id": None})
+        elif receipt.state == "steering":
+            await self._emit(
+                "steer_claimed",
+                {
+                    **common,
+                    "run_id": (
+                        None if receipt.steering_run_id is None else str(receipt.steering_run_id)
+                    ),
+                },
+            )
+        elif receipt.state == "steered":
+            await self._emit(
+                "steer_applied",
+                {
+                    **common,
+                    "run_id": (
+                        None if receipt.steering_run_id is None else str(receipt.steering_run_id)
+                    ),
+                },
+            )
+        else:
+            await self._emit(
+                "error",
+                {
+                    "message": "The accepted message was already sent, transferred, or cancelled",
+                    "accepted_queue_id": str(receipt_id),
+                },
+            )
+
     async def _answer_context(
         self, db: AsyncSession, run_id: UUID
     ) -> tuple[AuthContext, AgentRun, UUID]:
@@ -1073,6 +1259,135 @@ class AgentSession:
         self._outcome = None
         user_message = data.get("message", "")
         file_ids = data.get("file_ids", [])
+        accepted_queue_id: UUID | None = None
+        queue_context: AuthContext | None = None
+        raw_queue_id = data.get("accepted_queue_id")
+        if raw_queue_id is not None:
+            override_fields = (
+                "model_profile_id",
+                "environment_id",
+                "approval_mode",
+                "project_id",
+                "allow_setup_reply",
+                "draft",
+                "test",
+                "impersonation",
+                "is_impersonated",
+                "acting_for",
+                "act_as_user_id",
+            )
+            testing_override = data.get("testing")
+            if isinstance(testing_override, dict):
+                testing_override = any(bool(value) for value in testing_override.values())
+            if any(data.get(key) not in (None, False, "") for key in override_fields) or bool(
+                testing_override
+            ):
+                await self._emit(
+                    "error",
+                    {"message": "An accepted queued message cannot change its run settings"},
+                )
+                return
+            try:
+                accepted_queue_id = UUID(str(raw_queue_id))
+            except ValueError:
+                await self._emit("error", {"message": "That is not a valid accepted queue id"})
+                return
+            conversation_ref = data.get("conversation_id")
+            if conversation_ref is None:
+                await self._emit(
+                    "error",
+                    {"message": "An accepted queued message needs its original conversation"},
+                )
+                return
+            try:
+                accepted_conversation_id = UUID(str(conversation_ref))
+            except ValueError:
+                await self._emit("error", {"message": "That is not a valid conversation id"})
+                return
+            try:
+                async with get_db_context() as db:
+                    queue_context = await self._chat_context(db)
+                    accepted = await AcceptedQueuedMessageService(db).get_for_owner(
+                        queue_context, accepted_conversation_id, accepted_queue_id
+                    )
+                    if accepted.state not in {"pending", "sent"}:
+                        raise AlreadyExistsError(
+                            message="This queued message was already claimed or cancelled"
+                        )
+                    existing_run = await agent_run_repo.for_accepted_queue(
+                        db,
+                        organization_id=queue_context.organization_id,
+                        accepted_queue_id=accepted_queue_id,
+                    )
+            except AppException as exc:
+                await self._emit("error", {"message": exc.message})
+                return
+            if existing_run is not None:
+                if (
+                    existing_run.user_id != queue_context.subject_id
+                    or existing_run.conversation_id != accepted_conversation_id
+                    or existing_run.agent_id != accepted.agent_id
+                ):
+                    await self._emit(
+                        "error", {"message": "The accepted queue run does not match its receipt"}
+                    )
+                    return
+                await self._emit(
+                    "accepted_queue_run_exists",
+                    {
+                        "accepted_queue_id": str(accepted_queue_id),
+                        "conversation_id": str(accepted_conversation_id),
+                        "message_id": (
+                            None if accepted.message_id is None else str(accepted.message_id)
+                        ),
+                        "run_id": str(existing_run.id),
+                        "run_status": existing_run.status,
+                    },
+                )
+                return
+            if accepted.state not in {"pending", "sent"}:
+                await self._emit(
+                    "error", {"message": "This queued message was already claimed or cancelled"}
+                )
+                return
+            data = dict(data)
+            data.update(
+                {
+                    "accepted_queue_id": str(accepted.id),
+                    "conversation_id": str(accepted.conversation_id),
+                    "agent_id": str(accepted.agent_id),
+                    "message": accepted.content,
+                    "file_ids": [str(file_id) for file_id in accepted.file_ids],
+                    "mentions": [mention.model_dump(mode="json") for mention in accepted.mentions],
+                    "reply_to": (
+                        None
+                        if accepted.reply_to_message_id is None
+                        else str(accepted.reply_to_message_id)
+                    ),
+                    "reply_to_excerpt": accepted.reply_to_excerpt,
+                    "page_context": (
+                        None
+                        if accepted.page_context is None
+                        else accepted.page_context.model_dump(mode="json", exclude_none=True)
+                    ),
+                    "local": (
+                        None
+                        if accepted.local_target is None
+                        else accepted.local_target.model_dump(mode="json", exclude_none=True)
+                    ),
+                }
+            )
+            for key in (
+                "model_profile_id",
+                "environment_id",
+                "approval_mode",
+                "project_id",
+                "testing",
+                "allow_setup_reply",
+            ):
+                data.pop(key, None)
+            user_message = accepted.content
+            file_ids = list(accepted.file_ids)
 
         if not user_message and not file_ids:
             await self._emit("error", {"message": "Empty message"})
@@ -1175,6 +1490,8 @@ class AgentSession:
                 reply_to=_wire_text(data.get("reply_to")),
                 reply_to_excerpt=_wire_text(data.get("reply_to_excerpt")),
                 mentions=mentioned,
+                accepted_queue_id=accepted_queue_id,
+                queue_context=queue_context,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
@@ -1224,13 +1541,48 @@ class AgentSession:
         # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         self._current_timeline = timeline
+        applied_receipt_ids: set[UUID] = set()
 
-        async def steered(text: str) -> None:
+        async def steered(steer: Steer, text: str) -> None:
             # Where it reached the model is where the transcript shows it.
-            timeline.add_steer(text)
-            await self._emit("steer_applied", {"text": text})
+            if steer.accepted_queue_id is None:
+                timeline.add_steer(text)
+                await self._emit("steer_applied", {"text": text})
+            elif steer.accepted_queue_id not in applied_receipt_ids:
+                timeline.add_steer(text)
+                applied_receipt_ids.add(steer.accepted_queue_id)
 
-        steering = SteeringInbox(on_applied=steered)
+        async def receipt_applied(receipt_id: UUID, text: str) -> None:
+            if (
+                self.current_conversation_id is None
+                or self._turn_agent_id is None
+                or not self._turn_runs
+                or self._steering is not steering
+            ):
+                raise AlreadyExistsError(message="The active chat run is no longer available")
+            run_id = self._turn_runs[0].run_id
+            async with get_db_context() as db:
+                ctx = await self._chat_context(db)
+                first_application = await AcceptedQueuedMessageService(db).finish_steer(
+                    ctx,
+                    UUID(self.current_conversation_id),
+                    receipt_id,
+                    run_id=run_id,
+                )
+            if first_application:
+                if receipt_id not in applied_receipt_ids:
+                    timeline.add_steer(text)
+                    applied_receipt_ids.add(receipt_id)
+                await self._emit(
+                    "steer_applied",
+                    {
+                        "accepted_queue_id": str(receipt_id),
+                        "run_id": str(run_id),
+                        "text": text,
+                    },
+                )
+
+        steering = SteeringInbox(on_applied=steered, on_receipt_applied=receipt_applied)
         self._steering = steering
         visual_reports = VisualReports(send_images=self._visual_images)
         self._visual_reports = visual_reports
@@ -1347,6 +1699,7 @@ class AgentSession:
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
                     prompt_message_id=prompt.message_id,
+                    accepted_queue_id=accepted_queue_id,
                     ask_user=self._ask_one,
                     ask_questions=self._ask_questions,
                     stream=frames.drive,
@@ -1540,20 +1893,65 @@ class AgentSession:
 
     async def _end_live_turn(self, steering: SteeringInbox) -> None:
         """Close the turn this socket was writing: its trace, and what it held for it."""
+        finished, self._live = self._live, None
+        late: list[str] = []
+        run_id = self._turn_runs[0].run_id if self._turn_runs else None
+        for steer in steering.unapplied_steers():
+            if steer.accepted_queue_id is None:
+                late.append(steer.text)
+                continue
+            # A child inbox shares this marker but not the parent's history
+            # cursor. Once any inbox takes the receipt, the durable claim stays
+            # blocked even if a guardrail or callback failed before the provider.
+            if steer.consumption.consumed or steering.has_active_listeners:
+                continue
+            if (
+                self._steering is not steering
+                or run_id is None
+                or self.current_conversation_id is None
+            ):
+                continue
+            conversation_id = UUID(self.current_conversation_id)
+            try:
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    released = await AcceptedQueuedMessageService(db).release_unconsumed_steer(
+                        ctx,
+                        conversation_id,
+                        steer.accepted_queue_id,
+                        run_id=run_id,
+                    )
+            except Exception as exc:
+                # A failed or uncertain release must remain visible as steering
+                # so the owner can reconcile it by receipt id.
+                logger.warning(
+                    "Could not confirm unused queue receipt release",
+                    extra={
+                        "receipt_id": str(steer.accepted_queue_id),
+                        "run_id": str(run_id),
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+            if released:
+                with contextlib.suppress(Exception):
+                    await self._emit(
+                        "steer_unapplied",
+                        {
+                            "accepted_queue_id": str(steer.accepted_queue_id),
+                            "run_id": str(run_id),
+                        },
+                    )
+        if late:
+            # Legacy, non-receipt steers keep their existing hand-back contract.
+            with contextlib.suppress(Exception):
+                await self._emit("steer_unapplied", {"texts": late})
         if self._live_turn is not None:
             await live_turn.end(self._live_turn)
-        finished, self._live = self._live, None
         self._live_turn = None
         self._current_timeline = None
         self._steering = None
         self._visual_reports = None
-        late = steering.unapplied()
-        if late:
-            # Sent after the agent's last request, so no request carried them.
-            # Handed back rather than dropped: the client sends them as the
-            # next message.
-            with contextlib.suppress(Exception):
-                await self._emit("steer_unapplied", {"texts": late})
         if finished is not None and finished == self._room:
             # A teammate's turn begun while this socket wrote its own was
             # not followed then; it is now, from its start.

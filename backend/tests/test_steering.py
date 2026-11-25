@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from pydantic_ai import Agent, RunContext
@@ -17,7 +18,7 @@ from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
-from app.agents.steering import Steering, SteeringInbox
+from app.agents.steering import Steer, Steering, SteeringInbox
 
 pytestmark = pytest.mark.anyio
 
@@ -41,6 +42,7 @@ async def test_a_correction_sent_mid_run_is_read_at_the_next_step_and_kept():
     """The tool stands in for the person: it is mid-run when the correction arrives."""
     applied = AsyncMock()
     inbox = SteeringInbox(on_applied=applied)
+    added_steers: list[Steer] = []
     seen: list[list[str]] = []
 
     def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -53,7 +55,7 @@ async def test_a_correction_sent_mid_run_is_read_at_the_next_step_and_kept():
 
     @agent.tool
     def look_up(ctx: RunContext[_Deps]) -> str:
-        inbox.add("use the EU numbers")
+        added_steers.append(inbox.add("use the EU numbers"))
         return "US: 10, EU: 12"
 
     result = await agent.run("what are the numbers", deps=_Deps(steering=inbox))
@@ -62,7 +64,7 @@ async def test_a_correction_sent_mid_run_is_read_at_the_next_step_and_kept():
     assert any("use the EU numbers" in text for text in seen[1])
     # In the history too, so the transcript and any later request keep it.
     assert any("use the EU numbers" in text for text in _said(result.all_messages()))
-    applied.assert_awaited_once_with("use the EU numbers")
+    applied.assert_awaited_once_with(added_steers[0], "use the EU numbers")
     assert inbox.unapplied() == []
 
 
@@ -131,6 +133,66 @@ async def test_the_request_carries_it_even_where_the_history_tail_differs():
 
     assert "shorter, please" in _said(sent.messages)[-1]
     assert ctx.messages == [history_tail]
+
+
+async def test_a_durable_receipt_fence_failure_leaves_persistent_history_untouched():
+    """A failed durable commit must not leave accepted text in resumable history."""
+    fence = AsyncMock(side_effect=RuntimeError("receipt fence failed"))
+    inbox = SteeringInbox(on_receipt_applied=fence)
+    steer = inbox.add("accepted guidance", accepted_queue_id=uuid4())
+    last = ModelRequest(parts=[UserPromptPart(content="continue")])
+    ctx = MagicMock(deps=_Deps(steering=inbox), messages=[last])
+    request = _request([last])
+
+    with pytest.raises(RuntimeError, match="receipt fence failed"):
+        await Steering().before_model_request(ctx, request)
+
+    assert ctx.messages == [last]
+    assert steer.consumption.consumed
+    assert inbox.unapplied_steers() == []
+    fence.assert_awaited_once_with(steer.accepted_queue_id, "accepted guidance")
+
+
+async def test_a_guardrail_block_keeps_an_accepted_receipt_unresolved():
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+
+    fence = AsyncMock()
+    inbox = SteeringInbox(
+        on_receipt_applied=fence,
+        screen=MagicMock(side_effect=GuardrailBlocked(edge="input", message="Input was blocked")),
+    )
+    steer = inbox.add("blocked accepted guidance", accepted_queue_id=uuid4())
+    last = ModelRequest(parts=[UserPromptPart(content="continue")])
+    ctx = MagicMock(deps=_Deps(steering=inbox), messages=[last])
+    request = _request([last])
+
+    with pytest.raises(GuardrailBlocked):
+        await Steering().before_model_request(ctx, request)
+
+    assert ctx.messages == [last]
+    assert steer.consumption.consumed
+    assert inbox.unapplied_steers() == []
+    fence.assert_not_awaited()
+
+
+async def test_a_child_fences_a_receipt_without_advancing_the_parent_cursor():
+    receipt_id = uuid4()
+    fence = AsyncMock()
+    inbox = SteeringInbox(on_receipt_applied=fence)
+
+    with inbox.listen("api") as child:
+        parent_steer = inbox.add(
+            "[session:api] use the stable endpoint", accepted_queue_id=receipt_id
+        )
+        [(child_steer, text)] = await child.take_screened()
+
+        assert child_steer.accepted_queue_id == receipt_id
+        assert text == "use the stable endpoint"
+        assert child_steer.applied
+        assert not parent_steer.applied
+        assert parent_steer.consumption.consumed
+        assert inbox.unapplied_steers() == [parent_steer]
+        fence.assert_awaited_once_with(receipt_id, "use the stable endpoint")
 
 
 @pytest.mark.security

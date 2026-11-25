@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "744357532f30"
 ---
 
 # La consola { #the-console }
@@ -744,9 +744,32 @@ cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termi
 el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
 **Send now** lo envía en cambio a la tarea en curso - el agent lo lee en su
 siguiente paso y corrige el rumbo sin empezar de nuevo, y aparece en la
-conversación donde llegó. Un mensaje con archivos siempre espera la respuesta.
+conversación donde llegó. Un mensaje con archivos, menciones o una respuesta citada conserva un turno completo.
 Slack, Telegram y Mattermost mantienen su propio comportamiento, descrito en
 [Canales](channels.md).
+
+En tu chat personal, los mensajes aceptados de la cola se guardan para tu cuenta
+y organización. Recargar o volver a conectar recupera los elementos sin resolver.
+Cada uno conserva el agent, texto, archivos, menciones, cita y contexto compatible
+de página o workspace seleccionados al ponerlo en cola. Si la aceptación falla,
+el elemento permanece visible y el envío automático se detiene hasta confirmar
+su estado.
+
+Elige **Run as task** para trasladar un elemento aceptado a un chat de tarea
+privado e independiente. El agent original puede seguir trabajando mientras la
+nueva tarea cumple las comprobaciones habituales de permisos y presupuesto. La
+tarea necesita un destino compatible: no se puede transferir un permiso temporal
+para todo el equipo ni un permiso de rutina; el trabajo local debe indicar el
+dispositivo previsto. Una transferencia rechazada deja disponible el elemento
+original de la cola.
+
+**Send now** sigue disponible para texto simple dirigido al agent que está
+trabajando. Los mensajes con archivos, menciones, citas o contexto guardado de
+página o workspace necesitan un turno completo o una tarea para conservarlo.
+Enviar, orientar al agent, crear una tarea y cancelar comparten un estado guardado.
+Tras perder una respuesta, el reintento comprueba ese estado antes de actuar de
+nuevo. Una corrección no aplicada vuelve al mismo elemento de la cola; un
+resultado incierto permanece visible y no se ejecuta otra vez automáticamente.
 
 **Irte mientras responde.** No tienes que esperar. Cierra la pestaña, sal de la
 app o abre otra conversación, y el agente termina la respuesta solo: llega a la

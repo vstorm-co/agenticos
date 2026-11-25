@@ -96,6 +96,7 @@ async def create_run(
     routine_kind: str = "trigger",
     routine_policy: dict[str, object] | None = None,
     routine_activation_at: datetime | None = None,
+    accepted_queue_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
         trigger_id=trigger_id,
@@ -113,6 +114,7 @@ async def create_run(
         test_spec=test_spec,
         text_to_speech_defaults=text_to_speech_defaults,
         user_id=user_id,
+        accepted_queue_id=accepted_queue_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
         channel_identity_id=channel_identity_id,
@@ -368,6 +370,43 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> A
         select(AgentRun).where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
     )
     return result.scalar_one_or_none()
+
+
+async def for_accepted_queue(
+    db: AsyncSession, *, organization_id: UUID, accepted_queue_id: UUID
+) -> AgentRun | None:
+    """The one full run that consumed an accepted queue receipt, if it exists."""
+    return await db.scalar(
+        select(AgentRun).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.accepted_queue_id == accepted_queue_id,
+        )
+    )
+
+
+async def active_personal_chat_run(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    conversation_id: UUID,
+    agent_id: UUID,
+) -> AgentRun | None:
+    """Resolve only the trusted top-level web run that owns a steer receipt."""
+    return await db.scalar(
+        select(AgentRun).where(
+            AgentRun.id == run_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.surface == RunSurface.WEB.value,
+            AgentRun.status == RunStatus.RUNNING.value,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.initiated_by_publisher_fallback.is_(False),
+        )
+    )
 
 
 async def latest_run_for_conversation(

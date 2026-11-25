@@ -204,12 +204,16 @@ export function QuickAsk({
     sendConnectionResponse,
     pendingComputerAccess,
     sendComputerAccessResponse,
+    liveSteerAgentId,
     queuedMessages,
     cancelQueued,
     retryQueued,
+    sendQueuedNow,
+    runQueuedAsTask,
     clearQueued,
   } = useChat({
     conversationId,
+    queueReceiptsEnabled: Boolean(conversationId),
     onConversationCreated: setConversationId,
   });
   // Native folder consent belongs to the main console. Release this turn
@@ -539,6 +543,16 @@ export function QuickAsk({
     run("could not put quick ask away", hideQuickAsk);
   };
 
+  const runQueuedAsTaskAndOpen = (id: string) => {
+    void runQueuedAsTask(id).then((taskConversationId) => {
+      if (!taskConversationId) return;
+      run("could not open the task", () =>
+        openInConsole(`/chat?id=${encodeURIComponent(taskConversationId)}`),
+      );
+      run("could not put quick ask away", hideQuickAsk);
+    });
+  };
+
   const resetConversation = useConversationStore((s) => s.reset);
   const startOver = () => {
     if (
@@ -739,9 +753,13 @@ export function QuickAsk({
         {queuedMessages?.length > 0 && (
           <PendingMessages
             messages={queuedMessages}
+            queueReceiptsEnabled={Boolean(conversationId)}
             onCancel={cancelQueued}
             onRetry={retryQueued}
             waitingForNetwork={!isConnected}
+            onSendNow={isProcessing && isConnected ? sendQueuedNow : undefined}
+            steerAgentId={liveSteerAgentId}
+            onRunAsTask={runQueuedAsTaskAndOpen}
           />
         )}
         {active && pendingApproval && (

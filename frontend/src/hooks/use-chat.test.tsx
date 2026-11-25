@@ -33,11 +33,11 @@ import {
 // A decision on a parked call goes to the same REST endpoints the approvals queue
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
-const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+const { post, get, del } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), del: vi.fn() }));
 vi.mock("@/lib/api-client", async (importOriginal) => ({
   // The real error class: `usePermissions` reads a refusal by it.
   ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
-  apiClient: { post, get },
+  apiClient: { post, get, delete: del },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // The outbox's copy on the device is `device-cache`'s to test; here, what the
@@ -4225,13 +4225,16 @@ describe("useChat - the outbound queue", () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
-  it("cancels one queued message and keeps the rest", () => {
+  it("cancels one queued message and keeps the rest", async () => {
     socket.isConnected = false;
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("one"));
     act(() => result.current.sendMessage("two"));
 
-    act(() => result.current.cancelQueued(result.current.queuedMessages[0]!.id));
+    const queuedId = result.current.queuedMessages[0]!.id;
+    await act(async () => {
+      await result.current.cancelQueued(queuedId);
+    });
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["two"]);
   });
@@ -6135,6 +6138,364 @@ describe("useChat - adding to a running turn (#2087)", () => {
     ]);
     expect(result.current.steers).toEqual([]);
   });
+
+  it("keeps a quoted message queued because Send now cannot carry its reply", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    const reply = {
+      messageId: "message-1",
+      role: "assistant" as const,
+      excerpt: "the quoted answer",
+      selectedText: "the selected quote",
+    };
+    act(() => useChatStore.getState().setReplyTo(reply));
+
+    act(() => result.current.sendMessage("answer this quote"));
+    const queued = result.current.queuedMessages[0]!;
+    expect(queued.replyTo).toEqual(reply);
+    sent.mockClear();
+
+    act(() => result.current.sendQueuedNow(queued.id));
+
+    expect(sent).not.toHaveBeenCalled();
+    expect(result.current.queuedMessages).toEqual([queued]);
+    expect(result.current.steers).toEqual([]);
+  });
+});
+
+describe("useChat - receipt-backed queue actions", () => {
+  const receiptId = "123e4567-e89b-42d3-a456-426614174001";
+
+  beforeEach(() => {
+    post.mockReset();
+    get.mockReset();
+    get.mockImplementation(mockReceiptGetDefaults);
+  });
+
+  function prepareConversation(agentId: string | null = "agent-1") {
+    useAuthStore.setState({
+      user: {
+        id: "u-1",
+        email: "person@example.com",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        locale: "en",
+      } as NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>,
+    });
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    if (agentId) useAgentSelectionStore.getState().select(agentId);
+    else useAgentSelectionStore.setState({ selectedAgentId: null });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+  }
+
+  function acceptedReceipt(payload: Record<string, unknown>) {
+    return {
+      ...payload,
+      id: receiptId,
+      conversation_id: "c-1",
+      state: "pending",
+      message_id: null,
+      task_id: null,
+      task_conversation_id: null,
+      steering_run_id: null,
+      reply_to_role: null,
+      quote_excerpt: null,
+      created_at: "2026-11-25T00:00:00Z",
+    };
+  }
+
+  function mockReceiptGetDefaults(url: string) {
+    if (url === "/me/permissions") {
+      return Promise.resolve({
+        organization_id: useOrgStore.getState().activeOrgId ?? "org-1",
+        user_id: useAuthStore.getState().user?.id ?? "u-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: [],
+      });
+    }
+    if (url.includes("/compaction-availability")) return Promise.resolve({ available: false });
+    if (url.endsWith("/queued-messages")) return Promise.resolve({ items: [], next_cursor: null });
+    return Promise.resolve({});
+  }
+
+  function mockAcceptance() {
+    post.mockImplementation((url: string, payload: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve(acceptedReceipt(payload))
+        : Promise.resolve({}),
+    );
+  }
+
+  it("keeps Send now on the same receipt until a receipt-correlated applied ack", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("use the reviewed figures"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+    expect(sent.mock.calls.at(-1)?.[0]).toEqual({
+      type: "steer",
+      text: "use the reviewed figures",
+      accepted_queue_id: receiptId,
+    });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      receiptState: "pending",
+      transferring: true,
+    });
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "steering",
+      steeringRunId: "run-1",
+    });
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "Use the checked figures",
+    });
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`),
+    ).toHaveLength(1);
+
+    // A replay acknowledgement has identity only and cannot add raw receipt text.
+    receive("steer_applied", { accepted_queue_id: receiptId, run_id: "run-1" });
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`),
+    ).toHaveLength(1);
+  });
+
+  it("uses only the screened text when an identity-only applied ack arrives first", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("raw queued words"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    receive("steer_applied", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .some((part) => part.type === "steer"),
+    ).toBe(false);
+
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "screened words",
+    });
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "screened words",
+    });
+
+    const applied = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.id === `accepted-steer:${receiptId}`);
+    expect(applied).toEqual([
+      expect.objectContaining({ type: "steer", content: "screened words" }),
+    ]);
+  });
+
+  it("reconciles a lost Send now acknowledgement before it can be retried", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("keep the same receipt"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.resolve({
+            ...acceptedReceipt({
+              client_queue_id: queued.clientQueueId,
+              agent_id: "agent-1",
+              content: queued.content,
+              file_ids: [],
+              mentions: [],
+              reply_to_message_id: null,
+              reply_to_excerpt: null,
+              page_context: null,
+              local_target: null,
+            }),
+            state: "steering",
+            steering_run_id: "run-1",
+          })
+        : mockReceiptGetDefaults(url),
+    );
+
+    receive("error", {
+      message: "The running task has already ended",
+      code: "no_active_run",
+      accepted_queue_id: receiptId,
+    });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptState: "steering",
+        steeringRunId: "run-1",
+        transferring: false,
+      }),
+    );
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+  });
+
+  it("removes a never-submitted missing-agent row locally instead of retrying acceptance", async () => {
+    prepareConversation(null);
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("cannot freeze an agent yet"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.receiptErrorAction).toBe("accept"),
+    );
+    const queued = result.current.queuedMessages[0]!;
+
+    await act(async () => result.current.cancelQueued(queued.id));
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(post).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages", expect.anything());
+  });
+
+  it("removes a never-submitted settings-unsupported row without retrying acceptance", async () => {
+    prepareConversation();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.setModelProfile("custom-profile"));
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("queued with an unsupported model override"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptUnsupported: true,
+        receiptErrorAction: "accept",
+      }),
+    );
+    const queued = result.current.queuedMessages[0]!;
+
+    await act(async () => result.current.cancelQueued(queued.id));
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(post).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages", expect.anything());
+  });
+
+  it("returns the server task conversation for navigation and removes only a confirmed task", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("turn this into a task"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    post.mockResolvedValueOnce({ id: "task-1", conversation_id: "task-topic-1", status: "queued" });
+
+    let topic: string | null = null;
+    await act(async () => {
+      topic = await result.current.runQueuedAsTask(result.current.queuedMessages[0]!.id);
+    });
+
+    expect(topic).toBe("task-topic-1");
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it.each(["account", "organization", "selection"] as const)(
+    "does not return a stale task topic when %s changes before the response settles",
+    async (boundary) => {
+      prepareConversation();
+      mockAcceptance();
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      act(() => result.current.sendMessage("active turn"));
+      receive("model_request_start", {});
+      act(() => result.current.sendMessage("move this into a task"));
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId),
+      );
+
+      let resolveTask!: (task: { id: string; conversation_id: string; status: string }) => void;
+      post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+        if (url === "/conversations/c-1/queued-messages")
+          return Promise.resolve(acceptedReceipt(payload ?? {}));
+        if (url.endsWith(`/queued-messages/${receiptId}/run-as-task`))
+          return new Promise((resolve) => {
+            resolveTask = resolve;
+          });
+        return Promise.resolve({});
+      });
+
+      let outcome: string | null = null;
+      let taskRequest!: Promise<string | null>;
+      await act(async () => {
+        taskRequest = result.current.runQueuedAsTask(result.current.queuedMessages[0]!.id);
+      });
+      await waitFor(() => expect(resolveTask).toBeTypeOf("function"));
+      await act(async () => {
+        if (boundary === "account") useAuthStore.setState({ user: { id: "u-2" } as never });
+        else if (boundary === "organization") useOrgStore.setState({ activeOrgId: "org-2" });
+        else {
+          useConversationStore.getState().setCurrentConversationId("c-2");
+          useConversationStore.getState().setCurrentConversationId("c-1");
+        }
+        resolveTask({ id: "task-1", conversation_id: "task-topic-old", status: "queued" });
+        outcome = await taskRequest;
+      });
+
+      expect(outcome).toBeNull();
+    },
+  );
 });
 
 describe("useChat - loaded transcript subscriptions", () => {

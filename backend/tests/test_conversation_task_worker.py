@@ -32,6 +32,7 @@ def task(**changes: object) -> SimpleNamespace:
         "source_version_id": uuid4(),
         "title": "Task",
         "prompt": "Brief",
+        "queue_receipt_id": None,
         "local_target": None,
         "source_model_profile_id": None,
         "outcome": None,

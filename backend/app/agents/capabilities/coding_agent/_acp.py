@@ -38,7 +38,7 @@ from app.agents.capabilities.coding_agent._harness import (
     last_steps,
 )
 from app.agents.model_context import check_model_context
-from app.agents.steering import SteeringInbox, screen_steer
+from app.agents.steering import SteeringInbox
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +426,8 @@ class Conversation:
                 raise
             if not interrupted:
                 return result
-            updates = [screen_steer(steering, item.text) for item in steering.take()]
+            steered = await steering.take_screened()
+            updates = [text for _steer, text in steered]
             self._collector.task_updates.extend(updates)
             self._collector.said.clear()
             text = (
@@ -434,8 +435,8 @@ class Conversation:
                 "applying these corrections:\n\n" + "\n\n".join(updates)
             )
             if steering.on_applied is not None:
-                for update in updates:
-                    await steering.on_applied(update)
+                for steer, update in steered:
+                    await steering.on_applied(steer, update)
 
     async def cancel(self, session_id: str) -> None:
         await self._pipe.send(

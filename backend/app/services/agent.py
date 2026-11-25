@@ -38,6 +38,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.schemas.mention import Mentionable
+from app.services.accepted_queued_message import AcceptedQueuedMessageService
 from app.services.conversation import ConversationService
 from app.services.project import ProjectService
 from app.services.transcript import STOPPED_TOOL_RESULT, what_arrived
@@ -214,6 +215,8 @@ async def persist_user_turn(
     reply_to_excerpt: str | None = None,
     mentions: Sequence[Mentionable] = (),
     client_message_id: str | None = None,
+    accepted_queue_id: UUID | None = None,
+    queue_context: AuthContext | None = None,
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -240,9 +243,10 @@ async def persist_user_turn(
         NotFoundError: If a file in `file_ids` is not the caller's own -
             another user's id answers like one that does not exist (#706).
         AuthorizationError: If the requested conversation is not this
-            organization's. A database failure is logged and swallowed - a lost
-            message must not abort a turn - but a refusal must abort, and a
-            defect in this module must surface rather than read as one.
+            organization's. Ordinary message database failures are logged and
+            swallowed; accepted receipt failures must abort so execution cannot
+            proceed without its durable claim. Refusals and code defects always
+            surface to the caller.
     """
     if client_message_id is not None and (
         not isinstance(client_message_id, str)
@@ -304,33 +308,55 @@ async def persist_user_turn(
                 newly_created = True
 
             content = user_message
-            if not content and file_ids:
-                content = what_arrived(
-                    await conv_service.list_attached_files(file_ids, user_id=user.id)
+            if accepted_queue_id is not None:
+                if (
+                    queue_context is None
+                    or queue_context.subject_id != user.id
+                    or queue_context.organization_id != organization_id
+                    or current_conversation_id is None
+                ):
+                    raise AuthorizationError(message="This accepted queue receipt is not yours")
+                user_msg = await AcceptedQueuedMessageService(db).claim_for_send(
+                    queue_context,
+                    UUID(current_conversation_id),
+                    accepted_queue_id,
                 )
-            user_msg = await conv_service.add_message(
-                UUID(current_conversation_id),
-                MessageCreate(
-                    role="user",
-                    content=content,
-                    client_message_id=client_message_id,
-                    reply_to_message_id=replied,
-                    reply_to_excerpt=reply_to_excerpt,
-                    parts=[
-                        MessagePart(
-                            type="mention",
-                            mention_kind=mention.kind,
-                            mention_id=mention.id,
-                            text=mention.name,
-                        )
-                        for mention in mentions
-                    ]
-                    or None,
-                ),
-                organization_id=organization_id,
-                user_id=user.id,
-            )
+                if (
+                    user_msg.conversation_id != UUID(current_conversation_id)
+                    or user_msg.author_user_id != user.id
+                    or user_msg.role != "user"
+                ):
+                    raise NotFoundError(message="Accepted queued message not found")
+                content = user_msg.content
+            else:
+                if not content and file_ids:
+                    content = what_arrived(
+                        await conv_service.list_attached_files(file_ids, user_id=user.id)
+                    )
+                user_msg = await conv_service.add_message(
+                    UUID(current_conversation_id),
+                    MessageCreate(
+                        role="user",
+                        content=content,
+                        client_message_id=client_message_id,
+                        reply_to_message_id=replied,
+                        reply_to_excerpt=reply_to_excerpt,
+                        parts=[
+                            MessagePart(
+                                type="mention",
+                                mention_kind=mention.kind,
+                                mention_id=mention.id,
+                                text=mention.name,
+                            )
+                            for mention in mentions
+                        ]
+                        or None,
+                    ),
+                    organization_id=organization_id,
+                    user_id=user.id,
+                )
             message_id = user_msg.id
+            replied = user_msg.reply_to_message_id
             if replied is not None:
                 reply = await conv_service.reply_quoted(user_msg)
             if conversation is None:
@@ -340,7 +366,7 @@ async def persist_user_turn(
             if conversation is not None:
                 spoken = await conv_service.model_text(user_msg, conversation)
                 for_model = spoken if spoken != content else None
-            if file_ids:
+            if file_ids and accepted_queue_id is None:
                 try:
                     await conv_service.link_files_to_message(user_msg.id, file_ids, user_id=user.id)
                 except AppException:
@@ -362,6 +388,8 @@ async def persist_user_turn(
         # defect in this module, and #5 is what swallowing one costs: it read
         # as a transient persistence failure for as long as it took to lose
         # every resumed turn in the deployment.
+        if accepted_queue_id is not None:
+            raise
         logger.warning("Failed to persist the user's turn: %s", e)
 
     return PersistedPrompt(

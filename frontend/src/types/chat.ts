@@ -2,6 +2,7 @@ import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import type { ChatPerson, RoomMessageMention, RoomThreadSummary } from "./conversation";
 import type { RoomMessageReactionSummary } from "./room-message-reaction";
 import type { Mentionable } from "./mention";
+import type { ApprovalMode } from "@/stores/chat-controls-store";
 
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
@@ -39,6 +40,27 @@ export interface ChatSubmissionContext {
 
 export interface QueuedMessage {
   id: string;
+  /** Stable client idempotency key for a server-accepted queued turn. */
+  clientQueueId?: string;
+  /** Conversation that owns its accepted receipt and cannot be sent from another chat. */
+  receiptConversationId?: string;
+  /** Controls frozen when the row entered the queue; receipts support defaults only. */
+  queueSettings?: { modelProfileId: string | null; approvalMode: ApprovalMode };
+  /** Owner-scoped server receipt; present before a queued row can drain or transfer. */
+  acceptedQueueId?: string;
+  receiptState?: "pending" | "steering" | "steered" | "sent" | "task" | "cancelled";
+  steeringRunId?: string;
+  accepting?: boolean;
+  /** True only after the initial acceptance request could have reached the server. */
+  receiptAcceptanceAttempted?: boolean;
+  /** Cancellation requested while initial acceptance is still unresolved. */
+  cancelRequested?: boolean;
+  transferring?: boolean;
+  receiptError?: string;
+  receiptErrorAction?: "accept" | "cancel" | "send" | "steer";
+  transferError?: string;
+  transferErrorAction?: "cancel" | "task";
+  receiptUnsupported?: boolean;
   /** A continuation keeps its requesting agent; undefined follows the current picker. */
   agentId?: string | null;
   content: string;
@@ -52,6 +74,8 @@ export interface QueuedMessage {
    */
   refused?: string;
   submission?: ChatSubmissionContext;
+  /** The reply target captured when the person queued this turn. */
+  replyTo?: MessageReply;
 }
 
 /** The earlier message a turn answers, quoted above it. */
@@ -327,6 +351,7 @@ export type WSEventType =
   | "message_saved"
   | "next_steps"
   | "user_prompt"
+  | "accepted_queue_run_exists"
   | "session_ready"
   | "model_setup_required"
   | "model_request_start"
@@ -345,6 +370,7 @@ export type WSEventType =
   | "user_question_required"
   | "ask_user_answered"
   | "run_answer_result"
+  | "steer_claimed"
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"

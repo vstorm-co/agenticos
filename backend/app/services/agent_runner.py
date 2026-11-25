@@ -4070,6 +4070,7 @@ class AgentRunnerService:
         # what an unnamed surface is. Every production caller passes one.
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
+        accepted_queue_id: UUID | None = None,
         parent_run_id: UUID | None = None,
         retry_of_run_id: UUID | None = None,
         channel_key: str | None = None,
@@ -4307,6 +4308,7 @@ class AgentRunnerService:
             existing_run=None,
             surface=surface,
             conversation_id=conversation_id,
+            accepted_queue_id=accepted_queue_id,
             parent_run_id=parent_run_id,
             retry_of_run_id=retry_of_run_id,
             channel_key=channel_key,
@@ -4495,6 +4497,7 @@ class AgentRunnerService:
         expected_history_provenance: HistoryProvenance | None = None,
         surface: RunSurface,
         conversation_id: UUID | None,
+        accepted_queue_id: UUID | None = None,
         parent_run_id: UUID | None = None,
         retry_of_run_id: UUID | None = None,
         channel_key: str | None = None,
@@ -4583,6 +4586,50 @@ class AgentRunnerService:
         system = agent.kind != AgentKind.AGENT.value
         if system:
             spec = for_the_platform(spec)
+        if accepted_queue_id is not None:
+            if (
+                existing_run is not None
+                or surface is not RunSurface.WEB
+                or conversation_id is None
+                or thread_root_message_id is not None
+                or parent_run_id is not None
+                or retry_of_run_id is not None
+                or not acts_for_sender
+                or ctx.user_id is None
+                or owner_user_id not in {None, ctx.user_id}
+                or ctx.api_key_id is not None
+                or ctx.subject_is_publisher_fallback
+                or ctx.is_impersonated
+                or ctx.is_workflow
+                or ctx.routine_id is not None
+                or ctx.routine_source_policy_id is not None
+                or ctx.routine_activation_id is not None
+                or ctx.fired_as_creator is not None
+                or answer_only
+                or decision_model
+                or room_lead is not None
+                or public_origin
+                or impersonated
+                or is_workflow
+                or is_test
+                or test_spec is not None
+                or channel_directory is not None
+                or channel_key is not None
+                or memory_room_key is not None
+                or exposure is not None
+                or isolation is not None
+                or voice is not None
+                or watch_receipt is not None
+            ):
+                raise AuthorizationError(
+                    message="Accepted queue runs require a top-level personal web chat"
+                )
+            if await agent_run_repo.for_accepted_queue(
+                self.db,
+                organization_id=ctx.organization_id,
+                accepted_queue_id=accepted_queue_id,
+            ):
+                raise AlreadyExistsError(message="This accepted queue item already has a run")
         spec = await self._with_current_budget(
             agent,
             spec,
@@ -5123,6 +5170,7 @@ class AgentRunnerService:
                 agent_version_id=version_id,
                 improvement_run_id=isolation.improvement_run_id if isolation else None,
                 user_id=ctx.user_id,
+                accepted_queue_id=accepted_queue_id,
                 trigger_id=ctx.routine_id if ctx.routine_kind == "trigger" else None,
                 routine_origin_id=ctx.routine_id,
                 routine_kind=ctx.routine_kind,
@@ -8231,6 +8279,7 @@ class AgentRunnerService:
         channel_author_context: str = "",
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
+        accepted_queue_id: UUID | None = None,
         parent_run_id: UUID | None = None,
         retry_of_run_id: UUID | None = None,
         channel_key: str | None = None,
@@ -8378,6 +8427,7 @@ class AgentRunnerService:
             agent_id,
             surface=surface,
             conversation_id=conversation_id,
+            accepted_queue_id=accepted_queue_id,
             parent_run_id=parent_run_id,
             retry_of_run_id=retry_of_run_id,
             channel_key=channel_key,

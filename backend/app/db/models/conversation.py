@@ -242,6 +242,7 @@ class Message(Base, TimestampMixin):
     __tablename__ = "messages"
     __table_args__ = (
         UniqueConstraint("conversation_id", "id", name="uq_messages_conversation_id_id"),
+        UniqueConstraint("accepted_queue_id", name="uq_message_accepted_queue"),
         ForeignKeyConstraint(
             ["conversation_id", "thread_root_message_id"],
             ["messages.conversation_id", "messages.id"],
@@ -301,6 +302,13 @@ class Message(Base, TimestampMixin):
     Lets a transcript reconcile a prompt even when its persistence frame was lost.
     It grants no authority and is not an idempotency key.
     """
+    accepted_queue_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "accepted_queued_messages.id", ondelete="SET NULL", name="fk_message_accepted_queue"
+        ),
+        nullable=True,
+    )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     room_mentions: Mapped[list[dict[str, str]]] = mapped_column(

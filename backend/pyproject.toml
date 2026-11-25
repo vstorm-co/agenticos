@@ -1328,6 +1328,13 @@ include = [
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    # Personal chat queue receipts are the single durable decision point for
+    # ordinary sends, Send now steering and task transfer.
+    "app/db/models/accepted_queued_message.py",
+    "app/repositories/queued_message_receipt.py",
+    "app/schemas/accepted_queued_message.py",
+    "app/services/accepted_queued_message.py",
+    "app/api/routes/v1/accepted_queued_messages.py",
     "app/db/models/room_submission.py",
     "app/db/models/room_routing.py",
     "app/db/models/room_participant.py",
@@ -2383,6 +2390,13 @@ include = [
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    # Personal chat queue receipts are the single durable decision point for
+    # ordinary sends, Send now steering and task transfer.
+    "app/db/models/accepted_queued_message.py",
+    "app/repositories/queued_message_receipt.py",
+    "app/schemas/accepted_queued_message.py",
+    "app/services/accepted_queued_message.py",
+    "app/api/routes/v1/accepted_queued_messages.py",
     "app/db/models/room_submission.py",
     "app/db/models/room_routing.py",
     "app/db/models/room_participant.py",

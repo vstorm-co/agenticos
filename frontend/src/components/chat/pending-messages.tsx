@@ -16,11 +16,16 @@ import {
 import { useTranslations } from "next-intl";
 
 import type { QueuedMessage, SteerDraft } from "@/hooks/use-chat";
+import { queueMaySteer, queueTaskUnavailableReason } from "@/lib/accepted-queued-message-queue";
 import { cn } from "@/lib/utils";
 
 interface PendingMessagesProps {
   /** Waiting for the agent's answer, in the order they will be sent. */
   messages: QueuedMessage[];
+  /** Server receipts back actions on personal chat rows. */
+  queueReceiptsEnabled?: boolean;
+  /** Agent addressing the live turn, for receipt-backed Send now eligibility. */
+  steerAgentId?: string | null;
   /** Sent into the running task, until the model has read them. */
   steers?: SteerDraft[];
   onCancel: (id: string) => void;
@@ -30,6 +35,8 @@ interface PendingMessagesProps {
   waitingForNetwork?: boolean;
   /** Absent where nothing can be sent now - no running task to join. */
   onSendNow?: (id: string) => void;
+  /** Transfers an accepted row to a personal task. */
+  onRunAsTask?: (id: string) => void;
   /** Absent where the order cannot change. */
   onMove?: (id: string, to: number) => void;
 }
@@ -49,11 +56,14 @@ const ROW_ACTION =
  */
 export function PendingMessages({
   messages,
+  queueReceiptsEnabled = false,
+  steerAgentId,
   steers = [],
   onCancel,
   onRetry,
   waitingForNetwork = false,
   onSendNow,
+  onRunAsTask,
   onMove,
 }: PendingMessagesProps) {
   const t = useTranslations("chat");
@@ -114,12 +124,49 @@ export function PendingMessages({
 
           <ol>
             {messages.map((message, index) => {
-              const fileCount = message.files?.length ?? 0;
+              const fileCount = Math.max(message.files?.length ?? 0, message.fileIds?.length ?? 0);
               const pointsAt = message.mentions?.length ?? 0;
+              const hasFrozenContext = Boolean(
+                message.submission?.pageContext ||
+                message.submission?.local?.payload ||
+                message.submission?.local?.fileRoot ||
+                message.submission?.local?.projectId,
+              );
+              const sendNowUnsupported =
+                fileCount > 0 ||
+                pointsAt > 0 ||
+                message.replyTo !== undefined ||
+                (queueReceiptsEnabled ? hasFrozenContext : message.submission !== undefined);
+              const sendNowWrongAgent =
+                queueReceiptsEnabled &&
+                (message.agentId ?? message.submission?.agentId) !== steerAgentId;
+              const sendNowTitle =
+                fileCount > 0
+                  ? t("sendNowNotWithFiles")
+                  : pointsAt > 0
+                    ? t("sendNowNotWithMentions")
+                    : message.replyTo !== undefined
+                      ? t("sendNowNotWithQuote")
+                      : sendNowWrongAgent
+                        ? t("sendNowWrongAgent")
+                        : (
+                              queueReceiptsEnabled
+                                ? hasFrozenContext
+                                : message.submission !== undefined
+                            )
+                          ? t("sendNowNotWithPageContext")
+                          : t("sendNowHint");
+              const taskUnavailable = queueTaskUnavailableReason(message);
+              const taskDisabled =
+                message.receiptState !== "pending" ||
+                message.receiptError !== undefined ||
+                message.transferring === true ||
+                taskUnavailable !== null ||
+                (message.transferError !== undefined && message.transferErrorAction !== "task");
               return (
                 <li
                   key={message.id}
-                  draggable={onMove !== undefined}
+                  draggable={onMove !== undefined && !message.accepting && !message.transferring}
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = "move";
                     setDragging(message.id);
@@ -168,6 +215,33 @@ export function PendingMessages({
                         {t("queuedNotSent", { reason: message.refused })}
                       </span>
                     )}
+                    {message.receiptState === "steering" && (
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {t("queuedSteering")}
+                      </span>
+                    )}
+                    {message.accepting && (
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {t("queuedAccepting")}
+                      </span>
+                    )}
+                    {message.transferring && (
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {t("queuedTransferring")}
+                      </span>
+                    )}
+                    {queueReceiptsEnabled &&
+                      message.receiptState === "pending" &&
+                      taskUnavailable && (
+                        <span className="text-muted-foreground block truncate text-xs">
+                          {t(`queuedTaskUnavailable.${taskUnavailable}`)}
+                        </span>
+                      )}
+                    {(message.receiptError || message.transferError) && (
+                      <span className="text-destructive block truncate text-xs">
+                        {message.receiptError ?? message.transferError}
+                      </span>
+                    )}
                   </span>
                   {fileCount > 0 && (
                     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
@@ -188,7 +262,11 @@ export function PendingMessages({
                       <>
                         <button
                           type="button"
-                          disabled={index === 0}
+                          disabled={
+                            index === 0 ||
+                            message.accepting === true ||
+                            message.transferring === true
+                          }
                           onClick={() => onMove(message.id, index - 1)}
                           title={t("moveUp")}
                           aria-label={t("moveUp")}
@@ -198,7 +276,11 @@ export function PendingMessages({
                         </button>
                         <button
                           type="button"
-                          disabled={index === messages.length - 1}
+                          disabled={
+                            index === messages.length - 1 ||
+                            message.accepting === true ||
+                            message.transferring === true
+                          }
                           onClick={() => onMove(message.id, index + 1)}
                           title={t("moveDown")}
                           aria-label={t("moveDown")}
@@ -208,32 +290,62 @@ export function PendingMessages({
                         </button>
                       </>
                     )}
-                    {message.refused !== undefined && onRetry && (
-                      <button
-                        type="button"
-                        onClick={() => onRetry(message.id)}
-                        title={t("queuedRetry")}
-                        className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
-                      >
-                        <RotateCcw aria-hidden />
-                        {t("queuedRetry")}
-                      </button>
-                    )}
+                    {(message.refused !== undefined ||
+                      message.receiptErrorAction !== undefined ||
+                      message.transferErrorAction === "cancel") &&
+                      onRetry && (
+                        <button
+                          type="button"
+                          onClick={() => onRetry(message.id)}
+                          title={t("queuedReconcileRetry")}
+                          className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
+                        >
+                          <RotateCcw aria-hidden />
+                          {message.refused !== undefined
+                            ? t("queuedRetry")
+                            : t("queuedReconcileRetry")}
+                        </button>
+                      )}
+                    {onRunAsTask &&
+                      queueReceiptsEnabled &&
+                      message.acceptedQueueId &&
+                      message.receiptState === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => onRunAsTask(message.id)}
+                          disabled={taskDisabled}
+                          title={
+                            taskUnavailable
+                              ? t(`queuedTaskUnavailable.${taskUnavailable}`)
+                              : message.transferErrorAction === "task"
+                                ? t("queuedTaskRetry")
+                                : t("queuedTaskHint")
+                          }
+                          className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
+                        >
+                          <ListOrdered aria-hidden />
+                          {message.transferErrorAction === "task"
+                            ? t("queuedTaskRetry")
+                            : t("runAsTask")}
+                        </button>
+                      )}
                     {onSendNow && (
                       <button
                         type="button"
                         onClick={() => onSendNow(message.id)}
-                        // Context and its selected agent need a full turn too.
-                        disabled={fileCount > 0 || pointsAt > 0 || message.submission !== undefined}
-                        title={
-                          fileCount > 0
-                            ? t("sendNowNotWithFiles")
-                            : pointsAt > 0
-                              ? t("sendNowNotWithMentions")
-                              : message.submission !== undefined
-                                ? t("sendNowNotWithPageContext")
-                                : t("sendNowHint")
+                        disabled={
+                          sendNowUnsupported ||
+                          message.transferring === true ||
+                          message.accepting === true ||
+                          message.receiptState === "steering" ||
+                          message.receiptError !== undefined ||
+                          message.transferError !== undefined ||
+                          (queueReceiptsEnabled && !queueMaySteer(message, steerAgentId, true)) ||
+                          (queueReceiptsEnabled &&
+                            (message.acceptedQueueId === undefined ||
+                              message.receiptState !== "pending"))
                         }
+                        title={sendNowTitle}
                         className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
                       >
                         <Send aria-hidden />
@@ -243,6 +355,7 @@ export function PendingMessages({
                     <button
                       type="button"
                       onClick={() => onCancel(message.id)}
+                      disabled={message.transferring === true}
                       title={t("removeFromQueue")}
                       aria-label={t("removeFromQueue")}
                       className={cn(ROW_ACTION, "hover:text-destructive")}

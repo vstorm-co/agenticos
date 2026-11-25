@@ -514,6 +514,7 @@ class ChatAgentRunner:
         attachments: list[ChatFile] | None = None,
         conversation_id: UUID | None,
         prompt_message_id: UUID | None = None,
+        accepted_queue_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
         ask_questions: QuestionsCallback | None = None,
@@ -613,6 +614,7 @@ class ChatAgentRunner:
             agent_id,
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
+            accepted_queue_id=accepted_queue_id,
             user_name=user.full_name,
             # The dashboard always has a signed-in person at the keyboard, so a
             # personal MCP binding speaks as them - in a shared conversation too,

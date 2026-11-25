@@ -257,6 +257,13 @@ class AgentRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    accepted_queue_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey(
+            "accepted_queued_messages.id", ondelete="SET NULL", name="fk_agent_run_accepted_queue"
+        ),
+        nullable=True,
+    )
     # Whether `user_id` above is a real initiator or the publisher standing in
     # for one (`AuthContext.subject_is_publisher_fallback`, #788) - a widget,
     # a hosted page or an unlinked channel message runs as whoever published
@@ -538,6 +545,7 @@ class AgentRun(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "id", name="uq_agent_runs_org_id"),
+        UniqueConstraint("accepted_queue_id", name="uq_agent_run_accepted_queue"),
         CheckConstraint(
             "routine_kind IN ('trigger', 'watch') AND "
             "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",

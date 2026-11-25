@@ -43,11 +43,12 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
+from app.db.locks import LOCK_NOT_AVAILABLE, LockScope, hold_subject, lock_wait_within
 from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
@@ -66,6 +67,9 @@ from app.repositories import (
 )
 from app.repositories import (
     conversation_message_pin as conversation_message_pin_repo,
+)
+from app.repositories import (
+    queued_message_receipt as queued_message_receipt_repo,
 )
 from app.repositories import (
     room_message_reaction as room_message_reaction_repo,
@@ -2359,6 +2363,26 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
         )
+        fields_set = getattr(data, "model_fields_set", set())
+        archive_requested = "is_archived" in fields_set and data.is_archived is True
+        project_conversion_requested = (
+            "project_id" in fields_set
+            and data.project_id is not None
+            and conversation.project_id is None
+            and conversation.room_visibility is None
+        )
+        if archive_requested or project_conversion_requested:
+            await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation.id)
+            conversation = await self.get_conversation(
+                conversation_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                for_write=True,
+            )
+            if archive_requested:
+                await self._refuse_queue_scope_change(conversation, action="archive")
+            elif project_conversion_requested:
+                await self._refuse_queue_scope_change(conversation, action="move into a project")
         if "project_id" in getattr(data, "model_fields_set", set()) and data.project_id is not None:
             if ctx is None:
                 raise AuthorizationError(message="A project access context is required")
@@ -2383,7 +2407,29 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
         )
+        await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation.id)
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+        )
+        await self._refuse_queue_scope_change(conversation, action="archive")
         return await conversation_repo.archive_conversation(self.db, db_conversation=conversation)
+
+    async def _refuse_queue_scope_change(self, conversation: Conversation, *, action: str) -> None:
+        """Keep accepted private receipts reachable while a chat remains personal."""
+        if conversation.organization_id is None:
+            return
+        pending = await queued_message_receipt_repo.pending_for_conversation(
+            self.db,
+            organization_id=conversation.organization_id,
+            conversation_id=conversation.id,
+        )
+        if pending:
+            raise ConflictError(
+                message=f"Resolve accepted queued messages before you {action} this conversation"
+            )
 
     async def lock_for_deletion(
         self,

@@ -1,5 +1,5 @@
 ---
-source_sha: "b1e4a651184a"
+source_sha: "744357532f30"
 ---
 
 # Die Konsole { #the-console }
@@ -768,8 +768,33 @@ hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
 nutzen Sie ihre Pfeile, um die Reihenfolge zu ändern. **Send now** gibt sie
 stattdessen in die laufende Aufgabe - der Agent liest sie beim nächsten Schritt und
 ändert den Kurs, ohne neu anzufangen, und sie erscheint im Gespräch dort, wo sie
-ankam. Eine Nachricht mit Dateien wartet immer auf die Antwort. Slack, Telegram und
+ankam. Eine Nachricht mit Dateien, Erwähnungen oder einem Antwortzitat bleibt ein vollständiger Turn. Slack, Telegram und
 Mattermost behalten ihr eigenes Verhalten, beschrieben unter [Kanäle](channels.md).
+
+In Ihrem persönlichen Chat werden angenommene Nachrichten der Warteschlange für
+Ihr Konto und Ihre Organisation gespeichert. Neuladen oder erneutes Verbinden
+stellt ungeklärte Einträge wieder her. Jeder Eintrag behält den Agent, Text,
+Dateien, Erwähnungen, das Zitat sowie den unterstützten Seiten- oder
+Workspace-Kontext vom Zeitpunkt des Einreihens. Scheitert die Annahme, bleibt der
+Eintrag sichtbar und wird erst automatisch gesendet, wenn sein Status bestätigt
+werden kann.
+
+Mit **Run as task** verschieben Sie einen angenommenen Eintrag in einen eigenen
+privaten Aufgabenchat. Der ursprüngliche Agent kann weiterarbeiten, während die
+neue Aufgabe den normalen Berechtigungs- und Budgetprüfungen unterliegt. Die
+Aufgabe braucht ein unterstütztes Ziel: Eine vorübergehende Freigabe für den
+ganzen Computer oder eine Routinenfreigabe ist nicht übertragbar; lokale Arbeit
+muss das vorgesehene Gerät nennen. Eine abgelehnte Übertragung lässt den
+ursprünglichen Eintrag in der Warteschlange verfügbar.
+
+**Send now** bleibt für einfachen Text an den laufenden Agent verfügbar.
+Nachrichten mit Dateien, Erwähnungen, Zitaten oder festgehaltenem Seiten- oder
+Workspace-Kontext brauchen einen vollständigen Turn oder eine Aufgabe, damit der
+Kontext erhalten bleibt. Senden, Steuern, Aufgabenerstellung und Abbrechen teilen
+einen gespeicherten Ergebnisstatus. Nach einer verlorenen Antwort prüft ein
+erneuter Versuch diesen Status, bevor er handelt. Eine nicht angewandte Korrektur
+kehrt zum selben Warteschlangeneintrag zurück; ein ungewisses Steuerungsergebnis
+bleibt sichtbar und wird nicht automatisch erneut ausgeführt.
 
 **Gehen, während er antwortet.** Sie müssen nicht warten. Schließen Sie den Tab,
 beenden Sie die App oder öffnen Sie eine andere Unterhaltung, und der Agent

@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,6 +13,12 @@ class ChatFile(Base, TimestampMixin):
     """Tracks files uploaded by users in chat conversations."""
 
     __tablename__ = "chat_files"
+    __table_args__ = (
+        CheckConstraint(
+            "message_id IS NULL OR queue_receipt_id IS NULL",
+            name="ck_chat_file_message_or_queue",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -28,6 +34,13 @@ class ChatFile(Base, TimestampMixin):
         ForeignKey("messages.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
+    )
+    queue_receipt_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey(
+            "accepted_queued_messages.id", ondelete="SET NULL", name="fk_chat_files_queue_receipt"
+        ),
+        nullable=True,
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)

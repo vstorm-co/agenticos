@@ -834,16 +834,26 @@ async def test_the_device_pipe_keeps_continuation_scoped_and_an_explicit_fresh_s
 
 
 @pytest.mark.parametrize("with_acknowledgement", [False, True])
+@pytest.mark.parametrize("with_receipt", [False, True])
 async def test_a_live_correction_interrupts_and_continues_the_same_task(
-    with_acknowledgement: bool,
+    with_acknowledgement: bool, with_receipt: bool
 ) -> None:
     from app.agents.steering import SteeringInbox
 
     started = anyio.Event()
     applied: list[str] = []
+    applied_receipts: list[object] = []
+    receipt_id = uuid4()
+    callbacks: list[tuple[str, object, str]] = []
+    callbacks_before_retry: list[list[tuple[str, object, str]]] = []
 
-    async def on_applied(text: str) -> None:
+    async def on_applied(steer: Any, text: str) -> None:
         applied.append(text)
+        applied_receipts.append(steer.accepted_queue_id)
+        callbacks.append(("applied", steer.accepted_queue_id, text))
+
+    async def on_receipt_applied(accepted_queue_id: object, text: str) -> None:
+        callbacks.append(("receipt", accepted_queue_id, text))
 
     observed = anyio.Event()
 
@@ -854,7 +864,112 @@ async def test_a_live_correction_interrupts_and_continues_the_same_task(
                 observed.set()
             return waiting
 
-    inbox = ObservedInbox(on_applied=on_applied if with_acknowledgement else None)
+    inbox = ObservedInbox(
+        on_applied=on_applied if with_acknowledgement else None,
+        on_receipt_applied=on_receipt_applied,
+    )
+
+    class InterruptedAgent(ScriptedAgent):
+        prompts = 0
+
+        def on_message(self, message: dict[str, Any]) -> None:
+            if message.get("method") == "session/prompt":
+                self.prompts += 1
+                if self.prompts == 1:
+                    self.seen.append(message)
+                    self._prompt = message["id"]
+                    started.set()
+                    return
+                callbacks_before_retry.append(list(callbacks))
+            if message.get("method") == "session/cancel":
+                self.seen.append(message)
+                self.out.append(
+                    {"jsonrpc": "2.0", "id": self._prompt, "result": {"stopReason": "cancelled"}}
+                )
+                return
+            super().on_message(message)
+
+    class ResponsivePipe(ScriptedPipe):
+        def __init__(self, agent: ScriptedAgent) -> None:
+            super().__init__(agent)
+            self.changed = anyio.Event()
+
+        async def send(self, message: dict[str, Any]) -> None:
+            await super().send(message)
+            self.changed.set()
+
+        async def receive(self) -> dict[str, Any]:
+            while not self.agent.out:
+                self.changed = anyio.Event()
+                await self.changed.wait()
+            return self.agent.out.pop(0)
+
+    async def correction() -> None:
+        await started.wait()
+        await observed.wait()
+        inbox.add(
+            "Use the EU data",
+            accepted_queue_id=receipt_id if with_receipt else None,
+        )
+
+    agent = InterruptedAgent()
+    async with anyio.create_task_group() as group:
+        group.start_soon(correction)
+        report = await acp.run_task(
+            ResponsivePipe(agent),
+            harness="claude_code",
+            access="edit",
+            root="/w",
+            task="Analyze data",
+            timeout_seconds=5,
+            shown=_nothing,
+            steering=inbox,
+        )
+    prompts = [m for m in agent.seen if m.get("method") == "session/prompt"]
+    assert len(prompts) == 2
+    assert all(m["params"]["sessionId"] == "s-1" for m in prompts)
+    assert "Use the EU data" in prompts[-1]["params"]["prompt"][0]["text"]
+    assert applied == (["Use the EU data"] if with_acknowledgement else [])
+    assert applied_receipts == (
+        [receipt_id if with_receipt else None] if with_acknowledgement else []
+    )
+    expected_callbacks: list[tuple[str, object, str]] = []
+    if with_receipt:
+        expected_callbacks.append(("receipt", receipt_id, "Use the EU data"))
+    if with_acknowledgement:
+        expected_callbacks.append(
+            ("applied", receipt_id if with_receipt else None, "Use the EU data")
+        )
+    assert callbacks_before_retry == [expected_callbacks]
+    assert inbox.unapplied() == []
+    assert report.task_updates == ["Use the EU data"] and report.outcome == "completed"
+
+
+async def test_a_receipt_fence_failure_stops_before_history_changes_or_a_retry_prompt() -> None:
+    from app.agents.steering import SteeringInbox
+
+    started = anyio.Event()
+    observed = anyio.Event()
+    receipt_id = uuid4()
+    receipt_calls: list[tuple[object, str]] = []
+    applied_calls: list[tuple[object, str]] = []
+
+    async def refuse_receipt(accepted_queue_id: object, text: str) -> None:
+        receipt_calls.append((accepted_queue_id, text))
+        raise RuntimeError("durable receipt fence failed")
+
+    async def on_applied(steer: Any, text: str) -> None:
+        applied_calls.append((steer, text))
+
+    class ObservedInbox(SteeringInbox):
+        def unapplied(self) -> list[str]:
+            waiting = super().unapplied()
+            if not waiting:
+                observed.set()
+            return waiting
+
+    inbox = ObservedInbox(on_applied=on_applied, on_receipt_applied=refuse_receipt)
+    collector = acp._Collector(task_updates=["already recorded"], said=["current answer"])
 
     class InterruptedAgent(ScriptedAgent):
         prompts = 0
@@ -890,31 +1005,27 @@ async def test_a_live_correction_interrupts_and_continues_the_same_task(
                 await self.changed.wait()
             return self.agent.out.pop(0)
 
+    agent = InterruptedAgent()
+    conversation = acp.Conversation(
+        ResponsivePipe(agent), access="edit", collector=collector, shown=_nothing
+    )
+
     async def correction() -> None:
         await started.wait()
         await observed.wait()
-        inbox.add("Use the EU data")
+        inbox.add("Use the EU data", accepted_queue_id=receipt_id)
 
-    agent = InterruptedAgent()
     async with anyio.create_task_group() as group:
         group.start_soon(correction)
-        report = await acp.run_task(
-            ResponsivePipe(agent),
-            harness="claude_code",
-            access="edit",
-            root="/w",
-            task="Analyze data",
-            timeout_seconds=5,
-            shown=_nothing,
-            steering=inbox,
-        )
-    prompts = [m for m in agent.seen if m.get("method") == "session/prompt"]
-    assert len(prompts) == 2
-    assert all(m["params"]["sessionId"] == "s-1" for m in prompts)
-    assert "Use the EU data" in prompts[-1]["params"]["prompt"][0]["text"]
-    assert applied == (["Use the EU data"] if with_acknowledgement else [])
+        with pytest.raises(RuntimeError, match="durable receipt fence failed"):
+            await conversation.prompt("s-1", "Analyze data", inbox)
+
+    assert agent.prompts == 1
+    assert receipt_calls == [(receipt_id, "Use the EU data")]
+    assert applied_calls == []
     assert inbox.unapplied() == []
-    assert report.task_updates == ["Use the EU data"] and report.outcome == "completed"
+    assert collector.task_updates == ["already recorded"]
+    assert collector.said == ["current answer"]
 
 
 async def test_a_prompt_failure_with_steering_preserves_the_domain_error() -> None:

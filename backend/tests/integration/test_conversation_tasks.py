@@ -24,6 +24,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.background_job import BackgroundJob
+from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.organization import Organization, OrganizationMember
@@ -374,6 +375,8 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
         version_id: UUID,
         local: LocalTarget | None,
         message_history: Sequence[ModelMessage],
+        attachments: Sequence[ChatFile],
+        saved_prompt_id: UUID | None,
         acts_for_sender: bool,
         parks_questions: bool,
         on_run_open: Callable[[AgentRun], Awaitable[None]],
@@ -408,6 +411,7 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
             results.append(prompt)
         else:
             assert message_history == [] and acts_for_sender
+            assert attachments == [] and saved_prompt_id is None
             started.set()
             await finish.wait()
         answer = "Summary of the completed task" if result_only else "Evidence from the task"
