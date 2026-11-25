@@ -1422,6 +1422,30 @@ class TestWhatNeverWaitsForApproval:
         for name in ("get_project", "read_conversation", "get_run"):
             assert listed[name].annotations.read_only_hint is True
 
+    @pytest.mark.security
+    async def test_a_call_that_needs_its_person_is_marked_destructive_for_outside_clients(
+        self,
+    ) -> None:
+        """A client outside AgenticOS has only the annotations to decide whether to ask."""
+        from app.services.platform_mcp import build_platform_mcp
+        from app.services.platform_mcp._tools import ALWAYS_ASKS
+
+        server, _ = build_platform_mcp(MagicMock())
+        listed = {tool.name: tool.annotations for tool in await server.list_tools()}
+        irreversible = {
+            declared.name
+            for declared in platform_tool_catalog()
+            if declared.writes
+            and declared.name.split("_")[0] in {"delete", "discard", "publish", "end"}
+        }
+        assert {"delete_routine", "discard_agent_draft", "publish_inbox_finding"} <= irreversible
+        for name in ALWAYS_ASKS | irreversible:
+            assert listed[name].destructive_hint is True, name
+        for declared in platform_tool_catalog():
+            if not declared.writes:
+                assert listed[declared.name].destructive_hint is not True, declared.name
+        assert listed["create_project"].destructive_hint is False
+
     def test_the_agent_layer_names_the_same_set(self) -> None:
         from app.agents.mcp import PLATFORM_UNGATED_TOOLS
         from app.services.platform_mcp._tools import UNGATED

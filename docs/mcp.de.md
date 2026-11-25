@@ -1,5 +1,5 @@
 ---
-source_sha: "8a442bac0bd0"
+source_sha: "0330e37378b8"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -238,6 +238,9 @@ Für externe Server lässt `approval: none` Aufrufe durch. `writes` fragt bei To
 ohne `readOnlyHint: true`, `all` zusätzlich bei Lesezugriffen. Der Server liefert
 den Hinweis selbst; wählen Sie `all`, wenn Sie seiner Einstufung nicht vertrauen.
 Ein externer MCP-Client wie Claude Code verwendet eigene Bestätigungseinstellungen.
+Der eigene Server von AgenticOS markiert jeden Aufruf, der in AgenticOS immer eine
+Person fragt, und jedes delete, discard, end und publish mit `destructiveHint: true`,
+und seine Anweisungen sagen dem Client, diese zuerst mit seiner Person zu bestätigen.
 
 Das Plattform-Binding erzwingt mindestens `writes`. Vertrauenswürdige Vorgaben
 lassen autorisierte Lesezugriffe, Entwurfsvorbereitung, gewöhnliche Aufgaben- und
