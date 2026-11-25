@@ -106,6 +106,7 @@ export function DiffView({
   emptyLabel,
   modes = true,
   fill = false,
+  holdsHidden = false,
 }: {
   before: string;
   after: string;
@@ -119,6 +120,8 @@ export function DiffView({
   modes?: boolean;
   /** Let a containing workbench own the scroll height. */
   fill?: boolean;
+  /** The values compared held a hidden character before they were written as text. */
+  holdsHidden?: boolean;
 }) {
   const t = useTranslations("authoring.diff");
   const wide = useWideScreen();
@@ -132,7 +135,8 @@ export function DiffView({
     ],
     [before, after, context, trailing],
   );
-  const hidden = [before, after, context, trailing].some((text) => writtenOut(text) !== text);
+  const hidden =
+    holdsHidden || [before, after, context, trailing].some((text) => writtenOut(text) !== text);
   const words = useMemo(() => pairWords(lines), [lines]);
   // Nothing changed is still worth reading whole; there is no change to fold around.
   const folded = useMemo(

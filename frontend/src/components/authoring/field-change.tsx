@@ -4,7 +4,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { useTranslations } from "next-intl";
 
 import { Badge, Input, Textarea } from "@/components/ui";
-import { writtenOut } from "@/lib/hidden-characters";
+import { holdsHidden } from "@/lib/hidden-characters";
 import type { FieldValue, Hunk } from "@/types/authoring";
 import { AddsAccess } from "./adds-access";
 import { DiffView } from "./diff-view";
@@ -76,11 +76,11 @@ export function fieldLabel(hunk: Hunk, t: Translate): string {
   return t("other");
 }
 
-/** A value exactly as Accept writes it, with nothing in it that draws blank or reorders. */
+/** A value exactly as Accept writes it; the diff writes out what would draw nothing or reorder. */
 function shown(value: FieldValue, names: Record<string, string>, t: Translate): string {
   if (value === null) return t("unset");
-  if (typeof value === "object") return writtenOut(JSON.stringify(value, null, 2));
-  return writtenOut(named(value, names));
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return named(value, names);
 }
 
 /**
@@ -130,7 +130,11 @@ export function FieldDiff({
           onChange={(event) => onEdit(event.target.value)}
         />
       ) : hunk.op === "set" ? (
-        <DiffView before={shown(hunk.base_value, names, t)} after={shown(after, names, t)} />
+        <DiffView
+          before={shown(hunk.base_value, names, t)}
+          after={shown(after, names, t)}
+          holdsHidden={holdsHidden(hunk.base_value) || holdsHidden(after)}
+        />
       ) : (
         <>
           <Badge variant={hunk.op === "remove" ? "outline" : "secondary"}>
@@ -142,6 +146,7 @@ export function FieldDiff({
               before={hunk.op === "remove" ? shown(hunk.base_value, names, t) : ""}
               after={hunk.op === "remove" ? "" : shown(after, names, t)}
               modes={false}
+              holdsHidden={holdsHidden(hunk.op === "remove" ? hunk.base_value : after)}
             />
           )}
         </>
