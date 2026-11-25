@@ -67,6 +67,12 @@ export interface ChatMessage {
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
   persistedId?: string;
+  /**
+   * The live answer of a turn whose socket went away. Its `message_saved`
+   * was due on that socket and will not come, so a re-read replaces it with the
+   * saved row, and a replay of the same turn replaces it on attachment.
+   */
+  socketDropped?: boolean;
   id: string;
   role: MessageRole;
   content: string;

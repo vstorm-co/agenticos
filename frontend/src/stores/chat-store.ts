@@ -283,9 +283,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
           nextPersisted = id;
           const previous = state.messages[index - 1];
           // An acknowledged question still has a live answer until message_saved
-          // renames it. A recovered, unacknowledged question instead uses history.
+          // renames it. A recovered, unacknowledged question instead uses history,
+          // and so does an answer whose socket dropped: the rename was due on it.
           const awaitingSave =
             message.role === "assistant" &&
+            !message.socketDropped &&
             message.isTemporaryId &&
             aliases.has(message.id) &&
             previous?.role === "user" &&

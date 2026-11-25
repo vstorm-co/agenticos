@@ -395,6 +395,42 @@ it("reconciles a persisted prompt and answer when the acknowledgement was lost",
   expect(store().messages[1]?.content).toBe("finished");
 });
 
+it("replaces the answer a dropped socket left behind with the saved one", () => {
+  // The question was acknowledged before the socket went, so it already carries
+  // its saved id; the answer never will - its `message_saved` was due on the
+  // socket that is gone.
+  store().addMessage(submitted({ id: "saved-question", isTemporaryId: false }));
+  store().addMessage(
+    message({
+      id: "local-answer",
+      content: "partial",
+      isTemporaryId: true,
+      runId: "run",
+      socketDropped: true,
+    }),
+  );
+  const history = [
+    submitted({ id: "saved-question", isTemporaryId: false }),
+    message({ id: "saved-answer", content: "finished", runId: "run" }),
+  ];
+  store().rereadMessages(history);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "saved-answer"]);
+  expect(store().messages[1]?.content).toBe("finished");
+  expect(store().messages[1]?.renderKey).toBe("local-answer");
+  // Read again: still the saved answer, not the local one coming back.
+  store().rereadMessages(history);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "saved-answer"]);
+});
+
+it("keeps the answer a dropped socket left behind while its turn is still running", () => {
+  store().addMessage(submitted({ id: "saved-question", isTemporaryId: false }));
+  store().addMessage(
+    message({ id: "local-answer", content: "partial", isTemporaryId: true, socketDropped: true }),
+  );
+  store().rereadMessages([submitted({ id: "saved-question", isTemporaryId: false })]);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "local-answer"]);
+});
+
 it("keeps a live reconciled answer addressable across repeated transcript reads", () => {
   store().addMessage(submitted());
   store().addMessage(

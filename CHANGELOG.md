@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A chat whose connection dropped mid-answer - a phone locked while an agent
+  worked - now shows the answer once the turn lands, and the "connection
+  dropped" notice goes away. The half-written answer used to be kept in place
+  of the saved one, so "Check for it" changed nothing and the notice stayed.
+  Coming back while the turn still runs follows it again instead of drawing
+  it twice.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
