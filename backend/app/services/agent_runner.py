@@ -3763,7 +3763,10 @@ class AgentRunnerService:
         )
         if existing_run.user_id == ctx.user_id:
             own = (
-                replace(ctx, subject_is_publisher_fallback=True)
+                replace(
+                    ctx,
+                    subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+                )
                 if existing_run.initiated_by_publisher_fallback
                 else ctx
             )
