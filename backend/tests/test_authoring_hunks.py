@@ -155,6 +155,64 @@ class TestApplying:
             "Hand off to a human.\nAnswer refunds and returns."
         )
 
+    def test_a_short_passage_is_not_followed_into_another_sentence(self):
+        """A change of `$100` whose sentence was edited does not land on another line
+        that only quotes the same amount."""
+        base = "Refunds over $100 need approval.\nShare codes freely."
+        hunk = _anchored(base, _change("$100", "$500"))
+        edited = "Refunds need approval.\nShare codes worth $100 freely."
+
+        assert hunks.apply_text(edited, hunk, hunk.new_text) is None
+
+    def test_a_whole_line_is_followed_only_while_it_is_still_a_whole_line(self):
+        hunk = _anchored(BASE, _change("Answer refunds.", "Answer refunds and returns."))
+
+        assert hunks.apply_text("Hand off. Answer refunds. Close.", hunk, hunk.new_text) is None
+        assert hunks.apply_text("Answer refunds.\nBe kind.", hunk, hunk.new_text) == (
+            "Answer refunds and returns.\nBe kind."
+        )
+
+    def test_a_short_passage_next_to_a_change_accepted_before_it_still_applies(self):
+        """Two changes a few characters apart: once the first is written, the second keeps
+        one side of its surroundings, and lands where it was meant to."""
+        base = "Reply with exactly PONG-BEFORE and nothing else."
+        first = _anchored(base, _change("PONG-BEFORE", "PONG-AFTER"))
+        second = _anchored(base, _change("and nothing else.", "and nothing else, in one line."))
+        written = hunks.apply_text(base, first, first.new_text)
+        assert written == "Reply with exactly PONG-AFTER and nothing else."
+
+        assert hunks.apply_text(written, second, second.new_text) == (
+            "Reply with exactly PONG-AFTER and nothing else, in one line."
+        )
+
+    def test_a_windows_line_break_ends_a_whole_line(self):
+        base = "Be brief.\r\nAnswer refunds.\r\nBe kind."
+        hunk = _anchored(base, _change("Answer refunds.", "Answer refunds and returns."))
+
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns."
+        )
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.\r\nClose.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns.\r\nClose."
+        )
+
+    def test_a_long_passage_is_followed_wherever_it_moved(self):
+        passage = "refunds over a hundred dollars need a manager"
+        assert len(passage) >= hunks.MOVED_MIN_CHARS
+        base = f"Be brief. Say that {passage}, always."
+        hunk = _anchored(base, _change(passage, "refunds need a manager"))
+        moved = f"Hand off.\nNote: {passage}. Be brief."
+
+        assert hunks.apply_text(moved, hunk, hunk.new_text) == (
+            "Hand off.\nNote: refunds need a manager. Be brief."
+        )
+
+    def test_undo_does_not_follow_a_short_accepted_text_into_another_sentence(self):
+        base = "Refunds over $100 need approval.\nShare codes freely."
+        hunk = _anchored(base, _change("$100", "$500"), accepted_text="$500")
+
+        assert hunks.undo_text("Refunds need approval.\nCodes worth $500.", hunk) is None
+
     def test_a_passage_edited_away_or_now_ambiguous_is_stale(self):
         hunk = _anchored(BASE, _change("Answer refunds.", "Answer refunds and returns."))
 

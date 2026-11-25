@@ -179,14 +179,51 @@ describe("locatePassage", () => {
     context_after,
   });
 
-  it("finds the one occurrence its surroundings match, or the only one there is", () => {
+  it("finds the one occurrence its surroundings match", () => {
     expect(
       locatePassage("Be kind. Be brief. Be kind.", passage("Be kind.", "Be brief. ", "")),
     ).toBe(19);
-    expect(locatePassage("Hello there", passage("there", "Hi "))).toBe(6);
     expect(locatePassage("Be kind. Be kind.", passage("Be kind.", "x", "y"))).toBeNull();
     expect(locatePassage("Nothing here", passage("missing"))).toBeNull();
     expect(locatePassage("Start", passage("Start"))).toBe(0);
+  });
+
+  it("follows a short passage that keeps one side of its surroundings", () => {
+    const second = passage("and nothing else.", "Reply with exactly PONG-BEFORE ");
+    expect(locatePassage("Reply with exactly PONG-AFTER and nothing else.", second)).toBe(30);
+    expect(locatePassage("Hello there", passage("there", "Hi "))).toBe(6);
+  });
+
+  it("reads a Windows line break as the end of a line", () => {
+    const line = passage("Answer refunds.", "Be brief.\r\n", "\r\nBe kind.");
+    expect(locatePassage("Hand off.\r\nAnswer refunds.\r\nClose.", line)).toBe(11);
+  });
+
+  it("follows a short passage only as a whole line found as a whole line", () => {
+    const amount = passage("$100", "Refunds over ", " need approval.\nShare codes freely.");
+    expect(
+      locatePassage("Refunds need approval.\nShare codes worth $100 freely.", amount),
+    ).toBeNull();
+    const line = passage("Answer refunds.", "Be brief.\n", "\nBe brief.");
+    expect(locatePassage("Hand off to a human.\nAnswer refunds.", line)).toBe(21);
+    expect(locatePassage("Hand off. Answer refunds. Close.", line)).toBeNull();
+  });
+
+  it("counts a passage's length in characters, as the server does", () => {
+    const short = `${"x".repeat(37)}👍🏽`;
+    expect(short.length).toBeGreaterThanOrEqual(40);
+    expect([...short].length).toBeLessThan(40);
+    expect(
+      locatePassage(`Note: ${short}. Be brief.`, passage(short, "Say ", ", always.")),
+    ).toBeNull();
+    const long = `${"x".repeat(38)}👍🏽`;
+    expect(locatePassage(`Note: ${long}. Be brief.`, passage(long, "Say ", ", always."))).toBe(6);
+  });
+
+  it("follows a long passage wherever it moved", () => {
+    const long = "refunds over a hundred dollars need a manager";
+    const moved = `Hand off.\nNote: ${long}. Be brief.`;
+    expect(locatePassage(moved, passage(long, "Say that ", ", always."))).toBe(16);
   });
 
   it("places an insertion after its surroundings", () => {
