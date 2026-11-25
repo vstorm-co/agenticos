@@ -110,6 +110,11 @@ async def test_org_approvers_cannot_answer_global_changes_or_remember_them(
         patch(
             "app.services.approvals.voice_call_repo.is_live_run", new=AsyncMock(return_value=False)
         ),
+        # The administrator's own run: a platform call is approved only by its person.
+        patch(
+            "app.services.approvals.agent_run_repo.get_run",
+            new=AsyncMock(return_value=MagicMock(user_id=CTX.user_id)),
+        ),
         patch.object(service, "hidden_fields", new=AsyncMock(return_value=frozenset())),
     ):
         expected = AuthorizationError if approved and not app_admin else BadRequestError
