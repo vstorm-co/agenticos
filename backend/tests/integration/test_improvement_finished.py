@@ -29,7 +29,7 @@ from app.schemas.improvement import (
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _member
-from tests.integration.test_improvement_pipeline import _ready_proposal
+from tests.integration.test_improvement_pipeline import _ready_proposal, reviewed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -47,7 +47,16 @@ def _changes(service: ImprovementPipelineService, ctx, agent_id, run_id):
         ),
         "cancel": lambda: service.cancel(ctx, agent_id, run_id),
         "finish": lambda: service.finish(
-            ctx, agent_id, run_id, ImprovementFinish(confirmed=True, publish=True)
+            ctx,
+            agent_id,
+            run_id,
+            ImprovementFinish(
+                confirmed=True,
+                attempt=1,
+                candidate_spec_hash=hash_,
+                result_hash=hash_,
+                publish=True,
+            ),
         ),
         "retry": lambda: service.retry(ctx, agent_id, run_id),
         "estimate_continuation": lambda: service.estimate_continuation(
@@ -115,7 +124,7 @@ async def test_repeating_the_decision_that_ended_it_answers_as_before(db, status
 async def test_a_session_kept_as_a_draft_leaves_the_agent_free_for_its_next_one(db):
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
     kept = await service.read(ctx, agent.id, ready.id)
 
     following = await service.start(
@@ -131,7 +140,7 @@ async def test_a_session_kept_as_a_draft_leaves_the_agent_free_for_its_next_one(
 async def test_the_changes_a_session_measured_read_as_they_were_decided(db):
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
     chosen = next(r for r in ready.iterations if r.id == ready.best_iteration_id)
 
     changes = await service.changes(ctx, agent.id, ready.id)

@@ -91,7 +91,10 @@ export function SkillAccept({
   const [acknowledged, setAcknowledged] = useState(false);
   const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
   const aloneUnknown = unmeasured(session.main_alone_check);
-  const [confirmed, setConfirmed] = useState(false);
+  // A confirmation holds for the check, as judged, that was on screen when it was given.
+  const reviewed = `${check.id}:${check.result_hash}`;
+  const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
+  const confirmed = confirmedFor === reviewed;
   const [refusal, setRefusal] = useState<string | null>(null);
   const [lineMoved, setLineMoved] = useState(false);
   const blockedOnFork =
@@ -111,13 +114,22 @@ export function SkillAccept({
       return null;
     } catch (failure) {
       if (movedLine(failure)) setLineMoved(true);
-      const refused = getErrorMessage(failure, tErrors);
+      const changed = failure instanceof ApiError && failure.details?.reviewed_check_id;
+      if (changed) setConfirmedFor(null);
+      const refused = changed ? tImprovement("acceptChanged") : getErrorMessage(failure, tErrors);
       setRefusal(refused);
       return refused;
     }
   }
   const applyIt = (pinWorse: boolean) =>
-    decide(() => apply.mutateAsync({ acknowledge_unknown: acknowledged, pin_worse: pinWorse }));
+    decide(() =>
+      apply.mutateAsync({
+        check_id: check.id,
+        result_hash: check.result_hash,
+        acknowledge_unknown: acknowledged,
+        pin_worse: pinWorse,
+      }),
+    );
 
   const decisions = (
     <>
@@ -140,7 +152,12 @@ export function SkillAccept({
           busy={busy}
           onFork={(choice) =>
             decide(async () => {
-              const done = await fork.mutateAsync({ ...choice, acknowledge_unknown: acknowledged });
+              const done = await fork.mutateAsync({
+                ...choice,
+                check_id: check.id,
+                result_hash: check.result_hash,
+                acknowledge_unknown: acknowledged,
+              });
               onForked?.(done);
             })
           }
@@ -154,11 +171,18 @@ export function SkillAccept({
       {session.outcomes.includes("return_to_main") && (
         <Button
           variant="outline"
-          disabled={!confirmed || (aloneUnknown > 0 && !aloneAcknowledged)}
+          disabled={
+            !confirmed || !session.main_alone_check || (aloneUnknown > 0 && !aloneAcknowledged)
+          }
           loading={busy}
           onClick={() =>
             void decide(async () => {
-              const done = await returnToMain.mutateAsync(aloneAcknowledged);
+              const alone = session.main_alone_check!;
+              const done = await returnToMain.mutateAsync({
+                checkId: alone.id,
+                resultHash: alone.result_hash,
+                acknowledgeUnknown: aloneAcknowledged,
+              });
               onReturned?.(done.returned);
             })
           }
@@ -217,7 +241,7 @@ export function SkillAccept({
               <Checkbox
                 id="skill-accept-confirm"
                 checked={confirmed}
-                onCheckedChange={(checked) => setConfirmed(checked === true)}
+                onCheckedChange={(checked) => setConfirmedFor(checked === true ? reviewed : null)}
               />
               <Label htmlFor="skill-accept-confirm" className="leading-snug font-normal">
                 {tImprovement("confirmation")}

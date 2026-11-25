@@ -16441,6 +16441,7 @@
       "tool": "Tool {tool}",
       "instructions": "Anweisungen",
       "fromVerify": "Aus der Prüfung Ihrer Änderungen",
+      "reworded": "Im Schritt Änderungen umformuliert",
       "status": {
         "accepted": "In den Entwurf übernommen",
         "dismissed": "Verworfen"
@@ -16811,6 +16812,9 @@
     "gapsLabel": "{count, plural, =1 {1 offene Wissenslücke} other {# offene Wissenslücken}}"
   },
   "improvement": {
+    "acceptChanged": "Der Versuch, den Sie annehmen wollten, hat sich geändert, seit Sie ihn angesehen haben. Die Sitzung wurde aktualisiert; sehen Sie ihn erneut an.",
+    "unmeasuredEdits": "Der Entwurf enthielt Änderungen von vor dem Start dieser Sitzung. Die Veröffentlichung gibt auch sie frei, und keine Prüfung hat sie gemessen.",
+    "publishUnmeasuredEdits": "Diese Änderungen ebenfalls veröffentlichen",
     "attributionUnconfirmed": "Änderung {number}: Das Ergebnis ist nicht bestätigt.",
     "includeInTest": "Im Test berücksichtigen",
     "includeChange": "Änderung {number} im Test berücksichtigen",

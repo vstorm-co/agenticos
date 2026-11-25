@@ -18,12 +18,11 @@ from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo
-from app.schemas.improvement import ImprovementFinish
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.notifications import NotificationService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _member
-from tests.integration.test_improvement_pipeline import _ready_proposal, _started
+from tests.integration.test_improvement_pipeline import _ready_proposal, _started, reviewed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -75,7 +74,7 @@ async def test_an_equal_second_round_leaves_the_best_round_waiting_and_acceptabl
     await service.advance(run.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, run.id)).status == "ready"
     finished = await service.finish(
-        ctx, agent.id, run.id, ImprovementFinish(confirmed=True, publish=True)
+        ctx, agent.id, run.id, await reviewed(db, ctx, agent.id, run.id, publish=True)
     )
     assert finished.session.status == "published"
 
@@ -184,7 +183,7 @@ async def test_finishing_tells_the_agents_other_open_pages(db):
     ctx, agent, ready = await _ready_proposal(db)
     with patch("app.services.improvement_pipeline.spawn_after_commit") as announced:
         await ImprovementPipelineService(db).finish(
-            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True)
+            ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id)
         )
     assert [call.kwargs["name"] for call in announced.call_args_list] == [
         f"improvement-moved:{ready.id}"
@@ -252,7 +251,9 @@ async def test_a_status_write_outside_the_state_table_is_refused_as_a_conflict(d
 
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True))
+    await service.finish(
+        ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id, publish=True)
+    )
     run = await db.get(ImprovementRun, ready.id)
 
     with pytest.raises(ConcurrentChangeError) as refused:
@@ -269,11 +270,11 @@ async def test_a_kept_draft_takes_no_more_decisions_in_its_session(db):
 
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
 
     with pytest.raises(ConcurrentChangeError, match="finished") as refused:
         await service.finish(
-            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+            ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id, publish=True)
         )
     assert refused.value.details == {"status": "accepted"}
     assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
@@ -286,14 +287,14 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
 
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
     if edited:
         agent.draft_spec = {**agent.draft_spec, "instructions": "Other."}
         await db.flush()
     version = await AgentRegistryService(db).publish(ctx, agent.id)
     with pytest.raises(ConcurrentChangeError, match="finished"):
         await service.finish(
-            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+            ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id, publish=True)
         )
 
     await service.advance(ready.id, ctx.organization_id)

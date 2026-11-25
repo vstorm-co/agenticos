@@ -283,6 +283,7 @@ describe("a session merging a fork with main", () => {
       stage: "judging",
       check: skillCheck({ verdict: "no_better" }),
       main_alone: "checked",
+      main_alone_check: skillCheck(),
       outcomes: ["catch_up", "return_to_main", "discard"],
     });
     state.step = "accept";

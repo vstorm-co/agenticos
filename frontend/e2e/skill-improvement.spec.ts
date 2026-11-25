@@ -440,6 +440,8 @@ test("a shared skill improves on main, pins the agent a change breaks and catche
     expect(record(session.check).verdict).toBe("passed");
     await write(api, "post", `${path}/apply`, headers, {
       confirmed: true,
+      check_id: record(session.check).id,
+      result_hash: record(session.check).result_hash,
       acknowledge_unknown: false,
       pin_worse: false,
     });
@@ -480,6 +482,8 @@ test("a shared skill improves on main, pins the agent a change breaks and catche
     expect(result.outcomes).not.toContain("return_to_main");
     await write(api, "post", `${path}/apply`, headers, {
       confirmed: true,
+      check_id: record(result.check).id,
+      result_hash: record(result.check).result_hash,
       acknowledge_unknown: false,
       pin_worse: false,
     });

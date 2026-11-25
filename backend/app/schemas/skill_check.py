@@ -193,6 +193,11 @@ class SkillCheckEstimate(BaseSchema):
 class SkillCheckRead(SkillCheckEstimate):
     id: UUID
     skill_id: UUID
+    result_hash: str = Field(
+        description="A fingerprint of the verdict and every agent's judged result, hidden "
+        "agents included. A review that judges a case again changes it; deciding the check "
+        "in an improvement session sends it back"
+    )
     source: CheckSource = Field(
         description="`catch_up` for a pinned agent's update, which is accepted by moving the "
         "agent with `PUT .../agents/{agent_id}/binding`, never by applying it"
