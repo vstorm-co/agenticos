@@ -88,13 +88,17 @@ class TestHubspotSignature:
         malformed = {**_hubspot_v3(self.body), "x-hubspot-request-timestamp": "soon"}
         assert not _verify("hubspot", self.body, malformed)
 
-    def test_a_v1_signature_verifies_where_hubspot_sends_only_that(self):
+    @pytest.mark.parametrize("v3", [None, "   "])
+    def test_a_v1_signature_verifies_where_hubspot_sends_only_that(self, v3: str | None):
         """CRM object subscriptions are still signed v1: SHA-256 of secret and body."""
         headers = {
             "x-hubspot-signature-version": "v1",
             "x-hubspot-signature": hashlib.sha256(_SECRET.encode() + self.body).hexdigest(),
         }
+        if v3 is not None:
+            headers["x-hubspot-signature-v3"] = v3
         assert _verify("hubspot", self.body, headers)
+        assert trigger_events.signature("hubspot", headers) == headers["x-hubspot-signature"]
         assert not _verify("hubspot", self.body, {**headers, "x-hubspot-signature": "0" * 64})
 
     def test_no_signature_or_another_version_fails(self):

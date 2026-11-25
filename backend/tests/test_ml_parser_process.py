@@ -127,6 +127,29 @@ async def test_an_unresponsive_child_is_killed_and_reaped(cancel: bool) -> None:
             await parsing._reap_parse_child(process)
 
 
+async def test_a_child_that_exits_silently_cannot_supply_a_result() -> None:
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-I",
+        "-c",
+        "import sys; sys.stdin.buffer.read(); sys.exit(9)",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="exited without a result"):
+            await parsing._exchange_parse_child(
+                process, b"{}", asyncio.get_running_loop().time() + 5
+            )
+        assert process.returncode == 9
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pid, 0)
+    finally:
+        await parsing._reap_parse_child(process)
+
+
 @pytest.mark.parametrize("budget", ["cpu", "memory"])
 async def test_worker_resource_limits_are_enforced_by_the_kernel(budget: str) -> None:
     worker = str(Path(parsing._PARSE_WORKER_PATH))

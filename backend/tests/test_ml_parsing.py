@@ -565,6 +565,77 @@ async def test_settling_a_spawn_returns_a_child_or_none() -> None:
     assert await parsing._settle_parse_spawn(failed) is None
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_a_spawn_failure_after_the_caller_stops_preserves_its_refusal(cancel: bool) -> None:
+    started = asyncio.Event()
+    settling = asyncio.Event()
+    release = asyncio.Event()
+    reaped = AsyncMock()
+    real_settle = parsing._settle_parse_spawn
+
+    async def failed_spawn(*_args: object, **_kwargs: object) -> asyncio.subprocess.Process:
+        started.set()
+        await release.wait()
+        raise OSError("process creation refused")
+
+    async def settle(
+        spawn: asyncio.Task[asyncio.subprocess.Process],
+    ) -> asyncio.subprocess.Process | None:
+        settling.set()
+        return await real_settle(spawn)
+
+    with (
+        patch("app.services.ml.parsing.asyncio.create_subprocess_exec", new=failed_spawn),
+        patch("app.services.ml.parsing._settle_parse_spawn", new=settle),
+        patch("app.services.ml.parsing._reap_parse_child", new=reaped),
+    ):
+        task = asyncio.create_task(
+            parsing._spawn_parse_child(
+                Path("document.pdf"), asyncio.get_running_loop().time() + (10 if cancel else 0)
+            )
+        )
+        await started.wait()
+        if cancel:
+            task.cancel()
+        await settling.wait()
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
+            await task
+
+    reaped.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_broken_output_pipe_cancels_the_other_pending_reader() -> None:
+    reading_diagnostic = asyncio.Event()
+    diagnostic_cancelled = asyncio.Event()
+
+    class BrokenReader(_FakeReader):
+        async def read(self, _size: int) -> bytes:
+            await reading_diagnostic.wait()
+            raise OSError("output pipe failed")
+
+    class WaitingReader(_FakeReader):
+        async def read(self, _size: int) -> bytes:
+            reading_diagnostic.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                diagnostic_cancelled.set()
+            return b""
+
+    process = _FakeProcess()
+    process.stdout = BrokenReader()
+    process.stderr = WaitingReader()
+    with pytest.raises(OSError, match="output pipe failed"):
+        await parsing._transfer_parse_child(cast(asyncio.subprocess.Process, process), b"settings")
+
+    assert diagnostic_cancelled.is_set()
+    assert process.stdin.closed
+
+
 async def test_reaping_absorbs_cancellation_and_kills_the_process_group() -> None:
     process = _FakeProcess(stdout=[b"out"], stderr=[b"err"])
     signals: list[tuple[int, object]] = []

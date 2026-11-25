@@ -195,6 +195,61 @@ class TestWhatAnOverLargeRequestGets:
 
 class TestWhatTheStreamActuallyCarries:
     @pytest.mark.security
+    async def test_retrying_a_refused_receive_cannot_read_more_body_bytes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(body_limit, "max_body_bytes", lambda: 5)
+        reads = 0
+        sent: list[Message] = []
+
+        async def receive() -> Message:
+            nonlocal reads
+            reads += 1
+            return {"type": "http.request", "body": b"abcdef", "more_body": True}
+
+        async def send(message: Message) -> None:
+            sent.append(message)
+
+        async def catching_app(_scope: Scope, receive: Receive, send: Send) -> None:
+            for _ in range(2):
+                with pytest.raises(body_limit._BodyTooLarge) as refused:
+                    await receive()
+                assert refused.value.received_bytes == 6
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+
+        scope: Scope = {"type": "http", "path": "/upload", "headers": []}
+        await BodySizeLimitMiddleware(catching_app)(scope, receive, send)
+
+        assert reads == 1
+        assert [
+            message["status"] for message in sent if message["type"] == "http.response.start"
+        ] == [413]
+
+    @pytest.mark.security
+    async def test_a_late_body_refusal_does_not_start_a_second_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(body_limit, "max_body_bytes", lambda: 5)
+        sent: list[Message] = []
+
+        async def receive() -> Message:
+            return {"type": "http.request", "body": b"abcdef", "more_body": False}
+
+        async def send(message: Message) -> None:
+            sent.append(message)
+
+        async def started_app(_scope: Scope, receive: Receive, send: Send) -> None:
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await receive()
+
+        scope: Scope = {"type": "http", "path": "/upload", "headers": []}
+        with pytest.raises(body_limit._BodyTooLarge) as refused:
+            await BodySizeLimitMiddleware(started_app)(scope, receive, send)
+
+        assert refused.value.received_bytes == 6
+        assert sent == [{"type": "http.response.start", "status": 200, "headers": []}]
+
+    @pytest.mark.security
     async def test_json_parser_cannot_turn_an_over_limit_stream_into_a_parse_error(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
