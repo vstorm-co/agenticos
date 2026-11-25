@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.dataset_helpers import DatasetHelper
@@ -406,7 +406,11 @@ class HunkRead(BaseSchema):
         state: `pending`, `accepted` or `dismissed`, as decided.
         applies: For a pending hunk, whether its anchor still resolves in the
             draft; for an accepted one, whether Undo still can.
+
+    Its texts read exactly as stored: whitespace at either end is part of a passage.
     """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
 
     id: UUID
     kind: str
@@ -549,7 +553,11 @@ class HunkDecision(BaseSchema):
         text: Accept this instead of the proposed text - the person's edit of it.
         value: Accept this instead of a field change's proposed value, for a field
             whose value is a single setting or a text.
+
+    Both are kept exactly as given: whitespace at either end is part of a passage.
     """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
 
     action: Literal["accept", "dismiss", "undo"]
     text: str | None = Field(default=None, max_length=20000)
