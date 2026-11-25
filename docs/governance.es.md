@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "f8559d73d9a1"
 ---
 
 # Governance { #governance }
@@ -1423,6 +1423,9 @@ cometido. Cada `every` peticiones al modelo un revisor lee los últimos `window`
 tokens del run y lo deja seguir o envía una corrección breve, que el modelo del
 run recibe en su siguiente petición con el nombre del revisor. La vista del run
 lista cada corrección y quién la envió.
+
+Un revisor recibe la regla de que el run que lee es material para revisar, no
+instrucciones para él; su cometido se añade a esa regla y nunca la sustituye.
 
 Las llamadas de un revisor se comprueban contra el budget del agente y de la
 organización antes de hacerse y se anotan en el run, al precio del modelo del

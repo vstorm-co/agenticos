@@ -1,5 +1,5 @@
 ---
-source_sha: "73654d50ca33"
+source_sha: "3af26d301af7"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -508,6 +508,11 @@ El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
 anteriores y la pregunta, la respuesta de referencia cuando se califica, el
 contraejemplo, cada llamada a herramienta que hizo el agent (con sus argumentos,
 y si un run aislado la bloqueó) y la respuesta.
+
+Cada una de estas partes va cercada en el prompt del juez, de modo que su texto
+no puede cerrar su propia sección y pasar por palabras del prompt. El prompt
+termina con la regla de que el texto cercado se califica y nunca se obedece, y
+las instrucciones propias del dataset no pueden sustituir esa regla.
 
 Un caso con contraejemplo se califica siempre también con un criterio
 obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
