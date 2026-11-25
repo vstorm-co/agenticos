@@ -296,7 +296,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
@@ -9636,6 +9636,11 @@ class AgentRunnerService:
         the agent was given no tools and no prompt, which of the runs somebody
         opens is the most misleading thing it could say.
 
+        An eval answer and a platform agent's run were sent dataset cases, so a
+        reader without view access to every dataset gets their record without
+        `messages`, `transcript`, `code_runs` and `reviews`, and a platform agent's
+        without its prompt too.
+
         Raises:
             NotFoundError: The run is not in the caller's organization, or
                 nothing was recorded for it.
@@ -9655,7 +9660,34 @@ class AgentRunnerService:
             raise NotFoundError(
                 message="Nothing was recorded for this run", details={"run_id": str(run_id)}
             )
-        return manifest
+        hidden = await self._case_text(ctx, run)
+        if not hidden:
+            return manifest
+        return RunManifest(
+            id=manifest.id,
+            run_id=manifest.run_id,
+            organization_id=manifest.organization_id,
+            payload={**manifest.payload, **hidden},
+            truncated=manifest.truncated,
+            created_at=manifest.created_at,
+        )
+
+    async def _case_text(self, ctx: AuthContext, run: AgentRun) -> dict[str, Any]:
+        """The parts of this run's record sent from datasets, emptied, for a reader who may
+        not view every dataset; nothing when the reader may read them.
+
+        An eval answer was sent a case's question; its prompt is the agent's own. The
+        judge, the improver and the other platform agents are sent cases and answers,
+        and their prompts carry a dataset's name, guidance and knowledge. A run records
+        no dataset, so reading any of it needs view access to every dataset.
+        """
+        if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
+            return {}
+        sent: dict[str, Any] = {"messages": [], "transcript": [], "code_runs": [], "reviews": []}
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
+        if agent is None or agent.kind != AgentKind.AGENT.value:
+            return {**sent, "instructions": None, "system_prompts": []}
+        return sent if run.surface == RunSurface.EVAL.value else {}
 
     async def transcript_ratings(
         self, ctx: AuthContext, message_ids: list[UUID]

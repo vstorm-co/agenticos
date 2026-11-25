@@ -3042,3 +3042,79 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 )
     finally:
         engine.dispose()
+
+
+class TestCaseFromConversationBackfill:
+    def test_a_case_from_a_chat_is_flagged_even_once_its_links_are_gone(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0364_merge_routine_and_kb")
+        assert up.returncode == 0, up.stderr
+        rows: dict[str, tuple[str, str | None]] = {
+            "copied": ("conversation", None),
+            "drafted from a deleted chat": ("synthetic", "asked_by_user_id"),
+            "drafted from a run": ("synthetic", "source_run_id"),
+            "drafted from a document": ("synthetic", "source_document_id"),
+            "typed": ("manual", None),
+        }
+        ids = {name: uuid4() for name in rows}
+        dataset, organization = uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for position, (name, (source, link)) in enumerate(rows.items()):
+                    connection.execute(
+                        text(
+                            "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
+                            "input, source, position, added_in, improvement_partition, "
+                            "asked_by_user_id, source_run_id, source_document_id) VALUES (:id, "
+                            ":dataset, :org, :case, 'Q', :source, :position, 1, 'train', "
+                            ":asked_by_user_id, :source_run_id, :source_document_id)"
+                        ),
+                        {
+                            "id": ids[name],
+                            "dataset": dataset,
+                            "org": organization,
+                            "case": uuid4(),
+                            "source": source,
+                            "position": position,
+                            **{
+                                column: uuid4() if column == link else None
+                                for column in (
+                                    "asked_by_user_id",
+                                    "source_run_id",
+                                    "source_document_id",
+                                )
+                            },
+                        },
+                    )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                flags = dict(
+                    connection.execute(
+                        text("SELECT id, from_conversation FROM dataset_cases")
+                    ).all()
+                )
+            assert {name: flags[ids[name]] for name in rows} == {
+                "copied": True,
+                "drafted from a deleted chat": True,
+                "drafted from a run": True,
+                "drafted from a document": False,
+                "typed": False,
+            }
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0364_merge_routine_and_kb")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns WHERE "
+                        "table_name='dataset_cases' AND column_name='from_conversation'"
+                    )
+                ).first()
+                assert connection.scalar(text("SELECT count(*) FROM dataset_cases")) == len(rows)
+        finally:
+            engine.dispose()

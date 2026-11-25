@@ -37,6 +37,7 @@ from typing import Any, Literal
 
 from pydantic import JsonValue
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -301,6 +302,11 @@ class DatasetCase(Base):
         ForeignKey("rag_documents.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # Whether the case was written from a conversation, a message or a run. The
+    # links above are `SET NULL`, and a case must stay masked once its chat is gone.
+    from_conversation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

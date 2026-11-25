@@ -30,7 +30,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
@@ -2189,6 +2189,61 @@ class TestReviewFixes:
         assert [example.quote for example in problem.examples] == ["Seen quote"]
         assert (problem.hidden_examples, problem.hidden_agents) == (1, 1)
         assert [item.quote for item in change.evidence] == ["Seen quote"]
+        assert change.evidence_hidden == 1
+        assert (len(everything.evidence), everything.evidence_hidden) == (2, 0)
+
+    @pytest.mark.security
+    async def test_a_quote_from_an_eval_answer_needs_every_dataset(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        clerk = (await SkillImprovementService(db).skill_agents.line_agents(skill, None))[0].agent
+        chat, answered = await _rated(db, ctx, clerk), await _rated(db, ctx, clerk)
+        answered.surface = RunSurface.EVAL.value
+        await db.flush()
+        run = await _at_understand(db, ctx, skill)
+        assert run.analysis_request_id is not None
+        evidence_items = [
+            {"run_id": str(chat.id), "quote": "Chat quote"},
+            {"run_id": str(answered.id), "quote": "Eval case quote"},
+        ]
+        await _finish(
+            db,
+            run.analysis_request_id,
+            {
+                "problems": [
+                    {
+                        "title": "Wrong window",
+                        "summary": "",
+                        "cause": "skill",
+                        "run_ids": [str(chat.id), str(answered.id)],
+                        "evidence": evidence_items,
+                    }
+                ]
+            },
+        )
+        await _propose(
+            db,
+            ctx,
+            run,
+            [
+                {
+                    **_body_edit("Refunds take 14 days.", "Refunds take 30 days."),
+                    "evidence": evidence_items,
+                }
+            ],
+        )
+        service = SkillImprovementService(db)
+        narrow = replace(
+            ctx, key_scopes=frozenset(p for p in Perm if not p.value.startswith("datasets:"))
+        )
+
+        [problem] = (await service.problems(narrow, skill.id, run.id)).problems
+        [change] = await service.changes(narrow, skill.id, run.id)
+        [everything] = await service.changes(ctx, skill.id, run.id)
+
+        assert [example.quote for example in problem.examples] == ["Chat quote"]
+        assert problem.hidden_examples == 1
+        assert [item.quote for item in change.evidence] == ["Chat quote"]
         assert change.evidence_hidden == 1
         assert (len(everything.evidence), everything.evidence_hidden) == (2, 0)
 

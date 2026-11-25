@@ -1,5 +1,5 @@
 ---
-source_sha: "977dec5cd1f1"
+source_sha: "58fd8eb96b74"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -509,7 +509,7 @@ Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, 
 
 Eine Sitzung, die auf Sie wartet, beim Ergebnis steht, angehalten oder fehlgeschlagen ist, bleibt offen: **Verbessern** und ihr Eintrag im Verlauf führen zu ihr zurück, um ihren nächsten Schritt auszuführen, ihr Limit zu erhöhen und fortzufahren, einen Versuch zu wählen, den fehlgeschlagenen Schritt zu wiederholen oder sie zu verwerfen.
 
-Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent.
+Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent. Ihre Änderungen und die Vorschläge, die sie im Builder hinterlässt, entstehen aus den Fragen des Datasets, daher braucht ihr Lesen auch Lesezugriff auf das Dataset.
 
 #### Den Architekten fragen { #asking-the-architect }
 

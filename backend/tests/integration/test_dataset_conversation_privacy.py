@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.api import deps
 from app.core.config import settings
@@ -19,6 +19,7 @@ from app.db.models.user import User
 from app.main import app
 from app.schemas.dataset import (
     DatasetCaseContent,
+    DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
@@ -173,9 +174,101 @@ async def test_a_source_check_without_a_person_or_for_an_unknown_message_finds_n
         await service.source_privacy(replace(owner, user_id=None), answer.id)
 
 
+async def test_a_source_check_answers_another_tenant_or_a_hidden_thread_as_an_unknown_id(
+    db,
+) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    stranger = await _owner(db)
+    _, answer = await _rated_down_turn(db, owner)
+    service = DatasetService(db)
+
+    refusals = []
+    for reader, message_id in (
+        (owner, uuid.uuid4()),
+        (stranger, answer.id),
+        (viewer, answer.id),
+    ):
+        with pytest.raises(NotFoundError) as refused:
+            await service.source_privacy(reader, message_id)
+        refusals.append((refused.value.message, refused.value.details))
+
+    assert refusals == [("Message not found", None)] * 3
+
+
+async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="twins", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    case = await service.add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    alone = await service.list_cases(viewer, dataset.id, same_input=case.input)
+    typed = await service.add_case(
+        owner, dataset.id, DatasetCaseCreate(input=case.input, reference_answer="Yes.")
+    )
+
+    for_owner = await service.list_cases(owner, dataset.id, same_input=case.input, limit=1)
+    for_viewer = await service.list_cases(viewer, dataset.id, same_input=case.input, limit=1)
+
+    assert (alone.total, alone.items) == (0, [])
+    assert (for_owner.total, [item.case_id for item in for_owner.items]) == (2, [case.case_id])
+    assert (for_viewer.total, [item.case_id for item in for_viewer.items]) == (1, [typed.case_id])
+
+
+@pytest.mark.security
+async def test_a_case_written_before_the_flag_is_masked_by_its_source(db) -> None:
+    """A writer from before `from_conversation` leaves it unset on a copied or drafted case."""
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="older", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    await service.add_from_message(owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id))
+    drafted = GeneratedCase(
+        content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        source_conversation_id=answer.conversation_id,
+    )
+    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(from_conversation=False)
+    )
+
+    reads = (await service.list_cases(viewer, dataset.id)).items
+
+    assert [read.masked for read in reads] == [True, True]
+
+
+@pytest.mark.security
+async def test_a_reviewed_case_whose_chat_is_gone_is_still_masked(db) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="reviewed", visibility="org"))
+    await service.add_reviewed_case(
+        owner,
+        dataset.id,
+        DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        asked_by=owner.user_id,
+        source_run_id=None,
+        source_conversation_id=None,
+    )
+
+    [read] = (await service.list_cases(viewer, dataset.id)).items
+
+    assert read.masked and read.input != "Can I return a kettle?"
+
+
+@pytest.mark.security
 async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
     """Cases sharing a conversation are shown or hidden by one access check; nobody, and
-    then everybody once the conversation is deleted, reads a conversation case masked."""
+    then everybody once the conversation is deleted, reads a case from it masked - copied
+    or generated. A case generated from no chat is never masked."""
     owner = await _owner(db)
     as_viewer = replace(owner, role=OrgRoleName.VIEWER)
     service = DatasetService(db)
@@ -188,7 +281,12 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
         source_conversation_id=answer.conversation_id,
     )
-    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    plain = GeneratedCase(
+        content=DatasetCaseContent(input="Do you sell kettles?", reference_answer="Yes.")
+    )
+    await service.add_generated(
+        owner, await service.lock_for_edit(owner, dataset.id), [drafted, plain]
+    )
 
     shown = (await service.list_cases(as_viewer, dataset.id)).items
     hidden = await service.case_reads(replace(owner, user_id=None), await _held(db, dataset.id))
@@ -198,12 +296,20 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         for read in await service.case_reads(as_viewer, await _held(db, dataset.id))
     }
 
-    assert [read.masked for read in shown] == [False, False]
-    assert [read.input for read in shown] == [copied.input, "Can I return a kettle?"]
-    assert [read.masked for read in hidden] == [True, True]
+    generated, unlinked = (read.case_id for read in shown[1:])
+    assert [read.masked for read in shown] == [False, False, False]
+    assert [read.input for read in shown] == [
+        copied.input,
+        "Can I return a kettle?",
+        "Do you sell kettles?",
+    ]
+    assert [read.masked for read in hidden] == [True, True, False]
     assert copied.input not in {read.input for read in hidden}
     assert gone[copied.case_id].masked
     assert gone[copied.case_id].input != copied.input
+    assert gone[generated].masked
+    assert gone[generated].input != "Can I return a kettle?"
+    assert not gone[unlinked].masked
 
 
 async def test_a_draft_from_another_organizations_message_is_attributed_to_nobody(db) -> None:

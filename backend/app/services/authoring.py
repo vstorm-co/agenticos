@@ -26,7 +26,7 @@ taken from the conversations the hunks were derived from.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
@@ -73,6 +73,7 @@ from app.repositories import (
     agent_run_repo,
     authoring_repo,
     context_proposal_repo,
+    dataset_repo,
     eval_run_repo,
     improvement_repo,
     organization_repo,
@@ -112,7 +113,16 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.scoring import DatasetScoring
 from app.schemas.skill import SkillCreate
 from app.services import authoring_fields, authoring_hunks
-from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
+from app.services.access import (
+    AGENT,
+    CONTEXT,
+    DATASET,
+    SKILL,
+    OwnedResource,
+    ResourceType,
+    accessible_ids,
+    resolve_access,
+)
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
@@ -270,6 +280,35 @@ class AuthoringService:
                 message="The assistant reads runs, which needs runs:view",
                 details={"permission": Perm.RUNS_VIEW.value},
             )
+
+    async def require_session_datasets(
+        self, ctx: AuthContext, session_ids: Iterable[UUID | None]
+    ) -> None:
+        """Refuse a reader who may not view the dataset one of these Improve sessions used.
+
+        A session's changes and reports are written from its dataset's questions and
+        reference answers, so reading them needs what reading that dataset needs. A
+        dataset deleted since has no readers left to keep them from.
+
+        Raises:
+            AuthorizationError: A session's dataset exists and the caller may not view it.
+        """
+        dataset_ids = await improvement_repo.datasets_of(
+            self.db,
+            [item for item in session_ids if item is not None],
+            organization_id=ctx.organization_id,
+        )
+        for dataset_id in sorted(dataset_ids):
+            dataset = await dataset_repo.get(
+                self.db, dataset_id, organization_id=ctx.organization_id
+            )
+            if dataset is not None and not await resolve_access(
+                self.db, ctx, dataset, Perm.DATASETS_VIEW, resource_type=DATASET
+            ):
+                raise AuthorizationError(
+                    message="These changes were written from a dataset you cannot read",
+                    details={"permission": Perm.DATASETS_VIEW.value},
+                )
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
@@ -706,7 +745,12 @@ class AuthoringService:
         )
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
-        """The open batch - or the last one - and the newest requests, for the Builder."""
+        """The open batch - or the last one - and the newest requests, for the Builder.
+
+        Raises:
+            AuthorizationError: No `runs:view`, or the batch or requests shown came
+                from an Improve session on a dataset the caller may not view.
+        """
         self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
         return await self._read(ctx, agent)
@@ -866,6 +910,14 @@ class AuthoringService:
                 and request.status == AuthoringStatus.COMPLETED.value
             ),
             None,
+        )
+        await self.require_session_datasets(
+            ctx,
+            [
+                None if batch is None else batch.improvement_run_id,
+                *(request.improvement_run_id for request in requests[:1]),
+                None if verify is None else verify.improvement_run_id,
+            ],
         )
         has_evidence = None
         if not requests and batch is None:

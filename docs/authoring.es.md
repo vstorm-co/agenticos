@@ -1,5 +1,5 @@
 ---
-source_sha: "977dec5cd1f1"
+source_sha: "58fd8eb96b74"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -494,7 +494,7 @@ Una sesión terminada - guardada como borrador, publicada, descartada, cancelada
 
 Una sesión que le espera, en su resultado, detenida o fallida sigue abierta: **Improve** y su entrada en el historial llevan de vuelta a ella para dar su siguiente paso, subir su límite y continuar, elegir un intento, reintentar el paso fallido o descartarla.
 
-La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su intento elegido. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente.
+La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su intento elegido. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente. Sus cambios, y las sugerencias que deja en el Builder, se escriben a partir de las preguntas del dataset, así que leerlos también requiere acceso de lectura al dataset.
 
 #### Preguntar al Architect { #asking-the-architect }
 
