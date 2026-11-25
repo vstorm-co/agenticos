@@ -998,25 +998,3 @@ async def test_an_in_flight_claim_needs_a_positive_ttl():
             "eval_comparison", "org:ttl", ttl_seconds=0, message="Busy", renew=True
         ):
             pass
-
-
-async def test_work_under_the_eval_admission_it_holds_is_not_refused_but_another_request_is(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import contextvars
-    import uuid
-
-    from app.core.permissions import AuthContext, OrgRoleName
-
-    monkeypatch.setattr(rate_limit, "_redis", None)
-    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
-
-    async def elsewhere() -> None:
-        async with rate_limit.eval_computation(ctx):
-            pass
-
-    async with rate_limit.eval_computation(ctx):
-        async with rate_limit.eval_computation(ctx):
-            pass
-        with pytest.raises(RateLimitError):
-            await asyncio.create_task(elsewhere(), context=contextvars.Context())

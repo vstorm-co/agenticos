@@ -934,7 +934,7 @@ class TestCheck:
         await holding.wait()
         try:
             with pytest.raises(RateLimitError):
-                await evals.get(ctx, started.id)
+                await evals.get(ctx, started.id, interactive=True)
             listed = await evals.list_for_agent(ctx, agent.id)
         finally:
             release.set()

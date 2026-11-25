@@ -166,6 +166,10 @@ from app.worker.jobs import RUN_EVAL, RunEval
 
 logger = logging.getLogger(__name__)
 
+Admission = Literal["none", "keep", "refuse"]
+"""How a read takes the comparison admission: not at all, keeping what it has when
+busy, or refused when busy."""
+
 _CENT = Decimal("0.000001")
 
 EXPECTED_RERUN_SHARE = Decimal("0.5")
@@ -1993,18 +1997,30 @@ class EvalRunService:
             ) from None
         return run
 
-    async def get(self, ctx: AuthContext, run_id: UUID) -> EvalRunRead:
+    async def get(
+        self, ctx: AuthContext, run_id: UUID, *, interactive: bool = False
+    ) -> EvalRunRead:
         """One run, and - for a run of the draft - whether the draft changed since.
 
         A check of suggestions made on an eval suite also says what that suite
         would have said of it. A check of an agent's suggestions tested the draft
         they would make: the draft changed since once neither the draft nor the
         draft with the suggestions still waiting is what it checked.
+
+        An `interactive` read - a person's, through the API - compares again only
+        under the organization's comparison admission, and is refused while it is
+        taken. The platform's own reads, a job settling a session say, compare as
+        they need.
+
+        Raises:
+            RateLimitError: `interactive`, a comparison is due and the admission is taken.
         """
         run = await self._readable(ctx, run_id)
-        read = (await self._reads(ctx, [run], refuse_when_busy=True))[0]
+        admission: Admission = "refuse" if interactive else "none"
+        read = (await self._reads(ctx, [run], admission=admission))[0]
         if run.suite_check is not None:
-            read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
+            suite_check = await self._suite_check(ctx, run, read, limited=interactive)
+            read = read.model_copy(update={"suite_check": suite_check})
         checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
         tested = next(
             (
@@ -2036,7 +2052,7 @@ class EvalRunService:
         return authoring_hunks.projection(draft, hunks)[0]
 
     async def _suite_check(
-        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, *, limited: bool = False
     ) -> EvalSuiteCheckRead:
         """The suite's verdict on a completed check, judged as the suite judges its own runs.
 
@@ -2058,7 +2074,10 @@ class EvalRunService:
             return verdict
         judged = check.judged
         if judged is None or run.outcome_at is None or judged.outcome_at != run.outcome_at:
-            async with rate_limit.eval_computation(ctx):
+            if limited:
+                async with rate_limit.eval_computation(ctx):
+                    judged = await self._judge_suite(ctx, run, read, check)
+            else:
                 judged = await self._judge_suite(ctx, run, read, check)
         return verdict.model_copy(update={"status": judged.status, "reasons": judged.reasons})
 
@@ -2175,12 +2194,13 @@ class EvalRunService:
                 since=None if base is None else base.created_at,
             )
             return EvalRunList(
-                items=await self._reads(ctx, tested[skip : skip + limit]), total=len(tested)
+                items=await self._reads(ctx, tested[skip : skip + limit], admission="keep"),
+                total=len(tested),
             )
         runs, total = await eval_run_repo.list_for_agent(
             self.db, agent.id, organization_id=org, dataset_ids=readable, skip=skip, limit=limit
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def list_for_dataset(
         self, ctx: AuthContext, dataset_id: UUID, *, skip: int = 0, limit: int = 50
@@ -2204,7 +2224,7 @@ class EvalRunService:
             skip=skip,
             limit=limit,
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def recent(self, ctx: AuthContext, *, skip: int = 0, limit: int = 10) -> EvalRunList:
         """The organization's latest runs the caller may read, a page at a time."""
@@ -2228,7 +2248,7 @@ class EvalRunService:
             skip=skip,
             limit=limit,
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
         """The eval run and case an agent run answered - or, for the judge's run,
@@ -2342,7 +2362,7 @@ class EvalRunService:
         )
 
     async def _reads(
-        self, ctx: AuthContext, runs: Sequence[EvalRun], *, refuse_when_busy: bool = False
+        self, ctx: AuthContext, runs: Sequence[EvalRun], *, admission: Admission = "none"
     ) -> list[EvalRunRead]:
         org = ctx.organization_id
         arms_by_run: dict[UUID, list[EvalRunArm]] = defaultdict(list)
@@ -2471,7 +2491,7 @@ class EvalRunService:
                     cases=len({a.case_id for a in attempts}),
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
-                    outcome=await self._outcome(ctx, run, refuse_when_busy=refuse_when_busy),
+                    outcome=await self._outcome(ctx, run, admission=admission),
                     routed_to_review=run.routed_to_review,
                     routed_replacing=run.routed_replacing,
                     proposal_check=(
@@ -2970,16 +2990,17 @@ class EvalRunService:
             return None
 
     async def _outcome(
-        self, ctx: AuthContext, run: EvalRun, *, refuse_when_busy: bool = False
+        self, ctx: AuthContext, run: EvalRun, *, admission: Admission = "none"
     ) -> EvalOutcomeRead | None:
         """A finished run's verdict, as kept - or compared again once a person has
         decided one of the scores it rests on since it was kept.
 
-        Comparing again takes the organization's comparison admission. While it is
-        taken, a list keeps the verdict it has, and reading the run alone is refused.
+        A person's read compares again under the organization's comparison
+        admission: while it is taken a list `keep`s the verdict it has, and reading
+        the run alone is refused. The platform's own reads take no admission.
 
         Raises:
-            RateLimitError: `refuse_when_busy`, and the comparison admission is taken.
+            RateLimitError: `admission` is `refuse`, and the comparison admission is taken.
         """
         if run.status in (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value):
             return None
@@ -2990,11 +3011,13 @@ class EvalRunService:
                 self.db, sorted(sides), since=run.outcome_at, organization_id=ctx.organization_id
             ):
                 return kept
+        if admission == "none":
+            return await self._compared_outcome(ctx, run)
         try:
             async with rate_limit.eval_computation(ctx):
                 return await self._compared_outcome(ctx, run)
         except RateLimitError:
-            if refuse_when_busy:
+            if admission == "refuse":
                 raise
             return kept
 
