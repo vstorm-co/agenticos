@@ -173,6 +173,28 @@ async def test_a_source_check_without_a_person_or_for_an_unknown_message_finds_n
         await service.source_privacy(replace(owner, user_id=None), answer.id)
 
 
+async def test_a_source_check_answers_another_tenant_or_a_hidden_thread_as_an_unknown_id(
+    db,
+) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    stranger = await _owner(db)
+    _, answer = await _rated_down_turn(db, owner)
+    service = DatasetService(db)
+
+    refusals = []
+    for reader, message_id in (
+        (owner, uuid.uuid4()),
+        (stranger, answer.id),
+        (viewer, answer.id),
+    ):
+        with pytest.raises(NotFoundError) as refused:
+            await service.source_privacy(reader, message_id)
+        refusals.append((refused.value.message, refused.value.details))
+
+    assert refusals == [("Message not found", None)] * 3
+
+
 async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
     """Cases sharing a conversation are shown or hidden by one access check; nobody, and
     then everybody once the conversation is deleted, reads a conversation case masked."""

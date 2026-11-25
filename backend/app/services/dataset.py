@@ -816,18 +816,24 @@ class DatasetService:
         """Warn before a curator copies another person's private conversation.
 
         Uses the same source access as Add to dataset, and exposes no owner metadata
-        unless the caller may read the conversation or its recorded runs.
+        unless the caller may read the conversation or its recorded runs. A message
+        in another organization, or in a conversation the caller may not read, is
+        refused exactly as an unknown id is, so neither its existence nor its
+        conversation can be probed.
         """
         message = await conversation_repo.get_message_by_id(self.db, message_id)
         if message is None or (not ctx.has(Perm.RUNS_VIEW) and ctx.user_id is None):
             raise NotFoundError(message="Message not found")
-        conversation = await ConversationService(self.db).get_conversation(
-            message.conversation_id,
-            organization_id=ctx.organization_id,
-            user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
-            ctx=ctx,
-            include_favourite=False,
-        )
+        try:
+            conversation = await ConversationService(self.db).get_conversation(
+                message.conversation_id,
+                organization_id=ctx.organization_id,
+                user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
+                ctx=ctx,
+                include_favourite=False,
+            )
+        except NotFoundError:
+            raise NotFoundError(message="Message not found") from None
         private = (
             conversation.project_id is None
             and conversation.user_id is not None
