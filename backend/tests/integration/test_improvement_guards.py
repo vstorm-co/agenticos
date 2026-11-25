@@ -52,6 +52,26 @@ async def test_a_reader_of_the_agent_without_runs_view_reads_no_session(
 
 
 @pytest.mark.security
+async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_status(
+    db: AsyncSession,
+) -> None:
+    """Stopping is always safe, so a creator who has since lost runs:view may still
+    stop their session - and is answered with its status, not what it found."""
+    ctx, agent, _, session = await _started(db)
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None
+    row.error = "Private provider details"
+    await db.flush()
+    demoted = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+
+    stopped = await ImprovementPipelineService(db).cancel(demoted, agent.id, session.id)
+
+    assert stopped.status == "cancelled"
+    assert stopped.iterations == [] and stopped.timeline == []
+    assert stopped.error is None
+
+
+@pytest.mark.security
 async def test_a_session_of_another_organization_is_not_found(db: AsyncSession) -> None:
     ctx, agent, _, session = await _started(db)
     elsewhere = replace(ctx, organization_id=uuid4())
