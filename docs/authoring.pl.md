@@ -1,5 +1,5 @@
 ---
-source_sha: "452644ae3cf2"
+source_sha: "e6e40ffd2eff"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -84,7 +84,7 @@ każdej decyduje się osobno:
 |---|---|
 | **Przyjmij** | Zmiana trafia do wersji roboczej. Nic nie jest publikowane. |
 | **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. Dla instrukcji otwiera się cały tekst: obecna wersja obok proponowanej, którą edytujesz, a diff odświeża się w trakcie pisania. Zapisywany jest tylko sugerowany fragment; tekst poza nim zmienia się w edytorze instrukcji. |
-| **Odrzuć** | Zapisane; późniejsze zlecenie nie zasugeruje tego ponownie. |
+| **Odrzuć** | Zapisane; żadne późniejsze zlecenie, sprawdzenie zmian ani sesja Improve nie zasugeruje tego ponownie aż do następnej publikacji agenta. |
 | **Cofnij** | Odwraca decyzję, dopóki pasuje ona do wersji roboczej. |
 
 Sugestia jest zakotwiczona w miejscu, w którym był jej fragment, i w tym, co go

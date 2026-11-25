@@ -1,5 +1,5 @@
 ---
-source_sha: "452644ae3cf2"
+source_sha: "e6e40ffd2eff"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -83,7 +83,7 @@ y la evidencia, y cada una se decide por separado:
 |---|---|
 | **Aceptar** | El cambio se escribe en el draft. No se publica nada. |
 | **Editar** | Se acepta tu propia redacción en lugar de la sugerencia. Para las instrucciones se abre el texto completo: la versión actual junto a la propuesta, que editas, con el diff redibujado mientras escribes. Solo se guarda el pasaje sugerido; el texto de fuera se cambia en el editor de instrucciones. |
-| **Descartar** | Queda registrado; una petición posterior no lo vuelve a sugerir. |
+| **Descartar** | Queda registrado; ninguna petición posterior, verificación ni sesión de Improve lo vuelve a sugerir hasta la próxima publicación del agent. |
 | **Deshacer** | Revierte la decisión mientras aún encaja en el draft. |
 
 Una sugerencia se ancla en dónde estaba su fragmento y en lo que lo rodeaba, no

@@ -82,7 +82,7 @@ evidence, and each is decided on its own:
 |---|---|
 | **Accept** | The change is written into the draft. Nothing is published. |
 | **Edit** | Your own wording is accepted in place of the suggestion. For instructions, the whole text opens: the current version beside the proposed one you edit, with the diff redrawn as you type. Only the suggested passage is saved; text outside it is changed in the instructions editor. |
-| **Dismiss** | Recorded; a later request does not suggest it again. |
+| **Dismiss** | Recorded; no later request, Verify or Improve session suggests it again until the agent is next published. |
 | **Undo** | Reverses the decision while it still fits the draft. |
 
 A suggestion anchors on where its passage sat and what surrounded it, not on the
