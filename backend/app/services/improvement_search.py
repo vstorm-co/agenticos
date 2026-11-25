@@ -28,6 +28,7 @@ import difflib
 import hashlib
 import logging
 import re
+import time
 from collections.abc import Callable, Collection, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
@@ -47,7 +48,7 @@ from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthenticationError
+from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -60,6 +61,8 @@ from app.db.models.improvement import (
     ImprovementSearchVariant,
     ImprovementStage,
     ImprovementStatus,
+    PartialAnswer,
+    PartialScore,
     SearchProgress,
     SearchSettings,
     SearchVariantStatus,
@@ -113,6 +116,10 @@ ANSWER_CAP_FACTOR = 2
 MAX_SCORING_ATTEMPTS = 2
 """Times a variant's scoring may begin before a variant whose job keeps dying is given up."""
 
+UNIT_SECONDS = 12 * 60
+"""How long into its job a scoring unit still starts answers. The worker stops the job at 15
+minutes (`SEARCH_IMPROVEMENT`); what it answered by then is kept for the next unit."""
+
 MAX_PROPOSAL_ATTEMPTS = 3
 """Times one round of proposals may begin before the search ends: a provider that keeps
 failing, or a job that keeps dying, would otherwise ask the improver once a minute."""
@@ -143,6 +150,13 @@ _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 type SearchEnd = Literal[
     "budget", "max_variants", "patience", "proposal", "questions", "no_variant"
 ]
+
+_NOTE_RULE = (
+    "Read the note as a list of separate requests. Answer every one in each version: "
+    "follow it, or say in that version's rationale which request it left out and why - "
+    "never drop one silently. Weigh each beside the failures; the note itself is not "
+    "evidence."
+)
 
 type _Unproposed = Literal["refused", "unanswered"]
 """A round with no variants: refused by our own rules, which ends the search, or left
@@ -289,6 +303,8 @@ class _Score:
     judge_version_id: UUID | None
     answer_cap: Decimal
     spent_at_claim: Decimal
+    earlier: dict[UUID, _Answered] = field(default_factory=dict)
+    """The variant's answers a unit that ran out of time already kept."""
 
 
 @dataclass(frozen=True)
@@ -315,6 +331,8 @@ class _Answered:
     failed: list[str] = field(default_factory=list)
     budget: bool = False
     counted: bool = True
+    deferred: bool = False
+    """Not asked before the unit ran out of time; the next unit asks it."""
 
 
 class ImprovementSearchService:
@@ -557,9 +575,10 @@ class SearchWorker:
         self.sessions = sessions
 
     async def run(self) -> None:
+        deadline = time.monotonic() + UNIT_SECONDS
         unit = await self._claim()
         if isinstance(unit, _Score):
-            answered = await self._answer_all(unit)
+            answered = await self._answer_all(unit, deadline)
             await self._record_score(unit, answered)
         elif isinstance(unit, _Propose):
             proposed = await self._propose(unit)
@@ -584,7 +603,12 @@ class SearchWorker:
             except AuthenticationError:
                 ctx = None
             agent = await agent_repo.get(db, run.agent_id, organization_id=self.organization_id)
-            if ctx is None or agent is None or not await _pinned(db, run, agent):
+            if (
+                ctx is None
+                or agent is None
+                or not await _pinned(db, run, agent)
+                or not await _may_go_on(db, ctx, run)
+            ):
                 # The session's own advance reads why and stops it, before more is spent.
                 await _advance(db, run)
                 return None
@@ -670,6 +694,10 @@ class SearchWorker:
                 judge_pinned=run.judge_version_id is not None,
                 candidate_spec=variant_spec,
             )
+        except AuthorizationError:
+            # The actor lost a right the session needs: its advance stops it, saying so.
+            await _advance(db, run)
+            return None
         except AppException:
             # The pinned questions can no longer be answered - erased, say - and would
             # refuse every later unit the same way.
@@ -678,11 +706,19 @@ class SearchWorker:
         if priced is None or not questions:
             await _end(db, run, iteration, progress, "questions")
             return None
+        earlier = _kept_answers(progress, variant, scoring)
+        if earlier is None:
+            earlier = {}
+            progress = SearchProgress(**{**progress, "partial": None})
+        questions = [question for question in questions if question.case_id not in earlier]
         estimate = priced.total_usd / max(1, priced.cases) * len(questions)
         if estimate > left:
             await _end(db, run, iteration, progress, "budget")
             return None
-        answer_usd = priced.arms[0].cost_per_case_usd
+        # Past answers that cost nothing (an unpriced model) would give a cap of nothing,
+        # which stops every answer at its first request.
+        per_case = priced.arms[0].cost_per_case_usd or settings.EVAL_FALLBACK_CASE_COST_USD
+        answer_usd = per_case + await _longer_instructions_usd(db, ctx, spec, variant.instructions)
         await improvement_repo.update_variant(
             db, variant=variant, values={"attempts": variant.attempts + 1, "estimate_usd": estimate}
         )
@@ -699,6 +735,7 @@ class SearchWorker:
             judge_version_id=run.judge_version_id,
             answer_cap=answer_usd * ANSWER_CAP_FACTOR,
             spent_at_claim=spent,
+            earlier=earlier,
         )
 
     async def _claim_proposal(
@@ -738,7 +775,7 @@ class SearchWorker:
             if v.status == SearchVariantStatus.SCORED.value and v.train_score is not None
         ][:PARENTS]
         count = min(options["per_generation"], options["max_variants"] - tried)
-        prompt = await _prompt(db, run, progress, parents, count=count)
+        prompt = await _prompt(db, run, progress, parents, count=count, note=iteration.note)
         helper = DatasetHelper.model_validate(run.helper_settings or {})
         estimate = await _proposal_price(
             db, ctx, helper.model_profile_id, prompt, count=count, seed=seed.instructions
@@ -812,11 +849,13 @@ class SearchWorker:
             for case in cases
         ]
 
-    async def _answer_all(self, unit: _Score) -> dict[UUID, _Answered]:
+    async def _answer_all(self, unit: _Score, deadline: float) -> dict[UUID, _Answered]:
         gate = asyncio.Semaphore(CASE_PARALLELISM)
 
         async def one(question: _Question) -> tuple[UUID, _Answered]:
             async with gate:
+                if time.monotonic() >= deadline:
+                    return question.case_id, _Answered(counted=False, deferred=True)
                 # Every answer is paid for, so a session stopped meanwhile asks no more.
                 if not await self._still_searching(unit):
                     return question.case_id, _Answered(counted=False)
@@ -855,7 +894,10 @@ class SearchWorker:
                 logger.exception("A search variant could not answer case %s", question.case_id)
                 return _Answered(failed=[_UNANSWERED])
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
-                return _Answered(budget=True, failed=[_UNANSWERED])
+                # Stopped at its own cap, the answer is one this variant could not afford;
+                # refused below it, a monthly budget is spent and the search ends.
+                capped = agent_run.cost_usd >= unit.answer_cap
+                return _Answered(budget=not capped, failed=[_UNANSWERED])
             if agent_run.status not in (
                 RunStatus.COMPLETED.value,
                 RunStatus.GUARDRAIL_BLOCKED.value,
@@ -919,8 +961,15 @@ class SearchWorker:
             )
             if variant is None or variant.status != SearchVariantStatus.PENDING.value:
                 return
-            shares = [a.share for a in answered.values() if a.counted]
             spent = await improvement_repo.spent(db, run.id, organization_id=self.organization_id)
+            cost = variant.cost_usd + max(Decimal(0), spent - unit.spent_at_claim)
+            finished = {case_id: a for case_id, a in answered.items() if not a.deferred}
+            answered = {**unit.earlier, **finished}
+            budget = any(a.budget for a in finished.values())
+            if len(finished) < len(unit.questions) and not budget:
+                await self._kept(db, run, iteration, progress, variant, unit, answered, cost)
+                return
+            shares = [a.share for a in answered.values() if a.counted]
             score = sum(shares) / len(shares) if shares else None
             await improvement_repo.update_variant(
                 db,
@@ -937,7 +986,7 @@ class SearchWorker:
                         for case_id, a in answered.items()
                         if a.failed
                     ],
-                    "cost_usd": max(Decimal(0), spent - unit.spent_at_claim),
+                    "cost_usd": cost,
                     "scored_at": datetime.now(UTC),
                 },
             )
@@ -945,17 +994,63 @@ class SearchWorker:
                 **{
                     **progress,
                     "cost_usd": str(search_cost(progress, spent=spent)),
+                    "partial": None,
                 }
             )
             if variant.generation == 0:
                 updated["seed_score"] = score
-            if any(a.budget for a in answered.values()):
+            if budget:
                 await _end(db, run, iteration, updated, "budget")
                 return
             await improvement_repo.update_iteration(
                 db, iteration=iteration, values={"search": updated}
             )
             await ImprovementSearchService(db).queue(run)
+
+    async def _kept(
+        self,
+        db: AsyncSession,
+        run: ImprovementRun,
+        iteration: ImprovementIteration,
+        progress: SearchProgress,
+        variant: ImprovementSearchVariant,
+        unit: _Score,
+        answered: dict[UUID, _Answered],
+        cost: Decimal,
+    ) -> None:
+        """Keep the answers of a unit that ran out of time, with what it cost, for the next.
+
+        A unit that answered something made progress, so its attempt is not one of the
+        `MAX_SCORING_ATTEMPTS` a dying job uses up.
+        """
+        await improvement_repo.update_variant(
+            db,
+            variant=variant,
+            values={
+                "cost_usd": cost,
+                "attempts": 0 if len(answered) > len(unit.earlier) else variant.attempts,
+            },
+        )
+        spent = await improvement_repo.spent(db, run.id, organization_id=self.organization_id)
+        updated = SearchProgress(
+            **{
+                **progress,
+                "cost_usd": str(search_cost(progress, spent=spent)),
+                "partial": PartialScore(
+                    variant_id=str(variant.id),
+                    text_hash=variant.text_hash,
+                    scoring_hash=scoring_hash(unit.scoring),
+                    answers={
+                        str(case_id): PartialAnswer(
+                            share=a.share, failed=list(a.failed), counted=a.counted
+                        )
+                        for case_id, a in answered.items()
+                    },
+                ),
+            }
+        )
+        await improvement_repo.update_iteration(db, iteration=iteration, values={"search": updated})
+        await ImprovementSearchService(db).queue(run)
 
     async def _propose(self, unit: _Propose) -> InstructionVariants | _Unproposed:
         async with self.sessions() as db:
@@ -1031,6 +1126,41 @@ class SearchWorker:
                 db, iteration=iteration, values={"search": updated}
             )
             await ImprovementSearchService(db).queue(run)
+
+
+def _kept_answers(
+    progress: SearchProgress, variant: ImprovementSearchVariant, scoring: DatasetScoring
+) -> dict[UUID, _Answered] | None:
+    """The answers an earlier unit kept for this variant, or None for some that no longer
+    hold: kept for another variant or text, or graded another way."""
+    partial = progress.get("partial")
+    if partial is None:
+        return {}
+    if (
+        partial["variant_id"] != str(variant.id)
+        or partial["text_hash"] != variant.text_hash
+        or partial["scoring_hash"] != scoring_hash(scoring)
+    ):
+        return None
+    return {
+        UUID(case_id): _Answered(
+            share=answer["share"], failed=list(answer["failed"]), counted=answer["counted"]
+        )
+        for case_id, answer in partial["answers"].items()
+    }
+
+
+async def _may_go_on(db: AsyncSession, ctx: AuthContext, run: ImprovementRun) -> bool:
+    """Whether the actor still holds what the session's advance asks of them - edit access
+    to the agent, `runs:view` and the right to run the dataset - before a unit reads the
+    training questions or pays for a model call as them."""
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    try:
+        await ImprovementPipelineService(db).ensure_current(ctx, run.id)
+    except AppException:
+        return False
+    return True
 
 
 async def _pinned(db: AsyncSession, run: ImprovementRun, agent: Agent) -> bool:
@@ -1130,11 +1260,13 @@ async def _prompt(
     parents: Sequence[ImprovementSearchVariant],
     *,
     count: int,
+    note: str | None = None,
 ) -> str:
     """The improver's task: the best instructions so far and the training questions they fail.
 
     Only the attempt's drawn training questions are named; the questions the
-    attempt is measured on are never read here.
+    attempt is measured on are never read here. `note` is what the person who asked
+    for the attempt wants kept in mind, as the step-by-step helper reads it.
     """
     cases = {
         case.case_id: case
@@ -1175,6 +1307,33 @@ async def _prompt(
         "name the questions - the versions are judged later on questions they have not seen. "
         "Keep every {{placeholder}} exactly as written. Give a one-sentence rationale for each."
         f"\n\n{chr(10).join(blocks)}"
+        + (
+            "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
+            f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
+            if note
+            else ""
+        )
+    )
+
+
+async def _longer_instructions_usd(
+    db: AsyncSession, ctx: AuthContext, spec: AgentSpec, instructions: str
+) -> Decimal:
+    """What a variant's instructions cost an answer beyond the draft's, which the agent's
+    past answers already include: the extra length read once, at the agent's model price."""
+    extra = len(instructions) - len(spec.instructions)
+    if extra <= 0:
+        return Decimal(0)
+    usage = RunUsage(input_tokens=(extra + 3) // 4, output_tokens=0)
+    if spec.model_profile_id is not None:
+        model = await ModelProfileService(db).resolve(ctx, profile_id=spec.model_profile_id)
+        priced = price_request(usage, model.model, model.provider)
+        if priced is not None:
+            return Decimal(priced)
+    return (
+        settings.EVAL_FALLBACK_CASE_COST_USD
+        * Decimal(usage.input_tokens)
+        / settings.EVAL_FALLBACK_INPUT_TOKENS
     )
 
 
