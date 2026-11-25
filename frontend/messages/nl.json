@@ -10586,23 +10586,17 @@
     "endsAtHint": "Laat leeg om te draaien tot hij wordt gestopt. Deze tijd gebruikt {zone}, los van de tijdzone van de planning.",
     "endsAtInvalid": "Kies een geldige tijd in de toekomst, of maak het veld leeg om het einde te verwijderen.",
     "actionConsents": {
-      "checkConnections": "Controleer deze koppelingen om hun acties te bekijken: {names}.",
       "personalAccount": "{name} · je account",
       "organizationAccount": "{name} · organisatieaccount",
       "title": "Toestemming voor acties",
       "description": "Acties van routines vragen standaard om goedkeuring. Sta alleen de vermelde acties toe om te draaien zonder te vragen. De toestemming geldt voor deze gepubliceerde versie en configuratie van de routine; goedkeuringen die de agent vereist, blijven gelden. Elke MCP-actie geldt alleen voor het genoemde account.",
       "retry": "Opnieuw proberen",
-      "notAllowedPermission": "Je hebt niet het recht om over goedkeuringen te beslissen, dus je kunt deze routine geen vaste toestemming geven. Vraag het aan een beheerder van de organisatie. Je kunt nog wel alle toestemming intrekken.",
-      "notAllowedOrganization": "Je organisatie heeft vaste toestemming uitgeschakeld, dus deze routine kan goedkeuringen niet overslaan. Het kan worden ingeschakeld onder Budget en goedkeuringen. Je kunt nog wel alle toestemming intrekken.",
-      "openApprovalSettings": "Goedkeuringsinstellingen openen",
       "empty": "Deze versie heeft hier geen geschikte acties om toe te staan.",
       "revokeAll": "Alles intrekken",
       "save": "Toestemming opslaan",
       "search": "Acties zoeken",
       "selectGroup": "Geschikte acties in {name} kiezen",
       "noMatches": "Geen acties gevonden.",
-      "reselectPrevious": "Eerder bekeken acties opnieuw kiezen",
-      "tooMany": "{count} acties gekozen; de limiet is {limit}. Deselecteer acties voordat je opslaat.",
       "changed": {
         "version": "De gepubliceerde versie van de agent is veranderd. Bekijk de acties ervan opnieuw.",
         "intent": "Het werk of de bestemming van de routine is veranderd. Bekijk de acties ervan opnieuw.",
@@ -10614,8 +10608,7 @@
       "useAgent": "De instellingen van de agent gebruiken",
       "useAgentHint": "Kiest precies de acties die deze agent in een chat al zonder te vragen uitvoert, en vervangt de huidige selectie. Toestemming hier kan alleen beperken wat de instellingen van de agent toestaan, nooit verruimen: een actie waarvoor de agent vooraf vraagt, wordt niet aangeboden. Er wordt niets opgeslagen tot je Toestemming opslaan kiest.",
       "allowHeading": "Deze acties laten draaien zonder om goedkeuring te vragen",
-      "alwaysAsks": "Vraagt altijd: vereist door de agent of het platform",
-      "alwaysAsk": "{count, plural, =1 {1 actie vraagt altijd om goedkeuring, zoals de agent of koppeling vereist. Runs die deze actie gebruiken wachten op een persoon, ongeacht wat je hier kiest.} other {# acties vragen altijd om goedkeuring, zoals de agent of koppeling vereist. Runs die deze acties gebruiken wachten op een persoon, ongeacht wat je hier kiest.}}"
+      "alwaysAsks": "Vraagt altijd: vereist door de agent of het platform"
     },
     "sourceConsents": {
       "title": "Bronnen",
@@ -10705,7 +10698,27 @@
       "readiness_checking": "Controleren of deze routine kan worden uitgevoerd…",
       "readiness_unavailable": "Er kon niet worden gecontroleerd of deze routine kan worden uitgevoerd. Nu uitvoeren controleert de rechten nog steeds."
     },
-    "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd"
+    "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd",
+    "toolSettings": {
+      "title": "Routinetools",
+      "description": "Tools volgen standaard de agent. Laat voor deze routine toestemming vragen of schakel een tool uit. Verplichte goedkeuringen blijven gelden; gedelegeerde agents houden hun eigen instellingen.",
+      "legacyMode": "Opslaan past de goedkeuringsregels van de agent toe en verwijdert de eerdere doorlopende toestemmingen van deze routine.",
+      "agentAsks": "Agent vereist goedkeuring",
+      "agentFree": "Agent staat automatisch gebruik toe",
+      "follow": "Agent volgen",
+      "ask": "Elke keer vragen",
+      "off": "Uit",
+      "search": "Zoek een tool",
+      "reset": "Agent voor alle tools volgen",
+      "empty": "Deze routine heeft geen configureerbare tools.",
+      "noMatches": "Geen tools gevonden voor deze zoekopdracht.",
+      "personalAccount": "Persoonlijk account · {name}",
+      "organizationAccount": "Organisatieaccount · {name}",
+      "unavailable": "Controleer deze verbindingen om hun tools te zien: {names}.",
+      "unavailableSettings": "Beperkingen voor niet-beschikbare tools",
+      "unavailableSettingsBody": "Deze opgeslagen beperkingen blijven behouden, ook als een tool momenteel niet beschikbaar is. Verwijder een beperking expliciet om deze op te heffen.",
+      "removeRestriction": "Beperking voor {name} verwijderen"
+    }
   },
   "portals": {
     "backToServices": "Terug naar services",

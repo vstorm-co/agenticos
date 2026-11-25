@@ -10583,23 +10583,17 @@
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
     "actionConsents": {
-      "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
       "personalAccount": "{name} · dein Konto",
       "organizationAccount": "{name} · Organisationskonto",
       "title": "Aktionsfreigaben",
       "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen. Jede MCP-Aktion gilt nur für das benannte Konto.",
       "retry": "Erneut versuchen",
-      "notAllowedPermission": "Du hast keine Berechtigung, über Genehmigungen zu entscheiden, und kannst dieser Routine daher keine dauerhafte Freigabe geben. Wende dich an eine Organisationsadministration. Alle widerrufen kannst du weiterhin.",
-      "notAllowedOrganization": "Deine Organisation hat dauerhafte Freigaben deaktiviert, daher kann diese Routine Genehmigungen nicht überspringen. Sie lassen sich unter Budget und Genehmigungen aktivieren. Alle widerrufen kannst du weiterhin.",
-      "openApprovalSettings": "Genehmigungseinstellungen öffnen",
       "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern",
       "search": "Aktionen suchen",
       "selectGroup": "Zulässige Aktionen in {name} auswählen",
       "noMatches": "Keine Aktionen entsprechen der Suche.",
-      "reselectPrevious": "Zuvor geprüfte Aktionen erneut auswählen",
-      "tooMany": "{count} Aktionen ausgewählt; die Grenze ist {limit}. Wähle vor dem Speichern Aktionen ab.",
       "changed": {
         "version": "Die veröffentlichte Agent-Version hat sich geändert. Prüfe ihre Aktionen erneut.",
         "intent": "Aufgabe oder Ziel der Routine haben sich geändert. Prüfe ihre Aktionen erneut.",
@@ -10611,8 +10605,7 @@
       "useAgent": "Einstellungen des Agenten verwenden",
       "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
       "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen",
-      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben",
-      "alwaysAsk": "{count, plural, =1 {1 Aktion fragt immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.} other {# Aktionen fragen immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.}}"
+      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben"
     },
     "sourceConsents": {
       "title": "Quellen",
@@ -10701,6 +10694,26 @@
       "actions_need_approval": "{count, plural, =1 {1 Aktion hat keine dauerhafte Zustimmung und erfordert bei Verwendung eine Genehmigung.} other {# Aktionen haben keine dauerhafte Zustimmung und erfordern bei Verwendung eine Genehmigung.}}",
       "readiness_checking": "Es wird geprüft, ob diese Routine ausgeführt werden kann…",
       "readiness_unavailable": "Die Ausführbarkeit konnte nicht geprüft werden. Jetzt ausführen prüft weiterhin die Berechtigungen."
+    },
+    "toolSettings": {
+      "title": "Werkzeuge der Routine",
+      "description": "Standardmäßig gelten die Einstellungen des Agenten. Für diese Routine können Sie vor einem Werkzeug fragen lassen oder es ausschalten. Erforderliche Genehmigungen gelten weiterhin; delegierte Agenten behalten ihre Einstellungen.",
+      "legacyMode": "Beim Speichern gelten die Genehmigungsregeln des Agenten. Bisherige dauerhafte Genehmigungen dieser Routine werden entfernt.",
+      "agentAsks": "Agent erfordert Genehmigung",
+      "agentFree": "Agent erlaubt automatische Nutzung",
+      "follow": "Agent folgen",
+      "ask": "Jedes Mal fragen",
+      "off": "Aus",
+      "search": "Werkzeug suchen",
+      "reset": "Agent für alle Werkzeuge folgen",
+      "empty": "Diese Routine hat keine konfigurierbaren Werkzeuge.",
+      "noMatches": "Keine Werkzeuge entsprechen dieser Suche.",
+      "personalAccount": "Persönliches Konto · {name}",
+      "organizationAccount": "Organisationskonto · {name}",
+      "unavailable": "Prüfen Sie diese Verbindungen, um ihre Werkzeuge zu sehen: {names}.",
+      "unavailableSettings": "Einschränkungen nicht verfügbarer Werkzeuge",
+      "unavailableSettingsBody": "Diese gespeicherten Einschränkungen bleiben erhalten, auch wenn ein Werkzeug derzeit nicht angeboten wird. Entfernen Sie eine Einschränkung ausdrücklich, um sie aufzuheben.",
+      "removeRestriction": "Einschränkung für {name} entfernen"
     }
   },
   "portals": {

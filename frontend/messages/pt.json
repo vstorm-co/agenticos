@@ -10586,23 +10586,17 @@
     "endsAtHint": "Deixe em branco para executar até ser interrompida. Este horário usa {zone}, independentemente do fuso do agendamento.",
     "endsAtInvalid": "Escolha um horário futuro válido ou limpe o campo para remover o término.",
     "actionConsents": {
-      "checkConnections": "Verifique estas conexões para revisar as ações delas: {names}.",
       "personalAccount": "{name} · sua conta",
       "organizationAccount": "{name} · conta da organização",
       "title": "Consentimento de ações",
       "description": "As ações de rotina pedem aprovação por padrão. Permita apenas que as ações listadas sejam executadas sem perguntar. O consentimento vale para esta versão publicada e a configuração da rotina; as aprovações exigidas pelo agente continuam valendo. Cada ação MCP vale somente para a conta indicada.",
       "retry": "Tentar novamente",
-      "notAllowedPermission": "Você não tem permissão para decidir aprovações, então não pode conceder consentimento permanente a esta rotina. Peça a um administrador da organização. Você ainda pode revogar todo o consentimento.",
-      "notAllowedOrganization": "Sua organização desativou o consentimento permanente, então esta rotina não pode pular aprovações. Ele pode ser ativado em Orçamento e aprovações. Você ainda pode revogar todo o consentimento.",
-      "openApprovalSettings": "Abrir configurações de aprovação",
       "empty": "Esta versão não tem ações elegíveis para autorizar aqui.",
       "revokeAll": "Revogar tudo",
       "save": "Salvar consentimento",
       "search": "Pesquisar ações",
       "selectGroup": "Selecionar ações elegíveis em {name}",
       "noMatches": "Nenhuma ação corresponde à sua pesquisa.",
-      "reselectPrevious": "Selecionar novamente as ações revisadas anteriormente",
-      "tooMany": "{count} ações selecionadas; o limite é {limit}. Desmarque ações antes de salvar.",
       "changed": {
         "version": "A versão publicada do agente mudou. Revise as ações dele novamente.",
         "intent": "O trabalho ou o destino da rotina mudou. Revise as ações novamente.",
@@ -10614,8 +10608,7 @@
       "useAgent": "Usar as configurações do agente",
       "useAgentHint": "Seleciona exatamente as ações que este agente já executa sem pedir confirmação em um chat, substituindo a seleção atual. O consentimento aqui só pode restringir o que as configurações do agente concedem, nunca ampliar. Uma ação que o agente pede antes de executar não é oferecida. Nada é salvo até você escolher Salvar consentimento.",
       "allowHeading": "Permitir que estas ações sejam executadas sem pedir aprovação",
-      "alwaysAsks": "Sempre pede: exigido pelo agente ou pela plataforma",
-      "alwaysAsk": "{count, plural, =1 {1 ação sempre pede aprovação, conforme exigido pelo agente ou pela conexão. As execuções que a usam param para uma pessoa, independentemente do que você escolher aqui.} other {# ações sempre pedem aprovação, conforme exigido pelos respectivos agentes ou conexões. As execuções que as usam param para uma pessoa, independentemente do que você escolher aqui.}}"
+      "alwaysAsks": "Sempre pede: exigido pelo agente ou pela plataforma"
     },
     "sourceConsents": {
       "title": "Fontes",
@@ -10705,7 +10698,27 @@
       "readiness_checking": "Verificando se esta rotina pode ser executada…",
       "readiness_unavailable": "Não foi possível verificar se esta rotina pode ser executada. Executar agora ainda verificará as permissões dela."
     },
-    "deliveryPending": "Enviando a última resposta ao chat"
+    "deliveryPending": "Enviando a última resposta ao chat",
+    "toolSettings": {
+      "title": "Ferramentas da rotina",
+      "description": "Por predefinição, as ferramentas seguem as definições do agente. Nesta rotina, peça confirmação antes de usar uma ferramenta ou desative-a. As aprovações obrigatórias mantêm-se; os agentes delegados mantêm as suas definições.",
+      "legacyMode": "Ao guardar, aplicam-se as regras de aprovação do agente e são removidas as autorizações permanentes anteriores desta rotina.",
+      "agentAsks": "O agente exige aprovação",
+      "agentFree": "O agente permite utilização automática",
+      "follow": "Seguir o agente",
+      "ask": "Perguntar sempre",
+      "off": "Desativada",
+      "search": "Procurar uma ferramenta",
+      "reset": "Seguir o agente em todas as ferramentas",
+      "empty": "Esta rotina não tem ferramentas configuráveis.",
+      "noMatches": "Nenhuma ferramenta corresponde à pesquisa.",
+      "personalAccount": "Conta pessoal · {name}",
+      "organizationAccount": "Conta da organização · {name}",
+      "unavailable": "Verifique estas ligações para ver as ferramentas: {names}.",
+      "unavailableSettings": "Restrições de ferramentas indisponíveis",
+      "unavailableSettingsBody": "Estas restrições são mantidas mesmo quando uma ferramenta não está disponível. Remova explicitamente uma restrição para deixar de a manter.",
+      "removeRestriction": "Remover restrição de {name}"
+    }
   },
   "portals": {
     "backToServices": "Voltar para os serviços",

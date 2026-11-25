@@ -11396,23 +11396,17 @@
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
-      "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
       "personalAccount": "{name} · hesabınız",
       "organizationAccount": "{name} · organizasyon hesabı",
       "title": "Eylem izni",
       "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
       "retry": "Yeniden dene",
-      "notAllowedPermission": "Onayları karara bağlama izniniz olmadığından bu rutine kalıcı onay veremezsiniz. Bir kuruluş yöneticisine başvurun. Tüm onayları yine de iptal edebilirsiniz.",
-      "notAllowedOrganization": "Kuruluşunuz kalıcı onayı kapattığı için bu rutin onayları atlayamaz. Budget ve approvals bölümünden açılabilir. Tüm onayları yine de iptal edebilirsiniz.",
-      "openApprovalSettings": "Onay ayarlarını aç",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
-      "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
-      "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
       "changed": {
         "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
         "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
@@ -11466,7 +11460,27 @@
       "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
     },
     "openExecutionChat": "Sohbeti aç",
-    "deliveryPending": "Son yanıt sohbete gönderiliyor"
+    "deliveryPending": "Son yanıt sohbete gönderiliyor",
+    "toolSettings": {
+      "title": "Rutin araçları",
+      "description": "Araçlar varsayılan olarak ajan ayarlarını izler. Bu rutin için araç kullanılmadan önce onay isteyebilir veya aracı kapatabilirsiniz. Zorunlu onaylar geçerliliğini korur; devredilen ajanlar kendi ayarlarını kullanır.",
+      "legacyMode": "Kaydetmek ajanın onay kurallarını uygular ve bu rutinin önceki kalıcı onaylarını kaldırır.",
+      "agentAsks": "Ajan onay gerektiriyor",
+      "agentFree": "Ajan otomatik kullanıma izin veriyor",
+      "follow": "Ajanı izle",
+      "ask": "Her seferinde sor",
+      "off": "Kapalı",
+      "search": "Araç bul",
+      "reset": "Tüm araçlarda ajanı izle",
+      "empty": "Bu rutinin yapılandırılabilir aracı yok.",
+      "noMatches": "Aramayla eşleşen araç yok.",
+      "personalAccount": "Kişisel hesap · {name}",
+      "organizationAccount": "Kuruluş hesabı · {name}",
+      "unavailable": "Araçlarını görmek için bu bağlantıları kontrol edin: {names}.",
+      "unavailableSettings": "Kullanılamayan araç kısıtlamaları",
+      "unavailableSettingsBody": "Bu kayıtlı kısıtlamalar araç şu anda sunulmasa bile korunur. Bir kısıtlamayı kaldırmak için açıkça silin.",
+      "removeRestriction": "{name} kısıtlamasını kaldır"
+    }
   },
   "teams": {
     "acmeCom": "acme.com",

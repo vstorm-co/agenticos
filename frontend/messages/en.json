@@ -10703,23 +10703,17 @@
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
     "actionConsents": {
-      "checkConnections": "Check these connections to review their actions: {names}.",
       "personalAccount": "{name} · your account",
       "organizationAccount": "{name} · organization account",
       "title": "Action consent",
       "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply. Each MCP action applies only to the named account.",
       "retry": "Try again",
-      "notAllowedPermission": "You don't have permission to decide approvals, so you can't give this routine standing consent. Ask an organization administrator. You can still revoke all consent.",
-      "notAllowedOrganization": "Your organization has turned off standing consent, so this routine can't skip approvals. It can be turned on under Budget and approvals. You can still revoke all consent.",
-      "openApprovalSettings": "Open approval settings",
       "empty": "This version has no eligible actions to authorize here.",
       "revokeAll": "Revoke all",
       "save": "Save consent",
       "search": "Search actions",
       "selectGroup": "Select eligible actions in {name}",
       "noMatches": "No actions match your search.",
-      "reselectPrevious": "Reselect previously reviewed actions",
-      "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
       "changed": {
         "version": "The published agent version changed. Review its actions again.",
         "intent": "The routine’s work or destination changed. Review its actions again.",
@@ -10731,8 +10725,7 @@
       "useAgent": "Use the agent's settings",
       "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
       "allowHeading": "Allow these actions to run without asking for approval",
-      "alwaysAsks": "Always asks: required by the agent or platform",
-      "alwaysAsk": "{count, plural, =1 {1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.} other {# actions always ask for approval, as their agent or connection requires. Runs that use them stop for a person whatever you choose here.}}"
+      "alwaysAsks": "Always asks: required by the agent or platform"
     },
     "sourceConsents": {
       "title": "Sources",
@@ -10821,6 +10814,26 @@
       "actions_need_approval": "{count, plural, =1 {1 action has no standing consent and will need approval if used.} other {# actions have no standing consent and will need approval if used.}}",
       "readiness_checking": "Checking whether this routine can run…",
       "readiness_unavailable": "Could not check whether this routine can run. Run now will still check its permissions."
+    },
+    "toolSettings": {
+      "title": "Routine tools",
+      "description": "Tools follow the agent by default. For this routine, ask before a tool or turn it off. Required approvals still apply; delegated agents keep their own settings.",
+      "legacyMode": "Saving uses the agent’s approval rules and removes this routine’s previous standing approvals.",
+      "agentAsks": "Agent requires approval",
+      "agentFree": "Agent permits automatic use",
+      "follow": "Follow agent",
+      "ask": "Ask every time",
+      "off": "Off",
+      "search": "Find a tool",
+      "reset": "Follow agent for all tools",
+      "empty": "This routine has no configurable tools.",
+      "noMatches": "No tools match this search.",
+      "personalAccount": "Personal account · {name}",
+      "organizationAccount": "Organization account · {name}",
+      "unavailable": "Check these connections to see their tools: {names}.",
+      "unavailableSettings": "Unavailable tool restrictions",
+      "unavailableSettingsBody": "These saved restrictions are kept even when a tool is not currently offered. Remove one explicitly to stop keeping it.",
+      "removeRestriction": "Remove restriction for {name}"
     }
   },
   "portals": {
