@@ -210,6 +210,18 @@ describe("a field change", () => {
     expect(screen.getByText(/This change holds characters that draw nothing/)).toBeVisible();
   });
 
+  it("says so when a control character is escaped as the binding is written out", () => {
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: { id: "system_reminders", config: { content: "Ring\u0001bell" } },
+      }),
+    );
+    expect(document.body.textContent ?? "").toContain("Ring\\u0001bell");
+    expect(screen.getByText(/This change holds characters that draw nothing/)).toBeVisible();
+  });
+
   it("shows the binding a removed capability takes out with it", () => {
     card(
       field({

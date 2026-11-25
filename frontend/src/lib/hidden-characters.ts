@@ -15,3 +15,15 @@ export function writtenOut(text: string): string {
     (char) => `\\u{${(char.codePointAt(0) ?? 0).toString(16).toUpperCase()}}`,
   );
 }
+
+/**
+ * Whether a text, or any text inside a JSON value with its keys, holds a character
+ * `writtenOut` would write out - before serializing escapes a control character.
+ */
+export function holdsHidden(value: unknown): boolean {
+  if (typeof value === "string") return writtenOut(value) !== value;
+  if (Array.isArray(value)) return value.some(holdsHidden);
+  if (value !== null && typeof value === "object")
+    return Object.entries(value).some(([key, item]) => holdsHidden(key) || holdsHidden(item));
+  return false;
+}
