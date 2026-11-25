@@ -107,6 +107,7 @@ class RunProjectWorkspace(Workspace):
             if self.project_id is None
             and self.original is not None
             and self.open_agent_executor is None
+            and not (self.project_context_observed and self.original_scope in ("agent", "channel"))
             else self
         )
 
