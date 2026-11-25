@@ -111,6 +111,16 @@ def test_a_person_s_edit_with_windows_line_breaks_is_kept_with_newlines(build, r
     assert read(build(WINDOWS)) == UNIX
 
 
+def test_a_person_s_wording_keeps_its_ends_and_gets_newlines():
+    """Whitespace at either end is part of a passage, and a Windows line break inside it
+    is still a newline."""
+    typed = "  Cite the policy.\r\nAnswer briefly.\r\n"
+    kept = "  Cite the policy.\nAnswer briefly.\n"
+
+    assert ChangeEdit(edited_text=typed).edited_text == kept
+    assert HunkDecision(action="accept", text=typed).text == kept
+
+
 @pytest.mark.parametrize(
     ("build", "read"),
     [
