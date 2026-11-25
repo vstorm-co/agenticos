@@ -836,6 +836,15 @@ class TestTheListOfLiveReads:
         assert kept_local(CapabilityBinding(capability_id="knowledge")).config == {}
         assert kept_local(native).config == {"method": "duckduckgo"}
 
+    def test_a_disabled_binding_is_left_unread(self):
+        """Its stored config may predate the schema; a binding that builds nothing must not
+        fail an eval over it."""
+        stale = CapabilityBinding(
+            capability_id="web_fetch", config={"method": "carrier-pigeon"}, enabled=False
+        )
+
+        assert kept_local(stale) is stale
+
 
 class TestRemoteDelegates:
     """A delegate that is another system's agent is a way out like a fetch."""

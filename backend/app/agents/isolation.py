@@ -228,7 +228,11 @@ def kept_local(binding: CapabilityBinding) -> CapabilityBinding:
     so it could neither be held nor recorded. Where the binding's configuration
     hands a tool over, the same field is set to the value that keeps the tool
     in this deployment - an ordinary call the guard then decides like any other.
+    A disabled binding builds nothing, so it is left as it was, unread: a stored
+    configuration an older schema accepted must not fail the run.
     """
+    if not binding.enabled:
+        return binding
     definition = get_capability(binding.capability_id)
     declared = definition.provider_executed
     if declared is None or not declared.tools_for(definition.validate_config(binding.config)):
