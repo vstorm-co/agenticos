@@ -380,10 +380,16 @@ class DatasetScoringUpdate(BaseSchema):
 
 
 class KnowledgeFinding(BaseSchema):
-    """A passage a judge that searches found in the graded agent's knowledge bases."""
+    """A passage a judge that searches found in the graded agent's knowledge bases.
+
+    `knowledge_base_ids` are the bases behind the collection it came from. A reader
+    is shown the passage only when they may read every one of them; a passage that
+    names none is shown to nobody.
+    """
 
     source: str | None = None
     quote: str
+    knowledge_base_ids: list[UUID] = Field(default_factory=list)
 
 
 class ScorerResult(BaseSchema):

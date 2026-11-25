@@ -684,6 +684,8 @@ A case copied from a conversation keeps its text visible only to readers with `r
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
 
+The judge's knowledge passages are removed with the answer. A reader who sees the answer is shown a passage only from a knowledge base they may read; see [Eval runs](evals.md).
+
 A decision on an eval run's answer, or a new grade for it, also needs `runs:view` and access to the answering agent, because it changes the verdicts built on that run: a reader who cannot see the answer is not offered either, and the API refuses it with `403`.
 
 Datasets are not grouped by department - the list has no group filter or
