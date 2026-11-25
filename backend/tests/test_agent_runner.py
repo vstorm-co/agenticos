@@ -4037,6 +4037,9 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ),
             patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
+            ),
+            patch(
                 "app.services.approvals.agent_run_repo.decide_approval",
                 new=AsyncMock(return_value=approval),
             ) as decide,
@@ -4061,6 +4064,9 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
             ),
             pytest.raises(BadRequestError),
         ):
@@ -4091,6 +4097,9 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
             ),
             patch(
                 "app.services.approvals.agent_run_repo.decide_approval",
@@ -4611,7 +4620,14 @@ class TestResume:
         return version
 
     def _approval(self, *, status: str, tool_args: dict, note: str | None = None):
-        return MagicMock(id=uuid.uuid4(), status=status, tool_args=tool_args, note=note)
+        return MagicMock(
+            id=uuid.uuid4(),
+            status=status,
+            tool_id="send_email",
+            tool_args=tool_args,
+            note=note,
+            always_asks=False,
+        )
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])

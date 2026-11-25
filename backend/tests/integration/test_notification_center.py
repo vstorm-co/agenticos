@@ -8,13 +8,17 @@ built on real SQL (`ON CONFLICT`, a forced `IntegrityError`, `resolve_access`
 against a real grant-less row) that a mocked repository cannot exercise.
 """
 
+import dataclasses
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.announcement import Announcement
 from app.db.models.artifact import Artifact
 from app.db.models.knowledge_base import KnowledgeBase
@@ -25,7 +29,11 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import notification as notification_repo
 from app.services import notification_center
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import (
+    APPROVABLE_BY,
+    APPROVABLE_CALLS,
+    NotificationCenterService,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -72,6 +80,45 @@ def _ctx(user: User, org: Organization, *, role: str) -> AuthContext:
     return AuthContext(
         user_id=user.id, organization_id=org.id, role=role, is_app_admin=user.is_app_admin
     )
+
+
+async def _own_platform_call(db, org: Organization, person: User) -> ToolApproval:
+    """A run of `person`'s parked on their own platform call that always asks."""
+    agent = Agent(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        slug=f"architect-{uuid.uuid4().hex[:8]}",
+        name="Architect",
+        draft_spec={},
+    )
+    db.add(agent)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=person.id,
+        status=RunStatus.AWAITING_APPROVAL.value,
+        surface=RunSurface.WEB.value,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    await db.flush()
+    approval = ToolApproval(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        run_id=run.id,
+        agent_id=agent.id,
+        tool_id="agenticos_accept_improvement",
+        context={"platform_tool": "true"},
+        tool_args={},
+        status=ApprovalStatus.PENDING.value,
+        always_asks=True,
+        created_at=datetime.now(UTC),
+    )
+    db.add(approval)
+    await db.flush()
+    return approval
 
 
 class TestWriteDedup:
@@ -953,6 +1000,37 @@ class TestReadGateApprovalDegrade:
         # (`notification_delivery.py`'s `APPROVAL_PENDING` key) - never the
         # stored, decider-flavoured summary asking them to act.
         assert non_decider_gate.summary_override == "jarvis's run is held, waiting on an approval"
+
+    @pytest.mark.security
+    async def test_the_runs_person_keeps_the_link_only_while_their_own_call_waits(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        person = await _member(db, org, role="builder")  # no APPROVALS_DECIDE
+        call = await _own_platform_call(db, org, person)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[person.id],
+            event_type=NotificationEventType.APPROVAL_REQUESTED,
+            occurrence_id="approval-own",
+            summary="Architect is waiting on your approval",
+            context_url="/chat?id=c",
+            render_context={
+                "agent_name": "Architect",
+                APPROVABLE_BY: str(person.id),
+                APPROVABLE_CALLS: [str(call.id)],
+            },
+            organization_id=org.id,
+        )
+        reader = _ctx(person, org, role="builder")
+
+        rows, gates, _ = await service.list_inbox(reader, after=None, limit=10)
+        assert gates[rows[0].id].strip_context_url is False
+        assert gates[rows[0].id].summary_override is None
+
+        call.status = ApprovalStatus.APPROVED.value
+        await db.flush()
+        rows, gates, _ = await service.list_inbox(reader, after=None, limit=10)
+        assert gates[rows[0].id].strip_context_url is True
 
 
 class TestReadGateOrgAdminOrAppAdmin:
@@ -2651,3 +2729,39 @@ async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, 
             render_context={"routine_origin_id": str(uuid.uuid4())},
             use_savepoint=False,
         )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change", ["other_person", "unbound", "not_always", "other_tenant", "key", "publisher"]
+)
+async def test_an_own_call_notice_rechecks_the_current_call_and_person(
+    db: AsyncSession, change: str
+) -> None:
+    owner = await _user(db)
+    org = await _org(db, owner)
+    person = await _member(db, org, role="member")
+    call = await _own_platform_call(db, org, person)
+    reader = _ctx(person, org, role="member")
+    notice = Notification(
+        organization_id=org.id,
+        render_context={APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: [str(call.id)]},
+    )
+    service = NotificationCenterService(db)
+    assert await service.answers_own_call(reader, notice)
+    if change == "other_person":
+        run = await db.get(AgentRun, call.run_id)
+        assert run is not None
+        run.user_id = owner.id
+    elif change == "unbound":
+        call.context = None
+    elif change == "not_always":
+        call.always_asks = False
+    elif change == "other_tenant":
+        notice.organization_id = uuid.uuid4()
+    elif change == "key":
+        reader = dataclasses.replace(reader, api_key_id=uuid.uuid4())
+    else:
+        reader = dataclasses.replace(reader, subject_is_publisher_fallback=True)
+    await db.flush()
+    assert not await service.answers_own_call(reader, notice)

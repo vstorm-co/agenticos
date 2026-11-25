@@ -726,14 +726,15 @@ class TestChoice:
 
 
 class TestVariantText:
-    async def test_a_viewer_reads_the_search_but_not_its_variants(self, db):
-        """A variant is written from training questions and reference answers, which
-        need runs:view; a Viewer sees the search's progress without them."""
+    async def test_a_reader_who_may_not_start_it_reads_the_search_but_not_its_variants(self, db):
+        """A variant is written from training questions and reference answers, so only
+        somebody who could start the session reads it; an Operator, who reads runs
+        but edits no agent, sees the search's progress without them."""
         ctx, agent, _, read = await _start(db)
         await _to_search(db, ctx, read.id)
         await _units(db, ctx, read.id, Searcher(db))
         await _finish(db, ctx, read.id)
-        viewer = await _member(db, ctx, OrgRoleName.VIEWER)
+        viewer = await _member(db, ctx, OrgRoleName.OPERATOR)
         agent.visibility = "org"
         await db.flush()
         service = ImprovementPipelineService(db)

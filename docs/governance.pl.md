@@ -1,5 +1,5 @@
 ---
-source_sha: "77974aa5830b"
+source_sha: "091a3dc3c26c"
 ---
 
 # Governance { #governance }
@@ -1675,6 +1675,12 @@ Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, 
 
 Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, wersja, którą utworzy publikacja, dataset, na którym działa eval, i podana cena. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
 
+Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, publikacja agenta, zaproszenie członka - działa z uprawnieniami platformy osoby, w której imieniu działa run. Dlatego zatwierdzić je może tylko ta osoba, zalogowana jako ona sama: nie inny członek z `approvals:decide`, nie klucz API, także jej własny, i nie administrator w trybie impersonacji. Każdy z `approvals:decide` może je nadal odrzucić. Osoba nie potrzebuje do tego żadnego uprawnienia poza tym, że jest tą osobą, więc Builder albo Member zatwierdza kartę Architekta we własnym czacie i tam wznawia run. Tylko ona może wznowić run po zatwierdzonym wywołaniu platformy.
+
+Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
+
+Run bez osoby - gościa na widgecie albo stronie publicznej, niepowiązanego członka kanału albo osoby, którą usunięto - nie ma nikogo, czyja odpowiedź się liczy, więc jego wywołanie platformy czeka, aż wygaśnie; taki run w ogóle nie dostaje uprawnień platformy. Zmiana wdrożenia (`change_deployment`) wymaga obu reguł naraz: osoby runu, która jest też administratorem aplikacji. Architekt każdej innej osoby go nie zmieni.
+
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent
 _jest_. Czego nie potrafi wyrazić, to nastrój jednej sesji — ktoś przechodzący
@@ -2151,7 +2157,8 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| nic, ale jest osobą runu, a wśród wywołań jest jej własne wywołanie platformy, które zawsze pyta | prośbę, z linkiem do rozmowy, w której padło pytanie, dopóki to wywołanie czeka |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się

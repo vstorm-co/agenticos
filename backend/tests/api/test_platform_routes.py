@@ -41,7 +41,7 @@ from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
-from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
 from app.services.parked_runs import Continued, DecidedApproval
@@ -123,6 +123,7 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
+    deps.get_portability_service,
     # The org-wide `GET /triggers` and `POST /triggers/readiness` are the gated trigger
     # routes, so past their gate the stub answers 404 like the rest; the per-agent
     # routes are ungated and never reach this sweep.
@@ -156,6 +157,14 @@ _SERVICE_DEPS = (
     deps.get_solution_service,
 )
 
+
+class _VisibleRunCosts:
+    """The route contract projects a supplied run; disclosure policy has its own tests."""
+
+    async def run_result(self, _ctx: AuthContext, data: AgentRunResult) -> AgentRunResult:
+        return data
+
+
 Provider = Callable[[], object]
 
 
@@ -187,6 +196,7 @@ def as_role(mock_redis: MagicMock) -> Iterator[ClientFactory]:
         app.dependency_overrides[deps.get_db_session] = lambda: absent
         for factory in _SERVICE_DEPS:
             app.dependency_overrides[factory] = lambda: absent
+        app.dependency_overrides[deps.get_chat_cost_visibility_service] = _VisibleRunCosts
         app.dependency_overrides.update(overrides or {})
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -315,6 +325,21 @@ CALLS: tuple[Call, ...] = (
     # How close the organization is to its agent limit: only a caller who can
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
+    Call("GET", "/agents/import-destinations", Perm.AGENTS_EDIT, query={"kind": "agent"}),
+    Call("POST", "/agents/import-preview", Perm.AGENTS_EDIT, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/agents/import",
+        Perm.AGENTS_EDIT,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"agent/{_SOME_ID}"],
+                "resources": [{"key": f"agent/{_SOME_ID}", "kind": "agent", "name": "Draft"}],
+            },
+            "choices": {},
+        },
+    ),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # A system agent is an agent too, so it is gated like `create`.
     Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),
@@ -355,8 +380,6 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
-    Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
         "GET",
@@ -364,7 +387,6 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -1448,6 +1470,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
             {
                 "id": str(shared_id),
@@ -1462,6 +1486,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
         ]
 
@@ -1615,7 +1641,12 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             async def parked_questions(self, *args: Any, **kwargs: Any) -> list[Any]:
                 return []
 
-        overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
+        runner = _Resuming()
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(await runner.resume(), False)))
+        overrides = {
+            deps.get_agent_runner_service: lambda: runner,
+            deps.get_parked_run_service: lambda: parked,
+        }
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/resume"))
 
@@ -2492,12 +2523,19 @@ class TestAQuestionTheRunParkedOn:
             parked_questions=AsyncMock(return_value=[]),
         )
         body = {"responses": {"ask-1": [{"selected": ["Casual"]}]}}
-        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+        parked = MagicMock(
+            answer=AsyncMock(return_value=Continued(service.answer.return_value, False))
+        )
+        overrides = {
+            deps.get_agent_runner_service: lambda: service,
+            deps.get_parked_run_service: lambda: parked,
+        }
+        async with as_role("viewer", overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/answers"), json=body)
 
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
-        assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+        assert parked.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
 
     async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
         self, as_role: ClientFactory, synthetic_roles: None

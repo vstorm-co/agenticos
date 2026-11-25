@@ -90,6 +90,7 @@ from app.services.agent_chat import (
     requested_time_zone,
 )
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
+from app.services.approvals import may_approve, may_decide
 from app.services.attachments import load_turn_attachments
 from app.services.chat_cost_visibility import ChatCostVisibilityService, cost_bearing_chat_frame
 from app.services.chat_timeline import TurnTimeline
@@ -1239,6 +1240,8 @@ class AgentSession:
             # turn is still on screen. The queue and the email carry the same rows;
             # this is a shortcut for whoever is already looking at the tab.
             if turn.parked:
+                async with get_db_context() as db:
+                    decider = await self._chat_context(db)
                 await self._emit(
                     "tool_approval_required",
                     {
@@ -1256,6 +1259,22 @@ class AgentSession:
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
                                 "account": parked.account,
+                                "always_asks": parked.always_asks,
+                                "may_decide": may_decide(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    context=parked.context,
+                                ),
+                                "may_approve": may_approve(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    content_hidden=False,
+                                    context=parked.context,
+                                ),
                             }
                             for parked in turn.parked
                         ],

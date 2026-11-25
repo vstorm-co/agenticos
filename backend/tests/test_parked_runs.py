@@ -53,8 +53,9 @@ def _person() -> AuthContext:
 
 
 def _key() -> AuthContext:
+    """An organization key, which carries its issuer's authority narrowed to its scopes."""
     return AuthContext(
-        user_id=None, organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
+        user_id=uuid.uuid4(), organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
     )
 
 
@@ -320,7 +321,12 @@ class TestDeciding:
 
     async def test_a_console_decision_still_wakes_a_workflow_waiting_on_its_run(self) -> None:
         pending = MagicMock(
-            status=ApprovalStatus.PENDING.value, organization_id=ORG, run_id=RUN, tool_args={}
+            status=ApprovalStatus.PENDING.value,
+            organization_id=ORG,
+            run_id=RUN,
+            tool_id="send_email",
+            tool_args={},
+            always_asks=False,
         )
         decided = MagicMock(run_id=RUN, organization_id=ORG)
         woken: list[str] = []

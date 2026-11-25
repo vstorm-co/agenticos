@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.agent_run import ApprovalStatus
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import (
@@ -32,6 +33,7 @@ from app.db.models.notification import (
 )
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.user import NotificationPreference
+from app.repositories import agent_run as agent_run_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
@@ -380,6 +382,21 @@ def _channel_allowed(
     reads still apply either way.
     """
     return channels is None or channel in channels
+
+
+APPROVABLE_BY = "approvable_by_user_id"
+"""`render_context` key of the run's own person's `approval_requested` notice, when the
+waiting calls include their own platform call that always asks: they may answer it
+without `approvals:decide`, so they are offered the decision like anybody holding it."""
+
+APPROVABLE_CALLS = "approvable_approval_ids"
+"""Those calls' approval ids: the offer stands only while one of them still waits."""
+
+
+def approvable_by(notification: Notification) -> uuid.UUID | None:
+    """The run's own person, where the waiting calls include their own platform call."""
+    raw = (notification.render_context or {}).get(APPROVABLE_BY)
+    return uuid.UUID(raw) if isinstance(raw, str) else None
 
 
 @dataclass(frozen=True)
@@ -1395,6 +1412,42 @@ class NotificationCenterService:
         visible = await ConversationService(self.db).visible_conversation_ids(ctx, ids)
         return {conversation_id: conversation_id in visible for conversation_id in ids}
 
+    async def answers_own_call(self, ctx: AuthContext, notification: Notification) -> bool:
+        """Whether this notice offers `ctx` their own platform call that still waits.
+
+        Once they have answered it, the rest of the batch is somebody else's to decide.
+        """
+        if notification.organization_id is None or approvable_by(notification) != ctx.user_id:
+            return False
+        raw = (notification.render_context or {}).get(APPROVABLE_CALLS)
+        if not isinstance(raw, list):
+            return False
+        for approval_id in raw:
+            with contextlib.suppress(ValueError):
+                approval = await agent_run_repo.get_approval(
+                    self.db,
+                    uuid.UUID(str(approval_id)),
+                    organization_id=notification.organization_id,
+                )
+                if approval is None or approval.status != ApprovalStatus.PENDING.value:
+                    continue
+                from app.services.approvals import answers_for, bound_platform_call
+
+                run = await agent_run_repo.get_run(
+                    self.db, approval.run_id, organization_id=notification.organization_id
+                )
+                if (
+                    run is not None
+                    and answers_for(ctx, run.user_id)
+                    and bound_platform_call(
+                        approval.tool_id,
+                        always_asks=approval.always_asks,
+                        context=approval.context,
+                    )
+                ):
+                    return True
+        return False
+
     async def gate_for(
         self, ctx: AuthContext, notification: Notification, cache: _GateCache | None = None
     ) -> _Gate:
@@ -1444,7 +1497,7 @@ class NotificationCenterService:
                 or cache.criterion_visible_by_id.get(notification.id, False)
             )
         if gate is ContentGate.DEGRADE:
-            if ctx.has(Perm.APPROVALS_DECIDE):
+            if ctx.has(Perm.APPROVALS_DECIDE) or await self.answers_own_call(ctx, notification):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

@@ -1,5 +1,5 @@
 ---
-source_sha: "eda75a1f5728"
+source_sha: "6d90175cae33"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -317,7 +317,9 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 | Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
-mejorar ese agent.
+mejorar ese agent si su rol también tiene `runs:view` - Owner, Admin, Builder u
+Operator. Member y Viewer no tienen `runs:view`, así que un grant por sí solo no
+les permite iniciar ni leer una sesión.
 
 Si una petición de la API selecciona un agent auxiliar, necesitas permisos para
 verlo y ejecutarlo. Un auxiliar que no existe o al que no tienes acceso devuelve

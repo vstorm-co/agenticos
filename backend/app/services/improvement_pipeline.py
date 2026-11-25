@@ -1080,7 +1080,13 @@ class ImprovementPipelineService:
         return await self._read(ctx, run)
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+        """One session, for a reader of its agent who also holds `runs:view`.
+
+        A session is read from its agent's runs - its notes, verdicts and timeline -
+        so reading one asks what starting one asks of the reader.
+        """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
 
     async def skills(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementSkills:
@@ -1236,9 +1242,11 @@ class ImprovementPipelineService:
         """The agent's recent sessions, each without its measurement noise.
 
         The noise re-reads every attempt's check, which a list of up to twenty
-        sessions cannot afford; reading one session gives it.
+        sessions cannot afford; reading one session gives it. Needs `runs:view`, as
+        reading one session does.
         """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         rows = await improvement_repo.list_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -1247,14 +1255,20 @@ class ImprovementPipelineService:
     async def _read(
         self, ctx: AuthContext, run: ImprovementRun, *, noise: bool = True
     ) -> ImprovementRead:
+        result = ImprovementRead.model_validate(run)
+        result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
+        if not ctx.has(Perm.RUNS_VIEW):
+            # Only a stop reaches here without runs:view: it may end a session, and
+            # learns no more of it than its status.
+            result.error = None
+            return result
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
         events = await improvement_repo.timeline(
             self.db, run.id, organization_id=ctx.organization_id
         )
-        result = ImprovementRead.model_validate(run)
-        if run.status == Status.READY and ctx.has(Perm.RUNS_VIEW):
+        if run.status == Status.READY:
             latest = await agent_repo.newest_version(
                 self.db, agent_id=run.agent_id, organization_id=run.organization_id
             )
@@ -1279,7 +1293,6 @@ class ImprovementPipelineService:
         hint = rules.no_progress(measured)
         if hint is not None:
             result.round_hint = "no_change" if hint == StopReason.NO_CHANGE else "inconclusive"
-        result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
@@ -1306,14 +1319,13 @@ class ImprovementPipelineService:
         )
         result.baseline_answers = await self._answers(run, first, ArmRole.BASELINE)
         result.candidate_answers = await self._answers(run, current, ArmRole.CANDIDATE)
-        if ctx.has(Perm.RUNS_VIEW):
-            result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
-                self.db, run.id, organization_id=ctx.organization_id
+        result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
+            self.db, run.id, organization_id=ctx.organization_id
+        )
+        if noise and not Status(run.status).active:
+            result.measurement_noise = rules.measurement_noise(
+                await self._checked(ctx, run, iterations)
             )
-            if noise and not Status(run.status).active:
-                result.measurement_noise = rules.measurement_noise(
-                    await self._checked(ctx, run, iterations)
-                )
         actors = {
             event.id: UUID(actor)
             for event in events
@@ -1336,8 +1348,6 @@ class ImprovementPipelineService:
             )
             for event in events
         ]
-        if not ctx.has(Perm.RUNS_VIEW):
-            result.error = None
         return result
 
     async def _redact_criteria(

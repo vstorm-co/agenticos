@@ -37,7 +37,11 @@ from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpe
 from app.core.config import settings
 from app.db.models.notification import NotificationEventType
 from app.services.email.templates import render_email
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import (
+    APPROVABLE_BY,
+    APPROVABLE_CALLS,
+    NotificationCenterService,
+)
 from app.services.notifications import ROUTINE_EXCERPT_CHARS, NotificationService
 
 MODULE = "app.services.notifications"
@@ -79,6 +83,8 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
         approval.id = uuid.uuid4()
         approval.account = None
         approval.tool_id = tool_id
+        approval.always_asks = tool_id.startswith("agenticos_")
+        approval.context = {"platform_tool": "true"} if approval.always_asks else None
         approvals.append(approval)
     return approvals
 
@@ -706,6 +712,45 @@ class TestApprovalRequested:
         assert call["event_type"] is NotificationEventType.APPROVAL_REQUESTED
         assert set(call["recipients"]) == {boss_id, asker_id}
         assert call["render_context"]["tools"] == "send_email"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("tools", "in_a_conversation", "named"),
+        [
+            (("agenticos_accept_improvement", "send_email"), True, True),
+            (("send_email",), True, False),
+            (("agenticos_accept_improvement",), False, False),
+        ],
+    )
+    async def test_the_runs_person_gets_their_own_notice_beside_their_own_platform_call(
+        self, written, tools: tuple[str, ...], in_a_conversation: bool, named: bool
+    ):
+        """Their notice opens the conversation the call was asked in, where its card comes
+        back; everyone else's opens the queue."""
+        person, admin = uuid.uuid4(), uuid.uuid4()
+        run = _run(user_id=person)
+        run.conversation_id = uuid.uuid4() if in_a_conversation else None
+        approvals = _approvals(*tools)
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=approvals
+            )
+
+        by_recipient = {tuple(call["recipients"]): call for call in written.calls}
+        if not named:
+            [call] = written.calls
+            assert APPROVABLE_BY not in call["render_context"]
+            return
+        own, queue = by_recipient[(person,)], by_recipient[(admin,)]
+        assert own["render_context"][APPROVABLE_BY] == str(person)
+        assert own["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
+        assert f"/chat?id={run.conversation_id}" in own["context_url"]
+        assert f"/chat?id={run.conversation_id}" in own["render_context"]["approvals_url"]
+        assert APPROVABLE_BY not in queue["render_context"]
+        assert "tab=approvals" in queue["context_url"]
 
     @pytest.mark.anyio
     async def test_a_call_that_names_its_account_lists_it_beside_the_tool(self, written):

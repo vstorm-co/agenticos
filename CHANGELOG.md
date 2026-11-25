@@ -22,6 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
+- Members can answer their own verified platform approval cards without organization-wide approval authority. Other approvers can reject those calls but cannot release work as another person. Conversation links in approval notices recheck the current run person and waiting call.
+
 - Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
 - Resource transfer dialogs select workflow dependencies and knowledge-base file layers, review omitted bindings and restore owner-scoped operations after a refresh. Completed imports refresh their new resource catalogs; existing workflow file formats remain available.
 
@@ -62,6 +64,8 @@ Two things are versioned separately from this file and worth knowing about:
   organization, membership and current Vault secret generation.
 
 ### Fixed
+
+- Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission does not return attempts, timeline or evidence.
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
 - Keep an Improve session's held-out share fixed across attempts, even after

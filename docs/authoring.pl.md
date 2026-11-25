@@ -1,5 +1,5 @@
 ---
-source_sha: "eda75a1f5728"
+source_sha: "6d90175cae33"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -311,7 +311,9 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 | Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
-agenta.
+agenta, jeśli jego rola ma też `runs:view` - Owner, Admin, Builder albo Operator.
+Role Member i Viewer nie mają `runs:view`, więc sam grant nie pozwala im
+uruchomić ani odczytać sesji.
 
 Jeśli żądanie API wybiera agenta pomocniczego, potrzebujesz uprawnień do jego
 odczytu i uruchamiania. Brakujący lub niedostępny pomocnik zwraca `404` przed
