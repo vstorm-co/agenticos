@@ -141,6 +141,7 @@ class ApiRunService:
                     prompt=request.prompt,
                     conversation_id=conversation_id,
                     environment_id=request.environment_id,
+                    project_execution_target=request.project_execution_target,
                     file_ids=[file.id for file in attached],
                     digest=fingerprint,
                 )
@@ -204,6 +205,7 @@ class ApiRunService:
             conversation_id=job.conversation_id,
             message_history=history,
             environment_id=job.environment_id,
+            project_execution_target=job.project_execution_target,
             attachments=attachments,
             reports_failure=True,
             steering=(

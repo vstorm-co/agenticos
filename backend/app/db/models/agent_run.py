@@ -461,6 +461,10 @@ class AgentRun(Base, TimestampMixin):
     # eventually replay.
     paused_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    workspace_origins: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The transactions committed when the row was inserted, before the run reads any

@@ -85,6 +85,7 @@ from app.services.agent_chat import (
     requested_local,
     requested_mentions,
     requested_model_profile_id,
+    requested_project_execution_target,
     requested_testing,
     requested_time_zone,
 )
@@ -1175,6 +1176,7 @@ class AgentSession:
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
                     local=local_target,
+                    project_execution_target=requested_project_execution_target(data),
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).

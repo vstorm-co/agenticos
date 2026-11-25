@@ -68,45 +68,57 @@ Two ways in:
 A chat stays in the project it was started in. The chip on an existing chat
 links back to the project.
 
-An agent with Sandbox can call `select_project_workspace` with an accessible
-project ID to use its files and shell for the current run, from web chat or a
-connected channel. The answer shows the projects selected. Passing no ID restores
-the original workspace. Approval continuations keep the selection; the next
-message starts in the conversation's original workspace.
+The **Projects** capability lets an agent search accessible projects, select a
+returned ID and read or write their files. AgenticOS and Architect include it.
+In a linked private Mattermost or Slack conversation, ask the agent to use project
+XYZ: it searches and selects through tools, rather than treating a name as access.
+Unlinked senders and rooms with an unverified audience cannot read private project
+context. Selection opens no paid runtime by itself.
 
-Selection changes file access only: it does not move chat history, copy private files or replace the
-agent's instructions. Access is checked again for each operation. Scheduled runs
-remain limited to their reviewed sources, and isolated evaluations cannot select
-live projects. Files remain in the project; publish an App or explicitly send a
-file to deliver it outside that workspace.
+Selection lasts for the current run, including approval and question continuations.
+A later message in an ordinary chat or private channel starts with no selected
+project. A project chat always starts with its own project. History stays in its
+original conversation; no files are copied or mounted. Every operation checks current
+membership, scopes, project access and workspace generation. Routines remain limited
+to reviewed sources; isolated evaluations cannot select live projects.
 
 ## What an agent gets in a project
 
-Whichever agent answers, a run in a project chat works in the **project's
-container** rather than in a workspace of its own:
+Project files and command execution are separate:
 
-- An agent with no sandbox is given one, the project's, so a plain chat agent can
-  read and write the project's files.
-- An agent with its own sandbox binding is moved into the project's container.
-  The binding's approval settings carry over, so an author who set **Always ask**
-  on the shell keeps that gate.
-- The project's name, description and instructions are added after the agent's
-  own instructions. The agent is still what it is, working on this.
+| Choice | Default and effect |
+|---|---|
+| Project context | The project's files and reference instructions; existing agent and platform rules still apply |
+| **Work on → Project** | Default in project chats; uses the project's command-capable container, when Sandbox shell tools are enabled |
+| **Work on → Agent** | Default outside project chats; uses the agent's configured executor, without mounting project files |
+| Stored files only | Project text tools work; the project cannot execute commands |
+| Native working folder | Keeps the person's chosen local executor; selecting project context cannot replace it |
 
-The container is a [sandbox](sandbox.md) session when the deployment runs a
-sandbox service, so the project's files can be run as well as read. Without
-one, the project keeps its files as a stored workspace, which reads and writes
-the same way but has no shell; two chats writing to it at once each keep what
-they wrote, and where both changed one file, the later write stands. A project stays on the sandbox connection it was
-created on, so that connection cannot be deleted while a project keeps its files
-there.
+**Work on** is available in chat settings on web and desktop when the agent has
+command execution. Project execution needs an attached or pending project. An explicit
+choice is retained for that account, organization and chat, not inherited by a new
+chat. An agent may use `select_execution_target` explicitly within a run; selecting
+files with `select_project_context` or legacy `select_project_workspace` alone never
+changes the command target. The tool result reports both choices and availability.
+
+Project chats supply real project file access even without Sandbox. They do not enable
+a disabled Sandbox or grant shell tools to an agent without them. Existing per-tool
+approvals remain in force. A shared agent/channel executor is refused after private
+project context has been observed; clearing the selection cannot bypass that barrier.
+Use a conversation-isolated executor or the project's executor instead.
+
+Project text tools list up to 100 entries and read or write UTF-8 text up to 256 KB.
+They refuse reserved paths, escaping symlinks, binary files and unknown sizes. They do
+not run OCR. A write after a read refuses a changed file rather than overwriting a
+concurrent edit. A project remains on its chosen sandbox connection until an editor
+moves it explicitly.
 
 When creating a project, **Project sandbox** lets you choose a registered sandbox
 connection, automatic selection, or **Stored files only**. Automatic selection pins
 the connection chosen at creation; if none is available, it uses stored files.
 Choosing a named connection requires `connections:view` and an active connection
 in your organization. The project's settings show its connection name and runtime;
-all project chats use this workspace in place of the agent's own sandbox. Editors can use **Change sandbox** to move an existing project, including its files.
+project chats use its files and default to its executor when command tools are enabled. Editors can use **Change sandbox** to move an existing project, including its files.
 
 The transfer is a durable background job. It copies files and empty folders into
 an isolated workspace, verifies file hashes and the directory tree, then activates
@@ -121,11 +133,19 @@ links first. Installed packages and running processes are not copied. Moving to
 stored files also has to fit the platform's stored-workspace size limit.
 
 **How project files and code execution work** explains storage, sharing and the
-execution environment beside the selector. A project supplies Sandbox tools even
-to an agent without its own sandbox. Container-backed projects support execution;
-stored files have no shell. Existing tool approval requirements remain in force.
+execution environment beside the selector. Stored files have no shell; project
+context and execution remain separate as described above.
 
 ## Files
+
+In chat **Files**, choose an origin when both project files and an independent agent
+workspace exist. Each lists and downloads through its own authorized endpoint; an
+identical path never falls back to another origin. The default is the conversation's
+project, otherwise its available agent workspace. Completed, failed and cancelled
+runs record workspace references, not copies of file contents. Revoked access removes
+an origin. Run-scoped executor files remain temporary and disappear after cleanup;
+choose a persistent scope for work needed later. Existing historical runs without
+references do not gain invented origins.
 
 The project's **Files** tab is the container, browsable: a tree beside a reader
 that opens Markdown, PDFs, images, spreadsheets and code in place.

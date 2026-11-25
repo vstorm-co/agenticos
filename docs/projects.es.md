@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "f78e6bb59f63"
+source_sha: "0fe828747335"
 ---
 
 # Proyectos { #projects }
@@ -72,45 +72,57 @@ Dos formas de entrar:
 Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente
 lleva de vuelta al proyecto.
 
-Un agente con Sandbox puede llamar a `select_project_workspace` con el ID de un
-proyecto accesible para usar sus archivos y consola durante la ejecución actual,
-también desde un canal conectado. La respuesta muestra los proyectos elegidos.
-Sin ID se restaura el workspace original. Las continuaciones tras una aprobación
-conservan la selección; el siguiente mensaje empieza en el workspace original.
-La selección no mueve el historial, copia archivos privados ni cambia las
-instrucciones. Cada operación comprueba de nuevo el acceso. Las rutinas siguen
-limitadas a las fuentes revisadas; las evaluaciones aisladas no pueden seleccionar
-proyectos activos. Los archivos quedan en el proyecto; para entregarlos, publica
-una App o envía explícitamente el archivo.
+La capability **Projects** busca proyectos accesibles, selecciona un ID devuelto y
+lee o escribe sus archivos. AgenticOS y Architect la incluyen. En una conversación
+privada vinculada de Mattermost o Slack puedes pedir usar el proyecto XYZ: el agente
+lo busca y selecciona mediante herramientas; el nombre no concede acceso. Los
+remitentes no vinculados y salas con audiencia no verificada no reciben contexto
+privado. Seleccionar no inicia por sí solo un entorno de pago.
+
+La selección dura una ejecución, incluidas continuaciones tras aprobaciones y
+preguntas. El siguiente mensaje en un chat normal o canal privado comienza sin
+proyecto; un chat de proyecto empieza con el suyo. El historial queda en su
+conversación. No se copian ni montan archivos. Cada operación comprueba membresía,
+scopes, acceso y generación del workspace actuales. Las rutinas conservan las fuentes
+revisadas; las evaluaciones aisladas no seleccionan proyectos activos.
 
 ## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
 
-Responda el agent que responda, un run en un chat del proyecto trabaja en el
-**contenedor del proyecto** y no en un workspace propio:
+Los archivos del proyecto y la ejecución de comandos están separados:
 
-- Un agent sin sandbox recibe una, la del proyecto, así que un agent de chat sin
-  más puede leer y escribir los archivos del proyecto.
-- Un agent con su propia vinculación de sandbox pasa al contenedor del proyecto.
-  Los ajustes de aprobación de la vinculación se conservan, así que un autor que
-  puso **Preguntar siempre** en la shell mantiene ese control.
-- El nombre, la descripción y las instrucciones del proyecto se añaden después de
-  las instrucciones del agent. El agent sigue siendo quien es, trabajando en esto.
+| Selección | Valor predeterminado y efecto |
+|---|---|
+| Contexto del proyecto | Archivos e instrucciones de referencia; se mantienen las reglas del agente y la plataforma |
+| **Trabajar en → Proyecto** | Por defecto en chats del proyecto; usa su contenedor ejecutable si las herramientas shell de Sandbox están activadas |
+| **Trabajar en → Agente** | Por defecto fuera del proyecto; usa el ejecutor configurado sin montar archivos del proyecto |
+| Solo almacenar archivos | Funcionan las herramientas de texto; el proyecto no ejecuta comandos |
+| Carpeta de trabajo local | Mantiene el ejecutor local elegido por la persona; el contexto del proyecto no lo sustituye |
 
-El contenedor es una sesión de [sandbox](sandbox.md) cuando el despliegue tiene
-un servicio de sandbox, así que los archivos del proyecto también se pueden
-ejecutar, no solo leer. Sin él, el proyecto guarda sus archivos como un workspace
-almacenado, que lee y escribe igual pero no tiene shell; si dos chats escriben a la
-vez, cada uno conserva lo que escribió, y donde ambos cambiaron un mismo archivo
-queda la escritura posterior. Un proyecto se queda en
-la conexión de sandbox en la que se creó, así que esa conexión no se puede eliminar
-mientras un proyecto guarde archivos en ella.
+**Trabajar en** aparece en ajustes del chat web y desktop si el agente puede ejecutar
+comandos. Ejecutar en un proyecto requiere uno adjunto o seleccionado antes del
+mensaje. La elección explícita se conserva por cuenta, organización y chat, sin
+heredarse a chats nuevos. El agente puede usar `select_execution_target` en una
+ejecución; `select_project_context` y el antiguo `select_project_workspace` solo cambian
+archivos. El resultado muestra ambas elecciones y su disponibilidad.
+
+Los chats del proyecto dan acceso real a archivos sin Sandbox. No activan un Sandbox
+desactivado ni conceden herramientas shell ausentes. Siguen las aprobaciones de cada
+herramienta. Tras observar contexto privado se rechaza un ejecutor de agente/canal
+compartido con una audiencia más amplia; limpiar la selección no lo evita. Usa un
+ejecutor aislado de conversación o el del proyecto.
+
+Las herramientas de texto listan hasta 100 entradas y leen o escriben UTF-8 de hasta
+256 KB. Rechazan rutas reservadas, enlaces fuera del proyecto, binarios y tamaños
+desconocidos. No ejecutan OCR. Escribir después de leer rechaza un archivo modificado
+en paralelo. El proyecto mantiene su conexión sandbox hasta que un editor lo traslada
+explícitamente.
 
 Al crear un proyecto, **Sandbox del proyecto** permite elegir una conexión
 registrada, la selección automática o **Solo almacenar archivos**. La selección
 automática conserva la conexión elegida al crear el proyecto; si no hay ninguna,
 almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
 activa de tu organización. Los ajustes muestran su nombre y entorno de ejecución.
-Todos los chats del proyecto usan este entorno en lugar del sandbox del agente.
+Los chats del proyecto usan sus archivos y, por defecto, su ejecutor si hay herramientas de comandos activadas.
 Los editores pueden usar **Cambiar sandbox** para trasladar un proyecto existente con sus archivos.
 
 Un trabajo duradero en segundo plano copia archivos y carpetas vacías a un espacio
@@ -126,11 +138,19 @@ simbólicos. No se copian paquetes instalados ni procesos en ejecución. El dest
 archivos almacenados también debe respetar el límite de tamaño de la plataforma.
 
 La explicación junto al selector describe almacenamiento, uso compartido y ejecución.
-El proyecto proporciona herramientas Sandbox incluso a agentes sin sandbox propio.
-Un contenedor permite ejecutar código; el almacenamiento de archivos no tiene shell.
-Los requisitos de aprobación de herramientas existentes siguen vigentes.
+Los archivos almacenados no tienen shell; contexto y ejecución siguen separados
+como se describe arriba.
 
 ## Archivos { #files }
+
+En **Archivos** del chat elige el origen cuando hay archivos del proyecto y un
+workspace independiente del agente. Cada uno usa sus propios endpoints autorizados;
+una ruta idéntica nunca recurre al otro origen. Por defecto se usa el proyecto de
+la conversación o el workspace disponible del agente. Ejecuciones completadas,
+fallidas y canceladas registran referencias sin copiar contenido. Revocar acceso
+elimina un origen. Los archivos con scope run son temporales y desaparecen al limpiar;
+elige un scope persistente para trabajo posterior. No se inventan orígenes para
+ejecuciones históricas sin referencias.
 
 La pestaña **Archivos** del proyecto es el contenedor para explorar: un árbol
 junto a un lector que abre Markdown, PDF, imágenes, hojas de cálculo y código en

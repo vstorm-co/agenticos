@@ -1976,7 +1976,10 @@ async def test_run_selected_project_never_receives_personal_coding_credentials(p
     shell = _Shell()
     ctx = _ctx(shell)
     selector = RunProjectWorkspace(
-        ctx.workspace, AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member")
+        ctx.workspace,
+        AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member"),
+        audience=RunAudience(user_id=RUNNER),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
     )
     selector.project_id = uuid4()
     ctx = replace(ctx, workspace=selector.workspace)

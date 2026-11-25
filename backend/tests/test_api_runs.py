@@ -210,3 +210,12 @@ def test_ordinary_requests_keep_the_pre_steering_fingerprint() -> None:
         digest(agent_id, request)
         == "a955d9dd2225745844a1103825300592fc123ddb9bfe235540943fdac4ab77d2"
     )
+
+
+def test_explicit_executor_participates_in_idempotency_identity() -> None:
+    agent_id = uuid.uuid4()
+    ordinary = AgentRunRequest(prompt="make a report")
+    own = ordinary.model_copy(update={"project_execution_target": "agent"})
+    project = ordinary.model_copy(update={"project_execution_target": "project"})
+    assert len({digest(agent_id, request) for request in (ordinary, own, project)}) == 3
+    assert "project_execution_target" not in ordinary.model_dump(mode="json")

@@ -944,6 +944,10 @@ def _api_run_identity(job: RunAgent) -> ColumnElement[bool]:
         (BackgroundJob.kind == RUN_AGENT.kind)
         & (BackgroundJob.organization_id == job.organization_id)
         & (BackgroundJob.concurrency_key == f"conversation:{job.conversation_id}")
+        & (
+            func.coalesce(BackgroundJob.payload["project_execution_target"].astext, "")
+            == (job.project_execution_target or "")
+        )
         & BackgroundJob.payload.contains(
             job.model_dump(
                 mode="json", include={"agent_id", "user_id", "api_key_id", "environment_id"}

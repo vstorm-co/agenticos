@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Project file context and command execution can be selected separately. The
+  Projects capability searches accessible projects and reads/writes bounded text
+  from web chat and linked private channels without granting a shell. Chat Files
+  exposes authorized project and agent workspace origins separately.
+
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
@@ -72,6 +77,17 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0371_run_workspace_origins.py` for run workspace-reference metadata.
+  Historical runs start with an empty reference list; existing files are not copied
+  or backfilled. Updated built-in AgenticOS and Architect templates add Projects
+  through the normal template refresh, preserving local model choices.
+- `select_project_workspace` now selects file context only. Use
+  `select_execution_target` to change command execution explicitly; no files are
+  mounted or copied between targets. Existing project chats still default to the
+  project executor when available. Older dynamically selected approval checkpoints
+  without a workspace generation must select the project again or start a new turn.
+  Disabled Sandbox stays disabled, and run-scoped executor outputs remain temporary.
 
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all

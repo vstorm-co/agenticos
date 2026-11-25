@@ -97,6 +97,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.repositories import project_repo
+from app.schemas.workspace import ConversationWorkspaceOrigins, WorkspaceOriginRead
 from app.services import device_hub
 from app.services.access import PROJECT, accessible_ids, resolve_access
 from app.services.device_hub import DeviceWorkspace, LocalTarget
@@ -684,8 +685,9 @@ def _overflow_parents(handle: str) -> list[str]:
 class SandboxWorkspaceService:
     """Resolves the backend a run writes to, and persists what it wrote."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, *, operation_db: AsyncSession | None = None) -> None:
         self.db = db
+        self.operation_db = db if operation_db is None else operation_db
         self.connections = SandboxConnectionService(db)
         self._connections_by_id: dict[UUID, ResolvedConnection] = {}
         # The listings read hosts concurrently, and resolving a connection is a
@@ -1065,7 +1067,7 @@ class SandboxWorkspaceService:
         backend = sandbox.backend(opened)
         recorder = RecordingWorkspace(
             Workspace(backend),
-            db=self.db,
+            db=self.operation_db,
             organization_id=identity.organization_id,
             session_key=key,
             agent_id=identity.agent_id,
@@ -2132,6 +2134,98 @@ class SandboxWorkspaceService:
             return None
         return await run_blocking(thumbnail_of, path, raw)
 
+    async def origins(
+        self, ctx: AuthContext, *, conversation_id: UUID
+    ) -> ConversationWorkspaceOrigins:
+        """Actual, still-authorized file origins; resolve by identity, never by fallback path."""
+        from app.services.conversation import ConversationService
+
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            include_messages=False,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        refs = await workspace_repo.recorded_origins(
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+        )
+        limited = refs[:100]
+        agent_ids = [ref.workspace_id for ref in limited if ref.kind == "agent"]
+        agent_rows = await workspace_repo.list_for_reader(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            see_all=self._sees_every_workspace(ctx),
+            workspace_ids=agent_ids,
+            readable_conversation_id=conversation_id,
+        )
+        project_ids = list(
+            dict.fromkeys(
+                [
+                    *(
+                        ref.project_id
+                        for ref in limited
+                        if ref.kind == "project" and ref.project_id is not None
+                    ),
+                    *([conversation.project_id] if conversation.project_id is not None else []),
+                ]
+            )
+        )
+        project_rows_read = await project_repo.get_many(
+            self.db, project_ids, organization_id=ctx.organization_id
+        )
+        projects = {project.id: project for project in project_rows_read}
+        visible = await accessible_ids(
+            self.db, ctx, list(projects.values()), Perm.PROJECTS_VIEW, resource_type=PROJECT
+        )
+        usable = await accessible_ids(
+            self.db, ctx, list(projects.values()), Perm.PROJECTS_USE, resource_type=PROJECT
+        )
+        project_rows = await workspace_repo.active_for_projects(
+            self.db, organization_id=ctx.organization_id, project_ids=list(visible & usable)
+        )
+        items = [
+            WorkspaceOriginRead(
+                kind="agent",
+                workspace_id=row.id,
+                scope=row.scope,
+                backend=row.backend,
+                owner_label=owner_label(row),
+            )
+            for row in agent_rows
+        ]
+        items.extend(
+            WorkspaceOriginRead(
+                kind="project",
+                workspace_id=row.id,
+                project_id=project_id,
+                scope=row.scope,
+                backend=row.backend,
+                owner_label=projects[project_id].name,
+            )
+            for project_id, row in project_rows.items()
+        )
+        preferred = next(
+            (
+                item
+                for item in items
+                if item.kind == "project" and item.project_id == conversation.project_id
+            ),
+            None,
+        )
+        if preferred is None:
+            preferred = next(
+                (item for item in items if item.kind == "agent"), items[0] if items else None
+            )
+        return ConversationWorkspaceOrigins(
+            default_origin=None if preferred is None else preferred.kind,
+            default_workspace_id=None if preferred is None else preferred.workspace_id,
+            items=items,
+            truncated=len(refs) > 100,
+        )
+
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
     ) -> tuple[AgentWorkspace, WorkspaceContents]:
@@ -2274,6 +2368,21 @@ class SandboxWorkspaceService:
                     self.db, ctx, project, Perm.PROJECTS_USE, resource_type=PROJECT
                 )
             )
+        if row.scope == "conversation" and row.conversation_id is not None:
+            from app.services.conversation import ConversationService
+
+            try:
+                await ConversationService(self.db).get_conversation(
+                    row.conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    include_messages=False,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+            except NotFoundError, AuthorizationError:
+                return False
+            return True
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(

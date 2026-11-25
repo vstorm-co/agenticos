@@ -227,6 +227,8 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
+        "projects:read",
+        "projects:write",
         "conversations:read",
         "web:read",
         "web:fetch",

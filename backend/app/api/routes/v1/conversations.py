@@ -56,6 +56,7 @@ from app.schemas.message_rating import (
 )
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
+    ConversationWorkspaceOrigins,
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
@@ -848,6 +849,17 @@ async def list_workspace_files(
         unreadable_code=contents.unreadable_code,
         truncated=contents.truncated,
     )
+
+
+@router.get("/{conversation_id}/workspace-origins", response_model=ConversationWorkspaceOrigins)
+async def list_workspace_origins(conversation_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) -> Any:
+    """List actual project and agent file origins without starting any runtime.
+
+    Each origin is read through its own existing resource endpoint: project_id
+    selects project files, workspace_id selects agent files. Identical paths in
+    separate origins never fall back to one another. Access is rechecked on reads.
+    """
+    return await workspaces.origins(ctx, conversation_id=conversation_id)
 
 
 @router.get("/{conversation_id}/workspace/file", response_model=WorkspaceFileContent)

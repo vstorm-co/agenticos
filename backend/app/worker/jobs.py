@@ -266,6 +266,9 @@ class RunAgent(Payload):
     conversation_id: UUID
     environment_id: UUID | None
     file_ids: list[UUID]
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None, exclude_if=lambda target: target is None
+    )
     digest: str
     """The request's fingerprint: an idempotent retry must send the same one."""
     execution_token: UUID | None = Field(default=None, exclude_if=lambda token: token is None)

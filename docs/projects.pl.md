@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "f78e6bb59f63"
+source_sha: "0fe828747335"
 ---
 
 # Projekty { #projects }
@@ -70,43 +70,56 @@ Dwie drogi:
 Czat zostaje w projekcie, w którym został rozpoczęty. Chip w istniejącym czacie
 prowadzi z powrotem do projektu.
 
-Agent z włączonym Sandbox może wywołać `select_project_workspace` z ID dostępnego
-projektu, aby korzystać z jego plików i powłoki w bieżącym uruchomieniu, także na
-kanale. Przy odpowiedzi widać wybrane projekty. Brak ID przywraca pierwotny
-workspace. Wznowienie po akceptacji zachowuje wybór, a następna wiadomość zaczyna
-w pierwotnym workspace rozmowy. Wybór nie przenosi historii, nie kopiuje prywatnych
-plików i nie zmienia instrukcji agenta. Każda operacja ponownie sprawdza dostęp.
-Rutyny zachowują ograniczenie do zatwierdzonych źródeł, a izolowane ewaluacje nie
-mogą wybierać aktywnych projektów. Pliki pozostają w projekcie; do ich przekazania
-służy opublikowanie App lub jawne wysłanie pliku.
+Capability **Projects** pozwala agentowi wyszukać dostępne projekty, wybrać zwrócone
+ID oraz czytać i zapisywać pliki. AgenticOS i Architect mają ją w zestawie.
+W połączonej prywatnej rozmowie Mattermost lub Slack poproś o użycie projektu XYZ:
+agent wyszukuje i wybiera go narzędziami; sama nazwa nie daje dostępu. Niepołączeni
+nadawcy i pokoje o niezweryfikowanej publiczności nie dostają prywatnego kontekstu.
+Sam wybór nie uruchamia płatnego środowiska.
+
+Wybór trwa przez bieżący run, także wznowienia po zatwierdzeniu lub pytaniu. Następna
+wiadomość w zwykłym czacie lub prywatnym kanale zaczyna bez projektu. Czat projektu
+zaczyna ze swoim projektem. Historia pozostaje w pierwotnej rozmowie; nie kopiujemy
+ani nie montujemy plików. Każda operacja sprawdza aktualne członkostwo, zakresy,
+dostęp i generację workspace. Rutyny zachowują zatwierdzone źródła, a izolowane
+ewaluacje nie mogą wybierać aktywnych projektów.
 
 ## Co agent dostaje w projekcie { #what-an-agent-gets-in-a-project }
 
-Niezależnie od tego, który agent odpowiada, run w czacie projektu pracuje w
-**kontenerze projektu**, a nie we własnym workspace:
+Pliki projektu i wykonywanie poleceń są rozdzielone:
 
-- Agent bez sandboxa dostaje sandbox projektu, więc zwykły agent czatowy może
-  czytać i zapisywać pliki projektu.
-- Agent z własnym podpięciem sandboxa zostaje przeniesiony do kontenera projektu.
-  Ustawienia zatwierdzeń podpięcia przechodzą razem z nim, więc autor, który
-  ustawił **Zawsze pytaj** dla powłoki, zachowuje tę blokadę.
-- Nazwa, opis i instrukcje projektu są dopisywane po instrukcjach agenta. Agent
-  pozostaje sobą, tylko pracuje nad tym.
+| Wybór | Domyślne działanie i skutek |
+|---|---|
+| Kontekst projektu | Pliki i instrukcje referencyjne projektu; nadal obowiązują zasady agenta i platformy |
+| **Pracuj w → Projekt** | Domyślnie w czacie projektu; używa kontenera projektu, jeżeli agent ma narzędzia powłoki Sandbox |
+| **Pracuj w → Agent** | Domyślnie poza projektem; używa skonfigurowanego środowiska agenta bez montowania plików projektu |
+| Tylko przechowywanie plików | Działają tekstowe narzędzia projektu; projekt nie wykonuje poleceń |
+| Lokalny folder roboczy | Pozostaje środowisko wybrane przez użytkownika; kontekst projektu go nie zastępuje |
 
-Kontener jest sesją [sandboxa](sandbox.md), gdy wdrożenie uruchamia usługę
-sandboxów, więc pliki projektu można też uruchamiać, nie tylko czytać. Bez niej
-projekt trzyma pliki jako zapisany workspace, który czyta i zapisuje tak samo,
-ale nie ma powłoki; gdy dwa czaty piszą do niego naraz, każdy zachowuje to, co
-zapisał, a gdy oba zmieniły ten sam plik, zostaje późniejszy zapis. Projekt zostaje na połączeniu sandboxa, na którym go
-utworzono, więc tego połączenia nie da się usunąć, dopóki jakiś projekt trzyma na
-nim pliki.
+**Pracuj w** jest w ustawieniach czatu web i desktop, gdy agent może wykonywać
+polecenia. Wykonanie w projekcie wymaga przypiętego lub wybranego przed wysłaniem
+projektu. Jawny wybór jest zachowywany dla konta, organizacji i czatu, ale nie
+przechodzi do nowego czatu. W runie agent może jawnie użyć `select_execution_target`;
+`select_project_context` i starsze `select_project_workspace` zmieniają tylko pliki.
+Wynik narzędzia pokazuje oba wybory i dostępność.
+
+Czat projektu daje rzeczywisty dostęp do plików także bez Sandbox. Nie włącza
+wyłączonego Sandbox i nie daje powłoki agentowi bez takich narzędzi. Zatwierdzanie
+konkretnych narzędzi nadal obowiązuje. Po odczycie prywatnego kontekstu projektu
+odmawiamy użycia środowiska agenta/kanału współdzielonego z szerszą publicznością;
+wyczyszczenie wyboru tego nie obchodzi. Użyj izolacji rozmowy lub środowiska projektu.
+
+Tekstowe narzędzia projektu pokazują do 100 wpisów i czytają lub zapisują UTF-8 do
+256 KB. Odrzucają ścieżki zastrzeżone, dowiązania poza projektem, pliki binarne i
+nieznany rozmiar. Nie uruchamiają OCR. Zapis po odczycie odmawia nadpisania pliku
+zmienionego równolegle. Projekt pozostaje na wybranym połączeniu sandboxa, dopóki
+edytor jawnie go nie przeniesie.
 
 Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
 połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
 zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
 Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
-organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Wszystkie
-czaty projektu używają go zamiast sandboxa agenta. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Czaty projektu korzystają z jego plików i domyślnie z jego środowiska wykonawczego, gdy agent ma narzędzia poleceń. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
 
 Transfer jest trwałym zadaniem w tle. Kopiuje pliki i puste foldery do odrębnego
 warsztatu, sprawdza skróty plików i drzewo katalogów, a potem aktywuje cel. Przed
@@ -120,11 +133,18 @@ symboliczne. Zainstalowane pakiety i działające procesy nie są kopiowane. Prz
 do samych plików musi też zmieścić się w limicie dokumentu przechowywanego przez platformę.
 
 Opis **Jak działają pliki i uruchamianie kodu w projekcie** objaśnia przechowywanie,
-współdzielenie i środowisko wykonawcze przy wyborze. Projekt udostępnia narzędzia
-Sandbox również agentowi bez własnego sandboxa. Kontener pozwala uruchamiać kod;
-same pliki nie mają powłoki. Wymagania zatwierdzania narzędzi nadal obowiązują.
+współdzielenie i środowisko. Same pliki nie mają powłoki; kontekst i wykonanie są
+rozdzielone zgodnie z opisem wyżej.
 
 ## Pliki { #files }
+
+W panelu czatu **Pliki** wybierz źródło, gdy istnieją pliki projektu i niezależny
+workspace agenta. Każde ma własne autoryzowane listowanie i pobieranie; ta sama
+ścieżka nigdy nie przechodzi do innego źródła. Domyślnie wybrany jest projekt
+rozmowy, a poza nim dostępny workspace agenta. Runy zakończone, nieudane i anulowane
+zapisują odniesienia, bez kopiowania treści. Utrata dostępu usuwa źródło. Pliki
+środowiska o zakresie run są tymczasowe i znikają po sprzątaniu; dla późniejszej
+pracy wybierz trwały zakres. Stare runy bez odniesień nie dostają zmyślonych źródeł.
 
 Zakładka **Pliki** projektu to przeglądarka kontenera: drzewo obok podglądu,
 który otwiera Markdown, PDF-y, obrazy, arkusze i kod na miejscu.
