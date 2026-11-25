@@ -519,7 +519,13 @@ class SkillAgentService:
                     if lines_of(agent.draft_spec, skill.id)
                     else f"'{agent.name}' does not use '{skill.name}'."
                 ),
-                details={"agent_id": agent.id, "skill_id": skill.id},
+                details={
+                    "agent_id": agent.id,
+                    "skill_id": skill.id,
+                    "reason": "via_specialist"
+                    if lines_of(agent.draft_spec, skill.id)
+                    else "not_bound",
+                },
             )
         binding = (
             None
@@ -545,7 +551,7 @@ class SkillAgentService:
             if problems:
                 raise BadRequestError(
                     message=f"'{skill.name}' cannot be bound that way",
-                    details={"problems": problems},
+                    details={"reason": "binding_problems", "problems": problems},
                 )
             await self.registry.save_draft(ctx, agent.id, moved_draft)
             return SkillBindingChanged(published=False, usage=await self._row(ctx, skill, agent.id))

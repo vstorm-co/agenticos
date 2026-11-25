@@ -513,7 +513,7 @@ def _refuse_system_agent_change(agent: Agent) -> None:
                 f"'{agent.name}' is a system agent the platform runs for the whole "
                 "organization - only an administrator can change it"
             ),
-            details={"agent_id": agent.id, "kind": agent.kind},
+            details={"agent_id": agent.id, "kind": agent.kind, "reason": "system_agent_admin_only"},
         )
 
 
@@ -527,6 +527,7 @@ def _refuse_system_parts(parts: Sequence[SpecPart]) -> None:
         raise BadRequestError(
             message="A system agent cannot hold this",
             details={
+                "reason": "system_agent_parts",
                 "problems": [part.message for part in parts],
                 "fields": [{"field": part.field, "message": part.message} for part in parts],
             },
@@ -1347,7 +1348,11 @@ class AgentRegistryService:
         if workflow_perm is None:
             raise BadRequestError(
                 message="This agent is configured in its workflow step",
-                details={"agent_id": str(agent.id), "workflow_id": str(agent.workflow_id)},
+                details={
+                    "agent_id": str(agent.id),
+                    "workflow_id": str(agent.workflow_id),
+                    "reason": "workflow_agent",
+                },
             )
         workflow = await workflow_repo.get(
             self.db, workflow_id, organization_id=ctx.organization_id
@@ -1370,7 +1375,7 @@ class AgentRegistryService:
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             raise AuthorizationError(
                 message="Only an administrator can change the AI Architect",
-                details={"agent_id": agent.id},
+                details={"agent_id": agent.id, "reason": "architect_admin_only"},
             )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
@@ -2516,7 +2521,7 @@ class AgentRegistryService:
             # `fields` only when there is one: an empty list is a claim that
             # nothing here can be marked, which a reader would have to tell
             # apart from a refusal that never names a field at all.
-            details: dict[str, Any] = {"problems": problems.messages}
+            details: dict[str, Any] = {"reason": "does_not_publish", "problems": problems.messages}
             if problems.fields:
                 details["fields"] = problems.fields
             if problems.fixes:
