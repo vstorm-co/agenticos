@@ -17965,7 +17965,7 @@
         "all_evidence": "Non vérifié : toutes les questions proviennent des conversations dont la modification a été tirée.",
         "cancelled": "Non vérifié : la vérification a été arrêtée avant la fin de ses runs.",
         "own_not_asked": "Non vérifié : ses propres questions n’ont pas été posées, et ce sont elles qui tranchent désormais.",
-        "unfinished": "Ses propres questions ne sont pas allées au bout. Les questions du skill n'ont montré aucune régression, ce qui ne suffit pas à montrer que le changement est sûr pour lui."
+        "unfinished": "Ses propres questions ne sont pas allées au bout. Les questions du skill n'ont confirmé aucune régression, ce qui ne suffit pas à montrer que le changement est sûr pour lui."
       },
       "skillSetOnly": "Vérifié uniquement sur les questions du skill : il n’en avait pas en propre là où il a chargé le skill.",
       "stage": {

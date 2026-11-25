@@ -17275,7 +17275,7 @@
       },
       "unknown": {
         "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}.",
-        "unfinished": "Kendi soruları tamamlanmadı. Skill'in soruları bir gerileme göstermedi; bu tek başına değişikliğin onun için güvenli olduğunu göstermez."
+        "unfinished": "Kendi soruları tamamlanmadı. Skill'in soruları bir gerilemeyi doğrulamadı; bu tek başına değişikliğin onun için güvenli olduğunu göstermez."
       },
       "summary": {
         "unknown": "{count} doğrulanmadı",

@@ -18537,7 +18537,7 @@
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat de runs klaar waren.",
         "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld, en die bepalen nu het oordeel.",
         "too_few_questions": "Niet genoeg testvragen om de wijziging te verifiëren. Aantal gecontroleerde vragen: {heldOut}.",
-        "unfinished": "Zijn eigen vragen zijn niet afgerond. De vragen van de skill toonden geen regressie, wat op zich niet laat zien dat de wijziging voor hem veilig is."
+        "unfinished": "Zijn eigen vragen zijn niet afgerond. De vragen van de skill bevestigden geen regressie, wat op zich niet laat zien dat de wijziging voor hem veilig is."
       },
       "skillSetOnly": "Alleen gecontroleerd op de eigen vragen van de skill: hij had er zelf geen waar hij de skill laadde.",
       "stage": {
