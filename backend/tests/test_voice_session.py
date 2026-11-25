@@ -1804,7 +1804,8 @@ async def test_a_call_that_ends_normally_returns_inside_its_deadline():
 
 
 async def test_a_stuck_call_times_out_at_its_deadline_with_a_sanitized_report():
-    socket = FakeSocket([_START])
+    # A frame carrying the fake secret waits behind a long pause, so it is still queued at the deadline.
+    socket = FakeSocket([_START, 3600.0, json.dumps({"type": "end", "secret": _SECRET_VALUE})])
     began = time.monotonic()
 
     with pytest.raises(TimeoutError) as caught:
@@ -1815,7 +1816,7 @@ async def test_a_stuck_call_times_out_at_its_deadline_with_a_sanitized_report():
     assert 4.9 <= elapsed < 20.0
     assert "did not finish within 5.0s" in report
     assert "unfinished_tasks=" in report and "  - task-1: " in report and "session.py:" in report
-    assert "socket_frames_remaining=0 kinds=[]" in report
+    assert "socket_frames_remaining=1 kinds=['text:end']" in report
     assert "end_reason=None" in report
     assert "scope_cancelled=False" in report
     assert "max_event_loop_gap_ms=" in report
