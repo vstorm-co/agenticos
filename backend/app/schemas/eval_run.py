@@ -678,6 +678,19 @@ class EfficiencyRead(BaseSchema):
     p95_ms: TrendLiteral
 
 
+InvalidReasonCode = Literal[
+    "knowledge_not_retrieved",
+    "too_few_held_out",
+    "scoring_changed",
+    "judge_changed_mid_run",
+    "judge_instructions_changed",
+    "judge_differs",
+    "knowledge_draft_changed",
+    "held_out_ungraded",
+]
+"""Why two sides cannot be compared, as a code a client can translate."""
+
+
 class EvalComparisonRead(BaseSchema):
     """A candidate arm against its baseline, quality first and efficiency beside it.
 
@@ -696,8 +709,16 @@ class EvalComparisonRead(BaseSchema):
     verdict: VerdictLiteral | None
     overall: OverallLiteral | None
     p_value: float | None
-    invalid_reason: str | None
-    invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
+    invalid_reason: str | None = Field(
+        description="Why the two sides cannot be compared, as an English sentence"
+    )
+    invalid_reason_code: InvalidReasonCode | None = Field(
+        default=None, description="`invalid_reason` as a code, for a client to put in its own words"
+    )
+    invalid_reason_params: dict[str, int] = Field(
+        default_factory=dict,
+        description="The numbers `invalid_reason` names: `missing` for `too_few_held_out`",
+    )
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int
