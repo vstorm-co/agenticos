@@ -15,6 +15,7 @@ from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRA
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     SystemAgentOutputError,
 )
@@ -522,6 +523,21 @@ async def _document(db, kb, filename, *, added=None) -> RAGDocument:
     db.add(document)
     await db.flush()
     return document
+
+
+@pytest.mark.security
+async def test_a_draft_dearer_than_its_quote_is_refused_and_one_within_it_is_queued(db):
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        price = (await service.draft_estimate(ctx, gap.id)).total_usd
+        assert price is not None
+        with pytest.raises(ConcurrentChangeError):
+            await service.request_draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
+        assert await _draft_jobs(db) == []
+        queued = await service.request_draft(ctx, gap.id, quoted_usd=price)
+    assert queued.drafting
 
 
 async def test_a_draft_asked_for_runs_once_reads_the_knowledge_base_now_and_goes_stale(

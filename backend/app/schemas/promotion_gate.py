@@ -1,6 +1,7 @@
 """The promotion gate - an environment's guarding eval suites, read for one version."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -62,6 +63,19 @@ class PromotionGateRead(BaseSchema):
 
 class PromotionGateRun(BaseSchema):
     version_id: UUID = Field(description="The version to run the guards on before promoting it")
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The gate estimate's `total_usd` the person agreed to; a run that would "
+        "now cost more is refused, and omitted it is not checked",
+    )
+
+
+class PromotionGateEstimate(BaseSchema):
+    total_usd: Decimal = Field(
+        description="The most the guards still to run would spend on the version, reruns included"
+    )
+    suite_ids: list[UUID] = Field(description="The guards a run would start")
 
 
 class PromotionGateRunRead(BaseSchema):

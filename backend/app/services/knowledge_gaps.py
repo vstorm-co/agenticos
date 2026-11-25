@@ -54,6 +54,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     IdentifyingContentError,
     NotFoundError,
 )
@@ -1030,7 +1031,9 @@ class KnowledgeGapService:
         known = [file.content for file in await self._context_files(ctx, row.agent_ids)]
         return _flags(text, sources=sources, known=known)
 
-    async def request_draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
+    async def request_draft(
+        self, ctx: AuthContext, topic_id: UUID, *, quoted_usd: Decimal | None = None
+    ) -> KnowledgeGapTopicDetail:
         """Queue a draft of a topic's missing passage, as the caller; the topic says it is coming.
 
         Every refusal :meth:`draft` would make before calling the model is made
@@ -1046,6 +1049,7 @@ class KnowledgeGapService:
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
+            ConcurrentChangeError: A draft would now cost more than `quoted_usd`.
         """
         _require_runs_view(ctx)
         if current_impersonator() is not None:
@@ -1059,6 +1063,13 @@ class KnowledgeGapService:
         await SystemAgentRunner(self.db).require_runnable(
             ctx, key=KNOWLEDGE_GAP_DRAFTER.key, agent_id=kb.gap_drafter_agent_id
         )
+        if quoted_usd is not None:
+            price = (await self.draft_estimate(ctx, topic_id)).total_usd
+            if price is not None and price > quoted_usd:
+                raise ConcurrentChangeError(
+                    message="A draft now costs more than was quoted; estimate it again",
+                    details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
+                )
         job_id = await enqueue(
             self.db,
             DRAFT_TOPIC,

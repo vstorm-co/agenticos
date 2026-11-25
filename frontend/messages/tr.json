@@ -4803,6 +4803,7 @@
       "actionInService": "{service} içinde {action}",
       "approvalDetails": "Ayrıntılar",
       "approvalNoArguments": "Herhangi bir girdi gerekmiyor.",
+      "approvalQuotedPrice": "Bildirilen fiyat: en fazla {price}",
       "cache": {
         "title": "Prompt önbelleği",
         "description": "Önbelleğe alınmış promptun yeniden okunmadığı istekler. Önbellek atlaması, önekin değiştiği anlamına gelir (araçların sırasının değişmesi veya talimatlardaki zaman damgası gibi); bu durumda tam girdi ücreti alınır. Süresi dolmuş önbellek, provider önbelleğinin kullanım süresini aştığını gösterir.",

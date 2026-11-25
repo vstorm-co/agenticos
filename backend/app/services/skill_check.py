@@ -783,7 +783,24 @@ class SkillCheckService:
 
         Its result is accepted by moving the agent to main - see `checked_update` -
         never by changing the skill. Raises as :meth:`start` does, and as `_pinned`.
+
+        Raises:
+            ConcurrentChangeError: The check would now cost more than `quoted_usd`,
+                or check another version than `base_version_id`.
         """
+        if data.quoted_usd is not None or data.base_version_id is not None:
+            quote = await self.estimate_update(ctx, skill_id, agent_id, data)
+            if (
+                data.base_version_id is not None and quote.base_version.id != data.base_version_id
+            ) or (data.quoted_usd is not None and quote.at_most_usd > data.quoted_usd):
+                raise ConcurrentChangeError(
+                    message="This check now costs more or checks another version than was "
+                    "quoted; estimate it again",
+                    details={
+                        "at_most_usd": str(quote.at_most_usd),
+                        "base_version_id": quote.base_version.id,
+                    },
+                )
         return await self.start(
             ctx, skill_id, _update_start(data), source=CheckSource.CATCH_UP, pinned=agent_id
         )

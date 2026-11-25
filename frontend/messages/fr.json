@@ -7916,6 +7916,7 @@
       "actionInService": "{action} dans {service}",
       "approvalDetails": "Détails",
       "approvalNoArguments": "Il ne prend rien.",
+      "approvalQuotedPrice": "Prix annoncé : jusqu’à {price}",
       "cache": {
         "title": "Cache du prompt",
         "description": "Requêtes dont le prompt en cache n’a pas été relu. Une invalidation est un préfixe qui a bougé - outils réordonnés, horodatage dans les instructions - et a été facturé au plein tarif d’entrée ; une expiration a dépassé la durée du cache du provider.",

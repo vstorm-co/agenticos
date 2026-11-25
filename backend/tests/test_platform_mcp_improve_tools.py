@@ -1876,9 +1876,10 @@ class TestDraftingKnowledge:
             }
         )
 
-        topic = await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        topic = await _call(server, "draft_knowledge_topic", topic_id=TOPIC, quoted_usd="0.02")
 
         assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert api.request.await_args.kwargs["json"] == {"quoted_usd": "0.02"}
         assert topic["drafting"] is True
         assert "questions" not in topic
 
