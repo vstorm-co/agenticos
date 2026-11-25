@@ -1,5 +1,5 @@
 ---
-source_sha: "452644ae3cf2"
+source_sha: "4735cb560fe3"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -465,7 +465,7 @@ Link do kroku, którego już nie ma - `?step=testSet` albo `?step=today` - otwie
 
 Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany, w sformułowaniu podanym przez Ciebie tam, gdzie je podano, i opcjonalnie publikuje je w jednej transakcji.
 
-Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
+Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Nowsze zlecenie albo sesja, która zastąpi jej sugestie, zostawia ją zachowaną jako wersja robocza, bo jej zmiany nadal są w wersji roboczej. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
 
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów i nieudanych odpowiedzi treningowych względem edytowalnych baz wiedzy agenta oraz grupowanie ich braków w [tematy](knowledge-gaps.md#topics). Nie obejmuje szkiców: szkic powstaje tylko wtedy, gdy poprosi o niego człowiek, i jest rozliczany jako własny run szkicu. Każdy krok przed rozpoczęciem ponownie sprawdza swój pełny koszt. Klasyfikacja i grupowanie korzystają wyłącznie z przypiętych, niewymazanych rozmów i z odpowiedzi treningowych, z których uczy się sesja; odpowiedź treningowa z brakującą wiedzą pozostaje też materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
 
