@@ -9327,7 +9327,18 @@
         "approve_all": "Tümünü onayla",
         "ask_all": "Her zaman sor"
       },
-      "afterFirstMessage": "İlk mesajdan sonra kullanılabilir."
+      "afterFirstMessage": "İlk mesajdan sonra kullanılabilir.",
+      "projectExecution": {
+        "title": "Komutların çalıştırılacağı yer",
+        "agent": "Ajan çalışma alanı",
+        "project": "Proje çalışma alanı",
+        "hint": "Sonraki mesaj için geçerlidir. Proje bağlamını veya dosyalarını seçmek komutların çalıştırıldığı yeri değiştirmez.",
+        "filesOnly": "Bu ajan proje dosyalarını ve bağlamını kullanabilir ancak komut çalıştıramaz.",
+        "noProject": "Çalışma alanını seçmek için projede bir sohbet başlatın. Diğer sohbetlerde ajandan bu çalıştırma için bir proje seçmesini isteyin.",
+        "local": "Komutlar bu bilgisayarda izin verilen klasörü kullanır. Bu seçimi değiştirmek için buluta dönün.",
+        "loading": "Bu sohbetin projesi kontrol ediliyor…",
+        "unavailable": "Proje kontrol edilemedi. Çalışma alanını seçmeden önce yeniden deneyin."
+      }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",

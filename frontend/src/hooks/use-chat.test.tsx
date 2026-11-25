@@ -7970,3 +7970,100 @@ it.each([false, true])(
     });
   },
 );
+
+describe("project command execution choice", () => {
+  it.each(["agent", "project"] as const)(
+    "sends an explicit %s executor for this conversation",
+    (target) => {
+      useWorkOnStore.setState({
+        executionByConversation: {},
+        draftExecutionByScope: {},
+        byConversation: {},
+        draft: null,
+      });
+      useWorkOnStore.getState().setExecution("c-1", "p-1", target);
+      try {
+        const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+        act(() => result.current.sendMessage("Run the check"));
+        expect(frame(0).project_execution_target).toBe(target);
+      } finally {
+        useWorkOnStore.setState({
+          executionByConversation: {},
+          draftExecutionByScope: {},
+          byConversation: {},
+          draft: null,
+        });
+      }
+    },
+  );
+  it("does not override the server default without an explicit choice", () => {
+    useWorkOnStore.setState({
+      executionByConversation: {},
+      draftExecutionByScope: {},
+      byConversation: {},
+      draft: null,
+    });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("Run the check"));
+    expect(frame(0)).not.toHaveProperty("project_execution_target");
+  });
+  it("does not replace local folder consent with a remembered cloud executor", () => {
+    useWorkOnStore.setState({
+      executionByConversation: {},
+      draftExecutionByScope: {},
+      byConversation: {},
+      draft: null,
+    });
+    const store = useWorkOnStore.getState();
+    store.setExecution("c-1", "p-1", "project");
+    store.set("c-1", { folder: "/approved", mode: "read_only" }, false);
+    try {
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      act(() => result.current.sendMessage("Run locally"));
+      expect(frame(0)).not.toHaveProperty("project_execution_target");
+      expect(frame(0).local).toMatchObject({ folder: "/approved" });
+    } finally {
+      useWorkOnStore.setState({
+        executionByConversation: {},
+        draftExecutionByScope: {},
+        byConversation: {},
+        draft: null,
+      });
+    }
+  });
+});
+
+it("does not carry the main chat executor into an embedded conversation", async () => {
+  const { ChatScopeContext } = await import("@/stores/chat-scope-context");
+  const { createChatStore } = await import("@/stores/chat-store");
+  const { createConversationStore } = await import("@/stores/conversation-store");
+  const { createAgentSelectionStore } = await import("@/stores/agent-selection-store");
+  const { createFilePreviewStore } = await import("@/stores/file-preview-store");
+  const { createBrowserPanelStore } = await import("@/stores/browser-panel-store");
+  const { createSourcesPanelStore } = await import("@/stores/sources-panel-store");
+  const conversation = createConversationStore();
+  conversation.getState().setPendingProjectId("p-1");
+  const stores = {
+    chat: createChatStore(),
+    conversation,
+    agentSelection: createAgentSelectionStore("agent-1"),
+    filePreview: createFilePreviewStore(),
+    browserPanel: createBrowserPanelStore(),
+    sourcesPanel: createSourcesPanelStore(),
+  };
+  const Wrapper = makeWrapper();
+  useWorkOnStore.getState().setExecution(null, "p-1", "project");
+  try {
+    const { result } = renderHook(() => useChat(), {
+      wrapper: ({ children }) => (
+        <Wrapper>
+          <ChatScopeContext.Provider value={stores}>{children}</ChatScopeContext.Provider>
+        </Wrapper>
+      ),
+    });
+    act(() => result.current.sendMessage("Preview this agent"));
+    expect(frame(0)).not.toHaveProperty("project_execution_target");
+  } finally {
+    useWorkOnStore.setState({ executionByConversation: {}, draftExecutionByScope: {} });
+  }
+});

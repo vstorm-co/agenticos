@@ -2065,6 +2065,11 @@ export function useChat(options: UseChatOptions = {}) {
         }
       }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
+      const execution = useWorkOnStore.getState().executionFor(conversationId || null, projectId);
+      // Local folder consent has its own executor; a remembered cloud selection
+      // is used again only when the person returns to the cloud.
+      if (!scoped && execution !== null && local === null)
+        payload.project_execution_target = execution;
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
       const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
@@ -2133,6 +2138,7 @@ export function useChat(options: UseChatOptions = {}) {
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
       tenantId,
+      scoped,
     ],
   );
 

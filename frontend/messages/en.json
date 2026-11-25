@@ -1497,7 +1497,18 @@
         "approve_all": "Approve all",
         "ask_all": "Ask always"
       },
-      "afterFirstMessage": "Available after the first message."
+      "afterFirstMessage": "Available after the first message.",
+      "projectExecution": {
+        "title": "Run commands in",
+        "agent": "Agent workspace",
+        "project": "Project workspace",
+        "hint": "Applies to the next message. Choosing project context or files does not switch command execution.",
+        "filesOnly": "This agent can use project files and context, but has no command execution capability.",
+        "noProject": "Start a chat in a project to choose its workspace. In other chats, ask the agent to select a project for the current run.",
+        "local": "Commands use the folder allowed on this computer. Return to the cloud to change this choice.",
+        "loading": "Checking this chat’s project…",
+        "unavailable": "The project could not be checked. Retry before choosing its workspace."
+      }
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",

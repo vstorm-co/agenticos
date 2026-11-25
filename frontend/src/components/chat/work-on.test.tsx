@@ -543,3 +543,5 @@ it("keeps native primary selection distinct from local model services and clears
   expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toBeNull();
   expect(screen.queryByRole("combobox", { name: "Conversation runtime" })).not.toBeInTheDocument();
 });
+
+vi.mock("./project-execution-control", () => ({ ProjectExecutionControl: () => null }));

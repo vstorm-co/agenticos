@@ -252,7 +252,11 @@ export function ChatComposerControls({
             </div>
             <div className="chat-settings-body">
               <YourConnections />
-              {(desktop || harnesses.length > 0) && (
+              {(desktop ||
+                harnesses.length > 0 ||
+                agentCapabilities?.some(
+                  (capability) => capability === "sandbox" || capability === "projects",
+                )) && (
                 <NativeDisclosure className="chat-settings-section" open>
                   <summary>
                     <SquareTerminal className="size-4" aria-hidden />
@@ -268,7 +272,7 @@ export function ChatComposerControls({
                     {harnesses.map((harness) => (
                       <PersonalCodingAccount compact key={harness} harness={harness} />
                     ))}
-                    {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+                    <WorkOn agentCapabilities={agentCapabilities} />
                   </div>
                 </NativeDisclosure>
               )}

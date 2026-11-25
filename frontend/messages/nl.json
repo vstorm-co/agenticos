@@ -1497,7 +1497,18 @@
         "approve_all": "Alles goedkeuren",
         "ask_all": "Altijd vragen"
       },
-      "afterFirstMessage": "Beschikbaar na het eerste bericht."
+      "afterFirstMessage": "Beschikbaar na het eerste bericht.",
+      "projectExecution": {
+        "title": "Opdrachten uitvoeren in",
+        "agent": "Werkruimte van agent",
+        "project": "Werkruimte van project",
+        "hint": "Geldt voor het volgende bericht. Projectcontext of bestanden kiezen verandert de uitvoerlocatie niet.",
+        "filesOnly": "Deze agent kan projectbestanden en context gebruiken, maar geen opdrachten uitvoeren.",
+        "noProject": "Start een chat in een project om de werkruimte te kiezen. Vraag de agent in andere chats een project voor deze uitvoering te kiezen.",
+        "local": "Opdrachten gebruiken de toegestane map op deze computer. Ga terug naar de cloud om dit te wijzigen.",
+        "loading": "Het project van deze chat controleren…",
+        "unavailable": "Het project kon niet worden gecontroleerd. Probeer opnieuw voordat je de werkruimte kiest."
+      }
     },
     "conversationArchived": "Dit gesprek is gearchiveerd",
     "conversationDeleted": "Gesprek verwijderd",
