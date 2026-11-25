@@ -16832,6 +16832,7 @@
         "no_change": "Ela não altera nada",
         "unknown_tool": "O agente não tem essa ferramenta",
         "invalid_tool_change": "Um nome ou descrição de ferramenta que o agente não pode usar",
+        "hidden_characters": "O texto contém caracteres que uma pessoa não consegue ver",
         "not_a_target": "Algo que o assistente não pode alterar",
         "operation": "Não é uma alteração permitida para essa configuração",
         "loosens_approval": "Ela afrouxaria a aprovação",
@@ -16913,7 +16914,8 @@
       "view": "Como mostrar a alteração",
       "unified": "Unificado",
       "split": "Lado a lado",
-      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}"
+      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}",
+      "hidden": "Esta alteração contém caracteres que não desenham nada ou reordenam o texto. Cada um está escrito pelo seu código."
     },
     "instructionsEditor": {
       "current": "Instruções atuais",

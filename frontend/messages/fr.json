@@ -16428,6 +16428,7 @@
         "no_change": "Elle ne change rien",
         "unknown_tool": "L’agent n’a pas un tel outil",
         "invalid_tool_change": "Un nom ou une description d’outil que l’agent ne peut pas utiliser",
+        "hidden_characters": "Son texte contient des caractères qu’une personne ne peut pas voir",
         "not_a_target": "Ce n’est pas quelque chose que l’assistant peut modifier",
         "operation": "Ce n’est pas une modification que ce paramètre autorise",
         "loosens_approval": "Elle assouplirait l’approbation",
@@ -16509,7 +16510,8 @@
       "view": "Comment afficher la modification",
       "unified": "Unifié",
       "split": "Côte à côte",
-      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}"
+      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}",
+      "hidden": "Cette modification contient des caractères qui n’affichent rien ou réordonnent le texte. Chacun est écrit par son code."
     },
     "instructionsEditor": {
       "current": "Instructions actuelles",

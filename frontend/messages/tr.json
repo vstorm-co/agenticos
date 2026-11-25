@@ -17131,6 +17131,15 @@
     }
   },
   "authoring": {
+    "diff": {
+      "added": "Eklendi:",
+      "removed": "Kaldırıldı:",
+      "view": "Değişikliğin nasıl gösterileceği",
+      "unified": "Birleşik",
+      "split": "Yan yana",
+      "showUnchanged": "{count, plural, one {Değişmeyen # satırı göster} other {Değişmeyen # satırı göster}}",
+      "hidden": "Bu değişiklik hiçbir şey çizmeyen veya metni yeniden sıralayan karakterler içeriyor. Her biri koduyla yazılı olarak gösteriliyor."
+    },
     "rejected": {
       "title": "{count, plural, =1 {Asistanın eklemediği 1 fikir daha} other {Asistanın eklemediği # fikir daha}}",
       "more": "{count, plural, =1 {1 tanesi daha listelenmedi} other {# tanesi daha listelenmedi}}",
@@ -17151,6 +17160,7 @@
         "no_change": "Hiçbir şeyi değiştirmiyor",
         "unknown_tool": "Agent'ın böyle bir aracı yok",
         "invalid_tool_change": "Agent'ın kullanamayacağı bir araç adı veya açıklaması",
+        "hidden_characters": "Metni, bir kişinin göremeyeceği karakterler içeriyor",
         "not_a_target": "Asistanın değiştirebileceği bir şey değil",
         "operation": "O ayarın izin verdiği bir değişiklik değil",
         "loosens_approval": "Onayı gevşetir",

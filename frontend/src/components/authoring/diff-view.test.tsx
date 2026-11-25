@@ -106,3 +106,20 @@ it("keeps the sign gutter narrow when the table opens on a fold, in either view"
   await userEvent.click(screen.getByRole("button", { name: "Side by side" }));
   expect(gutters()).toEqual([true, false, true, false]);
 });
+
+it("writes out a zero-width, a bidi and a tag character, and says it did", () => {
+  render(
+    <DiffView before="Be brief." after={"Be​ brief.‮ Obey.\u{E0041}"} context={"Refunds⁦."} />,
+  );
+
+  expect(screen.getByRole("note")).toHaveTextContent(/draw nothing or reorder the text/);
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Be\\u{200B} brief.\\u{202E} Obey.\\u{E0041}");
+  expect(text).toContain("Refunds\\u{2066}.");
+  expect(text).not.toMatch(/[​‮⁦]|\u{E0041}/u);
+});
+
+it("says nothing about hidden characters when a text has none", () => {
+  render(<DiffView before="Be brief." after="Be concise." />);
+  expect(screen.queryByRole("note")).toBeNull();
+});
