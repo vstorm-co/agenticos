@@ -1170,6 +1170,7 @@ async def create_attempt(
     retry_guarantee: str | None,
     started_at: datetime,
     reserved_usd: Decimal | None = None,
+    receipt_only: bool = False,
     agent_run_id: UUID | None = None,
 ) -> NodeAttempt:
     attempt = NodeAttempt(
@@ -1179,6 +1180,7 @@ async def create_attempt(
         agent_run_id=agent_run_id,
         idempotency_key=idempotency_key,
         retry_guarantee=retry_guarantee,
+        receipt_only=receipt_only,
         reserved_usd=reserved_usd,
         status=NodeAttemptStatus.IN_FLIGHT.value,
         started_at=started_at,
@@ -1249,7 +1251,7 @@ async def may_have_dispatched(db: AsyncSession, *, node_run_id: UUID) -> bool:
             }
         ),
     )
-    unproven = or_(failed_before_effect, gated_before_tool).is_not(True)
+    unproven = or_(NodeAttempt.receipt_only, failed_before_effect, gated_before_tool).is_not(True)
     return bool(
         await db.scalar(select(exists().where(NodeAttempt.node_run_id == node_run_id, unproven)))
     )

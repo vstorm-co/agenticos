@@ -767,7 +767,12 @@ async def _script_action_call(
         definition.effect_kind == "write" and definition.id != "workflow.run" and not read_only_http
     )
     known = await script_calls.retry_output(
-        db, run, child, writes=unknown_write, reuse_result=definition.id != "flow.resume_link"
+        db,
+        run,
+        child,
+        writes=unknown_write,
+        reuse_result=definition.id != "flow.resume_link",
+        pure=definition.effect_kind == "pure",
     )
     return _ResolvedCall(
         graph,
@@ -1158,6 +1163,7 @@ async def begin_attempt(
         retry_guarantee=guarantee,
         started_at=now,
         reserved_usd=reserved,
+        receipt_only=call.stands_in == "reused",
         agent_run_id=node_run.waiting_agent_run_id,
     )
     await workflow_run_repo.update_node_run(

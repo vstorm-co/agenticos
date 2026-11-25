@@ -158,9 +158,10 @@ async def test_retry_issues_its_own_resume_links(engine: AsyncEngine, scripted_l
         {
             "actions": {
                 "link": {"type": "flow.resume_link"},
+                "value": {"type": "data.value"},
                 "wait_for_callback": {"type": wait.definition_id, "config": wait.config},
             },
-            "code": "url = link()['url']\nreply = wait_for_callback()\n{'url': url, 'body': reply['body']}",
+            "code": "url = value(value=link()['url'])['value']\nreply = wait_for_callback()\n{'url': url, 'body': reply['body']}",
         },
     )
     graph = WorkflowGraph(

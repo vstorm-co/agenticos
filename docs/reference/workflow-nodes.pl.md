@@ -1,5 +1,5 @@
 ---
-source_sha: "ada230bb7d06"
+source_sha: "632745df63f9"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1395,7 +1395,7 @@ Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funk
 
 Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
 
-Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
+Jeśli ta sama akcja bez skutków ubocznych otrzyma inne argumenty przy ponowieniu, wykona się ponownie z nowymi wartościami. Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

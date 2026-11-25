@@ -80,6 +80,20 @@ async def test_a_new_run_will_not_repeat_an_unproven_write(call, problem):
         await script_calls.retry_output(AsyncMock(), run, child, writes=True)
 
 
+async def test_a_changed_pure_call_cannot_replace_another_alias_in_an_older_run(call):
+    run, _, child, _, repo = call
+    ancestor = WorkflowRun(id=uuid4())
+    previous = WorkflowRun(id=run.retry_of_run_id, retry_of_run_id=ancestor.id)
+    repo.get_run.side_effect = [previous, ancestor]
+    current = child.scope_path[-1]
+    repo.script_call_at.side_effect = [
+        NodeRun(scope_path=[{**current, "arguments_digest": "older-input"}]),
+        NodeRun(scope_path=[{**current, "action": "send"}]),
+    ]
+    with pytest.raises(ScriptRetryUnsafeError):
+        await script_calls.retry_output(AsyncMock(), run, child, writes=False, pure=True)
+
+
 @pytest.mark.parametrize("writes,started", [(False, True), (True, False)])
 async def test_recovery_can_run_an_unsent_write_or_a_failed_read(call, writes, started):
     run, _, child, _, repo = call

@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Call configured workflow actions from a Python block without a model or a canvas step for each call. Each call keeps its own execution record and approval.
 
+### Upgrading
+
+- Apply `backend/alembic/versions/0365_attempt_receipt_only.py` before starting updated workers. Existing attempts keep their conservative retry behavior.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

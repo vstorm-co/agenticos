@@ -226,9 +226,11 @@ async def test_script_retry_checks_every_attempt_before_sending_a_write_under_a_
         assert len(wire.sent) == len(outcomes)
 
 
+@pytest.mark.parametrize("cancel_replay", [False, True], ids=["orphaned", "cancelled"])
 async def test_orphaned_replay_delivers_the_saved_post_result_without_posting_again(
     engine: AsyncEngine,
     network,
+    cancel_replay: bool,
 ):
     probe = {"url": "https://api.example.com/orders/ready"}
     post = {"url": "https://api.example.com/orders", "method": "POST"}
@@ -293,14 +295,22 @@ async def test_orphaned_replay_delivers_the_saved_post_result_without_posting_ag
     begun, _ = await begin(retried, child.id)
     assert begun.stands_in == "reused"
     async with seeded.factory() as db:
-        await db.execute(
-            update(DispatchOutbox)
-            .where(DispatchOutbox.node_run_id == child.id)
-            .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
-        )
-        await db.commit()
-        assert await WorkflowReconcilerService(db).resolve_orphaned_attempts() == 1
-        await db.commit()
+        if cancel_replay:
+            service = WorkflowExecutionService(db)
+            await service.cancel(seeded.ctx, retry.id)
+            await db.commit()
+            next_retry = await service.retry(seeded.ctx, retry.id)
+            await db.commit()
+            retried = replace(seeded, run=await db.get(WorkflowRun, next_retry.id))
+        else:
+            await db.execute(
+                update(DispatchOutbox)
+                .where(DispatchOutbox.node_run_id == child.id)
+                .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await db.commit()
+            assert await WorkflowReconcilerService(db).resolve_orphaned_attempts() == 1
+            await db.commit()
     network(lambda _req: httpx2.Response(200))
     finished = await drive(retried)
     assert finished.status == "succeeded", finished.status
