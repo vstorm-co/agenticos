@@ -303,29 +303,33 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
 
 
 @pytest.mark.security
-async def test_only_the_requester_spends_the_session_on_attribution_or_a_knowledge_check(db):
+async def test_whoever_may_start_a_session_spends_it_on_attribution_and_runs_it(db):
+    """A paid check is confirmed by whoever may start a session on the agent, who then
+    acts for the session; someone who may not start one spends nothing."""
     from decimal import Decimal
 
-    from app.core.exceptions import AuthorizationError
+    from app.core.exceptions import AppException
     from app.core.permissions import OrgRoleName
     from app.schemas.improvement import AttributionConsent, KnowledgeCheckConsent
 
     ctx, agent, ready = await _ready_proposal(db)
     editor = await _member(db, ctx, OrgRoleName.ADMIN)
+    viewer = await _member(db, ctx, OrgRoleName.VIEWER)
     service = ImprovementPipelineService(db)
     spent = (await service.read(ctx, agent.id, ready.id)).spent_usd
 
-    with pytest.raises(AuthorizationError, match="requester"):
+    with pytest.raises(AppException) as refused:
         await service.start_attribution(
-            editor,
+            viewer,
             agent.id,
             ready.id,
             1,
             AttributionConsent(confirmed=True, estimate_usd=Decimal("1")),
         )
-    with pytest.raises(AuthorizationError, match="requester"):
+    assert refused.value.status_code in (403, 404)
+    with pytest.raises(AppException) as refused:
         await service.start_knowledge(
-            editor,
+            viewer,
             agent.id,
             ready.id,
             KnowledgeCheckConsent(
@@ -337,9 +341,24 @@ async def test_only_the_requester_spends_the_session_on_attribution_or_a_knowled
                 draft_hash="a" * 64,
             ),
         )
-    after = await service.read(ctx, agent.id, ready.id)
-    assert after.spent_usd == spent
-    assert after.iterations[0].attribution_eval_run_ids == {}
+    assert refused.value.status_code in (403, 404)
+    untouched = await service.read(ctx, agent.id, ready.id)
+    assert untouched.spent_usd == spent
+    assert untouched.iterations[0].attribution_eval_run_ids == {}
+
+    quote = await service.estimate_attribution(editor, agent.id, ready.id, 1)
+    started = await service.start_attribution(
+        editor,
+        agent.id,
+        ready.id,
+        1,
+        AttributionConsent(confirmed=True, estimate_usd=quote.total_usd),
+    )
+
+    assert started.iterations[0].attribution_eval_run_ids
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    assert (row.actor_user_id, row.actor_api_key_id) == (editor.user_id, None)
 
 
 async def test_the_timeline_names_who_decided_what_and_only_to_those_who_see_members(db):
