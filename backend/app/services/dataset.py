@@ -10,7 +10,6 @@ then exported and handed to models. A credential in it is redacted before the
 case is stored, on every way in.
 """
 
-import asyncio
 import logging
 import uuid
 from collections.abc import Mapping, Sequence
@@ -29,6 +28,7 @@ from app.agents.isolation import capability_tools
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import CASE_GENERATOR, IMPROVER, JUDGE
 from app.core.audit import record_audit
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -1345,16 +1345,14 @@ class DatasetService:
     ) -> DatasetVersionRead:
         """Append every case in a CSV or JSONL file, as one new version.
 
-        The file is parsed and redacted in a thread, off the event loop, and
+        The file is parsed and redacted on the bounded file pool, off the event loop, and
         measured against the ceiling before the dataset is locked, so a large
         upload holds up neither the API nor anybody else's edit; and it is refused
         whole if any row is wrong (see :func:`dataset_files.parse`). The ceiling is
         checked again under the lock, against the count it guards.
         """
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        cases = await asyncio.to_thread(
-            _read_import, content, dataset_files.format_of(filename, fmt)
-        )
+        cases = await run_blocking(_read_import, content, dataset_files.format_of(filename, fmt))
         _refuse_past_ceiling(current.case_count, len(cases))
         revisions: list[DatasetCase] = []
         redacted = 0
