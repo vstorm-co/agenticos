@@ -1829,7 +1829,9 @@ class TestHandedOver:
             "run_ids": [str(seed.run_ids[0])],
             "problems": ["The window is wrong"],
             "quotes": ["Refunds take 14 days."],
+            "withheld": 0,
         }
+        assert read.seed_withheld == 0
 
     async def test_failed_training_answers_the_agents_session_read_are_evidence_enough(
         self, db, monkeypatch

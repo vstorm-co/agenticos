@@ -9,13 +9,15 @@ import type { SkillImprovement, SkillProblem } from "@/types/skill-improvement";
 /**
  * What went wrong in answers where the line's versions were loaded, one problem at
  * a time, each with the agents it occurs in. Answers from before loads were recorded
- * cannot be attributed, and are counted rather than guessed at.
+ * cannot be attributed, and are counted rather than guessed at; so are problems an
+ * agent's session handed over that quote what this skill's check grades.
  */
 export function SkillUnderstand({ session }: { session: SkillImprovement }) {
   const t = useTranslations("skillImprovement.understand");
   const { problems, isLoading, error, refetch } = useSkillProblems(session.skill_id, session.id);
   if (error) return <StepError error={error} retry={refetch} />;
   if (isLoading || !problems) return <p role="status">{t("loading")}</p>;
+  const withheld = session.seed_withheld ?? 0;
   return (
     <section className="space-y-4" data-tour="skill-improvement-understand">
       <h2 className="font-medium">{t("title")}</h2>
@@ -30,6 +32,9 @@ export function SkillUnderstand({ session }: { session: SkillImprovement }) {
         <p className="text-muted-foreground text-xs">
           {t("usageUnknown", { count: problems.usage_unknown })}
         </p>
+      )}
+      {withheld > 0 && (
+        <p className="text-muted-foreground text-xs">{t("seedWithheld", { count: withheld })}</p>
       )}
       <ul className="space-y-3">
         {problems.problems.map((problem, index) => (

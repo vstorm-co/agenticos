@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "08e76ac5a7af"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -163,7 +163,9 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Von jedem früheren Versuch liest er das Urteil und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat, nie, was der Versuch geändert hat: Jeder Versuch legt seine eigenen Fragen zurück, neu gezogen, sodass eine frühere Änderung aus Fragen entstanden sein kann, an denen dieser Versuch gemessen wird.
+
+Die Kriterien, die ein früherer Versuch bewegt hat, zählen nur auf den Lernfragen dieses Versuchs; hat seine Prüfung keine davon bewertet, erfährt der Helfer das, statt Nullen zu sehen. Gelesen werden höchstens sechs zuletzt gemessene Versuche.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
@@ -611,6 +613,8 @@ Ein Kriterium gehört nur dann dem Skill, wenn eine Zeile des Skills den falsche
 Schweigt der Skill nur oder verbietet er nur weitere Abschnitte, und stehen die Fakten, die das Kriterium braucht, in den Anweisungen, dem Kontext oder dem Wissen des Agents, bleibt das Kriterium beim Agent: Der Helfer schlägt die Änderung am Agent vor und kann das Problem des Skills weiter als Rat melden. Nur die eigenen Kriterien des Skills legt das Urteil beiseite und zählt sie unter **Noch von einem Skill blockiert**.
 
 Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
+
+Ein Problem wird nur übergeben, wenn die Prüfung des Skills keine der Antworten bewertet, die es zitiert: Ein Problem, das eine Antwort auf eine Frage aus dem zurückgelegten Teil ihres Datasets oder auf eine der eigenen Testfragen eines Skills zitiert, wird gar nicht übergeben, denn sein Wortlaut entstand auch aus dieser Antwort. So liest der Helfer des Skills nie, was seine Prüfung danach misst, und die Session des Skills sagt, wie viele Probleme ausgelassen wurden (`seed_withheld`).
 
 Die fehlgeschlagenen Trainingsantworten, die diese Session gelesen hat und die den Skill verwendet haben, zählen ebenfalls als Belege des Skills: Testfragen aus dem gespeicherten Trainingsteil des eigenen Datasets der Session, auf dem eine Skill-Prüfung nie misst. Ein so gestartetes Improve des Skills braucht zum Beginnen keine negativ bewerteten Chat-Antworten mehr; wer dieses Dataset nicht ausführen darf, liest keine dieser Antworten.
 

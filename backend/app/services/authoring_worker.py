@@ -271,54 +271,42 @@ def _improve_prompt(
 
 
 def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
-    """What this session's earlier attempts changed and how their checks judged them."""
+    """How this session's earlier attempts were judged - never what they changed."""
     if not attempts:
         return ""
 
     def moved(attempt: EarlierAttempt) -> str:
+        if attempt.criteria is None:
+            return "No criteria on this attempt's training questions."
         if not attempt.criteria:
-            return "No criterion moved on the questions it learned from."
+            return "No criterion moved on this attempt's training questions."
         return (
-            "Criteria that moved on the questions it learned from (passed before -> after):\n"
-            + (
-                "\n".join(
-                    f"- [{move.scorer}] {move.name}: {move.baseline_passed}/{move.graded} -> "
-                    f"{move.candidate_passed}/{move.graded}; confirmed fixes: "
-                    f"{move.fixed_confirmed}, confirmed breaks: {move.broken_confirmed}"
-                    for move in attempt.criteria
-                )
+            "Criteria that moved on this attempt's training questions (passed before -> after):\n"
+            + "\n".join(
+                f"- [{move.scorer}] {move.name}: {move.baseline_passed}/{move.graded} -> "
+                f"{move.candidate_passed}/{move.graded}; confirmed fixes: "
+                f"{move.fixed_confirmed}, confirmed breaks: {move.broken_confirmed}"
+                for move in attempt.criteria
             )
         )
 
     def excerpt(text: str, limit: int) -> str:
         return text if len(text) <= limit else text[:limit] + "\n[... excerpt clipped ...]"
 
-    def changes(attempt: EarlierAttempt) -> str:
-        kept: list[str] = []
-        size = 0
-        for change in attempt.changes:
-            item = "- " + excerpt(change, 2000)
-            if size + len(item) > 2500:
-                kept.append("[Further changes omitted]")
-                break
-            kept.append(item)
-            size += len(item) + 1
-        return "\n".join(kept)
-
     blocks = "\n\n".join(
         f"## Attempt {attempt.number}: {attempt.verdict.value}\n"
-        + changes(attempt)
-        + f"\nOn {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
+        f"On {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
         f"{attempt.broken}. Which ones stays hidden.\n" + excerpt(moved(attempt), 1000)
         for attempt in attempts[-6:]
     )
     return (
         "\n\n# Earlier attempts in this session\n"
-        "Up to six recent measured attempts; long change and criterion excerpts are clipped.\n"
-        "None of these changes is in the draft above: each attempt changes the same draft, "
-        "and the answers above are the draft's own. Keep what an attempt's criteria show "
-        "worked. Where an attempt broke questions, leave out or narrow the part of it most "
-        "likely to have done so rather than repeating it.\n\n"
+        "Up to six recent measured attempts, with how each was judged. What each changed "
+        "is left out on purpose: it was written from questions that may be among those this "
+        "attempt is measured on. None of their changes is in the draft above, and the "
+        "answers above are the draft's own. Their criteria are counted only on this "
+        "attempt's training questions. Where an attempt broke questions, do not take a "
+        "change in the same direction as safe.\n\n"
         f"{blocks}"
     )
 
@@ -389,7 +377,7 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
 
 def _seed_section(seed: Mapping[str, Any] | None) -> str:
     """What an agent's own Improve found in the skill when it handed the skill over."""
-    if not seed:
+    if not seed or not seed.get("problems"):
         return ""
     problems = "\n".join(f"- {problem}" for problem in seed.get("problems", []))
     quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
@@ -753,7 +741,10 @@ class AuthoringRun:
                 []
                 if attempt is None
                 else await ImprovementPipelineService(self.db).earlier_attempts(
-                    self.ctx, self.request.improvement_run_id, before=attempt.number
+                    self.ctx,
+                    self.request.improvement_run_id,
+                    before=attempt.number,
+                    learns_from=attempt.train_case_ids,
                 )
             )
         else:

@@ -483,6 +483,7 @@ class SkillImprovementService:
                         "run_ids": [str(run_id) for run_id in seed.run_ids],
                         "problems": list(seed.problems),
                         "quotes": list(seed.quotes),
+                        "withheld": seed.withheld,
                     },
                 )
         except IntegrityError as exc:
@@ -2401,6 +2402,7 @@ class SkillImprovementService:
             None if base is None else SkillVersionRef(id=base.id, number=base.number)
         )
         result.agents, result.hidden_agents = visible, hidden
+        result.seed_withheld = (run.seed or {}).get("withheld", 0)
         if people is None:
             people = await self.versions.people(ctx, [run.created_by_user_id])
         result.created_by = _starter(people, run.created_by_user_id)

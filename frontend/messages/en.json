@@ -18753,6 +18753,7 @@
       "loading": "Reading what went wrong…",
       "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
+      "seedWithheld": "{count, plural, =1 {1 problem handed over from the agent's session is left out: it quotes an answer to a question this skill's check grades.} other {# problems handed over from the agent's session are left out: they quote answers to questions this skill's check grades.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}.",
       "hiddenExamples": "{count, plural, =1 {+1 hidden example} other {+# hidden examples}}"

@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "603a82afc33b"
 ---
 
 # Skille { #skills }
@@ -860,7 +860,8 @@ Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła
 Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,
 zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
 agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
-skillu](authoring.md#when-the-fault-is-in-a-skill).
+skillu](authoring.md#when-the-fault-is-in-a-skill). Problem cytujący
+odpowiedź, którą oceni test tej sesji, nie jest przekazywany, tylko liczony.
 
 Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
 służy linia. Mówi też, ile kosztuje

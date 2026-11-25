@@ -17271,6 +17271,9 @@
     "draftCreated": "Taslak oluşturuldu: {time}"
   },
   "skillImprovement": {
+    "understand": {
+      "seedWithheld": "{count, plural, =1 {Agent'ın oturumundan aktarılan 1 problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği bir soruya verilen yanıtı alıntılıyor.} other {Agent'ın oturumundan aktarılan # problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği sorulara verilen yanıtları alıntılıyorlar.}}"
+    },
     "agents": {
       "state": {
         "unknown": "Doğrulanmadı"

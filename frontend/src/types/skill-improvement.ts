@@ -65,6 +65,11 @@ export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   applied_version_id: string | null;
   agents: number;
   hidden_agents: number;
+  /**
+   * For a session started from an agent's Improve, the problems it found that were left
+   * out because they quote an answer to a question this skill's check grades.
+   */
+  seed_withheld?: number;
   expires_at: string | null;
 }
 

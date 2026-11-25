@@ -237,6 +237,12 @@ class SkillImprovementRead(BaseSchema):
     applied_version_id: UUID | None
     agents: int = 0
     hidden_agents: int = 0
+    seed_withheld: int = Field(
+        default=0,
+        description="For a session started from an agent's Improve, how many of the problems "
+        "it found in the skill were left out because an answer they quote is to a "
+        "question the skill's check measures on",
+    )
     check: SkillCheckRead | None = Field(
         default=None,
         description="The current attempt's check across the line's agents, once it started",

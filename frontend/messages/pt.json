@@ -18637,6 +18637,7 @@
       "loading": "Lendo o que deu errado…",
       "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} other {, # que estavam bem}}.",
       "usageUnknown": "{count, plural, =1 {1 resposta é de antes de os carregamentos da skill serem registrados e não é contada.} other {# respostas são de antes de os carregamentos da skill serem registrados e não são contadas.}}",
+      "seedWithheld": "{count, plural, =1 {1 problema repassado pela sessão do agente foi deixado de fora: ele cita uma resposta a uma pergunta que a verificação desta skill avalia.} other {# problemas repassados pela sessão do agente foram deixados de fora: eles citam respostas a perguntas que a verificação desta skill avalia.}}",
       "agent": "{name} ({runs})",
       "occursIn": "Em {runs, plural, =1 {1 resposta} other {# respostas}}, em {agents}{hidden, plural, =0 {} =1 { e 1 agente que você não vê} other { e # agentes que você não vê}}.",
       "hiddenExamples": "{count, plural, =1 {+1 exemplo oculto} other {+# exemplos ocultos}}"

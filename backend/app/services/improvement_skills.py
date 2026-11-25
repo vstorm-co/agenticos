@@ -19,7 +19,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.skill import Skill
-from app.repositories import agent_repo, authoring_repo, skill_repo
+from app.repositories import agent_repo, authoring_repo, eval_run_repo, skill_repo
 from app.schemas.authoring import EvidenceItemRead
 from app.schemas.improvement import (
     ImprovementSkill,
@@ -43,6 +43,8 @@ class SkillSeed:
         run_ids: The runs the problems cite.
         problems: What the agent's improver found wrong in the skill.
         quotes: The checked quotes those problems cite.
+        withheld: Problems left out because an answer they cite is to a question
+            the skill's check measures on.
     """
 
     agent_id: UUID
@@ -50,6 +52,7 @@ class SkillSeed:
     run_ids: list[UUID]
     problems: list[str]
     quotes: list[str]
+    withheld: int = 0
 
 
 def problems_of(
@@ -114,6 +117,12 @@ class ImprovementSkillService:
         no version to compare with takes the line the agent's served version reads,
         as the session's card shows it.
 
+        A problem that cites an answer to a question the skill's check measures on -
+        a stored held-out case, a question of a skill's own test set - is left out
+        whole, counted in `withheld`: its wording was written from every answer it
+        cites, so dropping the quote alone would still hand the skill's improver
+        what its check then grades.
+
         Raises:
             NotFoundError: The caller may not see the skill.
             BadRequestError: The session found no problem in that skill.
@@ -127,13 +136,24 @@ class ImprovementSkillService:
                 message="This improvement found no problem in that skill",
                 details={"skill_id": skill_id},
             )
-        evidence = [item for problem in problems for item in problem.evidence]
+        measured = await eval_run_repo.answers_to_measured_questions(
+            self.db,
+            list({item.run_id for problem in problems for item in problem.evidence}),
+            organization_id=ctx.organization_id,
+        )
+        kept = [
+            problem
+            for problem in problems
+            if not any(item.run_id in measured for item in problem.evidence)
+        ]
+        evidence = [item for problem in kept for item in problem.evidence]
         return SkillSeed(
             agent_id=agent.id,
             fork_id=await self._read_fork(ctx, agent, skill_id, base_version_id),
             run_ids=list(dict.fromkeys(item.run_id for item in evidence)),
-            problems=[problem.problem for problem in problems],
+            problems=[problem.problem for problem in kept],
             quotes=[item.quote for item in evidence if item.quote],
+            withheld=len(problems) - len(kept),
         )
 
     async def _read_fork(

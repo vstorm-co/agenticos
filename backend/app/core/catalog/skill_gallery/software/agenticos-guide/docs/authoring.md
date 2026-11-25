@@ -151,7 +151,9 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. Of each earlier attempt it reads the verdict and only how many held-out questions it fixed and broke, never what the attempt changed: every attempt keeps its own questions aside, drawn afresh, so an earlier change may have been written from questions this attempt is measured on.
+
+The criteria an earlier attempt moved are counted only on this attempt's training questions; where its check graded none of them, the helper is told so rather than shown zeros. At most six recent measured attempts are read.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
@@ -559,6 +561,8 @@ A criterion is the skill's only when a line of the skill states the wrong value 
 When the skill is only silent, or only says not to add other sections, and the facts the criterion needs are in the agent's instructions, context or knowledge, the criterion stays the agent's: the helper proposes the agent change, and may still report the skill problem as advice. Only the skill's own criteria are set aside by the verdict and counted under **Still held back by a skill**.
 
 The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
+
+A problem is handed over only when the skill's check will grade none of the answers it quotes: a problem that quotes an answer to a question stored in its dataset's held-out part, or to any of a skill's own test questions, is not handed over at all, since its wording was written from that answer too. So the skill's helper never reads what its check then measures, and the skill's session says how many problems were left out (`seed_withheld`).
 
 The failed training answers this session read that used the skill count as the skill's evidence too: test questions from the stored training part of the session's own dataset, which a skill check never measures on. A skill's Improve started this way no longer needs chat answers rated down to begin; a caller who may not run that dataset reads none of those answers.
 
