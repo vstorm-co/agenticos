@@ -417,7 +417,11 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     """A row staged before the rule, or by a writer that never passed staging, is
     still written with every tool that writes asking for approval."""
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"read_file": "required"}}
+    stored = {
+        "id": "artifacts",
+        "approval": "required",
+        "tool_approval": {"read_artifact": "required"},
+    }
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=stored)
 
     projected, skipped = hunks.projection(spec, [hunk])
@@ -425,10 +429,10 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     assert skipped == []
     (binding,) = projected.capabilities
     assert binding.tool_approval == {
-        "read_file": "required",
-        "execute": "required",
-        "write_file": "required",
-        "edit_file": "required",
+        "read_artifact": "required",
+        "publish_artifact": "required",
+        "export_artifact": "required",
+        "share_artifact": "required",
     }
     assert hunks.apply_field(spec, hunk, stored) == projected
 
@@ -436,7 +440,7 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
 @pytest.mark.security
 def test_a_stored_capability_that_loosens_a_tool_is_left_out_rather_than_written():
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    loosening = {"id": "sandbox", "tool_approval": {"execute": "never"}}
+    loosening = {"id": "artifacts", "tool_approval": {"publish_artifact": "never"}}
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=loosening)
 
     assert hunks.projection(spec, [hunk]) == (spec, [hunk])
@@ -560,3 +564,20 @@ def test_the_improver_reads_each_skill_by_its_line_and_only_used_bodies():
     assert "- billing (a fork)" in section
     assert "Body of returns" in section and "Body of shipping" not in section
     assert _skills_section(spec, [], set()) == ""
+
+
+def test_a_person_s_wording_keeps_its_whitespace_as_typed():
+    """Whitespace at either end of a passage is part of it: a trailing newline keeps the
+    next line on its own line."""
+    from app.schemas.authoring import HunkDecision
+    from app.schemas.improvement import ChangeEdit
+
+    accepted = HunkDecision(action="accept", text="Cite the refund policy.\n")
+    edited = ChangeEdit(edited_text="  Cite the refund policy.\n")
+
+    assert accepted.text == "Cite the refund policy.\n"
+    assert edited.edited_text == "  Cite the refund policy.\n"
+    hunk = _anchored(BASE, _change(new="Cite the policy.\n", after="refunds.\n"))
+    assert hunks.apply_text(BASE, hunk, accepted.text) == (
+        "Be brief.\nAnswer refunds.\nCite the refund policy.\nBe brief.\nHand off to a human."
+    )

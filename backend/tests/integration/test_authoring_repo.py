@@ -15,12 +15,13 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
-from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkStatus
+from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkStatus, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
@@ -341,6 +342,27 @@ class TestProposals:
         assert open_batch is not None and open_batch.id == second.id
         assert latest is not None and latest.id == second.id
         assert first.closed_at is not None
+
+    async def test_checks_started_together_all_land_on_the_batch(self, db: AsyncSession):
+        """Two checks each read the batch before either wrote; both runs stay listed,
+        because the append happens in the database rather than from a list read earlier."""
+        org, user = await _org(db)
+        agent = await _agent(db, org, user)
+        batch = await self._batch(db, org, agent)
+        first, second = uuid.uuid4(), uuid.uuid4()
+        await db.execute(
+            update(SpecProposalBatch)
+            .where(SpecProposalBatch.id == batch.id)
+            .values(check_eval_run_ids=[first])
+            .execution_options(synchronize_session=False)
+        )
+        assert batch.check_eval_run_ids == []
+
+        stored = await authoring_repo.append_check_run(
+            db, organization_id=org.id, batch=batch, run_id=second
+        )
+
+        assert stored.check_eval_run_ids == [first, second]
 
     async def test_a_hunk_is_decided_once(self, db: AsyncSession):
         org, user = await _org(db)

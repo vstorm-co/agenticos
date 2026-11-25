@@ -16839,6 +16839,7 @@
         "unknown_capability": "Zo'n capability bestaat niet",
         "invalid_config": "De instellingen ervan zijn niet geldig",
         "does_not_apply": "Het past niet bij het concept",
+        "reaches_network": "Het voegt een capability toe die buiten deze deployment reikt. Voeg die toe in de Builder, waar de grenzen ervan worden ingesteld",
         "not_grantable": "Het voegt iets toe wat de persoon die het vroeg niet mag toekennen",
         "dismissed_before": "Iemand heeft het eerder verworpen",
         "unsupported": "Zei dat de bewerking ondersteund is, zonder bewijs dat kon worden gecontroleerd",
