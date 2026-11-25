@@ -87,8 +87,11 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   // before it is priced: it may be gone, or one this person may not run.
   const unlisted = chosen !== null && !listed.some((dataset) => dataset.id === chosen);
   const linked = useDataset(unlisted && listsRead ? chosen : "");
+  // A failed refetch keeps the earlier answer, which is not priced on.
   const usable =
-    unlisted && linked.dataset?.id === chosen && linked.dataset.can_run ? linked.dataset : null;
+    unlisted && linked.error === null && linked.dataset?.id === chosen && linked.dataset.can_run
+      ? linked.dataset
+      : null;
   // Only a definite answer - gone, refused or not runnable - moves to the usual dataset; a
   // failed read is shown and prices nothing, so an outage never changes what is measured.
   const linkedGone =

@@ -30,7 +30,7 @@ const state = vi.hoisted(() => ({
   ],
   suites: [] as { dataset_id: string; name: string }[],
   /** A dataset read by its id: one the lists do not hold, or why it could not be read. */
-  linked: {} as Record<string, { name: string; can_run: boolean } | Error>,
+  linked: {} as Record<string, { name: string; can_run: boolean; error?: Error } | Error>,
   linkedReads: [] as string[],
   refetchLinked: vi.fn(),
 }));
@@ -48,9 +48,9 @@ vi.mock("@/hooks/use-datasets", () => ({
     return found instanceof Error
       ? { dataset: undefined, isLoading: false, error: found, refetch: state.refetchLinked }
       : {
-          dataset: id ? { id, ...found } : undefined,
+          dataset: id ? { id, name: found.name, can_run: found.can_run } : undefined,
           isLoading: false,
-          error: null,
+          error: found.error ?? null,
           refetch: state.refetchLinked,
         };
   },
@@ -352,6 +352,17 @@ it("shows a linked dataset that failed to read, and prices nothing until it is r
   );
   expect(screen.queryByText(/The dataset in the link cannot be used/)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
+  await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
+});
+
+it("prices nothing on a linked dataset whose read failed again after an earlier answer", async () => {
+  state.estimate.mockResolvedValue(QUOTE);
+  state.linked = {
+    flaky: { name: "Flaky questions", can_run: true, error: new ApiError(502, "Bad gateway") },
+  };
+  state.params = new URLSearchParams("improveDataset=flaky");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(/nothing is priced yet/);
   await waitFor(() => expect(state.estimate).not.toHaveBeenCalled());
 });
 
