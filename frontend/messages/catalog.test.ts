@@ -389,6 +389,21 @@ describe.each([
   });
 });
 
+describe.each([
+  ["French", fr],
+  ["Turkish", tr],
+])("%s catalog for Improve, the assistant and evals", (_language, catalog) => {
+  it("covers every message of those screens without obsolete keys", () => {
+    const screens = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const ofScreens = (messages: unknown) =>
+      entries(messages)
+        .map(([key]) => key)
+        .filter((key) => screens.some((prefix) => key.startsWith(prefix)))
+        .sort();
+    expect(ofScreens(catalog)).toEqual(ofScreens(en));
+  });
+});
+
 describe("Turkish ICU contracts", () => {
   it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
     const translated = new Map(entries(tr));
