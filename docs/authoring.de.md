@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "11d42313d5f2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -572,7 +572,13 @@ Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
 die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und
 dem Recht, das Dataset auszuführen; alle anderen sehen die Zahlen. Eine Frage,
 die eine Variante nicht beantworten oder nicht bewerten lassen konnte, gilt als
-nicht bestanden. Eine Suche ohne Fortschritt über eine Stunde schlägt als
+nicht bestanden.
+
+Eine Vorschlagsrunde, die das Modell nicht beantwortet - der Anbieter lehnte ab,
+überschritt die Zeit oder war nicht erreichbar -, wird bis zu dreimal erneut
+gestellt; danach endet die Suche, weil der Helfer keine weiteren Varianten
+schreiben konnte, und die Kosten der fehlgeschlagenen Runden zählen zu ihren
+Ausgaben. Eine Suche ohne Fortschritt über eine Stunde schlägt als
 `stalled` fehl und kann erneut versucht werden.
 
 Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen

@@ -10,6 +10,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +41,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_search import (
+    MAX_PROPOSAL_ATTEMPTS,
     ImprovementSearchService,
     SearchWorker,
 )
@@ -70,6 +72,7 @@ class Searcher:
         before: Callable[[str], Any] | None = None,
         crash: str | None = None,
         proposing: Callable[[], Any] | None = None,
+        failing: list[Exception] | None = None,
     ) -> None:
         self.db = db
         self.variants = (
@@ -85,6 +88,8 @@ class Searcher:
         self.before = before
         self.crash = crash
         self.on_proposal = proposing
+        self.failing = list(failing or [])
+        """Errors the next rounds of proposals raise, each after its run is recorded."""
         self.asked: list[str] = []
         self.proposals: list[str] = []
 
@@ -109,6 +114,10 @@ class Searcher:
         )
         self.db.add(run)
         await self.db.flush()
+        if proposing and self.failing:
+            run.status = "failed"
+            await self.db.flush()
+            raise self.failing.pop(0)
         if proposing:
             if self.on_proposal is not None:
                 await self.on_proposal()
@@ -475,6 +484,33 @@ class TestAnswers:
         assert len(reasons) == 5
         assert reasons.count("not answered") == 3 and reasons.count("not graded") == 1
 
+    async def test_a_judge_the_model_failed_leaves_the_question_ungraded(self, db):
+        """The other answers, already paid for, still count; the variant is scored once."""
+        ctx, _, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(db)
+        evaluate = ScoringService.evaluate
+
+        async def grading(self, ctx, case, answer, scoring, **kw):
+            if case.input == "Train question 4":
+                raise ModelHTTPError(502, "judge-test")
+            return await evaluate(self, ctx, case, answer, scoring, **kw)
+
+        with patch.object(ScoringService, "evaluate", new=grading):
+            await _units(db, ctx, read.id, model)
+
+        iteration = await _iteration(db, read.id)
+        variants = await improvement_repo.list_variants(
+            db, organization_id=ctx.organization_id, iteration_id=iteration.id
+        )
+        scored = [v for v in variants if v.status == "scored"]
+        best = next(v for v in variants if v.instructions == _WINDOW)
+        assert best.cases_scored == 12
+        assert [f["failed"] for f in best.failures if f["failed"] == ["not graded"]] == [
+            ["not graded"]
+        ]
+        assert model.asked.count("Train question 4") == len(scored)
+
 
 class TestRecovery:
     async def test_a_search_unit_waits_in_the_organizations_one_lane(self, db):
@@ -634,6 +670,55 @@ class TestRecovery:
 
         await _units(db, ctx, read.id, Searcher(db, variants=[{"not": "a variant"}]))
 
+        assert (await _iteration(db, read.id)).search["stop_reason"] == "proposal"  # ty: ignore[not-subscriptable]
+
+    async def test_a_model_that_keeps_failing_ends_the_search_after_its_attempts(self, db):
+        """A provider error is a failed attempt with its cost recorded, not a job that dies
+        and is queued again every minute."""
+        ctx, _, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(db, failing=[ModelHTTPError(503, "gpt-test") for _ in range(5)])
+
+        await _units(db, ctx, read.id, model)
+
+        search = (await _iteration(db, read.id)).search
+        assert search is not None and search["stop_reason"] == "proposal"
+        assert len(model.failing) == 5 - MAX_PROPOSAL_ATTEMPTS
+        # The seed's twelve answers and each failed round of proposals.
+        assert Decimal(search["cost_usd"]) == Decimal("0.12") + Decimal("0.02") * 3
+        run = await _finish(db, ctx, read.id)
+        assert run.status == "stopped" and run.stage == "searching"
+
+    async def test_a_round_the_model_failed_once_is_asked_again(self, db):
+        ctx, _, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(db, failing=[ModelHTTPError(429, "gpt-test")])
+
+        await _units(db, ctx, read.id, model)
+
+        search = (await _iteration(db, read.id)).search
+        assert search is not None and search["stop_reason"] != "proposal"
+        assert search["proposal_attempts"] == 0
+        assert model.failing == [] and model.proposals
+
+    async def test_a_bug_in_a_round_is_not_taken_for_the_model_failing(self, db):
+        """It propagates and its job dies; the attempts counted as each round begins still
+        end the search instead of queueing it forever."""
+        ctx, _, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(db, failing=[KeyError("variants") for _ in range(5)])
+        died = 0
+
+        with _answering(model), patch("app.services.improvement_search.CASE_PARALLELISM", 1):
+            for _ in range(10):
+                try:
+                    await SearchWorker(read.id, ctx.organization_id, sessions=_sessions(db)).run()
+                except KeyError:
+                    died += 1
+                if (await _iteration(db, read.id)).search.get("stop_reason") is not None:  # ty: ignore[possibly-missing-attribute]
+                    break
+
+        assert died == MAX_PROPOSAL_ATTEMPTS
         assert (await _iteration(db, read.id)).search["stop_reason"] == "proposal"  # ty: ignore[not-subscriptable]
 
     async def test_a_unit_whose_actor_lost_access_hands_the_session_back(self, db):
