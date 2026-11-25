@@ -91,6 +91,15 @@ Two kinds of permission, and they behave differently.
 `promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
 `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
 
+One exception: `approvals:decide` is global but member and builder hold it at
+`OWN`, for a run they started only. The scope is enforced per run in the decide
+path, not by the role - a role cannot see which run an approval belongs to - so
+a member may decide their own run's approval from a signed-in web/chat session
+and nobody else's. Cross-person approvals, workflow approvals, routine standing
+consent and the organization waiver switch stay with owner, admin and operator.
+
+The same person opens their own run, reads its transcript and retries it without `runs:view`, which is how the expiry notice's link works for a member. It reads only their own run, as a signed-in web session with an active membership, and only while they still hold `approvals:decide`. It shows no trace link and no neighbouring runs, and the manifest stays with `runs:view`. API keys, publisher fallback, routines and impersonated sessions get none of it.
+
 The explicit `mcp:personal:use` scope lets external API or OAuth runs use the credential issuer's personal MCP connections. Select it under **Custom** and confirm this delegation; no preset, including **Full access**, includes it, and existing credentials keep organization-only access. It grants no personal memory, conversation search or routine consent. Approval resumes retain the original owner and credential; connected accounts, live key scopes and access to the root and discovered delegates are rechecked before personal tool calls.
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
@@ -197,9 +206,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 | --- | --- | --- | --- | --- |
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | reads | `view` `SHARED` | none | `members:view` |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the
@@ -723,3 +732,5 @@ changes presentation only, so a client that ignores it gains no additional acces
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installation administration through MCP requires the live application-admin flag and a separately approved OAuth `deployment:admin` scope. It is not a `Perm`, role permission or preset. Organization administration alone cannot grant it. Only an explicitly authorized external client receives it; internal agents, routines and ordinary API keys never inherit it. Reauthorize existing connections to opt in. See [MCP administration](mcp.md#administration-through-mcp).

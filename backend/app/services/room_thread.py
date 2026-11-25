@@ -799,7 +799,7 @@ class RoomThreadService:
         ctx: AuthContext,
         conversation_id: UUID,
         root_message_id: UUID,
-        action: str,
+        action: Literal["close", "reopen", "archive", "unarchive"],
     ) -> RoomThreadActionRead:
         conversation, root, organization_id, user_id = await self._conversation_and_root(
             ctx, conversation_id, root_message_id
@@ -842,14 +842,12 @@ class RoomThreadService:
                 row.archived_by_user_id = user_id
                 row.archived_at = now
                 changed = True
-        elif action == "unarchive":
+        else:
             if row.state == "archived":
                 row.state = "closed" if row.closed_at is not None else "open"
                 row.archived_by_user_id = None
                 row.archived_at = None
                 changed = True
-        else:
-            raise ValueError(f"Unknown thread action: {action}")
         self.db.add(row)
         await self.db.flush()
         if changed:

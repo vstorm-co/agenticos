@@ -766,7 +766,12 @@ class TelegramAdapter(ChannelAdapter):
             )
 
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question with the bot's emoji, where Telegram allows it (#2084)."""
         emoji = _REACTIONS.get(reaction)

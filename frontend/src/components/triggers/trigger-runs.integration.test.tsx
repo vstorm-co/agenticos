@@ -146,6 +146,50 @@ const OPEN = { name: "See what this trigger has done" };
 describe("TriggerRow run list", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps a constrained chat card readable with its independent management controls", async () => {
+    serveRuns([]);
+    const previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: "creator",
+        email: "creator@example.com",
+        is_active: true,
+        created_at: "2026-11-16T00:00:00Z",
+      },
+    });
+    const prompt = "Prepare an actionable weekly report covering all the open work and deadlines.";
+    const view = render(
+      <div style={{ width: 320 }}>
+        <TriggerRow
+          trigger={trigger({
+            name: "Weekly planning and priorities",
+            prompt,
+            created_by_user_id: "creator",
+            runs_as_creator: true,
+          })}
+          showAgent
+        />
+      </div>,
+      { wrapper },
+    );
+    const summary = screen.getByRole("button", OPEN);
+    const article = summary.closest("article");
+    expect(article).toHaveClass("@container/routine");
+    expect(summary).toHaveClass("basis-full", "@min-[48rem]/routine:basis-0");
+    expect(within(summary).getByText("Weekly planning and priorities")).toBeVisible();
+    expect(within(summary).getByText(prompt)).toBeVisible();
+    for (const name of ["Run now", "Edit", "Pause", "Delete"]) {
+      const action = screen.getByRole("button", { name });
+      expect(action).toBeEnabled();
+      expect(summary).not.toContainElement(action);
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    view.unmount();
+    useAuthStore.setState({ user: previousUser });
+  });
+
   it("shows action labels on hover and keyboard focus", async () => {
     const user = userEvent.setup();
     serveRuns([]);
@@ -583,6 +627,7 @@ it("finishes deferred setup before enabling the routine", async () => {
   );
   expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/sources", {
     review_token: "sources",
+    mode: "restricted",
   });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

@@ -87,6 +87,19 @@ describe("the panel beside the list", () => {
 
     expect(panel().style.getPropertyValue("--run-panel-width")).toBe("560px");
   });
+  it("keeps the run open when a nested dialog owns Escape", () => {
+    const onFocusRun = openPanel();
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.append(dialog);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onFocusRun).not.toHaveBeenCalled();
+    dialog.remove();
+    const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    event.preventDefault();
+    fireEvent(window, event);
+    expect(onFocusRun).not.toHaveBeenCalled();
+  });
 });
 
 describe("moving the boundary", () => {

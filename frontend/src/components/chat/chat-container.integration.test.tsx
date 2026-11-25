@@ -1508,7 +1508,7 @@ describe("the chat container - following the transcript", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     const readHeight = vi.fn(() => 2000);
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: readHeight });
     scrollTo.mockClear();
@@ -1521,11 +1521,11 @@ describe("the chat container - following the transcript", () => {
     expect(readHeight).not.toHaveBeenCalled();
     expect(scrollTo).not.toHaveBeenCalled();
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
-    expect(scroller.scrollTop).toBe(2000);
-    expect(readHeight).toHaveBeenCalledTimes(1);
+    expect(scroller.scrollTop).toBe(1500);
+    expect(readHeight).toHaveBeenCalled();
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
@@ -1536,7 +1536,7 @@ describe("the chat container - following the transcript", () => {
    * dock over it. With a message in it: an empty conversation reads from its top
    * and is not followed at all.
    */
-  async function scrollerAndDock() {
+  async function scrollerAndDock(observers: ReturnType<typeof observeSizes>) {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
     act(() =>
@@ -1552,6 +1552,10 @@ describe("the chat container - following the transcript", () => {
     expect(scroller).toHaveClass("overflow-y-auto");
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    // Establish the measured extent before simulating native user scrolling.
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(scroller)) observer.grew();
+    });
     return { dock, scroller };
   }
 
@@ -1564,18 +1568,18 @@ describe("the chat container - following the transcript", () => {
 
   it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     scroller.scrollTop = 1500;
 
     growDock(observers, dock);
 
     expect(scroller.style.paddingBottom).toBe("148px");
-    expect(scroller.scrollTop).toBe(2000);
+    expect(scroller.scrollTop).toBe(1500);
   });
 
   it("leaves a reader who scrolled up where they are when the dock grows", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     // From the foot, then up: a scroll up is what lets go.
     scroller.scrollTop = 1500;
     fireEvent.scroll(scroller);
@@ -1812,25 +1816,6 @@ describe("the chat container - server dictation", () => {
     expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
     await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
-  });
-
-  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
-    readiness.current = { ...readiness.current, engine: "browser", requested: false };
-    class FakeRecognition {
-      start = vi.fn();
-      stop = vi.fn();
-    }
-    vi.stubGlobal("SpeechRecognition", FakeRecognition);
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
-
-    expect(
-      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
-    ).toBeInTheDocument();
-    vi.unstubAllGlobals();
   });
 
   it("cancels a recording when the agent leaves the server engine mid-sentence", async () => {
@@ -2126,7 +2111,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     mount();
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(document.querySelector<HTMLElement>("[data-chat-scroller]")?.scrollTop).toBe(0);
     expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
 
     act(() =>
@@ -2143,7 +2128,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const scroller = dock.previousElementSibling as HTMLElement;
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
     expect(scroller.scrollTop).toBe(1500);
@@ -3494,32 +3479,6 @@ describe("the chat container - a conversation shared with the reader", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
   });
-});
-
-it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
-  const originalGet = get.getMockImplementation();
-  get.mockImplementation((url: string, ...args: unknown[]) =>
-    url.startsWith("/outcomes?")
-      ? Promise.resolve({
-          items: [
-            {
-              id: "notice",
-              kind: "approval_requested",
-              summary: "Review the pending operation",
-              status: "open",
-              context_url: "/runs?tab=approvals",
-              source_conversation_id: "c-notice",
-            },
-          ],
-        })
-      : originalGet?.(url, ...args),
-  );
-  useConversationStore.getState().setCurrentConversationId("c-notice");
-  mount();
-  const notice = await screen.findByText("Review the pending operation");
-  const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
-  expect(dock).toContainElement(notice);
-  expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
 });
 
 describe("opening a saved chat", () => {

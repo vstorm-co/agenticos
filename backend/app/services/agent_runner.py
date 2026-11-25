@@ -310,7 +310,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
@@ -380,6 +380,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
+from app.services.approval_authority import may_decide_approval, may_open_own_run, may_waive_own_run
 from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
@@ -4448,11 +4449,14 @@ class AgentRunnerService:
         Three things have to hold for `APPROVE_ALL`, and each is a different
         failure if it does not:
 
-        - the caller holds `approvals:decide`. A standing consent *is* the
-          decision the approval queue exists to record, and `member` and `builder`
-          hold `agents:run` without it - so without this gate the everyday chat
-          user grants themselves, in one click, the authority the API refuses them
-          one endpoint over;
+        - the caller may waive for a run they start: a privileged decider, or
+          a signed-in person holding `approvals:decide` deciding their own
+          run in advance. A standing consent *is* the decision the approval
+          queue exists to record, and a member who may decide each of their
+          own calls one by one may also say so once, for that conversation -
+          but only there: a key, a routine, a publisher fallback or an
+          impersonated session may not waive, even when the role behind it
+          could, because none of them is the person the run belongs to;
         - the organization allows waiving at all. Without a ceiling a Builder's
           deliberate gate is one click from nothing in every conversation, which
           makes the per-tool model advisory;
@@ -4470,7 +4474,7 @@ class AgentRunnerService:
                 message="Approvals can only be waived from a chat session.",
                 details={"surface": surface.value},
             )
-        if not ctx.has(Perm.APPROVALS_DECIDE):
+        if not may_waive_own_run(ctx):
             raise AuthorizationError(
                 message="You may not waive approvals; ask somebody who can decide them.",
                 details={"permission": Perm.APPROVALS_DECIDE.value},
@@ -4829,6 +4833,14 @@ class AgentRunnerService:
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
         skills = _skills_with_content_overrides(skills, skill_content_overrides)
+        context_files = await self.context.resolve_for_agent(
+            ctx,
+            spec.context_ids,
+            projected=context_bodies,
+            config=context_config(spec.capabilities),
+        )
+        if routine is not None:
+            routine.require_materialized(skills, context_files)
         skill_log = SkillUseLog(
             agent_id=agent.id,
             served=served_skills(skills, own_bodies),
@@ -4839,17 +4851,15 @@ class AgentRunnerService:
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
             SKILL_USE_LOG_RESOURCE: skill_log,
             "skills": skills,
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx,
-                spec.context_ids,
-                projected=context_bodies,
-                config=context_config(spec.capabilities),
-            ),
+            CONTEXT_FILES_RESOURCE: context_files,
             SKILL_BODIES_RESOURCE: own_bodies,
             RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
             SPECIALIST_SKILLS_RESOURCE: [],
         }
+        if routine is not None:
+            resources["routine_authority"] = routine
+            resources["routine_behavior_namespace"] = "root"
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
         recorded = await self._recorded_conversation_state(
@@ -5083,8 +5093,12 @@ class AgentRunnerService:
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
             if (
-                set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
-                or resolved.unavailable
+                (
+                    not set(resolved.sources).issubset(routine.source_policy.root_mcp_ids)
+                    if routine.source_policy.mode == "follow_agent"
+                    else set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
+                )
+                or (resolved.unavailable and routine.source_policy.mode == "restricted")
                 or any(
                     identity != (routine.mcp_sources or {}).get(identifier)
                     for identifier, identity in resolved.sources.items()
@@ -6499,6 +6513,7 @@ class AgentRunnerService:
             agent_id=None,
             shared=shared,
             parent_resources=resources,
+            behavior_namespace=f"{resources.get('routine_behavior_namespace', 'root')}:inline:{specialist.name}",
             person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
@@ -6636,6 +6651,7 @@ class AgentRunnerService:
             agent_id=ref.agent_id,
             shared=shared,
             parent_resources=resources,
+            behavior_namespace=f"delegate:{ref.agent_version_id}",
             person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
@@ -6783,6 +6799,7 @@ class AgentRunnerService:
         person_id: UUID | None,
         authorities: dict[str, str] | None = None,
         restoring: bool = False,
+        behavior_namespace: str | None = None,
     ) -> dict[str, Any]:
         """A resource dict of the delegate's own, resolved from the delegate's spec.
 
@@ -6822,15 +6839,24 @@ class AgentRunnerService:
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
+        context_files = await self.context.resolve_for_agent(
+            ctx, spec.context_ids, config=context_config(spec.capabilities)
+        )
+        routine = parent_resources.get("routine_authority")
+        if isinstance(routine, RoutineAuthority):
+            if behavior_namespace is None:
+                raise RoutineSourcesRequired()
+            routine.require_materialized(skills, context_files, namespace=behavior_namespace)
         resources: dict[str, Any] = {
             **bound,
             "skills": skills,
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx, spec.context_ids, config=context_config(spec.capabilities)
-            ),
+            CONTEXT_FILES_RESOURCE: context_files,
             SKILL_BODIES_RESOURCE: projected,
             RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        if isinstance(routine, RoutineAuthority):
+            resources["routine_authority"] = routine
+            resources["routine_behavior_namespace"] = behavior_namespace
         gathered = parent_resources.get(SPECIALIST_SKILLS_RESOURCE)
         if agent_id is None and isinstance(gathered, list):
             gathered.extend(skills)
@@ -7653,6 +7679,28 @@ class AgentRunnerService:
         await self._record_manifest(prepared)
         await RoutineHealthService(self.db).run_result(finished)
         await self._queue_memory_extraction(finished, prepared)
+        if (
+            finished.user_id is not None
+            and finished.surface in {RunSurface.WEB, *CHANNEL_SURFACES}
+            and not finished.initiated_by_publisher_fallback
+            and not finished.is_test
+            and finished.parent_run_id is None
+            and finished.key_scopes is None
+            and prepared.built.deps.audience is not None
+            and prepared.built.deps.audience.user_id == finished.user_id
+            and not prepared.built.deps.impersonated
+        ):
+            from app.services.proactive import ProactiveService
+
+            try:
+                async with self.db.begin_nested():
+                    await ProactiveService(self.db).queue_context_change(
+                        finished.organization_id, finished.user_id
+                    )
+            except Exception:
+                logger.exception(
+                    "personal_context_queue_failed", extra={"run_id": str(finished.id)}
+                )
 
         from app.services.conversation_tasks import ConversationTaskService
 
@@ -8490,8 +8538,10 @@ class AgentRunnerService:
         for approval in approvals:
             if approval.status != ApprovalStatus.PENDING.value:
                 continue
-            # The same withholding the approvals queue applies: this route is
-            # reachable with the run's id by anybody who may read the queue.
+            # The same withholding the approvals queue applies: this is read
+            # for a run the caller may decide, and the parked route refuses
+            # anybody else - so the rows below are offered to be decided, and
+            # `can_decide` says so per row rather than the reader assuming it.
             hidden = await reader.hidden_fields(ctx, approval)
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
@@ -8511,6 +8561,7 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    can_decide=may_decide_approval(ctx, run),
                 )
             )
         return parked
@@ -9053,7 +9104,11 @@ class AgentRunnerService:
                 run.user_id == ctx.user_id
                 or (
                     run.status == RunStatus.AWAITING_APPROVAL.value
-                    and ctx.has(Perm.APPROVALS_DECIDE)
+                    # A privileged decider only: `approvals:decide` at `OWN`
+                    # is the run's own person deciding their own run, which
+                    # the first branch already covers - reading it here would
+                    # let any member stop anybody's parked run.
+                    and ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL)
                 )
             )
         )
@@ -9075,7 +9130,7 @@ class AgentRunnerService:
         )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": run_id})
-        decider = ctx.has(Perm.APPROVALS_DECIDE) and run.status in (
+        decider = ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL) and run.status in (
             RunStatus.AWAITING_APPROVAL.value,
             RunStatus.CANCELLED.value,
         )
@@ -9154,6 +9209,13 @@ class AgentRunnerService:
                 message="Retry this run from a signed-in session", details={"run_id": run_id}
             )
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        # Without `runs:view` only the starter's own run is open, and everybody
+        # else is refused before the run is confirmed to exist.
+        if not ctx.has(Perm.RUNS_VIEW) and (run is None or not may_open_own_run(ctx, run)):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         if run.user_id != ctx.user_id:
@@ -10362,6 +10424,29 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def read_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
+        """One run for the detail view: any run to `runs:view`, else the caller's own.
+
+        A starter without `runs:view` - a member whose approval expired - opens
+        the run the notice names, and no other. Everybody else without the
+        permission is refused whether or not the run exists, so the refusal
+        confirms nothing.
+
+        Raises:
+            AuthorizationError: No `runs:view`, and the run is not the caller's own.
+            NotFoundError: The caller holds `runs:view` and the run is not in
+                their organization.
+        """
+        if ctx.has(Perm.RUNS_VIEW):
+            return await self.get_run(ctx, run_id)
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None or not may_open_own_run(ctx, run):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
+        return run
+
     async def neighbor_run_ids(
         self, ctx: AuthContext, run: AgentRun
     ) -> tuple[UUID | None, UUID | None]:
@@ -10413,6 +10498,11 @@ class AgentRunnerService:
         `runs:view` become a 403: a refusal that necessarily tells a member the
         run exists, and only ever reaches a member.
 
+        The one way in without `runs:view` is the run's own starter
+        (`may_open_own_run`): a member reads the transcript of a run they started,
+        which is their own conversation, and no other member's. That never grants
+        the permission - a colleague's run is refused as before.
+
         A run with no conversation has no transcript by construction - the runner
         never writes a turn for one (:meth:`TranscriptService.record` returns at
         once when `conversation_id` is `None`) - so its emptiness is reported
@@ -10432,12 +10522,12 @@ class AgentRunnerService:
             NotFoundError: The run is not in the caller's organization - whether
                 it belongs to another tenant or to nobody.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
@@ -10494,12 +10584,12 @@ class AgentRunnerService:
                 not exist: this route must not confirm one to a caller who cannot
                 read the transcript it hangs on.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},

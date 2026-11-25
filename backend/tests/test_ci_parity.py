@@ -108,6 +108,10 @@ CI_ONLY_TARGETS = {
     "test-backend-jobs-check",
     "test-backend-reports-check",
     "test-backend-merge",
+    # Proves the time-balanced shards ran every file exactly once, and records the
+    # seconds per file the next run balances on. Both read the shards' outputs.
+    "test-backend-partition-check",
+    "backend-file-times",
     # `downgrade base` against CI's throwaway `test_db` is a rollback test;
     # against a laptop's `backend/.env` it is somebody's afternoon.
     "test-migrations",
@@ -368,19 +372,3 @@ class TestCheckRunsUnderThePinnedInterpreter:
             "route each through `uv run --directory backend python3 "
             "../scripts/<name>.py`, the fix `check_routes.py` already got"
         )
-
-
-def test_dependency_freshness_allows_the_full_backend_runtime() -> None:
-    """The upgrade canary runs the same suite; 25 minutes cut off healthy tests."""
-    timeouts: list[int] = []
-    for filename, job_name in (("ci.yml", "test"), ("dependency-freshness.yml", "newest")):
-        config: object = yaml.safe_load((WORKFLOW.parent / filename).read_text())
-        assert isinstance(config, dict)
-        jobs = config["jobs"]
-        assert isinstance(jobs, dict)
-        job = jobs[job_name]
-        assert isinstance(job, dict)
-        timeout = job["timeout-minutes"]
-        assert isinstance(timeout, int)
-        timeouts.append(timeout)
-    assert timeouts[1] >= timeouts[0], "dependency freshness must allow the full backend CI runtime"

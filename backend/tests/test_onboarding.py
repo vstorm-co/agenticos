@@ -15,7 +15,14 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories import agent_repo, member_repo, onboarding_repo, organization_repo, user_repo
+from app.repositories import (
+    agent_repo,
+    deployment_settings_repo,
+    member_repo,
+    onboarding_repo,
+    organization_repo,
+    user_repo,
+)
 from app.schemas.agent import AgentRead
 from app.schemas.onboarding import OnboardingUpdate
 from app.services.agent_registry import AgentRegistryService
@@ -45,6 +52,7 @@ def start(monkeypatch: pytest.MonkeyPatch) -> StartFixture:
         created_by_user_id=ctx.subject_id,
     )
     db = AsyncMock()
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
     monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=member))
     monkeypatch.setattr(member_repo, "get", AsyncMock(return_value=member))
     monkeypatch.setattr(organization_repo, "get_by_id", AsyncMock(return_value=org))
@@ -460,3 +468,26 @@ async def test_start_never_offers_an_inaccessible_setup_agent(
         ShippedAgentService, "setup_candidate", AsyncMock(side_effect=error(message="Unavailable"))
     )
     assert (await service.state(ctx)).setup_agent is None
+
+
+@pytest.mark.parametrize("days", (1, 3, 7))
+async def test_snooze_uses_the_membership_frequency_without_claiming_completion(
+    start: StartFixture, days: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, member, _, service = start
+    member.onboarding_dismissed_at = datetime.now(UTC)
+    member.onboarding_reminders = {"snooze_days": days}
+    if days == 7:
+        from app.db.models.deployment_settings import DeploymentSettings
+
+        monkeypatch.setattr(
+            deployment_settings_repo,
+            "get",
+            AsyncMock(return_value=DeploymentSettings(onboarding_reminders_available=False)),
+        )
+        org = await organization_repo.get_by_id(service.db, ctx.organization_id)
+        assert org is not None
+        org.onboarding_reminders = {"snooze_days": 3}
+    result = await service.state(ctx)
+    assert result.snoozed_until == member.onboarding_dismissed_at + timedelta(days=days)
+    assert result.dismissed and not result.completed

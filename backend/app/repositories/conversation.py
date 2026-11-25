@@ -11,6 +11,7 @@ from pydantic import JsonValue
 from sqlalchemy import (
     BigInteger,
     ColumnElement,
+    DateTime,
     Integer,
     Numeric,
     Select,
@@ -47,6 +48,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.room_submission import RoomSubmission
 from app.db.models.room_thread import RoomThread
 from app.db.models.user import User
@@ -447,6 +449,7 @@ def _list_filters(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -479,6 +482,10 @@ def _list_filters(
         )
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
+    if project_scope == "only":
+        filters.append(Conversation.project_id.is_not(None))
+    elif project_scope == "exclude":
+        filters.append(Conversation.project_id.is_(None))
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -562,6 +569,75 @@ def _reachable_by(
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
     return or_(*ways_in)
+
+
+async def waiting_chat_questions(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    usable_project_ids: Collection[UUID],
+    participant_ids: Collection[UUID],
+    asked_since: datetime,
+    skip: int,
+    limit: int,
+) -> tuple[Sequence[tuple[UUID, UUID, str | None, str, datetime]], int]:
+    """Page this person's unexpired web questions in chats they can continue."""
+    edit_share = select(ConversationShare.id).where(
+        ConversationShare.conversation_id == Conversation.id,
+        ConversationShare.shared_with == user_id,
+        ConversationShare.permission == "edit",
+    )
+    waiting = (
+        select(
+            AgentRun.id.label("run_id"),
+            Conversation.id.label("conversation_id"),
+            Conversation.title,
+            Agent.name,
+            type_coerce(AgentRun.ended_at, DateTime(timezone=True)).label("asked_at"),
+        )
+        .join(Conversation, Conversation.id == AgentRun.conversation_id)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Conversation.organization_id == organization_id,
+            Agent.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.WEB.value,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.is_test.is_(False),
+            or_(AgentRun.key_scopes.is_(None), AgentRun.key_scopes == JSONB.NULL),
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at > asked_since,
+            AgentRun.paused_state["questions"] != [],
+            # Resume refuses nonempty private history without destination proof.
+            # Do not turn the navigation read into a broader stored-state validator.
+            or_(
+                AgentRun.paused_state["messages"].astext.is_(None),
+                AgentRun.paused_state["messages"] == [],
+                func.jsonb_typeof(AgentRun.paused_state["history_provenance"]) == "object",
+            ),
+            or_(
+                AgentRun.paused_state["question_results"].astext.is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
+            Conversation.origin.is_distinct_from("workflow"),
+            Conversation.is_archived.is_(False),
+            or_(Conversation.project_id.is_(None), Conversation.project_id.in_(usable_project_ids)),
+            or_(
+                _reachable_by(user_id, participant_ids, usable_project_ids),
+                and_(Conversation.project_id.is_(None), edit_share.exists()),
+            ),
+        )
+    )
+    rows = await db.execute(
+        waiting.order_by(AgentRun.ended_at, AgentRun.id).offset(skip).limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(waiting.subquery()))
+    return [
+        (run_id, conversation_id, title, agent, asked_at)
+        for run_id, conversation_id, title, agent, asked_at in rows
+    ], total or 0
 
 
 class ParticipationClaim(NamedTuple):
@@ -1038,6 +1114,7 @@ async def get_conversations_by_user(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
     excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
@@ -1080,6 +1157,7 @@ async def get_conversations_by_user(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
@@ -1160,6 +1238,7 @@ async def count_conversations(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
     excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
@@ -1187,6 +1266,7 @@ async def count_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     result = await db.execute(query)
@@ -2106,6 +2186,42 @@ class PersonRequest(NamedTuple):
     run: AgentRun | None
 
 
+def retained_prompt_admitted() -> ColumnElement[bool]:
+    following = aliased(Message)
+    preceding = aliased(Message)
+    answered_by_a_lost_run = (
+        select(
+            and_(
+                following.role == "assistant",
+                following.model_name.is_not(None),
+                following.run_id.is_(None),
+            )
+        )
+        .where(
+            following.conversation_id == Message.conversation_id,
+            following.ordinal > Message.ordinal,
+        )
+        .order_by(following.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    under_a_prompt = (
+        select(preceding.role == "user")
+        .where(
+            preceding.conversation_id == Message.conversation_id,
+            preceding.ordinal < Message.ordinal,
+        )
+        .order_by(preceding.ordinal.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    return and_(
+        Message.run_id.is_(None),
+        answered_by_a_lost_run,
+        func.coalesce(under_a_prompt, False).is_(False),
+    )
+
+
 async def person_requests_since(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
 ) -> list[PersonRequest]:
@@ -2138,34 +2254,6 @@ async def person_requests_since(
     never reached the edge either, and only the run's spec can say what it would
     have done.
     """
-    following = aliased(Message)
-    preceding = aliased(Message)
-    answered_by_a_lost_run = (
-        select(
-            and_(
-                following.role == "assistant",
-                following.model_name.is_not(None),
-                following.run_id.is_(None),
-            )
-        )
-        .where(
-            following.conversation_id == Message.conversation_id,
-            following.ordinal > Message.ordinal,
-        )
-        .order_by(following.ordinal)
-        .limit(1)
-        .scalar_subquery()
-    )
-    under_a_prompt = (
-        select(preceding.role == "user")
-        .where(
-            preceding.conversation_id == Message.conversation_id,
-            preceding.ordinal < Message.ordinal,
-        )
-        .order_by(preceding.ordinal.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
     result = await db.execute(
         select(Message, AgentRun)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -2176,11 +2264,7 @@ async def person_requests_since(
             Message.guardrail_refused.is_(False),
             or_(
                 AgentRun.status != RunStatus.RUNNING,
-                and_(
-                    Message.run_id.is_(None),
-                    answered_by_a_lost_run,
-                    func.coalesce(under_a_prompt, False).is_(False),
-                ),
+                retained_prompt_admitted(),
             ),
             Message.created_at >= since,
             or_(
@@ -3831,56 +3915,6 @@ async def set_model_content(
     await db.flush()
 
 
-async def prepare_saved_room_prompt(
-    db: AsyncSession,
-    *,
-    message_id: UUID,
-    conversation_id: UUID,
-    organization_id: UUID,
-    requester_id: UUID,
-    run_id: UUID,
-    model_content: str | None,
-    attachment_context: str | None,
-) -> bool:
-    """Reuse a queued room post without creating or claiming another human turn.
-
-    Only the primary responder keeps the shared history projection. A second
-    agent routes the same files for its own workspace, but must not replace the
-    first agent's screened projection with a less restrictive one.
-    """
-    result = await db.execute(
-        select(RoomSubmission.parent_submission_id)
-        .join(Message, Message.id == RoomSubmission.message_id)
-        .where(
-            RoomSubmission.run_id == run_id,
-            RoomSubmission.organization_id == organization_id,
-            RoomSubmission.conversation_id == conversation_id,
-            RoomSubmission.requester_id == requester_id,
-            RoomSubmission.message_id == message_id,
-            RoomSubmission.status == "running",
-            Message.conversation_id == conversation_id,
-            Message.author_user_id == requester_id,
-            Message.role == "user",
-        )
-    )
-    row = result.one_or_none()
-    if row is None:
-        return False
-    if row.parent_submission_id is None:
-        await db.execute(
-            sql_update(Message)
-            .where(
-                Message.id == message_id,
-                Message.conversation_id == conversation_id,
-                Message.run_id == run_id,
-                Message.guardrail_refused.is_(False),
-            )
-            .values(model_content=model_content, attachment_context=attachment_context)
-        )
-        await db.flush()
-    return True
-
-
 async def add_channel_reference(
     db: AsyncSession,
     *,
@@ -3949,3 +3983,76 @@ async def known_channel_posts(
         )
     )
     return set(result.scalars())
+
+
+async def prepare_saved_room_prompt(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    conversation_id: UUID,
+    organization_id: UUID,
+    requester_id: UUID,
+    run_id: UUID,
+    model_content: str | None,
+    attachment_context: str | None,
+) -> bool:
+    """Reuse a queued room post without creating or claiming another human turn.
+
+    Only the primary responder keeps the shared history projection. A second
+    agent routes the same files for its own workspace, but must not replace the
+    first agent's screened projection with a less restrictive one.
+    """
+    result = await db.execute(
+        select(RoomSubmission.parent_submission_id)
+        .join(Message, Message.id == RoomSubmission.message_id)
+        .where(
+            RoomSubmission.run_id == run_id,
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.requester_id == requester_id,
+            RoomSubmission.message_id == message_id,
+            RoomSubmission.status == "running",
+            Message.conversation_id == conversation_id,
+            Message.author_user_id == requester_id,
+            Message.role == "user",
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return False
+    if row.parent_submission_id is None:
+        await db.execute(
+            sql_update(Message)
+            .where(
+                Message.id == message_id,
+                Message.conversation_id == conversation_id,
+                Message.run_id == run_id,
+                Message.guardrail_refused.is_(False),
+            )
+            .values(model_content=model_content, attachment_context=attachment_context)
+        )
+        await db.flush()
+    return True
+
+
+async def native_question_answers(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> list[ToolCall]:
+    """Bounded human answers identified by server-owned identity, never an MCP name."""
+    result = await db.scalars(
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.run_id == run_id,
+            Message.guardrail_refused.is_(False),
+            ToolCall.tool_id == "ask_user_question",
+            ToolCall.presentation_kind.is_(None),
+            ToolCall.mcp_connection_id.is_(None),
+            ToolCall.status == "completed",
+        )
+        .order_by(ToolCall.started_at.desc(), ToolCall.id)
+        .limit(60)
+    )
+    return list(reversed(result.all()))

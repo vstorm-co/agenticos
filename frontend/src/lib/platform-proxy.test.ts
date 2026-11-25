@@ -224,17 +224,25 @@ describe("platformProxy", () => {
     const transcript = JSON.stringify({ items: Array(200).fill({ content: "said something" }) });
     const compressed = { headers: { "Content-Encoding": "gzip", "Content-Length": "60" } };
 
-    it("is not compressed again, whatever the browser accepts (#194)", async () => {
+    it("leaves the decoded body for Next.js to compress once", async () => {
       backendReplies(transcript, compressed);
-
       const response = await platformProxy().GET(
         request("/api/conversations/c1/messages", { headers: { "Accept-Encoding": "gzip, br" } }),
       );
+      expect(response.headers.get("Content-Encoding")).toBeNull();
+      expect(response.headers.get("Content-Length")).toBeNull();
+      expect(await response.text()).toBe(transcript);
+    });
 
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      // Not gzip magic bytes: the body is the decoded JSON, parseable as is.
-      expect(bytes.slice(0, 2)).not.toEqual(new Uint8Array([0x1f, 0x8b]));
-      expect(new TextDecoder().decode(bytes)).toBe(transcript);
+    it("is not compressed for a client that refuses gzip by quality", async () => {
+      backendReplies(transcript, compressed);
+
+      const response = await platformProxy().GET(
+        request("/api/conversations/c1/messages", {
+          headers: { "Accept-Encoding": "br, gzip;q=0" },
+        }),
+      );
+
       expect(response.headers.get("Content-Encoding")).toBeNull();
       expect(response.headers.get("Content-Length")).toBeNull();
       expect(response.headers.get("Vary")).toBe("Accept-Encoding");

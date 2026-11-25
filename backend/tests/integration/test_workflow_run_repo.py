@@ -1552,7 +1552,7 @@ class TestLoopScopes:
 
     async def test_a_runs_steps_are_paged_with_their_attempts(self, db: AsyncSession):
         org = await _org(db)
-        run = await _run(db, org, await _workflow(db, org))
+        run = await _run(db, org, await _workflow(db, org, owner_user_id=org.created_by_user_id))
         first = await _node_run(db, run)
         await _node_run(db, run)
         await workflow_run_repo.create_attempt(
@@ -1570,6 +1570,34 @@ class TestLoopScopes:
         )
         attempts = await workflow_run_repo.list_attempts_of(db, node_run_ids=[first.id])
 
+        selected, selected_total = await workflow_run_repo.list_node_runs_page(
+            db,
+            workflow_run_id=run.id,
+            organization_id=org.id,
+            skip=0,
+            limit=1,
+            node_run_id=first.id,
+        )
+        assert selected_total == 1 and [row.id for row in selected] == [first.id]
+        from app.api.routes.v1.workflow_runs import list_workflow_run_nodes
+        from app.core.permissions import AuthContext
+        from app.services.workflow_execution.facade import WorkflowExecutionService
+
+        ctx = AuthContext(user_id=org.created_by_user_id, organization_id=org.id, role="owner")
+        details = await list_workflow_run_nodes(
+            run.id, WorkflowExecutionService(db), ctx, node_run_id=first.id, skip=0, limit=1
+        )
+        assert details.total == 1 and details.items[0].id == first.id
+        wrong_run = await _run(db, org, await _workflow(db, org))
+        hidden, hidden_total = await workflow_run_repo.list_node_runs_page(
+            db,
+            workflow_run_id=wrong_run.id,
+            organization_id=org.id,
+            skip=0,
+            limit=1,
+            node_run_id=first.id,
+        )
+        assert hidden == [] and hidden_total == 0
         assert total == 2 and len(page) == 1
         assert [attempt.attempt_no for attempt in attempts] == [1]
         assert await workflow_run_repo.list_attempts_of(db, node_run_ids=[]) == []

@@ -43,7 +43,7 @@ set -euo pipefail
 
 release_repository() {
   case "$1" in
-    ghcr.io/vstorm-co/agenticos-backend|ghcr.io/vstorm-co/agenticos-frontend|ghcr.io/vstorm-co/agenticos-browser) return 0 ;;
+    "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend"|"${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend"|"${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser") return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -95,7 +95,7 @@ remember_release_images() {
   local app_dir="$1" prefix repo aliases current containers cid details id reference service health
   prefix=$(release_pin_prefix "$app_dir") || return
   containers=$(docker ps -q --filter "label=com.docker.compose.project.working_dir=$app_dir") || return
-  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+  for repo in "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser"; do
     aliases=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo") || return
     if image_in_list "$repo:$prefix-current" "$aliases"; then
       current=$(docker image inspect -f '{{.Id}}' "$repo:$prefix-current") || return
@@ -153,7 +153,7 @@ prune_release_images() {
   done
   # Two additional unused image IDs per repository, not two aliases of one ID.
   # Union the keep sets: an image shared by repositories stays if either keeps it.
-  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+  for repo in "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser"; do
     newest=$(printf '%s' "$eligible" | LC_ALL=C sort -r | awk -F'|' -v repo="$repo" '$3 == repo && ++n <= 2 { print $2 }') || return
     retained+="$newest"$'\n'
   done
@@ -198,9 +198,9 @@ check_image_space() {
     *"Docker Desktop"*)
       # DockerRootDir is inside Desktop's VM. Query its backing filesystem using
       # an already-cached backend image; never pull an image to measure capacity.
-      probe=$(printf '%s\n' "${1:-}" | awk -F'|' '$1 == "ghcr.io/vstorm-co/agenticos-backend" {image=$2} END {print image}') || return
+      probe=$(printf '%s\n' "${1:-}" | awk -F'|' -v repo="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" '$1 == repo {image=$2} END {print image}') || return
       if [ -z "$probe" ]; then
-        probe=$(docker image ls --quiet --no-trunc ghcr.io/vstorm-co/agenticos-backend | awk 'NR == 1 {first=$0} END {print first}') || return
+        probe=$(docker image ls --quiet --no-trunc "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" | awk 'NR == 1 {first=$0} END {print first}') || return
       fi
       if ! [[ "$probe" =~ ^sha256:[0-9a-f]{64}$ ]]; then
         echo "Docker Desktop capacity check needs a cached AgenticOS backend image. Complete the initial installation before using this update procedure." >&2
@@ -229,7 +229,7 @@ record_release_images() {
   prefix=$(release_pin_prefix "$3") || return
   shift 3
   for image in "$@"; do
-    repo="ghcr.io/vstorm-co/$image"
+    repo="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-${image#agenticos-}"
     id=$(docker image inspect -f '{{.Id}}' "$repo:$target") || return
     prior=""
     while IFS='|' read -r prior_repo prior_id; do
@@ -270,6 +270,15 @@ env_value() {
 # converted on its next deploy - and since the overlay declares
 # `traefik_webgateway` external, on a host that never created it compose fails
 # outright, which is the better of the two outcomes.
+AGENTICOS_IMAGE_PREFIX="${AGENTICOS_IMAGE_PREFIX:-$(env_value AGENTICOS_IMAGE_PREFIX)}"
+AGENTICOS_IMAGE_PREFIX="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}"
+if ! [[ "$AGENTICOS_IMAGE_PREFIX" =~ ^[a-z0-9][a-z0-9._-]*(:[0-9]+)?(/[a-z0-9][a-z0-9._-]*)+$ ]] || [[ "$AGENTICOS_IMAGE_PREFIX" = *://* ]]; then
+  echo "AGENTICOS_IMAGE_PREFIX must be a lowercase registry/repository prefix, without a tag or URL scheme." >&2
+  exit 1
+fi
+AGENTICOS_SOURCE_REPOSITORY="${AGENTICOS_SOURCE_REPOSITORY:-$(env_value AGENTICOS_SOURCE_REPOSITORY)}"
+AGENTICOS_SOURCE_REPOSITORY="${AGENTICOS_SOURCE_REPOSITORY:-vstorm-co/agenticos}"
+export AGENTICOS_IMAGE_PREFIX
 PROXY="$(env_value PROXY)"
 case "${PROXY:-nginx}" in
   traefik)
@@ -364,7 +373,7 @@ if "$VISUAL_RENDERER" || "$INTERACTIVE_BROWSER"; then
   IMAGES+=(agenticos-browser)
 fi
 for image in "${IMAGES[@]}"; do
-  ref="ghcr.io/vstorm-co/$image:$AGENTICOS_VERSION"
+  ref="$AGENTICOS_IMAGE_PREFIX-${image#agenticos-}:$AGENTICOS_VERSION"
   for attempt in $(seq 1 80); do
     if docker manifest inspect "$ref" >/dev/null 2>&1; then
       echo "  $ref"
@@ -375,7 +384,7 @@ for image in "${IMAGES[@]}"; do
         echo "  $ref is not in the registry after 20 minutes."
         echo "  If the Images workflow never ran for $SHA - a commit older than it, or a run that was lost -"
         echo "  publish it first, then deploy again:"
-        echo "    gh workflow run images.yml --repo vstorm-co/agenticos --ref main -f sha=$SHA"
+        echo "    gh workflow run images.yml --repo $AGENTICOS_SOURCE_REPOSITORY --ref main -f sha=$SHA"
       } >&2
       exit 1
     fi
@@ -530,6 +539,7 @@ wait_healthy() {
 
 say "Waiting for health"
 wait_healthy app "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+wait_healthy worker "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 wait_healthy frontend "${FRONTEND[@]}"
 if "$VISUAL_RENDERER"; then
   wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"

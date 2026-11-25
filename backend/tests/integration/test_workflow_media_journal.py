@@ -234,6 +234,33 @@ async def test_interruption_releases_only_proven_unsubmitted_work(
     assert collectable(current) is (evidence in {"receipt", "output"})
 
 
+@pytest.mark.parametrize("evidence", ["prepared", "submitting", "receipt"])
+async def test_a_provider_refusal_releases_only_a_submitted_request_with_no_receipt(
+    engine, monkeypatch, tmp_path, evidence
+):
+    rows, operation, journal = await prepared(engine, monkeypatch, tmp_path)
+    if evidence != "prepared":
+        await journal.start(rows.begun.dispatch_context)
+    if evidence == "receipt":
+        await journal.receipt(receipt(operation))
+    if evidence == "prepared":
+        with pytest.raises(MediaOperationError):
+            await journal.refuse(reason="MEDIA_PROVIDER_REFUSED")
+        return
+    released = await journal.refuse(reason="MEDIA_PROVIDER_REFUSED")
+    current = await journal.read()
+    assert released is (evidence == "submitting")
+    if released:
+        assert (
+            current.phase == "failed"
+            and current.held_usd == current.held_bytes == 0
+            and current.accounting_complete
+            and current.reason_code == "MEDIA_PROVIDER_REFUSED"
+        )
+    else:
+        assert current.held_usd == operation.reserved_usd and current.phase == "submitted"
+
+
 async def test_output_identity_cannot_change_after_its_inspected_bytes_are_journaled(
     engine, monkeypatch, tmp_path
 ):

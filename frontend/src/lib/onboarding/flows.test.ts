@@ -210,9 +210,9 @@ describe("FLOWS", () => {
   it("teaches the return leg by click, not by navigating for the reader", () => {
     const byId = new Map(FLOWS["create-agent"].steps.map((step) => [step.id, step]));
     const nav = byId.get("flow-agent-knowledge-return-nav");
-    // No page of its own — the reader clicks the sidebar and the arrival advances it.
+    // No page of its own — the reader opens More, picks Agents, and the arrival advances it.
     expect(nav?.page).toBeUndefined();
-    expect(nav?.target).toBe("nav-agents");
+    expect(nav?.target).toBe("nav-more");
     expect(nav?.signal).toEqual({ kind: "arrived", page: ROUTES.AGENTS });
 
     const edit = byId.get("flow-agent-knowledge-return-edit");

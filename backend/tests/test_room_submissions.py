@@ -32,6 +32,29 @@ from app.services.room_participant import RoomParticipantService
 pytestmark = pytest.mark.anyio
 
 
+@pytest.mark.parametrize("reply_id", [None, uuid4()])
+def test_explicit_null_excerpt_is_valid_with_or_without_a_reply(reply_id) -> None:
+    post = RoomMessageCreate(
+        client_message_id="null-excerpt",
+        content="Hello",
+        reply_to_message_id=reply_id,
+        reply_to_excerpt=None,
+    )
+    assert post.reply_to_excerpt is None
+    assert post.reply_to_message_id == reply_id
+
+
+@pytest.mark.parametrize("excerpt", ["", "   ", chr(0xA0) + " " + chr(0xA0)])
+def test_an_excerpt_with_no_visible_text_is_refused(excerpt: str) -> None:
+    with pytest.raises(ValueError, match="visible text"):
+        RoomMessageCreate(
+            client_message_id="blank-excerpt",
+            content="Hello",
+            reply_to_message_id=uuid4(),
+            reply_to_excerpt=excerpt,
+        )
+
+
 @pytest.fixture
 def room(monkeypatch: pytest.MonkeyPatch):
     org, person, conversation_id = uuid4(), uuid4(), uuid4()
@@ -890,3 +913,29 @@ async def test_archiving_a_thread_revokes_an_already_queued_agents_reply(room, m
     with pytest.raises(BadRequestError, match="archived"):
         await room.service.authority(row)
     replyable.assert_awaited_once_with(room.topic.id, root_id)
+
+
+async def test_an_explicit_agent_in_a_shared_room_runs_only_when_it_is_a_room_participant(
+    multiplayer,
+):
+    m, room = multiplayer, multiplayer.room
+    result = await room.service.post(
+        room.ctx, room.topic.id, request(agent_id=m.second.id), room.user
+    )
+    assert [item.agent_id for item in result.requests] == [m.second.id]
+    assert [row.agent_id for row in room.rows] == [m.second.id]
+    assert room.rows[0].dispatch == "explicit"
+    m.automatic.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_an_explicit_agent_outside_the_shared_room_is_refused_before_anything_is_saved(
+    multiplayer,
+):
+    m, room = multiplayer, multiplayer.room
+    m.validate.side_effect = AuthorizationError(message="Agent is not in this room")
+    with pytest.raises(AuthorizationError):
+        await room.service.post(room.ctx, room.topic.id, request(agent_id=uuid4()), room.user)
+    assert room.rows == []
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()

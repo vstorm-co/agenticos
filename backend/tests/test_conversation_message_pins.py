@@ -13,11 +13,73 @@ from app.db.models.conversation import Message
 from app.repositories import conversation as conversation_repo
 from app.repositories import conversation_message_pin as pin_repo
 from app.repositories import message_rating as message_rating_repo
+from app.repositories import room_thread as room_thread_repo
 from app.services.conversation import ConversationService
 from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.message_history import REFUSED_TURN
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_a_pin_deleted_before_readback_returns_message_not_found(
+    service: ConversationMessagePinService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pin_repo, "get_message_pin", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError, match="Message not found") as refused:
+        await service.pin_message(
+            CONVERSATION_ID,
+            MESSAGE_ID,
+            organization_id=ORG_ID,
+            user_id=USER_ID,
+            ctx=_ctx(),
+        )
+    assert refused.value.details == {"message_id": MESSAGE_ID}
+
+
+async def test_unpin_write_deletes_only_the_requested_readers_message() -> None:
+    from sqlalchemy.dialects import postgresql
+
+    db = AsyncMock()
+    await pin_repo.set_message_pin(
+        db,
+        user_id=USER_ID,
+        conversation_id=CONVERSATION_ID,
+        message_id=MESSAGE_ID,
+        pinned=False,
+    )
+    statement = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
+    assert str(statement).startswith("DELETE FROM conversation_message_pins WHERE ")
+    assert set(statement.params.values()) == {USER_ID, CONVERSATION_ID, MESSAGE_ID}
+    assert "conversation_message_pins.user_id =" in str(statement)
+    assert "conversation_message_pins.conversation_id =" in str(statement)
+    assert "conversation_message_pins.message_id =" in str(statement)
+    db.flush.assert_awaited_once()
+    db.commit.assert_not_awaited()
+
+
+async def test_empty_transcript_page_needs_no_pin_lookup() -> None:
+    db = AsyncMock()
+    assert (
+        await pin_repo.message_pin_ids(
+            db, user_id=USER_ID, conversation_id=CONVERSATION_ID, message_ids=[]
+        )
+        == set()
+    )
+    db.execute.assert_not_awaited()
+
+
+def test_pin_debug_representation_identifies_reader_conversation_and_message() -> None:
+    from app.db.models.conversation_message_pin import ConversationMessagePin
+
+    pin = ConversationMessagePin(
+        user_id=USER_ID, conversation_id=CONVERSATION_ID, message_id=MESSAGE_ID
+    )
+    assert repr(pin) == (
+        f"<ConversationMessagePin(user_id={USER_ID}, "
+        f"conversation_id={CONVERSATION_ID}, message_id={MESSAGE_ID})>"
+    )
+
 
 ORG_ID = uuid4()
 USER_ID = uuid4()
@@ -192,7 +254,15 @@ def _mock_transcript_reads(
     monkeypatch.setattr(
         service,
         "get_conversation",
-        AsyncMock(return_value=SimpleNamespace(id=CONVERSATION_ID)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=CONVERSATION_ID,
+                organization_id=ORG_ID,
+                project_id=None,
+                room_visibility=None,
+                is_archived=False,
+            )
+        ),
     )
     monkeypatch.setattr(
         conversation_repo, "get_messages_by_conversation", AsyncMock(return_value=messages)
@@ -207,6 +277,7 @@ def _mock_transcript_reads(
     monkeypatch.setattr(
         message_rating_repo, "get_rating_counts_for_messages", AsyncMock(return_value={})
     )
+    monkeypatch.setattr(room_thread_repo, "summaries_for_roots", AsyncMock(return_value={}))
     monkeypatch.setattr(service, "_attach_senders", AsyncMock())
     monkeypatch.setattr(service, "_attach_replies", AsyncMock())
     monkeypatch.setattr(service, "_cost", AsyncMock(return_value=None))

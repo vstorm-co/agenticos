@@ -7,8 +7,8 @@ written. This document records the proposed behavior, technical boundaries,
 delivery sequence and acceptance criteria. It does not implement or enable
 Tailscale, device control, credentials, network routes or deployment changes.
 
-**Reviewed on:** 19 November 2026, Asia/Singapore.  
-**Repository baseline:** [t3 at f1210f992e5f](https://github.com/t3grp/agenticos/commit/f1210f992e5ff915ebe982c6364b05b10ccb9088).  
+**Reviewed on:** 19 November 2026, Asia/Singapore.
+**Repository baseline:** [t3 at f1210f992e5f](https://github.com/t3grp/agenticos/commit/f1210f992e5ff915ebe982c6364b05b10ccb9088).
 **Release state:** proposed; no live Tailscale connection or device acceptance test
 has been performed. A later explicit instruction is required to begin implementation.
 Merging a design document, if separately requested, would not authorize implementation.

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
 import {
   listCodingAccounts,
@@ -23,6 +23,11 @@ interface CodingScope {
 export function useCodingAccounts() {
   const tenant = useTenantId();
   const user = useAuthStore((state) => state.user?.id);
+  // `tenant` falls back to the server's choice before an organization is
+  // selected, but the request header only carries the selection. List once
+  // the selection is made, so the request is sent as the organization it is
+  // cached under (#258).
+  const selected = useOrgStore((state) => state.activeOrgId);
   const guard = useTenantGuard();
   const client = useQueryClient();
   const key = qk.codingAccounts.mine(`${tenant ?? ""}:${user ?? ""}`);
@@ -40,7 +45,7 @@ export function useCodingAccounts() {
   const accounts = useQuery({
     queryKey: key,
     queryFn: listCodingAccounts,
-    enabled: !!tenant && !!user,
+    enabled: !!selected && !!tenant && !!user,
   });
   const connect = useMutation({ mutationFn: connectCodingAccount, ...lifecycle });
   const start = useMutation({ mutationFn: startCodingSignIn });
@@ -59,6 +64,6 @@ export function useCodingAccounts() {
     poolMembership,
     start,
     scope: `${tenant ?? ""}:${user ?? ""}`,
-    ready: !!tenant && !!user,
+    ready: !!selected && !!tenant && !!user,
   };
 }

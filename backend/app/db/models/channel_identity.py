@@ -14,13 +14,19 @@ class ChannelIdentity(Base, TimestampMixin):
 
     __tablename__ = "channel_identities"
     __table_args__ = (
-        UniqueConstraint("platform", "platform_user_id", name="uq_channel_identity_platform_user"),
+        UniqueConstraint(
+            "platform", "platform_user_id", "server_url", name="uq_channel_identity_platform_user"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     platform: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
-    platform_user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    platform_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    server_url: Mapped[str] = mapped_column(
+        String(500), nullable=False, default="", server_default=""
+    )
+    """Matrix's asserting homeserver; empty retains other platforms' global keys."""
+    platform_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    platform_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     platform_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

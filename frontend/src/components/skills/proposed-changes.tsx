@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useMemo, useState } from "react";
 import { Check, ArrowRight, BookOpen, GitPullRequest, Users, X } from "lucide-react";
 
@@ -262,7 +264,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                 </p>
               )}
               {(change.rationale || change.expected_effect || change.authoring_request_id) && (
-                <details className="mt-2">
+                <NativeDisclosure className="mt-2">
                   <summary className="cursor-pointer">{t("reviewUpdates.impact")}</summary>
                   {change.rationale && (
                     <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
@@ -274,7 +276,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                       dropped={change.evidence_dropped ?? 0}
                     />
                   )}
-                </details>
+                </NativeDisclosure>
               )}
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">

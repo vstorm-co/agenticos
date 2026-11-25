@@ -21,6 +21,7 @@ from pydantic_ai.messages import (
     NativeToolCallPart,
     RetryFeedbackPart,
     RetryInfo,
+    SystemPromptPart,
     TextPart,
     ThinkingPart,
     ToolCallPart,
@@ -649,6 +650,20 @@ async def test_portable_history_keeps_summaries_and_text_without_provider_signat
         {"role": "user", "text": "Continue"},
     ]
     assert "opaque" not in runtime.infer.await_args.kwargs["prompt"]
+
+
+async def test_a_saved_system_prompt_is_sent_as_the_first_history_entry() -> None:
+    model, runtime = _model(_reply("Understood"))
+    await model.request(
+        [ModelRequest(parts=[SystemPromptPart("Answer briefly"), UserPromptPart("Hi")])],
+        None,
+        ModelRequestParameters(),
+    )
+
+    assert _prompt(runtime)["conversation"] == [
+        {"role": "system", "text": "Answer briefly"},
+        {"role": "user", "text": "Hi"},
+    ]
 
 
 async def test_output_validation_feedback_reaches_the_next_native_step() -> None:

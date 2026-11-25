@@ -65,7 +65,9 @@ export function SecretsTable({
   const tc = useTranslations("common");
   const tPersonal = useTranslations("personalModels");
 
-  const hasActions = secrets.some((secret) => secret.can_edit === true);
+  const hasActions = secrets.some(
+    (secret) => secret.can_edit === true || secret.can_delete === true,
+  );
   const columns = useMemo<Column<Secret>[]>(() => {
     const cols: Column<Secret>[] = [
       {
@@ -179,10 +181,12 @@ export function SecretsTable({
         header: t("actions"),
         align: "right",
         className: "w-32 pr-5",
-        cell: (secret) =>
-          secret.can_edit === true ? (
+        cell: (secret) => {
+          const canEdit = secret.can_edit === true;
+          if (!canEdit && secret.can_delete !== true) return null;
+          return (
             <div className="flex justify-end gap-1">
-              {secret.usage_scope !== "personal" && (
+              {canEdit && secret.usage_scope !== "personal" && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -192,17 +196,19 @@ export function SecretsTable({
                   <Users className="h-4 w-4" />
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t(
-                  secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
-                  { name: secret.name },
-                )}
-                onClick={() => onRotate(secret)}
-              >
-                <RotateCw className="h-4 w-4" />
-              </Button>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t(
+                    secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
+                    { name: secret.name },
+                  )}
+                  onClick={() => onRotate(secret)}
+                >
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -212,7 +218,8 @@ export function SecretsTable({
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-          ) : null,
+          );
+        },
       });
     }
 

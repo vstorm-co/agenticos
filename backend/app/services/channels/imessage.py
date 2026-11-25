@@ -320,7 +320,12 @@ class ImessageAdapter(ChannelAdapter):
         )
 
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         if incoming.message_id is None:
             return

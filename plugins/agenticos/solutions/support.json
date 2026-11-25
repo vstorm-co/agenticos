@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "name": "support",
+  "contexts": [
+    {
+      "key": "policy",
+      "data": {
+        "name": "support-policy",
+        "content": "Refunds are available within 14 days. Escalate questions this policy does not answer.",
+        "mode": "inject",
+        "visibility": "private"
+      }
+    }
+  ],
+  "skills": [
+    {
+      "key": "procedure",
+      "data": {
+        "name": "support-procedure",
+        "description": "Support triage procedure",
+        "content": "Read the policy, ask for missing order details, then propose a response. Escalate unsupported promises. Never send a response without authorization.",
+        "visibility": "private"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "key": "questions",
+      "data": {
+        "name": "Support triage questions",
+        "visibility": "private"
+      },
+      "cases": [
+        {
+          "input": "What is the refund window?",
+          "reference_answer": "Refunds are available within 14 days. Escalate questions this policy does not answer.",
+          "checks": [
+            {
+              "type": "contains",
+              "value": "14"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "key": "assistant",
+      "spec": {
+        "name": "Support triage",
+        "instructions": "Read the policy, ask for missing order details, then propose a response. Escalate unsupported promises. Never send a response without authorization.",
+        "capabilities": [
+          {
+            "id": "skills"
+          }
+        ]
+      },
+      "context_keys": [
+        "policy"
+      ],
+      "skill_keys": [
+        "procedure"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "key": "intake",
+      "data": {
+        "name": "Support triage intake",
+        "graph": {
+          "entry_node_id": "085843a6-aadd-57e3-9d51-4908513c90a9",
+          "nodes": [
+            {
+              "id": "085843a6-aadd-57e3-9d51-4908513c90a9",
+              "definition_id": "trigger.manual",
+              "definition_version": 1,
+              "config": {
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "external_id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "external_id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "layout": {
+                "x": 0,
+                "y": 0
+              },
+              "label": "Manual"
+            },
+            {
+              "id": "0edb0836-d351-51b6-877f-74bc6364a99e",
+              "definition_id": "table.record.upsert",
+              "definition_version": 1,
+              "config": {
+                "table": {
+                  "kind": "table",
+                  "table_id": "3537d610-29a2-551e-ae1d-e129b2cc9680",
+                  "schema_version": 1
+                }
+              },
+              "layout": {
+                "x": 300,
+                "y": 0
+              },
+              "label": "Save"
+            },
+            {
+              "id": "cb4e7f48-81f3-54e1-97f2-8fa622fa344e",
+              "definition_id": "core.output",
+              "definition_version": 1,
+              "config": {},
+              "layout": {
+                "x": 600,
+                "y": 0
+              },
+              "label": "Output"
+            }
+          ],
+          "edges": [
+            {
+              "id": "0a8f56bc-7533-5d26-b276-1ae17baccf5e",
+              "source_node_id": "085843a6-aadd-57e3-9d51-4908513c90a9",
+              "source_port": "out",
+              "target_node_id": "0edb0836-d351-51b6-877f-74bc6364a99e",
+              "target_port": "in"
+            },
+            {
+              "id": "89330921-f374-52b7-a69c-8f5ce27c4e1c",
+              "source_node_id": "0edb0836-d351-51b6-877f-74bc6364a99e",
+              "source_port": "out",
+              "target_node_id": "cb4e7f48-81f3-54e1-97f2-8fa622fa344e",
+              "target_port": "in"
+            }
+          ],
+          "bindings": [
+            {
+              "target_node_id": "0edb0836-d351-51b6-877f-74bc6364a99e",
+              "target_field": "external_id",
+              "source": {
+                "kind": "node_output",
+                "node_id": "085843a6-aadd-57e3-9d51-4908513c90a9",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "external_id"
+                ]
+              }
+            },
+            {
+              "target_node_id": "0edb0836-d351-51b6-877f-74bc6364a99e",
+              "target_field": "values/Title",
+              "source": {
+                "kind": "node_output",
+                "node_id": "085843a6-aadd-57e3-9d51-4908513c90a9",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "title"
+                ]
+              }
+            }
+          ]
+        },
+        "table_placeholder_id": "3537d610-29a2-551e-ae1d-e129b2cc9680",
+        "table": {
+          "name": "Support triage records",
+          "columns": [
+            {
+              "label": "Title",
+              "type": "text",
+              "nullable": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

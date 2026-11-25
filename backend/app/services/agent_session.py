@@ -437,6 +437,12 @@ class AgentSession:
                         render_answer(answers[index] if index < len(answers) else None),
                         asked_by=self._pending_asked_by,
                     )
+            request_id = data.get("request_id")
+            if isinstance(request_id, str):
+                await self._emit(
+                    "ask_user_answered",
+                    {"request_id": request_id, "asked_by": self._pending_asked_by},
+                )
             return
 
         if msg_type == "steer":

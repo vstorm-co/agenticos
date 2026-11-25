@@ -38,6 +38,7 @@ export { useConversationForks } from "./use-conversation-forks";
 export { useConversationMessageSearch } from "./use-conversation-message-search";
 export { useMessagePins } from "./use-message-pins";
 export { useConversationSearch, useConversations } from "./use-conversations";
+export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
@@ -60,11 +61,13 @@ export {
   useSendAgentMessage,
 } from "./use-agent-messages";
 export { useDashboardLayout } from "./use-dashboard-layout";
+export { useNavPins } from "./use-nav-pins";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
+export { useConnectionHealth } from "./use-connection-health";
 export { useAppConnections } from "./use-app-connections";
 export {
   useNetworkConnections,

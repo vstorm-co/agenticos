@@ -55,12 +55,14 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.nav_pins import NavPins
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.room_participant import RoomParticipant
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
@@ -77,7 +79,7 @@ from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.db.updates import cleared, writable
-from app.schemas.agent import AgentDraftUpdate
+from app.schemas.agent import AgentDraftUpdate, ApplyShippedAgentUpdate, ShippedAgentUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
@@ -91,6 +93,7 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_experience import ConsoleExperienceUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.conversation_share import ConversationShareUpdate
@@ -109,6 +112,7 @@ from app.schemas.mcp_connection import (
 )
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.nav_pins import NavPinsUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
@@ -118,6 +122,7 @@ from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
+from app.schemas.room_participant import RoomParticipantAutoReplyUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
@@ -153,8 +158,13 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # A diff response and a revision precondition, not partial row updates.
+    ShippedAgentUpdate: None,
+    ApplyShippedAgentUpdate: None,
     # Coding account and task updates merge credential/config or typed record cells, not row columns.
     CodingAccountUpdate: None,
+    # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
+    ConsoleExperienceUpdate: OrganizationMember,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
@@ -167,6 +177,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
+    # One required boolean, written through `room_participant_repo.set_auto_reply`.
+    RoomParticipantAutoReplyUpdate: RoomParticipant,
     ContextFileUpdate: ContextFile,
     DatasetCaseUpdate: DatasetCase,
     # Merged into the stored scoring, a JSONB document, and validated whole there.
@@ -178,6 +190,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     # Sets `permission` on one share (`conversation_share.change_permission`).
     ConversationShareUpdate: ConversationShare,
     DashboardLayoutUpdate: DashboardLayout,
+    # Replaces `item_ids`, the one JSONB list column on the caller's own pin row.
+    NavPinsUpdate: NavPins,
     DeploymentSettingsUpdate: DeploymentSettings,
     EmbedUpdate: AgentEmbed,
     EnvironmentUpdate: AgentEnvironment,
@@ -245,6 +259,10 @@ _DUMP_EXEMPT = {
     # columns. Explicit null clears a secret reference; omitted fields must
     # preserve it. The draft API owns validation and persistence of the spec.
     "app/services/platform_mcp/_tools.py",
+    # HTTP transport must preserve omitted versus explicit null fields. The
+    # target API services apply writable before changing database columns.
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_administration.py",
     "app/services/ingestion_config.py",
     "app/services/scoring.py",
     # Dataset helper patches merge a nested JSON document after writable filters
@@ -322,6 +340,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "ShippedAgentUpdate",
+            "ApplyShippedAgentUpdate",
             "DatasetScoringUpdate",
             "JudgeScorerUpdate",
             "CodingAccountUpdate",

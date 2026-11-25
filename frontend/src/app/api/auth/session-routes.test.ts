@@ -168,6 +168,33 @@ describe("signing in", () => {
     expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
+  it.each([
+    {
+      code: "AUTHENTICATION_ERROR",
+      message: "Invalid email or password",
+      details: { reason: "invalid_credentials" },
+    },
+    { code: "AUTHENTICATION_ERROR", message: "User account is disabled", details: null },
+  ])("preserves a domain refusal and its credential-specific reason: $message", async (refusal) => {
+    vi.mocked(backendFetch).mockRejectedValue(
+      new BackendApiError(401, "Unauthorized", { error: refusal }),
+    );
+    const response = await login(request({}, { email: "a@example.com", password: "wrong" }));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: refusal });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
+  });
+
+  it.each([{ error: null }, { error: { code: 123, message: "bad" } }, { detail: 123 }])(
+    "uses a safe fallback for a malformed backend refusal: %j",
+    async (data) => {
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", data));
+      const response = await login(request({}, { email: "a@example.com", password: "wrong" }));
+      await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
+    },
+  );
+
   it("says login failed when the refusal named no reason", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
 

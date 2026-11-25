@@ -6,7 +6,7 @@
 #   ghcr.io/t3grp/agenticos-frontend:<tag>  console
 #
 # <tag> is the ref name with "/" replaced by "-", plus sha-<short>.
-# Nothing secret goes into an image: no build args or secrets are passed, and
+# Nothing secret goes into an image: the only build arg is the non-secret EXTRAS, and
 # this repository is public. Runtime config comes from the deploy host.
 # The backend builds from the repo root (-f backend/Dockerfile .) because its
 # Dockerfile copies emails/, LICENSE and frontend/licenses from the root.
@@ -78,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$MATRIX_IMAGE" = backend ]; then
-            set -- -f backend/Dockerfile .
+            set -- --build-arg EXTRAS="--extra browser" -f backend/Dockerfile .
           else
             set -- frontend
           fi

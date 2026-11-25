@@ -2225,6 +2225,22 @@ async def _require_app_admin(user: CurrentUser) -> User:
     return user
 
 
+async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> None:
+    """An MCP credential needs explicit global consent in addition to the live admin flag.
+
+    Session behavior is unchanged. Ordinary organization keys cannot reach
+    assistant-only routes, and org permissions never imply deployment authority.
+    """
+    caller = _key_caller(request)
+    if caller is not None and not user.is_app_admin:
+        raise AuthorizationError(message="App admin privileges required")
+    if caller is not None and (caller.surface != "mcp" or not caller.context.is_app_admin):
+        raise AuthorizationError(
+            message="This operation requires an external OAuth grant with deployment:admin",
+            details={"required_scope": "deployment:admin"},
+        )
+
+
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
 
 
@@ -2523,6 +2539,15 @@ def get_dashboard_layout_service(db: DBSession) -> DashboardLayoutService:
 
 
 DashboardLayoutSvc = Annotated[DashboardLayoutService, Depends(get_dashboard_layout_service)]
+
+from app.services.nav_pins import NavPinsService
+
+
+def get_nav_pins_service(db: DBSession) -> NavPinsService:
+    return NavPinsService(db)
+
+
+NavPinsSvc = Annotated[NavPinsService, Depends(get_nav_pins_service)]
 from app.services.dashboard_preset import DashboardPresetService
 
 
@@ -2835,3 +2860,21 @@ def get_network_connection_service(db: DBSession) -> NetworkConnectionService:
 
 
 NetworkConnectionSvc = Annotated[NetworkConnectionService, Depends(get_network_connection_service)]
+from app.services.solution import SolutionService
+
+
+def get_solution_service(db: DBSession) -> SolutionService:
+    return SolutionService(db)
+
+
+SolutionSvc = Annotated[SolutionService, Depends(get_solution_service)]
+
+
+from app.services.console_experience import ConsoleExperienceService
+
+
+def get_console_experience_service(db: DBSession) -> ConsoleExperienceService:
+    return ConsoleExperienceService(db)
+
+
+ConsoleExperienceSvc = Annotated[ConsoleExperienceService, Depends(get_console_experience_service)]

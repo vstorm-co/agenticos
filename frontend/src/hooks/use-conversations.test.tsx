@@ -5,7 +5,12 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useConversations, type ConversationQuery } from "./use-conversations";
+import {
+  useConversations,
+  useConversationSearch,
+  useConversationTitleSearch,
+  type ConversationQuery,
+} from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
@@ -2498,6 +2503,73 @@ it.each(["new", "delete"] as const)(
     expect(new URLSearchParams(window.location.search).get("thread")).toBeNull();
   },
 );
+
+describe("conversation message search", () => {
+  it("combines indexed excerpts with title-only matches without duplicate threads", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/conversations/search?")
+        ? {
+            items: [
+              {
+                conversation_id: "c-1",
+                title: "Notes",
+                updated_at: "2026-07-01T00:00:00Z",
+                hits: 2,
+                snippet: "Visit **Warsaw**",
+              },
+            ],
+          }
+        : { items: [conversation("c-1"), conversation("c-2")], total: 2 },
+    );
+    const { result } = renderHook(() => useConversationSearch(" Warsaw "), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items.map((item) => item.id)).toEqual(["c-1", "c-2"]);
+    expect(result.current.data?.items[0]?.snippet).toBe("Visit **Warsaw**");
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/search?query=Warsaw&limit=40");
+  });
+
+  it("makes no request for whitespace and surfaces a failed message search", async () => {
+    const { result, rerender } = renderHook(({ term }) => useConversationSearch(term), {
+      initialProps: { term: " " },
+      wrapper,
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("search unavailable"));
+    rerender({ term: "Warsaw" });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
+describe("conversation title search", () => {
+  it("lists titles on the server, archived conversations included", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [conversation("c-1")],
+      total: 1,
+    });
+    const { result } = renderHook(() => useConversationTitleSearch("refund"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items.map((item) => item.id)).toEqual(["c-1"]);
+    expect(vi.mocked(apiClient.get).mock.calls[0]?.[0]).toContain("search=refund");
+  });
+
+  it("makes no request for a blank term", () => {
+    renderHook(() => useConversationTitleSearch("  "), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("narrows a listing to one agent, to project chats, and away from API-opened chats", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(
+      () => useConversations({ agentId: "agent-1", projectScope: "only", hideApi: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    const path = String(vi.mocked(apiClient.get).mock.calls[0]?.[0]);
+    expect(path).toContain("agent_id=agent-1");
+    expect(path).toContain("project_scope=only");
+    expect(path).toContain("hide_api=true");
+  });
+});
 
 describe("moved thread context stubs", () => {
   const owner: User = {

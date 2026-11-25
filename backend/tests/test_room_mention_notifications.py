@@ -39,6 +39,7 @@ async def test_person_mention_has_scoped_dedupe_and_exact_message_link(monkeypat
     assert values["use_savepoint"] is True
     assert "mentioned" in values["summary"]
     assert values["render_context"] == {
+        "wording": "room_mention",
         "resource_kind": "conversation",
         "resource_id": str(room),
         "conversation_id": str(room),
@@ -72,6 +73,55 @@ async def test_self_mentions_do_not_generate_an_inbox_row(monkeypatch):
         message_id=uuid4(),
         thread_root_message_id=None,
         title=None,
+        sender="Me",
+        actor_user_id=actor,
+    )
+    write.assert_not_awaited()
+
+
+async def test_a_thread_reply_notifies_each_follower_once_and_never_the_author(monkeypatch):
+    follower, actor, org, room, message, root = (uuid4() for _ in range(6))
+    service = NotificationService(MagicMock())
+    write = AsyncMock(return_value=[])
+    monkeypatch.setattr(service._center, "write", write)
+    await service.room_thread_replied(
+        recipients=[follower, actor, follower],
+        organization_id=org,
+        conversation_id=room,
+        message_id=message,
+        thread_root_message_id=root,
+        title=None,
+        sender="Alex",
+        actor_user_id=actor,
+    )
+    values = write.await_args.kwargs
+    assert values["recipients"] == [follower]
+    assert values["event_type"] is NotificationEventType.ROOM_THREAD_REPLY
+    assert values["occurrence_id"] == str(message)
+    assert values["summary"] == "Alex replied in a thread in 'a conversation'."
+    assert values["render_context"]["thread_root_message_id"] == str(root)
+    assert values["render_context"]["title"] == "a conversation"
+    query = parse_qs(urlsplit(values["context_url"]).query)
+    assert query == {
+        "id": [str(room)],
+        "message": [str(message)],
+        "thread": [str(root)],
+        "org": [str(org)],
+    }
+
+
+async def test_a_thread_reply_by_its_only_follower_generates_no_inbox_row(monkeypatch):
+    actor = uuid4()
+    service = NotificationService(MagicMock())
+    write = AsyncMock()
+    monkeypatch.setattr(service._center, "write", write)
+    await service.room_thread_replied(
+        recipients=[actor, actor],
+        organization_id=uuid4(),
+        conversation_id=uuid4(),
+        message_id=uuid4(),
+        thread_root_message_id=uuid4(),
+        title="Design room",
         sender="Me",
         actor_user_id=actor,
     )

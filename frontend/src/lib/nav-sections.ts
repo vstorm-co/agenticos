@@ -57,8 +57,12 @@ export type NavItem = {
   tabbed?: boolean;
   /** Lit on its own page only - a project's page lights the project's own row instead. */
   exact?: boolean;
-  /** A count beside the label: how much waits there. Only the inbox has one. */
-  count?: "inbox";
+  /**
+   * A count beside the label: how much waits there. The inbox counts its open
+   * items; Connections counts the connections needing attention - expired or
+   * needing re-auth - so a broken one is visible before a run fails on it.
+   */
+  count?: "inbox" | "connectionHealth";
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -72,16 +76,11 @@ export type NavGroup = {
   domain: NavDomain;
   items: NavItem[];
   adminOnly?: boolean;
-  /**
-   * Folded to its heading until somebody opens it, or until the page they are
-   * on is inside it. For the groups set up once and visited rarely - the
-   * connections an organization holds, its people - so the column a person
-   * reads every day is the part they use every day.
-   */
-  collapsible?: boolean;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
+  // The fixed group: always shown, never pinned or unpinned. Everything below
+  // it is reached through a person's pins or the More panel.
   {
     labelKey: null,
     domain: "use",
@@ -105,9 +104,8 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // The apps an agent published, listed by `AppsRows`, which lists only what the
-    // caller may open and hides the whole section when there is none. This entry
-    // is the route table's record of `/apps`; "All apps" is its one static row.
+    // The pages an agent published. This entry is the route table's record of
+    // `/apps`; "All pages" is its one row.
     labelKey: "apps",
     domain: "use",
     items: [
@@ -149,6 +147,16 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: FlaskConical,
         permission: Perm.datasetsView,
       },
+      // What was the Monitoring group. It shared Build's hue, so folding it in
+      // changes a heading and no page colour.
+      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
+      {
+        labelKey: "failureLearning",
+        href: ROUTES.FAILURE_LEARNING,
+        icon: Bug,
+        permission: Perm.runsView,
+      },
+      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
     ],
   },
   {
@@ -168,7 +176,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "knowledge",
     domain: "knowledge",
-    collapsible: true,
     items: [
       {
         labelKey: "knowledgeBases",
@@ -193,29 +200,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { labelKey: "documents", href: ROUTES.DOCUMENTS, icon: Files },
     ],
   },
-  {
-    labelKey: "monitoring",
-    domain: "build",
-    collapsible: true,
-    items: [
-      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
-      {
-        labelKey: "failureLearning",
-        href: ROUTES.FAILURE_LEARNING,
-        icon: Bug,
-        permission: Perm.runsView,
-      },
-      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
-    ],
-  },
   // What the organization is connected to, in one place: the apps agents use,
   // with the lower-level channels, remote agents, vault and sandboxes behind an
-  // Advanced tab (#connectors). Set up once, revisited rarely, so folded until
-  // opened.
+  // Advanced tab (#connectors). Set up once, revisited rarely, so it lives in More
+  // until pinned.
   {
     labelKey: "connections",
     domain: "workspace",
-    collapsible: true,
     items: [
       {
         labelKey: "connectors",
@@ -224,6 +215,7 @@ export const NAV_GROUPS: NavGroup[] = [
         // Each area of the page keeps its own gate; the entry shows to anyone
         // who can reach one of them.
         permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView, Perm.networksView],
+        count: "connectionHealth",
       },
     ],
   },
@@ -231,7 +223,6 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: "organization",
     switcherOnly: true,
     domain: "workspace",
-    collapsible: true,
     items: [
       { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
       // A company's departments, with their people and what they were given

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
+import { TAB_TRIGGER } from "@/components/ui/control-styles";
+
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -80,6 +83,7 @@ export function PageTabs({
   const many = vertical || (overflow === "menu" && tabs.length > 4);
   const sectionMenu = !vertical && many && tabs.length > 6;
   useScrollFade(strip);
+  useTabIndicator(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
   // API, opened from a link - was active but out of sight. Centre it, moving
@@ -142,6 +146,7 @@ export function PageTabs({
       )}
       <nav
         ref={strip}
+        data-tab-indicator={vertical ? "pill" : "line"}
         className={cn(
           "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           !vertical && SCROLL_FADE,
@@ -158,9 +163,10 @@ export function PageTabs({
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "focus-visible:outline-ring touch:min-h-11 inline-flex min-h-9 shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                TAB_TRIGGER,
+                "focus-visible:-outline-offset-2",
                 active
-                  ? "border-foreground text-foreground"
+                  ? "border-foreground bg-foreground/[0.055] text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",
                 vertical && "rounded-lg border-0 px-3 py-2",
                 vertical && active && "bg-muted text-foreground",

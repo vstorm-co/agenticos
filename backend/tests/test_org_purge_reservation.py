@@ -80,11 +80,20 @@ def _patched(mocks: dict):
             "app.repositories.telephony.organization_has_unfinished_calls",
             AsyncMock(return_value=False),
         ),
+        patch(
+            "app.services.network_connections.NetworkConnectionService.prepare_organization_deletion",
+            new=AsyncMock(),
+        ),
         patch("app.core.background.spawn_after_commit"),
+        patch(
+            "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+            new=AsyncMock(return_value=0),
+        ) as coding_purge,
         patch(SERVICE_TEARDOWN, new=AsyncMock()) as queued,
     ):
         mocks["dispatch"] = queued
         mocks["purge"] = purge
+        mocks["coding_purge"] = coding_purge
         yield mocks
 
 
@@ -296,3 +305,9 @@ class TestGeneratedMedia:
         assert [call.kwargs["name"] for call in spawned.call_args_list] == ["org_purge_media"]
         for call in spawned.call_args_list:
             call.args[1].close()
+
+
+async def test_organization_purge_includes_its_personal_coding_sessions() -> None:
+    org, db, mocks = _purge(snapshot=[], authoritative=[])
+    await _run(org, db, mocks)
+    mocks["coding_purge"].assert_awaited_once_with(organization_id=org.id)

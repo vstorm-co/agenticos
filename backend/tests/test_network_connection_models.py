@@ -103,6 +103,7 @@ def test_network_role_scopes_match_connection_lifecycle_authority():
     )
 
 
+@pytest.mark.security
 def test_connection_table_has_tenant_identity_and_state_checks():
     table = NetworkConnection.__table__
     unique_column_sets = {

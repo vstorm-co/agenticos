@@ -25,6 +25,7 @@ from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.api.routes.v1._run_results import run_result
+from app.core.exceptions import AuthorizationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -61,6 +62,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approval_authority import may_decide_approval
 from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 from app.services.parked_runs import waiting_update
@@ -295,9 +297,7 @@ async def export_runs(
     return csv_response(result)
 
 
-@router.get(
-    "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
-)
+@router.get("/runs/{run_id}", response_model=AgentRunRead)
 async def get_run(
     run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
 ) -> Any:
@@ -311,13 +311,21 @@ async def get_run(
     the eval run and the case an eval run's answer belongs to, which is where its
     answer and grade are read - such a run keeps no conversation. `skills_used`
     names the skills it opened or read, at the version each was served.
+
+    No `require(...)` gate, on purpose: `runs:view` opens any run, and the person
+    who started a run opens that one without it - the link in an expired-approval
+    notice. The service decides, and a reader without `runs:view` gets neither the
+    trace link nor the neighbouring runs, which are other runs' ids.
     """
-    run = await service.get_run(ctx, run_id)
+    run = await service.read_run(ctx, run_id)
+    reads_all = ctx.has(Perm.RUNS_VIEW)
     evaluated = run.surface == RunSurface.EVAL.value
     eval_case = await evals.case_link(ctx, run.id) if evaluated else None
     origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
-    prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    prev_run_id, next_run_id = (
+        await service.neighbor_run_ids(ctx, run) if reads_all else (None, None)
+    )
     askers = (
         await service.run_chat_askers(ctx, [run.id])
         if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
@@ -326,7 +334,7 @@ async def get_run(
     return AgentRunRead.model_validate(run).model_copy(
         update={
             "asked_in_chat": askers.get(run.id),
-            "logfire_url": await service.trace_url(ctx, run),
+            "logfire_url": await service.trace_url(ctx, run) if reads_all else None,
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
@@ -370,7 +378,8 @@ async def get_run_transcript(
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against
-    the caller's organization and then checks `runs:view`. A run in another tenant
+    the caller's organization and then checks `runs:view` - or that the caller
+    started the run, which a member without `runs:view` may read. A run in another tenant
     reads as absent - the same 404 an id that never existed answers with - so the
     response cannot be used to discover that a run exists. The conversation
     endpoint one route over stays owner-scoped; this does not widen it.
@@ -512,9 +521,17 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     were all decided and which is now waiting to be resumed.
 
     Gated on `approvals:decide` like the resume and the queue, because the rows
-    are offered here to be decided.
+    are offered here to be decided - and narrowed to what the caller may
+    decide: a privileged decider reads any run's calls, anybody else only
+    their own run's, from a signed-in session. A colleague's parked run reads
+    as a refusal, not as an empty list.
     """
     run = await service.get_run(ctx, run_id)
+    if not may_decide_approval(ctx, run):
+        raise AuthorizationError(
+            message="Only the person who started this run, or somebody who may decide approvals, may read its parked calls",
+            details={"run_id": str(run_id)},
+        )
     return await service.parked_calls(ctx, run)
 
 
@@ -563,11 +580,7 @@ async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) ->
     return await service.cancel_parked(ctx, run_id)
 
 
-@router.post(
-    "/runs/{run_id}/retry",
-    response_model=AgentRunResult,
-    dependencies=[Depends(require(Perm.RUNS_VIEW))],
-)
+@router.post("/runs/{run_id}/retry", response_model=AgentRunResult)
 async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """Run a finished run's request again, as a new run linked to it.
 
@@ -578,22 +591,26 @@ async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     no conversation, or has no user turn of its own is refused rather than
     guessed at. A run that parks on an approval reports it in `parked`.
 
-    Gated on `runs:view` like the single-run read, because retrying starts by
-    reading the run and its transcript; the starter rule is the service's, and
-    is the refusal a colleague meets.
+    No `require(...)` gate, like the single-run read: the starter's own run is
+    open to them without `runs:view`, and the service refuses everybody else.
     """
     return await service.retry_run(ctx, run_id)
 
 
 @router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])
-async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_parked_questions(
+    run_id: UUID, service: AgentRunnerSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
     """The questions this run is waiting on you to answer (#2064).
 
     A run whose agent asked something you left unanswered parks, and reopening the
     conversation is where the card comes back - the frame that carried it live
     went with the page. Empty unless the run is waiting on *your* answer.
+    A conversation deep link can require the run to belong to that conversation.
     """
     run = await service.get_run(ctx, run_id)
+    if conversation_id is not None and run.conversation_id != conversation_id:
+        return []
     return await service.parked_questions(ctx, run)
 
 
@@ -701,6 +718,10 @@ async def list_approvals(
     Oldest first by default, and the default is load-bearing. Nothing expires a
     parked call, so the oldest row can be from months ago; a newest-first queue
     would bury exactly the row somebody needs to see.
+
+    A caller holding `approvals:decide` only at `OWN` sees their own runs'
+    approvals here: the queue is the organization's, but the scope answers
+    which rows of it are theirs.
     """
     items, total = await service.list_approvals(
         ctx,
@@ -734,9 +755,10 @@ async def export_approvals(
 ) -> Any:
     """The approvals record as CSV, over exactly the rows `GET /approvals` lists.
 
-    Gated on `approvals:decide` like the list route - organization-wide, so no
-    `Scope.OWN` floor - with the same mandatory-range and row-cap rules the runs
-    export has. Absent `status`, the pending queue; asking for `approved` and
+    Gated on `approvals:decide` like the list route, with the same mandatory-range
+    and row-cap rules the runs export has - and the same `OWN` floor: a caller
+    holding the permission only at `OWN` exports their own runs' rows, not the
+    organization's. Absent `status`, the pending queue; asking for `approved` and
     `rejected` is the decided record, decider and note included.
     """
     result = await service.export_approvals(
@@ -755,12 +777,17 @@ async def export_approvals(
 @router.post(
     "/approvals/{approval_id}",
     response_model=ApprovalRead,
-    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def decide_approval(
     approval_id: UUID, data: ApprovalDecision, service: ParkedRunSvc, ctx: Auth
 ) -> Any:
     """Approve or reject a parked tool call. A decision cannot be revisited.
+
+    No route gate: this is a per-resource route, and a role cannot see which
+    run the row belongs to. The service enforces it - a privileged decider
+    may decide any run, anybody else only a run they started, from a
+    signed-in web/chat session - so a member deciding their own run reaches
+    this endpoint and a colleague's does not.
 
     On a run asked in a chat, a person's decision on its last pending call makes
     the server continue the run as them and post the answer to the chat. A decision

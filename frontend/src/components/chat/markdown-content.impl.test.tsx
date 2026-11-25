@@ -166,7 +166,7 @@ describe("rendering an answer", () => {
     const href = `${window.location.origin}/apps/866b63c3-92b5-4ac7-82b9-8e97b6f09b9f?org=o`;
     markdown(`Link: [${href}](${href})`);
 
-    const link = screen.getByRole("link", { name: "Open the app" });
+    const link = screen.getByRole("link", { name: "Open the page" });
     expect(link).not.toHaveAttribute("target");
     expect(link.querySelector(".lucide-panels-top-left")).not.toBeNull();
   });
@@ -283,6 +283,7 @@ describe("rendering an answer", () => {
     const link = screen.getByRole("link", { name: /the docs/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).not.toHaveAttribute("data-console-link");
   });
 
   it.each([
@@ -324,6 +325,7 @@ describe("rendering an answer", () => {
     const link = screen.getByRole("link", { name: /settings/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveAttribute("data-console-link");
   });
 
   it("leaves an in-app link in this tab", () => {
@@ -331,6 +333,7 @@ describe("rendering an answer", () => {
 
     const link = screen.getByRole("link", { name: "settings" });
     expect(link).not.toHaveAttribute("target");
+    expect(link).toHaveAttribute("data-console-link");
   });
 });
 

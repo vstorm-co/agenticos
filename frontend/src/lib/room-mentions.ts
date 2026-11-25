@@ -177,7 +177,6 @@ function mapUnambiguousTextDiff(
   const width = Math.max(0, previousSuffixStart - prefix, -delta);
   const minStart = Math.max(0, previousSuffixStart - width);
   const maxStart = Math.min(prefix, previous.length - width, next.length - width - delta);
-  if (minStart > maxStart) return [];
 
   return mentions.flatMap((mention) => {
     let token = mention;

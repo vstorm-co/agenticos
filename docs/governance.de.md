@@ -1,5 +1,5 @@
 ---
-source_sha: "6bf91cb53877"
+source_sha: "bcb89fe0725e"
 ---
 
 # Governance { #governance }
@@ -888,17 +888,21 @@ Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue 
 und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
 Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
-Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
-und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
-lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
-Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
-ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+Folgende Routinen verwenden die Aktionsfreigaben des Agenten ohne zusätzliche routinenweite Freigabepflicht. Eingeschränkte Routinen fragen zusätzlich vor Capability-Aktionen, lokalen Dateiänderungen und Delegation sowie vor externen MCP-Aufrufen ohne Nur-Lesen-Kennzeichnung. Explizite Agenten- oder Verbindungsvorgaben und verbindliche Freigaben gelten in beiden Modi. Der Codemodus bleibt für Routinen ausgeschaltet, damit Sammelskripte keine einzelnen Werkzeugkontrollen umgehen.
 
 Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
-Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
+Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` in `ALL` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
 
 Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
+
+Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-Konto als eigene Abschnitte, jeweils mit ihren Gruppen. Es erscheinen nur Aktionen, die der Agent schon ohne Nachfrage ausführt: Einer Aktion, vor der er fragt, lässt sich hier nicht zustimmen, also fehlt sie. **Einstellungen des Agenten verwenden** wählt genau diese Aktionen und ersetzt die aktuelle Auswahl; gespeichert wird erst mit **Freigaben speichern**.
+
+Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
+
+Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht nicht in der Liste. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei.
+
+Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
 
 Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
 entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile
@@ -990,6 +994,8 @@ Ausführungen.
 | --- | --- | --- |
 | `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
 | `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
+
+Daily briefing liest den aktuellen persönlichen Profilspeicher, den Speicher der Person mit dem Standardagenten und ältere Notizen. Vorschläge für Routinen und Agenten brauchen Belege aus mehreren Unterhaltungen oder Tagen und werden mit früheren Vorschlägen und vorhandenen Routinen verglichen. Memory maintenance gleicht aktuelle Einträge im Bereich der Quellunterhaltung ab und verlangt vor dem Speichern ein Zitat aus einer Nutzernachricht.
 
 Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
 
@@ -1374,7 +1380,7 @@ und außerhalb davon nicht, schickt Menschen in die Datenbank.
 | Frage | Antwort |
 | --- | --- |
 | `GET /runs/export` | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
-| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` |
+| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` — wer es nur in `OWN` hält, exportiert die Zeilen eigener Runs |
 | `GET /spend/export` | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view` |
 | `GET /audit/export` | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read` |
 
@@ -1641,9 +1647,7 @@ Fünf Eigenschaften, die man kennen sollte:
   ausstehenden Aufrufen (die zu entscheidende Freigabe, das Tool, seine
   Argumente), und so baut der Chat das Freigabe-Panel wieder auf, das der
   Live-Frame `tool_approval_required` demjenigen gab, der gerade zusah. Er
-  antwortet für einen Run, der nicht geparkt ist, leer, und er ist wie die Queue
-  auf `approvals:decide` gegated, weil seine Zeilen zur Entscheidung angeboten
-  werden ([#601](https://github.com/vstorm-co/agenticos/issues/601)). Der Schritt
+  antwortet für einen Run, der nicht geparkt ist, leer, und er ist wie die Queue auf das Entscheiden des Runs gegated — ein privilegierter Entscheider, oder die Person, die ihn gestartet hat — weil seine Zeilen zur Entscheidung angeboten werden ([#601](https://github.com/vstorm-co/agenticos/issues/601)). Der Schritt
   liest sich nicht als ewig wartend: Ein Fortsetzen erledigt ihn mit dem, was der
   Aufruf zurückgab, ein Ablauf mit dem Hinweis auf das Zeitlimit.
 - **Eine Fortsetzung sagt, was sie getan hat.** `POST /runs/{id}/resume` antwortet
@@ -1777,11 +1781,8 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
   könnte.
 - **Ein Verzicht braucht `approvals:decide` und die Erlaubnis der Organisation.**
   Eine stehende Zustimmung _ist_ die Entscheidung, zu deren Festhalten die
-  Freigabe-Queue existiert, und `member` und `builder` führen Agents aus, ohne sie
-  zu halten — ohne die Berechtigungsprüfung gewährte sich also der alltägliche
-  Chat-Nutzer mit einem Klick die Autorität, die die API ihm einen Endpunkt weiter
-  verweigert. Der eigene Schalter der Organisation (`chat_may_waive_approvals`,
-  für neue Organisationen voreingestellt ein, geändert von jemandem, der `approvals:decide` hält) ist die
+  Freigabe-Queue existiert, und `member` und `builder` halten sie in `OWN` — nur für eigene Runs — sodass sie für einen Run, den sie selbst starten, aus einer angemeldeten Web- oder Chat-Sitzung verzichten können, und für keinen anderen. Ohne die Berechtigungsprüfung gewährte sich also der alltägliche Chat-Nutzer mit einem Klick die Autorität, die die API ihm einen Endpunkt weiter verweigert. Der eigene Schalter der Organisation (`chat_may_waive_approvals`,
+  für neue Organisationen voreingestellt ein, geändert nur von jemandem, der `approvals:decide` in `ALL` hält) ist die
   Obergrenze: Ohne ihn ist das bewusste Gate eines Builders auf `send_email` in
   jeder Unterhaltung einen Klick von nichts entfernt und das Modell je Tool nur
   beratend.
@@ -1822,7 +1823,7 @@ im Anruf:
 - **60 Sekunden** ohne Entscheidung lassen sie ablaufen, ohne entscheidende
   Person - dasselbe null, das der Sweep schreibt. Ein Anruf, der aus
   irgendeinem Grund endet, lässt alles ablaufen, worauf er noch gewartet hat.
-- Ein Mitglied ohne `approvals:decide` bekommt das klar gesagt, und das Tool
+- Wer `approvals:decide` nicht hat, bekommt das klar gesagt, und das Tool
   wird abgelehnt. Ein Besucher auf einem Widget oder einer gehosteten Seite sieht
   nie ein Tool, das eine Freigabe braucht: Es wird aus seinem Anruf
   weggelassen.
@@ -1848,6 +1849,12 @@ Ein solcher Run steht in der Historie und im Alter der ältesten Wartezeit auf d
 Dashboard, also folgt der Sweep jedem abgelaufenen Aufruf hinab bis zum Run
 dahinter und beendet ihn, `cancelled` — niemand kam zurück, und was er vor dem
 Parken ausgegeben hat, bleibt stehen.
+
+Der Eigentümer des Runs erfährt, dass er gestorben ist, mit dem Grund und dem Run, von dem aus er ihn neu starten kann: Ein Run, der in einem Chat geparkt ist, hat den Ablauf dort bereits gehört, also erfährt der Eigentümer eines Web-Konsolen-Runs es stattdessen über das Benachrichtigungszentrum — eine Benachrichtigung, die den Agent und das Tool nennt, und einen Link zum Run, wo Retry ein Klick ist. Die Zeile allein liest sich nur als `cancelled`, was überhaupt keine Benachrichtigung ist.
+
+Der Starter öffnet diesen Run, liest sein Transkript und wiederholt ihn ohne `runs:view`, das ein `member` nicht hat: Der Run gehört ihm über den gespeicherten Starter, aus einer angemeldeten Web-Sitzung mit aktiver Mitgliedschaft, und nur solange er noch `approvals:decide` hält — er braucht den Run, um zu entscheiden. Kein anderer Run öffnet sich so, und das Manifest des Runs, die Run-Liste und Exporte bleiben bei `runs:view`. Ein API-Schlüssel, die Ersatzidentität eines Veröffentlichers, eine Routine, eine imitierte Sitzung und der Run eines anderen `member` werden abgelehnt.
+
+Die Benachrichtigung geht nur an einen Starter, der die Approval noch entscheiden könnte, nach derselben Prüfung wie die Entscheidung selbst — ein zum `viewer` zurückgestufter oder aus der Organisation entfernter Starter erfährt also nichts.
 
 Drei Dinge, die er bewusst nicht tut:
 
@@ -1999,8 +2006,8 @@ bricht seine Anfragen ab.
 
 Ein Schritt, der Freigebende oder [Genehmigungsgruppen](#approval-groups) nennt,
 benachrichtigt diese Freigebenden und die Gruppenmitglieder mit
-`approvals:decide`. Ein Schritt, der keines von beiden nennt, benachrichtigt alle
-mit `approvals:decide`. Die Benachrichtigung kommt an der Glocke, und die Anfrage
+`approvals:decide` in `ALL`. Ein Schritt, der keines von beiden nennt, benachrichtigt alle
+mit `approvals:decide` in `ALL`. Die Benachrichtigung kommt an der Glocke, und die Anfrage
 steht oben im Inbox aller, die sie entscheiden dürfen.
 
 Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
@@ -2243,24 +2250,27 @@ das sie berichtet, wird dort bearbeitet.
 
 ### Der Freigabe-Alert sind zwei E-Mails { #the-approval-alert-is-two-emails }
 
-`approvals:decide` gehört zu `owner`, `admin` und `operator`. Das voreingestellte
+`approvals:decide` in `ALL` gehört zu `owner`, `admin` und `operator`; `member` und `builder` halten es in `OWN`, für einen Run, den sie selbst gestartet haben. Das voreingestellte
 Publikum für einen geparkten Aufruf schließt ein, wer den Run gestartet hat, und
 ein Builder, der seinen eigenen Agent aus dem Chat startet, ist der gewöhnliche
-Initiator — der Alert erreichte also regelmäßig jemanden, den die Plattform
+Initiator — der Alert erreichte also früher jemanden, den die Plattform
 ablehnen würde. Sie bekamen **„waiting on your approval"** mit einer Schaltfläche
 **Review the request**, folgten ihr, und **Aktivität** (Aktivität) zeichnete überhaupt keinen
 Approvals-Tab: Die Ablehnung kam als abwesender Tab an statt als Satz.
 
-Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitten:
+Das Publikum wird also danach aufgeteilt, ob der Empfänger *diesen* Run entscheiden darf, statt auf die Berechtigung beschnitten:
 
 | Empfänger hält | Bekommt |
 | --- | --- |
-| `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
+| `approvals:decide` in `ALL` | die Anfrage, mit dem Link zur Queue |
+| der Eigentümer des Runs, in `OWN` | die Anfrage, mit dem Link zur eigenen Queue — den Zeilen eigener Runs, nicht der Organisation |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn zu entscheiden ist Sache seines Eigentümers oder eines privilegierten Entscheiders, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
 er gestoppt hat.
+
+Der Link unterliegt derselben Prüfung wie die Entscheidung. Der Eigentümer eines Runs, der seit dem Parken zum `viewer` zurückgestuft wurde, und ein Veröffentlicher, dessen Ersatzidentität für einen Fremden einsprang, lesen die Tatsache ohne den Link, im Posteingang wie in der E-Mail.
 
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen
@@ -2671,9 +2681,13 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
 
-Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
+Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
+
+Der Eigentümer kann stattdessen `restricted` wählen. Dieser Modus fixiert die geprüfte Quellenkonfiguration, konkrete MCP-Konten, Autorisierungsgenerationen und bekannte Werkzeugnamen. Die Prüfung umfasst fixierte Delegaten, Wissen, Skills, Kontext, Capabilities und entfernte A2A-Registrierungen. Neue Quellen oder geänderte Kontoautorisierung erfordern eine erneute Prüfung. Bestehende Richtlinien ohne Modus bleiben eingeschränkt; ein Upgrade erweitert sie nicht stillschweigend.
+
+Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt. Der Eigentümer kann den Modus einer bestehenden Routine ausdrücklich über die durch Prüftoken geschützten Zugriffseinstellungen ändern.
 
 Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
 
@@ -2724,7 +2738,7 @@ Inbox-Vorgänge weder lesen noch erledigen.
 
 ## Genehmigungsgruppen { #approval-groups }
 
-Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Jede einzelne berechtigte Person darf entscheiden und muss unabhängig davon `approvals:decide` besitzen. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
+Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Jede einzelne berechtigte Person darf entscheiden und muss unabhängig davon `approvals:decide` in `ALL` besitzen. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
 
 Gruppenmitgliedschaft und aktives Konto werden bei der Entscheidung geprüft. Benachrichtigungen ermitteln berechtigte Mitglieder beim Erstellen der Anfrage und entfernen Überschneidungen mit genannten Personen. Ein späterer Beitritt kann die Entscheidung ohne erneute Benachrichtigung erlauben; Austritt oder Berechtigungsverlust entzieht sie.
 

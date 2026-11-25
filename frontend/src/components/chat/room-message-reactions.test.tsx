@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,7 +20,7 @@ vi.mock("@/hooks/use-room-message-reactions", () => ({
   useRoomMessageReactions: () => hooks,
 }));
 
-function draw(canReact = true) {
+function draw(canReact = true, align: "start" | "end" = "start") {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <RoomMessageReactions
@@ -28,7 +28,7 @@ function draw(canReact = true) {
         messageId="message-1"
         initialReactions={hooks.reactions}
         canReact={canReact}
-        align="start"
+        align={align}
       />
     </NextIntlClientProvider>,
   );
@@ -80,5 +80,52 @@ describe("RoomMessageReactions", () => {
     await user.type(screen.getByRole("textbox", { name: "Type or paste an emoji" }), "👩🏽‍💻");
     await user.click(screen.getByRole("button", { name: /^Add$/ }));
     expect(hooks.add).toHaveBeenCalledWith("👩🏽‍💻");
+  });
+
+  it("adds a reaction the caller has not used yet", async () => {
+    const user = userEvent.setup();
+    draw();
+
+    await user.click(screen.getByRole("button", { name: "🎉 1" }));
+
+    expect(hooks.add).toHaveBeenCalledWith("🎉");
+    expect(hooks.remove).not.toHaveBeenCalled();
+  });
+
+  it("right-aligns the reactions for the caller's own messages", () => {
+    const { container } = draw(true, "end");
+
+    expect(container.firstElementChild).toHaveClass("justify-end");
+  });
+
+  it("keeps the picker and typed emoji when saving fails, and ignores a blank custom emoji", async () => {
+    hooks.add.mockResolvedValue(false);
+    const user = userEvent.setup();
+    draw(true, "end");
+
+    await user.click(screen.getByRole("button", { name: "Add reaction" }));
+    await user.click(screen.getByRole("button", { name: "🚀" }));
+    expect(screen.getByRole("textbox", { name: "Type or paste an emoji" })).toBeVisible();
+
+    const input = screen.getByRole("textbox", { name: "Type or paste an emoji" });
+    await user.type(input, "   ");
+    fireEvent.submit(input.closest("form")!);
+    expect(hooks.add).toHaveBeenCalledTimes(1);
+
+    await user.clear(input);
+    await user.type(input, "🔥{Enter}");
+    expect(hooks.add).toHaveBeenLastCalledWith("🔥");
+    expect(input).toHaveValue("🔥");
+  });
+
+  it("lets the caller retry after a failed reaction", async () => {
+    hooks.hasError = true;
+    const user = userEvent.setup();
+    draw();
+
+    expect(screen.getByRole("alert")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(hooks.retry).toHaveBeenCalledOnce();
   });
 });

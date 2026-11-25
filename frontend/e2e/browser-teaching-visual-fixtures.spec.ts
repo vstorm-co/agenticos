@@ -1,6 +1,6 @@
 import type { Page, Route, WebSocketRoute } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, OWNER_EMAIL, pageHeading } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, pageHeading, rowsAt } from "./helpers";
 import {
   BROWSER_PROCEDURE_TEACHING_IDS as ids,
   browserProcedureTeachingFixture,
@@ -23,14 +23,22 @@ async function json(route: Route, body: unknown) {
   await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
 }
 async function seed(page: Page) {
+  // The stored selection is null on a fresh login, so the first Skills read is
+  // sent before /api/orgs resolves and carries no organization. Select the
+  // seeded owner's organization (the first, as seed.setup.ts does) and persist
+  // it before the first navigation, so that read is scoped.
+  const organization = (await rowsAt(page.request, "/api/orgs"))[0]?.id;
+  expect(organization, "the seeded owner belongs to an organization").toMatch(/^[0-9a-f-]{36}$/i);
+  if (typeof organization !== "string") throw new Error("The owner has no organization");
+  await page.addInitScript((id) => {
+    localStorage.setItem("org-storage", JSON.stringify({ state: { activeOrgId: id }, version: 0 }));
+  }, organization);
   const request = page.waitForRequest(
     (value) => new URL(value.url()).pathname === "/api/skills" && value.method() === "GET",
   );
   await page.goto("/skills");
   await expect(pageHeading(page, "Skills")).toBeVisible();
-  const organization = (await request).headers()["x-organization-id"];
-  expect(organization).toMatch(/^[0-9a-f-]{36}$/i);
-  if (!organization) throw new Error("The authenticated Skills request omitted its organization");
+  expect((await request).headers()["x-organization-id"]).toBe(organization);
   const response = await page.request.get("/api/auth/me");
   expect(response.status()).toBe(200);
   const owner = (await response.json()) as { id: string; email: string };

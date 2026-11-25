@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import discard_deferred
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.conversation import Message
 from app.db.models.organization import OrganizationMember
@@ -197,3 +197,96 @@ async def test_joining_an_existing_emoji_at_cap_and_retries_are_idempotent(db: A
         == 0
     )
     discard_deferred(db)
+
+
+async def test_a_first_reaction_below_the_cap_is_stored_and_reported_back(db: AsyncSession):
+    room = await seed(db)
+    message = Message(conversation_id=room.conversation.id, role="assistant", content="React")
+    db.add(message)
+    await db.flush()
+
+    result = await RoomMessageReactionService(db).set_reaction(
+        room.ctx,
+        user_id=room.user.id,
+        conversation_id=room.conversation.id,
+        message_id=message.id,
+        data=RoomMessageReactionCreate(emoji="👍"),
+    )
+
+    assert [(item.emoji, item.count, item.reacted_by_me) for item in result.reactions] == [
+        ("👍", 1, True)
+    ]
+    stored = (await db.scalars(select(RoomMessageReaction))).all()
+    assert [(row.message_id, row.user_id, row.emoji) for row in stored] == [
+        (message.id, room.user.id, "👍")
+    ]
+    discard_deferred(db)
+
+
+async def test_a_person_cannot_react_on_behalf_of_someone_else(db: AsyncSession):
+    room = await seed(db)
+    message = Message(conversation_id=room.conversation.id, role="assistant", content="React")
+    db.add(message)
+    await db.flush()
+    service = RoomMessageReactionService(db)
+
+    for change in (service.set_reaction, service.remove_reaction):
+        with pytest.raises(AuthorizationError, match="React as yourself"):
+            await change(
+                room.ctx,
+                user_id=uuid4(),
+                conversation_id=room.conversation.id,
+                message_id=message.id,
+                data=RoomMessageReactionCreate(emoji="👍"),
+            )
+    assert not (await db.scalars(select(RoomMessageReaction))).all()
+    discard_deferred(db)
+
+
+async def test_reacting_to_a_message_outside_the_room_is_not_found(db: AsyncSession):
+    room = await seed(db)
+    other_room = await seed(db)
+    elsewhere = Message(
+        conversation_id=other_room.conversation.id, role="assistant", content="Not here"
+    )
+    db.add(elsewhere)
+    await db.flush()
+    service = RoomMessageReactionService(db)
+
+    for message_id in (uuid4(), elsewhere.id):
+        with pytest.raises(NotFoundError, match="Room message not found"):
+            await service.set_reaction(
+                room.ctx,
+                user_id=room.user.id,
+                conversation_id=room.conversation.id,
+                message_id=message_id,
+                data=RoomMessageReactionCreate(emoji="👍"),
+            )
+    assert not (await db.scalars(select(RoomMessageReaction))).all()
+    discard_deferred(db)
+
+
+async def test_aggregates_for_no_messages_are_empty_and_a_reaction_names_its_target(
+    db: AsyncSession,
+):
+    room = await seed(db)
+    assert (
+        await reaction_repo.list_aggregates(
+            db,
+            organization_id=room.ctx.organization_id,
+            conversation_id=room.conversation.id,
+            message_ids=[],
+            user_id=room.user.id,
+        )
+        == {}
+    )
+    reaction = RoomMessageReaction(
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        message_id=uuid4(),
+        user_id=room.user.id,
+        emoji="👍",
+    )
+    assert repr(reaction) == (
+        f"<RoomMessageReaction(message={reaction.message_id}, emoji='👍', user={room.user.id})>"
+    )

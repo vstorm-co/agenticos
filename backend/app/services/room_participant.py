@@ -230,8 +230,6 @@ class RoomParticipantService:
 
     async def _ensure_room_locked(self, conversation: Conversation) -> bool:
         """Convert a personal chat in place; project rooms keep their ACL metadata."""
-        if conversation.origin == "workflow":
-            raise NotFoundError(message="Conversation not found")
         if conversation.project_id is None and conversation.user_id is None:
             raise BadRequestError(
                 message="Only a personal conversation can be converted to a private room"

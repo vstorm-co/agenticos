@@ -293,6 +293,7 @@ async def page(
     limit: int = 50,
     ctx: AuthContext | None = None,
     state: Literal["all", "connected", "not-connected"] = "all",
+    reviewed_only: bool = False,
 ) -> ServerPage:
     """One page of the joined list.
 
@@ -306,6 +307,13 @@ async def page(
     ones a check found asking for it. Browsing hides mirrored listings a check
     found dead, broken or duplicated; Connected keeps their saved accounts
     manageable. Every filter is applied before counting and pagination.
+
+    `reviewed_only` keeps the mirror out of browsing altogether: the list
+    defaults to what somebody here reviewed, and the registry is reached only
+    behind an explicit ask. It does not hide a connected account: a registry
+    server somebody already holds an account on stays manageable under
+    `state="connected"`, because hiding it would strand a credential no screen
+    can revoke.
     """
     connected = await _connected(db, ctx, query=query, auth=auth)
     mirror_total = await mcp_registry_server_repo.count(db)
@@ -342,15 +350,21 @@ async def page(
     # many of them the earlier pages consumed - so a page boundary landing inside
     # the join neither skips a server nor shows one twice.
     wanted = limit - len(items)
-    servers, matched = await mcp_registry_server_repo.search(
-        db,
-        query=query,
-        category=category,
-        auth=auth,
-        skip=max(0, skip - len(matched_curated)),
-        limit=max(wanted, 1),
-        excluded_ids=set(accounts) if state == "not-connected" else None,
-    )
+    if reviewed_only:
+        # No mirror rows and no mirror count: a page that never shows them has
+        # no use for either, and searching the mirror is the expensive half of
+        # this join.
+        servers, matched = [], 0
+    else:
+        servers, matched = await mcp_registry_server_repo.search(
+            db,
+            query=query,
+            category=category,
+            auth=auth,
+            skip=max(0, skip - len(matched_curated)),
+            limit=max(wanted, 1),
+            excluded_ids=set(accounts) if state == "not-connected" else None,
+        )
     if wanted > 0:
         items += [
             replace(_mirrored(server, check), connection_ids=accounts.get(server.id, ()))

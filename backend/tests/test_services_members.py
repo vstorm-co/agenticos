@@ -469,6 +469,10 @@ class TestAccessChangeAudit:
             patch("app.services.member.group_repo.delete_memberships_in_org", new=AsyncMock()),
             patch("app.services.member.oauth_repo.revoke_grants_for_member", new=AsyncMock()),
             patch("app.services.member.api_key_repo.revoke_for_member", new=AsyncMock()),
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(),
+            ),
             patch("app.services.member.coding_account_repo.delete_for_member", new=AsyncMock()),
             patch(
                 "app.services.member.mcp_connection_repo.delete_accounts_for_member",

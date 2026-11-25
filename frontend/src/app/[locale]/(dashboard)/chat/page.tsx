@@ -2,22 +2,39 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
+import { ChatLayout } from "@/components/chat/chat-layout";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
+import { useChatPrompt } from "@/hooks/use-chat-prompt";
+import { useSuggestions } from "@/hooks/use-suggestions";
+import { suggestionChatPrompt } from "@/lib/suggestion-chat-prompt";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { StartExample } from "@/components/onboarding/start-example";
 import { startGoal } from "@/lib/onboarding-api";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useConversationStore } from "@/stores";
 
 export default function ChatPage() {
   const params = useSearchParams();
+  const t = useTranslations("inbox.chatDraft");
+  const discuss = params.get("discuss");
+  const validDiscuss = !!discuss && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(discuss);
+  const suggested = useSuggestions(validDiscuss);
+  const item =
+    validDiscuss && !suggested.isLoading && !suggested.error
+      ? suggested.suggestions.find((suggestion) => suggestion.id === discuss)
+      : undefined;
+  const composerDraft = item
+    ? { text: suggestionChatPrompt(item, t), consume: () => setUrlParam("discuss", null) }
+    : undefined;
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
+  const [questionConversationId, questionRunId] = params.get("question")?.split(":") ?? [];
   const requestedThreadRootId = params.get("thread");
   const requestedMessageId = params.get("message");
   const [messageJumpRevision, setMessageJumpRevision] = useState(0);
@@ -59,6 +76,9 @@ export default function ChatPage() {
   useMcpOAuthOutcome();
   // Desktop New Chat and pinned-agent links explicitly start a fresh conversation.
   useChatWith();
+  // A `?prompt=` address — the workflows list's "Describe a workflow" — seeds
+  // the composer as a draft, never sent on the reader's behalf.
+  const promptDraft = useChatPrompt();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the
   // id here would short-circuit that loader and leave the chat empty on refresh.
@@ -69,33 +89,39 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-h-0 min-w-0 flex-1 max-lg:[&_[data-chat-model-header]~[data-chat-scroller]_[data-transcript]]:pt-4 max-lg:[&_[data-chat-scroller]]:scroll-pt-20 max-lg:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatContainer
-          requestedConversationId={requestedConversationId}
-          requestedThreadRootId={requestedThreadRootId}
-          requestedMessageId={requestedMessageId}
-          messageJumpRevision={messageJumpRevision}
-          onOpenParent={openMessage}
-          onOpenMessage={openMessage}
-          onOpenThread={(root) => {
-            const opener = document.activeElement;
-            // A notice inside a thread disappears when its root changes. Keep
-            // the main-room opener so closing the final panel can restore focus.
-            if (
-              opener instanceof HTMLElement &&
-              opener.closest('[data-tour="chat-room-thread-panel"]') === null
-            )
-              trigger.current = opener;
-            changeThread(root);
-          }}
-          onCloseThread={() => {
-            changeThread(null);
-          }}
-          emptyState={
-            example
-              ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
-              : undefined
-          }
-        />
+        <ChatLayout>
+          <ChatContainer
+            composerDraft={composerDraft ?? promptDraft}
+            requestedQuestionRunId={
+              questionConversationId === requestedConversationId ? questionRunId : null
+            }
+            requestedConversationId={requestedConversationId}
+            requestedThreadRootId={requestedThreadRootId}
+            requestedMessageId={requestedMessageId}
+            messageJumpRevision={messageJumpRevision}
+            onOpenParent={openMessage}
+            onOpenMessage={openMessage}
+            onOpenThread={(root) => {
+              const opener = document.activeElement;
+              // A notice inside a thread disappears when its root changes. Keep
+              // the main-room opener so closing the final panel can restore focus.
+              if (
+                opener instanceof HTMLElement &&
+                opener.closest('[data-tour="chat-room-thread-panel"]') === null
+              )
+                trigger.current = opener;
+              changeThread(root);
+            }}
+            onCloseThread={() => {
+              changeThread(null);
+            }}
+            emptyState={
+              example
+                ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
+                : undefined
+            }
+          />
+        </ChatLayout>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
  *
  * Route handlers, in the environment they actually run in.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as adminBackgroundJobs from "./admin/background-jobs/[[...path]]/route";
 import * as adminConversations from "./admin/conversations/route";
@@ -13,6 +13,7 @@ import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as adminStats from "./admin/stats/route";
 import * as adminSystem from "./admin/system/route";
+import * as adminUserPasswordReset from "./admin/users/[userId]/password-reset/route";
 import * as adminUserDetail from "./admin/users/[userId]/detail/route";
 import * as adminUser from "./admin/users/[userId]/route";
 import * as adminUsers from "./admin/users/route";
@@ -55,6 +56,7 @@ import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
+import * as navPins from "./me/nav-pins/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
 import * as dashboardPreset from "./me/dashboard-layout/presets/[presetId]/route";
 import * as myMcpConnections from "./me/mcp-connections/route";
@@ -113,6 +115,7 @@ import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
 import * as userAppearance from "./users/me/appearance/route";
+import * as consoleExperience from "./users/me/console-experience/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -228,6 +231,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
+  ["me/nav-pins", navPins],
   ["me/dashboard-layout/presets", dashboardPresets],
   ["me/dashboard-layout/presets/[presetId]", dashboardPreset],
   ["me/suggestions", mySuggestions],
@@ -237,6 +241,14 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("requires a session before issuing an administrator recovery link", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(adminUserPasswordReset)).toEqual(["POST"]);
+    const response = await adminUserPasswordReset.POST(
+      new NextRequest("http://localhost/api/admin/users/user-1/password-reset", { method: "POST" }),
+    );
+    expect(response.status).toBe(401);
+  });
   it("limits received invitations to session-authenticated reads and acceptance", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(receivedInvitations)).toEqual(["GET"]);
@@ -334,5 +346,52 @@ it("appearance only exposes read, save and reset behind the session boundary", a
       new NextRequest("http://localhost:3000/api/users/me/appearance", { method }),
     );
     expect(response.status, method).toBe(401);
+  }
+});
+
+it("forwards only authenticated console-experience reads and partial edits with their organization", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(consoleExperience).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const body = { preferences: { inbox: false }, reminders: { snooze_days: 7 } };
+      const request = new NextRequest("http://localhost/api/users/me/console-experience", {
+        method,
+        headers: { "X-Organization-Id": "org-one", "Content-Type": "application/json" },
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ effective: { inbox: false } }));
+      expect((await consoleExperience[method](request)).status).toBe(200);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/console-experience$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({
+            Authorization: "Bearer own-session",
+            "X-Organization-Id": "org-one",
+          }),
+        }),
+      );
+      if (method === "PATCH")
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual(body);
+      fetch.mockClear();
+      fetch.mockResolvedValueOnce(
+        Response.json({ error: { message: "Membership not found" } }, { status: 403 }),
+      );
+      const refused = new NextRequest(request.url, {
+        method,
+        headers: request.headers,
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](refused)).status).toBe(403);
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
   }
 });

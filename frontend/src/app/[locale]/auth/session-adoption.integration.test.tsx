@@ -308,3 +308,16 @@ describe("the dashboard guard", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 });
+
+it("names password recovery accurately on an incomplete magic link", () => {
+  mountOver(<MagicLinkPage />);
+  expect(screen.getByRole("link", { name: "resetPassword" })).toHaveAttribute(
+    "href",
+    "/forgot-password",
+  );
+  expect(screen.getByRole("link", { name: "signInWithPassword" })).toHaveAttribute(
+    "href",
+    "/login",
+  );
+  expect(apiClient.post).not.toHaveBeenCalled();
+});

@@ -376,3 +376,27 @@ async def test_generic_sharing_cannot_adopt_a_browser_credential() -> None:
     with pytest.raises(BadRequestError, match="owner cannot be changed"):
         await SecretSharingGuard().adopt(AsyncMock(), context(row, other=True), row)
     assert row.owner_user_id == owner
+
+
+@pytest.mark.parametrize("removed", [True, False])
+async def test_browser_rotation_rechecks_access_after_obtaining_the_row_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    removed: bool,
+) -> None:
+    row = record()
+    ctx = context(row)
+    locked = None if removed else record()
+    monkeypatch.setattr(service_module.organization_secret_repo, "get", AsyncMock(return_value=row))
+    monkeypatch.setattr(service_module.member_repo, "get_active", AsyncMock(return_value=object()))
+    monkeypatch.setattr(service_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        service_module.browser_credential_repo, "policy_exists", AsyncMock(return_value=False)
+    )
+    lookup = AsyncMock(return_value=locked)
+    monkeypatch.setattr(service_module.browser_credential_repo, "secret", lookup)
+    update = AsyncMock()
+    monkeypatch.setattr(service_module.organization_secret_repo, "update", update)
+    with pytest.raises(NotFoundError, match="Browser credential not found"):
+        await OrganizationSecretService(AsyncMock()).update(ctx, row.id, name="Renamed portal")
+    assert lookup.await_args.kwargs == {"locked": True}
+    update.assert_not_awaited()

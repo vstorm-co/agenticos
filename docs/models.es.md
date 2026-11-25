@@ -1,5 +1,5 @@
 ---
-source_sha: "543b61f10ddd"
+source_sha: "502f9d415d51"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -401,6 +401,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | GitHub Models | `github` | clave de API | |
 | Groq | `groq` | clave de API | |
 | Heroku AI | `heroku` | clave de API | ✓ |
+| LLMTR | `llmtr` | clave de API | |
 | Mistral | `mistral` | clave de API | |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
@@ -413,6 +414,8 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | xAI (Grok) | `xai` | clave de API | ✓ (`api_host`) |
 | Cohere | `cohere` | clave de API | |
 | Hugging Face | `huggingface` | clave de API | ✓ |
+
+LLMTR solo muestra modelos que anuncian `CHAT_COMPLETIONS`. Un modelo sin precio revisado en el snapshot incluido solo puede ejecutarse sin un límite activo en dólares; su coste sigue marcado como incompleto. Con un límite activo también se rechazan nuevas llamadas a LLMTR si el coste del uso anterior es desconocido.
 
 ### Autoalojados { #self-hosted }
 
@@ -445,6 +448,43 @@ autenticarse.
     `ON DELETE SET NULL`, lo que hace que el segundo caso sea corriente. Un run
     resuelve un perfil sin clave solo cuando este lleva un endpoint; si no, se
     rechaza con el mismo mensaje de «no key configured» que ha tenido siempre.
+
+### Tu propio endpoint { #your-own-endpoint }
+
+| Provider | id | Credencial | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | clave de API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | clave de API | ✓ |
+
+Estos dos son una *forma* de API y no un proveedor. Escribes la dirección de un
+servidor que gestionas tú o de una pasarela en la que confías, y la clave que lo
+autentica. Elige el que corresponda a lo que responde tu endpoint:
+
+| Tu endpoint responde | Elige | La dirección que hay que escribir |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, un proxy LiteLLM, casi todas las pasarelas | `openai_compatible` | la raíz `/v1`, por ejemplo `https://llm.example/v1` |
+| `POST /v1/messages` — la forma de API propia de Anthropic | `anthropic_compatible` | la raíz de la API, por ejemplo `https://llm.example` |
+
+Los dos necesitan un endpoint y una clave. No hay ninguna API pública a la que
+recurrir, así que un perfil sin ellos se rechaza en lugar de enviarse a otro
+sitio.
+
+La clave se guarda en la bóveda bajo el nombre del propio provider, lo que allí
+dice que autentica *ese* endpoint y no la API pública de un proveedor. Por eso
+son entradas propias y no un perfil `openai` o `anthropic` con un endpoint: una
+clave archivada bajo el nombre de un proveedor habla de ese proveedor.
+
+!!! info "La dirección de Anthropic no lleva `/v1`"
+
+    El SDK de Anthropic envía a `<endpoint>/v1/messages`, así que el endpoint es
+    la raíz de la API. Una dirección que ya termina en `/v1` se recorta por ti,
+    de modo que ambas formas funcionan, pero la raíz es lo que pide la
+    plataforma.
+
+**Load models** lee la lista del mismo endpoint, con la misma clave, así que el
+desplegable ofrece lo que tu servidor sirve de verdad. El identificador del
+modelo sigue siendo texto libre: un servidor que no publica ninguna lista se
+puede usar escribiendo el identificador a mano.
 
 ### Cuando la credencial no es una clave de API { #when-the-credential-is-not-an-api-key }
 
@@ -658,11 +698,13 @@ como un desplegable al que el provider responde 404. Un modelo que el snapshot
 conoce pero no tarifa simplemente no tiene ventana, que es el nulo descrito más
 abajo.
 
+Al abrir el selector de la suscripción se carga la lista incluida en el despliegue. El selector no consulta un catálogo en directo para cada cuenta. Las entradas de GPT-6.2 se verificaron en el servidor de Codex y dejan el contexto vacío hasta que se incorpore al catálogo de precios.
+
 | Provider | ids curados |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | los mismos cuatro que `openai` |
+| `openai_codex` | GPT-6.2 Sol y Astra, GPT-6.1 Sol y Terra, GPT-6 Sol, Astra y Luna, y los identificadores anteriores de Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

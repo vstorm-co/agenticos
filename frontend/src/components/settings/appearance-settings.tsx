@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { ContextHelp } from "@/components/ui/context-help";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
 import { LOOK_PREVIEW } from "@/components/settings/look-preview";
 import { SectionCard } from "@/components/settings/settings-section";

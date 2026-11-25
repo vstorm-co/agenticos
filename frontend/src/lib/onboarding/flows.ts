@@ -610,7 +610,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...kbDialogSteps(ROUTES.RAG, "flow-agent-knowledge-ask"),
       {
         id: "flow-agent-knowledge-return-nav",
-        target: "nav-agents",
+        target: "nav-more",
         permission: Perm.agentsView,
         signal: { kind: "arrived", page: ROUTES.AGENTS },
         requires: "flow-agent-knowledge-ask",
@@ -660,7 +660,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...skillDialogSteps(ROUTES.SKILLS, "flow-agent-skills-ask"),
       {
         id: "flow-agent-skills-return-nav",
-        target: "nav-agents",
+        target: "nav-more",
         permission: Perm.agentsView,
         signal: { kind: "arrived", page: ROUTES.AGENTS },
         requires: "flow-agent-skills-ask",

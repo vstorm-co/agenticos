@@ -43,7 +43,6 @@ export function RoomDirectoryDialog({
   const [error, setError] = useState<string | null>(null);
 
   const handleJoin = async (id: string) => {
-    if (joinRoom.isJoining) return;
     setJoiningId(id);
     setError(null);
     try {

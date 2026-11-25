@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { COMMAND_ITEM_FOCUS, MENU_ROW, SEARCH_FIELD_FOCUS } from "@/components/ui/control-styles";
+
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search, X } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
@@ -59,6 +67,7 @@ interface ConversationItem {
 export function CommandPalette() {
   const router = useRouter();
   const t = useTranslations("nav");
+  const common = useTranslations("common");
   const { user, logout } = useAuth();
   const { can, hiddenNavigationItems, isLoaded } = usePermissions();
   const { apiUrl } = usePublicConfig();
@@ -75,23 +84,43 @@ export function CommandPalette() {
   const showAgents = visibleHrefs.has(ROUTES.AGENTS);
   const showKnowledge = visibleHrefs.has(ROUTES.RAG);
   const showChat = visibleHrefs.has(ROUTES.CHAT);
+  const invoker = useRef<HTMLElement | null>(null);
+  const openRef = useRef(false);
+  const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const changeOpen = useCallback((next: boolean, restoreFocus = true) => {
+    if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
+    if (next && !openRef.current)
+      invoker.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    openRef.current = next;
+    setOpen(next);
+    // cmdk's Radix dialog has no Trigger; its default close handler therefore
+    // cannot restore the sidebar/shortcut invoker. Navigation owns its own focus.
+    if (!next && restoreFocus)
+      restoreTimer.current = setTimeout(() => {
+        if (!openRef.current && invoker.current?.isConnected)
+          invoker.current.focus({ preventScroll: true });
+        restoreTimer.current = null;
+      }, 0);
+  }, []);
 
   // Global ⌘K / Ctrl+K shortcut + a custom event so UI buttons can open it.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((o) => !o);
+        changeOpen(!openRef.current);
       }
     };
-    const openHandler = () => setOpen(true);
+    const openHandler = () => changeOpen(true);
     document.addEventListener("keydown", handler);
     window.addEventListener("command-palette:open", openHandler);
     return () => {
       document.removeEventListener("keydown", handler);
       window.removeEventListener("command-palette:open", openHandler);
+      if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
     };
-  }, []);
+  }, [changeOpen]);
 
   // Named entities, fetched only once the palette is open - it is mounted on
   // every page, and a closed dialog has no business costing three requests per
@@ -120,10 +149,15 @@ export function CommandPalette() {
   const agentItems = showAgents ? (agents.data?.items.slice(0, MAX_ENTITIES) ?? []) : [];
   const kbItems = showKnowledge ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = showChat ? (conversations.data?.items ?? []) : [];
+  const failedQueries = [
+    ...(showAgents ? [agents] : []),
+    ...(showKnowledge ? [kbs] : []),
+    ...(showChat ? [conversations] : []),
+  ].filter((query) => query.isError);
 
   const go = (href: string) => {
     useSidebarStore.getState().close();
-    setOpen(false);
+    changeOpen(false, false);
     useUnsavedChangesStore.getState().leave(() => router.push(href));
   };
 
@@ -151,27 +185,65 @@ export function CommandPalette() {
   return (
     <Command.Dialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={changeOpen}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="fixed inset-0 z-[60] bg-black/40"
-      contentClassName={cn("panel bg-card text-foreground z-[61] flex", DIALOG_COMMAND)}
+      contentClassName={cn(
+        "panel bg-card text-foreground z-[61] flex shadow-[var(--shadow-dialog)]",
+        DIALOG_COMMAND,
+      )}
     >
-      <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-4">
-        <Search className="text-muted-foreground h-4 w-4" />
+      <div
+        className={cn(
+          SEARCH_FIELD_FOCUS,
+          "border-border flex shrink-0 items-center gap-2 border-b px-3 py-2 sm:gap-3 sm:px-4",
+        )}
+      >
+        <Search className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
         <Command.Input
           autoFocus
           value={search}
           onValueChange={setSearch}
           placeholder={t("searchJump")}
-          className="text-foreground placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
+          aria-label={t("searchJump")}
+          className="text-foreground placeholder:text-muted-foreground min-h-11 min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
         />
-        <kbd className="border-foreground/15 text-muted-foreground hidden rounded-md border px-1.5 py-0.5 font-mono text-xs sm:inline-block">
+        <button
+          type="button"
+          aria-label={common("close")}
+          onClick={() => changeOpen(false)}
+          onKeyDown={keepButtonActivation}
+          className="text-muted-foreground hover:bg-control hover:text-foreground focus-visible:outline-ring inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+        <kbd className="border-foreground/15 text-muted-foreground hidden rounded-md border px-1.5 py-0.5 font-mono text-xs md:inline-block">
           {t("esc")}
         </kbd>
       </div>
 
-      <Command.List className="max-h-[min(55dvh,28rem)] min-h-0 scrollbar-thin overflow-y-auto overscroll-contain px-2 py-2">
+      {failedQueries.length > 0 && (
+        <div
+          role="alert"
+          className="border-border flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2 text-sm"
+        >
+          <p className="text-muted-foreground">{t("searchUnavailable")}</p>
+          <button
+            type="button"
+            onKeyDown={keepButtonActivation}
+            className="hover:bg-control min-h-10 shrink-0 rounded-md px-3 pointer-coarse:min-h-11"
+            onClick={() => {
+              for (const query of failedQueries) void query.refetch();
+            }}
+          >
+            {common("retry")}
+          </button>
+        </div>
+      )}
+
+      <Command.List className="min-h-0 flex-1 scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain px-2 py-2">
         <Command.Empty className="text-muted-foreground px-4 py-10 text-center text-sm">
           {t("noMatches")}
         </Command.Empty>
@@ -184,7 +256,7 @@ export function CommandPalette() {
             icon={BookOpen}
             label={t("apiDocs")}
             onSelect={() => {
-              setOpen(false);
+              changeOpen(false, false);
               // The docs are FastAPI's, served by the backend. The frontend has
               // no /docs route, so the old link opened its 404 page.
               window.open(`${apiUrl}/docs`, "_blank", "noopener,noreferrer");
@@ -256,14 +328,14 @@ export function CommandPalette() {
             icon={LogOut}
             label={t("logout")}
             onSelect={() => {
-              setOpen(false);
+              changeOpen(false, false);
               useUnsavedChangesStore.getState().leave(() => void logout());
             }}
           />
         </Group>
       </Command.List>
 
-      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2.5 text-xs">
+      <div className="border-border text-muted-foreground flex shrink-0 items-center justify-between border-t px-4 py-2.5 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
           {t("navigate")}
@@ -300,11 +372,16 @@ function PaletteItem({
   return (
     <Command.Item
       onSelect={onSelect}
-      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground touch:min-h-11 group flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
+      className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "group cursor-pointer")}
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
       <span className="flex-1 truncate">{label}</span>
       <ArrowRight className="text-muted-foreground h-3.5 w-3.5 opacity-0 transition-opacity group-data-[selected=true]:opacity-100" />
     </Command.Item>
   );
+}
+
+/** cmdk's root handles Enter as result selection; native controls keep their own activation. */
+function keepButtonActivation(event: ReactKeyboardEvent<HTMLButtonElement>) {
+  if (event.key === "Enter") event.stopPropagation();
 }

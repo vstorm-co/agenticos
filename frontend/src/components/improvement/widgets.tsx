@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -338,7 +340,7 @@ export function Details({
   tour?: string;
 }) {
   return (
-    <details
+    <NativeDisclosure
       className={cn("group rounded-xl border", className)}
       data-tour={tour}
       onToggle={onToggle && ((event) => onToggle(event.currentTarget.open))}
@@ -353,6 +355,6 @@ export function Details({
         <span className="min-w-0 flex-1">{summary}</span>
       </summary>
       <div className="space-y-4 px-4 pb-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }

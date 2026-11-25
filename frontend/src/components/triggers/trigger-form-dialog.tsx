@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
@@ -21,6 +23,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -263,7 +266,12 @@ export function TriggerFormDialog({
     setPinnedVersion(null);
     setVersionValid(true);
   };
-  const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  const [runsAsCreatorChoice, setRunsAsCreator] = useState<boolean | null>(
+    trigger ? (trigger.runs_as_creator ?? false) : null,
+  );
+  const runsAsCreator = runsAsCreatorChoice ?? (me !== null && !impersonating);
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [conversationMode, setConversationMode] = useState<TriggerConversationMode>(
@@ -296,11 +304,9 @@ export function TriggerFormDialog({
   const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
     trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
   );
-  // A new trigger is the caller's own; an existing one is whoever made it.
-  const me = useAuthStore((state) => state.user?.id ?? null);
-  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
-  // An administrator acting as the creator is not the creator, as the server sees it.
-  const isCreator = trigger === null || (trigger.created_by_user_id === me && !impersonating);
+  // Impersonation never supplies the creator's own authority.
+  const isCreator =
+    me !== null && !impersonating && (trigger === null || trigger.created_by_user_id === me);
   // The server refuses anybody else resuming, moving the end of or loosening a routine
   // that acts as its creator; tightening a limit stays theirs to do.
   const limitsLocked = !isCreator && runsAsCreator;
@@ -382,6 +388,7 @@ export function TriggerFormDialog({
   // type, not Trigger: `reveal_secret` exists only on the create response, and
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
+  const [reviewBeforeActivation, setReviewBeforeActivation] = useState(false);
   const [reviewing, setReviewing] = useState<TriggerCreated | null>(null);
 
   const pending = create.isPending || update.isPending || savingLocal;
@@ -531,11 +538,12 @@ export function TriggerFormDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
       ...(end ? { ends_at: end } : {}),
-      // Only when asked for: off is the server's default, and the request then
-      // says nothing about acting as anybody.
+      // The console defaults to the consenting creator; other callers retain
+      // the API's identity-free default.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
-      is_active: false,
-      review_before_activation: true,
+      source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
+      ...(reviewBeforeActivation || (runsAsCreator && localTarget) ? { is_active: false } : {}),
+      ...(reviewBeforeActivation ? { review_before_activation: true } : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
@@ -722,8 +730,18 @@ export function TriggerFormDialog({
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
+        if (runsAsCreator && localTarget && !reviewBeforeActivation) {
+          const activated = await update.mutateAsync({
+            triggerId: result.id,
+            patch: { is_active: true },
+          });
+          result = { ...result, ...activated };
+          if (!stillHere()) return;
+        }
         onCreated?.(result);
-        setReviewing(result);
+        if (reviewBeforeActivation) setReviewing(result);
+        else if (result.trigger_type === "event") setCreated(result);
+        else onOpenChange(false);
       }
     } catch (error) {
       if (error instanceof ShellError) toast.error(t("local.permissionFailed"));
@@ -1141,7 +1159,30 @@ export function TriggerFormDialog({
             <NameField value={name} onChange={setName} />
 
             <ResultModeField value={resultMode} onChange={setResultMode} />
+            <p role="note" className="text-muted-foreground text-sm">
+              {t(runsAsCreator ? "sourceConsents.runsAsYou" : "sourceConsents.agentIdentity")}
+            </p>
             <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+              <div className="flex items-start gap-3 text-sm">
+                <Checkbox
+                  id="routine-review-before-activation"
+                  aria-describedby="routine-review-before-activation-hint"
+                  checked={reviewBeforeActivation}
+                  onCheckedChange={(checked) => setReviewBeforeActivation(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="routine-review-before-activation">
+                    {t("sourceConsents.reviewBeforeActivation")}
+                  </Label>
+                  <p
+                    id="routine-review-before-activation-hint"
+                    className="text-muted-foreground text-xs"
+                  >
+                    {t("sourceConsents.reviewBeforeActivationHint")}
+                  </p>
+                </div>
+              </div>
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
                   value={environmentId}
@@ -1570,14 +1611,14 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
       <CadenceSummary {...schedule} />
-      <details className="group">
+      <NativeDisclosure className="group">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
           {t("moreOptions")}
         </summary>
         <div className="pt-3">
           <OverlapField value={overlap} onChange={onOverlap} />
         </div>
-      </details>
+      </NativeDisclosure>
     </div>
   );
 }

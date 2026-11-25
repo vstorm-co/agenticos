@@ -10,6 +10,7 @@ import hashlib
 import json
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from functools import cache
 from typing import Literal, Self
 from uuid import UUID
 
@@ -21,15 +22,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import get as capability
 from app.agents.capabilities._registry import READ_SKILL
 from app.agents.capabilities.skills._loader import SKILL_LOAD_KIND
-from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
+from app.agents.mcp import (
+    PLATFORM_MCP_NAME,
+    PLATFORM_TOOL,
+    McpSourceIdentity,
+    McpToolOrigin,
+    fitted_tool_name,
+    needs_approval,
+    tool_origin,
+    tool_prefix,
+)
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.context import ContextFile
 from app.db.models.project import Project
+from app.db.models.skill import Skill
 from app.db.models.watch import Watch
 from app.db.session import get_db_context
 from app.repositories import (
@@ -47,6 +59,7 @@ from app.schemas.routine_actions import (
     RoutineActionKey,
     RoutineConsent,
     RoutineMcpActionKey,
+    RoutinePlatformActionKey,
 )
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.watch_sources import WatchSources
@@ -60,8 +73,10 @@ from app.services.routine_actions import (
     routine_effect,
 )
 from app.services.routine_sources import (
+    RoutineSourceService,
     RoutineSourcesRequired,
     account_identities,
+    materialized_behavior,
     project_fingerprint,
     read_policy,
     require_bound_sources,
@@ -70,6 +85,22 @@ from app.services.routine_sources import (
 )
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
+
+SEARCH_TOOLS = "search_tools"
+"""Pydantic AI's own tool search: it reads the run's tool list and changes nothing."""
+
+
+@cache
+def _platform_tool_names() -> dict[str, str]:
+    """Each platform tool's name on its server, by the name a run's model calls it."""
+    # Imported here: the platform's tools reach workflow execution, whose node
+    # handlers import the agent registry, which this module imports.
+    from app.services.platform_mcp import platform_tool_catalog
+
+    prefix = tool_prefix(PLATFORM_MCP_NAME)
+    return {
+        fitted_tool_name(f"{prefix}_{tool.name}"): tool.name for tool in platform_tool_catalog()
+    }
 
 
 def _refused() -> AuthorizationError:
@@ -126,6 +157,18 @@ class RoutineAuthority:
             or (None if project is None else project.id) != self.source_policy.project_id
             or (None if project is None else project_fingerprint(project))
             != self.source_policy.project_hash
+        ):
+            raise RoutineSourcesRequired()
+
+    def require_materialized(
+        self, skills: list[Skill], contexts: list[ContextFile], *, namespace: str = "root"
+    ) -> None:
+        if self.source_policy is None or self.source_policy.mode != "follow_agent":
+            return
+        approved = self.source_policy.behavior
+        if approved is None or any(
+            approved.get(key) != value
+            for key, value in materialized_behavior(skills, contexts, namespace=namespace).items()
         ):
             raise RoutineSourcesRequired()
 
@@ -266,13 +309,23 @@ class RoutineAuthority:
             await self.check_in(db, agent_id)
 
     async def check_in(self, db: AsyncSession, agent_id: UUID) -> None:
+        trigger = None
         if self.routine_kind == "watch":
             await self._watch_in(db)
         else:
-            await self._trigger_in(db)
+            trigger = await self._trigger_in(db)
         await self._actor_in(db, agent_id)
+        if trigger is not None:
+            assert self.source_policy is not None
+            await RoutineSourceService(db).require_behavior(
+                AuthContext(
+                    user_id=self.user_id, organization_id=self.organization_id, role=self.role
+                ),
+                trigger,
+                self.source_policy,
+            )
 
-    async def _trigger_in(self, db: AsyncSession) -> None:
+    async def _trigger_in(self, db: AsyncSession) -> AgentTrigger:
         trigger = await agent_trigger_repo.get(
             db, self.routine_id, organization_id=self.organization_id
         )
@@ -301,6 +354,7 @@ class RoutineAuthority:
                 is None
             ):
                 raise _refused()
+        return trigger
 
     def local_context(self, ctx: AuthContext, *, public_origin: bool) -> AuthContext:
         """A resumed workspace belongs to the original routine owner, never its approver."""
@@ -426,6 +480,13 @@ class RoutineAuthority:
         """Default to approval for effects; only current, snapshotted consent may waive it."""
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
+            if self.source_policy is not None and self.source_policy.mode == "follow_agent":
+                origin = tool_origin(tool)
+                if origin is not None:
+                    await self._mcp_in(db, origin)
+                # The normal ApprovalGate still enforces the agent, connection,
+                # mandatory platform and native consent floors.
+                return RoutineToolDecision()
             # The native loader has no registry capability_id. Its owned kind,
             # not an MCP tool's claimed name/read-only hint, identifies a skill
             # instruction read. Explicit agent gates still run in ApprovalGate.
@@ -438,6 +499,26 @@ class RoutineAuthority:
                 return RoutineToolDecision()
             if tool.capability_id is None:
                 origin = tool_origin(tool)
+                if origin is None and tool.name == SEARCH_TOOLS:
+                    return RoutineToolDecision()
+                # The platform's own server, marked so by the run's toolset and
+                # never by the server: what it sends lands under `meta`.
+                platform = (
+                    _platform_tool_names().get(tool.name)
+                    if origin is None and (tool.metadata or {}).get(PLATFORM_TOOL) is True
+                    else None
+                )
+                if platform is not None:
+                    if not needs_approval(tool, "writes"):
+                        return RoutineToolDecision()
+                    return RoutineToolDecision(
+                        required=True,
+                        consented_by=await self._consent_in(
+                            db,
+                            agent_id,
+                            RoutinePlatformActionKey(kind="platform", tool_id=platform),
+                        ),
+                    )
                 if origin is not None:
                     await self._mcp_in(db, origin)
                 required = needs_approval(tool, "writes")
@@ -563,7 +644,7 @@ class RoutineAuthority:
             raise _refused()
         if not AuthContext(
             user_id=self.user_id, organization_id=self.organization_id, role=member.role
-        ).has(Perm.APPROVALS_DECIDE):
+        ).has_at(Perm.APPROVALS_DECIDE, Scope.ALL):
             return None
         try:
             current = CONSENTS.validate_python(trigger.action_consents)

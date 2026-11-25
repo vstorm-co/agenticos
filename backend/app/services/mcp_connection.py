@@ -3408,13 +3408,16 @@ async def build_toolsets_for_agent(
             # This platform's own server, as whoever the run is for. Nobody to
             # act as - a visitor, a schedule - is no credential and no server.
             if platform_credential is not None:
-                # Never below `writes`: the credential is the asker's own authority,
-                # an Admin's included, and an agent anybody published must not
-                # invite, revoke or reconfigure with it without asking them first.
+                # Never below `writes` as a default: the credential is the asker's
+                # own authority, an Admin's included, and an agent anybody published
+                # must not invite, revoke or reconfigure with it without asking them
+                # first. A change runs unasked only where the spec names that one
+                # tool `never`, an explicit decision published with the agent.
                 spec = platform_spec(
                     platform_credential,
                     allowed_tools=ref.allowed_tools,
                     approval="all" if ref.approval == "all" else "writes",
+                    tool_approval=ref.tool_approval,
                 )
                 specs.append(spec)
                 bindings[id(spec)] = "this platform's own server"

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
-import { bindingKey, McpServerPicker } from "./mcp-server-picker";
+import { bindingKey } from "@/lib/mcp-servers";
+import { McpServerPicker } from "./mcp-server-picker";
 import { NEW_PLATFORM_BINDING } from "./platform-server-card";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
@@ -110,6 +112,132 @@ async function settings(description = GITHUB.description) {
 }
 
 describe("McpServerPicker", () => {
+  it("restores the original spec order when an MCP approval change is reverted", async () => {
+    const initial = [bound("c1"), NEW_PLATFORM_BINDING, bound("c2")];
+    const connections = [
+      connection({
+        last_tools: [{ name: "github-create-issue", description: "Create an issue" }],
+      }),
+      connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+    ];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections,
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    const user = userEvent.setup();
+    render(<Editor />);
+    await settings();
+
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { ...initial[0], tool_approval: { "github-create-issue": "required" } },
+      ]),
+    );
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+  });
+
+  it.each([false, true])(
+    "restores multiple rows in their original order (reverse: %s)",
+    async (reverse) => {
+      const initial = [bound("c1"), bound("c2"), NEW_PLATFORM_BINDING];
+      const onChange = vi.fn();
+      function Editor() {
+        const [value, setValue] = useState<McpServerRef[]>(initial);
+        return picker({
+          connections: [
+            connection(),
+            connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+          ],
+          value,
+          onChange: (next) => {
+            onChange(next);
+            setValue(next);
+          },
+        });
+      }
+      render(<Editor />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
+      await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+      expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+      const names = ["GitHub", "laptop"];
+      if (reverse) names.reverse();
+      for (const name of names) {
+        await user.click(screen.getByRole("switch", { name: `Use ${name} in this agent` }));
+        await user.keyboard("{Escape}");
+      }
+      expect(onChange).toHaveBeenLastCalledWith(initial);
+    },
+  );
+
+  it("keeps a newly enabled row when another server's off/on batch is still open", async () => {
+    const github = { ...bound("c1"), allowed_tools: ["github-search"] };
+    const laptop = bound("c2");
+    const initial = [github, NEW_PLATFORM_BINDING];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [
+          connection(),
+          connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+        ],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    await user.keyboard("{Escape}");
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING, laptop]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    for (const name of ["laptop", "GitHub"]) {
+      await user.click(screen.getByRole("switch", { name: `Use ${name} in this agent` }));
+      await user.keyboard("{Escape}");
+    }
+    expect(onChange).toHaveBeenLastCalledWith([...initial, laptop]);
+  });
+
+  it("honors an explicit account change while the server is switched off", async () => {
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>([bound("c1")]);
+      return picker({
+        connections: [connection()],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    const dialog = await settings();
+    await user.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+    await user.click(kind("personal"));
+    await user.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([personal("github")]);
+    expect(kind("personal")).toHaveAttribute("aria-checked", "true");
+  });
+
   it("names a connection after the catalog server it points at", () => {
     // The connection is called "gh" because the name is a tool prefix. Nobody
     // building an agent is looking for "gh".
@@ -200,6 +328,35 @@ describe("McpServerPicker", () => {
       within(screen.getAllByRole("group")[0] as HTMLElement).getByRole("switch"),
     );
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("restores a switched-off platform binding from its dialog and removes it explicitly", async () => {
+    const platform = { ...NEW_PLATFORM_BINDING, allowed_tools: ["list_agents"] };
+    const account = bound("c1");
+    const initial = [platform, account];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [connection()],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: /use agenticos in this agent/i }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
+
+    await user.click(screen.getByText(/This platform's own tools:/));
+    await user.click(screen.getByRole("button", { name: "Use it in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+
+    await user.click(screen.getByRole("button", { name: "Remove from this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
   });
 
   it("lets a search rule out the built-in server as it rules out the others", async () => {
@@ -508,9 +665,14 @@ describe("several connections behind one catalog entry", () => {
 
     const dialog = await settings();
 
-    expect(within(dialog).getByText("Company")).toBeVisible();
-    expect(within(dialog).getAllByText("github-oss")[0]).toBeVisible();
+    const toolsAccount = within(dialog).getByRole("combobox", {
+      name: "Account for tool settings",
+    });
+    expect(toolsAccount).toHaveTextContent("Company");
     expect(within(dialog).queryByRole("combobox", { name: /which github account/i })).toBeNull();
+    await userEvent.click(toolsAccount);
+    await userEvent.click(await screen.findByRole("option", { name: "github-oss" }));
+    expect(toolsAccount).toHaveTextContent("github-oss");
   });
 
   it("drops one account and keeps the others", async () => {
@@ -918,7 +1080,7 @@ describe("which of a server's tools this agent may call", () => {
     expect(onChange).toHaveBeenLastCalledWith([bound("c1", ["search", "create_issue"])]);
   });
 
-  it("selects every tool again, which means every tool rather than a list", async () => {
+  it("selects every tool again as today's tools, leaving later ones to the switch", async () => {
     const onChange = vi.fn();
     render(
       picker({
@@ -931,7 +1093,8 @@ describe("which of a server's tools this agent may call", () => {
 
     expect(screen.getByText("1 of 3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tools" }));
-    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+    const today = TOOLS.map((tool) => tool.name);
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1", today)]);
   });
 
   it("asks the caller to load the tools of an account never checked", async () => {

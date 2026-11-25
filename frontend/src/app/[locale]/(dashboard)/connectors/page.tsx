@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -14,7 +16,7 @@ import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useMcpOAuthOutcome, usePermissions, useUrlState } from "@/hooks";
+import { useConnectionHealth, useMcpOAuthOutcome, usePermissions, useUrlState } from "@/hooks";
 import { useNetworkConnections } from "@/hooks/use-network-connections";
 import { ROUTES } from "@/lib/constants";
 import type { Permission } from "@/types/permissions";
@@ -91,7 +93,12 @@ export default function ConnectorsPage() {
   const t = useTranslations("pages.connectors");
   const tNav = useTranslations("nav");
   const { can } = usePermissions();
+  // The same counts as the sidebar badge: a broken connection on the tab
+  // somebody is not looking at is the one they will not find until a run
+  // fails, so each tab carries its own count.
+  const { apps: appsNeedingAttention, mcp: mcpNeedingAttention } = useConnectionHealth();
   useMcpOAuthOutcome();
+  const countId = useId();
   const [tabParam, setTab] = useUrlState("tab");
   const search = useSearchParams();
   const manualRequest = search.has("server") || search.has("connect");
@@ -118,16 +125,45 @@ export default function ConnectorsPage() {
         onValueChange={(value) => setTab(value === "apps" && !manualRequest ? null : value)}
       >
         <TabsList>
-          <TabsTrigger value="apps" data-tour="connectors-apps">
+          <TabsTrigger
+            value="apps"
+            data-tour="connectors-apps"
+            aria-describedby={appsNeedingAttention > 0 ? `${countId}-apps` : undefined}
+          >
             {t("apps")}
+            {appsNeedingAttention > 0 && (
+              <span aria-hidden className="text-destructive text-xs font-medium tabular-nums">
+                {appsNeedingAttention}
+              </span>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="mcp" data-tour="connectors-advanced">
+          <TabsTrigger
+            value="mcp"
+            data-tour="connectors-advanced"
+            aria-describedby={mcpNeedingAttention > 0 ? `${countId}-mcp` : undefined}
+          >
             {t("mcp")}
+            {mcpNeedingAttention > 0 && (
+              <span aria-hidden className="text-destructive text-xs font-medium tabular-nums">
+                {mcpNeedingAttention}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="more" data-tour="connectors-more">
             {t("more")}
           </TabsTrigger>
         </TabsList>
+
+        {appsNeedingAttention > 0 && (
+          <span id={`${countId}-apps`} className="sr-only">
+            {tNav("connectionHealthCount", { count: appsNeedingAttention })}
+          </span>
+        )}
+        {mcpNeedingAttention > 0 && (
+          <span id={`${countId}-mcp`} className="sr-only">
+            {tNav("connectionHealthCount", { count: mcpNeedingAttention })}
+          </span>
+        )}
 
         <TabsContent value="apps" className="mt-4">
           <AppsTab />

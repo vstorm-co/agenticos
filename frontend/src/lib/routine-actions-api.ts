@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import type { PlatformToolGroup } from "@/types/mcp";
 
 export interface CapabilityActionKey {
   capability_id: string;
@@ -10,7 +11,12 @@ export interface McpActionKey {
   endpoint_hash: string;
   tool_id: string;
 }
-export type RoutineActionKey = CapabilityActionKey | McpActionKey;
+/** One of this platform's own MCP tools, which a routine calls as its creator. */
+export interface PlatformActionKey {
+  kind: "platform";
+  tool_id: string;
+}
+export type RoutineActionKey = CapabilityActionKey | McpActionKey | PlatformActionKey;
 interface ActionReview {
   name: string;
   consented: boolean;
@@ -18,16 +24,18 @@ interface ActionReview {
   waivable: boolean;
 }
 export type RoutineActionOption =
-  | (CapabilityActionKey & ActionReview)
+  | (CapabilityActionKey & ActionReview & { capability_name?: string | null })
   | (McpActionKey &
       ActionReview & {
         account_name: string;
         account_scope: "personal" | "organization";
-      });
+      })
+  | (PlatformActionKey & ActionReview & { group: PlatformToolGroup });
 export function routineActionKey(action: RoutineActionOption): RoutineActionKey {
   if ("capability_id" in action) {
     return { capability_id: action.capability_id, tool_id: action.tool_id };
   }
+  if ("kind" in action) return { kind: action.kind, tool_id: action.tool_id };
   return {
     connection_id: action.connection_id,
     authorization_generation: action.authorization_generation,

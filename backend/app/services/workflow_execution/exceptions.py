@@ -296,7 +296,11 @@ class WorkflowInputValidationUnavailableError(AppException):
     code = "WORKFLOW_INPUT_VALIDATION_UNAVAILABLE"
     status_code = 503
 
-    def __init__(self, *, reason: Literal["not_started", "failed", "invalid_output"]) -> None:
+    def __init__(
+        self,
+        *,
+        reason: Literal["not_started", "start_timeout", "start_failed", "failed", "invalid_output"],
+    ) -> None:
         super().__init__(details={"reason": reason})
 
 

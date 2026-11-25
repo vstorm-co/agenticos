@@ -1,5 +1,5 @@
 ---
-source_sha: "6bf91cb53877"
+source_sha: "bcb89fe0725e"
 ---
 
 # Governance { #governance }
@@ -847,17 +847,21 @@ permitidas coincidentes; no concede nada hasta guardar el review actual. Las acc
 nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
 aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
-Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
-en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
-su servidor las marque como solo lectura; sigue vigente una política más estricta
-de la conexión. No cambian los valores del agente interactivo. El modo de código
-se desactiva en rutinas para que los scripts agrupados no eviten controles por acción.
+Las rutinas que siguen al agente usan sus reglas de aprobación sin un requisito adicional para toda la rutina. Las restringidas preguntan además antes de acciones de capacidades, cambios de archivos locales y delegaciones, y de llamadas MCP externas no marcadas como solo lectura. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias siguen vigentes en ambos modos. El modo de código permanece desactivado en rutinas para impedir que scripts agrupados eludan controles por herramienta.
 
 Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
-El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
+El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` en `ALL` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
+
+La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+
+El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
+
+Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+
+Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
@@ -948,6 +952,8 @@ y sus últimas ejecuciones.
 | --- | --- | --- |
 | `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En la pestaña Proactivity: el mismo modelo y límite, aquí solo de lectura |
 | `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+
+Daily briefing lee la memoria vigente del perfil personal y la que la persona comparte con el agente inicial, además de las notas anteriores. Las propuestas de rutinas y agentes requieren evidencia de distintos hilos o días y se contrastan con las propuestas previas y las rutinas existentes. Memory maintenance compara las entradas vigentes del ámbito de origen y exige una cita del usuario antes de guardar una afirmación.
 
 El mantenimiento de memoria no necesita al agente inicial AgenticOS. Su run conserva el agente de origen como referencia de almacenamiento y se contabiliza como `memory_maintenance`; solo ejecuta las instrucciones de extracción de la plataforma con el modelo elegido para el rol. Eliminar o retirar la publicación del agente inicial no desactiva la extracción de otros agentes publicados.
 
@@ -1297,7 +1303,7 @@ fuera de ella manda a la gente a la base de datos.
 | Pregunta | Respuesta |
 | --- | --- |
 | `GET /runs/export` | El historial de runs, los mismos filtros que `GET /runs` y el mismo valor por defecto de solo nivel superior. `runs:view` |
-| `GET /approvals/export` | El registro de aprobaciones, los mismos filtros que `GET /approvals`. `approvals:decide` |
+| `GET /approvals/export` | El registro de aprobaciones, los mismos filtros que `GET /approvals`. `approvals:decide` — quien lo tiene solo en `OWN` exporta las filas de sus propios runs |
 | `GET /spend/export` | El desglose de gasto por agent, la misma ventana que `GET /spend`. `runs:view` |
 | `GET /audit/export` | El rastro de auditoría sobre una ventana, CSV o JSONL (`?fmt=`). `audit:read` |
 
@@ -1556,8 +1562,7 @@ Cinco propiedades que conviene conocer:
   `GET /runs/{id}/parked` responde con las llamadas pendientes (la aprobación a
   decidir, la herramienta, sus argumentos), que es como el chat reconstruye el panel
   de aprobación que el frame en vivo `tool_approval_required` dio a quien estuviera
-  mirando. Responde vacío para un run que no está aparcado, y está protegido por
-  `approvals:decide` como la cola, porque sus filas se ofrecen para ser decididas
+  mirando. Responde vacío para un run que no está aparcado, y está protegido por decidir el run — un decisor privilegiado, o la persona que lo inició — como la cola, porque sus filas se ofrecen para ser decididas
   ([#601](https://github.com/vstorm-co/agenticos/issues/601)). El paso no se lee como
   a la espera para siempre: una reanudación lo resuelve con lo que devolvió la
   llamada, y una caducidad lo resuelve con el aviso de tiempo agotado.
@@ -1685,11 +1690,9 @@ Cuatro cosas hacen de esto un ajuste de sesión y no un agujero en el modelo:
   olvidar.
 - **Renunciar requiere `approvals:decide`, y el permiso de la organización.** Un
   consentimiento permanente _es_ la decisión que la cola de aprobaciones existe para
-  registrar, y `member` y `builder` ejecutan agents sin tenerlo — así que sin la
-  comprobación de permiso quien usa el chat a diario se concede a sí mismo, en un
-  clic, la autoridad que la API le niega un endpoint más allá. El interruptor propio de
-  la organización (`chat_may_waive_approvals`, activado por defecto para las organizaciones nuevas, cambiado por
-  alguien con `approvals:decide`) es el techo: sin él, la puerta deliberada de un
+  registrar, y `member` y `builder` lo tienen en `OWN` — solo para sus propios runs — así que pueden renunciar en un run que ellos mismos inician, desde una sesión web o de chat con sesión iniciada, y en ningún otro. Sin la comprobación de permiso quien usa el chat a diario se concede a sí mismo, en un clic, la autoridad que la API le niega un endpoint más allá. El interruptor propio de
+  la organización (`chat_may_waive_approvals`, activado por defecto para las organizaciones nuevas, cambiado solo por
+  alguien con `approvals:decide` en `ALL`) es el techo: sin él, la puerta deliberada de un
   Builder sobre `send_email` está a un clic de nada en cada conversación y el modelo
   por herramienta es orientativo.
 - **Ningún canal sigue significando no.** Solo una sesión de chat web puede renunciar.
@@ -1728,7 +1731,7 @@ está en ella:
 - **60 segundos** sin decisión la caducan, sin nadie que decida: el mismo null
   que escribe el barrido. Una llamada que termina por cualquier motivo caduca lo
   que todavía estuviera esperando.
-- A un miembro sin `approvals:decide` se le dice claramente, y la herramienta se
+- A quien no tiene `approvals:decide` se le dice claramente, y la herramienta se
   rechaza. Un visitante en un widget o en una página alojada nunca ve una
   herramienta que necesite aprobación: se deja fuera de su llamada.
 
@@ -1752,6 +1755,12 @@ Un run así se queda en el historial y en la edad de la espera más antigua del
 dashboard, así que el barrido sigue cada llamada caducada hasta el run que hay detrás
 y lo termina, `cancelled` — nadie volvió, y lo que gastó antes de aparcarse se
 mantiene.
+
+Al propietario del run se le dice que murió, con el motivo y el run desde el que reintentarlo: un run aparcado en un chat ya oyó allí la caducidad, así que al propietario de un run de la consola web se le dice en cambio a través del centro de notificaciones — un aviso, que nombra al agent y la herramienta, y un enlace al run, donde Retry es un clic. La fila sola solo se lee como `cancelled`, que no es ningún aviso.
+
+El iniciador abre ese run, lee su transcripción y lo reintenta sin `runs:view`, que un `member` no tiene: el run es suyo por el iniciador almacenado, desde una sesión web iniciada con una membresía activa, y solo mientras conserve `approvals:decide` — necesita el run para decidir. Ningún otro run se abre así, y el manifiesto del run, la lista de runs y las exportaciones siguen con `runs:view`. Se rechazan una clave de API, la identidad de respaldo de un publicador, una routine, una sesión suplantada y el run de otro `member`.
+
+El aviso solo llega a un iniciador que aún podría decidir la approval, con la misma comprobación que la decisión misma, así que un iniciador degradado a `viewer` o retirado de la organización no oye nada.
 
 Tres cosas que deliberadamente no hace:
 
@@ -1890,8 +1899,8 @@ que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
 
 Un paso que nombra a quienes aprueban o [grupos de aprobación](#approval-groups)
 avisa a esas personas y a los miembros de los grupos que tienen
-`approvals:decide`. Un paso que no nombra ni a unos ni a otros avisa a todos los
-que tienen `approvals:decide`. El aviso llega en la campana, y la solicitud
+`approvals:decide` en `ALL`. Un paso que no nombra ni a unos ni a otros avisa a todos los
+que tienen `approvals:decide` en `ALL`. El aviso llega en la campana, y la solicitud
 encabeza el Inbox de quien puede decidirla.
 
 Un paso `editable` también muestra a quien aprueba una propuesta, como una
@@ -2121,23 +2130,25 @@ que informa se edita ahí.
 
 ### La alerta de aprobación son dos correos { #the-approval-alert-is-two-emails }
 
-`approvals:decide` pertenece a `owner`, `admin` y `operator`. La audiencia por defecto
+`approvals:decide` en `ALL` pertenece a `owner`, `admin` y `operator`; `member` y `builder` lo tienen en `OWN`, para un run que ellos mismos iniciaron. La audiencia por defecto
 de una llamada aparcada incluye a quien inició el run, y un builder que inicia su
-propio agent desde el chat es el iniciador corriente — así que la alerta llegaba
-habitualmente a alguien a quien la plataforma iba a rechazar. Recibían **"waiting on
+propio agent desde el chat es el iniciador corriente — así que la alerta solía llegar a alguien a quien la plataforma iba a rechazar. Recibían **"waiting on
 your approval"** con un botón **Review the request**, lo seguían, y Activity no
 dibujaba pestaña Approvals alguna: el rechazo llegando como una pestaña ausente en vez
 de como una frase.
 
-Así que la audiencia se divide por el permiso en lugar de recortarse a él:
+Así que la audiencia se divide según si quien recibe puede decidir *este* run, en lugar de recortarse al permiso:
 
 | Quien recibe tiene | Recibe |
 | --- | --- |
-| `approvals:decide` | la solicitud, con el enlace a la cola |
-| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, aprobarlo corresponde a un owner, admin u operator, y no se le pide nada |
+| `approvals:decide` en `ALL` | la solicitud, con el enlace a la cola |
+| el propietario del run, en `OWN` | la solicitud, con el enlace a su propia cola — las filas de sus propios runs, no las de la organización |
+| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, decidirlo corresponde a su propietario o a un decisor privilegiado, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.
+
+El enlace se somete a la misma comprobación que la decisión. El propietario de un run que fue degradado a `viewer` desde que el run se aparcó, y un publicador cuya identidad de respaldo hizo de un desconocido, leen el hecho sin el enlace, en la bandeja y en el correo.
 
 El segundo correo **no lleva enlace**, y eso es deliberado, no algo a medias. Que
 `agents:view` sea un permiso de rol no hace alcanzable un agent: el acceso se resuelve
@@ -2523,9 +2534,13 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Al crear una rutina se fija la configuración publicada de sus fuentes, las cuentas MCP concretas, las generaciones de consentimiento y los nombres de herramientas conocidos. La revisión incluye delegados fijados, colecciones de conocimiento, habilidades, contexto y configuración de capacidades; las inscripciones A2A remotas conservan también la vinculación de endpoint, tarjeta y credencial. Los cambios de instrucciones o ajustes del modelo pueden seguir una publicación. Añadir fuentes, cambiar cuentas o renovar su consentimiento requiere que el propietario revise el panel de fuentes en el diálogo de consentimientos. Esta revisión no elimina las aprobaciones de acciones ni concede acceso a recursos. Siguen aplicándose los permisos actuales.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
 
-Las activaciones en cola, las esperas de dispositivos y las ejecuciones aparcadas conservan la identidad de su revisión original. Una revisión posterior no amplía los permisos del trabajo anterior. El sondeo del buzón comprueba la cuenta de entrada antes de leer; los eventos conservan el consentimiento admitido antes de esa lectura. Las llamadas MCP usan alias revisados y excluyen herramientas no aprobadas. Las fuentes revisadas no disponibles provocan un rechazo explícito. Una revisión necesaria antes de ejecutar aparece en el caso de atención existente del propietario y no cuenta como un fallo del modelo.
+Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
+
+El propietario puede elegir `restricted`, que fija la configuración revisada, cuentas MCP concretas, generaciones de autorización y nombres de herramientas conocidos. La revisión incluye delegados fijados, conocimiento, skills, contexto, capacidades y registros A2A remotos. Las fuentes nuevas o cambios en la autorización de una cuenta requieren otra revisión. Las políticas existentes sin modo permanecen restringidas; actualizar no las amplía automáticamente.
+
+Cada ejecución admitida conserva su propia instantánea de fuentes y cuentas. Una ejecución aparcada no puede tomar una cuenta, autorización o revisión posterior. La titularidad, revocación y listas de herramientas permitidas se comprueban de nuevo antes de las llamadas. Las herramientas opcionales ausentes se comunican, no se tratan como trabajo completado. El propietario puede cambiar explícitamente el modo de una rutina existente mediante sus ajustes de acceso protegidos por un token de revisión.
 
 La migración `0276_routine_sources.py` no concede consentimiento a rutinas existentes. Drena los workers antiguos, actualiza API y workers conjuntamente y revisa explícitamente las rutinas antiguas antes de ejecutarlas. Solo el propietario en la consola puede sustituir el consentimiento; no pueden hacerlo las claves API, la suplantación ni los agentes desatendidos.
 
@@ -2576,7 +2591,7 @@ publicador no pueden leer ni resolver casos privados de Inbox.
 
 ## Grupos de aprobación { #approval-groups }
 
-Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Cualquier persona elegible puede decidir por sí sola y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
+Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Cualquier persona elegible puede decidir por sí sola y debe tener `approvals:decide` en `ALL` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
 
 La pertenencia al grupo y la cuenta activa se comprueban al decidir. Las notificaciones resuelven miembros elegibles al crear la solicitud y eliminan duplicados con personas indicadas. Incorporarse después puede dar derecho a decidir sin otra notificación; salir o perder permisos lo retira.
 

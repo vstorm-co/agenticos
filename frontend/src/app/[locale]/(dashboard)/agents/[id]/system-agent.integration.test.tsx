@@ -270,12 +270,6 @@ async function mount() {
   return view as ReturnType<typeof render>;
 }
 
-/** The name field of the name and description card: the page has other fields called "Name". */
-function nameField() {
-  const card = screen.getByText("Name and description").closest("[data-tour='agent-identity']");
-  return within(card as HTMLElement).getByRole("textbox", { name: "Name" });
-}
-
 /** The kind of agent a case renders, the platform's seeded one or an organization's own. */
 function viewing(
   kind: AgentKind,
@@ -417,8 +411,13 @@ describe("saving a regular agent's draft", () => {
     page.draft = LEGACY_DRAFT;
     await mount();
 
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    const name = within(screen.getByRole("dialog", { name: "Details" })).getByRole("textbox", {
+      name: "Name",
+    });
     vi.useFakeTimers();
-    fireEvent.change(nameField(), {
+    fireEvent.change(name, {
       target: { value: "Support" },
     });
     await act(async () => {

@@ -16,10 +16,12 @@ from app.workflows.contracts.input_schema import InputSchema
 from app.workflows.contracts.input_schema_worker import (
     MAX_REQUEST_BYTES,
     MAX_RESPONSE_BYTES,
+    READY_LINE,
     ValidationRequest,
     validation_limit,
 )
 
+STARTUP_SECONDS = 10
 VALIDATION_SECONDS = 2
 MAX_VALIDATIONS = 2
 _ADDRESS_SPACE_BYTES = 256 * 1024**2
@@ -28,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # As with the HTML parser, limits are installed before importing the validator.
 # A process deadline can interrupt regex and reference evaluation; a thread cannot.
+# The CPU limit spans startup and evaluation; the wall-clock deadlines bound each stage.
 _LAUNCHER = """
 import os, resource, sys
 cpu, memory = int(sys.argv[1]), int(sys.argv[2])
@@ -91,8 +94,10 @@ async def schema_problems(
     """Evaluate one contract in a killable child before a run can be admitted.
 
     Two children at most per API/worker loop; a saturated validator refuses
-    immediately with 429. Wall time includes process startup and communication.
-    Time, CPU and protocol size are bounded independently of schema depth.
+    immediately with 429. The child imports the validator and announces readiness
+    within STARTUP_SECONDS (503 `start_timeout` otherwise); VALIDATION_SECONDS then
+    bounds evaluation and communication alone. Time, CPU and protocol size are
+    bounded independently of schema depth.
     Linux also enforces a hard address-space limit; macOS does not support it.
     """
     request: ValidationRequest = {"schema": schema, "input": payload}
@@ -110,29 +115,38 @@ async def schema_problems(
     async with gate:
         process: asyncio.subprocess.Process | None = None
         try:
-            async with asyncio.timeout(VALIDATION_SECONDS):
-                process = await asyncio.create_subprocess_exec(
-                    sys.executable,
-                    "-c",
-                    _LAUNCHER,
-                    str(math.ceil(VALIDATION_SECONDS) + 1),
-                    str(_ADDRESS_SPACE_BYTES),
-                    sys.executable,
-                    "-I",
-                    "-m",
-                    "app.workflows.contracts.input_schema_worker",
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL,
-                )
-                stdout, _ = await process.communicate(encoded)
-        except TimeoutError:
-            if process is not None:
-                await _kill_and_reap(process)
-            return validation_limit()
-        except OSError as exc:
-            logger.exception("workflow_input_validator_not_started")
-            raise WorkflowInputValidationUnavailableError(reason="not_started") from exc
+            try:
+                async with asyncio.timeout(STARTUP_SECONDS):
+                    process = await asyncio.create_subprocess_exec(
+                        sys.executable,
+                        "-c",
+                        _LAUNCHER,
+                        str(math.ceil(STARTUP_SECONDS + VALIDATION_SECONDS) + 1),
+                        str(_ADDRESS_SPACE_BYTES),
+                        sys.executable,
+                        "-I",
+                        "-m",
+                        "app.workflows.contracts.input_schema_worker",
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    assert process.stdout is not None
+                    ready = await process.stdout.readline()
+            except TimeoutError as exc:
+                logger.error("workflow_input_validator_start_timeout")
+                raise WorkflowInputValidationUnavailableError(reason="start_timeout") from exc
+            except OSError as exc:
+                logger.exception("workflow_input_validator_not_started")
+                raise WorkflowInputValidationUnavailableError(reason="not_started") from exc
+            if ready != READY_LINE:
+                logger.error("workflow_input_validator_start_failed")
+                raise WorkflowInputValidationUnavailableError(reason="start_failed")
+            try:
+                async with asyncio.timeout(VALIDATION_SECONDS):
+                    stdout, _ = await process.communicate(encoded)
+            except TimeoutError:
+                return validation_limit()
         finally:
             if process is not None and process.returncode is None:
                 await _kill_and_reap(process)

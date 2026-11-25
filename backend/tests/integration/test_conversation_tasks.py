@@ -788,3 +788,22 @@ async def test_reconciliation_indexes_skip_archived_task_history(db: AsyncSessio
     )
     assert "conversation_tasks_unsettled_idx" in str(plan)
     assert [task.id for task, _run in await task_repo.unsettled_runs(db)] == [row.id]
+
+
+async def test_a_live_turn_claim_keeps_a_private_conversation_from_being_shared(
+    db: AsyncSession,
+) -> None:
+    example = await seed(db)
+    topic_id = example.topic.id
+    assert not await task_repo.has_live_conversation_work(db, topic_id)
+
+    claim_id = await task_repo.claim_turn(db, topic_id, background=False)
+    assert claim_id is not None
+    assert await task_repo.has_live_conversation_work(db, topic_id)
+
+    await db.execute(
+        update(ConversationTurnClaim)
+        .where(ConversationTurnClaim.id == claim_id)
+        .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    assert not await task_repo.has_live_conversation_work(db, topic_id)

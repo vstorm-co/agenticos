@@ -233,12 +233,12 @@ describe("TurnVisuals", () => {
 
   it("offers saving as an app only to whoever may publish one", () => {
     const { unmount } = show([call({ result: "Drew 'Flow' as visual `d1`." })]);
-    expect(screen.getByRole("button", { name: "Save to Apps" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save to Pages" })).toBeInTheDocument();
     unmount();
 
     canPublish.mockReturnValue(false);
     show([call({ result: "Drew 'Flow' as visual `d1`." })]);
-    expect(screen.queryByRole("button", { name: "Save to Apps" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save to Pages" })).toBeNull();
     canPublish.mockReturnValue(true);
   });
 
@@ -405,20 +405,20 @@ describe("TurnVisuals", () => {
     show([call(), revision], { known: [call(), revision] });
 
     expect(screen.getByRole("link", { name: "Saved · v1" })).toHaveAttribute("href", "/apps/a");
-    const buttons = screen.getAllByRole("button", { name: "Update the app" });
+    const buttons = screen.getAllByRole("button", { name: "Update the page" });
     fireEvent.click(buttons[1]!);
     expect(screen.getByTestId("save-dialog")).toHaveTextContent("r1:flow");
   });
 
   it("does not offer to save where there is no conversation", () => {
     show([call()], { conversationId: null });
-    expect(screen.queryByRole("button", { name: "Save to Apps" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save to Pages" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
   });
 
   it("opens the save dialog for a new app", () => {
     show([call()]);
-    fireEvent.click(screen.getByRole("button", { name: "Save to Apps" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save to Pages" }));
     expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
   });
 });

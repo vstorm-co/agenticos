@@ -489,7 +489,7 @@ describe("the add-model form", () => {
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
@@ -520,7 +520,7 @@ describe("the add-model form", () => {
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a connection");
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     await userEvent.click(screen.getByLabelText("Key"));
@@ -548,7 +548,7 @@ describe("the add-model form", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
   });
@@ -586,7 +586,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -602,7 +602,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
     await userEvent.type(screen.getByLabelText("Name"), "Cheap tier");
@@ -618,7 +618,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -694,7 +694,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -708,7 +708,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await pickProvider("OpenRouter");
 
@@ -744,7 +744,7 @@ describe("the add-model form", () => {
     mount({ disabled: true });
     expect(screen.getByLabelText("Provider")).toBeDisabled();
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -812,7 +812,7 @@ describe("storing the key the model runs on", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
@@ -851,7 +851,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -886,7 +886,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -906,7 +906,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -927,7 +927,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
@@ -964,7 +964,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Anthropic");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
@@ -993,7 +993,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), url);
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   }
@@ -1127,7 +1127,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -1146,7 +1146,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -1164,7 +1164,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -1188,7 +1188,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(screen.getByText(message)).toBeInTheDocument();
@@ -1212,7 +1212,7 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
   }
 
   async function pickApi(name: string) {
@@ -1328,7 +1328,7 @@ describe("choosing where a Stav model's requests run", () => {
     mount();
     await pickProvider("Stav.ai");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /mistral-small-4/ }));
+    await userEvent.click(screen.getByRole("option", { name: /Mistral Small 4/ }));
   }
 
   function sent() {
@@ -1513,7 +1513,7 @@ describe("choosing where a Stav model's requests run", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(sent()).not.toHaveProperty("region");
@@ -1533,7 +1533,7 @@ describe("a provider nobody can type a key for", () => {
     const { onCreated } = mount();
     await pickProvider("ChatGPT");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
 
     expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Sign in instead" }));
@@ -1571,6 +1571,39 @@ describe("the model the agent is already on", () => {
       ...overrides,
     } as Parameters<typeof AddModel>[0]["selected"];
   }
+
+  it("keeps the active model visible while folding connection details and retaining endpoint edits", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    state.catalog = [capabilities("openrouter", "OpenRouter", { supports_base_url: true })];
+    mount({ selected: inUse(), collapseConnection: true });
+    expect(screen.getByLabelText("Provider")).toHaveTextContent("OpenRouter");
+    expect(screen.getByLabelText("Model")).toHaveTextContent("openai/gpt-5.5");
+    expect(screen.getByText("In use")).toBeVisible();
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Default API" }),
+    );
+    const endpoint = screen.getByLabelText("Endpoint");
+    await userEvent.type(endpoint, "https://router.example/v1");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Custom endpoint" }),
+    );
+    expect(endpoint).not.toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Custom endpoint" }),
+    );
+    expect(endpoint).toHaveValue("https://router.example/v1");
+  });
+
+  it("reveals missing authorization even when connection details were requested collapsed", () => {
+    state.secrets = [];
+    mount({ selected: inUse(), collapseConnection: true });
+    expect(screen.getByRole("button", { name: /Connection settings/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText(/No OpenRouter key/)).toBeVisible();
+  });
 
   it("is what the two fields start on", async () => {
     // The panel used to answer "which model" in a line above the form and ask it in
@@ -1813,12 +1846,19 @@ describe("the model the agent is already on", () => {
         },
       }),
     );
-    mount({ selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }) });
+    mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }),
+      collapseConnection: true,
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Connection settings/ }));
 
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://");
+    await userEvent.click(screen.getByRole("button", { name: /Connection settings/ }));
+    expect(screen.getByLabelText("Endpoint")).not.toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Update model" }));
 
-    expect(await screen.findByText("A model endpoint must include a host")).toBeInTheDocument();
+    expect(await screen.findByText("A model endpoint must include a host")).toBeVisible();
+    expect(screen.getByLabelText("Endpoint")).toBeVisible();
   });
   it.each([
     [null, "https://eu.openrouter.ai/api/v1", "eu.openrouter.ai/api/v1"],
@@ -1920,7 +1960,7 @@ it("creates an Otari profile using its selected vault key and gateway model sele
   );
   expect(screen.queryByLabelText("Region")).toBeNull();
   await userEvent.click(screen.getByLabelText("Model"));
-  await userEvent.click(screen.getByRole("option", { name: /anthropic:claude-sonnet-4-6/ }));
+  await userEvent.click(screen.getByRole("option", { name: "Claude" }));
   await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
     expect.objectContaining({
@@ -1990,6 +2030,91 @@ it("never discovers Otari on auto-selection or typing and reconfirms a changed d
   );
 });
 
+describe("a custom endpoint", () => {
+  it("creates an OpenAI-compatible profile from the endpoint and the key it is given", async () => {
+    // The organization's own server, reached at an address somebody types. The
+    // model list is the endpoint's own, read with the key that authenticates it.
+    state.purposes = [
+      ...state.purposes,
+      purpose("openai_compatible", "Custom (OpenAI-compatible)"),
+    ];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("openai_compatible", "Custom (OpenAI-compatible)", {
+        supports_base_url: true,
+        requires_base_url: true,
+        apis: ["chat"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-custom", name: "Gateway key", purpose: "openai_compatible" })];
+    state.models = [{ id: "llama3.3", name: "Llama 3.3" }];
+    mount();
+    await pickProvider("Custom \\(OpenAI-compatible\\)");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://models.example/v1");
+    // The endpoint is the whole address, so nothing is asked of it until the
+    // address is confirmed - there is nowhere else to ask.
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "openai_compatible",
+      undefined,
+      "s-custom",
+      false,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "openai_compatible",
+      "https://models.example/v1",
+      "s-custom",
+      false,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Llama 3.3/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        provider: "openai_compatible",
+        model: "llama3.3",
+        secret_id: "s-custom",
+        base_url: "https://models.example/v1",
+        api: null,
+      }),
+    );
+  });
+
+  it("says what an Anthropic-compatible endpoint is, and asks for no API", async () => {
+    // Anthropic's SDK posts to `<endpoint>/v1/messages`, so the endpoint is the
+    // API root. An address that is right for a Chat Completions server is wrong
+    // for a Messages one, and the wrong one fails with a 404 that names the
+    // path rather than the cause.
+    state.purposes = [
+      ...state.purposes,
+      purpose("anthropic_compatible", "Custom (Anthropic-compatible)"),
+    ];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("anthropic_compatible", "Custom (Anthropic-compatible)", {
+        supports_base_url: true,
+        requires_base_url: true,
+      }),
+    ];
+    state.secrets = [
+      secret({ id: "s-messages", name: "Messages key", purpose: "anthropic_compatible" }),
+    ];
+    mount();
+    await pickProvider("Custom \\(Anthropic-compatible\\)");
+    expect(screen.getByText(/answers Anthropic's Messages API/)).toBeInTheDocument();
+    // One API means no choice to offer, so no field asks for it.
+    expect(screen.queryByLabelText("API")).toBeNull();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://models.example");
+    await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "anthropic_compatible",
+      "https://models.example",
+      "s-messages",
+      false,
+    );
+  });
+});
+
 describe("native decision model setup", () => {
   it("uses the provider model and inline vault key flow for decisions", async () => {
     state.catalog = [
@@ -1998,6 +2123,12 @@ describe("native decision model setup", () => {
         apis: ["responses", "chat", "decisions"],
       }),
       capabilities("openrouter", "OpenRouter"),
+    ];
+    state.catalog = [
+      capabilities("openai", "OpenAI", {
+        ...OPENAI_CAPABILITIES,
+        apis: ["responses", "chat", "decisions"],
+      }),
     ];
     state.models = [{ id: "gpt-6-luna", name: "GPT-6 Luna" }];
     state.createProfile.mutateAsync.mockResolvedValue({
@@ -2010,7 +2141,7 @@ describe("native decision model setup", () => {
     expect(listingRequests).toHaveBeenLastCalledWith("openai", undefined, undefined, true);
     expect(screen.queryByLabelText("API")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-6-luna/ }));
+    await userEvent.click(screen.getByRole("option", { name: "GPT-6 Luna" }));
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -2037,4 +2168,19 @@ describe("native decision model setup", () => {
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /OpenRouter/ })).not.toBeInTheDocument();
   });
+});
+
+it("does not offer the native decision API for a chat profile", async () => {
+  state.catalog = [
+    capabilities("openai", "OpenAI", {
+      ...OPENAI_CAPABILITIES,
+      apis: ["responses", "chat", "decisions"],
+    }),
+  ];
+  mount({ purpose: "chat" });
+  await pickProvider("OpenAI");
+  await userEvent.click(screen.getByLabelText("API"));
+  expect(screen.getByRole("option", { name: "Responses" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "Chat Completions" })).toBeVisible();
+  expect(screen.queryByRole("option", { name: "Decisions" })).toBeNull();
 });

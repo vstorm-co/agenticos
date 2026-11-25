@@ -7,7 +7,7 @@ import messages from "../../../messages/en.json";
 import { RoleNavigationEditor } from "./role-navigation-editor";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { useOrgStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import type { OrgRole } from "@/types/organization";
 import { Perm, type RoleCatalog } from "@/types/permissions";
 import type { RoleNavigationPolicy } from "@/types/role-navigation";
@@ -94,6 +94,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   useOrgStore.setState({ activeOrgId: "org-a" });
+  useAuthStore.setState({ user: null });
   vi.mocked(apiClient.get).mockResolvedValue(POLICY);
   vi.mocked(apiClient.patch).mockImplementation(async (_path, body) => ({
     ...POLICY,
@@ -105,6 +106,22 @@ beforeEach(() => {
 });
 
 describe("role navigation editor", () => {
+  it("omits the Admin entry for a user who is not an app admin", async () => {
+    await renderEditor();
+    expect(screen.queryByRole("checkbox", { name: "Show Admin" })).not.toBeInTheDocument();
+    expect(preview().queryByText("Admin")).not.toBeInTheDocument();
+  });
+
+  it("shows the Admin entry, fixed on, to an app admin whatever the org role", async () => {
+    useAuthStore.setState({ user: { is_app_admin: true } as never });
+    await renderEditor();
+    await selectRole("Viewer");
+    const admin = screen.getByRole("checkbox", { name: "Show Admin" });
+    expect(admin).toBeChecked();
+    expect(admin).toBeDisabled();
+    expect(preview().getAllByText("Admin")).toHaveLength(2); // group heading and entry
+  });
+
   it("shows a loading state before the policy is available", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
     render(view());
@@ -184,8 +201,8 @@ describe("role navigation editor", () => {
   it("replaces an existing hidden item and removes empty preview sections", async () => {
     await renderEditor();
     await userEvent.click(screen.getByRole("checkbox", { name: "Show Skills" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: "Show All apps" }));
-    expect(preview().queryByText("Apps")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Show All pages" }));
+    expect(preview().queryByText("Pages")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save sidebar" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Save sidebar" }));
     await waitFor(() =>

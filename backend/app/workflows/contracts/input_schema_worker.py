@@ -8,6 +8,7 @@ from pydantic import JsonValue
 
 MAX_REQUEST_BYTES = 1_048_576
 MAX_RESPONSE_BYTES = 262_144
+READY_LINE = b"ready\n"
 
 
 class ValidationRequest(TypedDict):
@@ -30,10 +31,14 @@ _RESOURCE_LIMIT_RESPONSE = json.dumps(validation_limit()).encode()
 
 
 def main(stdin: BinaryIO, stdout: BinaryIO) -> None:
-    """Validate the parent's JSON request without emitting submitted values."""
-    try:
-        from app.workflows.contracts.input_schema import check_input_schema, schema_input_problems
+    """Announce readiness, then validate the parent's JSON request without emitting submitted values."""
+    from app.workflows.contracts.input_schema import check_input_schema, schema_input_problems
 
+    # The parent starts its evaluation deadline only after this line, so the cost of a
+    # cold interpreter and these imports never counts against the evaluation allowance.
+    stdout.write(READY_LINE)
+    stdout.flush()
+    try:
         request_bytes = stdin.read(MAX_REQUEST_BYTES + 1)
         if len(request_bytes) > MAX_REQUEST_BYTES:
             problems = validation_limit()

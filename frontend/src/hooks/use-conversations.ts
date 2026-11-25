@@ -109,6 +109,7 @@ export interface ConversationQuery {
   sortDir: ConversationSortDir;
   /** Leave out conversations an API key's runs opened (#2122). */
   hideApi: boolean;
+  projectScope: "include" | "only" | "exclude";
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -118,6 +119,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   sortBy: "updated_at",
   sortDir: "desc",
   hideApi: false,
+  projectScope: "include",
 };
 
 /**
@@ -149,22 +151,26 @@ function listParams(query: ConversationQuery): string {
   if (query.view === "archived") params.set("archived_only", "true");
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.projectScope !== "include") params.set("project_scope", query.projectScope);
   if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
 
-export function useConversations(query: Partial<ConversationQuery> = {}) {
+export function useConversations(query: Partial<ConversationQuery> = {}, enabled = true) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir, hideApi } = { ...DEFAULT_QUERY, ...query };
+  const { view, search, agentId, sortBy, sortDir, hideApi, projectScope } = {
+    ...DEFAULT_QUERY,
+    ...query,
+  };
   // Memoized on the five values rather than on the object they arrive in: a
   // caller building that object inline hands over a new reference every render,
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi }),
-    [view, search, agentId, sortBy, sortDir, hideApi],
+    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi, projectScope }),
+    [view, search, agentId, sortBy, sortDir, hideApi, projectScope],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {
@@ -234,6 +240,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // too, rather than waiting for a network to try.
   const { data, isLoading: listLoading } = useQuery({
     queryKey: listKey,
+    enabled,
     queryFn: async () => {
       const ask = () => apiClient.get<ConversationListResponse>(`/conversations?${params}`);
       const response = search.trim() ? await ask() : await readThrough(`list:${params}`, ask);
@@ -1040,18 +1047,64 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   };
 }
 
-/**
- * Conversations whose title matches `term`, archived ones included - what the
- * chat's search window lists. Nothing is asked until something is typed.
- */
 /** How often a listing with a thread at work in it is read again. */
 const RUNNING_POLL_MS = 4000;
 
-export function useConversationSearch(term: string) {
+export interface ConversationSearchResult {
+  id: string;
+  title: string | null;
+  updated_at: string;
+  created_at?: string;
+  snippet?: string;
+  hits?: number;
+}
+
+interface MessageSearchResult {
+  conversation_id: string;
+  title: string | null;
+  updated_at: string;
+  snippet: string;
+  hits: number;
+}
+
+/** Search conversation titles only, including archived conversations. */
+export function useConversationTitleSearch(term: string) {
   const params = listParams({ ...DEFAULT_QUERY, search: term });
   return useQuery({
     queryKey: qk.conversations.list(params),
     queryFn: () => apiClient.get<ConversationListResponse>(`/conversations?${params}`),
     enabled: term.trim() !== "",
+  });
+}
+
+/** Search both titles and indexed messages; a failed half is an explicit query error. */
+export function useConversationSearch(term: string) {
+  const normalized = term.trim();
+  const params = listParams({ ...DEFAULT_QUERY, search: normalized });
+  return useQuery({
+    queryKey: qk.conversations.search(normalized),
+    queryFn: async (): Promise<{ items: ConversationSearchResult[] }> => {
+      const [titles, messages] = await Promise.all([
+        apiClient.get<ConversationListResponse>(`/conversations?${params}`),
+        apiClient.get<{ items: MessageSearchResult[] }>(
+          `/conversations/search?${new URLSearchParams({ query: normalized, limit: "40" })}`,
+        ),
+      ]);
+      const results = new Map<string, ConversationSearchResult>();
+      for (const hit of messages.items) {
+        results.set(hit.conversation_id, { ...hit, id: hit.conversation_id });
+      }
+      for (const title of titles.items) {
+        if (!results.has(title.id)) {
+          results.set(title.id, {
+            id: title.id,
+            title: title.title ?? null,
+            updated_at: title.updated_at || title.created_at,
+          });
+        }
+      }
+      return { items: [...results.values()] };
+    },
+    enabled: normalized !== "",
   });
 }

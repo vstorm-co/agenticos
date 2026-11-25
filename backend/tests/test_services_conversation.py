@@ -14,6 +14,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemP
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.models.conversation import ToolCall
 from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.schemas.conversation import (
@@ -46,12 +47,11 @@ def capability_loads_repo(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def room_participant_conversations(monkeypatch):
-    mocked = AsyncMock(return_value=set())
+def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
     monkeypatch.setattr(
-        "app.services.conversation.room_participant_repo.user_conversation_ids", mocked
+        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
     )
-    return mocked
 
 
 @pytest.fixture(autouse=True)
@@ -80,11 +80,12 @@ def no_external_thread_context_edges(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
+def room_participant_conversations(monkeypatch):
+    mocked = AsyncMock(return_value=set())
     monkeypatch.setattr(
-        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
+        "app.services.conversation.room_participant_repo.user_conversation_ids", mocked
     )
+    return mocked
 
 
 class MockConversation:
@@ -152,6 +153,7 @@ class MockMessage:
         self.attachment_context = None
         self.model_content = None
         self.parts: list[dict[str, object]] | None = None
+        self.tool_calls: list[ToolCall] = []
         # Who typed it and what it answers: nobody named, nothing answered.
         self.author_user_id = None
         self.channel_identity_id = None

@@ -378,6 +378,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | GitHub Models | `github` | API key | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
+| LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
@@ -390,6 +391,8 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
+
+LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
 
 ### Self-hosted
 
@@ -421,6 +424,40 @@ authenticate with.
     which makes the second case ordinary. A run resolves a keyless profile only
     when it carries an endpoint; otherwise it is refused with the same "no key
     configured" message it always had.
+
+### Your own endpoint
+
+| Provider | id | Credential | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | API key | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | API key | ✓ |
+
+These two are an API *shape* rather than a vendor. You type the address of a
+server you run or a gateway you trust, and the key that authenticates it. Pick
+the one that matches what your endpoint answers:
+
+| Your endpoint answers | Choose | The address to enter |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, a LiteLLM proxy, most gateways | `openai_compatible` | the `/v1` root, such as `https://llm.example/v1` |
+| `POST /v1/messages` — Anthropic's own API shape | `anthropic_compatible` | the API root, such as `https://llm.example` |
+
+Both need an endpoint and a key. There is no public API to fall back on, so a
+profile without one is refused rather than sent somewhere else.
+
+The key is stored in the vault under the provider's own name, which says there
+that it authenticates *that* endpoint rather than a vendor's public API. That is
+why they are entries of their own rather than an `openai` or an `anthropic`
+profile with an endpoint: a key filed under a vendor names that vendor.
+
+!!! info "The Anthropic address carries no `/v1`"
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so the endpoint is the
+    API root. An address that already ends in `/v1` is trimmed for you, so
+    either spelling works — but the root is what the platform asks for.
+
+**Load models** reads the list from the same endpoint, with the same key, so
+the dropdown offers what your server actually serves. The model id stays free
+text: a server that publishes no list can still be used by typing the id.
 
 ### When the credential is not an API key
 
@@ -618,11 +655,13 @@ a typo or a retired model is caught rather than shipped as a dropdown the provid
 answers 404 to. A model the snapshot knows but does not price simply has no window,
 which is the null described below.
 
+The subscription picker reads the deployment’s curated list when opened. It has no live account-specific catalog. GPT-6.2 entries were checked against the Codex app server and leave context blank until the pricing snapshot records it.
+
 | Provider | Curated ids |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | the same four as `openai` |
+| `openai_codex` | GPT-6.2 Sol and Astra, GPT-6.1 Sol and Terra, GPT-6 Sol, Astra and Luna, and the earlier Codex IDs |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

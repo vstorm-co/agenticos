@@ -93,6 +93,7 @@ from app.repositories import organization_assistant as organization_assistant_re
 from app.repositories import user_slash_command as user_slash_command_repo
 
 from app.repositories import dashboard_layout as dashboard_layout_repo
+from app.repositories import nav_pins as nav_pins_repo
 from app.repositories import deployment_settings as deployment_settings_repo
 from app.repositories import dashboard_preset as dashboard_preset_repo
 
@@ -138,6 +139,7 @@ __all__ = [
     "invitation_repo",
     "user_slash_command_repo",
     "dashboard_layout_repo",
+    "nav_pins_repo",
     "deployment_settings_repo",
     "dashboard_preset_repo",
     "mcp_connection_repo",

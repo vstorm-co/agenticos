@@ -113,9 +113,10 @@ export function FocusedRun({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const { can } = usePermissions();
+  const { can, scopeOf } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
-  const { run, isLoading, error } = useRun(runId);
+  const { run, isLoading, error, refetch } = useRun(runId);
+  const common = useTranslations("common");
   // Scoring a run takes `datasets:run` on the dataset scored against, which a grant on
   // one widens past the role - so the menu is for who may run a dataset with a case.
   const scoresRuns = useRunsADataset({ enabled: run?.conversation_id != null });
@@ -175,6 +176,21 @@ export function FocusedRun({
     return () => window.removeEventListener("keydown", step);
   }, [prevRunId, nextRunId, onFocusRun]);
 
+  const unavailableHeader = onClose !== undefined && (
+    <div className="border-border flex items-center justify-between border-b px-4 py-3">
+      <h2 className="text-sm font-medium">{t("runDetail")}</h2>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t("closeRunDetail")}
+        onClick={onClose}
+      >
+        <X className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
+
   // Before the wait, because holding the previous run's row means `isLoading` is
   // false while a failure for *this* one is already known - and the held row
   // would otherwise be drawn as though it were the answer to the id in the URL.
@@ -184,14 +200,27 @@ export function FocusedRun({
     // the link. Anything else is a fact about the request, and saying "no such
     // run" for a refused permission sends somebody looking for a run that is
     // there.
-    return error instanceof ApiError && error.status === 404 ? (
-      <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
-    ) : (
-      <ErrorState title={t("runCouldNotBeRead")} />
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        {error instanceof ApiError && error.status === 404 ? (
+          <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
+        ) : (
+          <ErrorState
+            title={t("runCouldNotBeRead")}
+            cta={{ label: common("retry"), onClick: () => void refetch() }}
+          />
+        )}
+      </div>
     );
   }
   if (isLoading || run === undefined) {
-    return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        <LoadingState variant="skeleton-table" columns={6} rows={2} />
+      </div>
+    );
   }
 
   return (
@@ -241,20 +270,24 @@ export function FocusedRun({
             {/* A parked run whose approvals were all decided is a run somebody
               still has to nudge: the resume endpoint is idempotent about the
               decision - a call still parked answers a refusal, not a second
-              decision - so the button asks for approvals:decide, the same
-              permission the endpoint carries. */}
-            {run.status === "awaiting_approval" && can(Perm.approvalsDecide) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mr-1"
-                disabled={resume.isPending}
-                onClick={() => resume.mutate(run.id)}
-              >
-                <Play className="h-4 w-4" aria-hidden />
-                {t("resumeRun")}
-              </Button>
-            )}
+              decision - so the button asks for the decide permission, at the
+              scope the reader holds it. A member holds it at `OWN`, for
+              their own runs only, so the run's own person sees it beside the
+              privileged decider; anybody else is refused by the endpoint. */}
+            {run.status === "awaiting_approval" &&
+              (scopeOf(Perm.approvalsDecide) === "all" ||
+                (run.user_id !== null && run.user_id === meId)) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-1"
+                  disabled={resume.isPending}
+                  onClick={() => resume.mutate(run.id)}
+                >
+                  <Play className="h-4 w-4" aria-hidden />
+                  {t("resumeRun")}
+                </Button>
+              )}
             {/* A finished run, asked again. Only the person who started it
                 sees it - the endpoint refuses anybody else, and a retry
                 spends real money as them - and only while the run is

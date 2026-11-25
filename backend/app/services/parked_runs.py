@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
@@ -54,6 +54,7 @@ from app.services.agent_runner import (
     parked_question_items,
     parked_secret_request_items,
 )
+from app.services.approval_authority import may_decide_approval
 from app.services.approvals import ApprovalService
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
@@ -193,8 +194,19 @@ class ParkedRunService:
         return any(a.status == ApprovalStatus.PENDING.value for a in approvals)
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> Continued:
-        """Continue a run whose calls were decided, inline; post to its chat when it has one."""
+        """Continue a run whose calls were decided, inline; post to its chat when it has one.
+
+        Resuming is the decider's act, not a reader's: a privileged decider
+        may resume any run, anybody else only a run they started, from a
+        signed-in session - the same rule deciding is held to, since the
+        continuation spends as the resumer.
+        """
         run = await self.runner.get_run(ctx, run_id)
+        if not may_decide_approval(ctx, run):
+            raise AuthorizationError(
+                message="Only the person who started this run, or somebody who may decide approvals, may resume it",
+                details={"run_id": str(run_id)},
+            )
         if run.surface == RunSurface.WORKFLOW.value:
             raise BadRequestError(
                 message="This run is continued by its workflow",

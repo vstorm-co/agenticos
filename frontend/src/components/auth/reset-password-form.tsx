@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -67,9 +68,7 @@ export function ResetPasswordForm({ token }: Props) {
     <div className="space-y-8">
       <div className="space-y-2">
         <span className="text-muted-foreground text-sm font-medium">{t("eyebrow")}</span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t("heading")}
-        </h1>
+        <AuthHeading>{t("heading")}</AuthHeading>
         <p className="text-foreground/65 text-sm">{t("intro")}</p>
       </div>
 

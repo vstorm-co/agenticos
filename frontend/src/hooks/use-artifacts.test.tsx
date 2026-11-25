@@ -191,10 +191,10 @@ describe("useArtifact", () => {
 
     await act(() => result.current.archive.mutateAsync());
     expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/archive");
-    expect(toastSuccess).toHaveBeenCalledWith("Artifact archived");
+    expect(toastSuccess).toHaveBeenCalledWith("Page archived");
     await act(() => result.current.unarchive.mutateAsync());
     expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/unarchive");
-    expect(toastSuccess).toHaveBeenCalledWith("Artifact restored");
+    expect(toastSuccess).toHaveBeenCalledWith("Page restored");
 
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
@@ -238,7 +238,7 @@ describe("useArtifact", () => {
 
     await act(() => result.current.remove.mutateAsync());
     expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1");
-    expect(toastSuccess).toHaveBeenCalledWith("App deleted");
+    expect(toastSuccess).toHaveBeenCalledWith("Page deleted");
 
     vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("nope"));
     await act(async () => {
@@ -502,7 +502,7 @@ describe("useArtifact follow", () => {
     vi.mocked(apiClient.delete).mockResolvedValueOnce({ ...DETAIL, following: false });
     await act(() => result.current.follow.mutateAsync(false));
     expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/follow");
-    expect(toastSuccess).toHaveBeenCalledWith("You will no longer be notified about this app");
+    expect(toastSuccess).toHaveBeenCalledWith("You will no longer be notified about this page");
 
     vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("gone"));
     await act(async () => {
@@ -692,6 +692,19 @@ describe("cached static App previews", () => {
     const third = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
     expect(third.result.current.data?.version_id).toBe("v1");
     expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the current version when no version is named", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      version_id: "v9",
+      state: "ready",
+      image: "data:image/jpeg;base64,aA==",
+    });
+    const { result } = renderHook(() => useArtifactThumbnail("a", null, true), {
+      wrapper: cachedWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a/thumbnail");
   });
 
   it("does not restart a failed preview on every Back navigation", async () => {

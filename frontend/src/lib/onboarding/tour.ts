@@ -454,12 +454,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "coding-task-revert",
     optional: true,
   },
-  {
-    id: "chat-background-tasks",
-    page: ROUTES.CHAT,
-    target: "chat-background-tasks",
-    optional: true,
-  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
@@ -589,8 +583,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-identity",
     page: AGENT_BUILDER,
-    target: "agent-identity",
-    activate: "agent-tab-build",
+    target: "agent-share",
     permission: Perm.agentsView,
   },
   {
@@ -1074,6 +1067,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "workflows-describe",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-describe",
+    permission: Perm.workflowsCreate,
+    inTour: true,
+  },
+  {
     id: "workflows-list",
     page: ROUTES.WORKFLOWS,
     target: "workflows-list",
@@ -1129,15 +1129,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
-  // publishes one), so a single describing stop on the list, view-gated.
+  // publishes one), so a single describing stop on the list, view-gated, and
+  // one on the hand-off that asks an agent to publish one, in the header.
   {
     id: "artifacts-list",
     page: ROUTES.ARTIFACTS,
     target: "artifacts-list",
     permission: Perm.artifactsView,
   },
+  {
+    id: "apps-make",
+    page: ROUTES.ARTIFACTS,
+    target: "apps-make",
+    permission: Perm.artifactsView,
+  },
   // The reader's starred apps in the sidebar, present once at least one app is
-  // starred. The Apps heading and All apps link remain available when empty.
+  // starred. The Pages heading and All pages link remain available when empty.
   {
     id: "nav-pinned",
     page: ROUTES.DASHBOARD,
@@ -1790,6 +1797,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // What the platform brought the reader on its own (#2301). "?"-only, like the
   // routines stop: the launch walk does not take a first login here.
   { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
+  { id: "inbox-questions", page: ROUTES.INBOX, target: "inbox-questions", optional: true },
 
   // The threads between the reader's agents. "?"-only, gated on running agents:
   // the walk does not take a first login here either.

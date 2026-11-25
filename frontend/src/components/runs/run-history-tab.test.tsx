@@ -396,10 +396,9 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
-    expect(screen.queryByText("gpt-5")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
-    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Model" }));
-    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("columnheader", { name: "Asked by" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Model" })).toBeVisible();
+    expect(screen.getByText("gpt-5")).toBeVisible();
     await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");

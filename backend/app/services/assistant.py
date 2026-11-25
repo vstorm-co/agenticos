@@ -28,7 +28,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -42,8 +42,13 @@ from app.repositories import (
     organization_assistant_repo,
     skill_repo,
 )
-from app.repositories.agent_run import RunFilters
-from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
+from app.repositories.agent_run import ApprovalFilters, RunFilters
+from app.schemas.assistant import (
+    AssistantConfigurationRead,
+    AssistantRead,
+    AssistantSignals,
+    AssistantUpdate,
+)
 from app.services import agent_templates, skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.model_profile import choosable_for_others
@@ -53,9 +58,6 @@ from app.services.skills import LibraryRefresh, SkillService
 logger = logging.getLogger(__name__)
 
 TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
-# Its mark, worn as an ordinary agent picture so every place an agent's face is
-# drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
-AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
 """The shipped template every organization's assistant is installed from."""
 RECENT_FAILURE = timedelta(days=1)
 """How far back a failed run is still worth the bubble raising."""
@@ -80,6 +82,19 @@ class AssistantService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.registry = AgentRegistryService(db)
+
+    async def configuration(self, ctx: AuthContext) -> AssistantConfigurationRead:
+        """Read only an existing row; install and refresh are separate explicit changes."""
+        if not ctx.has(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Reading assistant configuration requires org:settings"
+            )
+        row = await organization_assistant_repo.get(self.db, ctx.organization_id)
+        if row is None:
+            return AssistantConfigurationRead(installed=False)
+        return AssistantConfigurationRead(
+            installed=True, agent_id=row.agent_id, enabled=row.enabled, greeting=row.greeting
+        )
 
     async def state(self, ctx: AuthContext) -> AssistantRead:
         """The organization's assistant as the widget needs it, installing it first.
@@ -164,8 +179,19 @@ class AssistantService:
         """
         pending = 0
         if ctx.has(Perm.APPROVALS_DECIDE):
+            # Counted the way the queue is read: a caller holding the
+            # permission only at `OWN` counts their own runs' approvals, not
+            # the organization's - the bubble must never speak to a queue its
+            # page would not show.
             _rows, pending = await agent_run_repo.list_approvals(
-                self.db, organization_id=ctx.organization_id, limit=1
+                self.db,
+                organization_id=ctx.organization_id,
+                filters=(
+                    ApprovalFilters(triggered_by_user_id=ctx.user_id)
+                    if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN
+                    else None
+                ),
+                limit=1,
             )
         failed_run_id = None
         if ctx.has(Perm.RUNS_VIEW) and ctx.user_id is not None:
@@ -433,9 +459,7 @@ class AssistantService:
                 ),
             },
         )
-        return await self.registry.set_avatar(
-            installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
-        )
+        return agent
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first chat model, once it has one.

@@ -63,6 +63,17 @@ beforeEach(() => {
 });
 
 describe("SuggestionRows", () => {
+  it("links a card to a new discussion without accepting or dismissing it", () => {
+    const id = "f3333ec4-01dd-42d5-a543-af449cc44eda";
+    render(<SuggestionRows items={[item(id)]} />);
+    expect(screen.getByRole("link", { name: "Discuss with agent" })).toHaveAttribute(
+      "href",
+      `/chat?new=inbox-${id}&discuss=${id}&answerer=agenticos`,
+    );
+    expect(state.accept).not.toHaveBeenCalled();
+    expect(state.dismiss).not.toHaveBeenCalled();
+  });
+
   it("keeps full Inbox content and its actions available", async () => {
     render(
       <SuggestionRows
@@ -78,7 +89,9 @@ describe("SuggestionRows", () => {
     expect(screen.getByText("Full context and the requested next step.")).not.toHaveClass(
       "line-clamp-2",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Title selected" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Done" }));
     expect(state.accept).toHaveBeenCalledWith("selected");
   });
   it("keeps compact briefing actions while leaving details to the inbox", async () => {
@@ -95,13 +108,29 @@ describe("SuggestionRows", () => {
     expect(state.dismiss).toHaveBeenCalledWith("idea");
   });
 
-  it("keeps an acknowledged finding actionable and labels its shared state", () => {
+  it("keeps an acknowledged finding actionable and labels its shared state", async () => {
     render(
       <SuggestionRows items={[item("ack", { kind: "finding", outcome_status: "acknowledged" })]} />,
     );
     expect(screen.getByText("Acknowledged")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Title ack" }));
+    expect(screen.getByRole("menuitem", { name: "Done" })).not.toHaveAttribute("data-disabled");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Not now" }));
+    expect(state.dismiss).toHaveBeenCalledWith("ack");
   });
+  it.each([false, true])(
+    "uses the same attention badge in full and dense rows (dense=%s)",
+    (dense) => {
+      const { container } = render(
+        <SuggestionRows items={[item("urgent", { urgent: true })]} dense={dense} />,
+      );
+      const priority = container.querySelector("[data-suggestion-priority]");
+      expect(priority).toHaveTextContent("Urgent");
+      expect(priority).toHaveClass("text-warning-ink", "bg-warning/12");
+      expect(priority).not.toHaveClass("text-destructive-ink");
+    },
+  );
+
   it("leads with what cannot wait and says where each came from", () => {
     render(
       <SuggestionRows
@@ -133,7 +162,7 @@ describe("SuggestionRows", () => {
     expect(screen.getByText("You asked for it four times")).toHaveClass("line-clamp-2");
     // A watch on a server the catalog does not know is still a watch.
     expect(rows[2]).toHaveTextContent("Routine · just now");
-    expect(within(rows[2]!).queryByRole("link")).toBeNull();
+    expect(within(rows[2]!).queryByRole("link", { name: /Title/ })).toBeNull();
   });
 
   it("answers in the row, and keeps one line of detail when dense", async () => {
@@ -183,14 +212,15 @@ it("opens the working chat without marking its draft as completed", async () => 
       items={[item("draft", { kind: "finding", payload: { conversation_id: chat } })]}
     />,
   );
-  expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
+  await userEvent.click(screen.getByRole("button", { name: "More actions for Title draft" }));
+  expect(screen.getByRole("menuitem", { name: "Open conversation" })).toHaveAttribute(
     "href",
     `/chat?id=${chat}`,
   );
   expect(state.accept).not.toHaveBeenCalled();
 });
 
-it("does not turn a malformed working chat reference into a navigation link", () => {
+it("does not turn a malformed working chat reference into a navigation link", async () => {
   render(
     <SuggestionRows
       items={[
@@ -198,7 +228,8 @@ it("does not turn a malformed working chat reference into a navigation link", ()
       ]}
     />,
   );
-  expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "More actions for Title bad" }));
+  expect(screen.queryByRole("menuitem", { name: "Open conversation" })).toBeNull();
 });
 
 it("links task titles to their table without a separate Open table action", () => {
@@ -222,4 +253,23 @@ it("reserves source metadata instead of painting a temporary routine label", () 
   state.catalogLoading = false;
   view.rerender(<SuggestionRows items={[finding]} />);
   expect(row).toHaveTextContent("Linear");
+});
+
+it("labels personal proposals separately and records a decision without scheduling work", async () => {
+  render(
+    <SuggestionRows
+      dense
+      items={[
+        item("personal", {
+          kind: "personal",
+          payload: { category: "routine", personal_context: true },
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Personal suggestion/)).toBeInTheDocument();
+  expect(screen.queryByText("Done")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+  expect(state.accept).toHaveBeenCalledWith("personal");
+  expect(state.dialogs).toBe(0);
 });

@@ -49,6 +49,20 @@ describe("a draft card", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("keeps an accessible selected version when a streamed update removes versions", async () => {
+    const versions = [
+      { label: "First", fields: [field()] },
+      { label: "Second", fields: [field({ text: "Second draft" })] },
+      { label: "Third", fields: [field({ text: "Third draft" })] },
+    ];
+    const { rerender } = render(<DraftCardView card={card([], { versions })} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Third" }));
+    rerender(<DraftCardView card={card([], { versions: versions.slice(0, 2) })} />);
+    expect(screen.getByRole("tab", { name: "Second" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Second");
+    expect(screen.getByText("Second draft")).toBeVisible();
+  });
+
   it("shows the full kind on hover, where it is cut short", () => {
     render(<DraftCardView card={card([field({ name: "Body" })], { kind: "slack message" })} />);
 
@@ -270,7 +284,7 @@ describe("previewing a markdown part", () => {
     expect(writeText).toHaveBeenCalledWith("# Title\n\n```\ncode\n```");
   });
 
-  it("clears the toggle by the name when named, by top padding when not", async () => {
+  it("keeps field controls in their own row, outside the draft text", async () => {
     const { container } = render(
       <DraftCardView
         card={card([
@@ -279,15 +293,17 @@ describe("previewing a markdown part", () => {
         ])}
       />,
     );
-    const [named, bare] = Array.from(container.querySelectorAll("[data-draft-segment]"));
-    expect(screen.getByText("Subject").className).toContain("pr-36");
-    expect(named!.querySelector("p:not(.text-muted-foreground)")!.className).not.toContain("pt-8");
-    expect(bare!.querySelector("p")!.className).toContain("pt-8");
+    const segments = Array.from(container.querySelectorAll("[data-draft-segment]"));
     for (const button of screen.getAllByRole("button", { name: "Preview" })) {
+      expect(button.closest("[data-draft-segment]")?.firstElementChild).toContainElement(button);
       await userEvent.click(button);
     }
-    expect(named!.querySelector("div.min-w-0")!.className).not.toContain("pt-8");
-    expect(bare!.querySelector("div.min-w-0")!.className).toContain("pt-8");
+    expect(segments[0]?.firstElementChild).toContainElement(screen.getByText("Subject"));
+    for (const segment of segments) {
+      expect(segment.firstElementChild?.nextElementSibling).not.toContainElement(
+        segment.querySelector("button"),
+      );
+    }
   });
 
   it("loads no image and interprets no raw HTML in the preview", async () => {

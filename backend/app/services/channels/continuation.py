@@ -20,13 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import set_impersonator
 from app.core.exceptions import AppException, RunExecutionError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.approval_authority import may_decide_approval
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
@@ -170,7 +171,10 @@ async def _refusal(
     """Why the continuation must not run, or None. Only a definite no counts."""
     if decider is None:
         return "decider_unavailable"
-    if not decider.has(Perm.APPROVALS_DECIDE):
+    # Rechecked against this run, not the permission alone: a member holds
+    # `approvals:decide` for their own runs only, so a decider who has since
+    # lost the authority to decide this one is refused here too.
+    if not may_decide_approval(decider, run):
         return "decider_cannot_decide"
     incoming = await incoming_for_run(
         db, run, bot_id=bot.id, platform_chat_id=destination.platform_chat_id

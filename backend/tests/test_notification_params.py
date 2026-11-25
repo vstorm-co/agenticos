@@ -199,6 +199,27 @@ def test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothin
             },
         ),
         (
+            NotificationEventType.ROOM_MENTION,
+            {
+                "wording": "room_mention",
+                "sender": "Alex",
+                "title": "Design",
+                "conversation_id": "c1",
+                "message_id": "m1",
+            },
+            {"wording": "room_mention", "sender": "Alex", "title": "Design"},
+        ),
+        (
+            NotificationEventType.ROOM_THREAD_REPLY,
+            {
+                "wording": "room_thread_reply",
+                "sender": "Alex",
+                "title": "Design",
+                "message_id": "m1",
+            },
+            {"wording": "room_thread_reply", "sender": "Alex", "title": "Design"},
+        ),
+        (
             NotificationEventType.CONFIGURATION_CHANGED,
             {"wording": "configuration_changed", "action": "settings.update", "url": "/admin"},
             {"wording": "configuration_changed"},

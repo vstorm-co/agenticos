@@ -79,6 +79,13 @@ export function VaultTable({
                 ? "visibilityTeam"
                 : "visibilityOrg",
           );
+  const canManageKey = (secret: Secret) =>
+    secret.can_edit === true &&
+    (!isBrowserSecretKind(secret.kind) || (!!actor && secret.owner_user_id === actor));
+  // The member who added an organization key may delete it without being
+  // allowed to rotate or share it; the server decides and says so in `can_delete`.
+  const canDeleteOnly = (secret: Secret) =>
+    !isBrowserSecretKind(secret.kind) && secret.can_edit !== true && secret.can_delete === true;
   const columns: Column<VaultEntry>[] = [
     {
       key: "name",
@@ -221,33 +228,37 @@ export function VaultTable({
       className: "w-32 pr-5",
       cell: (row) =>
         row.kind === "key"
-          ? row.secret.can_edit === true &&
-            (!isBrowserSecretKind(row.secret.kind) ||
-              (!!actor && row.secret.owner_user_id === actor)) && (
+          ? (canManageKey(row.secret) || canDeleteOnly(row.secret)) && (
               <div className="flex justify-end gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={
-                    isBrowserSecretKind(row.secret.kind)
-                      ? tb("manageBrowserUse", { name: row.name })
-                      : t("manageAccessTo", { name: row.name })
-                  }
-                  onClick={() => onShare(row.secret)}
-                >
-                  <Users className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t(
-                    row.secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
-                    { name: row.name },
-                  )}
-                  onClick={() => onRotate(row.secret)}
-                >
-                  <RotateCw className="size-4" />
-                </Button>
+                {canManageKey(row.secret) && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={
+                        isBrowserSecretKind(row.secret.kind)
+                          ? tb("manageBrowserUse", { name: row.name })
+                          : t("manageAccessTo", { name: row.name })
+                      }
+                      onClick={() => onShare(row.secret)}
+                    >
+                      <Users className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t(
+                        row.secret.kind === "openai_codex"
+                          ? "chatgptReconnectNamed"
+                          : "rotateNamed",
+                        { name: row.name },
+                      )}
+                      onClick={() => onRotate(row.secret)}
+                    >
+                      <RotateCw className="size-4" />
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -286,6 +297,8 @@ export function VaultTable({
   ];
   return (
     <DataTable
+      clientPagination
+      fillHeight
       columns={columns}
       rows={rows}
       loading={loading}

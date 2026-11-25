@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.85.0"
+version = "1.90.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -652,6 +652,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
+    "app/commands/refresh_inbox.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
@@ -660,10 +661,12 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/commands/tables_rls.py",
+    "app/commands/seed_demo.py",
     "app/core/permissions.py",
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
     "app/api/routes/v1/personal_subscriptions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -1043,6 +1046,8 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/services/console_experience.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -1167,6 +1172,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
@@ -1585,6 +1596,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",
@@ -1647,6 +1661,7 @@ generator_version = "0.2.17"
 generated_at = "2026-07-26T18:01:04.489757+00:00"
 
 [tool.coverage.run]
+relative_files = true
 # `source` must be packages or directories — coverage silently ignores a file
 # path here, which is how a whole module can sit in this list and never be
 # measured. The platform layer is therefore selected with `include` globs,
@@ -1662,6 +1677,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
+    "app/commands/refresh_inbox.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
@@ -1670,10 +1686,12 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/commands/tables_rls.py",
+    "app/commands/seed_demo.py",
     "app/core/permissions.py",
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
     "app/api/routes/v1/personal_subscriptions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -2086,6 +2104,8 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/services/console_experience.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -2210,6 +2230,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
@@ -2628,6 +2654,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",

@@ -331,12 +331,13 @@ class TestTheConcurrencyGroup:
         """A shared group would have one branch cancelling another's run."""
         assert "github.ref" in workflow["concurrency"]["group"]
 
-    def test_every_ref_cancels_its_superseded_runs(self, workflow: dict[str, Any]) -> None:
-        """`t3` included (user decision, 2026-11-16).
-
-        A cancelled `t3` run is safe only because the next push classifies its
-        changes against the last successful `t3` run, not against the cancelled one;
-        `test_ci_workflow` pins that step.
-        """
-        assert workflow["concurrency"]["group"] == "ci-${{ github.ref }}"
-        assert workflow["concurrency"]["cancel-in-progress"] is True
+    def test_only_superseded_pr_runs_are_cancelled(self, workflow: dict[str, Any]) -> None:
+        """PR feedback is deduplicated while merge-queue and release runs finish."""
+        assert workflow["concurrency"]["group"] == (
+            "ci-${{ github.event.pull_request.number && "
+            "format('pr-{0}', github.event.pull_request.number) || github.ref }}"
+        )
+        assert (
+            workflow["concurrency"]["cancel-in-progress"]
+            == "${{ github.event_name == 'pull_request' }}"
+        )

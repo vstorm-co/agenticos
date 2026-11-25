@@ -1,6 +1,7 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table_relation import (
     VirtualTableLinkEvidence,
@@ -9,6 +10,7 @@ from app.db.models.virtual_table_relation import (
 )
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -61,6 +63,7 @@ from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.nav_pins import NavPins
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.network_connection import NetworkConnection
@@ -262,6 +265,8 @@ from app.db.models.artifact_share_request import ArtifactShareRequest
 from app.db.models.artifact_favourite import ArtifactFavourite
 
 __all__ = [
+    "PersonalContextCache",
+    "SolutionInstallation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",
@@ -355,6 +360,7 @@ __all__ = [
     "DirectoryGroupMapping",
     "DiscordRoleMapping",
     "DashboardLayout",
+    "NavPins",
     "DashboardPreset",
     "McpConnection",
     "NetworkConnection",

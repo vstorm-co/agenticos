@@ -24,8 +24,8 @@ interface RoomParticipantConfirmationProps {
   isLegacyDirect: boolean;
   isPending: boolean;
   error: string | null;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onCancel: () => void;
+  onConfirm: (action: RoomParticipantAction) => void;
 }
 
 /** Make history access and membership removal explicit before the API write. */
@@ -34,7 +34,7 @@ export function RoomParticipantConfirmation({
   isLegacyDirect,
   isPending,
   error,
-  onOpenChange,
+  onCancel,
   onConfirm,
 }: RoomParticipantConfirmationProps) {
   const t = useTranslations("chat.roomParticipants");
@@ -58,7 +58,7 @@ export function RoomParticipantConfirmation({
     <AlertDialog
       open
       onOpenChange={(open) => {
-        if (!open && !isPending) onOpenChange(false);
+        if (!open && !isPending) onCancel();
       }}
     >
       <AlertDialogContent>
@@ -82,7 +82,7 @@ export function RoomParticipantConfirmation({
             }
             onClick={(event) => {
               event.preventDefault();
-              onConfirm();
+              onConfirm(action);
             }}
           >
             {adding ? t(directAdd ? "confirmConvert" : "confirmAdd") : t("remove")}

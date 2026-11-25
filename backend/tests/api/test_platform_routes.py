@@ -37,6 +37,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.agent_run import RunSurface
 from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
@@ -61,7 +62,7 @@ _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 
 def _url(path: str, query: str = "") -> str:
-    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path)}{query}"
+    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path.replace('{installation_key}', 'trial'))}{query}"
 
 
 # -- callers ------------------------------------------------------------------
@@ -153,6 +154,7 @@ _SERVICE_DEPS = (
     deps.get_ml_service,
     deps.get_workflow_registry_service,
     deps.get_voice_usage_service,
+    deps.get_solution_service,
 )
 
 Provider = Callable[[], object]
@@ -263,6 +265,42 @@ CALLS: tuple[Call, ...] = (
         Perm.NETWORKS_MANAGE,
         body={"name": "My devices", "scope": "user"},
     ),
+    Call(
+        "POST",
+        "/solutions/plan",
+        Perm.AGENTS_VIEW,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install",
+        Perm.AGENTS_EDIT,
+        body={
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+            "manifest": {
+                "name": "trial",
+                "contexts": [{"key": "policy", "data": {"name": "Policy"}}],
+            },
+        },
+    ),
+    Call(
+        "POST",
+        "/solutions/prepare",
+        Perm.AGENTS_EDIT,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install-plan",
+        Perm.AGENTS_EDIT,
+        body={
+            "plan_id": "00000000-0000-4000-8000-000000000001",
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+        },
+    ),
+    Call("GET", "/solutions/installations/{installation_key}", Perm.AGENTS_EDIT),
     Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
     Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
@@ -273,6 +311,9 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
+    Call("GET", "/conversations/search", Perm.AGENTS_VIEW),
+    Call("GET", "/assistant/configuration", Perm.ORG_SETTINGS),
+    Call("POST", "/assistant/install", Perm.ORG_SETTINGS),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
@@ -344,8 +385,10 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
-    Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("POST", "/runs/{run_id}/retry", Perm.RUNS_VIEW),
+    # `GET /runs/{run_id}` and `POST /runs/{run_id}/retry` carry no gate: `runs:view`
+    # opens any run, and the person who started one opens and retries that one
+    # without it - the link in an expired-approval notice. The runner service decides;
+    # `tests/test_own_run_open.py` proves the refusals.
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
@@ -355,7 +398,9 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
+    # No `POST /approvals/{approval_id}` entry: the route carries no gate -
+    # see `get_parked_run_service` above - so there is no permission for the
+    # table to demand of it.
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -628,6 +673,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
     Call("GET", "/secrets/purposes", Perm.SECRETS_VIEW),
     Call("GET", "/secrets", Perm.SECRETS_VIEW),
+    Call("GET", "/secrets/references", Perm.SECRETS_VIEW),
     Call(
         "POST",
         "/secrets",
@@ -738,8 +784,13 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
+# Planning validates caller-supplied content without reading resources or writing;
+# POST keeps the manifest out of query strings and access logs.
+_READ_ONLY_POSTS = frozenset({"/solutions/plan"})
 WRITE_CALLS: tuple[Call, ...] = tuple(
-    call for call in CALLS if call.method != "GET" and not call.read_only
+    call
+    for call in CALLS
+    if call.method != "GET" and not call.read_only and call.path not in _READ_ONLY_POSTS
 )
 
 
@@ -1023,6 +1074,7 @@ _PLATFORM_PREFIXES = (
     # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
     "/trigger-templates",
+    "/solutions",
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
     "/local-services",
@@ -1042,7 +1094,7 @@ _PLATFORM_PREFIXES = (
 
 def _is_platform(tail: str) -> bool:
     """Whether a path belongs to the platform layer rather than the template."""
-    return tail.startswith(_PLATFORM_PREFIXES)
+    return tail == "/conversations/search" or tail.startswith(_PLATFORM_PREFIXES)
 
 
 def _api_routes() -> Iterator[RouteContext]:
@@ -1232,6 +1284,12 @@ RESOURCE_AWARE_SERVICES = (
     # which is what made a listing of *their own* files an operator screen.
     # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
     deps.get_sandbox_workspace_service,
+    # Deciding a parked tool call is per run, not per role: a privileged
+    # decider may decide any run, anybody else only a run they started, from
+    # a signed-in web/chat session. The route carries no gate for exactly that
+    # reason, and the service refuses the rest. `TestOwnRunApprovalDecides`
+    # proves the refusals.
+    deps.get_parked_run_service,
     # The stats service decides per *scope parameter* rather than per grant on
     # a row - org-wide numbers demand runs:view, a caller's own rows demand
     # only that there is a caller. A route gate would refuse a member's
@@ -1491,6 +1549,9 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                # The stubbed calls carry the field's default: nothing here
+                # said this caller may decide them.
+                "can_decide": False,
             },
             {
                 "id": str(shared_id),
@@ -1505,6 +1566,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "can_decide": False,
             },
         ]
 
@@ -1524,6 +1586,38 @@ class TestReadingWhatARunIsParkedOn:
             response = await client.get(_url(f"/runs/{uuid4()}/parked"))
 
         assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        ("started_by_caller", "status"), [(True, 200), (False, 403)], ids=["own-run", "other-run"]
+    )
+    async def test_a_caller_holding_decide_only_at_own_reads_only_their_own_runs_calls(
+        self,
+        as_role: ClientFactory,
+        monkeypatch: pytest.MonkeyPatch,
+        started_by_caller: bool,
+        status: int,
+    ) -> None:
+        """A colleague's parked run reads as a refusal, not as an empty list."""
+        monkeypatch.setitem(ROLE_PERMS, "test:own-decide", {Perm.APPROVALS_DECIDE: Scope.OWN})
+        run = MagicMock(
+            id=uuid4(),
+            user_id=_CALLER_ID if started_by_caller else uuid4(),
+            surface=RunSurface.WEB.value,
+            initiated_by_publisher_fallback=False,
+        )
+
+        class _Parked:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return run
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[ParkedCall]:
+                return []
+
+        overrides = {deps.get_agent_runner_service: lambda: _Parked()}
+        async with as_role("test:own-decide", overrides) as client:
+            response = await client.get(_url(f"/runs/{run.id}/parked"))
+
+        assert response.status_code == status
 
 
 class TestTheQueueNamesWhatItAsks:
@@ -2510,6 +2604,34 @@ class TestAQuestionTheRunParkedOn:
         assert response.json()[0]["tool_call_id"] == "ask-1"
         assert response.json()[0]["questions"][0]["header"] == "Tone"
 
+    @pytest.mark.security
+    async def test_a_question_link_for_another_conversation_cannot_load_the_card(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        service = MagicMock(get_run=AsyncMock(return_value=run), parked_questions=AsyncMock())
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.get(
+                _url(f"/runs/{run.id}/questions"), params={"conversation_id": str(uuid4())}
+            )
+        assert response.status_code == 200
+        assert response.json() == []
+        service.parked_questions.assert_not_called()
+
+    async def test_a_viewer_can_list_their_questions(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        service = MagicMock(
+            list_waiting_questions=AsyncMock(return_value={"items": [], "total": 0})
+        )
+        async with as_role("viewer", {deps.get_conversation_service: lambda: service}) as client:
+            response = await client.get(
+                _url("/conversations/waiting-questions"), params={"skip": "2", "limit": "3"}
+            )
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "total": 0}
+        assert service.list_waiting_questions.call_args.kwargs == {"skip": 2, "limit": 3}
+
     async def test_an_answer_continues_the_run_and_says_what_it_did(
         self,
         as_role: ClientFactory,
@@ -2585,3 +2707,15 @@ class TestAQuestionTheRunParkedOn:
 
         assert response.status_code == 422
         service.answer.assert_not_called()
+
+
+async def test_a_viewer_can_review_a_solution_manifest_without_installing(
+    as_role: ClientFactory,
+) -> None:
+    manifest = {"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]}
+    async with as_role(OrgRoleName.VIEWER) as client:
+        response = await client.post(f"{settings.API_V1_STR}/solutions/plan", json=manifest)
+    assert response.status_code == 200
+    assert response.json()["publishes"] is False
+    assert response.json()["executes"] is False
+    assert response.json()["resources"] == ["policy"]

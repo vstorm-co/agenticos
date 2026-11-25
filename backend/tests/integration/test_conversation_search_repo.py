@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
@@ -454,6 +455,39 @@ class TestWhoMayFindIt:
         assert found[0].speaker_name == teammate.email
         window, _ = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
         assert [turn.speaker_name for turn in window] == [teammate.email]
+
+    @pytest.mark.security
+    async def test_project_access_does_not_expose_internal_workflow_threads(
+        self, db: AsyncSession
+    ) -> None:
+        organization = await _org(db)
+        member = await _user(db)
+        project = await project_repo.create(
+            db,
+            organization_id=organization.id,
+            owner_user_id=member.id,
+            name="Launch",
+            description="",
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+            visibility="org",
+        )
+        internal = await _thread(db, organization, None, title="internal workflow")
+        internal.project_id = project.id
+        internal.origin = "workflow"
+        await _say(db, internal, "private pricing context")
+
+        assert await _search(db, organization, member, "pricing", projects=[project.id]) == []
+        assert (
+            await search_repo.readable_conversation(
+                db,
+                conversation_id=internal.id,
+                organization_id=organization.id,
+                readable=search_repo.readable_by(member.id, (), [project.id]),
+            )
+            is None
+        )
 
     async def test_another_organizations_conversation_is_not_searchable(self, db):
         """Even the owner's own: the corpus is scoped to the organization the run

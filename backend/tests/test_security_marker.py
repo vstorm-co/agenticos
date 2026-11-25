@@ -41,6 +41,9 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_matrix_adapter.py::TestPrompts::test_an_approval_is_numbered_in_its_thread": "numbered prompt rendering, not an authorization decision or refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_run_history_preserves_the_real_pending_approval_contract": "preserves pending-call metadata in a bounded response, not an approval authorization refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link": "bounds pending-call payloads and hands full review to the console, not an approval decision",
     "tests/api/test_workflow_run_routes.py::TestNodesRoute::test_an_approval_step_says_who_decided_and_when": "decision metadata serialization, not an authorization refusal",
     "tests/test_sandbox_workspace.py::TestRecordedTaskWorkspace::test_reading_undo_permissions_never_opens_a_provider_client": "authorized metadata reads must not create a provider client; no access refusal",
     "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",
@@ -251,6 +254,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_run_status.py::test_a_retry_wait_outranks_a_running_sibling_but_not_an_approval": "Approval names the run status being prioritized; reporting, no refusal.",
     "tests/test_tool_errors.py::test_invalid_uuid_names_the_field_and_lookup_before_approval": "'approval' names validation ordering; this tests an argument schema, not an authorization decision",
     "tests/test_tool_errors.py::test_repeated_unknown_names_are_unavailable_without_permission_claims": "'permission' names a diagnostic wording assertion; this tests tool registration, not permission enforcement",
+    "tests/integration/test_browser_teaching_gaps.py::test_a_step_that_would_overflow_the_byte_budget_pauses_capture": "byte budget for teaching capture, not a cost/limit refusal",
 }
 
 

@@ -43,7 +43,7 @@ describe("VoiceApprovalCard", () => {
         onDecide={vi.fn()}
       />,
     );
-    expect(screen.getByRole("group", { name: "Approve Published app?" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Approve Published page?" })).toBeInTheDocument();
     expect(screen.queryByText(/You said/)).toBeNull();
   });
 
@@ -65,7 +65,7 @@ describe("VoiceApprovalCard", () => {
     const bar = screen.getByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuemax", "30");
     expect(bar).toHaveAttribute("aria-valuenow", "15");
-    expect(bar.firstElementChild).toHaveStyle({ width: "50%" });
+    expect(bar.firstElementChild).toHaveStyle({ transform: "scaleX(0.5)" });
   });
 
   it("never counts below zero", () => {
@@ -154,7 +154,9 @@ describe("VoiceApprovalCard", () => {
         onDecide={vi.fn()}
       />,
     );
-    expect(screen.getByRole("progressbar").firstElementChild).toHaveStyle({ width: "0%" });
+    expect(screen.getByRole("progressbar").firstElementChild).toHaveStyle({
+      transform: "scaleX(0)",
+    });
   });
 
   it("wraps a long unbroken argument rather than pushing the card wider", () => {

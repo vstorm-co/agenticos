@@ -25,10 +25,12 @@ vi.mock("@/lib/room-message-reactions-api", () => ({
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 const initial = [{ emoji: "🎉", count: 1, reacted_by_me: false }];
@@ -166,5 +168,114 @@ describe("useRoomMessageReactions", () => {
     expect(mocks.setReaction).toHaveBeenNthCalledWith(2, "conversation-1", "message-1", "👍");
     expect(mocks.removeReaction).toHaveBeenNthCalledWith(1, "conversation-1", "message-1", "👍");
     expect(mocks.removeReaction).toHaveBeenNthCalledWith(2, "conversation-1", "message-1", "👍");
+  });
+});
+
+describe("useRoomMessageReactions guards and retries", () => {
+  it("starts empty without initial reactions and keeps empty across a message switch", () => {
+    const { result, rerender } = renderHook(
+      ({ messageId }) => useRoomMessageReactions("conversation-1", messageId, undefined),
+      { initialProps: { messageId: "message-1" } },
+    );
+    expect(result.current.reactions).toEqual([]);
+    rerender({ messageId: "message-2" });
+    expect(result.current.reactions).toEqual([]);
+  });
+
+  it.each([
+    ["no conversation", () => useRoomMessageReactions(null, "message-1", initial)],
+    ["no message", () => useRoomMessageReactions("conversation-1", null, initial)],
+  ])("refuses to change reactions with %s", async (_name, useHook) => {
+    const { result } = renderHook(useHook);
+    await act(async () => {
+      expect(await result.current.add("👍")).toBe(false);
+    });
+    expect(mocks.setReaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses to change reactions without an account, organization or current scope", async () => {
+    const { result } = renderHook(() =>
+      useRoomMessageReactions("conversation-1", "message-1", initial),
+    );
+    mocks.identity.current.mockReturnValue(false);
+    await act(async () => {
+      expect(await result.current.add("👍")).toBe(false);
+    });
+
+    mocks.identity.current.mockReturnValue(true);
+    mocks.identity.accountId = undefined as never;
+    const noAccount = renderHook(() =>
+      useRoomMessageReactions("conversation-1", "message-1", initial),
+    );
+    await act(async () => {
+      expect(await noAccount.result.current.add("👍")).toBe(false);
+    });
+
+    mocks.identity.accountId = "user-1";
+    mocks.identity.organizationId = null as never;
+    const noOrg = renderHook(() => useRoomMessageReactions("conversation-1", "message-1", initial));
+    await act(async () => {
+      expect(await noOrg.result.current.add("👍")).toBe(false);
+    });
+    expect(mocks.setReaction).not.toHaveBeenCalled();
+  });
+
+  it("retries the failed change and clears the error on success", async () => {
+    mocks.removeReaction.mockRejectedValueOnce(new Error("request failed"));
+    mocks.removeReaction.mockResolvedValueOnce({ reactions: changed });
+    const { result } = renderHook(() =>
+      useRoomMessageReactions("conversation-1", "message-1", initial),
+    );
+
+    await act(async () => {
+      expect(await result.current.retry()).toBe(false);
+    });
+    await act(async () => {
+      expect(await result.current.remove("🎉")).toBe(false);
+    });
+    expect(result.current.hasError).toBe(true);
+    await act(async () => {
+      expect(await result.current.retry()).toBe(true);
+    });
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.reactions).toEqual(changed);
+    expect(mocks.announce).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a success that arrives after the scope stopped being current", async () => {
+    const response = deferred<RoomMessageReactionsRead>();
+    mocks.setReaction.mockReturnValueOnce(response.promise);
+    const { result } = renderHook(() =>
+      useRoomMessageReactions("conversation-1", "message-1", initial),
+    );
+    let pending!: Promise<boolean>;
+    act(() => {
+      pending = result.current.add("🔥");
+    });
+    mocks.identity.current.mockReturnValue(false);
+    await act(async () => {
+      response.resolve({ reactions: changed });
+      expect(await pending).toBe(false);
+    });
+    expect(result.current.reactions).toEqual(initial);
+    expect(mocks.announce).not.toHaveBeenCalled();
+  });
+
+  it("drops a failure that arrives after the scope stopped being current", async () => {
+    const response = deferred<RoomMessageReactionsRead>();
+    mocks.setReaction.mockReturnValueOnce(response.promise);
+    const { result } = renderHook(() =>
+      useRoomMessageReactions("conversation-1", "message-1", initial),
+    );
+    let pending!: Promise<boolean>;
+    act(() => {
+      pending = result.current.add("🔥");
+    });
+    mocks.identity.current.mockReturnValue(false);
+    await act(async () => {
+      response.reject(new Error("late"));
+      expect(await pending).toBe(false);
+    });
+    expect(result.current.hasError).toBe(false);
   });
 });

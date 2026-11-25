@@ -51,7 +51,7 @@ function answer(runs: { items: unknown[]; total: number }) {
 describe("the eval runs page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    granted.perms = [Perm.runsView, Perm.agentsView];
+    granted.perms = [Perm.runsView, Perm.agentsView, Perm.datasetsView];
   });
 
   it("lists the runs by agent, a page at a time", async () => {
@@ -63,7 +63,7 @@ describe("the eval runs page", () => {
       "/agents/agent-1/evals/run-1",
     );
     expect(get).toHaveBeenCalledWith("/eval-runs/recent?skip=0&limit=20");
-    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/dashboard");
 
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(get).toHaveBeenCalledWith("/eval-runs/recent?skip=20&limit=20");
@@ -111,5 +111,12 @@ describe("the eval runs page", () => {
 
     expect(screen.getByText("You can't see eval runs")).toBeInTheDocument();
     expect(get).not.toHaveBeenCalledWith(expect.stringContaining("/eval-runs/recent"));
+  });
+  it("does not send a reader to datasets they may not open", async () => {
+    granted.perms = [Perm.runsView];
+    answer({ items: [], total: 0 });
+    render(<EvalRunsPage />, { wrapper });
+    expect(await screen.findByText("No eval runs yet")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open datasets" })).toBeNull();
   });
 });

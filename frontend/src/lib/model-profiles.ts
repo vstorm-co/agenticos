@@ -43,6 +43,24 @@ export function modelDetail(
   return saysIt ? null : `${profile.provider} · ${profile.model}`;
 }
 
+/** The catalog sometimes prefixes model names with the model maker. */
+export function catalogModelName(id: string, name?: string): string {
+  const display = name?.trim();
+  if (!display) return id;
+  const separator = id.includes("/") ? display.indexOf(": ") : -1;
+  return separator < 0 ? display : display.slice(separator + 2).trim() || id;
+}
+
+/** Match the picker’s catalog spelling while respecting a saved custom label. */
+export function modelName(
+  profile: Pick<ModelProfile, "label" | "provider" | "model">,
+  catalogName?: string,
+): string {
+  if (profile.label && profile.label !== profile.model && modelDetail(profile) !== null)
+    return profile.label;
+  return catalogModelName(profile.model, catalogName ?? profile.model.split("/").at(-1));
+}
+
 /**
  * Whether an agent - or a conversation - can run on this profile (#2487).
  *
@@ -124,3 +142,54 @@ export function modelShortName(label: string): string {
   const model = label.split(" · ").at(-1) ?? label;
   return model.split("/").at(-1) || model;
 }
+
+/**
+ * The providers whose model list is read at an endpoint the caller names.
+ *
+ * A hosted provider's list is read at its own API. These have it read at the
+ * endpoint the profile carries instead - a regional gateway, an OpenRouter
+ * region, a server the organization runs - so the request carries that
+ * endpoint, and the key when the endpoint wants one.
+ *
+ * Whether a provider *takes* an endpoint is the API's to say, and the console
+ * reads it from there rather than keeping a list of its own. Whether its
+ * *listing* can be read at one is a fact about the provider's shape, and this
+ * is where that fact lives.
+ */
+export const LISTED_AT_ENDPOINT: readonly string[] = [
+  "openrouter",
+  "stav",
+  "otari",
+  "openai_compatible",
+  "anthropic_compatible",
+];
+
+/**
+ * The providers whose listing at a named endpoint is authenticated with the
+ * profile's own key.
+ *
+ * OpenRouter's list is public. The others are servers somebody answers for,
+ * and the key stored for them is what authenticates the listing - the same key
+ * the runs send to that same endpoint.
+ */
+export const LISTED_WITH_KEY: readonly string[] = [
+  "stav",
+  "otari",
+  "openai_compatible",
+  "anthropic_compatible",
+];
+
+/**
+ * The providers that have no model list of their own, so there is nothing to
+ * ask until an endpoint is named.
+ *
+ * Otari and the two custom endpoints exist only at an address somebody types.
+ * Asking one without it returns an empty list, which the form would then read
+ * as "this provider publishes no list" - a sentence about a provider the
+ * organization has not pointed anywhere yet.
+ */
+export const LISTED_ONLY_AT_ENDPOINT: readonly string[] = [
+  "otari",
+  "openai_compatible",
+  "anthropic_compatible",
+];

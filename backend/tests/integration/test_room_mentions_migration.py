@@ -1,4 +1,4 @@
-"""0349 preserves legacy queue evidence and refuses a lossy downgrade."""
+"""0347 preserves legacy queue evidence and refuses a lossy downgrade."""
 
 import importlib.util
 from pathlib import Path
@@ -15,7 +15,7 @@ from tests.integration.test_room_submissions import post, seed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0349_room_mention_requests.py"
+_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0350_room_mention_requests.py"
 _SPEC = importlib.util.spec_from_file_location("room_mentions_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)
@@ -24,8 +24,16 @@ _SPEC.loader.exec_module(_MIGRATION)
 
 def migrate(connection, direction):
     context = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
-    with Operations.context(context):
+    with context.begin_transaction(), Operations.context(context):
         getattr(_MIGRATION, direction)()
+
+
+async def step(connection, direction):
+    # The upgrade builds indexes CONCURRENTLY inside an autocommit block, which
+    # commits whatever transaction precedes it, so the test commits first and
+    # lets the migration own the transaction from there.
+    await connection.commit()
+    await connection.run_sync(lambda sync: migrate(sync, direction))
 
 
 def schema(connection):
@@ -65,10 +73,10 @@ async def test_upgrade_keeps_existing_posts_and_requests_and_matches_model_schem
     values = {"room": room.conversation.id}
     original_ledger = list((await db.scalars(ledger, values)).all())
     original_messages = list((await db.scalars(messages, values)).all())
-    await connection.run_sync(lambda sync: migrate(sync, "downgrade"))
+    await step(connection, "downgrade")
     assert list((await db.scalars(ledger, values)).all()) == original_ledger
     assert list((await db.scalars(messages, values)).all()) == original_messages
-    await connection.run_sync(lambda sync: migrate(sync, "upgrade"))
+    await step(connection, "upgrade")
     assert list((await db.scalars(ledger, values)).all()) == original_ledger
     assert list((await db.scalars(messages, values)).all()) == original_messages
     assert await connection.run_sync(schema) == expected
@@ -148,6 +156,6 @@ async def test_used_mentions_or_delivery_evidence_blocks_downgrade_without_delet
     connection = await db.connection()
     before = await connection.run_sync(schema)
     with pytest.raises(RuntimeError, match="Cannot discard room mentions"):
-        await connection.run_sync(lambda sync: migrate(sync, "downgrade"))
+        await step(connection, "downgrade")
     assert await connection.run_sync(schema) == before
     assert await db.scalar(text("SELECT count(*) FROM room_submissions")) == 1

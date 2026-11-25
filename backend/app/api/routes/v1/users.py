@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 
 from app.api.deps import (
     Auth,
+    ConsoleExperienceSvc,
     CurrentAppAdmin,
     CurrentSessionId,
     CurrentUser,
@@ -23,6 +24,7 @@ from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
+from app.schemas.console_experience import ConsoleExperienceRead, ConsoleExperienceUpdate
 from app.schemas.user import UserAgentContext, UserLocale, UserRead, UserUpdate
 from app.schemas.user_appearance import UserAppearance
 from app.services.email.service import get_email_service
@@ -245,3 +247,29 @@ async def delete_user_by_id(
     """Delete user by ID (admin only). Delegates to `admin_users.delete_user`,
     for the same reason `update_user_by_id` above does."""
     await admin_delete_user(user_id, request, admin, db, user_service, reason=reason)
+
+
+@router.get(
+    "/me/console-experience",
+    response_model=ConsoleExperienceRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def read_console_experience(service: ConsoleExperienceSvc, ctx: Auth) -> Any:
+    """Read chat-home presentation for my active organization membership."""
+    return await service.read(ctx)
+
+
+@router.patch(
+    "/me/console-experience",
+    response_model=ConsoleExperienceRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def update_console_experience(
+    data: ConsoleExperienceUpdate, service: ConsoleExperienceSvc, ctx: Auth
+) -> Any:
+    """Change my active membership's presentation; null preferences restores inheritance.
+
+    Deployment availability remains a ceiling. This changes neither resource
+    permissions nor an agent's instructions, autonomy or approval policy.
+    """
+    return await service.update(ctx, data)

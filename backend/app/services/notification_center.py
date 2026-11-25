@@ -42,6 +42,7 @@ from app.repositories import workflow as workflow_repo
 from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
+from app.services.approval_authority import may_follow_decision_link, stored_starter_id
 from app.services.collection_access import readable_kb
 from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
@@ -1444,7 +1445,13 @@ class NotificationCenterService:
                 or cache.criterion_visible_by_id.get(notification.id, False)
             )
         if gate is ContentGate.DEGRADE:
-            if ctx.has(Perm.APPROVALS_DECIDE):
+            # The link belongs to a privileged decider, or to the person who
+            # started the run - a member holding `approvals:decide` at `OWN`
+            # may decide their own run, and no other reader may be handed a
+            # link to a decision that is not theirs to make. Rows written
+            # before `run_user_id` existed carry no owner, and read as not
+            # theirs: the link-less summary, which is the safe direction.
+            if may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id"))):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

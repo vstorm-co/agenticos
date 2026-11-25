@@ -510,9 +510,9 @@ class TestWhichBrowsersTheOperatorAllows:
         with pytest.raises(UrlRefusedError, match="http, https, ws or wss"):
             validate_cdp_url(WebBrowserConfig(cdp_url=url))
 
-    def test_no_endpoint_at_all_is_refused_in_words(self):
-        with pytest.raises(UrlRefusedError, match="needs a cdp_url"):
-            validate_cdp_url(WebBrowserConfig())
+    def test_an_absent_builtin_endpoint_is_reported_at_tool_time(self, monkeypatch):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        validate_cdp_url(WebBrowserConfig())
 
     def test_an_empty_allowlist_refuses_browser_automation_outright(
         self, monkeypatch: pytest.MonkeyPatch

@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "1.85.0",
+  "version": "1.90.1",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
+    "type-check:fast": "bun check",
     "prepare": "husky",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

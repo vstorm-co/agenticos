@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useMessagePins } from "@/hooks/use-message-pins";
@@ -66,6 +67,17 @@ describe("PinnedMessages", () => {
       threadRootMessageId: "root-1",
     });
     await waitFor(() => expect(document.getElementById("target")).toHaveFocus());
+  });
+
+  it("returns focus to the trigger when the list closes without a jump", async () => {
+    const user = userEvent.setup();
+    render(<PinnedMessages conversationId="c-1" onJumpToMessage={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: /^open/ });
+
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("offers a bounded next page and no trigger for an unsaved conversation", () => {

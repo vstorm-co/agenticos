@@ -29,6 +29,16 @@ async def get(db: AsyncSession, context_id: UUID, *, organization_id: UUID) -> C
     return result.scalar_one_or_none()
 
 
+async def get_by_library_key(
+    db: AsyncSession, *, organization_id: UUID, key: str
+) -> ContextFile | None:
+    return await db.scalar(
+        select(ContextFile).where(
+            ContextFile.organization_id == organization_id, ContextFile.library_key == key
+        )
+    )
+
+
 async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> ContextFile | None:
     result = await db.execute(
         select(ContextFile).where(

@@ -103,6 +103,7 @@ from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import sync_source_gdrive
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import me_dashboard_layout
+from app.api.routes.v1 import me_nav_pins
 from app.api.routes.v1 import me_personal_data
 from app.api.routes.v1 import admin_stats
 from app.api.routes.v1 import admin_deployment_settings
@@ -375,6 +376,7 @@ v1_router.include_router(me_personal_data.router, prefix="/me/data", tags=["me:d
 v1_router.include_router(
     me_dashboard_layout.router, prefix="/me/dashboard-layout", tags=["me:dashboard-layout"]
 )
+v1_router.include_router(me_nav_pins.router, prefix="/me/nav-pins", tags=["me:nav-pins"])
 v1_router.include_router(admin_stats.router, prefix="/admin", tags=["admin:stats"])
 v1_router.include_router(branding.router, prefix="/branding", tags=["branding"])
 v1_router.include_router(
@@ -403,3 +405,8 @@ v1_router.include_router(
 v1_router.include_router(
     personal_model_keys.router, prefix="/personal-model-keys", tags=["personal-model-keys"]
 )
+
+
+from app.api.routes.v1 import solutions
+
+v1_router.include_router(solutions.router, prefix="/solutions", tags=["solutions"])

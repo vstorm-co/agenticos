@@ -42,11 +42,13 @@ interface ToolApprovalDialogProps {
  *
  * **It checks `approvals:decide` itself**, for the same reason the model picker
  * beside it checks `connections:manage`: the permission belongs to the write, and
- * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
- * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
- * `builder` hold `agents:run` and not the decision - so the everyday chat user was
- * offered a Submit and refused by the API on the first call. What stays for them is
- * the call itself and the sentence saying who can decide: a panel that goes quiet
+ * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`.
+ * A member or builder holds the permission at `OWN` - their own runs only - so
+ * the role check alone would offer them a Submit on somebody else's run and
+ * have the API refuse it on the first call. Each action therefore also carries
+ * the backend's own `can_decide`, which a reloaded panel reads and the live
+ * frame leaves absent; what stays for somebody who may not decide is the call
+ * itself and the sentence saying who can decide: a panel that goes quiet
  * leaves a stopped conversation unexplained.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
@@ -74,7 +76,12 @@ export function ToolApprovalDialog({
   const tTools = useTranslations("chat.tools");
   const browser = useTranslations("browserCredentials");
   const { can } = usePermissions();
-  const mayDecide = can(Perm.approvalsDecide);
+  // The role check, narrowed per action where the backend answered: a reloaded
+  // panel names runs that are not this person's, and the live frame - which
+  // carries no `can_decide` - keeps the role check alone, since it only ever
+  // reaches whoever was watching their own run park.
+  const mayDecide =
+    can(Perm.approvalsDecide) && actionRequests.every((action) => action.can_decide !== false);
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
@@ -99,19 +106,13 @@ export function ToolApprovalDialog({
     );
 
   return (
-    // A batch uses the full card width, with decisions below the scrolling
-    // list: its scrollbar must not look like a divider beside the buttons.
-    // For one call, the answers sit beside the question: under it, a
-    // folded Details left a band of empty card between what was asked and the
-    // buttons that answer it.
-    // Laid out by the card's own width, not the window's: in the Architect's
-    // widget the window is wide and the card is not, and buttons beside the
-    // question squeezed what was asked into a column a third of the card.
+    // Keep batch decisions below the scrollable requests. A single request has
+    // room for decisions beside it whenever the card itself is wide enough.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
       <div
         className={cn(
-          "border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm",
-          !batch && "@xl:flex-row @xl:items-start",
+          "border-border bg-card flex flex-col gap-2 rounded-xl border px-3 py-2 shadow-sm",
+          !batch && "@md:flex-row @md:items-start",
         )}
       >
         <ul
@@ -133,15 +134,12 @@ export function ToolApprovalDialog({
                   callSummary(args))
                 : null;
             return (
-              <li key={action.id} className="flex gap-3">
-                <ToolMark toolName={action.tool_name} />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-muted-foreground text-xs font-medium">
-                    {t("toolApprovalRequired")}
-                  </p>
+              <li key={action.id} className="flex gap-2.5">
+                <ToolMark toolName={action.tool_name} className="size-7" />
+                <div className="min-w-0 flex-1 space-y-0.5">
                   {/* The question, in the words the step above it uses - "Allow
                     Search in Notion?" - rather than `notion_notion-search`. */}
-                  <p className="text-foreground text-sm font-medium">
+                  <p className="text-foreground pt-1 text-sm leading-5 font-medium">
                     {draft !== null
                       ? t("draftProposalTitle")
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
@@ -164,8 +162,8 @@ export function ToolApprovalDialog({
                   {summary !== null && (
                     <p
                       className={cn(
-                        "text-foreground/80 line-clamp-2 text-sm break-words",
-                        ("command" in args || "cmd" in args) && "font-mono text-xs",
+                        "text-muted-foreground line-clamp-2 text-xs break-words",
+                        ("command" in args || "cmd" in args) && "font-mono",
                       )}
                       title={summary}
                     >
@@ -184,7 +182,7 @@ export function ToolApprovalDialog({
         </ul>
 
         {mayDecide ? (
-          <div className={cn("flex shrink-0 justify-end gap-2", !batch && "@xl:pt-4")}>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
             <Button
               size="sm"
               variant="ghost"
@@ -229,7 +227,7 @@ export function ToolApprovalDialog({
             </div>
           </div>
         ) : (
-          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @md:pt-1">
             {t("decidingNeedsPermission")}
           </p>
         )}

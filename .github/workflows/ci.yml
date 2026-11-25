@@ -21,27 +21,27 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# No CI runs on pull requests (user decision, 2026-11-16). The quick check (lint,
-# type checks, related tests) runs in the T3 session before it pushes, and its
-# command and output are pasted into the pull request for the lead to read before
-# merging; `t3` requires no status checks. Every push to `t3` (each merge) and
-# every `v*` tag runs the full suite. A failed `t3` run is reverted or fixed
-# before the next merge, and a production deploy needs it green.
-# No CI unless the user asks (user decision, 2026-11-17). This workflow runs
-# only on manual dispatch, when the user requests a run. Each run is a full
-# run of every suite. The T3 session's quick check before each push is the
-# per-change evidence.
+# Pull requests run checks scoped to their diff (user decision, 2026-11-21, replaces
+# the 2026-11-16 no-PR-CI and 11-17 manual-only rules). `changes`
+# (scripts/ci_changed_scope.py lists the paths that rerun everything) skips the
+# suites a diff cannot reach, so selection only narrows PR feedback. The merge
+# queue (`merge_group`) runs the full suite on the exact commit that will land on
+# `t3`; nothing triggers on a plain push to `t3`. A `v*` tag and a manual dispatch
+# also run every suite, since neither emits scope outputs.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
-# One run per ref, and a newer run cancels an older one on every ref, `t3`
-# included (user decision, 2026-11-16). A cancelled `t3` run never becomes a
-# baseline: the next push classifies its changes against the last *successful*
-# `t3` run (see `changes`), so the commits whose run was cancelled are still
-# tested by the run that replaced it.
+# One run per pull request: a new commit cancels that PR's run in progress.
+# Merge-queue, tag and dispatch runs are never cancelled by a newer one, so the
+# commit that lands on `t3` always has its own complete full run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least privilege for every job. Nothing in this workflow writes anything back -
 # Codecov uses its own token - and a job that later needs more should declare it
@@ -100,10 +100,10 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name != 'pull_request' }}
-      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend || steps.pushed.outputs.backend }}
-      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend || steps.pushed.outputs.frontend }}
-      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e || steps.pushed.outputs.e2e }}
+      full: "true"
+      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
+      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
+      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,8 +126,8 @@ jobs:
 
       - name: Work out which suites the changed paths require
         id: scope
-        # Pure cuts reuse suites only after the proof above. Other main pushes
-        # emit no scope outputs, so they run every suite.
+        # Pure cuts reuse suites only after the proof above. Merge-queue, tag and
+        # dispatch runs emit no scope outputs, so they run every suite.
         #
         # That covers a *skipped step*. It does not cover this *job* failing - a 502
         # from the API, a rate limit, `set -euo pipefail` catching anything - because
@@ -152,27 +152,32 @@ jobs:
           python3 scripts/ci_changed_scope.py \
             "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
 
-      - name: Work out which suites a t3 push requires
-        id: pushed
-        # Docs-only merges skip the heavy suites. The diff is taken from the head of
-        # the last *successful* `t3` run, not from `github.event.before`: with
-        # cancel-in-progress, the previous push's run may have been cancelled, and
-        # its changes must still be tested here. No usable baseline emits nothing,
-        # which runs every suite.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/t3' && steps.release.outputs.cut != 'true'
+      # The backend shards balance on the seconds per file that the last green
+      # full run recorded. One fetch here, handed to all three shards, so they all
+      # split the same way. With no record, the split falls back to test counts.
+      - name: Fetch the backend file times the last completed full run recorded
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          base=$(gh api \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=t3&event=push&status=success&per_page=1" \
-            --jq '.workflow_runs[0].head_sha // empty')
-          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null \
-            && git merge-base --is-ancestor "$base" "$GITHUB_SHA"; then
-            git diff --name-only "$base" "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
-            python3 scripts/ci_changed_scope.py \
-              "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
-          fi
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/times"
+          # Completed, not only green: a red run's timings are still real, and files
+          # with a failed or timed-out test are left out when the times are recorded.
+          # Pull-request runs are scoped, so their record would be partial.
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?status=completed&per_page=20" \
+            --jq '.workflow_runs[] | select(.event != "pull_request") | .id'); do
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n backend-file-times -D "$RUNNER_TEMP/times" 2>/dev/null \
+              && echo "Backend file times from run $id" && break
+          done
+          test -s "$RUNNER_TEMP/times/backend-file-times.json" || echo '{}' > "$RUNNER_TEMP/times/backend-file-times.json"
+
+      - name: Hand the times to the shards
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-shard-times
+          path: ${{ runner.temp }}/times/backend-file-times.json
+          overwrite: true
+          retention-days: 1
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
@@ -370,6 +375,12 @@ jobs:
       - name: Start the object store
         run: make docker-minio
 
+      - name: Get the recorded backend file times
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: backend-shard-times
+          path: backend/.shard-times
+
       - name: Run a third of the backend tests
         # `BACKEND_SHARD` makes `make test` run this shard's files and keep the
         # coverage data rather than gate it: a third of the suite never reaches
@@ -390,7 +401,21 @@ jobs:
         env:
           PYTEST_ADDOPTS: "-q -q --durations=25"
           BACKEND_SHARD: ${{ matrix.shard }}/3
+          BACKEND_SHARD_TIMES: .shard-times/backend-file-times.json
         run: make test
+
+      - name: Save the shard's file list and test times
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-shard-${{ matrix.shard }}
+          overwrite: true
+          path: |
+            backend/.shard${{ matrix.shard }}-files.txt
+            backend/junit-shard${{ matrix.shard }}.xml
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Save coverage data for the aggregate gate
         if: ${{ !cancelled() }}
@@ -443,6 +468,33 @@ jobs:
 
       - name: Require all shards' coverage data
         run: make test-backend-reports-check
+
+      - name: Download the shards' file lists and test times
+        # Also after a failed shard, so the next run's split has times (the job still fails).
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: backend-shard-[0-9]*
+          path: backend
+          merge-multiple: true
+
+      - name: Require the shards to have run every test file exactly once
+        if: ${{ !cancelled() }}
+        run: make test-backend-partition-check
+
+      - name: Record the seconds each backend test file took
+        if: ${{ !cancelled() }}
+        run: make backend-file-times
+
+      - name: Keep the file times for the next run's split
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-file-times
+          path: backend/backend-file-times.json
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Apply the coverage gate to the complete suite
         # The gate `make test` applies on a laptop, over the shards' data combined.
@@ -511,7 +563,7 @@ jobs:
           # uses the action's own cached binary on a repeat run, and it also stops a
           # bun release from changing this suite's behaviour with no commit behind
           # it. Matches the major `frontend/Dockerfile` ships.
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       # `setup-bun` caches the bun binary, not the packages, so
       # `bun install --frozen-lockfile` re-downloaded every dependency on every
@@ -530,6 +582,11 @@ jobs:
         working-directory: frontend
 
       - name: Lint, format-check and type-check the frontend
+        # bun check on a PR, tsc everywhere else: the merge queue keeps tsc as the
+        # final gate on the commit that lands, where the backend shards, not this
+        # job, set the wall time.
+        env:
+          FRONTEND_TYPECHECK: ${{ github.event_name == 'pull_request' && 'fast' || 'tsc' }}
         run: make lint-frontend
 
   frontend-shards:
@@ -556,7 +613,7 @@ jobs:
           # uses the action's own cached binary on a repeat run, and it also stops a
           # bun release from changing this suite's behaviour with no commit behind
           # it. Matches the major `frontend/Dockerfile` ships.
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       # `setup-bun` caches the bun binary, not the packages, so
       # `bun install --frozen-lockfile` re-downloaded every dependency on every
@@ -610,7 +667,7 @@ jobs:
           # uses the action's own cached binary on a repeat run, and it also stops a
           # bun release from changing this suite's behaviour with no commit behind
           # it. Matches the major `frontend/Dockerfile` ships.
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       # `setup-bun` caches the bun binary, not the packages, so
       # `bun install --frozen-lockfile` re-downloaded every dependency on every
@@ -665,7 +722,7 @@ jobs:
           # uses the action's own cached binary on a repeat run, and it also stops a
           # bun release from changing this suite's behaviour with no commit behind
           # it. Matches the major `frontend/Dockerfile` ships.
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       # `setup-bun` caches the bun binary, not the packages, so
       # `bun install --frozen-lockfile` re-downloaded every dependency on every
@@ -840,7 +897,7 @@ jobs:
           # uses the action's own cached binary on a repeat run, and it also stops a
           # bun release from changing this suite's behaviour with no commit behind
           # it. Matches the major `frontend/Dockerfile` ships.
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       - name: Cache the bun install cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -903,7 +960,7 @@ jobs:
           WORKER_HEALTH_FILE: ${{ runner.temp }}/worker-alive
         run: |
           rm -f "$WORKER_HEALTH_FILE"
-          .venv/bin/python -m app.worker --pools agent,eval,system,ingest,workflow \
+          .venv/bin/python -m app.worker --pools agent,eval,system,ingest,network,workflow \
             > "$RUNNER_TEMP/worker.log" 2>&1 &
           worker_pid=$!
           echo "$worker_pid" > "$RUNNER_TEMP/worker.pid"
@@ -1047,7 +1104,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.5
+          bun-version: 1.4.5
 
       - name: Cache the bun install cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

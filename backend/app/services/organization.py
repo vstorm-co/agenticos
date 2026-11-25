@@ -16,7 +16,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope, role_has, role_has_at
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
@@ -27,6 +27,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -88,6 +89,12 @@ def _org_read(
     """
     return OrganizationRead(
         id=org.id,
+        onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
+        if org.onboarding_reminders is not None
+        else None,
+        chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
+        if org.chat_home_defaults is not None
+        else None,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
@@ -495,7 +502,14 @@ class OrganizationService:
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
         if (wants_budget or wants_proactive) and not holds(Perm.BUDGETS_MANAGE):
             raise AuthorizationError(message="Changing a spending limit requires 'budgets:manage'")
-        if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
+        # The waiver switch is organization-wide, not a run's: it takes a
+        # privileged decider, not merely somebody who may decide their own
+        # run. `approvals:decide` at `OWN` decides one person's runs; flipping
+        # the switch decides what every chat in the organization may waive.
+        if wants_waiver and not (
+            role_has_at(membership.role, Perm.APPROVALS_DECIDE, Scope.ALL)
+            and (key_scopes is None or Perm.APPROVALS_DECIDE in key_scopes)
+        ):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )
@@ -514,6 +528,24 @@ class OrganizationService:
                     "Changing whether pages may show data publicly is not allowed while "
                     "impersonating another account."
                 )
+            )
+
+        if "onboarding_reminders" in data.model_fields_set:
+            org = await organization_repo.set_onboarding_reminders(
+                self.db,
+                org,
+                changes=data.onboarding_reminders.changes()
+                if data.onboarding_reminders is not None
+                else None,
+            )
+
+        if "chat_home_defaults" in data.model_fields_set:
+            org = await organization_repo.set_chat_home_defaults(
+                self.db,
+                org,
+                changes=data.chat_home_defaults.changes()
+                if data.chat_home_defaults is not None
+                else None,
             )
 
         if wants_budget:
@@ -866,6 +898,9 @@ class OrganizationService:
         if self._vector_store is not None:
             restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
         await organization_repo.delete(self.db, org)
 
         restamps = [

@@ -324,6 +324,39 @@ it.each([
   }
 });
 
+it("does nothing for a room sync without a selected room", async () => {
+  vi.useFakeTimers();
+  const reread = vi.fn(async () => {});
+  const { unmount } = renderHook(() => useRoomSync(null, reread), { wrapper });
+  try {
+    act(() =>
+      announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" }),
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(reread).not.toHaveBeenCalled();
+  } finally {
+    unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("skips the re-read when the identity changed before the debounce fired", () => {
+  vi.useFakeTimers();
+  const reread = vi.fn(async () => {});
+  const { unmount } = renderHook(() => useRoomSync("room-a", reread), { wrapper });
+  try {
+    act(() =>
+      announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" }),
+    );
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    vi.advanceTimersByTime(150);
+    expect(reread).not.toHaveBeenCalled();
+  } finally {
+    unmount();
+    vi.useRealTimers();
+  }
+});
+
 it("creates an empty project room without invoking an agent", async () => {
   vi.mocked(apiClient.post).mockResolvedValueOnce({ id: "new-room", project_id: "project-a" });
   const { result } = renderHook(() => useCreateTeamRoom(), { wrapper });
@@ -368,6 +401,20 @@ describe("room creation readiness", () => {
     await act(async () => expect(beforeSelection("project-a", "Our team")).resolves.toBeNull());
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+
+  it.each(["succeeds", "fails"] as const)(
+    "drops a creation that %s after the organization changed",
+    async (outcome) => {
+      const pending = deferred<unknown>();
+      vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+      const { result } = renderHook(() => useCreateTeamRoom(), { wrapper });
+      const creating = result.current.create("project-a", "Our team");
+      act(() => useOrgStore.setState({ activeOrgId: "org-b" }));
+      if (outcome === "succeeds") pending.resolve({ id: "new-room", project_id: "project-a" });
+      else pending.reject(new ApiError(403, "Project access changed"));
+      await act(async () => expect(creating).resolves.toBeNull());
+    },
+  );
 
   it("propagates a creation failure while the identity is still current", async () => {
     const failure = new ApiError(403, "Project access changed");

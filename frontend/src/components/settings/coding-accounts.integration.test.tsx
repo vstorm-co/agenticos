@@ -25,6 +25,8 @@ vi.mock("@/stores", () => {
     useAuthStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), {
       getState: () => state,
     }),
+    useOrgStore: (selector: (value: { activeOrgId: string }) => unknown) =>
+      selector({ activeOrgId: "org-1" }),
   };
 });
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => null }));
@@ -110,7 +112,7 @@ it("connects a private key with consent off and clears the form", async () => {
   await userEvent.click(connect);
   const dialog = screen.getByRole("dialog");
   expect(screen.getByRole("checkbox")).not.toBeChecked();
-  await userEvent.type(screen.getByLabelText("Account label"), "My Claude");
+  expect(screen.queryByLabelText("Account label")).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("API key or Claude setup token"), "private-key-value");
   const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
   expect(submit).not.toBeNull();
@@ -119,7 +121,7 @@ it("connects a private key with consent off and clears the form", async () => {
   await waitFor(() => expect(dialog).not.toBeInTheDocument());
   expect(apiClient.post).toHaveBeenCalledWith("/coding-accounts", {
     harness: "claude_code",
-    label: "My Claude",
+    label: "Claude Code",
     api_key: "private-key-value",
     enabled: false,
   });
@@ -547,15 +549,18 @@ it("starts a fresh ChatGPT flow and submits its callback", async () => {
   if (!connect) throw new Error("Missing Codex connect");
   await waitFor(() => expect(connect).toBeEnabled());
   await userEvent.click(connect);
-  await userEvent.type(screen.getByLabelText("Account label"), "My ChatGPT");
-  await userEvent.click(screen.getByRole("button", { name: "ChatGPT sign-in" }));
-  await userEvent.click(screen.getByRole("button", { name: "Start sign-in" }));
-  expect(await screen.findByRole("link", { name: "Continue at OpenAI" })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: "ChatGPT sign-in" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const popup = vi.spyOn(window, "open").mockReturnValue(null);
+  await userEvent.click(screen.getByRole("button", { name: "Sign in with ChatGPT" }));
+  expect(await screen.findByRole("link", { name: "Open the sign-in again" })).toHaveAttribute(
     "href",
     "https://auth.openai.com/authorize",
   );
   const callback = "http://localhost:1455/auth/callback?code=test&state=state";
-  await userEvent.type(screen.getByLabelText("Callback address"), callback);
+  await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
   await userEvent.click(screen.getByRole("checkbox"));
   const submit = screen
     .getByRole("dialog")
@@ -564,11 +569,12 @@ it("starts a fresh ChatGPT flow and submits its callback", async () => {
   await userEvent.click(submit);
   await waitFor(() =>
     expect(apiClient.post).toHaveBeenCalledWith("/coding-accounts/codex/complete", {
-      label: "My ChatGPT",
+      label: "Codex",
       callback_url: callback,
       enabled: true,
     }),
   );
+  popup.mockRestore();
 });
 
 it("offers a chat only the account its agent codes on, and connects it there", async () => {

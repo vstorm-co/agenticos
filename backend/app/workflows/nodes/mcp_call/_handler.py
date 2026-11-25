@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import carries_base_exception, mcp_session, probe_error_message
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, Perm, role_has
+from app.core.permissions import AuthContext, Perm, Scope, role_has_at
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.session import get_worker_db_context
@@ -234,7 +234,7 @@ async def _approver_problems(
             problems.append(
                 (f"approvers.{index}", "This person is not a member of the organization")
             )
-        elif not role_has(member.role, Perm.APPROVALS_DECIDE):
+        elif not role_has_at(member.role, Perm.APPROVALS_DECIDE, Scope.ALL):
             problems.append(
                 (f"approvers.{index}", "This person cannot decide approvals in the organization")
             )
@@ -353,7 +353,10 @@ async def _call(
     read_only = recorded_read_only
     called = False
     try:
-        async with asyncio.timeout(config.timeout_seconds), mcp_session(url, headers) as session:
+        async with (
+            asyncio.timeout(config.timeout_seconds),
+            mcp_session(url, headers, timeout=config.timeout_seconds) as session,
+        ):
             if ask_first or key_argument is not None:
                 listed = await session.list_tools()
                 tool = next((tool for tool in listed.tools if tool.name == config.tool), None)
@@ -386,7 +389,10 @@ async def _call(
                 detail="The tool was called and no answer came back; it may have acted"
             )
         return _failed(
-            "MCP_CALL_FAILED", probe_error_message(exc), retryable=True, tool=config.tool
+            "MCP_CALL_FAILED",
+            probe_error_message(exc, timeout=config.timeout_seconds),
+            retryable=True,
+            tool=config.tool,
         )
     if not isinstance(result, CallToolResult):
         return _failed(

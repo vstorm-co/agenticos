@@ -8,8 +8,10 @@ import { SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { OnboardingReminder } from "@/components/onboarding/onboarding-reminder";
 import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt";
 import { ConsoleVersion } from "@/components/layout/console-version";
+import { SidebarHelp } from "@/components/layout/sidebar-help";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarUser } from "@/components/layout/sidebar-user";
@@ -52,6 +54,7 @@ export function SidebarShell({
         {children}
       </div>
 
+      <OnboardingReminder collapsed={collapsed} onNavigate={onNavigate} />
       {!collapsed && <DesktopInstallPrompt />}
       <div
         className={cn(
@@ -59,6 +62,9 @@ export function SidebarShell({
           collapsed ? "items-center px-1" : "px-3",
         )}
       >
+        {/* Help sits above the account menu that holds Settings, at the foot
+            of the column - not among the destinations, which it is not. */}
+        <SidebarHelp collapsed={collapsed} />
         {/* The language and the theme used to be
             here too, which filed "set this once" beside "find something" under
             four unlabelled glyphs; they are named rows in the account menu

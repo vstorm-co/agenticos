@@ -13,6 +13,7 @@ import type { Agent } from "@/types/agents";
 import type { Project } from "@/types/projects";
 import type { FileUploadResponse } from "@/lib/file-api";
 import type { RoomAgentRequest, RoomMessageResult, RoomParticipantRead } from "@/types/room";
+import { toast } from "sonner";
 import { StartTeamRoom } from "@/components/projects/start-team-room";
 import { RoomComposer, TeamRoomComposer } from "./team-room-composer";
 import { TeamRoomHeader } from "./team-room-header";
@@ -31,10 +32,11 @@ vi.mock("@/components/sharing/share-resource-button", () => ({
   ),
 }));
 let agents: Agent[];
-let project: Project;
+let project: Project | undefined;
+let projectLoading = false;
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents }) }));
 vi.mock("@/hooks/use-projects", () => ({
-  useProject: () => ({ project, isLoading: false }),
+  useProject: () => ({ project, isLoading: projectLoading }),
 }));
 let client: QueryClient;
 let canPost: boolean;
@@ -150,6 +152,7 @@ async function getFilePicker(container: HTMLElement): Promise<HTMLInputElement> 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projectLoading = false;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   useAuthStore.setState({
     user: { id: "me", email: "me@example.com", is_active: true, created_at: "" },
@@ -808,8 +811,369 @@ describe("the room composer", () => {
   });
 });
 
+function ActionsRoom({ actionsSlot }: { actionsSlot: ReactNode }) {
+  const draft = useRoomDraft("room-a");
+  return (
+    <RoomComposer
+      conversationId="room-a"
+      draft={draft}
+      readOnly={false}
+      onTyping={vi.fn()}
+      actionsSlot={actionsSlot}
+    />
+  );
+}
+
+describe("the room composer edges", () => {
+  function bigFile(name: string) {
+    const file = new File(["x"], name, { type: "text/plain" });
+    Object.defineProperty(file, "size", { value: 11 * 1024 * 1024 });
+    return file;
+  }
+  function pickable(changes: Partial<RoomParticipantRead> = {}) {
+    return participant("agent", "writer", "Writer", {
+      is_member: false,
+      can_add: true,
+      can_mention: false,
+      ...changes,
+    });
+  }
+
+  it("tells a reader without a project that the room is read-only", () => {
+    render(
+      <TeamRoomComposer
+        conversationId={null}
+        projectId={null}
+        readOnly={false}
+        onTyping={vi.fn()}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByText(/You can read this room/)).toBeVisible();
+  });
+
+  it.each([
+    ["is still loading", false, true, "Checking room access"],
+    ["is not usable by the viewer", false, false, "You can read this room"],
+    ["is read-only for the viewer", true, false, "You can read this room"],
+  ])("explains a project room that %s", (_name, readOnly, loading, text) => {
+    projectLoading = loading;
+    project = loading ? undefined : { ...project!, can_use: false };
+    render(
+      <TeamRoomComposer
+        conversationId={null}
+        projectId="project-a"
+        readOnly={readOnly}
+        onTyping={vi.fn()}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByText(new RegExp(text))).toBeVisible();
+  });
+
+  it("starts a room from the empty state and reports the new room and project", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ id: "new-room", project_id: "project-a" });
+    const onRoomCreated = vi.fn(() => true);
+    const user = userEvent.setup();
+    render(
+      <TeamRoomComposer
+        conversationId={null}
+        projectId="project-a"
+        readOnly={false}
+        onTyping={vi.fn()}
+        onRoomCreated={onRoomCreated}
+      />,
+      { wrapper },
+    );
+    await user.click(screen.getByRole("button", { name: "New team room" }));
+    await waitFor(() => expect(onRoomCreated).toHaveBeenCalledWith("new-room", "project-a"));
+  });
+
+  it("shows the actions slot beside a reader's notice", async () => {
+    canPost = false;
+    render(<ActionsRoom actionsSlot={<button type="button">Extra action</button>} />, { wrapper });
+    expect(await screen.findByText(/You can read this room/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Extra action" })).toBeInTheDocument();
+  });
+
+  it("limits a room message to ten files and rejects an oversized one", async () => {
+    const toastError = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    const files = Array.from(
+      { length: 11 },
+      (_unused, index) => new File(["x"], `f${index}.txt`, { type: "text/plain" }),
+    );
+    fireEvent.change(picker, { target: { files } });
+    await waitFor(() => expect(apiClient.upload).toHaveBeenCalledTimes(10));
+    expect(toastError).toHaveBeenCalledWith("A room message can include up to 10 files.");
+    await waitFor(() => expect(screen.getByRole("button", { name: /attach/i })).toBeEnabled());
+    toastError.mockClear();
+
+    fireEvent.change(picker, { target: { files: [bigFile("huge.bin")] } });
+    expect(toastError).toHaveBeenCalledWith("huge.bin: File too large. Maximum 10MB.");
+    expect(apiClient.upload).toHaveBeenCalledTimes(10);
+    toastError.mockRestore();
+  });
+
+  it("ignores an empty file selection and a missing file list", async () => {
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    fireEvent.change(picker, { target: { files: [] } });
+    Object.defineProperty(picker, "files", { value: null, configurable: true });
+    fireEvent.change(picker);
+    expect(apiClient.upload).not.toHaveBeenCalled();
+  });
+
+  it("accepts pasted files and leaves plain text pastes alone", async () => {
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    fireEvent.paste(input, { clipboardData: { files: [] } });
+    expect(apiClient.upload).not.toHaveBeenCalled();
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.paste(input, { clipboardData: { files: [file] } });
+    await screen.findByText("notes.txt");
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes an attached file, then freezes the files and reply once a post is uncertain", async () => {
+    useChatStore.setState({ replyTo: { messageId: "m1", role: "user", excerpt: "Earlier note" } });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Connection lost"));
+    const user = userEvent.setup();
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    expect(await screen.findByRole("button", { name: "Don't reply" })).toBeVisible();
+    const notes = () => new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(picker, { target: { files: [notes()] } });
+    await user.click(await screen.findByRole("button", { name: "Remove notes.txt" }));
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+
+    fireEvent.change(picker, { target: { files: [notes()] } });
+    await screen.findByText("notes.txt");
+    await user.type(screen.getByRole("textbox"), "Hi");
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await screen.findByRole("button", { name: "Retry same message" });
+    expect(screen.queryByRole("button", { name: "Remove notes.txt" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Don't reply" })).not.toBeInTheDocument();
+    expect(screen.getByText("Earlier note")).toBeVisible();
+  });
+
+  it("opens the file chooser from the attach button", async () => {
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    const click = vi.spyOn(picker, "click").mockImplementation(() => undefined);
+    await userEvent.setup().click(screen.getByRole("button", { name: /attach/i }));
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("cycles, dismisses and picks mentions by keyboard", async () => {
+    mentionables = [participant("user", "ann", "Ann"), participant("user", "bob", "Bob")];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole<HTMLTextAreaElement>("textbox");
+    fireEvent.keyPress(input, { key: "@", charCode: 64, which: 64 });
+    fireEvent.change(input, { target: { value: "@" } });
+    await user.clear(input);
+    await user.type(input, "@");
+    await screen.findByRole("option", { name: "Ann, People" });
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("option", { name: "Bob, People" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("option", { name: "Ann, People" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    await user.type(input, "b");
+    await screen.findByRole("option", { name: "Bob, People" });
+    await user.keyboard("{Enter}");
+    expect(input).toHaveValue("@Bob ");
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("uploads files dropped on the page", async () => {
+    render(room(), { wrapper });
+    await screen.findByRole("textbox");
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.drop(window, { dataTransfer: { types: ["Files"], files: [file] } });
+    await screen.findByText("notes.txt");
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a room from the empty state without a creation callback", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ id: "new-room", project_id: "project-a" });
+    const user = userEvent.setup();
+    render(
+      <TeamRoomComposer
+        conversationId={null}
+        projectId="project-a"
+        readOnly={false}
+        onTyping={vi.fn()}
+      />,
+      { wrapper },
+    );
+    await user.click(screen.getByRole("button", { name: "New team room" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/chat?id=new-room"));
+  });
+
+  it("starts only one upload when two selections arrive in the same tick", async () => {
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    const first = new File(["one"], "one.txt", { type: "text/plain" });
+    const second = new File(["two"], "two.txt", { type: "text/plain" });
+    // The second selection lands while the first handler is still running, before React
+    // has rendered the first upload, so only the draft store can refuse it.
+    vi.mocked(apiClient.upload).mockImplementationOnce(() => {
+      fireEvent.change(picker, { target: { files: [second] } });
+      return new Promise<FileUploadResponse>(() => {});
+    });
+    fireEvent.change(picker, { target: { files: [first] } });
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("two.txt")).not.toBeInTheDocument();
+  });
+
+  it("stays quiet when an upload fails after its draft was discarded", async () => {
+    const toastError = vi.spyOn(toast, "error").mockImplementation(() => "");
+    let reject!: (error: Error) => void;
+    vi.mocked(apiClient.upload).mockReturnValueOnce(
+      new Promise<FileUploadResponse>((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    const { container } = render(room(), { wrapper });
+    const picker = await getFilePicker(container);
+    fireEvent.change(picker, {
+      target: { files: [new File(["one"], "one.txt", { type: "text/plain" })] },
+    });
+    await screen.findByText("one.txt");
+    act(() => useChatStore.setState({ roomDrafts: {} }));
+    await act(async () => reject(new Error("Gone")));
+    expect(toastError).not.toHaveBeenCalled();
+    toastError.mockRestore();
+  });
+
+  it("falls through to posting when Enter finds no mention match", async () => {
+    mentionables = [participant("user", "ann", "Ann")];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "@zzz");
+    await screen.findByText("No matching people or agents.");
+    await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({ content: "@zzz" }),
+      ),
+    );
+  });
+
+  it("does nothing when a mention is neither addable nor mentionable", async () => {
+    mentionables = [pickable({ is_member: true })];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "@Wri");
+    await user.click(await screen.findByRole("option", { name: "Writer, Agents" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(input).toHaveValue("@Wri");
+  });
+
+  it("can cancel adding an outsider, and shows why adding failed", async () => {
+    mentionables = [pickable()];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "@Wri");
+    await user.click(
+      await screen.findByRole("option", { name: "Writer, Agents, Add before mentioning" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+    await user.type(input, "t");
+    await user.click(
+      await screen.findByRole("option", { name: "Writer, Agents, Add before mentioning" }),
+    );
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Nope"));
+    await user.click(screen.getByRole("button", { name: "Add and mention" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nope");
+    expect(input).toBeDisabled();
+  });
+
+  it("drops an add that finishes after the organization changed", async () => {
+    mentionables = [pickable()];
+    let finish!: (value: RoomParticipantRead) => void;
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "@Wri");
+    await user.click(
+      await screen.findByRole("option", { name: "Writer, Agents, Add before mentioning" }),
+    );
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise<RoomParticipantRead>((resolve) => {
+        finish = resolve;
+      }) as never,
+    );
+    await user.click(screen.getByRole("button", { name: "Add and mention" }));
+    expect(await screen.findByRole("button", { name: "Adding…" })).toBeDisabled();
+    act(() => useOrgStore.setState({ activeOrgId: "org-b" }));
+    await act(async () => finish(participant("agent", "writer", "Writer")));
+    expect(input).not.toHaveValue("@Writer ");
+  });
+
+  it("filters mentions to people while asking the lead, and toggles the lead off", async () => {
+    leadPolicy = {
+      ...leadPolicy,
+      enabled: true,
+      revision: 7,
+      lead: { agent_id: "Writer", version_id: "v", name: "Writer", current: true },
+      can_ask: true,
+    };
+    mentionables = [participant("user", "ann", "Ann"), participant("agent", "writer", "Writer")];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    await user.click(await screen.findByRole("button", { name: "Ask lead" }));
+    await user.type(screen.getByRole("textbox"), "@");
+    await screen.findByRole("option", { name: "Ann, People" });
+    expect(screen.queryByRole("option", { name: "Writer, Agents" })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Ask lead" })[0]!);
+    expect(screen.getAllByRole("button", { name: "Ask lead" })[0]).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("refuses an empty send and retries a failed mention list", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path) => {
+      if (path === "/orgs") return { items: [] };
+      if (path.endsWith("/room-mentionables")) throw new ApiError(500, "Down");
+      return { items: [], total: 0, can_post: true };
+    });
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.click(input);
+    await user.keyboard("{Enter}");
+    expect(apiClient.post).not.toHaveBeenCalled();
+    await user.type(input, "@");
+    const calls = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/room-mentionables"))
+        .length;
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    const before = calls();
+    await user.click(retry);
+    await waitFor(() => expect(calls()).toBeGreaterThan(before));
+  });
+});
+
 it("keeps the shared audience and project sharing visible when the reader is alone", () => {
-  project.can_edit = false;
+  project!.can_edit = false;
   render(<TeamRoomHeader projectId="project-a" present={[]} />, { wrapper });
   expect(screen.getByRole("link", { name: "Team room · Launch" })).toHaveAttribute(
     "href",

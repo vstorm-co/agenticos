@@ -810,4 +810,135 @@ describe("RoomThreadPanel", () => {
       { through_message_id: "reply-b" },
     );
   });
+
+  function trackVisibility(container: HTMLElement) {
+    const scroller = container.querySelector<HTMLDivElement>(".overflow-y-auto")!;
+    const shown = new Set<string>();
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(100, 300));
+    for (const node of scroller.querySelectorAll<HTMLElement>(
+      "[data-message-id], [data-thread-root]",
+    )) {
+      const id = node.dataset.messageId ?? node.dataset.threadRoot!;
+      vi.spyOn(node, "getBoundingClientRect").mockImplementation(() =>
+        shown.has(id) ? bounds(150, 200) : bounds(500, 550),
+      );
+    }
+    return (...ids: string[]) => {
+      shown.clear();
+      for (const id of ids) shown.add(id);
+      fireEvent.scroll(scroller);
+    };
+  }
+  const readPath = "/conversations/room-a/room-threads/root-a/read";
+  const readCalls = () =>
+    vi
+      .mocked(apiClient.post)
+      .mock.calls.filter(([path]) => path === readPath)
+      .map(([, body]) => (body as { through_message_id: string }).through_message_id);
+
+  it("reads forward only: root, then each later reply, never backwards", async () => {
+    page = {
+      ...page,
+      items: [page.items[0]!, { ...page.items[0]!, id: "reply-b", content: "Reply B" }],
+      total: 2,
+      unread: 2,
+    };
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Reply B");
+    const show = trackVisibility(container);
+
+    show("root-a");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a"]));
+    show("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a", "reply-a"]));
+    show("reply-b");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a", "reply-a", "reply-b"]));
+    show("reply-a");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("root-a");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("reply-b");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual(["root-a", "reply-a", "reply-b"]);
+  });
+
+  it("skips a read for a row the transcript no longer holds", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    act(() => useChatStore.setState({ messages: [] }));
+    show("reply-a");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+  });
+
+  it("skips a read for a row that left the transcript in the same update that made it visible", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    // One batch: the scroll reads reply-a from the DOM, the transcript then drops it, so the
+    // read effect sees a visible cursor the current transcript no longer holds.
+    act(() => {
+      show("reply-a");
+      useChatStore.setState({ messages: [] });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+  });
+
+  it("reports a failed read and does not mark the thread read", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(500, "Read failed"));
+    trackVisibility(container)("reply-a");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Read failed");
+  });
+
+  it("does not mark a read the reader left behind", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const pending = deferred<unknown>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+    trackVisibility(container)("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["reply-a"]));
+    act(() => useConversationStore.setState({ currentConversationId: "room-b" }));
+    await act(async () => pending.resolve(undefined));
+    expect(readCalls()).toEqual(["reply-a"]);
+  });
+
+  it("shows why a lifecycle action failed", async () => {
+    page = { ...page, state: "open", can_manage: true, following: false, unread: 0 };
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new ApiError(500, "Follow failed"));
+    const user = userEvent.setup();
+    render(view(), { wrapper });
+    await user.click(await screen.findByRole("button", { name: "Follow thread" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Follow failed");
+  });
+
+  it("ignores the tab being hidden", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("reply-a");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+    visibility.mockRestore();
+  });
+
+  it("does not read again for a row that left the transcript while a read was running", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const pending = deferred<unknown>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+    trackVisibility(container)("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["reply-a"]));
+    act(() => useChatStore.setState({ messages: [] }));
+    await act(async () => pending.resolve(undefined));
+    await act(async () => changed());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual(["reply-a"]);
+  });
 });

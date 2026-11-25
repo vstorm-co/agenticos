@@ -309,6 +309,7 @@ def _delegation(owner: AuthContext) -> _Delegation:
         stash=DelegationStash(),
         test_connections=_TestConnections(),
         isolation=None,
+        personal_model_root=AgentSpec(name="Personal assistant", model_profile_id=uuid4()),
     )
 
 

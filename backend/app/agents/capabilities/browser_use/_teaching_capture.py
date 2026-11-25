@@ -47,7 +47,7 @@ class BrowserTeachingCapture:
         try:
             await self.procedure.begin_task(call_id, emit)
         except Exception as exc:
-            await self._disable_procedure(exc)
+            await self._disable_procedure(self.procedure, exc)
 
     async def before_action(
         self, action: Action, element: Element | None
@@ -57,7 +57,7 @@ class BrowserTeachingCapture:
         try:
             return await self.procedure.before_action(action, element)
         except Exception as exc:
-            await self._disable_procedure(exc)
+            await self._disable_procedure(self.procedure, exc)
             return None
 
     async def after_action(self, prepared: BrowserProcedureTeachingInput | None) -> None:
@@ -66,7 +66,7 @@ class BrowserTeachingCapture:
         try:
             await self.procedure.after_action(prepared)
         except Exception as exc:
-            await self._disable_procedure(exc)
+            await self._disable_procedure(self.procedure, exc)
 
     async def finish_task(self, *, completed: bool) -> None:
         if self._blocked or self.procedure is None or self._procedure_disabled:
@@ -74,7 +74,7 @@ class BrowserTeachingCapture:
         try:
             await self.procedure.finish_task(completed=completed)
         except Exception as exc:
-            await self._disable_procedure(exc)
+            await self._disable_procedure(self.procedure, exc)
 
     async def begin(
         self,
@@ -93,7 +93,7 @@ class BrowserTeachingCapture:
             try:
                 await self.simple.begin(call_id, resolved_user_id)
             except Exception as exc:
-                await self._disable_simple(exc)
+                await self._disable_simple(self.simple, exc)
         if emit is None or self.procedure is None or self._procedure_disabled:
             return None
         try:
@@ -104,7 +104,7 @@ class BrowserTeachingCapture:
                 emit=emit,
             )
         except Exception as exc:
-            await self._disable_procedure(exc)
+            await self._disable_procedure(self.procedure, exc)
             return None
 
     async def before_input(self, command: BrowserCommand) -> object | None:
@@ -116,12 +116,12 @@ class BrowserTeachingCapture:
             try:
                 simple = await self.simple.before_input(command)
             except Exception as exc:
-                await self._disable_simple(exc)
+                await self._disable_simple(self.simple, exc)
         if self.procedure is not None and not self._procedure_disabled:
             try:
                 procedure = await self.procedure.before_input(command)
             except Exception as exc:
-                await self._disable_procedure(exc)
+                await self._disable_procedure(self.procedure, exc)
         if simple is None and procedure is None:
             return None
         return _PreparedInput(simple=simple, procedure=procedure)
@@ -133,12 +133,12 @@ class BrowserTeachingCapture:
             try:
                 await self.simple.after_input(prepared.simple)
             except Exception as exc:
-                await self._disable_simple(exc)
+                await self._disable_simple(self.simple, exc)
         if self.procedure is not None and not self._procedure_disabled:
             try:
                 await self.procedure.after_input(prepared.procedure)
             except Exception as exc:
-                await self._disable_procedure(exc)
+                await self._disable_procedure(self.procedure, exc)
 
     async def failed_input(self) -> None:
         if self._blocked:
@@ -147,12 +147,12 @@ class BrowserTeachingCapture:
             try:
                 await self.simple.failed_input()
             except Exception as exc:
-                await self._disable_simple(exc)
+                await self._disable_simple(self.simple, exc)
         if self.procedure is not None and not self._procedure_disabled:
             try:
                 await self.procedure.failed_input()
             except Exception as exc:
-                await self._disable_procedure(exc)
+                await self._disable_procedure(self.procedure, exc)
 
     async def end(self) -> None:
         if self._closed:
@@ -182,9 +182,10 @@ class BrowserTeachingCapture:
     async def event(self, event: BrowserEvent) -> BrowserEvent:
         if self._blocked:
             return self.guard.event(event)
-        if self.procedure is not None and not self._procedure_disabled:
+        procedure = self.procedure
+        if procedure is not None and not self._procedure_disabled:
             try:
-                return self.procedure.event(event)
+                return procedure.event(event)
             except Exception as exc:
                 logger.warning("Browser procedure teaching event failed (%s)", type(exc).__name__)
                 self._procedure_disabled = True
@@ -192,8 +193,7 @@ class BrowserTeachingCapture:
                 self._protected = True
                 if self.simple is not None:
                     await self._quiet(self.simple.end)
-                if self.procedure is not None:
-                    await self._quiet(self.procedure.end)
+                await self._quiet(procedure.end)
                 return self.guard.event(event)
         return event
 
@@ -201,17 +201,17 @@ class BrowserTeachingCapture:
     def _blocked(self) -> bool:
         return self._protected or self._closed or self.guard.active
 
-    async def _disable_simple(self, exc: Exception) -> None:
+    async def _disable_simple(self, simple: TeachCapture, exc: Exception) -> None:
         logger.warning("Browser teaching capture failed (%s)", type(exc).__name__)
         self._simple_disabled = True
-        if self.simple is not None:
-            await self._quiet(self.simple.end)
+        await self._quiet(simple.end)
 
-    async def _disable_procedure(self, exc: Exception) -> None:
+    async def _disable_procedure(
+        self, procedure: BrowserProcedureTeachingCaptureProtocol, exc: Exception
+    ) -> None:
         logger.warning("Browser procedure teaching capture failed (%s)", type(exc).__name__)
         self._procedure_disabled = True
-        if self.procedure is not None:
-            await self._quiet(self.procedure.end)
+        await self._quiet(procedure.end)
 
     @staticmethod
     async def _quiet(operation: Callable[[], Awaitable[None]]) -> None:

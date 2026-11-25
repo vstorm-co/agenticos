@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-backend-partition-check backend-file-times test-deployment test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -369,6 +369,7 @@ lint-backend:
 	# still work - until the next one written this way needs 3.10+ too.
 	uv run --directory backend python3 ../scripts/check_backticks.py
 	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_agenticos_plugin.py
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
@@ -403,10 +404,18 @@ dead-code:
 # imported nowhere, and *listed in knip's own ignores*, so the report that
 # would have found it had been told not to (#156). The rest of knip's output
 # needs a human and stays in `make dead-code`.
+#
+# The type check has two interchangeable engines that report the same errors:
+# `tsc` (the default, and the merge queue's final gate) and `bun check`, about 18x
+# faster (78s against 4s on CI), which PR runs and the quick check use through
+# FRONTEND_TYPECHECK=fast. Both were run on one commit, clean and with a probe of
+# known .ts and .tsx errors, and reported identical errors. tsc exits 2 on an error
+# and bun check 1, so the line exits 1 for either and the target fails the same way.
+FRONTEND_TYPECHECK ?= tsc
 lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
-	cd frontend && bun run type-check
+	cd frontend && bun run $(if $(filter fast,$(FRONTEND_TYPECHECK)),type-check:fast,type-check) || exit 1
 	cd frontend && bun run check:i18n
 	cd frontend && bun run lint:deps
 
@@ -519,11 +528,23 @@ endif
 # Only the workflow's ephemeral service container may use reduced durability.
 ci-test-db-configure:
 	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	# Parallel workers each run whole migration chains in one transaction and hold a
+	# lock per table and index; Postgres's default of 64 locks per transaction ran the
+	# shared lock table out ("out of shared memory", #232). The setting only applies at
+	# server start, and a service container takes no server flags and keeps its data on
+	# tmpfs, which a restart wipes - so an init script writes it into the fresh cluster.
+	printf '%s\n' '#!/bin/sh' 'echo "max_locks_per_transaction = 256" >> "$$PGDATA/postgresql.conf"' > "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	chmod 0755 "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	docker cp "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh" "$(POSTGRES_CONTAINER):/docker-entrypoint-initdb.d/10-max-locks.sh"
+	docker restart "$(POSTGRES_CONTAINER)"
+	@# TCP, not the socket: during init the entrypoint's temporary server listens on the socket only.
+	@for i in $$(seq 60); do docker exec "$(POSTGRES_CONTAINER)" pg_isready -q -h 127.0.0.1 -U postgres && exit 0; sleep 1; done; echo "Postgres did not come back after the restart" >&2; exit 1
 	@for setting in fsync synchronous_commit full_page_writes; do \
 	  docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c "ALTER SYSTEM SET $$setting = off" || exit 1; \
 	done
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
-	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes' -c 'SHOW max_locks_per_transaction'
+	@test "$$(docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -tAc 'SHOW max_locks_per_transaction')" = 256
 
 # The pinned ffmpeg build the media-inspection tests run; it writes `$GITHUB_PATH`.
 ci-media-inspector:
@@ -545,8 +566,8 @@ ci-browser-runtime-check:
 test:
 	$(TEST_DB_START)
 	@status=0; paths=tests/; \
-	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1;) \
-	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1; printf '%s\n' $$paths > backend/.shard$(BACKEND_SHARD_INDEX)-files.txt;) \
+	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 $(if $(BACKEND_SHARD),--junitxml=junit-shard$(BACKEND_SHARD_INDEX).xml) || status=$$?; \
 	$(if $(BACKEND_SHARD),test -s backend/.coverage.shard$(BACKEND_SHARD_INDEX) || status=1;,$(TEST_GATE)) \
 	exit $$status
 
@@ -561,6 +582,18 @@ test-backend-reports-check:
 
 # `unset COVERAGE_FILE`: combined into a file named by an inherited COVERAGE_FILE,
 # such as a shard's own data file, `combine` erased that shard's data first.
+# The shards' file lists must partition the suite: every test file in exactly one
+# shard. `ci_backend_shard.py` splits by recorded times, which are a second input,
+# so this proves the split rather than trusting it.
+test-backend-partition-check:
+	uv run --quiet --directory backend python ../scripts/ci_backend_shard.py verify tests \
+		$(foreach shard,$(shell seq 1 $(BACKEND_SHARDS)),.shard$(shard)-files.txt)
+
+# Seconds per backend test file from the shards' JUnit reports. The next run's
+# `changes` job fetches this from the last green full run to balance the shards.
+backend-file-times:
+	cd backend && uv run --quiet python ../scripts/ci_backend_shard.py times junit-shard*.xml > backend-file-times.json
+
 test-backend-merge:
 	@status=0; unset COVERAGE_FILE; \
 	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \
@@ -846,6 +879,10 @@ load-test:
 EVAL_ARGS ?=
 eval-retrieval:
 	@uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
+
+.PHONY: eval-personal
+eval-personal:
+	@uv run --directory backend python ../evals/personal/run.py $(EVAL_ARGS)
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
@@ -1196,6 +1233,7 @@ help:
 	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Retrieval evaluation (billed model calls - see docs/retrieval-eval.md):"
+	@echo "  make eval-personal    Validate the personal assistant corpus; EVAL_ARGS= passes options"
 	@echo "  make eval-retrieval   Measure knowledge retrieval on the docs; EVAL_ARGS= passes options"
 	@echo ""
 	@echo "Database:"
@@ -1247,3 +1285,7 @@ help:
 .PHONY: release-cut
 release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
 	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)
+
+# Disposable proxy containers and synthetic Compose settings; no app/database.
+test-deployment: ## Test Nginx, Traefik and Compose with disposable containers
+	uv run --no-project --python "$$(cat backend/.python-version)" python scripts/deployment/test_proxies.py

@@ -409,9 +409,19 @@ class TestOrganizationService:
                 "app.repositories.telephony.organization_has_unfinished_calls",
                 new=AsyncMock(return_value=False),
             ),
+            patch(
+                "app.services.organization.NetworkConnectionService.prepare_organization_deletion",
+                new=AsyncMock(),
+            ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(return_value=0),
+            ) as purge_coding,
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
+
+        purge_coding.assert_awaited_once_with(organization_id=mock_org.id)
 
     @pytest.mark.anyio
     async def test_update_requires_admin_or_owner(self, service, mock_db):

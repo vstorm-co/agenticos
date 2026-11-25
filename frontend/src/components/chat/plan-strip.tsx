@@ -36,26 +36,26 @@ export function PlanStrip({ plan, live }: { plan: PlanProgress | null; live: boo
   return (
     <div
       data-tour="chat-plan"
-      className="panel border-foreground/8 mb-2 overflow-hidden rounded-xl border"
+      className="border-border bg-card mb-2 overflow-hidden rounded-xl border"
     >
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setChoice(!open)}
-        className="hover:bg-foreground/[0.03] flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
+        className="hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         <ListChecks className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         <span className="text-foreground/85 min-w-0 flex-1 truncate text-[13px]">{headline}</span>
         <PlanMeter completed={plan.completed} total={plan.total} percent={plan.percent} />
         <ChevronDown
           className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+            "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none",
             open && "rotate-180",
           )}
         />
       </button>
       {open && (
-        <div className="border-foreground/8 max-h-56 scrollbar-thin overflow-y-auto border-t px-3 py-2.5">
+        <div className="border-border max-h-56 scrollbar-thin overflow-y-auto overscroll-contain border-t px-3 py-2.5">
           <PlanChecklist steps={plan.steps} live={live} />
         </div>
       )}

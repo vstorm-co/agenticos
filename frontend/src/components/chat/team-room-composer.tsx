@@ -292,7 +292,8 @@ function TeamRoomForm({
           ),
     [askingLead, mentionables, mentionQuery],
   );
-  const mentionOpen = mentionQuery !== null && draft.content.length > 0;
+  const openQuery = draft.content.length > 0 ? mentionQuery : null;
+  const mentionOpen = openQuery !== null;
   const mentionSelectionKey = JSON.stringify([
     mentionOpen,
     mentionQuery?.start ?? null,
@@ -321,25 +322,23 @@ function TeamRoomForm({
     setAddError(null);
   }
 
-  function pickMention(participant: RoomParticipantRead) {
-    if (mentionQuery === null) return;
+  function pickMention(participant: RoomParticipantRead, query: RoomMentionQuery) {
     if (!participant.is_member && participant.can_add) {
       setAddError(null);
-      setPendingAdd({ participant, query: mentionQuery });
+      setPendingAdd({ participant, query });
       return;
     }
-    if (participant.can_mention) placeMention(participant, mentionQuery);
+    if (participant.can_mention) placeMention(participant, query);
   }
 
-  async function addAndMention() {
-    if (pendingAdd === null) return;
+  async function addAndMention(pending: NonNullable<typeof pendingAdd>) {
     setAddError(null);
     try {
       const added = await addParticipant.add({
-        kind: pendingAdd.participant.kind,
-        id: pendingAdd.participant.id,
+        kind: pending.participant.kind,
+        id: pending.participant.id,
       });
-      if (added !== null) placeMention(added, pendingAdd.query);
+      if (added !== null) placeMention(added, pending.query);
     } catch (failure) {
       setAddError(getErrorMessage(failure, tErrors, t("mentionAddFailed")));
     }
@@ -427,7 +426,7 @@ function TeamRoomForm({
           // A key that did not produce input must not leave its beforeinput snapshot
           // available for a later edit. The matching beforeinput below refreshes it.
           mentionEditBeforeInput.current = null;
-          if (mentionOpen) {
+          if (openQuery !== null) {
             if (event.key === "ArrowDown" && mentionMatches.length > 0) {
               event.preventDefault();
               selectMentionIndex((mentionIndex + 1) % mentionMatches.length);
@@ -450,7 +449,7 @@ function TeamRoomForm({
               const selected = mentionMatches[mentionIndex];
               if (selected) {
                 event.preventDefault();
-                pickMention(selected);
+                pickMention(selected, openQuery);
                 return;
               }
             }
@@ -471,13 +470,13 @@ function TeamRoomForm({
         disabled={draft.locked || pendingAdd !== null}
         className="mb-3 min-h-20 resize-y border-0 bg-transparent shadow-none focus-visible:ring-0"
       />
-      {mentionOpen && (
+      {openQuery !== null && (
         <RoomMentionPalette
           id={mentionListId}
           items={mentionMatches}
           selectedIndex={mentionIndex}
           onSelectIndex={selectMentionIndex}
-          onPick={pickMention}
+          onPick={(item) => pickMention(item, openQuery)}
           isLoading={isLoading}
           failed={error !== null}
           onRetry={() => void refetch()}
@@ -507,7 +506,7 @@ function TeamRoomForm({
               type="button"
               size="sm"
               disabled={addParticipant.isAdding}
-              onClick={() => void addAndMention()}
+              onClick={() => void addAndMention(pendingAdd)}
             >
               {addParticipant.isAdding ? t("addingAndMention") : t("addAndMention")}
             </Button>

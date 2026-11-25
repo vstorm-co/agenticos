@@ -1,16 +1,17 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
 import { appLinkFromChat } from "@/lib/app-return";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
+import { canonicalParts, mergeToolCall } from "@/lib/turn-timeline";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { AskedBefore } from "@/components/datasets/follows-on";
-import type { ChatMessage, TurnUsage, Delegation, MessageReply } from "@/types";
+import type { ChatMessage, TurnUsage, Delegation, MessageReply, ToolCall } from "@/types";
 import type { RoomThreadMovedStub } from "@/types/room-thread-context";
 import type { PinnedPrompts } from "./chat-container";
 import type { ConversationSideThreadActions } from "./conversation-side-threads";
@@ -41,27 +42,6 @@ interface MessageListProps {
   pins?: PinnedPrompts;
   /** Placeholders for ranges currently moved into same-room threads. */
   movedThreadStubs?: RoomThreadMovedStub[];
-}
-
-/**
- * The turn whose last step stays open, or -1 when no turn did any work.
- *
- * The most recent turn that *used a tool*, which is not the most recent turn: an agent
- * that writes a file and then answers about it ends the conversation with prose, and
- * anchoring on "the newest assistant message" left the file that was just written folded
- * away. What somebody opening a conversation is looking for is the last thing the agent
- * did, wherever in the transcript that landed.
- */
-export function lastToolTurnIndex(messages: ChatMessage[]): number {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message === undefined || message.role !== "assistant") continue;
-    const usedATool =
-      (message.parts ?? []).some((part) => part.type === "tool" && part.toolCall) ||
-      (message.toolCalls?.length ?? 0) > 0;
-    if (usedATool) return index;
-  }
-  return -1;
 }
 
 /**
@@ -155,9 +135,11 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       result.push(message);
       continue;
     }
-    const calls = new Map(
-      [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])].map((call) => [call.id, call]),
-    );
+    const calls = new Map<string, ToolCall>();
+    for (const call of [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])]) {
+      const existing = calls.get(call.id);
+      calls.set(call.id, existing ? mergeToolCall(existing, call) : call);
+    }
     const parts = new Map(
       [...sourcedParts(previous), ...sourcedParts(message)].map((part) => [part.id, part]),
     );
@@ -179,8 +161,12 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       runStartedAt: previous.runStartedAt ?? message.runStartedAt,
       runDurationMs: message.runDurationMs ?? previous.runDurationMs,
       toolCalls: [...calls.values()],
-      parts: [...parts.values()].map((part) =>
-        part.toolCall ? { ...part, toolCall: calls.get(part.toolCall.id) ?? part.toolCall } : part,
+      parts: canonicalParts(
+        [...parts.values()].map((part) =>
+          part.toolCall
+            ? { ...part, toolCall: calls.get(part.toolCall.id) ?? part.toolCall }
+            : part,
+        ),
       ),
       thinking: [previous.thinking, message.thinking].filter(Boolean).join("\n\n") || undefined,
       usage: message.usage ?? previous.usage,
@@ -305,7 +291,6 @@ export function MessageList({
     if (onRegenerate === undefined || lastAssistantId === undefined) return undefined;
     return () => onRegenerate(lastAssistantId);
   }, [onRegenerate, lastAssistantId]);
-  const openStepsAt = lastToolTurnIndex(messages);
   const timestamps = messages.map((message) => message.timestamp);
   const now = new Date();
 
@@ -357,7 +342,6 @@ export function MessageList({
             continuesTurn={row.continuesTurn}
             endsTurn={row.endsTurn}
             turnUsage={row.turnUsage}
-            openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
             asked={askedBefore(messages, index)}

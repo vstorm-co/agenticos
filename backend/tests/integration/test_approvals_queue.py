@@ -16,24 +16,36 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from pydantic_ai.messages import (
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    UserPromptPart,
+)
+from sqlalchemy import null, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.conversation import Conversation
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.project import Project
 from app.db.models.user import User
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
-from app.services.agent_runner import AgentRunnerService
+from app.schemas.conversation import HistoryProvenance
+from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.approvals import ApprovalService
+from app.services.conversation import ConversationService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -82,14 +94,21 @@ async def _agent(db, org: Organization, name: str = "Clerk") -> Agent:
     return agent
 
 
-async def _run(db, org: Organization, agent: Agent, *, started_by: User | None) -> AgentRun:
+async def _run(
+    db,
+    org: Organization,
+    agent: Agent,
+    *,
+    started_by: User | None,
+    surface: str = RunSurface.WEB.value,
+) -> AgentRun:
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=org.id,
         agent_id=agent.id,
         user_id=None if started_by is None else started_by.id,
         status=RunStatus.AWAITING_APPROVAL.value,
-        surface=RunSurface.WEB.value,
+        surface=surface,
         started_at=_NOW,
     )
     db.add(run)
@@ -115,8 +134,314 @@ async def _approval(db, org: Organization, run: AgentRun, **overrides) -> ToolAp
     return approval
 
 
-def _ctx(org: Organization, user: User) -> AuthContext:
-    return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+def _ctx(org: Organization, user: User, role: OrgRoleName = OrgRoleName.OWNER) -> AuthContext:
+    return AuthContext(user_id=user.id, organization_id=org.id, role=role)
+
+
+def _waiting_question_state(agent: Agent, question_id: str = "ask") -> PausedRunState:
+    return PausedRunState(
+        messages=ModelMessagesTypeAdapter.dump_python(
+            [
+                ModelRequest(parts=[UserPromptPart("Choose the reply tone")]),
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            "ask_user_question",
+                            {
+                                "questions": [
+                                    {
+                                        "header": "Tone",
+                                        "question": "Which tone?",
+                                        "options": [{"label": "Formal"}, {"label": "Casual"}],
+                                    }
+                                ]
+                            },
+                            tool_call_id=question_id,
+                        )
+                    ]
+                ),
+            ],
+            mode="json",
+        ),
+        tool_call_ids={},
+        questions=[question_id],
+        history_provenance=HistoryProvenance(
+            agent_id=agent.id,
+            configuration_digest="a" * 64,
+            mcp_destination_digest="b" * 64,
+        ),
+    )
+
+
+async def test_only_the_person_asked_lists_live_web_questions_in_their_workspace(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    other_org, other = await _org(db)
+    agent, other_agent = await _agent(db, org), await _agent(db, other_org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Delivery")
+    other_conversation = Conversation(organization_id=other_org.id, user_id=owner.id)
+    db.add_all([conversation, other_conversation])
+    await db.flush()
+    now = datetime.now(UTC)
+    older = await _run(db, org, agent, started_by=owner)
+    newer = await _run(db, org, agent, started_by=owner)
+    expired = await _run(db, org, agent, started_by=owner)
+    workflow = await _run(db, org, agent, started_by=owner)
+    answered = await _run(db, org, agent, started_by=owner)
+    another_person = await _run(db, org, agent, started_by=other)
+    another_workspace = await _run(db, other_org, other_agent, started_by=owner)
+    for run in (older, newer, expired, workflow, answered, another_person, another_workspace):
+        run.status = RunStatus.AWAITING_ANSWER.value
+        run.ended_at = now - timedelta(minutes=2)
+        run.conversation_id = conversation.id
+        run.paused_state = _waiting_question_state(
+            other_agent if run is another_workspace else agent, "private-question-id"
+        ).model_dump(mode="json")
+    newer.ended_at = now - timedelta(minutes=1)
+    expired.ended_at = now - timedelta(hours=25)
+    workflow.surface = RunSurface.WORKFLOW.value
+    answered.status = RunStatus.RUNNING.value
+    another_workspace.conversation_id = other_conversation.id
+    await db.flush()
+    service = ConversationService(db)
+    caller = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+    first = await service.list_waiting_questions(caller, skip=0, limit=1)
+    second = await service.list_waiting_questions(caller, skip=1, limit=1)
+
+    assert first.total == second.total == 2
+    assert [item.run_id for item in first.items + second.items] == [older.id, newer.id]
+    assert first.items[0].model_dump() == {
+        "run_id": older.id,
+        "conversation_id": conversation.id,
+        "conversation_title": "Delivery",
+        "agent_name": "Clerk",
+        "expires_at": now - timedelta(minutes=2) + timedelta(hours=24),
+    }
+    older.status = RunStatus.RUNNING.value
+    newer.status = RunStatus.CANCELLED.value
+    await db.flush()
+    assert (await service.list_waiting_questions(caller, skip=0, limit=1)).total == 0
+
+
+async def test_parked_project_question_is_hidden_after_losing_the_right_to_continue(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    project = Project(organization_id=org.id, owner_user_id=owner.id, name="Delivery")
+    db.add(project)
+    await db.flush()
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, project_id=project.id)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=owner)
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.conversation_id = conversation.id
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
+    await db.flush()
+
+    service = ConversationService(db)
+    assert (await service.list_waiting_questions(_ctx(org, owner), skip=0, limit=5)).total == 1
+    viewer = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.VIEWER)
+    assert (await service.list_waiting_questions(viewer, skip=0, limit=5)).total == 0
+
+
+@pytest.mark.parametrize(
+    "scope_state", ["omitted", "explicit-none", "sql-null", "empty", "scoped", "api"]
+)
+async def test_waiting_questions_match_production_run_creation_and_unscoped_nulls(
+    db: AsyncSession, scope_state: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    if scope_state == "omitted":
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=org.id,
+            agent_id=agent.id,
+            agent_version_id=None,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            surface=RunSurface.WEB.value,
+            model_label="QA",
+            started_at=datetime.now(UTC),
+        )
+    else:
+        scopes = (
+            [] if scope_state == "empty" else ["agents:run"] if scope_state == "scoped" else None
+        )
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=org.id,
+            agent_id=agent.id,
+            agent_version_id=None,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            surface=RunSurface.API.value if scope_state == "api" else RunSurface.WEB.value,
+            model_label="QA",
+            started_at=datetime.now(UTC),
+            key_scopes=scopes,
+        )
+    state = _waiting_question_state(agent)
+    await agent_run_repo.finish_run(
+        db,
+        run=run,
+        status=RunStatus.AWAITING_ANSWER.value,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal(0),
+        cost_is_partial=False,
+        ended_at=datetime.now(UTC),
+        paused_state=state.model_dump(mode="json"),
+    )
+    if scope_state == "sql-null":
+        await db.execute(update(AgentRun).where(AgentRun.id == run.id).values(key_scopes=null()))
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    expected = [] if scope_state in {"empty", "scoped", "api"} else [run.id]
+    assert queue.total == len(expected)
+    assert [item.run_id for item in queue.items] == expected
+
+
+@pytest.mark.parametrize("has_history", [True, False])
+@pytest.mark.parametrize("proof", ["missing", "json-null", "object"])
+async def test_waiting_questions_exclude_only_history_requiring_missing_destination_proof(
+    db: AsyncSession, has_history: bool, proof: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=None,
+        user_id=owner.id,
+        conversation_id=conversation.id,
+        surface=RunSurface.WEB.value,
+        model_label="QA",
+        started_at=datetime.now(UTC),
+    )
+    state = _waiting_question_state(agent)
+    payload = state.model_dump(mode="json")
+    if not has_history:
+        payload["messages"] = []
+    if proof == "missing":
+        payload.pop("history_provenance")
+    elif proof == "json-null":
+        payload["history_provenance"] = None
+    # All cases have valid stored-state shape; missing proof is a domain refusal,
+    # not a way to bypass the model or destination-verification boundary.
+    parsed = PausedRunState.model_validate(payload)
+    blocked_by_resume_guard = bool(parsed.messages) and parsed.history_provenance is None
+    await agent_run_repo.finish_run(
+        db,
+        run=run,
+        status=RunStatus.AWAITING_ANSWER.value,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal(0),
+        cost_is_partial=False,
+        ended_at=datetime.now(UTC),
+        paused_state=payload,
+    )
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    assert queue.total == (0 if blocked_by_resume_guard else 1)
+    assert [item.run_id for item in queue.items] == ([] if blocked_by_resume_guard else [run.id])
+
+
+@pytest.mark.parametrize("stored_results", ["default", "legacy-null", "empty", "accepted"])
+async def test_waiting_questions_handle_real_serialization_and_legacy_json_null(
+    db: AsyncSession, stored_results: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=owner)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    state = _waiting_question_state(agent)
+    payload = state.model_dump(mode="json")
+    if stored_results == "legacy-null":
+        payload["question_results"] = None
+    elif stored_results == "empty":
+        payload["question_results"] = {}
+    elif stored_results == "accepted":
+        payload["question_results"] = {"ask": {"Tone": ["Casual"]}}
+    run.paused_state = payload
+    await db.flush()
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    assert queue.total == (0 if stored_results == "accepted" else 1)
+    assert [item.run_id for item in queue.items] == (
+        [] if stored_results == "accepted" else [run.id]
+    )
+
+
+async def test_archived_edit_shared_question_is_not_an_actionable_inbox_item(db) -> None:
+    org, owner = await _org(db)
+    editor = await _user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=editor.id, role="member"))
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Shared QA")
+    db.add(conversation)
+    await db.flush()
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_by=owner.id,
+            shared_with=editor.id,
+            permission="edit",
+        )
+    )
+    run = await _run(db, org, agent, started_by=editor)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
+    await db.flush()
+    ctx = AuthContext(user_id=editor.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+    service = ConversationService(db)
+    assert (await service.list_waiting_questions(ctx, skip=0, limit=5)).total == 1
+    await service.archive_conversation(conversation.id, organization_id=org.id, user_id=owner.id)
+    assert (await service.list_waiting_questions(ctx, skip=0, limit=5)).total == 0
+
+
+async def test_ownerless_channel_web_question_requires_current_confirmed_participation(db) -> None:
+    org, user = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=None)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=user)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
+    await db.flush()
+    with patch(
+        "app.services.conversation.channel_membership.confirmed_participant_threads",
+        new_callable=AsyncMock,
+    ) as confirmed:
+        service = ConversationService(db)
+        confirmed.return_value = {conversation.id}
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 1
+        confirmed.assert_awaited_with(db, user_id=user.id, organization_id=org.id)
+        confirmed.return_value = set()
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 0
+        confirmed.return_value = {conversation.id}
+        run.surface = RunSurface.SLACK.value
+        await db.flush()
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 0
 
 
 async def _chat_run(
@@ -857,7 +1182,9 @@ async def test_remembering_approval_refuses_unattended_or_changed_authority(
         member = await db.scalar(
             select(OrganizationMember).where(OrganizationMember.organization_id == org.id)
         )
-        member.role = "member"
+        # A member holds `approvals:decide` at OWN and may still remember their own
+        # web run; losing the permission outright is what revokes it.
+        member.role = "viewer"
     if changed == "key":
         ctx = replace(ctx, api_key_id=uuid.uuid4())
     if changed == "fallback":
@@ -988,10 +1315,27 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         [row], _ = await ApprovalService(db).list_approvals(ctx)
         return row
 
-    async def test_a_member_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:
+    async def test_a_member_who_did_not_start_the_run_does_not_see_its_row_at_all(self, db) -> None:
         org, _, _, reader = await self._parked_share(db)
+        ctx = AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER)
 
-        row = await self._read_as(db, org, reader, OrgRoleName.MEMBER)
+        rows, total = await ApprovalService(db).list_approvals(ctx)
+
+        assert rows == []
+        assert total == 0
+
+    async def test_a_decider_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:
+        """The blind reader is a key issued for `approvals:decide` alone: it holds no `runs:view`."""
+        org, owner, _, _ = await self._parked_share(db)
+        key_ctx = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OPERATOR,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+
+        [row], _ = await ApprovalService(db).list_approvals(key_ctx)
 
         assert row.content_hidden
         assert row.context == {"audience": "organization"}
@@ -1021,17 +1365,55 @@ class TestWhatAQueueReaderMaySeeOfAFact:
     async def test_a_reader_who_cannot_see_the_fact_may_not_approve_sharing_it(self, db) -> None:
         from app.core.exceptions import AuthorizationError
 
-        org, _, _, reader = await self._parked_share(db)
+        org, owner, _, reader = await self._parked_share(db)
+        [row], _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+        ctx = AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER)
 
-        with pytest.raises(AuthorizationError, match="may approve it; you may reject it"):
-            await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=True)
+        # The refusal is the decide check, not the always-asks one: cross-person
+        # decisions stay privileged, so a member naming somebody else's approval
+        # is refused before the call's visibility is ever asked about.
+        with pytest.raises(AuthorizationError, match="Only the person who started this run"):
+            await ApprovalService(db).decide(ctx, row.id, approved=True)
 
-    async def test_they_may_still_reject_it(self, db) -> None:
-        org, _, _, reader = await self._parked_share(db)
+    async def test_a_decide_scoped_key_may_reject_what_it_cannot_see(self, db) -> None:
+        """The always-asks rule still has a reader: a key that may decide but not see.
 
-        decided = await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=False)
+        A member reading somebody else's run is refused outright now, so the
+        blind reader who may still reject is an operator's key issued for
+        `approvals:decide` alone: privileged for the decision, blind to the
+        fact because it holds no `runs:view`.
+        """
+        org, owner, _, _ = await self._parked_share(db)
+        [row], _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+        key_ctx = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OPERATOR,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            decided = await ApprovalService(db).decide(key_ctx, row.id, approved=False)
 
         assert decided.status == ApprovalStatus.REJECTED.value
+
+    async def test_a_decide_scoped_key_may_not_approve_what_it_cannot_see(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, owner, _, _ = await self._parked_share(db)
+        [row], _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+        key_ctx = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OPERATOR,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            with pytest.raises(AuthorizationError, match="may approve it; you may reject it"):
+                await ApprovalService(db).decide(key_ctx, row.id, approved=True)
 
     async def test_the_person_who_asked_may_approve_it(self, db) -> None:
         org, _, asker, _ = await self._parked_share(db)
@@ -1060,3 +1442,206 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         assert hidden.content_hidden and hidden.context == {"audience": "organization"}
         assert not shown.content_hidden
         assert shown.context is not None and "claim" in shown.context
+
+
+class TestOwnRunApprovalDecides:
+    """A member may decide an approval on a run they started, and no other."""
+
+    async def _member(self, db, org: Organization) -> User:
+        member = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=org.id, user_id=member.id, role="member"
+            )
+        )
+        await db.flush()
+        return member
+
+    async def _decide(
+        self, db, ctx: AuthContext, approval_id: uuid.UUID, *, approved: bool
+    ) -> ToolApproval:
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            return await ApprovalService(db).decide(ctx, approval_id, approved=approved)
+
+    async def test_a_member_decides_their_own_run(self, db) -> None:
+        org, owner = await _org(db)
+        member = await self._member(db, org)
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=member)
+        approval = await _approval(db, org, run)
+        await db.commit()
+
+        decided = await self._decide(
+            db, _ctx(org, member, OrgRoleName.MEMBER), approval.id, approved=True
+        )
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+        assert decided.decided_by_user_id == member.id
+        assert (await db.get(ToolApproval, approval.id)).status == ApprovalStatus.APPROVED.value
+
+    async def test_a_member_cannot_decide_somebody_elses_run(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, owner = await _org(db)
+        member = await self._member(db, org)
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=owner)
+        approval = await _approval(db, org, run)
+        await db.commit()
+
+        with pytest.raises(AuthorizationError, match="Only the person who started this run"):
+            await self._decide(
+                db, _ctx(org, member, OrgRoleName.MEMBER), approval.id, approved=True
+            )
+
+        assert (await db.get(ToolApproval, approval.id)).status == ApprovalStatus.PENDING.value
+
+    async def test_a_member_cannot_decide_their_own_api_run(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, owner = await _org(db)
+        member = await self._member(db, org)
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=member, surface=RunSurface.API.value)
+        approval = await _approval(db, org, run)
+        await db.commit()
+
+        with pytest.raises(AuthorizationError, match="Only the person who started this run"):
+            await self._decide(
+                db, _ctx(org, member, OrgRoleName.MEMBER), approval.id, approved=True
+            )
+
+        assert (await db.get(ToolApproval, approval.id)).status == ApprovalStatus.PENDING.value
+
+    async def test_a_privileged_decider_still_decides_any_run(self, db) -> None:
+        org, owner = await _org(db)
+        member = await self._member(db, org)
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=member)
+        approval = await _approval(db, org, run)
+        await db.commit()
+
+        decided = await self._decide(db, _ctx(org, owner), approval.id, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+        assert decided.decided_by_user_id == owner.id
+
+
+class TestOwnRunQueueIsScoped:
+    """A member's queue is their own runs' approvals, whatever filter they ask for."""
+
+    async def test_a_member_lists_only_their_own_runs(self, db) -> None:
+        org, owner = await _org(db)
+        member = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=org.id, user_id=member.id, role="member"
+            )
+        )
+        await db.flush()
+        agent = await _agent(db, org)
+        own_run = await _run(db, org, agent, started_by=member)
+        others_run = await _run(db, org, agent, started_by=owner)
+        await _approval(db, org, own_run)
+        await _approval(db, org, others_run)
+        await db.commit()
+
+        rows, total = await ApprovalService(db).list_approvals(
+            _ctx(org, member, OrgRoleName.MEMBER)
+        )
+
+        assert total == 1
+        assert len(rows) == 1
+        assert rows[0].triggered_by_user_id == member.id
+
+    async def test_a_filter_naming_somebody_else_is_overwritten(self, db) -> None:
+        org, owner = await _org(db)
+        member = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=org.id, user_id=member.id, role="member"
+            )
+        )
+        await db.flush()
+        agent = await _agent(db, org)
+        own_run = await _run(db, org, agent, started_by=member)
+        others_run = await _run(db, org, agent, started_by=owner)
+        await _approval(db, org, own_run)
+        await _approval(db, org, others_run)
+        await db.commit()
+
+        rows, total = await ApprovalService(db).list_approvals(
+            _ctx(org, member, OrgRoleName.MEMBER),
+            filters=ApprovalFilters(triggered_by_user_id=owner.id),
+        )
+
+        assert total == 1
+        assert len(rows) == 1
+        assert rows[0].triggered_by_user_id == member.id
+
+
+class TestApprovalExpiryNotifiesItsOwner:
+    """The sweep tells the run's owner their run died unanswered - once, and only them."""
+
+    async def test_a_web_run_s_expiry_writes_one_notice_to_its_owner(self, db, engine) -> None:
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from app.db.models.notification import Notification
+
+        org, owner = await _org(db)
+        member = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=org.id, user_id=member.id, role="member"
+            )
+        )
+        await db.flush()
+        agent = await _agent(db, org)
+        stale_at = datetime.now(UTC) - timedelta(days=4)
+        web_run = await _run(db, org, agent, started_by=member)
+        web_run.paused_state = {"messages": [], "tool_call_ids": {}}
+        await _approval(db, org, web_run, created_at=stale_at)
+        # A channel run of the same person: the chat already heard it, so the
+        # centre must not write a second notice for the same expiry.
+        chat_run = await _run(db, org, agent, started_by=member, surface=RunSurface.SLACK.value)
+        chat_run.paused_state = {
+            "messages": [],
+            "tool_call_ids": {},
+            "channel_destination": {
+                "bot_id": str(uuid.uuid4()),
+                "platform_chat_id": "C1",
+                "private_chat": False,
+            },
+        }
+        await _approval(db, org, chat_run, created_at=stale_at)
+        # A run nobody started tells nobody.
+        nobody_run = await _run(db, org, agent, started_by=None)
+        nobody_run.paused_state = {"messages": [], "tool_call_ids": {}}
+        await _approval(db, org, nobody_run, created_at=stale_at)
+        await db.commit()
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            assert await ApprovalService(session).expire_stale() == 3
+            await session.commit()
+        async with factory() as session:
+            rows = (
+                await session.scalars(
+                    select(Notification).where(
+                        Notification.organization_id == org.id,
+                        Notification.event_type == "approval_expired",
+                    )
+                )
+            ).all()
+            assert len(rows) == 1
+            [notice] = rows
+            assert notice.recipient_user_id == member.id
+            assert notice.occurrence_id == str(web_run.id)
+            assert f"/runs?run={web_run.id}" in (notice.context_url or "")
+            assert "72h" in notice.summary
+            assert "Clerk" in notice.summary
+            ended = await session.get(AgentRun, web_run.id)
+            assert ended is not None and ended.status == RunStatus.CANCELLED.value
+            ended_chat = await session.get(AgentRun, chat_run.id)
+            assert ended_chat is not None and ended_chat.status == RunStatus.CANCELLED.value

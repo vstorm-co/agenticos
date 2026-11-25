@@ -230,7 +230,6 @@ export function RoomThreadPanel({
         : messages.findIndex((message) => message.id === visibleThroughId);
     if (visibleThroughId !== page?.root.id && cursorIndex < 0) return;
     const lastId = lastReadMessageId.current;
-    if (lastId === visibleThroughId) return;
     const lastIndex =
       lastId === null
         ? -2
@@ -249,7 +248,7 @@ export function RoomThreadPanel({
         setThreadActionError(getErrorMessage(error, tErrors, t("actionFailed")));
       })
       .finally(() => {
-        if (pendingReadMessageId.current === visibleThroughId) pendingReadMessageId.current = null;
+        pendingReadMessageId.current = null;
       });
   }, [
     isRoom,

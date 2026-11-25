@@ -86,18 +86,17 @@ export function RoomParticipantsDialog({
     }
   };
 
-  const handleConfirm = async () => {
-    if (action === null) return;
+  const handleConfirm = async (confirmed: RoomParticipantAction) => {
     setActionError(null);
     try {
-      const { participant } = action;
-      if (action.kind === "add")
+      const { participant } = confirmed;
+      if (confirmed.kind === "add")
         await addParticipant.add({ kind: participant.kind, id: participant.id });
       else await removeParticipant.remove({ kind: participant.kind, id: participant.id });
       setAction(null);
     } catch (error) {
       setActionError(
-        getErrorMessage(error, tErrors, t(action.kind === "add" ? "addFailed" : "removeFailed")),
+        getErrorMessage(error, tErrors, t(confirmed.kind === "add" ? "addFailed" : "removeFailed")),
       );
     }
   };
@@ -158,13 +157,11 @@ export function RoomParticipantsDialog({
           isLegacyDirect={isLegacyDirect}
           isPending={isPending}
           error={actionError}
-          onOpenChange={(nextOpen) => {
-            if (!nextOpen) {
-              setAction(null);
-              setActionError(null);
-            }
+          onCancel={() => {
+            setAction(null);
+            setActionError(null);
           }}
-          onConfirm={() => void handleConfirm()}
+          onConfirm={(confirmed) => void handleConfirm(confirmed)}
         />
       </DialogContent>
     </Dialog>
