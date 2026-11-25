@@ -359,7 +359,11 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     """A row staged before the rule, or by a writer that never passed staging, is
     still written with every tool that writes asking for approval."""
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"read_file": "required"}}
+    stored = {
+        "id": "artifacts",
+        "approval": "required",
+        "tool_approval": {"read_artifact": "required"},
+    }
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=stored)
 
     projected, skipped = hunks.projection(spec, [hunk])
@@ -367,10 +371,10 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     assert skipped == []
     (binding,) = projected.capabilities
     assert binding.tool_approval == {
-        "read_file": "required",
-        "execute": "required",
-        "write_file": "required",
-        "edit_file": "required",
+        "read_artifact": "required",
+        "publish_artifact": "required",
+        "export_artifact": "required",
+        "share_artifact": "required",
     }
     assert hunks.apply_field(spec, hunk, stored) == projected
 
@@ -378,7 +382,7 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
 @pytest.mark.security
 def test_a_stored_capability_that_loosens_a_tool_is_left_out_rather_than_written():
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    loosening = {"id": "sandbox", "tool_approval": {"execute": "never"}}
+    loosening = {"id": "artifacts", "tool_approval": {"publish_artifact": "never"}}
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=loosening)
 
     assert hunks.projection(spec, [hunk]) == (spec, [hunk])

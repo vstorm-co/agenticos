@@ -57,6 +57,7 @@ from app.db.models.authoring import (
     AuthoringStatus,
     AuthoringTarget,
     BatchStatus,
+    FieldOp,
     HunkKind,
     HunkStatus,
     SpecProposalBatch,
@@ -112,7 +113,7 @@ from app.schemas.skill import SkillCreate
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
 from app.services.agent_registry import AgentRegistryService
-from app.services.authoring_config import ConfigurationService
+from app.services.authoring_config import ConfigurationService, published_spec
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
@@ -163,6 +164,15 @@ _STANDING_REFUSALS = {
     "weakens_protection": (
         "This suggestion removes or reconfigures a safeguard, which the assistant may not "
         "propose. Change safeguards in the Builder, or dismiss it."
+    ),
+    "reaches_network": (
+        "This suggestion adds a capability that reaches beyond this deployment, which the "
+        "assistant may not propose. Add it in the Builder, where its limits are set, or "
+        "dismiss it."
+    ),
+    "loosens_approval": (
+        "This suggestion adds back a capability asking for less approval than the published "
+        "version does. Change approval in the Builder, or dismiss it."
     ),
 }
 
@@ -1399,6 +1409,23 @@ class AuthoringService:
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
         refuse_never_accepted(hunk)
+        if hunk.path == "capabilities" and hunk.op == FieldOp.ADD.value:
+            assert batch.agent_id is not None, "a field change belongs to an agent's batch"
+            published = await published_spec(
+                self.db, agent_id=batch.agent_id, organization_id=ctx.organization_id
+            )
+            refused = authoring_fields.readd_refusal(
+                published,
+                spec,
+                hunk.path,
+                hunk.op,
+                authoring_fields.as_accepted(hunk.path, hunk.op, hunk.new_value),
+            )
+            if refused is not None:
+                raise BadRequestError(
+                    message=_STANDING_REFUSALS[refused],
+                    details={"hunk_id": hunk.id, "reason": refused},
+                )
         value = hunk.new_value
         if decision.value is not None:
             if hunk.path not in _EDITABLE and not (hunk.path or "").endswith("/description"):
