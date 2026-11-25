@@ -296,8 +296,25 @@ class TestReturnToMain:
 
         [desk] = returned.agents
         assert desk.agent.name == "Desk" and desk.published is False
-        assert desk.refused is not None
+        assert (desk.refused, desk.refused_code) == ("Agent not found", "agent_not_found")
         assert (returned.hidden, returned.remaining, returned.archived) == (1, 2, False)
+
+    async def test_an_agent_using_the_skill_through_a_specialist_says_so_as_a_code(self, db):
+        """The editor can change the agent, but not a binding its specialist holds."""
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        fork = await _fork(db, owner, skill)
+        await _serving(
+            db, owner, "Desk", _with_specialist({"name": "Desk"}, skill, fork_id=str(fork.id))
+        )
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            owner, skill.id, fork.id, ReturnToMain()
+        )
+
+        [desk] = returned.agents
+        assert desk.refused_code == "via_specialist"
+        assert desk.refused is not None and "specialists" in desk.refused
 
     @pytest.mark.security
     async def test_a_system_agent_stays_with_its_reason_and_the_others_move(self, db):
@@ -319,6 +336,10 @@ class TestReturnToMain:
         by_name = {row.agent.name: row for row in returned.agents}
         assert by_name["Desk"].refused is None
         assert by_name["Judge"].refused is not None and "system agent" in by_name["Judge"].refused
+        assert (by_name["Desk"].refused_code, by_name["Judge"].refused_code) == (
+            None,
+            "system_agent_admin_only",
+        )
 
     async def test_a_move_an_environment_does_not_follow_leaves_the_fork_read(self, db):
         """Published, but production waits for a promotion: it still serves the fork."""
