@@ -601,6 +601,50 @@ class TestImprove:
         old = await db.get(SpecProposalBatch, first.id)
         assert old is not None and old.status == "superseded"
 
+    async def test_a_change_dismissed_two_requests_ago_is_not_proposed_again(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        first = (await service.for_agent(ctx, agent.id)).batch
+        assert first is not None
+        [instructions] = [hunk for hunk in first.hunks if hunk.kind == "instructions"]
+        await service.decide(ctx, agent.id, instructions.id, HunkDecision(action="dismiss"))
+        await _improve(db, ctx, agent, Improver(db))
+
+        third = await _improve(db, ctx, agent, Improver(db))
+
+        latest = (await service.for_agent(ctx, agent.id)).batch
+        assert latest is not None
+        assert [hunk.kind for hunk in latest.hunks] == ["tool_override"]
+        assert third.report is not None
+        assert [
+            item["reason"] for item in third.report["rejected"] if item["kind"] == "instructions"
+        ] == ["dismissed_before"]
+
+    async def test_a_dismissal_from_before_the_last_publish_is_not_held_against_a_change(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        first = (await service.for_agent(ctx, agent.id)).batch
+        assert first is not None
+        [instructions] = [hunk for hunk in first.hunks if hunk.kind == "instructions"]
+        await service.decide(ctx, agent.id, instructions.id, HunkDecision(action="dismiss"))
+        # One transaction stamps the publish with its own start, so what came before is
+        # moved back past it.
+        row = await db.get(SpecProposalBatch, first.id)
+        dismissed = await db.get(SpecProposalHunk, instructions.id)
+        assert row is not None and dismissed is not None
+        row.created_at = dismissed.decided_at = datetime.now(UTC) - timedelta(minutes=5)
+        await AgentRegistryService(db).publish(ctx, agent.id)
+
+        request = await _improve(db, ctx, agent, Improver(db))
+
+        latest = (await service.for_agent(ctx, agent.id)).batch
+        assert latest is not None and latest.id != first.id
+        assert "instructions" in [hunk.kind for hunk in latest.hunks]
+        assert request.report is not None
+        assert "dismissed_before" not in request.report["dropped"]
+
     async def test_an_older_request_finishing_late_replaces_nothing(self, db):
         ctx, agent, _ = await _setup(db)
         service = AuthoringService(db)
@@ -671,6 +715,25 @@ class TestVerify:
 
         read = await AuthoringService(db).for_agent(ctx, agent.id)
         assert read.batch is not None and [h.origin for h in read.batch.hunks] == ["verify"]
+
+    async def test_verify_does_not_add_back_a_change_dismissed_before(self, db):
+        ctx, agent, _ = await _setup(db)
+        agent.draft_spec = {**agent.draft_spec, "instructions": "You answer refund questions."}
+        await db.flush()
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db), kind="verify")
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        [added] = batch.hunks
+        await service.decide(ctx, agent.id, added.id, HunkDecision(action="dismiss"))
+
+        again = await _improve(db, ctx, agent, Improver(db), kind="verify")
+
+        read = (await service.for_agent(ctx, agent.id)).batch
+        assert read is not None and read.id == batch.id
+        assert [hunk.status for hunk in read.hunks] == ["dismissed"]
+        assert again.report is not None
+        assert [item["reason"] for item in again.report["rejected"]] == ["dismissed_before"]
 
     async def test_verify_with_nothing_to_change_adds_no_batch(self, db):
         ctx, agent, _ = await _setup(db)
