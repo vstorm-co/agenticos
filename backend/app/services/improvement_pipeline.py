@@ -3179,6 +3179,7 @@ class ImprovementPipelineService:
             )
             remaining = model_changes
             await self._audit(run, "candidate_split")
+        authoring_hunks.refuse_quoted_credentials(remaining)
         projected, skipped = authoring_hunks.projection(draft, remaining)
         dropped.extend(h.id for h in skipped)
         reasons.extend({"hunk_id": str(h.id), "reason": "does_not_apply"} for h in skipped)
@@ -4186,6 +4187,7 @@ class ImprovementPipelineService:
                 and hunk.id not in iteration.included_hunk_ids
             ):
                 continue
+            authoring_hunks.refuse_quoted_credentials([hunk])
             candidate, skipped = authoring_hunks.projection(baseline, [hunk])
             if skipped:
                 raise ConcurrentChangeError(message="A change no longer applies to the base")

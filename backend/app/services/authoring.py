@@ -32,6 +32,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +51,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
     AuthoringKind,
@@ -126,9 +128,12 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
+from app.services.context_proposal import context_quotes_credential
+from app.services.dataset import redact_credentials, redact_json
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
 from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
@@ -929,7 +934,7 @@ class AuthoringService:
     ) -> AuthoringRequestRead:
         """A request as a reader sees it: nothing drawn from one of the agent's skills
         the reader may not see."""
-        read = AuthoringRequestRead.model_validate(request)
+        read = _redacted_report(AuthoringRequestRead.model_validate(request))
         if read.report is None:
             return read
         report = await self._without_hidden_skills(ctx, agent, read.report)
@@ -1012,7 +1017,7 @@ class AuthoringService:
             id=batch.id,
             agent_id=agent.id,
             status=batch.status,
-            expected_effect=batch.expected_effect,
+            expected_effect=redact_credentials(batch.expected_effect)[0] or batch.expected_effect,
             request_id=batch.request_id,
             hunks=[
                 self._hunk(spec, hunk, names=names, blocked=gates.get(hunk.id)) for hunk in hunks
@@ -1107,31 +1112,31 @@ class AuthoringService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=hunk.capability_id,
             tool_id=hunk.tool_id,
             base_name=hunk.base_name,
             base_description=hunk.base_description,
-            new_name=hunk.new_name,
-            new_description=hunk.new_description,
+            new_name=redact_credentials(hunk.new_name)[0],
+            new_description=redact_credentials(hunk.new_description)[0],
             path=hunk.path,
             op=hunk.op,
             base_value=hunk.base_value,
-            new_value=hunk.new_value,
+            new_value=redact_json(hunk.new_value)[0],
             accepted_value=hunk.accepted_value,
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
             blocked=blocked,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )
@@ -1140,6 +1145,7 @@ class AuthoringService:
             evidence_dropped=hunk.evidence_dropped,
             applies=authoring_hunks.applies(spec, hunk),
             decided_at=hunk.decided_at,
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
@@ -1185,6 +1191,17 @@ class AuthoringService:
         batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
+        if decision.action == "accept":
+            supplied = decision.text if decision.text is not None else decision.value
+            quoted = (
+                authoring_hunks.hunk_quotes_credential(hunk)
+                if supplied is None
+                else holds_credential(supplied)
+            )
+            if quoted:
+                raise BadRequestError(
+                    message=authoring_hunks.QUOTES_CREDENTIAL, details={"hunk_id": hunk.id}
+                )
         if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
             if not ctx.has(Perm.SKILLS_EDIT):
                 raise AuthorizationError(message="Creating this skill requires skills:edit")
@@ -1578,6 +1595,7 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        authoring_hunks.refuse_quoted_credentials(pending)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )
@@ -1748,6 +1766,10 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this skill to check the change on",
@@ -1866,6 +1888,10 @@ class AuthoringService:
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
             )
+        if context_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this context file to check the change on",
@@ -1980,9 +2006,21 @@ class AuthoringService:
         return started
 
 
+_JSON_OBJECT: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(dict[str, JsonValue])
+
+
+def _redacted_report(read: AuthoringRequestRead) -> AuthoringRequestRead:
+    """The request with every string of its report redacted, whenever it was written."""
+    if read.report is None:
+        return read
+    report, _ = redact_json(_JSON_OBJECT.validate_python(read.report))
+    assert isinstance(report, dict)
+    return read.model_copy(update={"report": report})
+
+
 def _skill_request(request: AuthoringRequest, shown: set[UUID]) -> AuthoringRequestRead:
     """A skill's request as one reader sees it: evidence from the runs in `shown` only."""
-    read = AuthoringRequestRead.model_validate(request)
+    read = _redacted_report(AuthoringRequestRead.model_validate(request))
     if read.report is None:
         return read
     report = dict(read.report) | {

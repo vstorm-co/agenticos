@@ -52,7 +52,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_suite_repo, skill_usage_repo
+from app.repositories import authoring_repo, conversation_repo, eval_suite_repo, skill_usage_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
@@ -304,6 +304,18 @@ class Improver:
         return json.dumps(answer), run
 
 
+class QuotingImprover(Improver):
+    """Quotes the first reader comment exactly as its prompt showed it."""
+
+    def _answer(self, prompt: str) -> dict[str, Any]:
+        answer = super()._answer(prompt)
+        said = re.search(r"^Reader comment: (.+)$", prompt, flags=re.MULTILINE)
+        if said and "instructions" in answer:
+            run_id = _RUN.findall(prompt)[0]
+            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said.group(1)}]
+        return answer
+
+
 def _answering(model: Improver):
     async def execute(runner: Any, *args: Any, **kwargs: Any):
         return await model.execute(runner, *args, **kwargs)
@@ -389,6 +401,147 @@ class TestImprove:
             .all()
         )
         assert {row.surface for row in improver_runs} == {"eval"}
+
+    @pytest.mark.security
+    async def test_credentials_in_the_evidence_reach_neither_the_improver_nor_its_hunks(self, db):
+        ctx, agent, run = await _setup(db)
+        password, key = "Kanar3k-DSN-pass", "Kanar3kQueryKey42"
+        comment = f"It broke on postgres://app:{password}@db.internal/app"
+        rating = await db.scalar(
+            select(MessageRating).join(Message).where(Message.run_id == run.id)
+        )
+        assert rating is not None
+        rating.comment = comment
+        answer = await db.scalar(
+            select(Message).where(Message.run_id == run.id, Message.role == "assistant")
+        )
+        assert answer is not None
+        await conversation_repo.create_tool_call(
+            db,
+            message_id=answer.id,
+            tool_call_id="call-fetch",
+            tool_name="fetch",
+            args={"url": f"https://api.example.com/v1/orders?api_key={key}&page=2"},
+            started_at=datetime.now(UTC),
+        )
+        await db.flush()
+        model = QuotingImprover(db)
+
+        request = await _improve(db, ctx, agent, model)
+
+        assert request.status == "completed", request.error
+        assert all(password not in prompt and key not in prompt for prompt in model.prompts)
+        assert "[redacted:url_credentials]" in model.prompts[0]
+        assert "[redacted:query_secret]" in model.prompts[0]
+        read = await AuthoringService(db).for_agent(ctx, agent.id)
+        assert read.batch is not None
+        [quote] = [item.quote for item in read.batch.hunks[0].evidence]
+        assert quote is not None and "[redacted:url_credentials]" in quote
+        assert password not in read.model_dump_json()
+
+    @pytest.mark.security
+    async def test_a_kept_suggestion_is_read_with_its_credentials_redacted(self, db):
+        ctx, agent, _ = await _setup(db)
+        request = await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKept@db/app"
+        batch = await authoring_repo.get_open_batch(
+            db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
+        assert batch is not None
+        batch.expected_effect = f"Stops printing {leaked}"
+        hunks = await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        for hunk in hunks:
+            hunk.rationale = f"Readers saw {leaked}"
+            hunk.expected_effect = f"No more {leaked}"
+        request.report = {**(request.report or {}), "summary": f"It printed {leaked}"}
+        await db.flush()
+
+        read = await AuthoringService(db).for_agent(ctx, agent.id)
+
+        shown = read.model_dump_json()
+        assert "Kanar3kKept" not in shown
+        assert "[redacted:url_credentials]" in shown
+
+    @pytest.mark.security
+    async def test_a_kept_change_quoting_a_credential_is_shown_redacted_and_refused_until_edited(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction = next(hunk for hunk in before.hunks if hunk.kind == "instructions")
+        stored = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored is not None
+        stored.new_text = "Be brief. Connect with postgres://app:Kanar3kAccept@db/app."
+        await db.flush()
+
+        after = (await service.for_agent(ctx, agent.id)).batch
+        assert after is not None
+        shown = next(hunk for hunk in after.hunks if hunk.id == stored.id)
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored.id, HunkDecision(action="accept"))
+        decided = await service.decide(
+            ctx,
+            agent.id,
+            stored.id,
+            HunkDecision(action="accept", text="Be brief. Refunds take 30 days."),
+        )
+
+        assert shown.contains_credential
+        assert "Kanar3kAccept" not in shown.new_text
+        assert "[redacted:url_credentials]" in shown.new_text
+        written = str(decided.draft_spec["instructions"])
+        assert "Refunds take 30 days." in written and "Kanar3kAccept" not in written
+
+    @pytest.mark.security
+    async def test_every_kind_of_change_quoting_a_credential_is_flagged_refused_and_unchecked(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKinds@db/app"
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction, tool = before.hunks
+        stored_tool = await authoring_repo.get_hunk(
+            db, tool.id, organization_id=ctx.organization_id
+        )
+        stored_instruction = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored_tool is not None and stored_instruction is not None
+        stored_tool.new_description = f"Read the time from {leaked}."
+        await db.flush()
+        runs_before = await db.scalar(select(func.count()).select_from(EvalRun))
+
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored_tool.id, HunkDecision(action="accept"))
+        stored_instruction.new_value = {
+            "name": "vault",
+            "description": "Vault access",
+            "content": f"Connect to {leaked}",
+        }
+        stored_instruction.kind = "create_skill"
+        await db.flush()
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(
+                ctx, agent.id, stored_instruction.id, HunkDecision(action="accept")
+            )
+        after = (await service.for_agent(ctx, agent.id)).batch
+
+        assert await db.scalar(select(func.count()).select_from(EvalRun)) == runs_before
+        assert after is not None
+        assert all(hunk.contains_credential for hunk in after.hunks)
+        assert "Kanar3kKinds" not in after.model_dump_json()
 
     async def test_a_large_body_of_evidence_is_digested_before_the_proposal(self, db, monkeypatch):
         ctx, agent, _ = await _setup(db)

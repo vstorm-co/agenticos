@@ -34,10 +34,12 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.skill_version import SkillFork, SkillVersionSource
@@ -47,12 +49,25 @@ from app.schemas.skill import SkillUpdate
 from app.schemas.skill_proposal import SkillProposalRead
 from app.services import proposal_reach
 from app.services.access import SKILL, accessible_ids, resolve_access
+from app.services.dataset import redact_credentials
 from app.services.notifications import NotificationService
 from app.services.skill_versions import SkillVersionService, manifest_of
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
+
+
+PROPOSAL_QUOTES_CREDENTIAL = (
+    "This change quotes a credential; discard it and make the change by hand"
+)
+
+
+def proposal_quotes_credential(proposal: SkillProposal) -> bool:
+    """Whether a proposed skill change would write a credential into the skill."""
+    return holds_credential(
+        [proposal.name, proposal.description, proposal.content, dict(proposal.resources or {})]
+    )
 
 
 class SkillProposalService:
@@ -213,6 +228,18 @@ class SkillProposalService:
         reaches: dict[UUID, list[proposal_reach.Reach]],
     ) -> SkillProposalRead:
         read = SkillProposalRead.model_validate(proposal)
+        read = read.model_copy(
+            update={
+                "name": redact_credentials(read.name)[0] or read.name,
+                "description": redact_credentials(read.description)[0] or read.description,
+                "content": redact_credentials(read.content)[0] or read.content,
+                "resources": {
+                    name: redact_credentials(body)[0] or body
+                    for name, body in read.resources.items()
+                },
+                "contains_credential": proposal_quotes_credential(proposal),
+            }
+        )
         skill_id = proposal.skill_id
         pending = proposal.status == ProposalStatus.PENDING.value
         if skill_id is not None and pending:
@@ -284,6 +311,10 @@ class SkillProposalService:
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if proposal.skill_id is not None and decision.check_id is not None and not checked:
             from app.schemas.skill_check import SkillCheckApply
             from app.services.skill_check import SkillCheckService

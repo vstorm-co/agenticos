@@ -1,5 +1,5 @@
 ---
-source_sha: "af45341180f5"
+source_sha: "fe0e45eacf82"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -343,6 +343,15 @@ das ein Modell liest oder ein Export enthält, auch für die Argumente eines
 erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
 Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
 Werte selbst.
+
+Erkannt werden die API-Schlüssel und Tokens der Anbieter und Dienste, mit denen
+die Plattform arbeitet, JWTs und private Schlüssel, ein in eine Adresse
+geschriebenes Passwort (`postgres://user:password@host`), ein Schlüssel oder
+Passwort in einem Query-String oder Formularinhalt (`?api_key=`, `token=`,
+`password=`) und ein `Authorization`-Header vom Typ Basic oder Bearer. Derselbe
+Detektor bereinigt, was der Helfer einer Verbesserung liest, was der
+Klassifikator für Wissenslücken liest, und die Nachrichten eines Agents, wenn
+sein Guardrail Geheimnisse schwärzt.
 
 Eine Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem
 Generator übergibt, bevor sie an das Modell gehen, und nimmt aus den Fragen und

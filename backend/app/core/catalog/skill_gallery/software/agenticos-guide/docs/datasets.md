@@ -309,6 +309,14 @@ export carries, including the arguments of an expected tool call, and to every
 way a case is added. The audit entry for the change records how many values
 were redacted, never the values.
 
+It recognizes the API keys and tokens of the providers and services the
+platform works with, JWTs and private keys, a password written into an address
+(`postgres://user:password@host`), a key or password in a query string or form
+body (`?api_key=`, `token=`, `password=`), and a Basic or Bearer
+`Authorization` header. The same detector scrubs what an improvement's helper
+reads, what the knowledge gaps classifier reads, and an agent's messages when
+its guardrail redacts secrets.
+
 A generation also redacts the questions and passages it hands the generator,
 before they leave for the model, and takes the personal data the detectors find
 - e-mail addresses, phone, card and account numbers - out of the questions and

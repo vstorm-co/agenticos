@@ -49,11 +49,15 @@ async def test_evidence_uses_frozen_sources_and_redacts_credentials_in_every_tex
     answer = await db.scalar(
         select(Message).where(Message.run_id == item.run_id, Message.role == "assistant")
     )
-    answer.content = f"Your credential: {secret}"
+    answer.content = (
+        f"Your credential: {secret}, postgres://app:Kanar3kDsn@db/app and "
+        "https://x.test/feed?api_key=Kanar3kQuery&page=2"
+    )
     await db.flush()
     preview = await service.evidence(ctx, agent.id, dataset_id=dataset.id)
     assert len(preview.items) == 2
     assert secret not in preview.model_dump_json()
+    assert "Kanar3k" not in preview.model_dump_json()
     assert "[redacted:" in preview.model_dump_json()
     with pytest.raises(NotFoundError):
         await service.evidence(ctx, agent.id, run_id=uuid4())
