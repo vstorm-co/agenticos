@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
+- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
+
+### Fixed
+
+- Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
+- Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
+- Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
+- Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
+- Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
+
+### Upgrading
+
+- **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
+  - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
+  - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.
+
+  A request without them is refused with `422`; one naming another attempt or result, with `409`.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
