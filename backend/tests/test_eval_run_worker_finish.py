@@ -446,7 +446,7 @@ async def test_lost_answers_are_asked_before_the_flips_are_confirmed(asked_again
 
     with (
         patch.object(EvalRunWorker, "_begin", new=AsyncMock(return_value=MagicMock())),
-        patch.object(EvalRunWorker, "_wave", new=lambda self, ctx: step("wave")),
+        patch.object(EvalRunWorker, "_wave", new=lambda self: step("wave")),
         patch.object(EvalRunWorker, "_ask_lost_again", new=lambda self: step("ask", asked_again)),
         patch.object(EvalRunWorker, "_queue_reruns", new=lambda self, ctx: step("reruns")),
         patch.object(EvalRunWorker, "_route_to_review", new=AsyncMock()),

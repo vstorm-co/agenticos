@@ -5,17 +5,23 @@ Check with evals measures. Dismissing another suggestion or editing the draft
 makes the last check one of something else, so it no longer counts.
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import update
 
 from app.core.exceptions import BadRequestError
+from app.db.models.case_score import CaseScore
+from app.db.models.eval_run import EvalRun
+from app.repositories import authoring_repo
 from app.schemas.authoring import HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetUpdate
 from app.services.authoring import AuthoringService
 from app.services.dataset import DatasetService
 from tests.integration.test_authoring import (
     COMMENT,
+    _another_request_comparing,
     _environment,  # noqa: F401 - the autouse fixture that scripts the improver's model
     _improve,
     _setup,
@@ -112,6 +118,35 @@ async def test_an_edit_of_the_draft_makes_the_check_out_of_date(db):
 
     with pytest.raises(BadRequestError, match="out of date"):
         await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
+
+
+@pytest.mark.security
+async def test_showing_the_gate_keeps_a_checks_verdict_while_another_request_compares(db):
+    ctx, agent, dataset, service, model, _ = await _model_and_window(db)
+    await _checked(db, ctx, agent, dataset, service)
+    assert await _blocked(ctx, agent, service, model.id) is None
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    run = await db.get(EvalRun, batch.check_eval_run_ids[-1])
+    assert run is not None and run.outcome_at is not None
+    kept_at = run.outcome_at
+    await db.execute(
+        update(CaseScore)
+        .where(CaseScore.eval_run_id == run.id)
+        .values(reviewed_at=kept_at + timedelta(seconds=1))
+    )
+
+    async with _another_request_comparing(ctx):
+        shown = await _blocked(ctx, agent, service, model.id)
+    await db.refresh(run)
+    assert (shown, run.outcome_at) == (None, kept_at)
+
+    accepted = await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
+    await db.refresh(run)
+    assert run.outcome_at is not None and run.outcome_at > kept_at
+    assert accepted.draft_spec["model_profile_id"] == model.new_value
 
 
 async def test_session_model_gate_ignores_later_unmeasured_suggestions(db):
