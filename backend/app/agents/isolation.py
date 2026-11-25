@@ -132,7 +132,10 @@ rather than a reading of `read_only`, because a read can still carry data out:
 to a search engine, and the channel readers ask a chat platform's API. A tool
 declared tomorrow is held until somebody adds it here. Delegation is on it
 because a delegate of this deployment runs under the same isolation; a remote
-one is held by name (`IsolationGuard.remote_delegates`).
+one is held by name (`IsolationGuard.remote_delegates`). That includes the
+specialist `create_agent` and `delegate` invent: it is built for the run with
+the run's isolation and no capability of its own, and nothing of it is stored -
+no agent row, no version, no binding - so nothing is left once the run ends.
 """
 
 _DELEGATION = "capability:subagents.task"

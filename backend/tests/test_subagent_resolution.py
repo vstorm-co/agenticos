@@ -998,6 +998,25 @@ class TestAPublishedDelegate:
         assert prepared.built("mailer")["isolation"] is isolation
 
     @pytest.mark.security
+    async def test_an_invented_specialist_runs_under_the_runs_isolation_with_nothing_bound(self):
+        """`create_agent` and `delegate` stay live in an eval because what they build is
+        held exactly as the run is, and holds nothing that could reach further."""
+        isolation = RunIsolation()
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True), profiles=[_profile("fast")], isolation=isolation
+        )
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+
+        with patch(f"{RUNNER}.build_agent", new=prepared.build):
+            dynamic.build(name="checker", instructions="Check the totals.", model="fast")
+        built = prepared._arguments(prepared.build.call_args_list[-1])
+
+        assert built["isolation"] is isolation
+        assert built["spec"].capabilities == []
+        assert built["extra_toolsets"] == []
+
+    @pytest.mark.security
     async def test_a_delegates_own_remote_agent_is_held_one_level_down(self):
         """The isolation and the names of the remote agents go down the tree: a local
         delegate that delegates to another system's agent sends it nothing either."""

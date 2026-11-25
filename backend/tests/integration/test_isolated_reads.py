@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.web_fetch._capability import _ReadableFetch
@@ -23,6 +24,7 @@ from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
@@ -167,3 +169,92 @@ async def test_the_same_agent_outside_an_eval_still_fetches(
     )
 
     download.assert_awaited_once()
+
+
+def _inventing(calls: list[str]) -> FunctionModel:
+    """A lead that invents a specialist both ways, and specialists that just answer.
+
+    One model stands in for every agent of the run, as the factory builds them
+    all from one resolver: the lead is the one offered `delegate`.
+    """
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        offered = {tool.name for tool in info.function_tools}
+        if "delegate" not in offered:
+            calls.append("specialist")
+            return ModelResponse(parts=[TextPart("totals check out")])
+        if len(messages) == 1:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="delegate",
+                        args={
+                            "description": "Check the totals",
+                            "instructions": "You check totals.",
+                            "name": "checker",
+                            "model": "Default",
+                        },
+                        tool_call_id="d1",
+                    ),
+                    ToolCallPart(
+                        tool_name="create_agent",
+                        args={
+                            "name": "auditor",
+                            "description": "Audits totals",
+                            "instructions": "You audit totals.",
+                            "model": "Default",
+                        },
+                        tool_call_id="d2",
+                    ),
+                ]
+            )
+        return ModelResponse(parts=[TextPart("done")])
+
+    return FunctionModel(respond)
+
+
+async def test_an_invented_specialist_runs_in_an_eval_and_leaves_nothing_behind(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`create_agent` and `delegate` stay on the list of live reads because the
+    specialist exists only for the run, under the run's isolation."""
+    ctx, profile_id = await _tenant(db)
+    spec = AgentSpec(
+        name=f"Lead {uuid.uuid4().hex[:6]}",
+        instructions="Hand checks to a specialist.",
+        model_profile_id=profile_id,
+        capabilities=[
+            CapabilityBindingSpec(id="subagents", config={"allow_dynamic": True, "max_depth": 2})
+        ],
+    )
+    agent = await AgentRegistryService(db).create(ctx, spec)
+    calls: list[str] = []
+    monkeypatch.setattr("app.agents.model_resolver.build_model", lambda *_args: _inventing(calls))
+    agents_before = await _count(db, Agent, ctx.organization_id)
+    versions_before = await _count(db, AgentVersion, ctx.organization_id)
+    isolation = RunIsolation()
+
+    _output, run = await AgentRunnerService(db).execute(
+        ctx,
+        agent.id,
+        "Are the totals right?",
+        surface=RunSurface.EVAL,
+        isolation=isolation,
+        candidate=UnpublishedCandidate(spec),
+    )
+
+    assert calls == ["specialist"]
+    assert await _count(db, Agent, ctx.organization_id) == agents_before
+    assert await _count(db, AgentVersion, ctx.organization_id) == versions_before
+    assert (
+        await intercepted_tool_call_repo.list_for_run(
+            db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        == []
+    )
+
+
+async def _count(db: AsyncSession, model: type[Agent] | type[AgentVersion], org: uuid.UUID) -> int:
+    return (
+        await db.scalar(select(func.count()).select_from(model).where(model.organization_id == org))
+    ) or 0
