@@ -670,9 +670,9 @@ class EvidenceService:
         An agent's Improve that hands a skill over found its problems in these
         answers: test questions of the session's own dataset, from its stored
         training partition only, which a skill check never measures on. A caller
-        who may not run that dataset reads none of them.
+        who may not run that dataset, or no longer see it, reads none of them.
         """
-        from app.core.exceptions import AuthorizationError
+        from app.core.exceptions import AuthorizationError, NotFoundError
         from app.repositories import improvement_repo
 
         session = await improvement_repo.get_run(
@@ -682,7 +682,7 @@ class EvidenceService:
             return []
         try:
             handed = await self.for_improvement(ctx, improvement_run_id)
-        except AuthorizationError:
+        except AuthorizationError, NotFoundError:
             return []
         failed = [
             run

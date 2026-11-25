@@ -25,6 +25,7 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
     PaymentRequiredError,
+    SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus
@@ -969,6 +970,27 @@ class TestTheEdgesOfAMerge:
         await _advance(db, run)
 
         assert (run.status, run.stage) == ("running", "proposing")
+
+    async def test_a_helper_refused_on_the_conflicts_fails_the_merge_with_why(
+        self, db, call_price, monkeypatch
+    ):
+        """A refusal is the session's failure, not a job that raises every minute."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx, conflict=True)
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+
+        async def archived(self, ctx, *, chars, improver_agent_id=None):
+            raise SystemAgentUnavailableError(
+                "The helper is archived", key="improver", reason="archived"
+            )
+
+        monkeypatch.setattr(AuthoringService, "estimate_call", archived)
+        await _advance(db, run)
+
+        assert (run.status, run.stage, run.stop_reason) == ("failed", "proposing", "proposal")
+        assert run.error == "The helper is archived"
 
     @pytest.mark.security
     async def test_a_check_quoted_before_a_change_or_past_the_budget_is_refused(
