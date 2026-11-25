@@ -119,6 +119,13 @@ vi.mock("./knowledge-drafts", async (actual) => ({
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
+  useKnowledgeGapTopics: (ids: string[]) => ({
+    topics: state.topics.filter((topic) => ids.includes(topic.id)),
+    skipped: 0,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/components/knowledge-gaps/knowledge-gap-draft-status", () => ({
   KnowledgeGapDraftStatus: () => null,
