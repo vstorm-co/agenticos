@@ -1524,6 +1524,44 @@ class TestProposalDecisions:
             fork_id=None,
         )
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "hidden",
+        [
+            {"content": "An order number\u202e counts as a receipt."},
+            {"name": "refunds\u2066"},
+            {"resources": {"notes.md": "Ask for it.\U000e0041"}},
+        ],
+        ids=["content", "name", "resource"],
+    )
+    async def test_a_change_holding_hidden_text_is_neither_checked_nor_applied(
+        self, db, monkeypatch, hidden
+    ):
+        """A model never reads it in a check, and Apply never writes it into the skill."""
+        from sqlalchemy import func, select
+
+        from app.db.models.skill_check import SkillCheck
+
+        lab = await _lab(db)
+        proposal = await self._proposal(db, lab)
+        for column, value in hidden.items():
+            setattr(proposal, column, value)
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="cannot see") as refused:
+            await SkillCheckService(db).start(
+                lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+            )
+        with pytest.raises(BadRequestError, match="cannot see"):
+            await SkillProposalService(db).apply(
+                lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+            )
+
+        assert refused.value.details == {"proposal_id": proposal.id, "reason": "hidden_characters"}
+        assert await db.scalar(select(func.count()).select_from(SkillCheck)) == 0
+        await db.refresh(lab.skill)
+        assert lab.skill.content != "An order number\u202e counts as a receipt."
+
     async def test_applying_without_a_check_updates_the_skill(self, db, monkeypatch):
         lab = await _lab(db)
         proposal = await self._proposal(db, lab)

@@ -12,6 +12,7 @@ import {
   diffWords,
   foldUnchanged,
 } from "@/lib/diff";
+import { writtenOut } from "@/lib/hidden-characters";
 import { cn } from "@/lib/utils";
 
 type Mode = "unified" | "split";
@@ -124,9 +125,14 @@ export function DiffView({
   const [chosen, setChosen] = useState<Mode>("unified");
   const [opened, setOpened] = useState<Set<number>>(new Set());
   const lines = useMemo(
-    () => [...unchanged(context), ...diffLines(before, after), ...unchanged(trailing)],
+    () => [
+      ...unchanged(writtenOut(context)),
+      ...diffLines(writtenOut(before), writtenOut(after)),
+      ...unchanged(writtenOut(trailing)),
+    ],
     [before, after, context, trailing],
   );
+  const hidden = [before, after, context, trailing].some((text) => writtenOut(text) !== text);
   const words = useMemo(() => pairWords(lines), [lines]);
   // Nothing changed is still worth reading whole; there is no change to fold around.
   const folded = useMemo(
@@ -154,6 +160,11 @@ export function DiffView({
   );
   return (
     <div className="space-y-1">
+      {hidden && (
+        <p role="note" className="text-warning-ink text-xs">
+          {t("hidden")}
+        </p>
+      )}
       {wide && modes && (
         <div role="group" aria-label={t("view")} className="flex justify-end gap-1">
           {(["unified", "split"] as const).map((value) => (

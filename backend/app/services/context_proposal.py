@@ -27,9 +27,11 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
@@ -50,6 +52,16 @@ logger = logging.getLogger(__name__)
 
 _PRODUCT_CONTEXT = "agenticos-product-map"
 _PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
+
+CONTEXT_HIDES_TEXT = (
+    "This change holds characters a person cannot see, so it is neither checked nor "
+    "applied. Discard it, or edit the file by hand."
+)
+
+
+def context_hides_text(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change holds a character a person cannot see."""
+    return holds_refused([proposal.description, proposal.content])
 
 
 class ContextProposalService:
@@ -297,6 +309,11 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
+        if context_hides_text(proposal):
+            raise BadRequestError(
+                message=CONTEXT_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:

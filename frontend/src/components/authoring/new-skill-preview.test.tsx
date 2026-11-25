@@ -41,3 +41,20 @@ it("explains the missing create permission and leaves dismissal available", () =
   expect(screen.getByRole("status")).toHaveTextContent(/requires skills:edit/);
   expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
 });
+
+it("writes out what a proposed skill hides in its name, description or body", () => {
+  render(
+    <ChangePreview
+      hunk={{
+        ...proposal,
+        new_name: "return​-procedure",
+        new_description: "Handle returns‮",
+        new_text: "Check the order.\u{E0041}",
+      }}
+    />,
+  );
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("return\\u{200B}-procedure");
+  expect(text).toContain("Handle returns\\u{202E}");
+  expect(text).toContain("Check the order.\\u{E0041}");
+});

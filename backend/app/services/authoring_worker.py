@@ -40,6 +40,7 @@ from app.core.exceptions import (
     SystemAgentOutputError,
     SystemAgentRunError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import (
@@ -887,6 +888,11 @@ class AuthoringRun:
             raise
         pack = await self._checked_evidence(pack)
         content = _unwrapped(proposal.content, "skill", skill.content)
+        if holds_refused([content, proposal.description]):
+            raise Stopped(
+                "The proposed text holds characters that cannot be seen, so it was not "
+                "recorded. Ask again."
+            )
         if _same_text(content, skill.content) and _same_text(
             proposal.description[:500], skill.description
         ):
@@ -1092,6 +1098,8 @@ class AuthoringRun:
             columns = authoring_hunks.anchor_change(
                 content, InstructionChange.model_validate(edit.model_dump())
             )
+            if not isinstance(columns, Rejection) and holds_refused(edit.new_text):
+                columns = Rejection.HIDDEN_CHARACTERS
             if isinstance(columns, Rejection):
                 self._reject(
                     HunkKind.SKILL_BODY,
@@ -1110,7 +1118,13 @@ class AuthoringRun:
                     "evidence_dropped": dropped,
                 }
             )
-        if edits.description is not None and edits.description[:500] != description:
+        if edits.description is not None and holds_refused(edits.description):
+            self._reject(
+                HunkKind.SKILL_DESCRIPTION,
+                Rejection.HIDDEN_CHARACTERS,
+                {"description": edits.description},
+            )
+        elif edits.description is not None and edits.description[:500] != description:
             hunks.append(
                 {
                     "kind": HunkKind.SKILL_DESCRIPTION.value,
@@ -1150,6 +1164,11 @@ class AuthoringRun:
             raise
         pack = await self._checked_evidence(pack)
         content = _unwrapped(proposal.content, "context", file.content)
+        if holds_refused([content, proposal.description]):
+            raise Stopped(
+                "The proposed text holds characters that cannot be seen, so it was not "
+                "recorded. Ask again."
+            )
         if _same_text(content, file.content) and _same_text(
             proposal.description[:500], file.description
         ):
@@ -1216,7 +1235,9 @@ class AuthoringRun:
                 if authoring_hunks.mentions(answers[UUID(item["run_id"])], item["quote"])
             }
             refusal = (
-                Rejection.INSUFFICIENT_EVIDENCE
+                Rejection.HIDDEN_CHARACTERS
+                if holds_refused([change.name, change.description, change.content])
+                else Rejection.INSUFFICIENT_EVIDENCE
                 if len(cited) < 3
                 else Rejection.INVALID_CONFIG
                 if skill_name_refusal(change.name)
@@ -1272,6 +1293,8 @@ class AuthoringRun:
         hunks: list[dict[str, Any]] = []
         for change in changes:
             columns = authoring_hunks.anchor_change(spec.instructions, change)
+            if not isinstance(columns, Rejection) and holds_refused(change.new_text):
+                columns = Rejection.HIDDEN_CHARACTERS
             if not isinstance(columns, Rejection) and any(
                 authoring_hunks.copies(change.new_text, skill.content, already=spec.instructions)
                 for skill in skills
@@ -1354,6 +1377,8 @@ class AuthoringRun:
             return Rejection.UNKNOWN_TOOL
         if change.name is None and change.description is None:
             return Rejection.NO_CHANGE
+        if holds_refused([change.name, change.description]):
+            return Rejection.HIDDEN_CHARACTERS
         if change.name is not None and not TOOL_NAME_PATTERN.fullmatch(change.name):
             return Rejection.INVALID_TOOL_CHANGE
         try:

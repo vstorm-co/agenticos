@@ -16722,6 +16722,7 @@
         "no_change": "Niczego nie zmienia",
         "unknown_tool": "Agent nie ma takiego narzędzia",
         "invalid_tool_change": "Nazwa albo opis narzędzia, których agent nie może użyć",
+        "hidden_characters": "Jego tekst zawiera znaki, których człowiek nie widzi",
         "not_a_target": "Tego asystent nie może zmieniać",
         "operation": "To ustawienie nie pozwala na taką zmianę",
         "loosens_approval": "Poluzowałaby zatwierdzanie",
@@ -16803,7 +16804,8 @@
       "view": "Jak pokazać zmianę",
       "unified": "Jednolicie",
       "split": "Obok siebie",
-      "showUnchanged": "{count, plural, one {Pokaż # niezmienioną linię} few {Pokaż # niezmienione linie} many {Pokaż # niezmienionych linii} other {Pokaż # niezmienionej linii}}"
+      "showUnchanged": "{count, plural, one {Pokaż # niezmienioną linię} few {Pokaż # niezmienione linie} many {Pokaż # niezmienionych linii} other {Pokaż # niezmienionej linii}}",
+      "hidden": "Ta zmiana zawiera znaki, które nic nie rysują albo przestawiają tekst. Każdy jest wypisany swoim kodem."
     },
     "instructionsEditor": {
       "current": "Obecne instrukcje",
