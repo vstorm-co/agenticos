@@ -4847,7 +4847,7 @@ class TestResume:
         self.stream_emit = AsyncMock()
 
         @asynccontextmanager
-        async def traced(_prepared, *, live_surface=None):
+        async def traced(_prepared, *, live_surface=None, suppress_room_payloads=False):
             yield RunFrames(emit=self.stream_emit)
 
         if stream_receipt:

@@ -1362,6 +1362,8 @@ class TestTheRoom:
         """Each keystroke announced asked again: a credential, membership and
         conversation query per reader per announcement."""
         session = _session()
+        # `_enter_room` is skipped here; it is what learns that nothing was imported.
+        session._room_has_imported_thread_context = False
         typing = {"type": "typing", "by": str(uuid4())}
         room = self._room(events=[typing, typing, typing])
         reads = AsyncMock(return_value=True)
