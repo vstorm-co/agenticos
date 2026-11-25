@@ -3632,6 +3632,52 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(result.current.interrupted).toBe(false);
   });
 
+  it("keeps saying so while another turn's answer lands, until its own does", () => {
+    // A turn asked earlier, still being written, can save its answer first. That
+    // used to raise the thread's count and clear the notice over a turn that had
+    // not landed.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("user_prompt", { message_id: "saved-question" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Asking Logistics" });
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    const question = {
+      ...useChatStore.getState().messages.find((m) => m.id === "saved-question")!,
+      isTemporaryId: false,
+      runId: "this",
+    };
+    const earlier = {
+      id: "earlier-answer",
+      role: "assistant" as const,
+      content: "The earlier turn",
+      timestamp: new Date(),
+      runId: "earlier",
+    };
+    act(() => useChatStore.getState().rereadMessages([question, earlier]));
+    expect(result.current.interrupted).toBe(true);
+
+    act(() =>
+      useChatStore.getState().rereadMessages([
+        question,
+        earlier,
+        {
+          id: "saved-answer",
+          role: "assistant",
+          content: "The five slowest orders",
+          timestamp: new Date(),
+          runId: "this",
+        },
+      ]),
+    );
+    expect(result.current.interrupted).toBe(false);
+    expect(useChatStore.getState().messages.some((m) => m.socketDropped)).toBe(false);
+  });
+
   it("follows the turn again when the socket comes back while it runs", () => {
     // Back on the conversation the socket asks to follow the turn, and the server
     // replays it. The bubble the dropped socket left is that same turn: drawing

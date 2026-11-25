@@ -513,6 +513,10 @@ export function useChat(options: UseChatOptions = {}) {
   // socket went. The turn landing takes it past this, which is the only signal
   // this client has that the turn it lost is over.
   const finishedWhenInterrupted = useRef(0);
+  // The question of the turn the drop interrupted. Its saved row carries the
+  // turn's run, and an answer of that run is what lands it - not any answer in
+  // the thread, which another turn still being written can save first.
+  const droppedPromptRef = useRef<string | null>(null);
   // Both notices belong to the thread the turn was interrupted in. Opening
   // another one while a reconnect is in flight used to draw the notice over a
   // thread that was never interrupted, and re-read that thread instead of the
@@ -795,6 +799,7 @@ export function useChat(options: UseChatOptions = {}) {
           // followed turn's, so there is nothing left to say about the drop.
           if (interruptedForRef.current?.id === conversation_id) {
             interruptedForRef.current = null;
+            droppedPromptRef.current = null;
             setInterruptedFor(null);
           }
           resumedRunIdRef.current = undefined;
@@ -3614,6 +3619,8 @@ export function useChat(options: UseChatOptions = {}) {
       // The half-written answer will never be renamed: its `message_saved` was
       // due on this socket. Marked, so the transcript's saved row replaces it
       // when the turn lands, and a replay of the turn replaces it on attachment.
+      droppedPromptRef.current =
+        chatApi.getState().messages.findLast((message) => message.role === "user")?.id ?? null;
       if (currentMessageIdRef.current) {
         updateMessage(currentMessageIdRef.current, (message) =>
           message.isTemporaryId ? { ...message, socketDropped: true } : message,
@@ -3798,9 +3805,22 @@ export function useChat(options: UseChatOptions = {}) {
     // switch, so a busier thread would otherwise read as this one's answer.
     if (thread === null || thread.id !== activeConversationId) return;
     if (finishedTurns <= finishedWhenInterrupted.current) return;
+    const run = messages.find((message) => message.id === droppedPromptRef.current)?.runId;
+    if (
+      run &&
+      !messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          message.runId === run,
+      )
+    )
+      return;
     interruptedForRef.current = null;
+    droppedPromptRef.current = null;
     setInterruptedFor(null);
-  }, [finishedTurns, activeConversationId]);
+  }, [finishedTurns, activeConversationId, messages]);
 
   const displayedDelegations = useMemo(
     () =>
