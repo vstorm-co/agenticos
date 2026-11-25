@@ -2165,7 +2165,12 @@
       "runAcpAgent": "Externe ACP-agent",
       "runningAcpAgent": "Externe ACP-agent",
       "inspectAcpAgent": "ACP-modelkeuzes lezen",
-      "readingAcpModels": "ACP-modelkeuzes lezen"
+      "readingAcpModels": "ACP-modelkeuzes lezen",
+      "approveAcceptImprovement": "Poging {attempt} voor {agent} accepteren ({verdict, select, better {beter} criteria_better {beter op criteria} no_change {geen verandering} criteria_worse {slechter op criteria} regression {slechter} inconclusive {onbeslist} other {niet gemeten}}) {publish, select, yes {en publiceren als v{version}} other {als concept}}",
+      "approvePublishAgent": "{agent} publiceren als v{version}",
+      "approveChangeSkillVersion": "{state, select, main {{agent} naar de hoofdlijn van {skill} zetten} pinned {{agent} vastzetten op {skill} v{version}} other {{agent} naar een fork van {skill} zetten}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {De verbeterde skill {skill} toepassen} apply_and_pin {De verbeterde skill {skill} toepassen en de agents vastzetten die hij zou schaden} fork_for_helped {Een fork van {skill} maken voor de agents die hij hielp} catch_up {De fork van {skill} bijwerken met main} other {De fork van {skill} terugzetten naar main}}",
+      "approveStartEvalRun": "{agent} testen op de dataset {dataset} v{version}"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",

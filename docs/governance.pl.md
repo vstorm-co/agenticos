@@ -1,5 +1,5 @@
 ---
-source_sha: "76027ca7ebbd"
+source_sha: "8d69badda250"
 ---
 
 # Governance { #governance }
@@ -1674,6 +1674,8 @@ Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamięt
 Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
 Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, publikacja agenta, zaproszenie członka - działa z uprawnieniami platformy osoby, w której imieniu działa run. Dlatego zatwierdzić je może tylko ta osoba, zalogowana jako ona sama: nie inny członek z `approvals:decide`, nie klucz API, także jej własny, i nie administrator w trybie impersonacji. Każdy z `approvals:decide` może je nadal odrzucić. Osoba nie potrzebuje do tego żadnego uprawnienia poza tym, że jest tą osobą, więc Builder albo Member zatwierdza kartę Architekta we własnym czacie i tam wznawia run. Tylko ona może wznowić run po zatwierdzonym wywołaniu platformy.
+
+Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, wersja, którą utworzy publikacja, dataset, na którym działa eval, i podana cena. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
 
 Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
 

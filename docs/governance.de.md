@@ -1,5 +1,5 @@
 ---
-source_sha: "76027ca7ebbd"
+source_sha: "8d69badda250"
 ---
 
 # Governance { #governance }
@@ -1777,6 +1777,8 @@ Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences →
 Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
 Ein Plattform-Aufruf, der jedes Mal fragt - eine Verbesserung annehmen, einen Agent veröffentlichen, ein Mitglied einladen -, läuft mit den Plattform-Rechten der Person, für die sein Run handelt. Deshalb gibt ihn nur diese Person frei, angemeldet als sie selbst: kein anderes Mitglied mit `approvals:decide`, kein API-Schlüssel, auch nicht ihr eigener, und kein Administrator per Impersonierung. Wer `approvals:decide` hat, kann ihn weiterhin ablehnen. Die Person braucht dafür keine Berechtigung außer dieser Person zu sein, also gibt ein Builder oder ein Member die Karte des Architect im eigenen Chat frei und setzt den Run dort fort. Nur sie kann einen Run nach einem freigegebenen Plattform-Aufruf fortsetzen.
+
+Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, die Version, die eine Veröffentlichung erzeugt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
 
 Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat.
 

@@ -2132,7 +2132,12 @@
         "column": "Colonne",
         "value": "Valeur",
         "recordLabel": "Enregistrement"
-      }
+      },
+      "approveAcceptImprovement": "Accepter la tentative {attempt} pour {agent} ({verdict, select, better {meilleure} criteria_better {meilleure selon les critères} no_change {sans changement} criteria_worse {pire selon les critères} regression {pire} inconclusive {non concluante} other {non mesurée}}) {publish, select, yes {et la publier en v{version}} other {comme brouillon}}",
+      "approvePublishAgent": "Publier {agent} en v{version}",
+      "approveChangeSkillVersion": "{state, select, main {Passer {agent} sur la ligne principale de {skill}} pinned {Épingler {agent} à {skill} v{version}} other {Passer {agent} sur un fork de {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Appliquer le skill amélioré {skill}} apply_and_pin {Appliquer le skill amélioré {skill} et épingler les agents qu’il pénaliserait} fork_for_helped {Créer un fork de {skill} pour les agents qu’il a aidés} catch_up {Mettre le fork de {skill} à jour avec main} other {Ramener le fork de {skill} sur main}}",
+      "approveStartEvalRun": "Tester {agent} sur le dataset {dataset} v{version}"
     },
     "turnWasStopped": "arrêté",
     "unfavourite": "Retirer des favoris",

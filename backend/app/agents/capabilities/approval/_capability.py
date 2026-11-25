@@ -64,6 +64,7 @@ from app.agents.mcp import (
     NEEDS_APPROVAL,
     PLATFORM_TOOL,
 )
+from app.agents.platform_describers import platform_describer
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
 
@@ -291,9 +292,11 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         asked = to_jsonable_python(args)
         # Only a capability's own tool is named or described, so an MCP tool sharing
         # a name with one under `ASK_ALL` is never handed a describer written for
-        # another tool.
+        # another tool. The platform's own tools are described by their reserved name.
         owned = capability_id is not None
-        describer = self.describers.get(tool_def.name) if owned else None
+        describer = (
+            self.describers.get(tool_def.name) if owned else platform_describer(tool_def.name)
+        )
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
