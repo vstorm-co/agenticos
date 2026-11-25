@@ -97,6 +97,21 @@ async def get_run(
     return result.scalar_one_or_none()
 
 
+async def datasets_of(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """The datasets these sessions ran on; a session that no longer exists names none."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(ImprovementRun.dataset_id).where(
+            ImprovementRun.id.in_(list(run_ids)),
+            ImprovementRun.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def get_active(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID
 ) -> ImprovementRun | None:

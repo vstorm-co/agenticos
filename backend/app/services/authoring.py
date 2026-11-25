@@ -293,13 +293,14 @@ class AuthoringService:
         Raises:
             AuthorizationError: A session's dataset exists and the caller may not view it.
         """
-        for session_id in dict.fromkeys(item for item in session_ids if item is not None):
-            session = await improvement_repo.get_run(
-                self.db, session_id, organization_id=ctx.organization_id
-            )
-            assert session is not None, "deleting a session sets the links to it to null"
+        dataset_ids = await improvement_repo.datasets_of(
+            self.db,
+            [item for item in session_ids if item is not None],
+            organization_id=ctx.organization_id,
+        )
+        for dataset_id in sorted(dataset_ids):
             dataset = await dataset_repo.get(
-                self.db, session.dataset_id, organization_id=ctx.organization_id
+                self.db, dataset_id, organization_id=ctx.organization_id
             )
             if dataset is not None and not await resolve_access(
                 self.db, ctx, dataset, Perm.DATASETS_VIEW, resource_type=DATASET
