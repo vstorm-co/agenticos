@@ -1106,7 +1106,7 @@ class SkillCheckService:
         ]
         runs = [(kind, run_id) for kind, run_id in planned if await self._completed(ctx, run_id)]
         if unfinished is None and (len(runs) < len(planned) or _own_unasked(row)):
-            unfinished = UnknownReason.FAILED
+            unfinished = _unfinished_reason(row)
         if not runs:
             await self._unknown(row, unfinished or UnknownReason.FAILED)
             return
@@ -2530,13 +2530,34 @@ def _skipped(refused: BadRequestError) -> UnknownReason | None:
 
 def _own_unasked(row: SkillCheckAgent) -> bool:
     """Whether the agent's own questions were planned after the skill's and never asked,
-    other than by a quick check that stopped at the skill's regression."""
+    other than by a quick check that stopped at the skill's regression.
+
+    A thorough check plans the dataset without a version, so the dataset's id says it
+    was planned as much as a version does.
+    """
     return (
         row.skill_set_run_id is not None
-        and row.dataset_version is not None
+        and (row.dataset_id is not None or row.dataset_version is not None)
         and row.dataset_run_id is None
         and row.sample != SampleKind.OWN_NOT_ASKED.value
     )
+
+
+_MEASURED = frozenset(
+    {UnknownReason.INCONCLUSIVE, UnknownReason.TOO_FEW_QUESTIONS, UnknownReason.OWN_NOT_ASKED}
+)
+"""Reasons a check reaches from the stages it measured, rather than a stage left unfinished."""
+
+
+def _unfinished_reason(row: SkillCheckAgent) -> UnknownReason:
+    """Why a stage of this row did not finish, as judging it the first time recorded it.
+
+    A row already unknown for an unfinished stage keeps that reason when judged again;
+    one judged worse kept none, and reads as failed.
+    """
+    if row.state == AgentState.UNKNOWN.value and row.unknown_reason is not None:
+        return UnknownReason(row.unknown_reason)
+    return UnknownReason.FAILED
 
 
 def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
@@ -2545,10 +2566,9 @@ def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
         return False
     state = AgentState(row.state)
     if state is AgentState.UNKNOWN:
-        return row.unknown_reason in (
-            UnknownReason.INCONCLUSIVE.value,
-            UnknownReason.TOO_FEW_QUESTIONS.value,
-            UnknownReason.OWN_NOT_ASKED.value,
+        # A stage the row was judged on is stored with its counts; one ended unjudged has none.
+        return bool(row.stages) or (
+            row.unknown_reason is not None and UnknownReason(row.unknown_reason) in _MEASURED
         )
     return state.settled
 

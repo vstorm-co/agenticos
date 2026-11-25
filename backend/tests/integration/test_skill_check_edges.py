@@ -502,7 +502,11 @@ class TestRunning:
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert {r.unknown_reason for r in read.agents} == {"failed"}
 
-    async def test_a_dataset_gone_before_its_stage_is_judged_on_the_first(self, db, monkeypatch):
+    async def test_a_dataset_gone_before_its_stage_leaves_a_better_agent_unknown(
+        self, db, monkeypatch
+    ):
+        """Better on the skill's questions alone is not a pass for a check that planned the
+        agent's own as well; only a regression they confirmed would decide it."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
@@ -520,7 +524,8 @@ class TestRunning:
 
         read = await _run_to_end(service, evals, lab, check.id)
 
-        assert next(row for row in read.agents if row.agent.name == "A").state == "better"
+        a = next(row for row in read.agents if row.agent.name == "A")
+        assert (a.state, a.unknown_reason) == ("unknown", "failed")
 
     async def test_the_sweep_and_a_settled_run_carry_a_check_on(self, db, monkeypatch):
         lab = await _lab(db)

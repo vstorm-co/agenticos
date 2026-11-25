@@ -871,6 +871,38 @@ class TestAStageThatDoesNotFinish:
             CheckVerdict.BLOCKED
         )
 
+    async def test_a_review_that_confirms_a_regression_makes_an_unfinished_agent_worse(
+        self, db, monkeypatch
+    ):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch, broken=False)
+        first, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = EvalRunStatus.FAILED.value
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes[lab.b.id] = Outcome(broken=1)
+
+        await service.recompute_after_review(lab.ctx.organization_id, [first])
+
+        assert (await self._row(db, lab, check.id, lab.b)).state == "worse"
+
+    async def test_judging_it_again_keeps_why_its_own_questions_never_started(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        evals.outcomes = {lab.b.id: Outcome(fixed=1), lab.a.id: Outcome(fixed=1)}
+        evals.refuse_start = {lab.b.id}
+        evals.start_refusal = {"reason": "all_evidence"}
+        await _run_to_end(service, evals, lab, check.id)
+        [first] = await _stage_runs(db, lab, check.id, lab.b)
+
+        await service.recompute_after_review(lab.ctx.organization_id, [first])
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason, len(b.stages)) == ("unknown", "all_evidence", 1)
+
     async def test_an_expired_check_whose_starter_may_no_longer_act_leaves_agents_unknown(
         self, db, monkeypatch
     ):
