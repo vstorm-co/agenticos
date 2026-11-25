@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Members can answer their own verified platform approval cards without organization-wide approval authority. Other approvers can reject those calls but cannot release work as another person. Conversation links in approval notices recheck the current run person and waiting call.
+
 - Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
@@ -51,6 +53,8 @@ Two things are versioned separately from this file and worth knowing about:
   organization, membership and current Vault secret generation.
 
 ### Fixed
+
+- Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission does not return attempts, timeline or evidence.
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
 

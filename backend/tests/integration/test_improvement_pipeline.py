@@ -1091,6 +1091,10 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         await _member(db, ctx, OrgRoleName.VIEWER),
     ]
     for reader in contexts:
+        if not reader.has(Perm.RUNS_VIEW):
+            with pytest.raises(AuthorizationError, match="runs:view"):
+                await service.read(reader, agent.id, started.id)
+            continue
         read = await service.read(reader, agent.id, started.id)
         [listed] = await service.list_for_agent(reader, agent.id)
         for response in (read, listed):

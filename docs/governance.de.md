@@ -1,5 +1,5 @@
 ---
-source_sha: "77974aa5830b"
+source_sha: "091a3dc3c26c"
 ---
 
 # Governance { #governance }
@@ -1778,6 +1778,12 @@ Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitiere
 
 Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, die Version, die eine Veröffentlichung erzeugt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
 
+Ein Plattform-Aufruf, der jedes Mal fragt - eine Verbesserung annehmen, einen Agent veröffentlichen, ein Mitglied einladen -, läuft mit den Plattform-Rechten der Person, für die sein Run handelt. Deshalb gibt ihn nur diese Person frei, angemeldet als sie selbst: kein anderes Mitglied mit `approvals:decide`, kein API-Schlüssel, auch nicht ihr eigener, und kein Administrator per Impersonierung. Wer `approvals:decide` hat, kann ihn weiterhin ablehnen. Die Person braucht dafür keine Berechtigung außer dieser Person zu sein, also gibt ein Builder oder ein Member die Karte des Architect im eigenen Chat frei und setzt den Run dort fort. Nur sie kann einen Run nach einem freigegebenen Plattform-Aufruf fortsetzen.
+
+Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat.
+
+Ein Run ohne Person - der eines Besuchers auf einem Widget oder einer öffentlichen Seite, eines nicht verknüpften Kanalmitglieds oder einer gelöschten Person - hat niemanden, dessen Antwort zählt, also wartet sein Plattform-Aufruf, bis er abläuft; so ein Run hat ohnehin keine Plattform-Rechte. Eine Änderung des Deployments (`change_deployment`) braucht beide Regeln zugleich: die Person des Runs, die außerdem Anwendungsadministrator ist. Der Architect jeder anderen Person ändert es nicht.
+
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was
 der Agent _ist_. Was sie nicht ausdrücken kann, ist die Stimmung einer Sitzung —
@@ -2285,7 +2291,8 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit einem Link zur Unterhaltung, in der gefragt wurde, solange dieser Aufruf wartet |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, jemand, der über Freigaben entscheiden darf, muss ihn beantworten, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum

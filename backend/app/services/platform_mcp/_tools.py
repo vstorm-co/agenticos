@@ -3076,7 +3076,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         limit: DiscoveryLimit = 10,
         skip: DiscoverySkip = 0,
     ) -> dict[str, Any]:
-        """Improve sessions, newest first. Needs access to the agent, and `runs:view` without one.
+        """Improve sessions, newest first. Needs `runs:view`, and access to each agent.
 
         Without `agent_id` or `agent_name`, it lists every open session on the
         agents the caller can read, each with its `agent_name` - start there when
@@ -3145,9 +3145,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `current_published_version` is the agent's live version; call the
         session's published version live only when the two are equal, and a
         stale session says `why_stale`.
-        Needs access to its agent, whose `agent_id` the answer carries; the
-        knowledge topics and `measurement_noise` also need `runs:view`. When
-        `measurement_noise.noisy` is true, the test cannot tell a better version
+        Needs access to its agent, whose `agent_id` the answer carries, and
+        `runs:view`. When `measurement_noise.noisy` is true, the test cannot tell a better version
         from a worse one. A session `waiting_for` the person says which step it
         stopped after, what the next one runs and its `price` within the
         session's limit - pass its `total_usd` and `candidate_hash` to
@@ -3201,9 +3200,6 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             }
         result["summary"] = _summary(session, result, live)
         result["ask"] = _ask(result["next_actions"])
-        me = await api.request("GET", "/me/permissions")
-        if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
-            return result
         evidence = await api.request(
             "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
         )

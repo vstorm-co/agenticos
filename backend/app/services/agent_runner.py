@@ -362,7 +362,14 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
-from app.services.approvals import ApprovalService, withhold
+from app.services.approvals import (
+    ApprovalService,
+    answers_for,
+    may_approve,
+    may_decide,
+    runs_as_its_person,
+    withhold,
+)
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -3745,19 +3752,35 @@ class AgentRunnerService:
         `agents:run` key started must not mint, on resume, a credential with the
         owner's whole role. The key's scopes ride on the run (`key_scopes`) and
         narrow the rebuilt context as they narrowed the original one.
+
+        A run with no person - a visitor's with no publisher recorded, or one
+        whose starter was deleted after it parked - has nobody's authority, so it
+        continues with none, as it began. A run the publisher stood in for stays
+        a stand-in's, the publisher resuming it included: the conversation is a
+        visitor's.
         """
-        if existing_run is None or existing_run.user_id is None:
+        if existing_run is None:
             return ctx
+        if existing_run.user_id is None:
+            return None
         ceiling = (
             None
             if existing_run.key_scopes is None
             else frozenset(Perm(scope) for scope in existing_run.key_scopes if scope in Perm)
         )
         if existing_run.user_id == ctx.user_id:
+            own = (
+                replace(
+                    ctx,
+                    subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+                )
+                if existing_run.initiated_by_publisher_fallback
+                else ctx
+            )
             if ceiling is None:
-                return ctx
+                return own
             narrowed = ceiling if ctx.key_scopes is None else ceiling & ctx.key_scopes
-            return replace(ctx, key_scopes=narrowed)
+            return replace(own, key_scopes=narrowed)
         membership = await member_repo.get_active(
             self.db, organization_id=ctx.organization_id, user_id=existing_run.user_id
         )
@@ -7908,7 +7931,9 @@ class AgentRunnerService:
             structured.append(segment.structured)
         return segment.output, segment.run
 
-    async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
+    async def parked_calls(
+        self, ctx: AuthContext, run: AgentRun, *, for_decision: bool = False
+    ) -> list[ParkedCall]:
         """What this run is waiting on a decision for, right now.
 
         Read back off the row rather than returned from the run that parked it,
@@ -7923,7 +7948,24 @@ class AgentRunnerService:
         to the call it parked; the approval row does not carry one. Null where a run
         was parked before that map was stored, which is a step a surface cannot mark
         rather than a call it cannot decide.
+
+        Each row says whether this caller may decide and approve it. Read
+        `for_decision` - the rows offered to be decided, apart from the run that
+        produced them - it needs `approvals:decide` or the run's own person signed
+        in as themselves.
+
+        Raises:
+            AuthorizationError: Read `for_decision` by a caller who is neither.
         """
+        if (
+            for_decision
+            and not ctx.has(Perm.APPROVALS_DECIDE)
+            and not answers_for(ctx, run.user_id)
+        ):
+            raise AuthorizationError(
+                message="Reading what a run waits on needs approvals:decide",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
         if run.status != RunStatus.AWAITING_APPROVAL.value:
             return []
         approvals = await agent_run_repo.list_approvals_for_run(
@@ -7957,6 +7999,21 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    may_decide=may_decide(
+                        ctx,
+                        tool_id=approval.tool_id,
+                        always_asks=approval.always_asks,
+                        person_id=run.user_id,
+                        context=approval.context,
+                    ),
+                    may_approve=may_approve(
+                        ctx,
+                        tool_id=approval.tool_id,
+                        always_asks=approval.always_asks,
+                        person_id=run.user_id,
+                        content_hidden=bool(hidden),
+                        context=approval.context,
+                    ),
                 )
             )
         return parked
@@ -8782,6 +8839,10 @@ class AgentRunnerService:
         Raises:
             BadRequestError: If any of them is still pending. Resuming with a
                 decision outstanding would drop that call silently.
+            AuthorizationError: If an approved platform call that always asks is
+                among them and the caller is not the person the run acts for, signed
+                in as themselves: the continuation would replay it on that person's
+                authority.
         """
         approvals = await agent_run_repo.list_approvals_for_run(
             self.db, run_id=run.id, organization_id=ctx.organization_id
@@ -8801,6 +8862,18 @@ class AgentRunnerService:
                 # Decided during an earlier park of the same run and already
                 # replayed. Answering it again would repeat the side effect.
                 continue
+            if (
+                approval.status == ApprovalStatus.APPROVED.value
+                and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+                and not answers_for(ctx, run.user_id)
+            ):
+                raise AuthorizationError(
+                    message=(
+                        "Only the person this run acts for may continue it past an "
+                        "approved platform call"
+                    ),
+                    details={"run_id": run.id, "approval_id": approval.id},
+                )
             decided[tool_call_id] = (
                 ApprovalGranted(tool_args=approval.tool_args)
                 if approval.status == ApprovalStatus.APPROVED.value

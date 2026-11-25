@@ -1083,6 +1083,17 @@ class ParkedCall(BaseSchema):
             "call but not approve it"
         ),
     )
+    may_decide: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may answer this call at all: `approvals:decide`, or being "
+            "the run's own person answering their own platform call that always asks"
+        ),
+    )
+    may_approve: bool = Field(
+        default=False,
+        description="As `ApprovalRead.may_approve`: whether an approval from the caller is accepted",
+    )
 
 
 class ParkedQuestion(BaseSchema):

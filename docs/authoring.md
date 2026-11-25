@@ -300,7 +300,10 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Apply or discard a context file change | `context:edit` on the file and `runs:view` |
 | Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
 
-Grants count: a member with an edit grant on one agent may improve that agent.
+Grants count: a member with an edit grant on one agent may improve that agent,
+when their role also holds `runs:view` - an Owner, Admin, Builder or Operator.
+Members and Viewers hold no `runs:view`, so a grant alone does not let them
+start or read a session.
 
 If an API request selects a helper agent, you need both view and run access to
 that helper. A missing or inaccessible helper returns `404` before its settings

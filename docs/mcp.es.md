@@ -1,5 +1,5 @@
 ---
-source_sha: "84fc9ce4a382"
+source_sha: "5e69a7458f60"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1342,7 +1342,7 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama; una clave necesita `agents:run` para `test_my_connection`) |
-| `list_improvements`, `get_improvement` | acceso de lectura al agente; los temas de conocimiento de la sesión también necesitan `runs:view`, igual que listar todas las sesiones abiertas sin indicar un agente |
+| `list_improvements`, `get_improvement` | `runs:view` y acceso de lectura al agente |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | acceso de edición al agente y `runs:view`; iniciar también `datasets:run`, publicar `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |

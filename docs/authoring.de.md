@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "c54032da48d1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -326,7 +326,9 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 | Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
-diesen Agent verbessern.
+diesen Agent verbessern, wenn seine Rolle auch `runs:view` hat - Owner, Admin,
+Builder oder Operator. Member und Viewer haben kein `runs:view`, also lässt ein
+Grant allein sie keine Sitzung starten oder lesen.
 
 Wenn eine API-Anfrage einen Hilfsagent auswählt, brauchen Sie sowohl Lese- als
 auch Ausführungsrechte für ihn. Ein fehlender oder nicht zugänglicher Hilfsagent
