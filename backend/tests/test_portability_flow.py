@@ -223,7 +223,7 @@ async def test_unknown_content_cannot_be_created_as_a_different_kind(
         bundle=bundle,
         choices={resource.key: BundleImportChoice(action="create")},
     )
-    with pytest.raises(AuthorizationError):
+    with pytest.raises(BadRequestError, match="root"):
         await PortabilityService(mock_db_session).import_bundle(actor(), request)
 
 

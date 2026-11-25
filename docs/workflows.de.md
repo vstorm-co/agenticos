@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5ee688f65deb"
 ---
 
 # Workflows { #workflows }
@@ -1596,3 +1596,7 @@ Neue Automatisierungen können mit `prepare_workflow_draft` eingereicht werden: 
 ### Follow-up-Entwürfe { #follow-up-drafts }
 
 Im Dialog für das Warten auf eine Antwort kannst du auch einen Follow-up-Entwurf nach Ablauf aktivieren. Wähle ein vorhandenes Modell und Höchstkosten pro Entwurf. Gib beim Start den Kontext für den Text an. Nur der nach erfolgreicher Postfachprüfung gewählte Fristzweig startet den Agenten; eine bestätigte Antwort überspringt ihn, ein Postfachfehler beendet die Prüfung als Fehler. Der Agent hat keine Werkzeuge. Sein Entwurf wird im Workflow-Ergebnis gespeichert; eine Benachrichtigung führt dorthin. Prüfe vor dem Senden den aktuellen Thread. Diese Vorlage erstellt keinen Gmail-/Outlook-Entwurf und versendet keine E-Mail.
+
+Auswählbare Ressourcenpakete unterstützen auch Workflow-Wurzeln über `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` und die Bundle-Import-Endpunkte. Verknüpfte Definitionen lassen sich kopieren, wiederverwenden oder auslassen. Der Import erstellt private, unveröffentlichte Entwürfe ohne aktive Trigger. Bindungen hochgeladener Dateien und angeheftete Laufergebnisse werden nicht übertragen. Das Ergebnis nennt ausgelassene Bindungspfade; die Veröffentlichung prüft fehlende Ressourcen weiterhin. Delegierte benötigen eine ausdrücklich ausgewählte veröffentlichte Version des zugeordneten Agenten. Fehler-Workflows müssen auf einen zugänglichen veröffentlichten Fehlerhandler verweisen; Entwürfe werden dafür niemals automatisch veröffentlicht. Erstellungszyklen erfordern Wiederverwendung oder das Auslassen einer Bindung.
+
+Tabellenbindungen mit ausgewählten Spalten werden zur manuellen Auswahl am Ziel ausgelassen; Bindungen ganzer Tabellen verwenden die Schema-Version des Ziels.

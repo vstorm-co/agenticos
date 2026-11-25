@@ -264,6 +264,7 @@ class BundleImportRead(BaseSchema):
     created: dict[BundleKey, UUID]
     reused: dict[BundleKey, UUID]
     skipped: tuple[BundleKey, ...]
+    omitted_bindings: dict[BundleKey, tuple[BundlePath, ...]] = Field(default_factory=dict)
 
 
 class BundleDocumentCreate(BaseSchema):

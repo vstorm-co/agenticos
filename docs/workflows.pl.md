@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5ee688f65deb"
 ---
 
 # Workflows { #workflows }
@@ -1477,3 +1477,7 @@ Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akc
 ### Szkice follow-upów { #follow-up-drafts }
 
 W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szkic follow-upu po terminie**. Wybierz istniejący model i maksymalny koszt szkicu. Przy uruchomieniu workflow podaj kontekst do przygotowania treści. Agent działa tylko w gałęzi terminu po udanym sprawdzeniu skrzynki; zweryfikowana odpowiedź pomija szkic, a błąd skrzynki kończy sprawdzenie błędem. Agent nie ma narzędzi. Szkic zapisuje się w wyniku workflow, a powiadomienie prowadzi do niego. Przed wysyłką sprawdź aktualny wątek. Preset nie tworzy szkicu w Gmail/Outlook ani nie wysyła poczty.
+
+Pakiety zasobów obsługują też workflow jako zasób główny przez `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` i endpointy bundle-import. Wybierz definicje do skopiowania, ponownego użycia lub pominięcia. Import tworzy prywatne, nieopublikowane szkice bez aktywacji wyzwalaczy. Powiązania przesłanych plików i przypięte wyniki uruchomień nie są przenoszone. Wynik importu podaje ścieżki pominiętych powiązań; publikacja nadal sprawdza brakujące zasoby. Delegaci wymagają jawnego wyboru istniejącej opublikowanej wersji należącej do wskazanego agenta. Workflow obsługi błędów musi wskazywać dostępną opublikowaną obsługę awarii; szkice nigdy nie są automatycznie publikowane. Cykle tworzenia zależności wymagają ponownego użycia istniejącego zasobu lub pominięcia powiązania.
+
+Powiązania wybranych kolumn tabel są pomijane do ręcznego wyboru na miejscu; powiązania całej tabeli używają wersji schematu docelowego.

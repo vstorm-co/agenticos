@@ -149,7 +149,7 @@ async def test_revocation_or_cross_tenant_failure_is_not_presented_as_an_empty_p
         )
     with pytest.raises(BadRequestError, match="owning editor"):
         await BundleDestinations(mock_db_session).list(
-            actor(), BundleDestinationQuery(kind=BundleResourceKind.TABLE)
+            actor(), BundleDestinationQuery(kind=BundleResourceKind.APP)
         )
 
 
@@ -161,3 +161,28 @@ async def test_facade_forwards_only_current_authority_and_typed_query(
     ctx, query = actor(), BundleDestinationQuery(kind=BundleResourceKind.CONTEXT)
     await PortabilityService(mock_db_session).destinations(ctx, query)
     listing.assert_awaited_once_with(ctx, query)
+
+
+async def test_workflow_and_table_choices_use_their_access_checked_listings(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = uuid4()
+    result = SimpleNamespace(items=[SimpleNamespace(id=identity, name="Allowed")], total=1)
+    monkeypatch.setattr(
+        "app.services.portability.destinations.WorkflowRegistryService.list",
+        AsyncMock(return_value=result),
+    )
+    monkeypatch.setattr(
+        "app.services.portability.destinations.VirtualTableService.list_tables",
+        AsyncMock(return_value=result),
+    )
+    for kind in (BundleResourceKind.WORKFLOW, BundleResourceKind.TABLE):
+        listed = await BundleDestinations(mock_db_session).list(
+            actor(), BundleDestinationQuery(kind=kind)
+        )
+        assert listed.items[0].id == identity and listed.total == 1
+    with pytest.raises(BadRequestError, match="without a name filter"):
+        await BundleDestinations(mock_db_session).list(
+            actor(), BundleDestinationQuery(kind=BundleResourceKind.WORKFLOW, search="x")
+        )

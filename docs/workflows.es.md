@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5ee688f65deb"
 ---
 
 # Workflows { #workflows }
@@ -1521,3 +1521,7 @@ Las nuevas automatizaciones pueden enviarse con `prepare_workflow_draft`: una ap
 ### Borradores de seguimiento { #follow-up-drafts }
 
 El diálogo de espera de respuesta también permite preparar un borrador de seguimiento tras el plazo. Elige un modelo existente y un coste máximo por borrador. Al iniciar el flujo, proporciona el contexto para el texto. Solo la rama de plazo tras una comprobación correcta del buzón ejecuta el agente; una respuesta verificada lo omite y un fallo del buzón hace fallar la comprobación. El agente no tiene herramientas. El borrador se guarda en el resultado del flujo y una notificación enlaza allí. Revisa el hilo actual antes de enviar nada. Esta plantilla no crea un borrador en Gmail/Outlook ni envía correo.
+
+Los paquetes de recursos seleccionables también admiten flujos como raíz mediante `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` y los endpoints bundle-import. Elige qué definiciones vinculadas copiar, reutilizar u omitir. La importación crea borradores privados sin publicar ni activar disparadores. No transfiere vínculos de archivos subidos ni resultados fijados de ejecuciones. El resultado enumera las rutas omitidas; la publicación sigue comprobando los recursos que faltan. Los delegados requieren seleccionar explícitamente una versión publicada existente del agente asignado. Los flujos de error deben apuntar a un manejador de fallos publicado y accesible; nunca se publican borradores automáticamente. Los ciclos de creación requieren reutilizar un recurso existente u omitir un vínculo.
+
+Los vínculos con columnas seleccionadas se omiten para elegirlas manualmente en el destino; los vínculos de tabla completa usan la versión del esquema de destino.

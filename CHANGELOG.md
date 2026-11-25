@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
+
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.

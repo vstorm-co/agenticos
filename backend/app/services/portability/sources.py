@@ -25,8 +25,11 @@ from app.services.portability.content import (
     SkillSnapshotContent,
     portable_connection_settings,
 )
+from app.services.portability.workflows import WorkflowBundleSettings, WorkflowContent
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.skill_versions import SkillVersionService
+from app.services.virtual_tables import VirtualTableService
+from app.services.workflow_registry import WorkflowRegistryService
 
 _OBJECT = TypeAdapter(dict[str, JsonValue], config=ConfigDict(allow_inf_nan=False))
 
@@ -83,6 +86,48 @@ class BundleSources:
             )
         if identity is None:
             raise BadRequestError(message="This dependency does not identify a source resource")
+        if kind == BundleResourceKind.TABLE:
+            row = await VirtualTableService(self.db).describe_table(ctx, identity)
+            return SourceDefinition(
+                row.id, row.name, version_number=row.schema_version, copyable=False
+            )
+        if kind == BundleResourceKind.WORKFLOW:
+            row = await WorkflowRegistryService(self.db).get(ctx, identity)
+            if not with_content:
+                return SourceDefinition(row.id, row.name)
+            graph = row.draft_graph
+            omitted = []
+            if graph is not None:
+                bindings = []
+                for index, binding in enumerate(graph.bindings):
+                    if binding.source.kind == "file" or (
+                        binding.source.kind == "table" and binding.source.column_ids is not None
+                    ):
+                        omitted.append(("graph", "bindings", index))
+                    else:
+                        bindings.append(binding)
+                graph = graph.model_copy(
+                    update={
+                        "nodes": tuple(
+                            node.model_copy(update={"pinned_output": None}) for node in graph.nodes
+                        ),
+                        "bindings": tuple(bindings),
+                    }
+                )
+            return SourceDefinition(
+                row.id,
+                row.name,
+                WorkflowContent(
+                    name=row.name,
+                    description=row.description,
+                    tags=row.tags,
+                    settings=WorkflowBundleSettings.model_validate(
+                        row.settings.model_dump(exclude={"error_workflow_run_as"})
+                    ),
+                    graph=graph,
+                    omitted=tuple(omitted),
+                ),
+            )
         if kind == BundleResourceKind.AGENT:
             row = await AgentRegistryService(self.db).get(ctx, identity)
             return SourceDefinition(

@@ -70,3 +70,40 @@ async def test_a_file_of_another_format_is_refused_before_the_service(wired):
     )
     assert refused.status_code == 422
     service.import_.assert_not_awaited()
+
+
+async def test_bundle_export_routes_preserve_the_legacy_export_contract(wired) -> None:
+    from app.schemas.resource_bundle import (
+        BundlePreview,
+        BundleResource,
+        BundleResourceKind,
+        ResourceBundle,
+    )
+
+    client, _ = wired
+    identity = uuid.uuid4()
+    root = BundleResource(
+        key=f"workflow/{identity}",
+        kind=BundleResourceKind.WORKFLOW,
+        name="Workflow",
+        source_id=identity,
+    )
+    service = MagicMock()
+    service.export_resource = AsyncMock(
+        return_value=BundlePreview(
+            bundle=ResourceBundle(roots=(root.key,), resources=(root,)), options=()
+        )
+    )
+    service.download_workflow = AsyncMock(return_value=b'{"format":"agenticos.bundle"}')
+    app.dependency_overrides[deps.get_portability_service] = lambda: service
+    preview = await client.get(f"{settings.API_V1_STR}/workflows/{identity}/export-preview")
+    download = await client.post(
+        f"{settings.API_V1_STR}/workflows/{identity}/bundle-export",
+        json={"resources": {}, "file_format": "json"},
+    )
+    assert preview.status_code == 200
+    assert preview.json()["bundle"]["roots"] == [root.key]
+    assert download.status_code == 200 and download.headers["content-type"] == "application/json"
+    service.export_resource.assert_awaited_once_with(
+        _CTX, BundleResourceKind.WORKFLOW, identity, metadata_only=True
+    )

@@ -37,13 +37,14 @@ from app.schemas.resource_bundle import (
     BundleImportCreate,
     BundleImportRead,
     BundleResource,
+    BundleResourceKind,
     ResourceBundle,
 )
 from app.services.api_key import ApiKeyService
 from app.services.background_jobs import enqueue
 from app.services.file_storage import BaseFileStorage, get_file_storage
 from app.services.portability.archive import BundleLimits, open_bundle, write_bundle
-from app.services.portability.contracts import require_agent_root, verify_references
+from app.services.portability.contracts import require_supported_root, verify_references
 from app.services.portability.facade import PortabilityService
 from app.services.portability.file_bundle import hydrate_text
 from app.worker.jobs import PORTABLE_TRANSFER, PortableTransferPayload
@@ -68,7 +69,7 @@ def _read_zip(path: Path, directory: Path) -> tuple[ResourceBundle, dict[str, Pa
     files: dict[str, Path] = {}
     with path.open("rb") as source, open_bundle(source) as archive:
         verify_references(archive.manifest)
-        require_agent_root(archive.manifest)
+        require_supported_root(archive.manifest)
         for asset in archive.manifest.assets:
             # Archive paths are never extracted. Only validated digests become
             # locally minted filenames, and duplicate contents are stored once.
@@ -90,8 +91,10 @@ class PortableTransferService:
 
     @staticmethod
     def _require(ctx: AuthContext) -> None:
-        if ctx.user_id is None or not ctx.has(Perm.AGENTS_EDIT):
-            raise AuthorizationError(message="Resource transfers require a signed-in agent editor")
+        if ctx.user_id is None or not (ctx.has(Perm.AGENTS_EDIT) or ctx.has(Perm.WORKFLOWS_CREATE)):
+            raise AuthorizationError(
+                message="Resource transfers require a signed-in agent or workflow creator"
+            )
 
     async def _owned(
         self, ctx: AuthContext, identity: UUID, *, lock: bool = False
@@ -170,11 +173,11 @@ class PortableTransferService:
         self, ctx: AuthContext, request: BundleExportStart
     ) -> PortabilityOperationRead:
         self._require(ctx)
-        if request.root_kind != "agent":
-            raise BadRequestError(message="Workflow ZIP exports are not available yet")
         # Check root authority before persisting work; it is checked again by
         # the worker and before download, against current resource grants.
-        await self.portability.export_agent(ctx, request.root_id, metadata_only=True)
+        await self.portability.export_resource(
+            ctx, BundleResourceKind(request.root_kind), request.root_id, metadata_only=True
+        )
         row, created = await self._start(
             ctx,
             request_id=request.request_id,
@@ -356,6 +359,7 @@ class PortableTransferService:
                     request.root_id,
                     BundleDownloadCreate(resources=request.resources, file_format="json"),
                     asset_directory=root,
+                    root_kind=BundleResourceKind(request.root_kind),
                 )
                 output = root / "output.zip"
                 await run_blocking_settled(_write_zip, output, bundle, files)
@@ -386,7 +390,7 @@ class PortableTransferService:
 
                     # Imported resources and their receipt commit only after the
                     # final lease check. Do not block heartbeats during the import.
-                    result = await self.portability.import_agent(
+                    result = await self.portability.import_bundle(
                         ctx,
                         BundleImportCreate.model_validate(
                             {"operation_id": row.id, "bundle": bundle, "choices": row.choices}

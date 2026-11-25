@@ -150,7 +150,7 @@ async def test_configuration_permissions_are_checked_before_the_resource_read(
         ("skill_version", True, "bad"),
         ("agent_version", False, None),
         ("skill_fork", False, None),
-        ("table", False, None),
+        ("app", False, None),
     ],
 )
 async def test_missing_version_owners_or_unsupported_kinds_are_explicit_refusals(
@@ -418,3 +418,88 @@ async def test_nonfinite_stored_configuration_is_refused_without_exposing_values
             ),
         )
     assert error.value.details is None or "nan" not in str(error.value.details).lower()
+
+
+async def test_workflow_source_removes_only_run_data_and_unsafe_column_bindings(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.workflow import StoredWorkflowSettings
+    from app.services.portability.workflows import WorkflowContent
+    from app.workflows.contracts.io import Binding, FileRef, TableIORef
+    from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+
+    identity = uuid4()
+    node = NodeInstance(
+        id=uuid4(),
+        definition_id="debug.echo",
+        definition_version=1,
+        config={"message": "Keep"},
+        layout=NodePosition(x=0, y=0),
+        pinned_output={"text": "Run data"},
+    )
+    graph = WorkflowGraph(
+        entry_node_id=node.id,
+        nodes=(node,),
+        bindings=(
+            Binding(
+                target_node_id=node.id,
+                target_field="a",
+                source=FileRef(file_id=uuid4(), content_type="text/plain", byte_size=1),
+            ),
+            Binding(
+                target_node_id=node.id,
+                target_field="b",
+                source=TableIORef(table_id=uuid4(), column_ids=(uuid4(),), schema_version=1),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.portability.sources.WorkflowRegistryService.get",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=identity,
+                name="Workflow",
+                description=None,
+                tags=[],
+                settings=StoredWorkflowSettings(error_workflow_run_as=uuid4()),
+                draft_graph=graph,
+            )
+        ),
+    )
+    resource = BundleResource(
+        key=f"workflow/{identity}",
+        kind=BundleResourceKind.WORKFLOW,
+        name="Source",
+        source_id=identity,
+    )
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    source = await BundleSources(mock_db_session).read(ctx, resource)
+    assert isinstance(source.content, WorkflowContent) and source.content.graph is not None
+    assert source.content.graph.nodes[0].pinned_output is None
+    assert source.content.graph.nodes[0].config == {"message": "Keep"}
+    assert source.content.graph.bindings == ()
+    assert len(source.content.omitted) == 2
+    assert "error_workflow_run_as" not in source.content.settings.model_dump()
+    assert (
+        await BundleSources(mock_db_session).read(ctx, resource, with_content=False)
+    ).content is None
+
+
+async def test_a_reused_table_reports_its_current_schema_version(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = uuid4()
+    monkeypatch.setattr(
+        "app.services.portability.sources.VirtualTableService.describe_table",
+        AsyncMock(return_value=SimpleNamespace(id=identity, name="Tasks", schema_version=7)),
+    )
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    source = await BundleSources(mock_db_session).read(
+        ctx,
+        BundleResource(
+            key=f"table/{identity}", kind=BundleResourceKind.TABLE, source_id=identity, name="Table"
+        ),
+    )
+    assert source.version_number == 7 and not source.copyable and source.definition is None
