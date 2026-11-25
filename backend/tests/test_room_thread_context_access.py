@@ -593,7 +593,13 @@ async def test_responder_closure_checks_a_shared_source_once_across_a_cycle(serv
 
 @pytest.mark.parametrize(
     ("case", "readable"),
-    [("cycle", True), ("too-many", False), ("missing", False), ("too-deep", False)],
+    [
+        ("cycle", True),
+        ("too-many", False),
+        ("missing", False),
+        ("other-organization", False),
+        ("too-deep", False),
+    ],
 )
 async def test_search_hides_a_room_whose_source_closure_cannot_be_proved(
     service, monkeypatch, case, readable
@@ -609,6 +615,8 @@ async def test_search_hides_a_room_whose_source_closure_cannot_be_proved(
         monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_NODES", 2)
     elif case == "missing":
         rows = [first]
+    elif case == "other-organization":
+        second.organization_id = uuid4()
     else:
         monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_DEPTH", 1)
     graph(monkeypatch, destination, edges, rows)
@@ -616,6 +624,8 @@ async def test_search_hides_a_room_whose_source_closure_cannot_be_proved(
     unreadable = await service.unreadable_destinations(organization_id, uuid4())
 
     assert (destination.id not in unreadable) is readable
+    if case in ("missing", "other-organization"):
+        service._may_read_direct.assert_not_awaited()
 
 
 async def test_search_stops_walking_once_the_node_limit_is_reached(service, monkeypatch):
