@@ -287,23 +287,24 @@ async def test_review_hides_answers_notes_and_judge_evidence_without_runs_view(d
     assert case.input not in read.model_dump_json()
 
 
-async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_collection(db) -> None:
-    from app.core.permissions import Perm
+_SECRET = "ghp_" + "a1B2" * 9
+
+
+async def _graded_with_passages(db):
+    """An eval run's score whose judge found passages in an organization base, in the
+    owner's personal base, and one kept without naming its base, holding a token."""
+    from decimal import Decimal
+
     from app.db.models.case_score import CaseScore
+    from app.db.models.dataset import DatasetVersion
+    from app.db.models.eval_run import ArmRole, ArmSource, EvalRun, EvalRunArm, EvalRunCase
     from app.db.models.knowledge_base import KnowledgeBase
+    from app.repositories import eval_run_repo
     from app.schemas.scoring import DatasetScoring
-    from app.services.scoring import ScoringService
 
     owner = await _owner(db)
-    builder = await _member(db, owner, OrgRoleName.BUILDER)
-    viewer = await _member(db, owner, OrgRoleName.VIEWER)
-    keyed = replace(
-        builder,
-        api_key_id=uuid.uuid4(),
-        key_scopes=frozenset({Perm.DATASETS_VIEW, Perm.RUNS_VIEW, Perm.AGENTS_VIEW}),
-    )
     bases = {}
-    for name, scope, owned_by in (("shared", "org", None), ("personal", "personal", owner)):
+    for name, scope in (("shared", "org"), ("personal", "personal")):
         base = KnowledgeBase(
             organization_id=owner.organization_id,
             name=f"{name}-{uuid.uuid4().hex[:6]}",
@@ -312,68 +313,158 @@ async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_colle
             embedding_dim=1536,
             scope=scope,
             visibility="org",
-            owner_user_id=None if owned_by is None else owned_by.user_id,
+            owner_user_id=owner.user_id if scope == "personal" else None,
         )
         db.add(base)
         bases[name] = base
     await db.flush()
-    secret = "ghp_" + "a1B2" * 9
     dataset = await DatasetService(db).create(owner, DatasetCreate(name="graded by search"))
     run, message = await _rated_down_turn(db, owner)
     case = await DatasetService(db).add_from_message(
         owner, dataset.id, DatasetCaseFromMessage(message_id=message.id)
     )
-    db.add(
-        CaseScore(
-            organization_id=owner.organization_id,
-            dataset_id=dataset.id,
-            case_revision_id=case.id,
-            case_id=case.case_id,
-            run_id=run.id,
-            agent_id=run.agent_id,
-            answer="Thirty days.",
-            scoring=DatasetScoring().model_dump(mode="json"),
-            results=[
-                {
-                    "scorer": "judge",
-                    "name": "correctness",
-                    "required": True,
-                    "status": "pass",
-                    "reason": "It matches the handbook.",
-                    "knowledge": [
-                        {
-                            "source": "SHARED_SOURCE",
-                            "quote": "SHARED_PASSAGE",
-                            "knowledge_base_ids": [str(bases["shared"].id)],
-                        },
-                        {
-                            "source": "PERSONAL_SOURCE",
-                            "quote": "PERSONAL_PASSAGE",
-                            "knowledge_base_ids": [str(bases["personal"].id)],
-                        },
-                        {"source": "LEGACY_SOURCE", "quote": f"LEGACY_PASSAGE key {secret}"},
-                    ],
-                }
-            ],
-            passed=True,
-            review_state="none",
-        )
+    version = await db.scalar(
+        select(DatasetVersion)
+        .where(DatasetVersion.dataset_id == dataset.id)
+        .order_by(DatasetVersion.number.desc())
     )
+    assert version is not None
+    arm = EvalRunArm(
+        role=ArmRole.CANDIDATE.value,
+        position=0,
+        source=ArmSource.DRAFT.value,
+        spec={},
+        spec_hash="d",
+        model_label="m",
+    )
+    eval_run = await eval_run_repo.create(
+        db,
+        organization_id=owner.organization_id,
+        run=EvalRun(
+            agent_id=run.agent_id,
+            dataset_id=dataset.id,
+            dataset_version_id=version.id,
+            status="completed",
+            scoring={},
+            scoring_hash="s",
+            estimate_usd=Decimal("1"),
+        ),
+        arms=[arm],
+    )
+    score = CaseScore(
+        organization_id=owner.organization_id,
+        dataset_id=dataset.id,
+        case_revision_id=case.id,
+        case_id=case.case_id,
+        run_id=run.id,
+        agent_id=run.agent_id,
+        eval_run_id=eval_run.id,
+        answer="Thirty days.",
+        scoring=DatasetScoring().model_dump(mode="json"),
+        results=[
+            {
+                "scorer": "judge",
+                "name": "correctness",
+                "required": True,
+                "status": "pass",
+                "reason": "It matches the handbook.",
+                "knowledge": [
+                    {
+                        "source": "SHARED_SOURCE",
+                        "quote": "SHARED_PASSAGE",
+                        "knowledge_base_ids": [str(bases["shared"].id)],
+                    },
+                    {
+                        "source": "PERSONAL_SOURCE",
+                        "quote": "PERSONAL_PASSAGE",
+                        "knowledge_base_ids": [str(bases["personal"].id)],
+                    },
+                    {"source": "LEGACY_SOURCE", "quote": f"LEGACY_PASSAGE key {_SECRET}"},
+                ],
+            }
+        ],
+        passed=True,
+        review_state="none",
+    )
+    db.add(score)
     await db.flush()
+    await eval_run_repo.add_cases(
+        db,
+        organization_id=owner.organization_id,
+        cases=[
+            EvalRunCase(
+                eval_run_id=eval_run.id,
+                arm_id=arm.id,
+                case_id=case.case_id,
+                case_revision_id=case.id,
+                position=0,
+                attempt=0,
+                answer="Thirty days.",
+                calls=[],
+                case_score_id=score.id,
+            )
+        ],
+    )
+    return owner, dataset, eval_run
+
+
+def _passages(reads) -> str:
+    return " ".join(
+        f"{found.source} {found.quote}"
+        for read in reads
+        for result in read.results
+        for found in result.knowledge
+    )
+
+
+async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_collection(db) -> None:
+    from app.core.permissions import Perm
+    from app.services.scoring import ScoringService
+
+    owner, dataset, _ = await _graded_with_passages(db)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    keyed = replace(
+        builder,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.DATASETS_VIEW, Perm.RUNS_VIEW, Perm.AGENTS_VIEW}),
+    )
     scores = ScoringService(db)
 
-    async def passages(reader) -> str:
-        [read] = (await scores.list_scores(reader, dataset.id)).items
-        return " ".join(
-            f"{found.source} {found.quote}" for result in read.results for found in result.knowledge
-        )
+    async def seen_by(reader) -> str:
+        return _passages((await scores.list_scores(reader, dataset.id)).items)
 
-    seen_by_owner = await passages(owner)
+    seen_by_owner = await seen_by(owner)
     assert "SHARED_PASSAGE" in seen_by_owner and "PERSONAL_PASSAGE" in seen_by_owner
     assert "LEGACY_PASSAGE key [redacted:github_token]" in seen_by_owner
-    assert secret not in seen_by_owner
-    seen_by_builder = await passages(builder)
+    assert _SECRET not in seen_by_owner
+    seen_by_builder = await seen_by(builder)
     assert "SHARED_PASSAGE" in seen_by_builder and "LEGACY_PASSAGE" in seen_by_builder
     assert "PERSONAL" not in seen_by_builder
-    assert await passages(keyed) == ""
-    assert await passages(viewer) == ""
+    assert await seen_by(keyed) == ""
+    assert await seen_by(viewer) == ""
+
+
+async def test_an_eval_run_s_cases_show_only_the_passages_their_reader_may_read(db) -> None:
+    from app.services.eval_run import EvalRunService
+
+    owner, _, eval_run = await _graded_with_passages(db)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    runs = EvalRunService(db)
+
+    async def seen_by(reader) -> str:
+        cases = await runs.cases(reader, eval_run.id)
+        return _passages(
+            attempt.score
+            for case in cases.items
+            for attempt in case.attempts
+            if attempt.score is not None
+        )
+
+    seen_by_owner = await seen_by(owner)
+    assert "PERSONAL_PASSAGE" in seen_by_owner
+    assert "LEGACY_PASSAGE key [redacted:github_token]" in seen_by_owner
+    seen_by_builder = await seen_by(builder)
+    assert "SHARED_PASSAGE" in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder
+    assert _SECRET not in seen_by_builder

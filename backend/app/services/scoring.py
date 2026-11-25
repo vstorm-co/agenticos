@@ -18,6 +18,7 @@ fixed.
 
 import asyncio
 import hashlib
+from collections.abc import Iterable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -1188,7 +1189,7 @@ class ScoringService:
             organization_id=ctx.organization_id,
         )
         access = await self._answer_access(ctx, {read.agent_id for read in reads})
-        readable_bases = await self._readable_bases(ctx, reads)
+        bases = await readable_bases(self.db, ctx, reads)
         sees_every_collection = ctx.scope_for(Perm.COLLECTIONS_VIEW) >= Scope.ALL
         versions = await agent_repo.get_versions_by_ids(
             self.db,
@@ -1208,8 +1209,8 @@ class ScoringService:
             if not shown:
                 read = _without_answer(read)
             else:
-                read = _with_readable_knowledge(
-                    read, readable_bases, sees_every_collection=sees_every_collection
+                read = with_readable_knowledge(
+                    read, bases, sees_every_collection=sees_every_collection
                 )
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
@@ -1236,18 +1237,6 @@ class ScoringService:
                 )
             )
         return named
-
-    async def _readable_bases(self, ctx: AuthContext, reads: list[CaseScoreRead]) -> set[UUID]:
-        """The knowledge bases named by the scores' passages that the reader may read."""
-        named = {
-            base_id
-            for read in reads
-            for result in read.results
-            for found in result.knowledge
-            for base_id in found.knowledge_base_ids
-        }
-        bases = await knowledge_base_repo.get_by_ids(self.db, sorted(named))
-        return {base.id for base in bases.values() if await readable_kb(self.db, ctx, base)}
 
     async def _answer_access(self, ctx: AuthContext, agent_ids: set[UUID | None]) -> _AnswerAccess:
         agents = await agent_repo.get_many(
@@ -1513,8 +1502,23 @@ class ScoringService:
         return wanted
 
 
-def _with_readable_knowledge(
-    read: CaseScoreRead, readable_bases: set[UUID], *, sees_every_collection: bool
+async def readable_bases(
+    db: AsyncSession, ctx: AuthContext, reads: Iterable[CaseScoreRead]
+) -> set[UUID]:
+    """The knowledge bases named by the scores' judge passages that the reader may read."""
+    named = {
+        base_id
+        for read in reads
+        for result in read.results
+        for found in result.knowledge
+        for base_id in found.knowledge_base_ids
+    }
+    bases = await knowledge_base_repo.get_by_ids(db, sorted(named))
+    return {base.id for base in bases.values() if await readable_kb(db, ctx, base)}
+
+
+def with_readable_knowledge(
+    read: CaseScoreRead, readable: set[UUID], *, sees_every_collection: bool
 ) -> CaseScoreRead:
     """A score with only the judge's passages from knowledge bases the reader may read.
 
@@ -1531,7 +1535,7 @@ def _with_readable_knowledge(
                             _redacted_finding(found)
                             for found in result.knowledge
                             if (
-                                readable_bases.issuperset(found.knowledge_base_ids)
+                                readable.issuperset(found.knowledge_base_ids)
                                 if found.knowledge_base_ids
                                 else sees_every_collection
                             )

@@ -59,7 +59,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
@@ -159,7 +159,7 @@ from app.services.improvement_states import NOISY_SPREAD_QUESTIONS, NOISY_UNSTAB
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.scorers import JUDGE_PROMPT_VERSION
-from app.services.scoring import ungraded
+from app.services.scoring import readable_bases, ungraded, with_readable_knowledge
 from app.services.spend import month_start, organization_monthly_spend
 from app.worker.jobs import RUN_EVAL, RunEval
 
@@ -2644,6 +2644,7 @@ class EvalRunService:
         for arm in arms:
             shown += [(arm.id, a) for a in await self._arm_attempts(ctx, arm, attempts)]
         scores = await self._scores(ctx, [a for _, a in shown])
+        score_reads = await self._score_reads(ctx, scores)
         revisions = await eval_run_repo.revisions(
             self.db, sorted({a.case_revision_id for _, a in shown}), organization_id=org
         )
@@ -2677,7 +2678,12 @@ class EvalRunService:
                     tags=tags,
                     expectation=(StoredCaseContent.model_validate(revision) if revision else None),
                     attempts=[
-                        self._attempt_read(shown_arm, a, scores.get(a.case_score_id))
+                        self._attempt_read(
+                            shown_arm,
+                            a,
+                            scores.get(a.case_score_id),
+                            score_reads.get(a.case_score_id),
+                        )
                         for shown_arm, a in pairs
                     ],
                 )
@@ -2686,7 +2692,10 @@ class EvalRunService:
 
     @staticmethod
     def _attempt_read(
-        arm_id: UUID, attempt: EvalRunCase, score: CaseScore | None
+        arm_id: UUID,
+        attempt: EvalRunCase,
+        score: CaseScore | None,
+        score_read: CaseScoreRead | None,
     ) -> EvalAttemptRead:
         return EvalAttemptRead(
             id=attempt.id,
@@ -2704,8 +2713,23 @@ class EvalRunService:
             error=attempt.error,
             outcome=attempt_outcome(attempt, score),
             state=attempt_state(attempt, score).value,
-            score=CaseScoreRead.model_validate(score) if score is not None else None,
+            score=score_read,
         )
+
+    async def _score_reads(
+        self, ctx: AuthContext, scores: dict[UUID, CaseScore]
+    ) -> dict[UUID, CaseScoreRead]:
+        """The scores as a reader of the run reads them: the judge's passages only from
+        knowledge bases the reader may read, each redacted."""
+        reads = {
+            score_id: CaseScoreRead.model_validate(score) for score_id, score in scores.items()
+        }
+        bases = await readable_bases(self.db, ctx, reads.values())
+        every = ctx.scope_for(Perm.COLLECTIONS_VIEW) >= Scope.ALL
+        return {
+            score_id: with_readable_knowledge(read, bases, sees_every_collection=every)
+            for score_id, read in reads.items()
+        }
 
     async def baseline_for(
         self, ctx: AuthContext, run: EvalRun, arm: EvalRunArm
