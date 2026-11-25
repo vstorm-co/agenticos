@@ -88,8 +88,16 @@ def resource_pins(model: BaseModel) -> tuple[ResourcePin, ...]:
     resource type from its spelling. Capability configs contribute their owned
     schemas even though AgentSpec stores them as an open JSON object.
     """
-    schema = _OBJECT.validate_python(type(model).model_json_schema())
-    data = _OBJECT.validate_python(model.model_dump(mode="json"))
+    return schema_resource_pins(
+        _OBJECT.validate_python(model.model_dump(mode="json")),
+        _OBJECT.validate_python(type(model).model_json_schema()),
+    )
+
+
+def schema_resource_pins(
+    data: dict[str, JsonValue], schema: dict[str, JsonValue], *, prefix: BundlePath = ()
+) -> tuple[ResourcePin, ...]:
+    """Read only owned schema paths, including partially configured workflow drafts."""
     found: list[ResourcePin] = []
 
     def walk(
@@ -102,7 +110,13 @@ def resource_pins(model: BaseModel) -> tuple[ResourcePin, ...]:
         if value is None:
             return
         declaration = _shape(declaration, definitions, value)
-        resource = declaration.get("x-resource")
+        if declaration.get("x-agent-spec") is True:
+            value = _OBJECT.validate_python(AgentSpec.model_validate(value).model_dump(mode="json"))
+            declaration = _OBJECT.validate_python(AgentSpec.model_json_schema())
+            definitions = _object(declaration.get("$defs"))
+        resource = (
+            None if declaration.get("x-resource-object") is True else declaration.get("x-resource")
+        )
         if isinstance(resource, str):
             parent_field = declaration.get("x-resource-parent")
             parent_id: UUID | None = None
@@ -179,7 +193,7 @@ def resource_pins(model: BaseModel) -> tuple[ResourcePin, ...]:
             for index, item in enumerate(value):
                 walk(item, _object(declaration.get("items")), definitions, (*path, index))
 
-    walk(data, schema, _object(schema.get("$defs")), ())
+    walk(data, schema, _object(schema.get("$defs")), prefix)
     return tuple(found)
 
 

@@ -19,7 +19,7 @@ from app.schemas.resource_bundle import (
 from app.services.portability import documents
 from app.services.portability.content import ContextContent
 from app.services.portability.contracts import (
-    agent_omissions,
+    binding_omissions,
     definition_model,
     owner_key,
     verify_references,
@@ -168,9 +168,9 @@ def test_skip_removes_a_whole_mcp_binding_without_rewriting_its_policy() -> None
         ],
     )
     resource = agent_snapshot(spec).resources[0]
-    assert agent_omissions(resource) == {("mcp_servers", 0, "connection_id"): ("mcp_servers", 0)}
+    assert binding_omissions(resource) == {("mcp_servers", 0, "connection_id"): ("mcp_servers", 0)}
     context = BundleResource(key="context/test", kind=BundleResourceKind.CONTEXT, name="Context")
-    assert agent_omissions(context) == {}
+    assert binding_omissions(context) == {}
 
 
 def test_version_owner_must_be_declared_exactly_once() -> None:
@@ -258,7 +258,7 @@ def test_secret_dictionary_keys_are_not_confused_with_structural_agent_fields() 
         ],
     )
     resource = agent_snapshot(spec).resources[0]
-    assert agent_omissions(resource) == {}
+    assert binding_omissions(resource) == {}
 
 
 @pytest.mark.parametrize(
@@ -298,7 +298,7 @@ def test_secret_dictionary_keys_named_like_bindings_are_not_binding_containers()
             BundleReference(path=("secrets", "subagents"), target="secret/value", is_key=True),
         ),
     )
-    assert agent_omissions(resource) == {}
+    assert binding_omissions(resource) == {}
 
 
 @pytest.mark.parametrize(

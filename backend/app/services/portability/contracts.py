@@ -20,9 +20,11 @@ from app.services.portability.content import (
     SkillSnapshotContent,
 )
 from app.services.portability.references import ResourcePin, resource_pins
+from app.services.portability.workflows import WorkflowContent, workflow_omissions, workflow_pins
 
 DEFINITION_MODELS: dict[BundleResourceKind, type[BaseModel]] = {
     BundleResourceKind.AGENT: AgentSpec,
+    BundleResourceKind.WORKFLOW: WorkflowContent,
     BundleResourceKind.AGENT_VERSION: AgentSpec,
     BundleResourceKind.CONTEXT: ContextContent,
     BundleResourceKind.SKILL: SkillContent,
@@ -34,6 +36,7 @@ DEFINITION_MODELS: dict[BundleResourceKind, type[BaseModel]] = {
 
 CREATE_PERMISSIONS = {
     BundleResourceKind.AGENT: "agents:edit",
+    BundleResourceKind.WORKFLOW: "workflows:create",
     BundleResourceKind.CONTEXT: "context:edit",
     BundleResourceKind.SKILL: "skills:edit",
     BundleResourceKind.SKILL_VERSION: "skills:edit",
@@ -74,7 +77,9 @@ def references_for(model: BaseModel) -> tuple[tuple[BundleReference, ResourcePin
             ),
             pin,
         )
-        for pin in resource_pins(model)
+        for pin in (
+            workflow_pins(model) if isinstance(model, WorkflowContent) else resource_pins(model)
+        )
     )
 
 
@@ -131,8 +136,10 @@ def owner_key(bundle: ResourceBundle, resource: BundleResource) -> str:
     return matches[0]
 
 
-def agent_omissions(resource: BundleResource) -> dict[BundlePath, BundlePath]:
+def binding_omissions(resource: BundleResource) -> dict[BundlePath, BundlePath]:
     """Skip a required-ID binding as a whole, retaining every policy on kept bindings."""
+    if resource.kind == BundleResourceKind.WORKFLOW:
+        return workflow_omissions(WorkflowContent.model_validate(resource.definition))
     if resource.kind not in (BundleResourceKind.AGENT, BundleResourceKind.AGENT_VERSION):
         return {}
     omit: dict[BundlePath, BundlePath] = {}
@@ -157,3 +164,18 @@ def require_agent_root(bundle: ResourceBundle) -> None:
     by_key = {resource.key: resource for resource in bundle.resources}
     if len(bundle.roots) != 1 or by_key[bundle.roots[0]].kind != BundleResourceKind.AGENT:
         raise BadRequestError(message="This importer requires exactly one agent root")
+
+
+def require_supported_root(bundle: ResourceBundle) -> None:
+    by_key = {resource.key: resource for resource in bundle.resources}
+    if len(bundle.roots) != 1 or by_key[bundle.roots[0]].kind not in (
+        BundleResourceKind.AGENT,
+        BundleResourceKind.WORKFLOW,
+    ):
+        raise BadRequestError(message="This importer requires exactly one agent or workflow root")
+
+
+def require_workflow_root(bundle: ResourceBundle) -> None:
+    by_key = {resource.key: resource for resource in bundle.resources}
+    if len(bundle.roots) != 1 or by_key[bundle.roots[0]].kind != BundleResourceKind.WORKFLOW:
+        raise BadRequestError(message="This importer requires exactly one workflow root")

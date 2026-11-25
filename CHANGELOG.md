@@ -23,6 +23,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
 - Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
+- Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 

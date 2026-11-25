@@ -24,6 +24,7 @@ from app.schemas.resource_bundle import (
     BundleDownloadCreate,
     BundleImportCreate,
     BundleImportRead,
+    BundlePath,
     BundlePreview,
     BundleReference,
     BundleResource,
@@ -32,6 +33,12 @@ from app.schemas.resource_bundle import (
     ResourceBundle,
 )
 from app.schemas.skill_version import SkillForkCreate
+from app.schemas.workflow import (
+    WorkflowCreate,
+    WorkflowDraftUpdate,
+    WorkflowSettings,
+    WorkflowUpdate,
+)
 from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
 from app.services.mcp_connection import McpConnectionService
@@ -49,11 +56,13 @@ from app.services.portability.content import (
 from app.services.portability.contracts import (
     CREATE_PERMISSIONS,
     DEFINITION_MODELS,
-    agent_omissions,
+    binding_omissions,
     definition_model,
     owner_key,
     references_for,
     require_agent_root,
+    require_supported_root,
+    require_workflow_root,
     verify_references,
 )
 from app.services.portability.destinations import BundleDestinations
@@ -67,12 +76,16 @@ from app.services.portability.file_bundle import externalize_text
 from app.services.portability.mapping import rebind_definition
 from app.services.portability.snapshots import agent_snapshot
 from app.services.portability.sources import BundleSources, agent_spec_from_source
+from app.services.portability.workflows import WorkflowContent
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
+from app.services.workflow_registry import WorkflowRegistryService
 
 _READABLE = frozenset(
     {
         BundleResourceKind.AGENT,
+        BundleResourceKind.WORKFLOW,
+        BundleResourceKind.TABLE,
         BundleResourceKind.AGENT_VERSION,
         BundleResourceKind.CONTEXT,
         BundleResourceKind.SKILL,
@@ -100,15 +113,28 @@ class PortabilityService:
     ) -> BundleDestinationList:
         return await BundleDestinations(self.db).list(ctx, query)
 
-    async def preview_document(self, ctx: AuthContext, text: str) -> BundlePreview:
+    async def preview_document(
+        self, ctx: AuthContext, text: str, *, workflow: bool = False
+    ) -> BundlePreview:
         bundle = parse_document(text)
-        require_agent_root(bundle)
+        if workflow:
+            require_workflow_root(bundle)
+        else:
+            require_agent_root(bundle)
         return await self.preview_import(ctx, bundle)
 
     async def download_agent(
         self, ctx: AuthContext, agent_id: UUID, selection: BundleDownloadCreate
     ) -> bytes:
         bundle, _ = await self.selected_agent(ctx, agent_id, selection)
+        return document_bytes(bundle, selection.file_format)
+
+    async def download_workflow(
+        self, ctx: AuthContext, workflow_id: UUID, selection: BundleDownloadCreate
+    ) -> bytes:
+        bundle, _ = await self.selected_agent(
+            ctx, workflow_id, selection, root_kind=BundleResourceKind.WORKFLOW
+        )
         return document_bytes(bundle, selection.file_format)
 
     async def selected_agent(
@@ -118,9 +144,14 @@ class PortabilityService:
         selection: BundleDownloadCreate,
         *,
         asset_directory: Path | None = None,
+        root_kind: BundleResourceKind = BundleResourceKind.AGENT,
     ) -> tuple[ResourceBundle, dict[str, Path]]:
         """Load selected bodies one resource at a time; ZIP content is staged immediately."""
-        preview = await self.export_agent(ctx, agent_id, metadata_only=True)
+        preview = (
+            await self.export_agent(ctx, agent_id, metadata_only=True)
+            if root_kind == BundleResourceKind.AGENT
+            else await self.export_resource(ctx, root_kind, agent_id, metadata_only=True)
+        )
         available = {option.key: option.layers for option in preview.options}
         if not set(selection.resources).issubset(available):
             raise BadRequestError(message="The selection names a resource outside this export")
@@ -187,8 +218,39 @@ class PortabilityService:
     async def export_agent(
         self, ctx: AuthContext, agent_id: UUID, *, metadata_only: bool = False
     ) -> BundlePreview:
-        agent = await AgentRegistryService(self.db).get(ctx, agent_id)
-        bundle = agent_snapshot(agent_spec_from_source(agent.draft_spec), source_id=agent.id)
+        return await self.export_resource(
+            ctx, BundleResourceKind.AGENT, agent_id, metadata_only=metadata_only
+        )
+
+    async def export_resource(
+        self,
+        ctx: AuthContext,
+        kind: BundleResourceKind,
+        identity: UUID,
+        *,
+        metadata_only: bool = False,
+    ) -> BundlePreview:
+        if kind == BundleResourceKind.AGENT:
+            agent = await AgentRegistryService(self.db).get(ctx, identity)
+            bundle = agent_snapshot(agent_spec_from_source(agent.draft_spec), source_id=agent.id)
+        elif kind == BundleResourceKind.WORKFLOW:
+            source = await self.sources.read(
+                ctx,
+                BundleResource(
+                    key=f"workflow/{identity}", kind=kind, name="workflow", source_id=identity
+                ),
+            )
+            root = BundleResource(
+                key=f"workflow/{identity}",
+                kind=kind,
+                name=source.name,
+                source_id=identity,
+                definition=source.definition,
+                included=frozenset({BundleContentLayer.DEFINITION}),
+            )
+            bundle = ResourceBundle(roots=(root.key,), resources=(root,))
+        else:
+            raise BadRequestError(message="Choose an agent or workflow root")
         resources = {item.key: item for item in bundle.resources}
         options: dict[str, BundleResourceOption] = {}
         pending = list(resources)
@@ -292,6 +354,12 @@ class PortabilityService:
         require_agent_root(request.bundle)
         return await self.import_bundle(ctx, request, hydrate=hydrate)
 
+    async def import_workflow(
+        self, ctx: AuthContext, request: BundleImportCreate
+    ) -> BundleImportRead:
+        require_workflow_root(request.bundle)
+        return await self.import_bundle(ctx, request)
+
     async def import_bundle(
         self,
         ctx: AuthContext,
@@ -304,8 +372,15 @@ class PortabilityService:
         Reused rows are never edited. A source ID is resolved again under current
         destination authority. Nothing is published, run, scheduled or indexed.
         """
-        if ctx.subject_id is None or not ctx.has(Perm.AGENTS_EDIT):
-            raise AuthorizationError(message="Importing an agent requires agents:edit")
+        require_supported_root(request.bundle)
+        root = next(
+            item for item in request.bundle.resources if item.key == request.bundle.roots[0]
+        )
+        permission = CREATE_PERMISSIONS[root.kind]
+        if ctx.subject_id is None or not ctx.has(Perm(permission)):
+            raise AuthorizationError(
+                message="You may not import this resource type", details={"permission": permission}
+            )
         if request.bundle.assets and hydrate is None:
             raise BadRequestError(
                 message="This endpoint accepts inline configurations; binary assets require a complete bundle upload"
@@ -373,7 +448,7 @@ class PortabilityService:
                             details={"kind": resource.kind.value},
                         )
                     content = await hydrate(resource) if hydrate is not None else resource
-                    rebound = rebind_definition(content, resolved, omit=agent_omissions(resource))
+                    rebound = rebind_definition(content, resolved, omit=binding_omissions(resource))
                     definition = rebound.definition
                     if choice.name is not None:
                         definition = {
@@ -519,12 +594,60 @@ class PortabilityService:
             created=created,
             reused=reused,
             skipped=tuple(key for key, value in rows.items() if value["action"] == "skip"),
+            omitted_bindings=PortabilityService._omitted_bindings(bundle, rows),
         )
+
+    @staticmethod
+    def _omitted_bindings(
+        bundle: ResourceBundle, rows: dict[str, dict[str, str]]
+    ) -> dict[str, tuple[BundlePath, ...]]:
+        result: dict[str, tuple[BundlePath, ...]] = {}
+        for item in bundle.resources:
+            if rows[item.key]["action"] != "create":
+                continue
+            paths: list[BundlePath] = []
+            if item.kind == BundleResourceKind.WORKFLOW and item.definition is not None:
+                paths.extend(WorkflowContent.model_validate(item.definition).omitted)
+            containers = binding_omissions(item)
+            paths.extend(
+                containers.get(ref.path, ref.path)
+                for ref in item.references
+                if rows[ref.target]["action"] == "skip"
+            )
+            if paths:
+                result[item.key] = tuple(dict.fromkeys(paths))
+        return result
 
     async def _create(
         self, ctx: AuthContext, kind: BundleResourceKind, definition: dict[str, JsonValue]
     ) -> UUID:
         try:
+            if kind == BundleResourceKind.WORKFLOW:
+                content = WorkflowContent.model_validate(definition)
+                service = WorkflowRegistryService(self.db)
+                row = await service.create(
+                    ctx,
+                    WorkflowCreate(
+                        name=content.name,
+                        description=content.description,
+                        visibility=Visibility.PRIVATE,
+                    ),
+                )
+                if content.tags:
+                    await service.update(ctx, row.id, WorkflowUpdate(tags=content.tags))
+                await service.update_settings(
+                    ctx, row.id, WorkflowSettings.model_validate(content.settings.model_dump())
+                )
+                if content.graph is not None:
+                    await service.update_draft(
+                        ctx,
+                        row.id,
+                        WorkflowDraftUpdate(
+                            graph=content.graph.model_dump(mode="json"),
+                            expected_revision=row.draft_revision,
+                        ),
+                    )
+                return row.id
             if kind == BundleResourceKind.AGENT:
                 row = await AgentRegistryService(self.db).create(
                     ctx, AgentSpec.model_validate(definition), choose_model=False

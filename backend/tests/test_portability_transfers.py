@@ -213,7 +213,12 @@ async def test_failed_uploads_and_unfinished_exports_do_not_look_successful(
     request = BundleExportStart(
         root_kind="workflow", root_id=uuid4(), request_id=uuid4(), resources={}
     )
-    with pytest.raises(BadRequestError, match="Workflow"):
+    monkeypatch.setattr(
+        service.portability,
+        "export_resource",
+        AsyncMock(side_effect=NotFoundError(message="Workflow not found")),
+    )
+    with pytest.raises(NotFoundError, match="Workflow"):
         await service.start_export(ctx, request)
     monkeypatch.setattr(transfers.operations, "get_for_worker", AsyncMock(return_value=row))
     monkeypatch.setattr(transfers.operations, "save", AsyncMock())

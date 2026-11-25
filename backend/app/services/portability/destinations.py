@@ -19,6 +19,8 @@ from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
+from app.services.virtual_tables import VirtualTableService
+from app.services.workflow_registry import WorkflowRegistryService
 
 
 def _page(
@@ -48,6 +50,27 @@ class BundleDestinations:
         ):
             raise BadRequestError(
                 message="Browse this resource's paginated history without a name filter"
+            )
+        if kind == BundleResourceKind.TABLE:
+            tables = await VirtualTableService(self.db).list_tables(
+                ctx, search=query.search, skip=query.skip, limit=query.limit
+            )
+            return BundleDestinationList(
+                items=[BundleDestinationOption(id=row.id, name=row.name) for row in tables.items],
+                total=tables.total,
+            )
+        if kind == BundleResourceKind.WORKFLOW:
+            if query.search:
+                raise BadRequestError(message="Browse workflows without a name filter")
+            workflows = await WorkflowRegistryService(self.db).list(
+                ctx, skip=query.skip, limit=query.limit
+            )
+            return BundleDestinationList(
+                items=[
+                    BundleDestinationOption(id=row.id, name=row.name) for row in workflows.items
+                ],
+                total=workflows.total,
+                searchable=False,
             )
         if kind == BundleResourceKind.CONTEXT:
             rows, total = await ContextService(self.db).list_context(
