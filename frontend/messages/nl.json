@@ -15666,6 +15666,7 @@
     "editCase": "Bewerken",
     "evals": "Evals",
     "linkedCaseGone": "Het testgeval dat deze link noemt, staat niet in de nieuwste versie van de dataset.",
+    "linkedCaseUnread": "Het testgeval dat deze link noemt, kon niet worden gelezen. {reason}",
     "argKey": "Aanroep {number}, argument {arg}: naam",
     "argValue": "Aanroep {number}, argument {arg}: waarde",
     "removeArg": "Argument {arg} van aanroep {number} verwijderen",

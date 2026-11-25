@@ -17289,5 +17289,8 @@
       "agents": "Ajanlar üzerindeki etki",
       "skillText": "Bu oturumda test edilen beceri"
     }
+  },
+  "datasets": {
+    "linkedCaseUnread": "Bu bağlantının belirttiği vaka okunamadı. {reason}"
   }
 }

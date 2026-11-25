@@ -15468,6 +15468,7 @@
     "editCase": "Bearbeiten",
     "evals": "Evals",
     "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets.",
+    "linkedCaseUnread": "Der Fall aus diesem Link konnte nicht gelesen werden. {reason}",
     "argKey": "Aufruf {number}, Argument {arg}: Name",
     "argValue": "Aufruf {number}, Argument {arg}: Wert",
     "removeArg": "Argument {arg} von Aufruf {number} entfernen",

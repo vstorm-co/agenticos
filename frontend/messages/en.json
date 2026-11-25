@@ -15782,6 +15782,7 @@
     "editCase": "Edit",
     "evals": "Evals",
     "linkedCaseGone": "The case this link names is not in the newest version of the dataset.",
+    "linkedCaseUnread": "The case this link names could not be read. {reason}",
     "argKey": "Call {number}, argument {arg}: name",
     "argValue": "Call {number}, argument {arg}: value",
     "removeArg": "Remove argument {arg} of call {number}",

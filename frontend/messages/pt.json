@@ -15666,6 +15666,7 @@
     "editCase": "Editar",
     "evals": "Avaliações",
     "linkedCaseGone": "O caso indicado por este vínculo não está na versão mais recente da base de dados.",
+    "linkedCaseUnread": "Não foi possível ler o caso indicado por este vínculo. {reason}",
     "argKey": "Chamada {number}, argumento {arg}: nome",
     "argValue": "Chamada {number}, argumento {arg}: valor",
     "removeArg": "Remover argumento {arg} da chamada {number}",

@@ -407,10 +407,25 @@ describe("the dataset page", () => {
 
   it("says when the case a link names is gone", async () => {
     state.linked = "c9";
-    state.linkedError = new Error("Not found");
+    state.linkedError = new ApiError(404, "Not found");
     await mount();
 
     expect(screen.getByRole("alert")).toHaveTextContent("not in the newest version");
+  });
+
+  it("says the case a link names could not be read, not that it is gone, and reads it again", async () => {
+    state.linked = "c9";
+    state.linkedError = new ApiError(500, "Internal error", {
+      error: { code: "INTERNAL", message: "Internal error" },
+    });
+    await mount();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The case this link names could not be read. Internal error",
+    );
+    expect(screen.queryByText(/not in the newest version/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.retryCase).toHaveBeenCalled();
   });
 
   it("marks the Grading tab while a change there is unsaved", async () => {

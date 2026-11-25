@@ -15555,6 +15555,7 @@
     "editCase": "Edytuj",
     "evals": "Ewaluacje",
     "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu.",
+    "linkedCaseUnread": "Nie udało się odczytać przypadku z tego linku. {reason}",
     "argKey": "Wywołanie {number}, argument {arg}: nazwa",
     "argValue": "Wywołanie {number}, argument {arg}: wartość",
     "removeArg": "Usuń argument {arg} wywołania {number}",

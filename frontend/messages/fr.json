@@ -15390,6 +15390,7 @@
     "editCase": "Modifier",
     "evals": "Évals",
     "linkedCaseGone": "Le cas nommé par ce lien ne figure pas dans la version la plus récente du dataset.",
+    "linkedCaseUnread": "Le cas nommé par ce lien n’a pas pu être lu. {reason}",
     "argKey": "Appel {number}, argument {arg} : nom",
     "argValue": "Appel {number}, argument {arg} : valeur",
     "removeArg": "Retirer l’argument {arg} de l’appel {number}",

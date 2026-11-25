@@ -353,11 +353,22 @@ export default function DatasetPage({ params }: PageProps) {
                   </div>
                 }
               >
-                {linkedCase.error && (
+                {linkedCase.error instanceof ApiError && linkedCase.error.status === 404 ? (
                   <p role="alert" className="text-muted-foreground mb-3 text-sm">
                     {t("linkedCaseGone")}
                   </p>
-                )}
+                ) : linkedCase.error ? (
+                  <div role="alert" className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-destructive min-w-0 flex-1 text-sm">
+                      {t("linkedCaseUnread", {
+                        reason: getErrorMessage(linkedCase.error, tErrors),
+                      })}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => void linkedCase.refetch()}>
+                      {tc("retry")}
+                    </Button>
+                  </div>
+                ) : null}
                 {cases.isLoading ? (
                   <CasesTable cases={[]} loading onOpen={openCase} />
                 ) : cases.error ? (
