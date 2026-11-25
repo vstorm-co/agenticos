@@ -393,7 +393,7 @@ async def test_improver_reads_train_failures_review_notes_and_aggregates_without
         assert marker in prompt
     assert "HOLDOUT_" not in prompt
     assert re.search(r"## Test question 1 \(run [0-9a-f-]{36}\)", prompt)
-    assert "Test question from the dataset: TRAIN_INPUT_MARKER_" in prompt
+    assert "Test question from the dataset:\n```\nTRAIN_INPUT_MARKER_" in prompt
     assert "never call a test question a conversation" in prompt
     assert "TRAIN_TAG_MARKER: 0/2 passed" in prompt
     assert "TRAIN_CRITERION_MARKER: 0/2 passed" in prompt
