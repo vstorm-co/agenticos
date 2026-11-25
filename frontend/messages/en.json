@@ -18796,6 +18796,17 @@
       "part": "Part {number}",
       "unchangedLines": "{count, plural, =1 {1 line neither side changed} other {# lines neither side changed}}",
       "files": "Files",
+      "file": {
+        "side": "{side, select, base {Where both started} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Where both started} fork {Fork} other {Main}}: no such file",
+        "show": "Show what changed",
+        "hide": "Hide what changed",
+        "compare": "{side, select, fork {What the fork changed} other {What main changed}}",
+        "tooLarge": "Too large to compare here. Download each side to read it.",
+        "notText": "Not text, so it cannot be compared here. Download each side to read it.",
+        "download": "{side, select, base {Download where both started} fork {Download the fork's} other {Download main's}}",
+        "readFailed": "The file could not be read. {reason}"
+      },
       "state": {
         "same": "Unchanged",
         "fork": "From the fork",

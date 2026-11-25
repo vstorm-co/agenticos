@@ -18482,6 +18482,17 @@
       "part": "Teil {number}",
       "unchangedLines": "{count, plural, =1 {1 Zeile, die keine Seite geändert hat} other {# Zeilen, die keine Seite geändert hat}}",
       "files": "Dateien",
+      "file": {
+        "side": "{side, select, base {Gemeinsamer Ausgangspunkt} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Gemeinsamer Ausgangspunkt} fork {Fork} other {Main}}: keine solche Datei",
+        "show": "Änderungen anzeigen",
+        "hide": "Änderungen ausblenden",
+        "compare": "{side, select, fork {Was der Fork geändert hat} other {Was main geändert hat}}",
+        "tooLarge": "Zu groß, um hier verglichen zu werden. Laden Sie jede Seite herunter, um sie zu lesen.",
+        "notText": "Kein Text, daher hier nicht vergleichbar. Laden Sie jede Seite herunter, um sie zu lesen.",
+        "download": "{side, select, base {Ausgangspunkt herunterladen} fork {Version des Forks herunterladen} other {Version von main herunterladen}}",
+        "readFailed": "Die Datei konnte nicht gelesen werden. {reason}"
+      },
       "state": {
         "same": "Unverändert",
         "fork": "Vom Fork",

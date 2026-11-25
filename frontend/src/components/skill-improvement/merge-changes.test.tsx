@@ -231,7 +231,10 @@ describe("MergeChanges", () => {
     expect(within(screen.getByRole("region", { name: "Part 2" })).getByText("FIVE")).toBeVisible();
 
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    // Reading what a file's sides hold changes nothing, so it stays offered.
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Show what changed",
+    ]);
     expect(screen.getByText("Dropped, as on the fork")).toBeVisible();
   });
 

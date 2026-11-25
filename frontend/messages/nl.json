@@ -18680,6 +18680,17 @@
       "part": "Deel {number}",
       "unchangedLines": "{count, plural, =1 {1 regel die geen van beide kanten wijzigde} other {# regels die geen van beide kanten wijzigde}}",
       "files": "Bestanden",
+      "file": {
+        "side": "{side, select, base {Gemeenschappelijk startpunt} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Gemeenschappelijk startpunt} fork {Fork} other {Main}}: geen bestand",
+        "show": "Toon wat er veranderd is",
+        "hide": "Verberg wat er veranderd is",
+        "compare": "{side, select, fork {Wat de fork veranderde} other {Wat main veranderde}}",
+        "tooLarge": "Te groot om hier te vergelijken. Download elke kant om hem te lezen.",
+        "notText": "Geen tekst, dus hier niet te vergelijken. Download elke kant om hem te lezen.",
+        "download": "{side, select, base {Download het startpunt} fork {Download de versie van de fork} other {Download de versie van main}}",
+        "readFailed": "Het bestand kon niet worden gelezen. {reason}"
+      },
       "state": {
         "same": "Ongewijzigd",
         "fork": "Uit de fork",

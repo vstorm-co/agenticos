@@ -18680,6 +18680,17 @@
       "part": "Parte {number}",
       "unchangedLines": "{count, plural, =1 {1 linha que nenhum dos lados alterou} other {# linhas que nenhum dos lados alterou}}",
       "files": "Arquivos",
+      "file": {
+        "side": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: {size}",
+        "absent": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: não há este arquivo",
+        "show": "Mostrar o que mudou",
+        "hide": "Ocultar o que mudou",
+        "compare": "{side, select, fork {O que a bifurcação mudou} other {O que a principal mudou}}",
+        "tooLarge": "Grande demais para comparar aqui. Baixe cada lado para lê-lo.",
+        "notText": "Não é texto, então não pode ser comparado aqui. Baixe cada lado para lê-lo.",
+        "download": "{side, select, base {Baixar o ponto de partida} fork {Baixar a versão da bifurcação} other {Baixar a versão principal}}",
+        "readFailed": "Não foi possível ler o arquivo. {reason}"
+      },
       "state": {
         "same": "Sem alteração",
         "fork": "Do fork",

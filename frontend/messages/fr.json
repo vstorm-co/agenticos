@@ -18108,6 +18108,17 @@
       "part": "Partie {number}",
       "unchangedLines": "{count, plural, =1 {1 ligne qu’aucun côté n’a modifiée} other {# lignes qu’aucun côté n’a modifiées}}",
       "files": "Fichiers",
+      "file": {
+        "side": "{side, select, base {Point de départ commun} fork {Fork} other {Main}} : {size}",
+        "absent": "{side, select, base {Point de départ commun} fork {Fork} other {Main}} : pas de fichier",
+        "show": "Afficher les changements",
+        "hide": "Masquer les changements",
+        "compare": "{side, select, fork {Ce que le fork a changé} other {Ce que main a changé}}",
+        "tooLarge": "Trop volumineux pour être comparé ici. Téléchargez chaque côté pour le lire.",
+        "notText": "Ce n’est pas du texte : impossible de le comparer ici. Téléchargez chaque côté pour le lire.",
+        "download": "{side, select, base {Télécharger le point de départ} fork {Télécharger la version du fork} other {Télécharger la version de main}}",
+        "readFailed": "Le fichier n’a pas pu être lu. {reason}"
+      },
       "state": {
         "same": "Inchangé",
         "fork": "Du fork",

@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
+import { formatBytes } from "@/lib/utils";
 import type { MergeFile } from "@/types/skill-merge";
+import { MergeFileDiff, type FileSide, type SideVersions } from "./merge-file-diff";
 
 /**
  * The files either side changed. A file both changed differently waits for a person to
@@ -11,11 +14,15 @@ import type { MergeFile } from "@/types/skill-merge";
  * drops it.
  */
 export function MergeFiles({
+  skillId,
+  versions,
   files,
   editable,
   saving,
   onPick,
 }: {
+  skillId: string;
+  versions: SideVersions;
   files: MergeFile[];
   editable: boolean;
   saving: boolean;
@@ -53,10 +60,55 @@ export function MergeFiles({
                 ))}
               </span>
             )}
+            <FileDetails skillId={skillId} versions={versions} file={file} />
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Each side's version of the file as its manifest describes it, and what changed on opening. */
+function FileDetails({
+  skillId,
+  versions,
+  file,
+}: {
+  skillId: string;
+  versions: SideVersions;
+  file: MergeFile;
+}) {
+  const t = useTranslations("skillImprovement.merge.file");
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="basis-full space-y-2">
+      <ul className="text-muted-foreground space-y-0.5 text-xs">
+        {(["base", "fork", "main"] as FileSide[]).map((side) => {
+          const entry = file[side];
+          return (
+            <li key={side} className="flex flex-wrap gap-x-2">
+              <span>
+                {entry === null
+                  ? t("absent", { side })
+                  : t("side", { side, size: formatBytes(entry.size_bytes) })}
+              </span>
+              {entry?.description && (
+                <span className="min-w-0 break-words">{entry.description}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-expanded={open}
+        onClick={() => setOpen((shown) => !shown)}
+      >
+        {t(open ? "hide" : "show")}
+      </Button>
+      {open && <MergeFileDiff skillId={skillId} versions={versions} file={file} />}
+    </div>
   );
 }
 

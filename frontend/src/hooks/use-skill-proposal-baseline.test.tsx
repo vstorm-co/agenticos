@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { useSkillProposalBaseline, useSkillProposalFile } from "./use-skill-proposal-baseline";
+import { useSkillProposalBaseline, useSkillVersionFile } from "./use-skill-proposal-baseline";
 
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 function wrapper({ children }: { children: ReactNode }) {
@@ -51,7 +51,7 @@ it("does not load a baseline for a new skill", () => {
 
 it("fetches only the selected immutable reference file with encoded path segments", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ content: "old file" });
-  const { result } = renderHook(() => useSkillProposalFile("s1", "v2", "references/a #1.md"), {
+  const { result } = renderHook(() => useSkillVersionFile("s1", "v2", "references/a #1.md"), {
     wrapper,
   });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
