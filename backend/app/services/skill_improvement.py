@@ -41,6 +41,7 @@ from app.agents.capabilities.skills import SkillBodyFile
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
+    AppException,
     AuthenticationError,
     AuthorizationError,
     BadRequestError,
@@ -1274,7 +1275,11 @@ class SkillImprovementService:
         await skill_improvement_repo.update_run(
             self.db,
             run=run,
-            values={"actor_user_id": ctx.user_id, "actor_api_key_id": ctx.api_key_id},
+            values={
+                "actor_user_id": ctx.user_id,
+                "actor_api_key_id": ctx.api_key_id,
+                "error": None,
+            },
         )
         await self._move(run, rules.Transition(Status.RUNNING, stage), actor_user_id=ctx.subject_id)
         return await self._read(ctx, run, line)
@@ -1576,10 +1581,37 @@ class SkillImprovementService:
             await self._stop_check(run)
             await self._move(run, moved)
             return
+        try:
+            await self._step(ctx, run, line, stage)
+        except PaymentRequiredError:
+            await self._stop_check(run)
+            await self._move(run, rules.Transition(Status.STOPPED, stage, StopReason.BUDGET))
+        except AppException as refused:
+            await skill_improvement_repo.update_run(
+                self.db, run=run, values={"error": refused.message}
+            )
+            await self._stop_check(run)
+            await self._move(
+                run,
+                rules.Transition(
+                    Status.FAILED,
+                    stage,
+                    StopReason.EVAL if stage == Stage.EVALUATING else StopReason.PROPOSAL,
+                ),
+            )
+
+    async def _step(
+        self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine, stage: Stage | None
+    ) -> None:
+        """Take the session's next step.
+
+        A step's refusals - its helper or the evidence it reads, a spending limit - come
+        from pricing or reading, before the step writes anything, so `advance` records
+        them on the session as they are.
+        """
         if run.purpose != Purpose.IMPROVE.value:
             await self._advance_merge(ctx, run, line, stage)
-            return
-        if stage in (None, Stage.ANALYZING):
+        elif stage in (None, Stage.ANALYZING):
             await self._analyze(ctx, run, line)
         elif stage == Stage.CLASSIFYING:
             await self._classified(run)
@@ -1597,10 +1629,11 @@ class SkillImprovementService:
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.NO_DATA)
             )
             return
-        price = (
-            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
-        ).estimate_usd
-        if not await self._affordable(run, price):
+        estimate = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=run.improver_agent_id
+        )
+        price = estimate.estimate_usd
+        if not estimate.affordable or not await self._affordable(run, price):
             await self._move(
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.BUDGET)
             )
@@ -1674,12 +1707,11 @@ class SkillImprovementService:
             merge = await self._merge(run)
             if merge.conflicts:
                 prompt = MERGE_ASK + self.merges.conflicts_prompt(merge)
-                price = (
-                    await self.authoring.estimate_call(
-                        ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
-                    )
-                ).estimate_usd
-                if await self._affordable(run, price):
+                estimate = await self.authoring.estimate_call(
+                    ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
+                )
+                price = estimate.estimate_usd
+                if estimate.affordable and await self._affordable(run, price):
                     request = await self.authoring.start_for_skill_session(
                         ctx,
                         kind=AuthoringKind.IMPROVE,
@@ -1756,12 +1788,11 @@ class SkillImprovementService:
         iteration = await self._iteration(run)
         if iteration.authoring_request_id is None:
             pack = await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
-            price = (
-                await self.authoring.estimate_pack(
-                    ctx, pack, improver_agent_id=run.improver_agent_id
-                )
-            ).estimate_usd
-            if not await self._affordable(run, price):
+            estimate = await self.authoring.estimate_pack(
+                ctx, pack, improver_agent_id=run.improver_agent_id
+            )
+            price = estimate.estimate_usd
+            if not estimate.affordable or not await self._affordable(run, price):
                 await self._move(
                     run, rules.Transition(Status.STOPPED, Stage.PROPOSING, StopReason.BUDGET)
                 )
