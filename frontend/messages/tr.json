@@ -5063,7 +5063,9 @@
       "showFeatured": "Önerilen hizmetlere dönün",
       "customServer": "Özel bir MCP bağlayın",
       "manage": "Yönet"
-    }
+    },
+    "trustReadOnlyHints": "Bu sunucunun salt okunur ve kapalı dünya (closed-world) olarak işaretlediği araçları değerlendirmelerin çağırmasına izin ver",
+    "trustReadOnlyHintsHint": "Değerlendirmeler, güvenmediğiniz sürece üretim sunucusuna yapılan her çağrıyı durdurur; güvendiğinizde yalnızca sunucunun hem salt okunur hem kapalı dünya (closed-world) olarak işaretlediği, bu sunucudan başka hiçbir yere ulaşmayan araçları çalıştırır. İki işaret de sunucunun kendi beyanıdır. {count, plural, =0 {Buradaki hiçbir araç salt okunur olduğunu beyan etmiyor.} =1 {Buradaki 1 araç salt okunur olduğunu beyan ediyor.} other {Buradaki # araç salt okunur olduğunu beyan ediyor.}}"
   },
   "sandboxes": {
     "activityLogUnreadable": "Etkinlik günlüğü okunamadı",

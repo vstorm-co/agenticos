@@ -586,11 +586,19 @@ model sees the same tools; if the test connection is gone or disabled, the
 binding is off for that turn and production is never reached instead.
 
 In an eval, every call to a production connection is held and recorded with its
-arguments rather than executed. The one exception is a tool the server marks
-`readOnlyHint` on a connection set to trust that mark. The mark is the server's
-own claim, so trusting it is off on every connection. To turn it on, open the
-connection's **Tools** dialog. The dialog says how many tools claim the mark,
-and the change is audited with that count.
+arguments rather than executed. The one exception is a tool the server marks both
+`readOnlyHint: true` and `openWorldHint: false` - it only reads, and reaches
+nothing beyond that server - on a connection set to trust those marks. A tool
+that only reads but leaves `openWorldHint` out, or sets it true, is held with the
+reason `external`: an open-world tool such as a web search passes its arguments
+to whatever it reaches, and an eval runs text nobody has reviewed yet.
+
+Both marks are the server's own claim, and **trusting them is the operator's
+decision**: it is off on every connection, and nothing on this side checks what
+a server says about itself. Turn it on only for a server you know reaches its own
+system and nothing else. To turn it on, open the connection's **Tools** dialog.
+The dialog says how many tools claim to be read-only, and the change is audited
+with that count.
 
 ### Connecting one from the Builder
 

@@ -120,3 +120,29 @@ def a2a_delegate(
         return PydanticAgent(model, output_type=str, name=handle)
 
     return build
+
+
+def held_a2a_delegate(*, handle: str) -> Callable[[], PydanticAgent[Any, str]]:
+    """A remote agent's delegate for an isolated run: it answers, and sends nothing.
+
+    The guard holds a delegation that names a remote agent before it starts, and
+    this is what stands behind the name if anything reaches it anyway: an agent
+    with no endpoint and no key, whose only answer says the task was not sent.
+    """
+
+    def build() -> PydanticAgent[Any, str]:
+        notice = (
+            f"Not available in an isolated run: {handle} is another system's agent, and "
+            "an evaluation sends nothing out. The task was not sent."
+        )
+
+        async def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart(notice)])
+
+        async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
+            yield notice
+
+        model = FunctionModel(answer, stream_function=stream, model_name=f"{PROVIDER}:{handle}")
+        return PydanticAgent(model, output_type=str, name=handle)
+
+    return build

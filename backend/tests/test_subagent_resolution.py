@@ -49,6 +49,7 @@ from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
+    ExternalAgentRef,
     ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
@@ -995,6 +996,42 @@ class TestAPublishedDelegate:
         prepared = await _prepare(spec, versions={pinned.id: pinned}, isolation=isolation)
 
         assert prepared.built("mailer")["isolation"] is isolation
+
+    @pytest.mark.security
+    async def test_a_delegates_own_remote_agent_is_held_one_level_down(self):
+        """The isolation and the names of the remote agents go down the tree: a local
+        delegate that delegates to another system's agent sends it nothing either."""
+        delegate_id = uuid.uuid4()
+        remote = MagicMock(id=uuid.uuid4(), slug="reviewer", secret_id=uuid.uuid4())
+        pinned = _version(
+            delegate_id,
+            _delegating(
+                name="Mailer", external_agents=[ExternalAgentRef(external_agent_id=remote.id)]
+            ),
+        )
+        spec = _delegating(
+            max_depth=2, subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        isolation = RunIsolation()
+        send = AsyncMock()
+
+        with (
+            patch(
+                f"{RUNNER}.external_agent_repo.get_many",
+                new=AsyncMock(return_value={remote.id: remote}),
+            ),
+            patch("app.agents.a2a_delegate.send_message", new=send),
+        ):
+            prepared = await _prepare(spec, versions={pinned.id: pinned}, isolation=isolation)
+            built = prepared.built("mailer")
+            runtime = built["resources"][SUBAGENT_RUNTIME_RESOURCE]
+            held = runtime.named("reviewer")
+            answer = await held.build().run("Review clause 4")
+
+        assert built["isolation"] is isolation
+        assert runtime.remote_names == frozenset({"reviewer"})
+        send.assert_not_awaited()
+        assert "not sent" in answer.output
 
     @pytest.mark.security
     async def test_a_delegates_platform_credential_is_the_runs_own_persons(self):

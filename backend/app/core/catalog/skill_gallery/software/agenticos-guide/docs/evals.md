@@ -210,11 +210,19 @@ names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
 
-Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
-tool with a test connection on the run's environment runs against it, a tool
-known to only read runs on the normal connection, and anything that writes without
-a test connection is not executed - the call and its arguments are kept as an
-intended call, which the trajectory scorer still judges.
+Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/#in-an-eval)
+describes: a tool with a test connection on the run's environment runs against
+it, a read of this deployment's own data runs on the normal connection, and
+anything that writes, or reads from outside the deployment, is not executed -
+the call and its arguments are kept as an intended call, which the trajectory
+scorer still judges.
+
+That includes the web. **An eval of an agent that fetches pages, searches the web
+or delegates to another system's agent does not do any of it live**: the model
+is told the tool is not available in an isolated run and answers without it. A
+case answered from its recording, below, still gets what the original run
+fetched. The judge is unaffected: it reads only the knowledge bases, context
+files and skills the platform hands it, all of which stay inside.
 
 Every isolated attempt uses a disposable workspace scoped to its own run, even
 when the agent normally shares files by conversation, user or agent. It needs

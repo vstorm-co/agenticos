@@ -17,3 +17,9 @@ unapproved with an empty queue and nothing reporting it
 before either refusal existed is refused again when it is assembled, because
 nothing re-validates a frozen version
 ([#871](https://github.com/vstorm-co/agenticos/pull/871)).
+
+**It does not run in an eval.** A query is the model's words handed to a search
+engine, and an isolated run executes text nobody has reviewed, so the guard
+holds every `web_search` with the reason `external`. A `native` binding is built
+with `duckduckgo` for such a run (`ProviderExecuted.kept_local`), only so the
+call reaches the guard: nothing is searched.

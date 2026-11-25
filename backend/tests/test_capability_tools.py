@@ -581,6 +581,28 @@ class TestKnowledgeFormatting:
 
 class TestCodeExecutionTool:
     @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "import socket",
+            "import urllib.request",
+            "import http.client",
+            "import subprocess",
+            "import asyncio\nawait asyncio.open_connection('example.com', 80)",
+            "open('/etc/hosts').read()",
+            "__import__('socket')",
+        ],
+    )
+    async def test_a_program_reaches_no_network_and_no_file(self, code):
+        """An isolated run executes `run_python` live, which is safe only because the
+        sandbox itself can reach nothing outside the call - not because of a flag."""
+        outcome = await run_python(code)
+
+        assert outcome.fixable
+        assert outcome.text.startswith("Execution failed")
+
+    @pytest.mark.anyio
     async def test_runs_a_program_and_returns_its_output(self):
         toolset = CodeExecution().get_toolset()
         run = toolset.tools["run_python"].function

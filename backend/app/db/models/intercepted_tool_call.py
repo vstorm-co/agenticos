@@ -2,10 +2,11 @@
 
 An eval runs the agent for real, so its tools would run for real: an agent that
 sends e-mail would send one per case. An isolated run executes only what is safe
-- reads, and calls routed to an environment's test connections - and every
-other call stops at the guard (`app/agents/isolation.py`). Stopping it must not
-lose it: what the agent *meant* to do is the half of an eval that trajectory
-scoring judges, so each one is written down here with its arguments.
+- reads that stay inside the deployment, and calls routed to an environment's
+test connections - and every other call stops at the guard
+(`app/agents/isolation.py`). Stopping it must not lose it: what the agent
+*meant* to do is the half of an eval that trajectory scoring judges, so each one
+is written down here with its arguments.
 
 A table of its own rather than `tool_calls` rows: those hang off a message, and
 an eval run is not obliged to have a conversation. Rather than a column on
@@ -50,10 +51,15 @@ class InterceptionReason(enum.StrEnum):
             gives it no test connection.
         NEEDS_APPROVAL: The tool would have run, but the agent gates it behind an
             approval and an isolated run has nobody to ask.
+        EXTERNAL: The tool only reads, but what it reads is outside this
+            deployment - a web page, a search engine, a remote agent, an
+            open-world MCP server - so the call would carry the model's
+            arguments out.
     """
 
     WRITES = "writes"
     NEEDS_APPROVAL = "needs_approval"
+    EXTERNAL = "external"
 
 
 class InterceptedToolCall(Base, TimestampMixin):
@@ -98,7 +104,8 @@ class InterceptedToolCall(Base, TimestampMixin):
             name="ck_intercepted_tool_call_outcome",
         ),
         CheckConstraint(
-            "(outcome = 'blocked' AND reason IS NOT NULL AND reason IN ('writes', 'needs_approval')) "
+            "(outcome = 'blocked' AND reason IS NOT NULL "
+            "AND reason IN ('writes', 'needs_approval', 'external')) "
             "OR (outcome <> 'blocked' AND reason IS NULL)",
             name="ck_intercepted_tool_call_reason",
         ),

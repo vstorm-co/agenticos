@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "f5dfc2d9da4b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -242,12 +242,22 @@ das Dataset sehen darf. Er läuft als die Person, die den Eval gestartet hat,
 mit ihrer aktuellen Rolle, und liest oder schreibt nicht ihr persönliches
 Gedächtnis.
 
-Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
-Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,
-ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
-Verbindung, und alles, was ohne Testverbindung schreibt, wird nicht ausgeführt
-- der Aufruf und seine Argumente werden als beabsichtigter Aufruf behalten, den
-das Trajektorie-Scoring trotzdem bewertet.
+Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md#in-an-eval)
+beschreibt: Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft
+gegen diese, ein Lesezugriff auf die eigenen Daten dieses Deployments läuft auf
+der normalen Verbindung, und alles, was schreibt oder von außerhalb des
+Deployments liest, wird nicht ausgeführt - der Aufruf und seine Argumente werden
+als beabsichtigter Aufruf behalten, den das Trajektorie-Scoring trotzdem
+bewertet.
+
+Das gilt auch für das Web. **Ein Eval eines Agents, der Seiten abruft, im Web
+sucht oder an den Agent eines anderen Systems delegiert, tut nichts davon
+live**: Das Modell erfährt, dass das Tool in einem isolierten Run nicht
+verfügbar ist, und antwortet ohne es. Ein Fall, der aus seiner Aufzeichnung
+beantwortet wird (siehe unten), bekommt weiterhin, was der ursprüngliche Run
+abgerufen hat. Der Bewerter ist nicht betroffen: Er liest nur die Wissensbasen,
+Context-Dateien und Skills, die die Plattform ihm übergibt, und all das bleibt
+drinnen.
 
 Jeder isolierte Versuch erhält einen temporären Workspace für seinen eigenen
 Run, auch wenn der Agent Dateien sonst pro Unterhaltung, Benutzer oder Agent

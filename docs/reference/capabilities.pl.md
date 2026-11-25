@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "5a2216d435b2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -209,8 +209,8 @@ publikacja odrzuca spec, który próbuje ją nieść — zobacz
 
 ## Co uruchamia eval { #what-an-eval-runs }
 
-Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy nie
-zmienia ono niczego poza runem albo sięga do połączenia testowego
+Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy czyta
+ono własne dane tego wdrożenia albo sięga do połączenia testowego
 [środowiska](../environments.md#in-an-eval). Każda capability deklaruje, które z
 jej narzędzi tylko czytają — `read_only`, obok `side_effecting` — a narzędzie,
 które niczego nie deklaruje, zapisuje. Oto narzędzia, które zapisują i które eval
@@ -228,10 +228,35 @@ wstrzymuje i zapisuje:
 | `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
-Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
-narzędzia delegata podlegają jego własnym deklaracjom. `side_effecting` i
-`read_only` odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta
-zatwierdzanie, drugie — co może uruchomić eval, a niezadeklarowane narzędzie
+Każde inne narzędzie powyżej tylko czyta, ale samo czytanie nie wystarcza, by
+działać w evalu. Eval uruchamia tekst, którego nikt jeszcze nie przejrzał —
+warianty Improve, zmianę skilla w trakcie sprawdzania — a odczyt nadal może
+wynieść poza wdrożenie to, co model w niego włoży. Dlatego eval uruchamia odczyt
+tylko wtedy, gdy jest on na spisanej liście odczytów, które zostają w środku
+(`LIVE_IN_ISOLATION` w `app/agents/isolation.py`), a te wstrzymuje i zapisuje z
+powodem `external`:
+
+| id | Narzędzia, które tylko czytają, a mimo to są wstrzymywane |
+| --- | --- |
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `sandbox` | `select_project_workspace` |
+| `web_fetch` | `web_fetch`, niezależnie od jego `allowed_domains` |
+| `web_research` | `web_search` |
+
+Binding `web_fetch` albo `web_research`, który przekazuje wywołanie providerowi
+modelu (`native` albo `auto` dla pobierania), jest w evalu budowany z własną
+metodą tego wdrożenia, więc wywołanie trafia do strażnika i jest wstrzymywane.
+Narzędzie dodane do rejestru jest wstrzymywane, dopóki nie trafi na listę.
+
+Delegowanie zostaje na liście: delegat tego wdrożenia działa w tej samej
+izolacji, a jego własne narzędzia podlegają jego własnym deklaracjom. Delegat,
+który jest agentem innego systemu ([A2A](#remote-agents)), na niej nie jest:
+zadanie dla niego jest wstrzymywane z powodem `external`, a sam delegat jest
+budowany bez swojego endpointu i klucza. `side_effecting` i `read_only`
+odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta zatwierdzanie,
+drugie — czy narzędzie w ogóle cokolwiek zmienia, a niezadeklarowane narzędzie
 pierwsze przepuszcza bez bramki, a drugie blokuje.
 
 Środowisko może podmienić klucz z vault capability na testowy, ale sam
@@ -2443,6 +2468,14 @@ koszt runa mówi, że jest częściowy. Każde żądanie przechodzi przez kontro
 deploymentu, więc karta ani endpoint nie mogą skierować platformy do jej własnej
 sieci. Publikacja odrzuca odwołanie do nieistniejącej rejestracji, a run, którego
 rejestracja została w międzyczasie usunięta, kończy się błędem, który ją wskazuje.
+
+[Eval](#what-an-eval-runs), i każdy inny run w izolacji, nie wysyła zdalnemu
+agentowi niczego. Zadanie dla niego jest wstrzymywane i zapisywane z powodem
+`external`, a model dowiaduje się, że agent nie jest dostępny w runie w
+izolacji. Delegat jest budowany bez swojego endpointu, a jego klucz nie jest
+odpieczętowywany, więc wywołanie, które dotarłoby do niego inną drogą, też nie
+mogłoby wyjść. Dotyczy to każdego poziomu drzewa delegowania: delegat tego
+wdrożenia, który deleguje do zdalnego agenta, jest wstrzymywany tak samo.
 
 Co kosztuje delegowanie i który wiersz runa je zapisuje — zobacz
 [Nadzór](../governance.md#delegation-spends-the-parents-budget). Kto może delegować

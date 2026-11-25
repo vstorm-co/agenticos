@@ -325,6 +325,12 @@ class ProviderExecuted(BaseModel):
     tools: tuple[str, ...] = Field(description="Tool ids the provider may execute")
     field: str = Field(description="Which config field decides")
     equals: tuple[str, ...] = Field(description="Values of that field that hand execution over")
+    kept_local: str = Field(
+        description=(
+            "The value of that field that keeps every tool in this deployment, which an "
+            "isolated run builds the binding with so the guard sees each call"
+        )
+    )
 
     def tools_for(self, config: BaseModel | None) -> frozenset[str]:
         """The declared tools, when this configuration hands them to the provider."""

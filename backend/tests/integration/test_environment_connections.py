@@ -19,7 +19,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment, AgentEnvironmentConnection
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
-from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionReason
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
@@ -326,6 +326,23 @@ class TestInterceptedCalls:
 
         with pytest.raises(IntegrityError):
             await db.flush()
+
+    @pytest.mark.parametrize("reason", list(InterceptionReason))
+    async def test_every_reason_the_guard_gives_is_one_the_table_keeps(self, db, reason) -> None:
+        """A held call the table refused would fail the write of the whole eval case."""
+        org = await _org(db)
+        run = await _run(db, org)
+        held = _call("web_fetch")
+        held.reason = reason.value
+
+        await intercepted_tool_call_repo.add_many(
+            db, run_id=run.id, organization_id=org.id, calls=[held]
+        )
+
+        (row,) = await intercepted_tool_call_repo.list_for_run(
+            db, run_id=run.id, organization_id=org.id
+        )
+        assert row.reason == reason.value
 
     @pytest.mark.parametrize(
         ("outcome", "reason"),

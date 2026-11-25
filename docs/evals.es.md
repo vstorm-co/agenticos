@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "f5dfc2d9da4b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -220,12 +220,21 @@ lectura individual nombra el eval run y el caso al que respondió (`eval_case`),
 para un lector que pueda ver el dataset. Se ejecuta como la persona que inició
 el eval, con su rol actual, y no lee ni escribe su memoria personal.
 
-Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
-una herramienta con una conexión de prueba en el entorno del run se ejecuta
-contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
-conexión normal, y todo lo que escribe sin conexión de prueba no se ejecuta: la
-llamada y sus argumentos se guardan como una llamada prevista, que la
-puntuación de trayectoria sigue juzgando.
+Cada caso se ejecuta **aislado**, como describe
+[Entornos](environments.md#in-an-eval): una herramienta con una conexión de
+prueba en el entorno del run se ejecuta contra ella, una lectura de datos
+propios de este despliegue se ejecuta en la conexión normal, y todo lo que
+escribe, o lee de fuera del despliegue, no se ejecuta: la llamada y sus
+argumentos se guardan como una llamada prevista, que la puntuación de
+trayectoria sigue juzgando.
+
+Eso incluye la web. **Un eval de un agent que obtiene páginas, busca en la web o
+delega en el agent de otro sistema no hace nada de eso en vivo**: al modelo se le
+dice que la herramienta no está disponible en un run aislado y responde sin
+ella. Un caso respondido desde su grabación, más abajo, sigue recibiendo lo que
+obtuvo el run original. El juez no se ve afectado: solo lee las bases de
+conocimiento, los archivos de contexto y los skills que le entrega la
+plataforma, y todo eso se queda dentro.
 
 Cada intento aislado utiliza un workspace temporal para su propio run, aunque
 el agent normalmente comparta archivos por conversación, usuario o agent. No

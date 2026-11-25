@@ -1,5 +1,5 @@
 ---
-source_sha: "2f4a13dbc2a4"
+source_sha: "52ab8dfc3c12"
 ---
 
 # Entornos { #environments }
@@ -200,14 +200,31 @@ sustituciones hay, no qué contienen.
 
 Un eval ejecuta el agent de verdad, así que sus herramientas actuarían de verdad:
 un agent que envía correos enviaría uno por caso. Un run iniciado **aislado** —
-que es como se ejecuta un eval — ejecuta una herramienta solo cuando es seguro:
+que es como se ejecuta un eval, y como Improve responde con un texto que nadie ha
+aceptado todavía — ejecuta una herramienta solo cuando es seguro:
 
 | La herramienta | Qué pasa |
 |---|---|
 | Llega a una conexión MCP de prueba del entorno | Se ejecuta, contra el sistema de prueba |
-| Solo lee | Se ejecuta en la conexión normal |
+| Lee datos propios de este despliegue: búsqueda de conocimiento, archivos de contexto, skills, memoria, el plan y el workspace del run, delegación a agents de este despliegue | Se ejecuta en la conexión normal |
+| Lee de fuera del despliegue: una página web, una búsqueda web, el agent de otro sistema, una plataforma de chat, un servidor MCP que no declara un mundo cerrado | **No se ejecuta.** Se registra con sus argumentos; al modelo se le dice que no está disponible en un run aislado |
 | Escribe, con una clave de prueba del vault | Se ejecuta solo si su capability declara que la clave por sí sola elige el destino; si no, **no se ejecuta** y se registra |
 | Escribe, sin conexión de prueba | **No se ejecuta.** Se registra como llamada prevista, con sus argumentos |
+
+Una lectura de fuera se retiene aunque no cambie nada, porque una URL, una
+consulta de búsqueda o una tarea para el agent de otro sistema lleva lo que el
+modelo ponga en ella. Un run aislado ejecuta texto que nadie ha revisado todavía
+— las variantes que escribe una búsqueda de Improve, un cambio de skill en
+comprobación —, así que una lectura así es una forma de enviar fuera lo que el
+agent puede leer.
+
+**Por eso un eval de un agent que usa la web no obtiene páginas ni busca en
+vivo**, y sus respuestas pueden diferir de las de producción por ese motivo. Un
+caso respondido [desde su grabación](#in-an-eval) sigue recibiendo las páginas y
+los resultados que leyó el run original: reproducirlos no envía nada. Un binding
+de `web_fetch` o `web_research` configurado con la obtención o la búsqueda
+propias del provider del modelo se construye en un run aislado con las de este
+despliegue, así que sus llamadas se retienen como cualquier otra.
 
 Una clave de prueba sustituye una credencial, pero una URL o un host en la
 configuración de la capability todavía puede dirigir las escrituras a
@@ -215,10 +232,16 @@ producción. Por eso una clave sustituida solo deja escribir a una capability en
 un eval cuando declara `test_key_isolates`, y el
 [catálogo](reference/capabilities.md#what-an-eval-runs) indica cuáles lo hacen.
 
-Una herramienta MCP cuenta como de lectura solo cuando su servidor la marca con
-`readOnlyHint` y la conexión confía en esa marca. Por defecto no confía, porque
-la marca es una afirmación del propio servidor. Una herramienta de una capability lo declara en el registro, y el
-[catálogo](reference/capabilities.md#what-an-eval-runs) indica cuáles lo hacen.
+Una herramienta MCP solo se ejecuta en una conexión de producción cuando su
+servidor la marca con `readOnlyHint: true` y `openWorldHint: false` — solo lee y
+no llega más allá de ese servidor — y la conexión confía en esas marcas. Por
+defecto no confía, porque las marcas son una afirmación del propio servidor;
+confiar en ellas es decisión del operador
+([MCP](mcp.md#in-a-test-environment-and-in-an-eval)). De un servidor que no dice
+nada de su mundo se supone que llega al abierto.
+
+Una herramienta de una capability solo se ejecuta si está en la lista del
+[catálogo](reference/capabilities.md#what-an-eval-runs).
 **Una herramienta que no declara nada escribe.** Al modelo se le dice que la
 llamada no se envió, y la llamada prevista se guarda con el run para puntuarla.
 

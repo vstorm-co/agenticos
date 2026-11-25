@@ -1,5 +1,5 @@
 ---
-source_sha: "2f4a13dbc2a4"
+source_sha: "52ab8dfc3c12"
 ---
 
 # Środowiska { #environments }
@@ -199,15 +199,33 @@ zawierają.
 
 Ewaluacja uruchamia agenta naprawdę, więc jego narzędzia działałyby naprawdę:
 agent, który wysyła e-maile, wysłałby jeden na każdy przypadek. Run uruchomiony
-w **izolacji** — a tak działa ewaluacja — wykonuje narzędzie tylko wtedy, gdy jest to
+w **izolacji** — a tak działa ewaluacja i tak Improve odpowiada tekstem, którego
+nikt jeszcze nie zaakceptował — wykonuje narzędzie tylko wtedy, gdy jest to
 bezpieczne:
 
 | Narzędzie | Co się dzieje |
 |---|---|
 | Sięga do testowego połączenia MCP środowiska | Działa, na systemie testowym |
-| Tylko czyta | Działa na zwykłym połączeniu |
+| Czyta własne dane tego wdrożenia: wyszukiwanie wiedzy, pliki kontekstowe, skille, pamięć, plan i workspace runa, delegowanie do agentów tego wdrożenia | Działa na zwykłym połączeniu |
+| Czyta spoza wdrożenia: strona internetowa, wyszukiwanie w sieci, agent innego systemu, platforma czatu, serwer MCP, który nie deklaruje zamkniętego świata | **Nie jest wykonywane.** Zapisywane z argumentami; model dowiaduje się, że narzędzie nie jest dostępne w runie w izolacji |
 | Zapisuje, na testowym kluczu z vault | Działa tylko wtedy, gdy jego capability deklaruje, że sam klucz wyznacza cel; inaczej **nie jest wykonywane** i jest zapisywane |
 | Zapisuje i nie ma połączenia testowego | **Nie jest wykonywane.** Zapisywane jako zamierzone wywołanie, z argumentami |
+
+Odczyt spoza wdrożenia jest wstrzymywany, choć niczego nie zmienia, bo URL,
+zapytanie wyszukiwania albo zadanie dla agenta innego systemu niesie wszystko, co
+model w nie włoży. Run w izolacji wykonuje tekst, którego nikt jeszcze nie
+przejrzał — warianty, które pisze wyszukiwanie Improve, zmianę skilla w trakcie
+sprawdzania — więc taki odczyt jest sposobem na wysłanie na zewnątrz tego, co
+agent może przeczytać.
+
+**Dlatego ewaluacja agenta, który korzysta z sieci, nie pobiera stron ani nie
+wyszukuje na żywo**, a jej odpowiedzi mogą z tego powodu różnić się od
+produkcyjnych. Przypadek, na który odpowiada się [z nagrania](#in-an-eval),
+nadal dostaje strony i wyniki, które przeczytał oryginalny run: ich odtworzenie
+niczego nie wysyła. Binding `web_fetch` albo `web_research` ustawiony na własne
+pobieranie lub wyszukiwanie providera modelu jest w runie w izolacji budowany z
+pobieraniem lub wyszukiwaniem tego wdrożenia, więc jego wywołania są
+wstrzymywane jak każde inne.
 
 Klucz testowy zastępuje poświadczenie, ale URL albo host w konfiguracji
 capability nadal może kierować zapisy na produkcję. Dlatego podmieniony klucz
@@ -215,10 +233,14 @@ pozwala capability zapisywać w ewaluacji tylko wtedy, gdy deklaruje ona
 `test_key_isolates`, a [katalog](reference/capabilities.md#what-an-eval-runs)
 wymienia, które to robią.
 
-Narzędzie MCP liczy się jako czytające tylko wtedy, gdy serwer oznacza je
-`readOnlyHint`, a połączenie ma włączone zaufanie do tego oznaczenia. Domyślnie
-nie ma, bo oznaczenie to deklaracja samego serwera. Narzędzie capability deklaruje to w rejestrze, a
-[katalog](reference/capabilities.md#what-an-eval-runs) wymienia, które to robią.
+Narzędzie MCP działa na połączeniu produkcyjnym tylko wtedy, gdy serwer oznacza
+je `readOnlyHint: true` i `openWorldHint: false` — tylko czyta i nie sięga do
+niczego poza tym serwerem — a połączenie ma włączone zaufanie do tych oznaczeń.
+Domyślnie nie ma, bo oznaczenia to deklaracja samego serwera; zaufanie do nich
+to decyzja operatora ([MCP](mcp.md#in-a-test-environment-and-in-an-eval)).
+Serwer, który nic nie mówi o swoim świecie, jest traktowany jako sięgający do
+otwartego. Narzędzie capability jest uruchamiane tylko wtedy, gdy jest na
+liście, którą podaje [katalog](reference/capabilities.md#what-an-eval-runs).
 **Narzędzie, które niczego nie deklaruje, zapisuje.** Model dowiaduje się, że
 wywołanie nie zostało wysłane, a zamierzone wywołanie zostaje zachowane z runem
 do oceny.

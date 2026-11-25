@@ -1,5 +1,5 @@
 ---
-source_sha: "2f4a13dbc2a4"
+source_sha: "52ab8dfc3c12"
 ---
 
 # Umgebungen { #environments }
@@ -213,14 +213,33 @@ wie viele Ersetzungen es gibt, nicht, was sie enthalten.
 
 Ein Eval führt den Agent wirklich aus, also würden seine Tools wirklich handeln:
 Ein Agent, der E-Mails sendet, würde pro Fall eine senden. Ein **isoliert**
-gestarteter Run — so läuft ein Eval — führt ein Tool nur aus, wenn das sicher ist:
+gestarteter Run — so läuft ein Eval, und so antwortet Improve mit Text, den noch
+niemand angenommen hat — führt ein Tool nur aus, wenn das sicher ist:
 
 | Das Tool | Was passiert |
 |---|---|
 | Erreicht eine Test-MCP-Verbindung der Umgebung | Läuft, gegen das Testsystem |
-| Liest nur | Läuft auf der normalen Verbindung |
+| Liest die eigenen Daten dieses Deployments: Wissenssuche, Kontextdateien, Skills, Gedächtnis, Plan und Workspace des Runs, Delegation an Agents dieses Deployments | Läuft auf der normalen Verbindung |
+| Liest von außerhalb des Deployments: eine Webseite, eine Websuche, den Agent eines anderen Systems, eine Chatplattform, einen MCP-Server, der keine geschlossene Welt erklärt | **Wird nicht ausgeführt.** Mit seinen Argumenten aufgezeichnet; das Modell erfährt, dass es in einem isolierten Run nicht verfügbar ist |
 | Schreibt, mit einem Test-Schlüssel aus dem Vault | Läuft nur, wenn seine Capability erklärt, dass der Schlüssel allein das Ziel bestimmt; sonst **nicht ausgeführt** und aufgezeichnet |
 | Schreibt, ohne Testverbindung | **Wird nicht ausgeführt.** Als beabsichtigter Aufruf mit seinen Argumenten aufgezeichnet |
+
+Ein Lesezugriff von außerhalb wird angehalten, obwohl er nichts ändert, denn eine
+URL, eine Suchanfrage oder eine Aufgabe für den Agent eines anderen Systems trägt
+alles, was das Modell hineinlegt. Ein isolierter Run führt Text aus, den noch
+niemand geprüft hat — die Varianten, die eine Improve-Suche schreibt, eine
+Skill-Änderung in Prüfung —, also ist ein solcher Lesezugriff ein Weg, nach
+außen zu senden, was der Agent lesen kann.
+
+**Deshalb ruft ein Eval eines Agents, der das Web nutzt, keine Seiten ab und
+sucht nicht live**, und seine Antworten können aus diesem Grund von denen der
+Produktion abweichen. Ein Fall, der [aus seiner Aufzeichnung](#in-an-eval)
+beantwortet wird, bekommt weiterhin die Seiten und Ergebnisse, die der
+ursprüngliche Run gelesen hat: Sie wiederzugeben sendet nichts. Ein Binding von
+`web_fetch` oder `web_research`, das auf den eigenen Abruf oder die eigene Suche
+des Modell-Providers gesetzt ist, wird in einem isolierten Run mit dem Abruf
+oder der Suche dieses Deployments gebaut, sodass seine Aufrufe wie jeder andere
+angehalten werden.
 
 Ein Testschlüssel ersetzt eine Anmeldeinformation, aber eine URL oder ein Host
 in der Konfiguration der Capability kann die Schreibvorgänge weiterhin auf die
@@ -228,11 +247,15 @@ Produktion lenken. Deshalb lässt ein getauschter Schlüssel eine Capability in
 einem Eval nur schreiben, wenn sie `test_key_isolates` erklärt, und der
 [Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche das tun.
 
-Ein MCP-Tool gilt nur dann als lesend, wenn sein Server es mit `readOnlyHint`
-markiert und die Verbindung dieser Markierung vertraut. Standardmäßig tut sie das
-nicht, denn die Markierung ist die eigene Angabe des Servers. Das Tool einer
-Capability erklärt es in der Registry, und der
-[Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche es tun.
+Ein MCP-Tool läuft auf einer Produktionsverbindung nur, wenn sein Server es mit
+`readOnlyHint: true` und `openWorldHint: false` markiert — es liest nur und
+erreicht nichts jenseits dieses Servers — und die Verbindung diesen Markierungen
+vertraut. Standardmäßig tut sie das nicht, denn die Markierungen sind die eigene
+Angabe des Servers; ihnen zu vertrauen ist die Entscheidung des Betreibers
+([MCP](mcp.md#in-a-test-environment-and-in-an-eval)). Ein Server, der nichts über
+seine Welt sagt, gilt als einer, der die offene erreicht. Das Tool einer
+Capability läuft nur, wenn es auf der Liste des
+[Katalogs](reference/capabilities.md#what-an-eval-runs) steht.
 **Ein Tool, das nichts erklärt, schreibt.** Das Modell erfährt, dass der Aufruf
 nicht gesendet wurde, und der beabsichtigte Aufruf wird für die Bewertung mit
 dem Run aufbewahrt.
