@@ -17112,6 +17112,12 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
+    },
+    "guidance": {
+      "title": "Yardımcı için dataset rehberi",
+      "hint": "Yardımcı bunu, her zaman geçerli olan platform kurallarının altında okur. Bu dataset'i düzenleyen kişi yazmıştır.",
+      "changed": "{who, select, named {Son değiştiren: {name}.} former {Son değiştiren: eski bir üye.} other {}}",
+      "changedOn": "{who, select, named {Son değiştiren: {name}, {date}.} former {Son değiştiren: eski bir üye, {date}.} other {Son değişiklik: {date}.}}"
     }
   },
   "personalModelKeys": {
