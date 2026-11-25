@@ -230,18 +230,22 @@ export interface Passage {
 /** How long a passage must be to be followed once its surroundings changed (`MOVED_MIN_CHARS`). */
 const MOVED_MIN_CHARS = 40;
 
+const startsWithBreak = (text: string, at = 0) =>
+  text.startsWith("\n", at) || text.startsWith("\r\n", at);
+
 const wholeLines = (passage: string, startsLine: boolean, endsLine: boolean) =>
   passage.trim() !== "" &&
-  (startsLine || passage.startsWith("\n")) &&
+  (startsLine || startsWithBreak(passage)) &&
   (endsLine || passage.endsWith("\n"));
 
 /**
  * Where a suggested passage starts in `text`, found the way the server finds it: the one
  * occurrence its surroundings still match, or else the only occurrence there is, when the
- * passage is long or a whole line found as a whole line. `null` when the text has moved on.
+ * passage is long, keeps one side of its surroundings, or is a whole line found as a whole
+ * line. `null` when the text has moved on.
  */
 export function locatePassage(text: string, passage: Passage): number | null {
-  const surrounded = (position: number) => {
+  const sides = (position: number) => {
     const end = position + passage.old_text.length;
     const before = passage.context_before
       ? text.slice(0, position).endsWith(passage.context_before)
@@ -249,8 +253,9 @@ export function locatePassage(text: string, passage: Passage): number | null {
     const after = passage.context_after
       ? text.slice(end).startsWith(passage.context_after)
       : end === text.length;
-    return before && after;
+    return [before, after];
   };
+  const surrounded = (position: number) => sides(position).every(Boolean);
   const occurrences = (needle: string) => {
     const found: number[] = [];
     for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1))
@@ -266,15 +271,16 @@ export function locatePassage(text: string, passage: Passage): number | null {
     const end = at + passage.old_text.length;
     const moved =
       [...passage.old_text].length >= MOVED_MIN_CHARS ||
+      sides(at).some(Boolean) ||
       (wholeLines(
         passage.old_text,
         !passage.context_before || passage.context_before.endsWith("\n"),
-        !passage.context_after || passage.context_after.startsWith("\n"),
+        !passage.context_after || startsWithBreak(passage.context_after),
       ) &&
         wholeLines(
           passage.old_text,
           at === 0 || text[at - 1] === "\n",
-          end === text.length || text[end] === "\n",
+          end === text.length || startsWithBreak(text, end),
         ));
     return moved ? at : null;
   }

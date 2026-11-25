@@ -47,6 +47,8 @@ MOVED_MIN_CHARS = 40
 """How long a passage must be to be followed to a new place once its surroundings changed;
 a whole line is followed at any length."""
 
+_BREAKS = ("\n", "\r\n")
+
 
 @dataclass(frozen=True)
 class Anchor:
@@ -197,16 +199,9 @@ def anchor_change(base: str, change: InstructionChange) -> dict[str, Any] | Reje
 
 def locate(text: str, anchor: Anchor) -> int | None:
     """Where `anchor`'s passage starts in `text`, or `None` when it does not resolve."""
-
-    def surrounded(position: int) -> bool:
-        end = position + len(anchor.old_text)
-        before = text[:position].endswith(anchor.before) if anchor.before else position == 0
-        after = text[end:].startswith(anchor.after) if anchor.after else end == len(text)
-        return before and after
-
     if anchor.old_text:
         positions = _occurrences(text, anchor.old_text)
-        exact = [position for position in positions if surrounded(position)]
+        exact = [position for position in positions if all(_sides(text, position, anchor))]
         if len(exact) == 1:
             return exact[0]
         if len(positions) == 1 and _moved(text, positions[0], anchor):
@@ -217,8 +212,17 @@ def locate(text: str, anchor: Anchor) -> int | None:
         if anchor.before
         else [0]
     )
-    exact = [position for position in candidates if surrounded(position)]
+    exact = [position for position in candidates if all(_sides(text, position, anchor))]
     return exact[0] if len(exact) == 1 else None
+
+
+def _sides(text: str, position: int, anchor: Anchor) -> tuple[bool, bool]:
+    """Whether the text before and the text after `anchor`'s passage at `position` are
+    still what surrounded it."""
+    end = position + len(anchor.old_text)
+    before = text[:position].endswith(anchor.before) if anchor.before else position == 0
+    after = text[end:].startswith(anchor.after) if anchor.after else end == len(text)
+    return before, after
 
 
 def _moved(text: str, position: int, anchor: Anchor) -> bool:
@@ -226,21 +230,23 @@ def _moved(text: str, position: int, anchor: Anchor) -> bool:
 
     A short phrase, such as an amount, can stand in another sentence that only holds
     the same characters. A passage at least `MOVED_MIN_CHARS` long is taken to be the
-    one that moved, and so is a whole line found as a whole line.
+    one that moved, and so is a whole line found as a whole line. A passage that still
+    has one side of its surroundings is where a neighbouring change, accepted before
+    it, left it.
     """
     passage = anchor.old_text
-    if len(passage) >= MOVED_MIN_CHARS:
+    if len(passage) >= MOVED_MIN_CHARS or any(_sides(text, position, anchor)):
         return True
     end = position + len(passage)
     was_line = _whole_lines(
         passage,
         starts_line=not anchor.before or anchor.before.endswith("\n"),
-        ends_line=not anchor.after or anchor.after.startswith("\n"),
+        ends_line=not anchor.after or anchor.after.startswith(_BREAKS),
     )
     is_line = _whole_lines(
         passage,
         starts_line=position == 0 or text[position - 1] == "\n",
-        ends_line=end == len(text) or text[end] == "\n",
+        ends_line=end == len(text) or text.startswith(_BREAKS, end),
     )
     return was_line and is_line
 
@@ -248,7 +254,7 @@ def _moved(text: str, position: int, anchor: Anchor) -> bool:
 def _whole_lines(passage: str, *, starts_line: bool, ends_line: bool) -> bool:
     return (
         bool(passage.strip())
-        and (starts_line or passage.startswith("\n"))
+        and (starts_line or passage.startswith(_BREAKS))
         and (ends_line or passage.endswith("\n"))
     )
 

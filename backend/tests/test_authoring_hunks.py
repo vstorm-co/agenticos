@@ -172,6 +172,30 @@ class TestApplying:
             "Answer refunds and returns.\nBe kind."
         )
 
+    def test_a_short_passage_next_to_a_change_accepted_before_it_still_applies(self):
+        """Two changes a few characters apart: once the first is written, the second keeps
+        one side of its surroundings, and lands where it was meant to."""
+        base = "Reply with exactly PONG-BEFORE and nothing else."
+        first = _anchored(base, _change("PONG-BEFORE", "PONG-AFTER"))
+        second = _anchored(base, _change("and nothing else.", "and nothing else, in one line."))
+        written = hunks.apply_text(base, first, first.new_text)
+        assert written == "Reply with exactly PONG-AFTER and nothing else."
+
+        assert hunks.apply_text(written, second, second.new_text) == (
+            "Reply with exactly PONG-AFTER and nothing else, in one line."
+        )
+
+    def test_a_windows_line_break_ends_a_whole_line(self):
+        base = "Be brief.\r\nAnswer refunds.\r\nBe kind."
+        hunk = _anchored(base, _change("Answer refunds.", "Answer refunds and returns."))
+
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns."
+        )
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.\r\nClose.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns.\r\nClose."
+        )
+
     def test_a_long_passage_is_followed_wherever_it_moved(self):
         passage = "refunds over a hundred dollars need a manager"
         assert len(passage) >= hunks.MOVED_MIN_CHARS
