@@ -1,5 +1,5 @@
 ---
-source_sha: "3af26d301af7"
+source_sha: "a554bdcc6ed5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -770,7 +770,7 @@ existiert, ist selbst etwas, das es nicht erfahren darf. Ein Grant erweitert den
 Zugriff auf ein Dataset und ändert nie eine Rolle. Wie Scopes und Grants
 zusammenwirken, steht unter [Berechtigungen](permissions.md).
 
-Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
+Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Die Prüfung auf doppelte Fragen (`cases/twins`) findet nie einen verborgenen Fall, und die **Schlüsselabdeckung** lässt Schlüsselbezeichnungen aus, die nur verborgene Fälle enthalten. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
 

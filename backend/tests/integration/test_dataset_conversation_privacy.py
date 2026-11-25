@@ -195,6 +195,23 @@ async def test_a_source_check_answers_another_tenant_or_a_hidden_thread_as_an_un
     assert refusals == [("Message not found", None)] * 3
 
 
+async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="twins", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    case = await service.add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    for_owner = await service.list_cases(owner, dataset.id, same_input=case.input)
+    for_viewer = await service.list_cases(viewer, dataset.id, same_input=case.input)
+
+    assert (for_owner.total, [item.case_id for item in for_owner.items]) == (1, [case.case_id])
+    assert (for_viewer.total, for_viewer.items) == (0, [])
+
+
 async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
     """Cases sharing a conversation are shown or hidden by one access check; nobody, and
     then everybody once the conversation is deleted, reads a conversation case masked."""

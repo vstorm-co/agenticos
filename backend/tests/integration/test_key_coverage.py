@@ -28,7 +28,8 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
-from app.db.models.dataset import Dataset
+from app.db.models.conversation import Conversation
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
@@ -812,6 +813,41 @@ class TestReading:
         assert {item.key: item.why for item in mine.items}["Due date"] == "Only notes mention it"
         assert hidden["Due date"].verdict == "not_covered" and hidden["Due date"].sources == []
         assert theirs.model_dump_json().count("Fernhill") == 0
+
+    @pytest.mark.security
+    async def test_a_label_only_a_masked_case_holds_is_left_out_for_its_reader(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        dataset, agent, report = await _started(db, owner)
+        _answer(
+            monkeypatch,
+            lambda prompt: JudgedCoverage(
+                keys=[
+                    JudgedKey(key=key, verdict="not_covered", why="Nothing holds it")
+                    for key in ("Invoice number", "Due date", "Total", "Customer")
+                ]
+            ),
+            await _run(db, owner, agent),
+        )
+        service = KeyCoverageService(db)
+        await service.judge(report.id, owner.organization_id)
+        private = Conversation(organization_id=owner.organization_id, user_id=owner.user_id)
+        db.add(private)
+        await db.flush()
+        cases = (
+            await db.scalars(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+        ).all()
+        totals = next(case for case in cases if "Total" in json.dumps(case.checks))
+        totals.source, totals.source_conversation_id = "conversation", private.id
+        await db.flush()
+        member = await _member(db, owner.organization_id)
+
+        mine = await service.get(owner, dataset.id, agent.id)
+        theirs = await service.get(member, dataset.id, agent.id)
+
+        assert {item.key for item in mine.items} >= {"Total", "Customer"}
+        assert {item.key for item in theirs.items} == {"Invoice number", "Due date"}
 
     async def test_a_pair_without_a_report_is_not_found(self, db) -> None:
         owner = await _owner(db)

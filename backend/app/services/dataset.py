@@ -761,6 +761,8 @@ class DatasetService:
 
         `same_input` narrows to the cases asking that question, as a new case is
         checked for one already there; `total` then counts the matches on this page.
+        A case the caller reads masked is never a match, so a guess cannot be
+        confirmed against a question they may not read.
         It is redacted as a case's input is when stored, so a question holding a
         credential still finds the case asking it.
         """
@@ -776,6 +778,9 @@ class DatasetService:
             limit=limit,
             same_input=redact_credentials(same_input)[0],
         )
+        if same_input is not None:
+            masked = await self.masked_case_ids(ctx, cases)
+            cases = [case for case in cases if case.id not in masked]
         total = held.case_count if same_input is None else len(cases)
         return DatasetCaseList(
             items=await self.case_reads(ctx, cases), total=total, version=held.number
@@ -791,16 +796,9 @@ class DatasetService:
         A removed source fails closed, since no conversation remains to authorize.
         """
         reads = [_case_read(case) for case in cases]
-        if ctx.has(Perm.RUNS_VIEW):
-            return reads
-        readable = await ConversationService(self.db).readable(
-            ctx,
-            {case.source_conversation_id for case in cases if case.source_conversation_id},
-        )
+        masked = await self.masked_case_ids(ctx, cases)
         for case, read in zip(cases, reads, strict=True):
-            if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
-                continue
-            if case.source_conversation_id in readable:
+            if case.id not in masked:
                 continue
             read.input = "From a conversation you cannot open"
             read.history = []
@@ -811,6 +809,23 @@ class DatasetService:
             read.note = None
             read.masked = True
         return reads
+
+    async def masked_case_ids(self, ctx: AuthContext, cases: Sequence[DatasetCase]) -> set[UUID]:
+        """The revisions among `cases` this caller reads masked: taken from a conversation
+        they may not open. Anything computed over case text for this caller leaves them out,
+        or it would confirm what the mask hides."""
+        if ctx.has(Perm.RUNS_VIEW):
+            return set()
+        readable = await ConversationService(self.db).readable(
+            ctx,
+            {case.source_conversation_id for case in cases if case.source_conversation_id},
+        )
+        return {
+            case.id
+            for case in cases
+            if (case.source == CaseSource.CONVERSATION.value or case.source_conversation_id)
+            and case.source_conversation_id not in readable
+        }
 
     async def source_privacy(self, ctx: AuthContext, message_id: UUID) -> DatasetSourcePrivacy:
         """Warn before a curator copies another person's private conversation.
