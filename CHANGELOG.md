@@ -54,6 +54,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- Remote MCP HTTP and SSE sessions validate DNS at every connection and dial only admitted addresses, preserving TLS identity and operator-approved private hosts. Session-owned clients close on failure, cancellation and reconnect; personal connection URLs cannot bypass the deployment's network policy after being saved.
+
 - Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
 
 ### Added

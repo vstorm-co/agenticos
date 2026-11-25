@@ -478,11 +478,12 @@ def validate_webhook_url(
     resolve the hostname a second time when they connect: the MCP client through
     :func:`app.agents.mcp.validate_mcp_url`, where the connection happens however
     long after the server was saved. A name answering a public address here and a
-    private one there passes this check and reaches the private address (#840).
+    private one there passes this check. The remote MCP transports therefore
+    independently validate and pin every request at connection time (#840).
 
-    That is bearable *only* because the URL is typed by an operator, so
-    rebinding needs the person typing it to be the attacker. Where the URL is
-    chosen by someone else, this function is the wrong one: the OAuth flow's
+    A personal MCP endpoint may be typed by any member, so this save-time check
+    is not an authorization to connect later. Where a URL is fetched, this
+    function alone is the wrong one: the OAuth flow's
     discovery documents name their own endpoints and go through
     :class:`app.core.pinned_http.PinnedAsyncClient`, which dials the address it
     checked (#860), and a URL a *model* picked belongs in Pydantic AI's

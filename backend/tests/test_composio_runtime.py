@@ -1,6 +1,7 @@
 """Managed apps keep personal ownership, explicit account pins, and tool ceilings."""
 
 import hashlib
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from types import SimpleNamespace
@@ -16,17 +17,37 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
 
-from app.agents import mcp
+from app.agents import mcp, mcp_http
 from app.agents.mcp import McpSourceIdentity, tool_origin, tool_prefix
 from app.agents.spec import AgentSpec, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ExternalServiceError
+from app.core.pinned_http import PinnedAsyncClient
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.mcp_connection import McpConnectionCreate
 from app.services import agent_registry, mcp_connection
 from app.services.app_connections import composio_user_id, runtime
 
 pytestmark = pytest.mark.anyio
+
+
+def _capture_pinned_http(
+    monkeypatch: pytest.MonkeyPatch, respond: Callable[[httpx2.Request], httpx2.Response]
+) -> list[PinnedAsyncClient]:
+    clients: list[PinnedAsyncClient] = []
+
+    def client(**kwargs):
+        opened = PinnedAsyncClient(transport=httpx2.MockTransport(respond), **kwargs)
+        clients.append(opened)
+        return opened
+
+    monkeypatch.setattr(mcp_http, "PinnedAsyncClient", client)
+    monkeypatch.setattr(
+        "app.core.sanitize.socket.getaddrinfo",
+        lambda _host, port, **_kwargs: [(2, 1, 6, "", ("93.184.216.34", port))],
+    )
+    return clients
+
 
 _READ = "GMAIL_FETCH_EMAILS"
 _DETAIL = "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID"
@@ -541,7 +562,6 @@ async def test_actual_toolset_filters_router_tools_and_retains_approval_and_sour
         ]
     )
     monkeypatch.setattr(mcp, "MCPToolset", MagicMock(return_value=inner))
-    monkeypatch.setattr(mcp, "_origin_bound_client", MagicMock(return_value=object()))
     ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
     origins = []
     for session in ("first", "second"):
@@ -572,7 +592,6 @@ async def test_dynamic_read_only_looking_actions_still_require_approval(monkeypa
         [Tool(result, name=_DYNAMIC_TOOLS[0], metadata={"annotations": {"readOnlyHint": True}})]
     )
     monkeypatch.setattr(mcp, "MCPToolset", MagicMock(return_value=inner))
-    monkeypatch.setattr(mcp, "_origin_bound_client", MagicMock(return_value=object()))
     ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
 
     tools = await mcp._make_toolset(spec).get_tools(ctx)
@@ -667,20 +686,12 @@ async def test_managed_preflight_and_execution_keep_the_credential_bound_to_its_
     if destination == "another_origin":
         spec = replace(spec, url="https://untrusted.example/mcp")
     sent = []
-    clients = []
 
     def respond(request):
         sent.append(request)
         return httpx2.Response(200, json={"ok": True})
 
-    client_type = httpx2.AsyncClient
-
-    def client(**kwargs):
-        opened = client_type(transport=httpx2.MockTransport(respond), **kwargs)
-        clients.append(opened)
-        return opened
-
-    monkeypatch.setattr(mcp.httpx2, "AsyncClient", client)
+    clients = _capture_pinned_http(monkeypatch, respond)
 
     @asynccontextmanager
     async def streamable(url, *, http_client):
@@ -722,16 +733,20 @@ async def test_managed_preflight_and_execution_keep_the_credential_bound_to_its_
             session.initialize.assert_awaited_once()
             session.list_tools.assert_awaited_once()
             assert len(sent) == 1
-            assert str(sent[0].url) == spec.url
+            assert sent[0].url == httpx2.URL(spec.url).copy_with(host="93.184.216.34")
+            assert sent[0].headers["host"] == httpx2.URL(spec.url).netloc.decode()
             assert sent[0].headers["x-api-key"] == "runtime-provider-key"
-            assert len(clients) == 2
-            execution = build.call_args.kwargs["http_client"]
-            assert execution is clients[1] and not execution.is_closed
-            assert build.call_args.kwargs["headers"] is None
-            assert execution.headers["x-api-key"] == "runtime-provider-key"
-            assert execution.follow_redirects is False
-            with pytest.raises(httpx2.RequestError, match="cross-origin"):
-                await execution.get("https://untrusted.example/collect")
+            assert len(clients) == 1
+            remote = build.call_args.args[0]
+            assert remote.url == spec.url
+            assert build.call_args.kwargs["http_client"] is None
+            async with remote.httpx_client_factory(headers=remote.headers) as execution:
+                assert execution is clients[1] and not execution.is_closed
+                assert execution.headers["x-api-key"] == "runtime-provider-key"
+                assert execution.follow_redirects is False
+                with pytest.raises(httpx2.RequestError, match="cross-origin"):
+                    await execution.get("https://untrusted.example/collect")
+            assert execution.is_closed
             assert len(sent) == 1
     finally:
         for opened in clients:
@@ -749,19 +764,18 @@ async def test_project_credentials_never_reach_another_origin(monkeypatch, targe
         sent.append(request)
         return httpx2.Response(200, json={"ok": True})
 
-    client_type = httpx2.AsyncClient
-    transport = httpx2.MockTransport(respond)
-    monkeypatch.setattr(
-        mcp.httpx2, "AsyncClient", lambda **kwargs: client_type(transport=transport, **kwargs)
-    )
-    async with mcp._origin_bound_client(_ORIGIN, {"x-api-key": "private-key"}, timeout=5) as client:
+    _capture_pinned_http(monkeypatch, respond)
+    async with mcp_http.McpHttpClientFactory(_ORIGIN, 3, _ORIGIN)(
+        headers={"x-api-key": "private-key"}, timeout=httpx2.Timeout(5)
+    ) as client:
         assert (await client.get(f"{_ORIGIN}/mcp")).status_code == 200
         with pytest.raises(httpx2.RequestError, match="cross-origin"):
             await client.get(target)
 
     assert len(sent) == 1
     assert sent[0].headers["x-api-key"] == "private-key"
-    assert str(sent[0].url) == f"{_ORIGIN}/mcp"
+    assert sent[0].url == httpx2.URL(f"{_ORIGIN}/mcp").copy_with(host="93.184.216.34")
+    assert sent[0].headers["host"] == httpx2.URL(_ORIGIN).netloc.decode()
 
 
 async def test_redirects_cannot_forward_the_managed_project_credential(monkeypatch):
@@ -771,19 +785,20 @@ async def test_redirects_cannot_forward_the_managed_project_credential(monkeypat
         sent.append(request)
         return httpx2.Response(307, headers={"location": "https://untrusted.example/collect"})
 
-    client_type = httpx2.AsyncClient
-    transport = httpx2.MockTransport(redirect)
-    monkeypatch.setattr(
-        mcp.httpx2, "AsyncClient", lambda **kwargs: client_type(transport=transport, **kwargs)
-    )
-    async with mcp._origin_bound_client(_ORIGIN, {"x-api-key": "private-key"}, timeout=5) as client:
+    _capture_pinned_http(monkeypatch, redirect)
+    async with mcp_http.McpHttpClientFactory(_ORIGIN, 3, _ORIGIN)(
+        headers={"x-api-key": "private-key"}, timeout=httpx2.Timeout(5)
+    ) as client:
         assert (await client.get(f"{_ORIGIN}/mcp")).status_code == 307
         # Even a caller that opts into following redirects cannot weaken the origin pin.
         with pytest.raises(httpx2.RequestError, match="cross-origin"):
             await client.get(f"{_ORIGIN}/mcp", follow_redirects=True)
 
     assert len(sent) == 2
-    assert all(str(request.url) == f"{_ORIGIN}/mcp" for request in sent)
+    assert all(
+        request.url == httpx2.URL(f"{_ORIGIN}/mcp").copy_with(host="93.184.216.34")
+        for request in sent
+    )
 
 
 async def test_assistant_app_bindings_preserve_explicit_ceilings_and_only_add_configured_apps():

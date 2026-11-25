@@ -1,5 +1,5 @@
 ---
-source_sha: "8580321f0fe0"
+source_sha: "4e97f249e052"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -512,19 +512,21 @@ co zwykły klient dostaje z resolvera, bez pytania DNS po raz drugi. Nazwa
 odpowiadająca jednym adresem publicznym i jednym prywatnym zostaje odrzucona
 **w całości**, a nie zawężona do swojej publicznej połowy.
 
-Zostają dwa brzegi, oba wąskie i oba celowe:
+**URL zgody** jest sprawdzany, a potem przekazywany przeglądarce, która sama
+rozwiązuje nazwę. To połączenie przeglądarki nie jest przypinane przez serwer.
 
-- **URL zgody** jest sprawdzany, a potem przekazywany czyjejś przeglądarce, która
-  rozwiązuje go sama. Nie ma tu czego przypinać.
-- **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
-  gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem. Host z listy (`OUTBOUND_PRIVATE_ALLOWLIST` albo
-  `MCP_ALLOWED_HOSTS`) też jest rozwiązywany, a każda odpowiedź sprawdzana:
-  odpowiedź prywatna przechodzi tylko dla hosta, który lista dopuszcza, odpowiedź
-  loopback lub metadanych nigdy, a host wpisany po nazwie, który jeszcze się nie
-  rozwiązuje, nadal można zapisać. Żądania OAuth połączenia, którego własny host
-  jest na liście, mogą sięgać do hostów z listy, przypięte jak każdy inny
-  krok.
+**Własny URL połączenia** jest sprawdzany przy zapisie, a każde żądanie HTTP lub
+SSE jest ponownie sprawdzane i łączy się z dopuszczonym adresem. Połączenie osobiste
+kontroluje członek, nie operator wdrożenia. Ponowne połączenie powtarza kontrolę.
+Przekierowania SDK zachowują origin endpointu (lub dozwolone przejście na HTTPS)
+i metodę żądania. POST narzędzia o niepewnym wyniku nie jest ponawiany.
+
+Hosty prywatne dopuszczają tylko listy operatora `OUTBOUND_PRIVATE_ALLOWLIST`
+i `MCP_ALLOWED_HOSTS`. Sprawdzana jest każda odpowiedź DNS; loopback, link-local
+i adresy metadanych pozostają odrzucane. Nazwę z listy, która jeszcze się nie
+rozwiązuje, można zapisać, ale przed połączeniem musi rozwiązać się bezpiecznie.
+Publiczne połączenie nie uzyskuje prywatnych wyjątków z przekierowania serwera
+ani jego metadanych OAuth.
 
 Nic, co wybiera _model_, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.

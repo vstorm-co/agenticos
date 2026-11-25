@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, Self
 from uuid import UUID
 
 import httpx2
+from fastmcp.client.transports import SSETransport, StreamableHttpTransport
 from pydantic import JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.exceptions import ApprovalRequired, CallDeferred, ModelRetry, ToolFailed
@@ -53,6 +54,7 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
+from app.agents.mcp_http import McpHttpClientFactory
 from app.agents.spec import ApprovalMode, McpApproval
 from app.core.platform_tool_policy import (
     ALWAYS_ASKS as PLATFORM_ALWAYS_ASK_TOOLS,
@@ -147,14 +149,14 @@ class McpProbeError(Exception):
 
 
 async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
-    """SSRF-check a URL before we talk to it (same policy as webhooks).
+    """Validate a stored endpoint or a browser consent URL (same policy as webhooks).
 
-    For a URL an operator typed: the connection's own address, and the consent
+    For a URL a member typed: the connection's own address, and the consent
     URL the OAuth flow hands to somebody's browser rather than fetching. Runs
     in a thread because validation resolves DNS.
 
-    Everything the OAuth flow *fetches* is chosen by the remote server, so it
-    goes through :class:`app.core.pinned_http.PinnedAsyncClient` instead, which
+    Remote MCP connections and everything the OAuth flow fetches also go
+    through :class:`app.core.pinned_http.PinnedAsyncClient`, which
     connects to the address it checked rather than handing the name back to be
     resolved again (#860).
 
@@ -353,31 +355,37 @@ async def _mcp_transport(
     `streamable_http_client(url, http_client=...)` yielding two. A rename alone
     compiles and silently drops every `Authorization` a connection carries -
     which is the whole of what reaches a private MCP server - so the headers go
-    into the client `create_mcp_http_client` builds, and the client is owned
+    into the pinned client `McpHttpClientFactory` builds, and the client is owned
     here so it closes with the transport (#1820).
     """
+    factory = McpHttpClientFactory(url, CONNECT_TIMEOUT_SECS, credential_origin)
     if credential_origin is not None:
         from mcp.client.streamable_http import streamable_http_client
 
         async with (
-            _origin_bound_client(credential_origin, headers or {}, timeout=timeout) as http_client,
+            factory(headers=headers, timeout=httpx2.Timeout(timeout)) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
     elif infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
-        async with sse_client(url, headers=headers or None, timeout=CONNECT_TIMEOUT_SECS) as (
+        async with sse_client(
+            url,
+            headers=headers or None,
+            timeout=CONNECT_TIMEOUT_SECS,
+            httpx_client_factory=factory,
+        ) as (
             read,
             write,
         ):
             yield read, write
     else:
-        from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
+        from mcp.client.streamable_http import streamable_http_client
 
         limits = httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS)
         async with (
-            create_mcp_http_client(headers=headers or None, timeout=limits) as http_client,
+            factory(headers=headers, timeout=limits) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
@@ -546,16 +554,25 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     """
     prefix = tool_prefix(spec.name)
     # A custom client carries the headers itself: the two are exclusive.
-    http_client = (
-        _in_process_client(spec.headers)
-        if spec.in_process
-        else _origin_bound_client(spec.credential_origin, spec.headers, timeout=300.0)
-        if spec.credential_origin is not None
-        else None
-    )
+    http_client = _in_process_client(spec.headers) if spec.in_process else None
+    remote: str | SSETransport | StreamableHttpTransport = spec.url
+    if not spec.in_process:
+        factory = McpHttpClientFactory(
+            spec.url,
+            CONNECT_TIMEOUT_SECS,
+            spec.credential_origin,
+            default_timeout=httpx2.Timeout(300.0)
+            if spec.credential_origin is not None
+            else httpx2.Timeout(30.0, read=300.0),
+        )
+        transport = (
+            SSETransport
+            if infer_transport_type_from_url(spec.url) == "sse"
+            else StreamableHttpTransport
+        )
+        remote = transport(url=spec.url, headers=spec.headers or None, httpx_client_factory=factory)
     server: Any = MCPToolset(
-        spec.url,
-        headers=None if http_client is not None else spec.headers or None,
+        remote,
         http_client=http_client,
         id=f"mcp-{prefix}",
         init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
@@ -1010,29 +1027,6 @@ def platform_spec(
         always_asks=PLATFORM_ALWAYS_ASK_TOOLS,
         default_approval_free=PLATFORM_DEFAULT_APPROVAL_FREE_TOOLS,
         conditional_execution={name: name for name in PLATFORM_CONDITIONAL_EXECUTION_TOOLS},
-    )
-
-
-def _origin_bound_client(
-    origin: str, headers: dict[str, str], *, timeout: float
-) -> httpx2.AsyncClient:
-    """Keep a managed gateway's project credential on its own HTTPS origin."""
-    expected = httpx2.URL(origin)
-
-    async def refuse_other_origin(request: httpx2.Request) -> None:
-        actual = request.url
-        if (actual.scheme, actual.host, actual.port) != (
-            expected.scheme,
-            expected.host,
-            expected.port,
-        ):
-            raise httpx2.RequestError("Managed connection refused a cross-origin request.")
-
-    return httpx2.AsyncClient(
-        headers=headers,
-        timeout=httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS),
-        follow_redirects=False,
-        event_hooks={"request": [refuse_other_origin]},
     )
 
 

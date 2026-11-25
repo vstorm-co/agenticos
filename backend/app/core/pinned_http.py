@@ -3,12 +3,12 @@
 :func:`app.core.sanitize.validate_webhook_url` checks a name and hands back a
 string, so the caller resolves that name a second time to connect and whoever
 controls the name decides what it answers the second time. Where the URL was
-typed by an operator that gap is narrow. Where it was chosen by the party being
-checked it is not: MCP OAuth discovery names its own authorization server, token
+typed by a member the same gap exists: personal MCP endpoints are not trusted
+deployment configuration. MCP OAuth discovery also names its own authorization server, token
 endpoint, registration endpoint and every redirect after them, so connecting one
 hostile server is enough to aim it (#860).
 
-:class:`PinnedAsyncClient` closes it for that flow. Every request it sends -
+:class:`PinnedAsyncClient` closes it for remote MCP and that flow. Every request it sends -
 first hop or redirect - is checked by :func:`app.core.sanitize.resolve_pinned_url`
 and then dialled **at an address that check approved**, with the original host
 in the `Host` header and in TLS SNI so certificate verification is unchanged.
@@ -51,6 +51,7 @@ from app.core.sanitize import (
     NO_PRIVATE_ADDRESSES,
     PinnedAddress,
     PrivateAllowlist,
+    allowlist_for,
     resolve_pinned_url,
 )
 
@@ -69,6 +70,26 @@ _NO_REUSE = httpx2.Limits(max_keepalive_connections=0)
 # nothing was sent, so nothing is sent twice. A read or write failure means the
 # token grant may already have been processed at the other end.
 _UNREACHED = (httpx2.ConnectError, httpx2.ConnectTimeout)
+
+
+class _ChainPolicy:
+    """Freeze a connection's operator exceptions before its concurrent requests."""
+
+    def __init__(self, listed: PrivateAllowlist, origin: str | None) -> None:
+        self._listed = listed
+        self._origin = origin
+        self._resolved = listed if origin is None else None
+        self._lock = asyncio.Lock()
+
+    async def get(self) -> PrivateAllowlist:
+        if self._resolved is None:
+            async with self._lock:
+                if self._resolved is None:
+                    assert self._origin is not None
+                    self._resolved = await asyncio.to_thread(
+                        allowlist_for, self._origin, self._listed
+                    )
+        return self._resolved
 
 
 def _dial(request: httpx2.Request, pinned: PinnedAddress, ip: str, body: bytes) -> httpx2.Request:
@@ -106,9 +127,12 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
         self,
         inner: httpx2.AsyncBaseTransport,
         private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
+        *,
+        _policy: _ChainPolicy | None = None,
     ) -> None:
         self._inner = inner
         self._private_allowlist = private_allowlist
+        self._policy = _policy or _ChainPolicy(private_allowlist, None)
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         """Raises a `UrlRefusedError` out of `client.send` rather than connecting.
@@ -117,8 +141,9 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
         type it would from a direct call and quotes what it is allowed to
         quote - a host, never a URL (#861).
         """
+        listed = await self._policy.get()
         pinned = await asyncio.to_thread(
-            partial(resolve_pinned_url, str(request.url), private_allowlist=self._private_allowlist)
+            partial(resolve_pinned_url, str(request.url), private_allowlist=listed)
         )
         body = await request.aread()
         *rest, final = pinned.ips
@@ -142,6 +167,14 @@ class PinnedAsyncClient(httpx2.AsyncClient):
     should count the hops and see each one, and the transport only ever sees a
     single request.
 
+    `allowlist_origin` selects the operator exceptions once, on the first
+    request, using the initial URL's origin rule. It never creates an exception
+    from that URL: `private_allowlist` still contains only operator-approved
+    entries. Remote MCP factories use it because they are synchronous, while
+    selecting the origin's policy may need DNS off the event loop. Every proxy
+    mount shares that decision. Without it, existing callers keep their
+    supplied policy unchanged.
+
     `transport` replaces the network for a test; it is wrapped, not bypassed, so
     a test observes exactly what would go on the wire. Passing one also turns
     off `httpx2`'s environment-proxy mounting, which is why the real client does
@@ -161,6 +194,7 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         timeout: httpx2.Timeout,
         transport: httpx2.AsyncBaseTransport | None = None,
         private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
+        allowlist_origin: str | None = None,
     ) -> None:
         super().__init__(
             timeout=timeout,
@@ -173,9 +207,12 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         # environment names - and wrapping what it built is what applies the pin
         # to whichever of them a URL selects. Naming a transport here instead is
         # what silently turned those proxies off (#875).
-        self._transport = PinnedTransport(self._transport, private_allowlist)
+        policy = _ChainPolicy(private_allowlist, allowlist_origin)
+        self._transport = PinnedTransport(self._transport, private_allowlist, _policy=policy)
         self._mounts = {
-            pattern: None if mounted is None else PinnedTransport(mounted, private_allowlist)
+            pattern: None
+            if mounted is None
+            else PinnedTransport(mounted, private_allowlist, _policy=policy)
             for pattern, mounted in self._mounts.items()
         }
         if any(mounted is not None for mounted in self._mounts.values()):

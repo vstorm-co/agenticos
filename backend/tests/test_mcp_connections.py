@@ -250,7 +250,10 @@ class TestTransportSelection:
         calls: list = []
         import mcp.client.sse as sse_mod
 
-        def sse_client(url, headers=None, timeout=None):
+        def sse_client(url, headers=None, timeout=None, httpx_client_factory=None):
+            from app.agents.mcp_http import McpHttpClientFactory
+
+            assert isinstance(httpx_client_factory, McpHttpClientFactory)
             calls.append(("sse", url, headers, timeout))
             return _acm(("sse-read", "sse-write"))
 
