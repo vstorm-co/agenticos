@@ -19,6 +19,7 @@ import { ideaState } from "@/lib/authoring-groups";
 import type { AuthoringRequest, Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
 import { Perm } from "@/types/permissions";
 import { CheckDialog } from "./check-dialog";
+import { RequestFailure } from "./failure-words";
 import { SuggestionList } from "./suggestion-list";
 import { RejectedChanges } from "./rejected-changes";
 import { VerifyReport } from "./verify-report";
@@ -127,9 +128,7 @@ export function AssistantStrip({
       </CardHeader>
       <CardContent className="space-y-4">
         {latest?.status === "failed" && (
-          <p role="alert" className="text-destructive-ink text-sm">
-            {latest.error}
-          </p>
+          <RequestFailure request={latest} className="text-destructive-ink text-sm" />
         )}
         {working && (
           <p role="status" className="text-muted-foreground text-sm">

@@ -79,8 +79,19 @@ describe("the assistant's Improve button", () => {
     expect(screen.getByRole("button", { name: "Reading the runs…" })).toBeDisabled();
     second.unmount();
     state.latest = authoringRequest({ status: "failed", error: "No runs opened it" });
-    render(<ImproveContextButton contextId="context-1" />);
+    const third = render(<ImproveContextButton contextId="context-1" />);
     expect(screen.getByRole("alert")).toHaveTextContent("No runs opened it");
+    third.unmount();
+    state.latest = authoringRequest({
+      status: "failed",
+      error: "Lost the right to edit it.",
+      error_code: "no_edit_context",
+    });
+    render(<ImproveContextButton contextId="context-1" />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Whoever started this may no longer edit the context file.",
+    );
+    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
   });
 
   it("says when what it proposed is what the skill already says", () => {

@@ -22021,5 +22021,55 @@
     "exportLegacy": "Exportar arquivo antigo de workflow",
     "startNewTransfer": "Iniciar nova transferência",
     "unsupportedMapping": "Este recurso não tem adaptador de importação. Ignore o vínculo e configure-o no editor de destino."
+  },
+  "stepFailure": {
+    "technicalDetails": "Detalhes técnicos",
+    "step": {
+      "system_agent_not_seeded": "Não foi possível configurar um agent de sistema de que esta etapa precisa.",
+      "system_agent_missing": "Um agent de sistema de que esta etapa precisa, ou a versão escolhida para ele, já não existe. Escolha outro.",
+      "system_agent_unpublished": "Um agent de sistema de que esta etapa precisa não tem uma versão publicada. Escolha um modelo e publique-o.",
+      "system_agent_archived": "Um agent de sistema de que esta etapa precisa está arquivado. Restaure-o para voltar a usá-lo.",
+      "system_agent_no_access": "Quem iniciou isto não pode executar um agent de sistema de que esta etapa precisa. Peça acesso a ele.",
+      "system_agent_no_model": "Um agent de sistema de que esta etapa precisa não consegue chegar ao seu modelo.",
+      "system_agent_failed": "Um agent de sistema de que esta etapa precisa não deu uma resposta utilizável. O run dele fica guardado em Atividade.",
+      "only_anonymised": "Todos os casos do dataset foram anonimizados quando a pessoa de quem vieram foi apagada. Reescreva ou remova esses casos primeiro.",
+      "all_evidence": "Todos os casos do dataset vieram das conversas de que esta alteração foi derivada, por isso nenhum pode medi-la. Adicione casos de outras conversas ou escolha outro dataset.",
+      "no_scorer": "Nada na avaliação do dataset consegue decidir um caso. Adicione uma verificação, uma chamada de ferramenta esperada ou ative o avaliador.",
+      "no_reruns": "Um run medido em relação a uma referência precisa de pelo menos uma repetição, e esta implantação não tem nenhuma configurada.",
+      "evidence_too_large": "As evidências da proposta são grandes demais para isolar o teste com segurança. Peça uma nova proposta.",
+      "budget": "O budget acabou antes de esta etapa terminar.",
+      "not_found": "Algo de que esta etapa precisa já não existe ou já não está visível.",
+      "not_allowed": "Quem iniciou isto já não tem permissão para fazer esta etapa.",
+      "changed": "Algo que esta etapa leu mudou enquanto ela era executada. Tente novamente.",
+      "run_failed": "Um run de que esta etapa precisava falhou, ou o provider do modelo não respondeu.",
+      "refused": "Esta etapa foi recusada.",
+      "failed": "Esta etapa falhou no servidor."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Adicione mais # pergunta de teste reservada para medir uma mudança.} other {Adicione mais # perguntas de teste reservadas para medir uma mudança.}}",
+      "no_evidence": "Ainda não há runs de chat avaliados nem falhas nas perguntas de treino.",
+      "search_too_few_training": "{minimum, plural, one {Uma busca precisa de pelo menos # pergunta de treino para esta tentativa.} other {Uma busca precisa de pelo menos # perguntas de treino para esta tentativa.}}"
+    },
+    "request": {
+      "no_runs_view": "Quem iniciou isto já não pode ler runs.",
+      "evidence_erased": "Uma fonte de evidências foi apagada enquanto o assistente trabalhava. Comece de novo com as evidências atuais.",
+      "no_edit_agent": "Quem iniciou isto já não pode editar o agent.",
+      "agent_gone": "O agent já não existe.",
+      "no_published_version": "O agent não tem uma versão publicada com que comparar.",
+      "skill_gone": "O skill já não existe.",
+      "no_edit_skill": "Quem iniciou isto já não pode editar o skill.",
+      "session_moved_on": "A sessão de melhoria seguiu em frente.",
+      "conflicts_unanswered": "O assistente não respondeu a todos os conflitos; resolva-os em Alterações.",
+      "session_stopped": "A sessão de melhoria parou.",
+      "context_gone": "O arquivo de contexto já não existe.",
+      "no_edit_context": "Quem iniciou isto já não pode editar o arquivo de contexto.",
+      "unknown_skill_use": "Não se sabe de nenhum run neste período que tenha usado o skill. {runs, plural, one {# run com avaliação negativa ou com falha é de antes de os usos serem registrados, por isso não se sabe se ele usou o skill.} other {# runs com avaliação negativa ou com falha são de antes de os usos serem registrados, por isso não se sabe se eles o usaram.}}",
+      "no_evidence": "Ainda não há nada com que aprender: nenhum run neste período foi avaliado ou falhou. Amplie o período ou volte quando algumas respostas tiverem sido avaliadas.",
+      "key_revoked": "A chave de API que iniciou isto foi revogada ou já não existe, por isso foi interrompido.",
+      "not_a_member": "Quem iniciou isto já não é membro.",
+      "unexpected": "O assistente parou inesperadamente. Tente novamente.",
+      "stalled": "O assistente parou sem terminar. Tente novamente.",
+      "withdrawn": "O pedido foi cancelado antes de começar. Tente novamente."
+    }
   }
 }

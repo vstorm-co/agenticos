@@ -21910,5 +21910,55 @@
     "exportLegacy": "Eksportuj starszy plik workflow",
     "startNewTransfer": "Rozpocznij nowy transfer",
     "unsupportedMapping": "Ten zasób nie ma adaptera importu. Pomiń powiązanie i skonfiguruj je w edytorze docelowym."
+  },
+  "stepFailure": {
+    "technicalDetails": "Szczegóły techniczne",
+    "step": {
+      "system_agent_not_seeded": "Nie udało się skonfigurować agenta systemowego, którego potrzebuje ten krok.",
+      "system_agent_missing": "Agent systemowy, którego potrzebuje ten krok, albo wybrana dla niego wersja już nie istnieje. Wybierz inny.",
+      "system_agent_unpublished": "Agent systemowy, którego potrzebuje ten krok, nie ma opublikowanej wersji. Wybierz model i opublikuj go.",
+      "system_agent_archived": "Agent systemowy, którego potrzebuje ten krok, jest zarchiwizowany. Przywróć go, żeby znowu go używać.",
+      "system_agent_no_access": "Osoba, która to uruchomiła, nie może używać agenta systemowego potrzebnego w tym kroku. Poproś o dostęp do niego.",
+      "system_agent_no_model": "Agent systemowy, którego potrzebuje ten krok, nie może połączyć się ze swoim modelem.",
+      "system_agent_failed": "Agent systemowy, którego potrzebuje ten krok, nie dał odpowiedzi, której dałoby się użyć. Jego run jest zapisany w Aktywności.",
+      "only_anonymised": "Każdy przypadek datasetu został zanonimizowany, gdy usunięto dane osoby, od której pochodził. Najpierw przepisz albo usuń te przypadki.",
+      "all_evidence": "Każdy przypadek datasetu pochodzi z rozmów, z których wyprowadzono tę zmianę, więc żaden nie może jej zmierzyć. Dodaj przypadki z innych rozmów albo wybierz inny dataset.",
+      "no_scorer": "Nic w ocenianiu datasetu nie może rozstrzygnąć przypadku. Dodaj kontrolę, oczekiwane wywołanie narzędzia albo włącz sędziego.",
+      "no_reruns": "Run mierzony względem wersji bazowej potrzebuje co najmniej jednego powtórzenia, a to wdrożenie nie ma ustawionych żadnych.",
+      "evidence_too_large": "Dowody propozycji są zbyt duże, żeby bezpiecznie odizolować jej test. Poproś o nową propozycję.",
+      "budget": "Budget wyczerpał się, zanim ten krok się skończył.",
+      "not_found": "Czegoś, czego potrzebuje ten krok, już nie ma albo nie jest już widoczne.",
+      "not_allowed": "Osoba, która to uruchomiła, nie może już wykonać tego kroku.",
+      "changed": "Coś, co odczytał ten krok, zmieniło się w trakcie jego działania. Spróbuj ponownie.",
+      "run_failed": "Run potrzebny w tym kroku nie powiódł się albo provider modelu nie odpowiedział.",
+      "refused": "Ten krok został odrzucony.",
+      "failed": "Ten krok nie powiódł się po stronie serwera."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Dodaj jeszcze # pytanie kontrolne, żeby zmierzyć zmianę.} few {Dodaj jeszcze # pytania kontrolne, żeby zmierzyć zmianę.} many {Dodaj jeszcze # pytań kontrolnych, żeby zmierzyć zmianę.} other {Dodaj jeszcze # pytania kontrolnego, żeby zmierzyć zmianę.}}",
+      "no_evidence": "Nie ma jeszcze ocenionych runów czatu ani porażek na pytaniach treningowych.",
+      "search_too_few_training": "{minimum, plural, one {Wyszukiwanie w tej próbie potrzebuje co najmniej # pytania treningowego.} few {Wyszukiwanie w tej próbie potrzebuje co najmniej # pytań treningowych.} many {Wyszukiwanie w tej próbie potrzebuje co najmniej # pytań treningowych.} other {Wyszukiwanie w tej próbie potrzebuje co najmniej # pytania treningowego.}}"
+    },
+    "request": {
+      "no_runs_view": "Osoba, która to uruchomiła, nie może już czytać runów.",
+      "evidence_erased": "Źródło dowodów zostało usunięte, gdy asystent pracował. Zacznij od nowa z aktualnymi dowodami.",
+      "no_edit_agent": "Osoba, która to uruchomiła, nie może już edytować agenta.",
+      "agent_gone": "Agent już nie istnieje.",
+      "no_published_version": "Agent nie ma opublikowanej wersji, z którą można by porównać.",
+      "skill_gone": "Skill już nie istnieje.",
+      "no_edit_skill": "Osoba, która to uruchomiła, nie może już edytować skilla.",
+      "session_moved_on": "Sesja ulepszania przeszła dalej.",
+      "conflicts_unanswered": "Asystent nie rozstrzygnął każdego konfliktu. Rozstrzygnij je w kroku Zmiany.",
+      "session_stopped": "Sesja ulepszania została zatrzymana.",
+      "context_gone": "Plik kontekstu już nie istnieje.",
+      "no_edit_context": "Osoba, która to uruchomiła, nie może już edytować pliku kontekstu.",
+      "unknown_skill_use": "Nie wiadomo, czy któryś run w tym oknie użył skilla. {runs, plural, one {# oceniony negatywnie albo nieudany run pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użył.} few {# ocenione negatywnie albo nieudane runy pochodzą sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.} many {# ocenionych negatywnie albo nieudanych runów pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.} other {# ocenionego negatywnie albo nieudanego runu pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.}}",
+      "no_evidence": "Na razie nie ma z czego się uczyć: żaden run w tym oknie nie został oceniony ani nie zakończył się niepowodzeniem. Poszerz okno albo wróć, gdy ludzie ocenią kilka odpowiedzi.",
+      "key_revoked": "Klucz API, którym to uruchomiono, został unieważniony albo już nie istnieje, więc działanie zatrzymano.",
+      "not_a_member": "Osoba, która to uruchomiła, nie jest już członkiem organizacji.",
+      "unexpected": "Asystent nieoczekiwanie się zatrzymał. Spróbuj ponownie.",
+      "stalled": "Asystent zatrzymał się, zanim skończył. Spróbuj ponownie.",
+      "withdrawn": "Prośbę anulowano, zanim się zaczęła. Spróbuj ponownie."
+    }
   }
 }

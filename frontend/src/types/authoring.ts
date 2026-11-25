@@ -4,6 +4,54 @@ export type AuthoringKind = "improve" | "verify";
 export type AuthoringStatus = "queued" | "running" | "completed" | "failed";
 export type HunkStatus = "pending" | "accepted" | "dismissed";
 
+/**
+ * Why a background step stopped on one of the platform's own refusals. The last six
+ * name only the kind of refusal; the stored English sentence holds the specifics.
+ */
+export type StepFailure =
+  | "system_agent_not_seeded"
+  | "system_agent_missing"
+  | "system_agent_unpublished"
+  | "system_agent_archived"
+  | "system_agent_no_access"
+  | "system_agent_no_model"
+  | "system_agent_failed"
+  | "only_anonymised"
+  | "all_evidence"
+  | "no_scorer"
+  | "no_reruns"
+  | "evidence_too_large"
+  | "budget"
+  | "not_found"
+  | "not_allowed"
+  | "changed"
+  | "run_failed"
+  | "refused"
+  | "failed";
+
+/** Why an assistant request failed, as the code beside its English `error`. */
+export type AuthoringFailure =
+  | StepFailure
+  | "no_runs_view"
+  | "evidence_erased"
+  | "no_edit_agent"
+  | "agent_gone"
+  | "no_published_version"
+  | "skill_gone"
+  | "no_edit_skill"
+  | "session_moved_on"
+  | "conflicts_unanswered"
+  | "session_stopped"
+  | "context_gone"
+  | "no_edit_context"
+  | "unknown_skill_use"
+  | "no_evidence"
+  | "key_revoked"
+  | "not_a_member"
+  | "unexpected"
+  | "stalled"
+  | "withdrawn";
+
 export interface AuthoringStart {
   helper_settings?: { model_profile_id: string | null; instructions: string | null };
   improver_agent_id?: string | null;
@@ -42,7 +90,12 @@ export interface AuthoringRequest {
   skill_id: string | null;
   context_id?: string | null;
   status: AuthoringStatus;
+  /** Why it failed, in English; `error_code` says it in a form the console words. */
   error: string | null;
+  /** Null on a request that failed before codes were recorded. */
+  error_code?: AuthoringFailure | null;
+  /** The counts `error` names: `runs` for `unknown_skill_use`. */
+  error_params?: Record<string, number> | null;
   estimate_usd: string;
   cost_usd: string;
   run_ids: string[];

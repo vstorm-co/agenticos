@@ -21505,5 +21505,55 @@
     "exportLegacy": "Exporter un ancien fichier workflow",
     "startNewTransfer": "Démarrer un nouveau transfert",
     "unsupportedMapping": "Cette ressource n’a pas d’adaptateur d’import. Omettez sa liaison et configurez-la dans l’éditeur de destination."
+  },
+  "stepFailure": {
+    "technicalDetails": "Détails techniques",
+    "step": {
+      "system_agent_not_seeded": "Un agent système dont cette étape a besoin n’a pas pu être configuré.",
+      "system_agent_missing": "Un agent système dont cette étape a besoin, ou la version choisie pour lui, n’existe plus. Choisissez-en un autre.",
+      "system_agent_unpublished": "Un agent système dont cette étape a besoin n’a pas de version publiée. Choisissez un modèle et publiez-le.",
+      "system_agent_archived": "Un agent système dont cette étape a besoin est archivé. Restaurez-le pour l’utiliser à nouveau.",
+      "system_agent_no_access": "La personne qui a lancé ceci ne peut pas exécuter un agent système dont cette étape a besoin. Demandez-y l’accès.",
+      "system_agent_no_model": "Un agent système dont cette étape a besoin ne peut pas joindre son modèle.",
+      "system_agent_failed": "Un agent système dont cette étape a besoin n’a donné aucune réponse exploitable. Son run est conservé dans Activité.",
+      "only_anonymised": "Chaque cas du dataset a été anonymisé lorsque la personne dont il provenait a été effacée. Réécrivez ou supprimez d’abord ces cas.",
+      "all_evidence": "Chaque cas du dataset provient des conversations dont cette modification est tirée, donc aucun ne peut la mesurer. Ajoutez des cas issus d’autres conversations, ou choisissez un autre dataset.",
+      "no_scorer": "Rien dans la notation du dataset ne peut trancher un cas. Ajoutez une vérification, un appel d’outil attendu, ou activez le juge.",
+      "no_reruns": "Un run mesuré par rapport à une référence a besoin d’au moins une répétition, et ce déploiement n’en prévoit aucune.",
+      "evidence_too_large": "Les preuves de la proposition sont trop volumineuses pour isoler son test en toute sécurité. Demandez une nouvelle proposition.",
+      "budget": "Le budget a été épuisé avant la fin de cette étape.",
+      "not_found": "Un élément dont cette étape a besoin n’existe plus ou n’est plus visible.",
+      "not_allowed": "La personne qui a lancé ceci n’a plus le droit d’effectuer cette étape.",
+      "changed": "Un élément lu par cette étape a changé pendant son exécution. Réessayez.",
+      "run_failed": "Un run dont cette étape avait besoin a échoué, ou son fournisseur de modèle n’a pas répondu.",
+      "refused": "Cette étape a été refusée.",
+      "failed": "Cette étape a échoué sur le serveur."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Ajoutez encore # question de test mise de côté pour mesurer un changement.} other {Ajoutez encore # questions de test mises de côté pour mesurer un changement.}}",
+      "no_evidence": "Aucun run de chat noté ni aucun échec sur les questions d’entraînement n’est encore disponible.",
+      "search_too_few_training": "{minimum, plural, one {Une recherche a besoin d’au moins # question d’entraînement pour cette tentative.} other {Une recherche a besoin d’au moins # questions d’entraînement pour cette tentative.}}"
+    },
+    "request": {
+      "no_runs_view": "La personne qui a lancé ceci ne peut plus lire les runs.",
+      "evidence_erased": "Une source de preuves a été effacée pendant que l’assistant travaillait. Recommencez avec les preuves actuelles.",
+      "no_edit_agent": "La personne qui a lancé ceci ne peut plus modifier l’agent.",
+      "agent_gone": "L’agent n’existe plus.",
+      "no_published_version": "L’agent n’a pas de version publiée avec laquelle comparer.",
+      "skill_gone": "Le skill n’existe plus.",
+      "no_edit_skill": "La personne qui a lancé ceci ne peut plus modifier le skill.",
+      "session_moved_on": "La session d’amélioration est passée à la suite.",
+      "conflicts_unanswered": "L’assistant n’a pas répondu à chaque conflit ; réglez-les à l’étape Modifications.",
+      "session_stopped": "La session d’amélioration s’est arrêtée.",
+      "context_gone": "Le fichier de contexte n’existe plus.",
+      "no_edit_context": "La personne qui a lancé ceci ne peut plus modifier le fichier de contexte.",
+      "unknown_skill_use": "Aucun run de cette période n’est connu pour avoir utilisé le skill. {runs, plural, one {# run mal noté ou en échec date d’avant l’enregistrement des utilisations, on ne sait donc pas s’il a utilisé le skill.} other {# runs mal notés ou en échec datent d’avant l’enregistrement des utilisations, on ne sait donc pas s’ils l’ont utilisé.}}",
+      "no_evidence": "Rien à apprendre pour l’instant : aucun run de cette période n’a été noté ni n’a échoué. Élargissez la période, ou revenez quand des réponses auront été notées.",
+      "key_revoked": "La clé API qui a lancé ceci a été révoquée ou n’existe plus, ceci a donc été arrêté.",
+      "not_a_member": "La personne qui a lancé ceci n’est plus membre.",
+      "unexpected": "L’assistant s’est arrêté de manière inattendue. Réessayez.",
+      "stalled": "L’assistant s’est arrêté sans terminer. Réessayez.",
+      "withdrawn": "La demande a été annulée avant de commencer. Réessayez."
+    }
   }
 }
