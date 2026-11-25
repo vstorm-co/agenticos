@@ -55,6 +55,8 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const canDecide = dataset.can_edit;
   // Scoring again reads the answer back from its run; `can_run` already holds `runs:view`.
   const canRescore = dataset.can_run;
+  // Deciding on an eval run's answer, or grading it again, needs what reading it needs.
+  const readable = (score: CaseScore) => score.eval_run_id === null || !score.answer_hidden;
   const toCriterion = useNoteToCriterion(dataset);
   const currentKept = kept.scope === scope ? kept : { order: [], scores: {} };
   const visible = new Map(scores.scores.map((score) => [score.id, score]));
@@ -76,7 +78,9 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   );
   // A refreshed listing may lose its last page; keep pagination on an existing page.
   if (!scores.isLoading && !scores.verdict.isPending && page >= pageCount) setPage(pageCount - 1);
-  const ungraded = visibleScores.filter((score) => score.unscored_reason !== null);
+  const ungraded = visibleScores.filter(
+    (score) => score.unscored_reason !== null && readable(score),
+  );
   const waiting = visibleScores.filter(
     (score) => score.review_state === "pending" && score.human_passed === null,
   );
@@ -219,9 +223,15 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                   score={score}
                   busy={busy}
                   linksRuns={linksRuns}
-                  onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
+                  onVerdict={
+                    canDecide && readable(score)
+                      ? (verdict) => void decide(score, verdict)
+                      : undefined
+                  }
                   onReview={canDecide ? () => void queue(score.id) : undefined}
-                  onRescore={canRescore ? () => void rescore([score.id]) : undefined}
+                  onRescore={
+                    canRescore && readable(score) ? () => void rescore([score.id]) : undefined
+                  }
                   onNoteToCriterion={
                     canDecide ? (target) => void noteToCriterion(score, target) : undefined
                   }

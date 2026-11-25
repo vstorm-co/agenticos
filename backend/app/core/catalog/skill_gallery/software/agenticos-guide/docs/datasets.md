@@ -518,6 +518,10 @@ anew, with the configuration it was first graded with (`POST
 run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
+A new grade on an eval run's answer settles that run's comparison, and the
+suites, improvement sessions and skill checks built on it, again, as a person's
+decision does.
+
 A cause still there - the judge unpublished - is refused as
 it stands, and so is an eval run's judge published anew since it failed, or a
 score of one pinned to an earlier judge prompt, whose grade would not compare
@@ -622,8 +626,10 @@ changed from the dialog.
 | Change how a dataset is graded | `datasets:edit` on it |
 | Create a judge for it | `datasets:edit` on it, and `agents:edit` |
 | Score a run against it | `datasets:run` on it, and `runs:view` |
+| Score an answer again | `datasets:run` on it, and `runs:view`; for an eval run's answer, also access to the agent that answered |
 | Read its scores | `datasets:view` on it |
-| Send scores to review, record or withdraw a decision | `datasets:edit` on it |
+| Send scores to review | `datasets:edit` on it |
+| Record or withdraw a decision | `datasets:edit` on it; for an eval run's answer, also `runs:view` and access to the agent that answered |
 
 A reason the judge wrote is passed through the same credential redaction as a
 case before it is stored.
@@ -672,6 +678,8 @@ grants combine.
 A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
+
+A decision on an eval run's answer, or a new grade for it, also needs `runs:view` and access to the answering agent, because it changes the verdicts built on that run: a reader who cannot see the answer is not offered either, and the API refuses it with `403`.
 
 Datasets are not grouped by department - the list has no group filter or
 department badges - so a department reaches a dataset through a grant on it,

@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5a321e5b8ad8"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -71,7 +71,8 @@ desde entonces ofrece **Test again** en su lugar. Mientras el run responde, la
 página dice cuántas primeras respuestas hay, y la comparación espera a los dos
 lados. Las respuestas que el juez no logró calificar dicen por qué y no cuentan
 ni como aprobadas ni como fallidas, y **Grade again**, en el encabezado, las
-vuelve a calificar sin preguntar al agent, para quien pueda ejecutar el dataset.
+vuelve a calificar sin preguntar al agent, para quien pueda ejecutar el dataset y
+leer las respuestas del run.
 
 Bajo el veredicto están los lados uno junto al otro, cómo se comparan y los
 casos - cada fila con un punto de aprobado o fallido por lado, filtrados por
@@ -334,7 +335,8 @@ calificar**: el run lista esas puntuaciones como `ungraded_score_ids`, y
 volver a calificarlas (`POST /api/v1/datasets/{id}/scores/rescore`) lee la
 respuesta guardada en el intento en lugar de preguntar al agent. El veredicto
 de una persona en la [cola de revisión](datasets.md#review) sustituye el
-resultado de los evaluadores para ese caso, y las cifras del run lo siguen.
+resultado de los evaluadores para ese caso, y las cifras del run lo siguen,
+igual que siguen a una nueva calificación.
 
 Un juez que busca - [Knowledge search](concepts.md#system-agent-spec) en su
 pestaña Toolbox - comprueba los hechos de una respuesta contra las bases de conocimiento
@@ -757,6 +759,13 @@ el dataset: un run sobre un dataset que el lector no puede abrir no se lista, y
 pedirlo por id responde `404`, igual que un run de otra organización. Los runs
 de un dataset requieren además `datasets:view` sobre él, y solo listan los
 agents que el lector puede ver.
+
+Decidir sobre una de las respuestas de un run, o volver a calificarla, requiere
+`runs:view` y acceso al agent que respondió además del permiso propio del
+dataset: `datasets:edit` para decidir, `datasets:run` para calificar. Cualquiera
+de las dos cambia el veredicto del run y lo construido sobre él: el gate de una
+suite, una sesión de mejora, una comprobación de skill. Un grant sobre el
+dataset por sí solo no las abre.
 
 Crear, cambiar, pausar o ejecutar una suite requiere `agents:edit` y
 `agents:run` en el agent, `datasets:run` en el dataset y `runs:view`, y una

@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "73654d50ca33"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -558,6 +558,10 @@ El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
 cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
 
+Una nueva calificación de la respuesta de un eval run vuelve a resolver la
+comparación de ese run y las suites, sesiones de mejora y comprobaciones de
+skills construidas sobre él, como lo hace la decisión de una persona.
+
 Una causa que sigue ahí (el juez sin publicar)
 se rechaza tal cual, igual que el juez de un run de evaluación publicado de
 nuevo desde que falló, o una puntuación de ese run fijada a un prompt de juez
@@ -673,8 +677,10 @@ así que ninguno se hace desde el diálogo.
 | Cambiar cómo se califica un dataset | `datasets:edit` sobre él |
 | Crear un juez para él | `datasets:edit` sobre él, y `agents:edit` |
 | Puntuar un run contra él | `datasets:run` sobre él, y `runs:view` |
+| Volver a calificar una respuesta | `datasets:run` sobre él, y `runs:view`; para la respuesta de un eval run, también acceso al agent que respondió |
 | Leer sus puntuaciones | `datasets:view` sobre él |
-| Enviar puntuaciones a revisión, registrar o retirar una decisión | `datasets:edit` sobre él |
+| Enviar puntuaciones a revisión | `datasets:edit` sobre él |
+| Registrar o retirar una decisión | `datasets:edit` sobre él; para la respuesta de un eval run, también `runs:view` y acceso al agent que respondió |
 
 Un motivo que escribió el juez pasa por la misma ocultación de credenciales que
 un caso antes de guardarse.
@@ -726,6 +732,8 @@ los grants.
 El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
 
 Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
+
+Decidir sobre la respuesta de un eval run, o volver a calificarla, también requiere `runs:view` y acceso al agente que respondió, porque cambia los veredictos construidos sobre ese run: a un lector que no puede ver la respuesta no se le ofrece ninguna de las dos cosas, y la API las rechaza con `403`.
 
 Los datasets no se agrupan por departamento - la lista no tiene filtro de grupo
 ni insignias de departamento -, así que un departamento llega a un dataset
