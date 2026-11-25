@@ -1505,6 +1505,29 @@ class TestQueueingDeliveredFires:
             signed_digest=decision.signed_digest,
         )
 
+    async def test_an_app_decision_without_a_receipt_can_skip_and_continue_the_batch(self):
+        service = _service()
+        decisions = [
+            EventFireDecision(
+                source_policy_id=uuid.UUID(int=42),
+                trigger_id=uuid.uuid4(),
+                event_context=f"ISSUE #{index}",
+                organization_id=uuid.uuid4(),
+            )
+            for index in range(2)
+        ]
+        service.prepare_app_fires = AsyncMock(return_value=decisions)
+        service.queue_fire = AsyncMock(side_effect=[None, uuid.uuid4()])
+        release = AsyncMock()
+
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.release_webhook_delivery", release
+        ):
+            assert await service.queue_app_fires(body=b"{}", headers={}) == 1
+
+        assert service.queue_fire.await_count == 2
+        release.assert_not_awaited()
+
 
 class TestFiring:
     def _patches(self):
