@@ -148,6 +148,7 @@ from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService, refuse_never_accepted
+from app.services.authoring_config import published_spec
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack, PackedRun
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
@@ -3171,11 +3172,14 @@ class ImprovementPipelineService:
         if filter_policy:
             # The same policy as interactive authoring runs again at this boundary,
             # including historical or manually inserted proposal rows.
+            published = await published_spec(
+                self.db, agent_id=agent.id, organization_id=run.organization_id
+            )
             for hunk in pending:
                 if hunk.kind != HunkKind.SPEC_FIELD.value:
                     continue
                 staged = authoring_fields.stage(
-                    draft, hunk.path or "", hunk.op or "", hunk.new_value
+                    draft, hunk.path or "", hunk.op or "", hunk.new_value, published=published
                 )
                 if isinstance(staged, str):
                     dropped.append(hunk.id)

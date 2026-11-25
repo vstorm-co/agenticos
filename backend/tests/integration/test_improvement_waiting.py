@@ -319,6 +319,12 @@ async def test_an_edit_at_changes_is_what_the_check_measures_and_what_accept_wri
     assert "REWORDED_BY_A_PERSON" in accepted.instructions
     assert written == {"accepted_text": reworded}
 
+    spaced = f"  {hunk.new_text}\n"
+    kept = await service.edit_change(
+        ctx, agent.id, waiting.id, hunk.id, ChangeEdit(edited_text=spaced)
+    )
+    assert kept.edited_text == spaced
+
     restored = await service.edit_change(
         ctx, agent.id, waiting.id, hunk.id, ChangeEdit(edited_text=None)
     )

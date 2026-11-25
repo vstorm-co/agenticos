@@ -37,6 +37,16 @@ configuration and, at most, approvals that make its tools ask first. A tool's
 name and description are what the agent's model reads, and a key or a binding
 switched off changes what runs, so a proposal never carries them.
 
+**Nothing that reaches beyond the deployment is added.** `REACHES_OUTSIDE` names
+the capabilities whose tools reach the open web, a browser or a desktop, a
+messaging channel or a phone, a mounted service, a sandbox's network, a workflow
+or another agent; their limits are set in the Builder, never by a proposal.
+
+**Adding back is reconfiguring.** A capability the published version binds and
+the draft no longer does is judged as a change from that binding: its
+configuration may change only where it may be tuned, and its approval only
+tighten. Removing and adding it again is not a way around either rule.
+
 **A configuration is a target only where the capability opts in.** A capability
 the registry marks `tunable` has a configuration about quality alone; any other
 - one that reaches a URL, a domain, a connection, a provider or personal data -
@@ -77,6 +87,31 @@ TARGETS: tuple[tuple[str, tuple[FieldOp, ...]], ...] = (
     ("mcp_servers/{server}/allowed_tools", (FieldOp.SET,)),
 )
 """Every field a proposal may change, with what it may do there."""
+
+REACHES_OUTSIDE = frozenset(
+    {
+        "background_tasks",
+        "browser_use",
+        "channel_actions",
+        "channel_tools",
+        "coding_agent",
+        "computer_use",
+        "external_acp",
+        "mirage",
+        "monitor",
+        "phone_calls",
+        "sandbox",
+        "subagents",
+        "web_fetch",
+        "web_research",
+        "workflows",
+    }
+)
+"""Capabilities whose tools reach beyond the deployment, which a proposal never adds.
+
+`tests/test_authoring_fields.py` holds every registered capability to a side of
+this line, so a new one is placed deliberately.
+"""
 
 
 class _Missing:
@@ -360,6 +395,8 @@ def standing_refusal(path: str, op: str, base: Any, new: Any) -> str | None:
     """
     if weakens_protection(path, op, base):
         return "weakens_protection"
+    if _adds_outside(path, op, new):
+        return "reaches_network"
     if (
         parse(path) is None
         or _adds_untunable_config(path, op, new)
@@ -388,6 +425,55 @@ def _adds_untunable_config(path: str, op: str, value: Any) -> bool:
     if definition is None or definition.protective or _tunable(capability):
         return False
     return capability == _SUBAGENTS or bool(value.get("config"))
+
+
+def _adds_outside(path: str, op: str, value: Any) -> bool:
+    if path != "capabilities" or op != FieldOp.ADD.value:
+        return False
+    return str(value.get("id") if isinstance(value, dict) else value) in REACHES_OUTSIDE
+
+
+def readd_refusal(
+    published: AgentSpec | None, spec: AgentSpec, path: str, op: str, value: Any
+) -> str | None:
+    """Why adding back a capability the published version binds would loosen it, or `None`.
+
+    The draft no longer binds it, so the addition is a change from the published
+    binding: it is not switched back on, its configuration may change only where it
+    may be tuned and never on a safeguard, and none of its tools may ask for less
+    approval than it did.
+    """
+    if published is None or path != "capabilities" or op != FieldOp.ADD.value:
+        return None
+    if not isinstance(value, dict):
+        return None
+    capability = str(value.get("id"))
+    if _binding(spec.model_dump(mode="json"), capability) is not None:
+        return None
+    previous = _binding(published.model_dump(mode="json"), capability)
+    if previous is None:
+        return None
+    if previous.get("enabled", True) is False:
+        return "not_a_target"
+    load_builtins()
+    definition = REGISTRY.get(capability)
+    if (value.get("config") or {}) != (previous.get("config") or {}):
+        if definition is not None and definition.protective:
+            return "weakens_protection"
+        if not _tunable(capability):
+            return "not_a_target"
+    tools = {*(previous.get("tool_approval") or {}), *(definition.tool_ids if definition else ())}
+    if any(_strictness(value, tool) < _strictness(previous, tool) for tool in (None, *tools)):
+        return "loosens_approval"
+    return None
+
+
+def _strictness(binding: dict[str, Any], tool: str | None) -> int:
+    """How strictly a binding asks before `tool` runs, or before any tool for `None`."""
+    mode = (binding.get("tool_approval") or {}).get(tool) if tool is not None else None
+    if mode in (None, "default"):
+        mode = binding.get("approval", "default")
+    return _STRICTNESS.get(mode, 0)
 
 
 def _adds_unshown_settings(path: str, op: str, value: Any) -> bool:
@@ -425,7 +511,9 @@ def weakens_protection(path: str, op: str, base: Any) -> bool:
     return definition is not None and definition.protective
 
 
-def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
+def stage(
+    spec: AgentSpec, path: str, op: str, value: Any, *, published: AgentSpec | None = None
+) -> Staged | str:
     """The change as it would be stored, or why it may not be staged.
 
     The one policy every proposed field change passes, the assistant's and the
@@ -437,7 +525,9 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
     that does not tighten, a safeguard removed or reconfigured, a capability that
     does not exist, a configuration that does not validate, a change that does
     not apply. Whether the person may grant
-    what it adds is the registry's question, asked separately.
+    what it adds is the registry's question, asked separately. With `published`, an
+    added capability the published version binds is judged as a change from that
+    binding (`readd_refusal`).
     """
     load_builtins()
     if weakens_protection(path, op, value):
@@ -447,6 +537,8 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
         return "not_a_target"
     if op not in {allowed.value for allowed in ops(address)}:
         return "operation"
+    if _adds_outside(path, op, value):
+        return "reaches_network"
     if _adds_untunable_config(path, op, value) or _adds_unshown_settings(path, op, value):
         return "not_a_target"
     document = spec.model_dump(mode="json")
@@ -474,6 +566,8 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
         return "loosens_approval"
     if _config_refused(address, new, adds_capability=adds_capability):
         return "invalid_config"
+    if refused := readd_refusal(published, spec, path, op, new):
+        return refused
     if apply(spec, path, op, base, new) is None:
         return "does_not_apply"
     return Staged(base, new, _adds(address, op, base, new))

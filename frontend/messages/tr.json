@@ -17131,6 +17131,63 @@
     }
   },
   "authoring": {
+    "rejected": {
+      "title": "{count, plural, =1 {Asistanın eklemediği 1 fikir daha} other {Asistanın eklemediği # fikir daha}}",
+      "more": "{count, plural, =1 {1 tanesi daha listelenmedi} other {# tanesi daha listelenmedi}}",
+      "after": "Sonrası: {passage}",
+      "atEnd": "Talimatların sonunda",
+      "proposed": "Önerilen: {text}",
+      "kind": {
+        "instructions": "Talimatlar",
+        "tool_override": "Araç",
+        "spec_field": "Ayar",
+        "finding": "Bulgu",
+        "create_skill": "Yeni skill",
+        "skill_problem": "Skill sorunu"
+      },
+      "reason": {
+        "unanchored": "Değiştirdiği bölüm talimatlarda yok",
+        "ambiguous_anchor": "Değiştirdiği bölüm birden fazla kez geçiyor",
+        "no_change": "Hiçbir şeyi değiştirmiyor",
+        "unknown_tool": "Agent'ın böyle bir aracı yok",
+        "invalid_tool_change": "Agent'ın kullanamayacağı bir araç adı veya açıklaması",
+        "not_a_target": "Asistanın değiştirebileceği bir şey değil",
+        "operation": "O ayarın izin verdiği bir değişiklik değil",
+        "loosens_approval": "Onayı gevşetir",
+        "weakens_protection": "Bir korumayı zayıflatır",
+        "unknown_capability": "Böyle bir capability yok",
+        "invalid_config": "Ayarları geçerli değil",
+        "does_not_apply": "Taslağa uymuyor",
+        "reaches_network": "Bu dağıtımın dışına uzanan bir capability ekliyor. Onu, sınırlarının ayarlandığı Builder'da ekleyin",
+        "not_grantable": "İsteyen kişinin veremeyeceği bir şey ekliyor",
+        "dismissed_before": "Birisi bunu daha önce reddetti",
+        "unsupported": "Düzenlemenin desteklendiğini söyledi, ancak kontrol edilebilecek bir kanıt yok",
+        "edit_not_in_diff": "Adını verdiği satır düzenlemenin parçası değil",
+        "superseded": "Daha sonra başlatılan bir istek önerilerin yerini zaten almıştı",
+        "insufficient_evidence": "Bunu üçten az farklı yanıt istedi, bu yüzden kendiliğinden eklenmedi.",
+        "copies_skill": "Agent'ın zaten okuduğu skill'lerinden birini kopyalıyor",
+        "duplicates_skill": "Agent'ın bu ada veya metne sahip bir skill'i zaten var",
+        "unknown_skill": "Agent'ın böyle bir skill'i yok",
+        "skill_not_used": "Gösterdiği yanıtların hiçbiri skill'in bu sürümünü kullanmadı"
+      },
+      "about": "Hakkında: {line}",
+      "decide": "{count, plural, =1 {1 fikir daha kararınızı bekliyor} other {# fikir daha kararınızı bekliyor}}",
+      "decideSome": "{count, plural, =1 {1 fikir daha} other {# fikir daha}}, {decide, plural, =1 {1 tanesi kararınızı bekliyor} other {# tanesi kararınızı bekliyor}}",
+      "createSkill": "Skill oluştur",
+      "created": "Oluşturuldu ve taslağa eklendi.",
+      "openSkill": "Skill'i aç",
+      "create": {
+        "title": "Bu skill'i oluştur",
+        "description": "Skill, skill kütüphanenize ve bu agent'ın taslağına eklenir. Hiçbir şey yayımlanmaz.",
+        "fewAnswers": "{count, plural, =0 {Hiçbir yanıta dayanmıyor.} =1 {1 yanıta dayanıyor.} other {# yanıta dayanıyor.}} Oluşturmadan önce kontrol edin.",
+        "name": "Ad",
+        "nameHint": "Küçük harfler, rakamlar ve kısa çizgiler; örneğin refund-policy.",
+        "summary": "Ne için olduğu, tek cümlede",
+        "content": "Agent'ın yaptığı",
+        "cancel": "İptal",
+        "create": "Skill oluştur"
+      }
+    },
     "describe": {
       "open": "{name} ile oluştur"
     }
