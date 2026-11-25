@@ -16306,6 +16306,7 @@
     "evidence": {
       "none": "Aucune preuve vérifiable.",
       "dropped": "{count, plural, =1 {1 élément cité est introuvable} other {# éléments cités sont introuvables}} dans les runs et {count, plural, =1 {a été écarté} other {ont été écartés}}.",
+      "hidden": "{count, plural, =1 {1 élément cité provient d’un agent que vous ne pouvez pas voir et n’est pas affiché.} other {# éléments cités proviennent d’agents que vous ne pouvez pas voir et ne sont pas affichés.}}",
       "conversation": "conversation {number}",
       "testQuestion": "question de test {number}",
       "aConversation": "une conversation"

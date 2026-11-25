@@ -16512,6 +16512,7 @@
     "evidence": {
       "none": "Keine Belege, die sich prüfen ließen.",
       "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen.",
+      "hidden": "{count, plural, =1 {1 zitierter Beleg stammt von einem Agent, den Sie nicht sehen können, und wird nicht angezeigt.} other {# zitierte Belege stammen von Agents, die Sie nicht sehen können, und werden nicht angezeigt.}}",
       "conversation": "Gespräch {number}",
       "testQuestion": "Testfrage {number}",
       "aConversation": "ein Gespräch"

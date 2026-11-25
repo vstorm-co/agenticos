@@ -16710,6 +16710,7 @@
     "evidence": {
       "none": "Geen bewijs dat kon worden gecontroleerd.",
       "dropped": "{count, plural, =1 {1 geciteerd item} other {# geciteerde items}} {count, plural, =1 {is niet gevonden in de runs en is weggelaten} other {zijn niet gevonden in de runs en zijn weggelaten}}.",
+      "hidden": "{count, plural, =1 {1 geciteerd item komt van een agent die je niet kunt zien en wordt niet getoond.} other {# geciteerde items komen van agents die je niet kunt zien en worden niet getoond.}}",
       "conversation": "gesprek {number}",
       "testQuestion": "testvraag {number}",
       "aConversation": "een gesprek"

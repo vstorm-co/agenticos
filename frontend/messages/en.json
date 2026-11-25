@@ -16826,6 +16826,7 @@
     "evidence": {
       "none": "No evidence that could be checked.",
       "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out.",
+      "hidden": "{count, plural, =1 {1 cited item is from an agent you cannot see and is not shown.} other {# cited items are from agents you cannot see and are not shown.}}",
       "conversation": "conversation {number}",
       "testQuestion": "test question {number}",
       "aConversation": "a conversation"

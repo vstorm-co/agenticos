@@ -17135,6 +17135,9 @@
   "authoring": {
     "describe": {
       "open": "{name} ile oluştur"
+    },
+    "evidence": {
+      "hidden": "{count, plural, =1 {Alıntılanan 1 öğe göremediğiniz bir agent'tan geliyor ve gösterilmiyor.} other {Alıntılanan # öğe göremediğiniz agent'lardan geliyor ve gösterilmiyor.}}"
     }
   },
   "consoleExperience": {

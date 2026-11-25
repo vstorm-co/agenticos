@@ -228,6 +228,8 @@ export interface Hunk {
   rationale: string;
   evidence: EvidenceItem[];
   evidence_dropped: number;
+  /** Evidence from agents the reader may not see, counted rather than shown. */
+  evidence_hidden: number;
   /** Pending: still fits the draft. Accepted: Undo still can. */
   applies: boolean;
   decided_at: string | null;

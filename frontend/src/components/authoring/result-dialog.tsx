@@ -210,11 +210,16 @@ export function ChangePreview({
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
         {wizard ? (
-          <ConversationEvidence items={hunk.evidence} sources={sources} />
+          <ConversationEvidence
+            items={hunk.evidence}
+            sources={sources}
+            hidden={hunk.evidence_hidden}
+          />
         ) : (
           <EvidenceList
             items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
             dropped={hunk.evidence_dropped}
+            hidden={hunk.evidence_hidden}
           />
         )}
       </div>

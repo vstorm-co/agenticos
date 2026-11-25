@@ -16710,6 +16710,7 @@
     "evidence": {
       "none": "Não há evidências que possam ser verificadas.",
       "dropped": "{count, plural, =1 {1 item citado não foi encontrado} other {# itens citados não foram encontrados}} nas execuções e {count, plural, =1 {foi removido} other {foram removidos}}.",
+      "hidden": "{count, plural, =1 {1 item citado vem de um agente que você não pode ver e não é mostrado.} other {# itens citados vêm de agentes que você não pode ver e não são mostrados.}}",
       "conversation": "conversa {number}",
       "testQuestion": "pergunta de teste {number}",
       "aConversation": "uma conversa"

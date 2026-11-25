@@ -16599,6 +16599,7 @@
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
       "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}.",
+      "hidden": "{count, plural, one {1 przytoczony fragment pochodzi z agenta, którego nie widzisz, i nie został pokazany.} few {# przytoczone fragmenty pochodzą z agentów, których nie widzisz, i nie zostały pokazane.} other {# przytoczonych fragmentów pochodzi z agentów, których nie widzisz, i nie zostało pokazanych.}}",
       "conversation": "rozmowa {number}",
       "testQuestion": "pytanie testowe {number}",
       "aConversation": "jedna z rozmów"
