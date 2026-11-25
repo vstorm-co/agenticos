@@ -384,14 +384,18 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
 
     read = await pipeline._read(ctx, run, noise=False)
 
+    if denied == "runs":
+        # Without runs:view a session reads as its status alone, rounds and all left out.
+        assert read.iterations == []
+        criterion_access.eval_run_repo.datasets.assert_not_awaited()
+        assert "private rubric" not in read.model_dump_json()
+        return
     returned = read.iterations[0].verdict_detail
     assert returned is not None and returned["fixed"] == 0
     assert ("criteria" in returned) is (denied in {None, "id_only_readable"})
     assert ("criterion_change" in returned) is (denied in {None, "id_only_readable"})
     assert attempt.verdict_detail == detail
     assert "private rubric" in str(detail)
-    if denied == "runs":
-        criterion_access.eval_run_repo.datasets.assert_not_awaited()
     if denied not in {None, "id_only_readable"}:
         assert "private rubric" not in read.model_dump_json()
         assert "private skill" not in read.model_dump_json()
