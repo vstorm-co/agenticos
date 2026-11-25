@@ -36,6 +36,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   BrowserFrame,
+  ChatMessage,
   ChatMessageFile,
   ChatPerson,
   Compaction,
@@ -136,6 +137,13 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   const next = new Set(threads);
   next.delete(id);
   return next;
+}
+
+/** Finished answers the transcript holds - saved ones, not a local bubble still to be renamed. */
+function savedAnswers(messages: readonly ChatMessage[]): number {
+  return messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+  ).length;
 }
 
 /** How often a person still writing says so, and how long a room shows it after. */
@@ -501,10 +509,14 @@ export function useChat(options: UseChatOptions = {}) {
   // because reaching for state inside a setter's updater is how a side effect
   // ends up running twice.
   const interruptedForRef = useRef<ConversationRef | null>(null);
-  // How many answers the interrupted thread had finished at the moment its
-  // socket went. The turn landing takes it past this, which is the only signal
-  // this client has that the turn it lost is over.
+  // A new saved segment must land after the drop. A run may already have saved
+  // an ask_user segment before its continuation loses the socket.
   const finishedWhenInterrupted = useRef(0);
+  const savedBeforeDropRef = useRef<ReadonlySet<string>>(new Set());
+  // The question of the turn the drop interrupted. Its saved row carries the
+  // turn's run, and an answer of that run is what lands it - not any answer in
+  // the thread, which another turn still being written can save first.
+  const droppedPromptRef = useRef<string | null>(null);
   // Both notices belong to the thread the turn was interrupted in. Opening
   // another one while a reconnect is in flight used to draw the notice over a
   // thread that was never interrupted, and re-read that thread instead of the
@@ -769,17 +781,26 @@ export function useChat(options: UseChatOptions = {}) {
           declinedRef.current = null;
           followingRef.current = conversation_id;
           // Attachment replays the turn from its beginning. A local bubble left
-          // by the previous socket is that same unsaved stream, not another answer.
+          // by the previous socket is that same unsaved stream, not another answer
+          // - still streaming when another chat was opened, or ended on screen by
+          // a drop (`socketDropped`) when this socket is the one coming back.
           for (const message of chatApi.getState().messages) {
             if (
               message.conversationId === conversation_id &&
               message.role === "assistant" &&
               message.isTemporaryId &&
-              message.isStreaming &&
+              (message.isStreaming || message.socketDropped) &&
               !message.isLocalContinuation
             ) {
               chatApi.getState().removeMessage(message.id);
             }
+          }
+          // Following the turn again: its end re-reads the transcript like any
+          // followed turn's, so there is nothing left to say about the drop.
+          if (interruptedForRef.current?.id === conversation_id) {
+            interruptedForRef.current = null;
+            droppedPromptRef.current = null;
+            setInterruptedFor(null);
           }
           resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
@@ -3595,16 +3616,29 @@ export function useChat(options: UseChatOptions = {}) {
       const thread = { id: activeConversationId };
       interruptedRef.current = thread;
       interruptedForRef.current = thread;
+      // The half-written answer will never be renamed: its `message_saved` was
+      // due on this socket. Marked, so the transcript's saved row replaces it
+      // when the turn lands, and a replay of the turn replaces it on attachment.
+      droppedPromptRef.current =
+        chatApi.getState().messages.findLast((message) => message.role === "user")?.id ?? null;
+      if (currentMessageIdRef.current) {
+        updateMessage(currentMessageIdRef.current, (message) =>
+          message.isTemporaryId ? { ...message, socketDropped: true } : message,
+        );
+      }
       endTurnLocally(true);
       setInterruptedFor(thread);
-      // The baseline the effect below watches. Taken here, after
-      // `endTurnLocally` has stopped the half-written answer streaming: that
-      // stop makes it *finished* by the count's own definition, so a baseline
-      // read a moment earlier would be one short and the notice would clear
-      // itself immediately.
-      finishedWhenInterrupted.current = chatApi
+      // The baseline the effect below watches: the saved answers the thread had
+      // when its socket went. The half-written one is not among them - it is
+      // replaced, not joined, by the saved row it becomes.
+      const saved = chatApi
         .getState()
-        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
+        .messages.filter(
+          (message) =>
+            message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+        );
+      finishedWhenInterrupted.current = saved.length;
+      savedBeforeDropRef.current = new Set(saved.map((message) => message.id));
     }
     const thread = interruptedRef.current;
     if (!returned || thread === null) return;
@@ -3619,6 +3653,7 @@ export function useChat(options: UseChatOptions = {}) {
     onTurnInterrupted,
     chatApi,
     abandonRunAnswer,
+    updateMessage,
   ]);
 
   // Coming back to the chat with a turn still drawn as streaming. The store
@@ -3768,19 +3803,32 @@ export function useChat(options: UseChatOptions = {}) {
   //
   // Counted rather than matched on an id: the turn was interrupted before it
   // had one, and the count is the same question asked in a way this client can
-  // answer.
-  const finishedTurns = messages.filter(
-    (message) => message.role === "assistant" && !message.isStreaming,
-  ).length;
+  // answer. Saved answers only: counting the half-written bubble the drop left
+  // made a baseline that the saved answer replacing it could never pass.
+  const finishedTurns = savedAnswers(messages);
   useEffect(() => {
     const thread = interruptedForRef.current;
     // Only for the thread it happened in: `messages` is replaced wholesale on a
     // switch, so a busier thread would otherwise read as this one's answer.
     if (thread === null || thread.id !== activeConversationId) return;
     if (finishedTurns <= finishedWhenInterrupted.current) return;
+    const run = messages.find((message) => message.id === droppedPromptRef.current)?.runId;
+    if (
+      run &&
+      !messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          message.runId === run &&
+          !savedBeforeDropRef.current.has(message.id),
+      )
+    )
+      return;
     interruptedForRef.current = null;
+    droppedPromptRef.current = null;
     setInterruptedFor(null);
-  }, [finishedTurns, activeConversationId]);
+  }, [finishedTurns, activeConversationId, messages]);
 
   const displayedDelegations = useMemo(
     () =>

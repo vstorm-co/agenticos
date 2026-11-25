@@ -3595,6 +3595,170 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(result.current.interrupted).toBe(true);
   });
 
+  it("shows the saved answer and stops saying so once the turn lands", () => {
+    // The phone was locked mid-turn: the question had been acknowledged, the
+    // answer had begun, and its `message_saved` was due on the socket that went.
+    // A re-read then brought the saved answer - and the half-written bubble used
+    // to be kept in its place, still waiting to be renamed, with the notice up.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("user_prompt", { message_id: "saved-question" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Asking Logistics" });
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    const question = useChatStore.getState().messages.find((m) => m.id === "saved-question")!;
+    act(() =>
+      useChatStore.getState().rereadMessages([
+        { ...question, isTemporaryId: false },
+        {
+          id: "saved-answer",
+          role: "assistant",
+          content: "The five slowest orders",
+          timestamp: new Date(),
+        },
+      ]),
+    );
+
+    const answers = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+    expect(answers.map((m) => [m.id, m.content])).toEqual([
+      ["saved-answer", "The five slowest orders"],
+    ]);
+    expect(result.current.interrupted).toBe(false);
+  });
+
+  it("keeps saying so while another turn's answer lands, until its own does", () => {
+    // A turn asked earlier, still being written, can save its answer first. That
+    // used to raise the thread's count and clear the notice over a turn that had
+    // not landed.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("user_prompt", { message_id: "saved-question" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Asking Logistics" });
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    const question = {
+      ...useChatStore.getState().messages.find((m) => m.id === "saved-question")!,
+      isTemporaryId: false,
+      runId: "this",
+    };
+    const earlier = {
+      id: "earlier-answer",
+      role: "assistant" as const,
+      content: "The earlier turn",
+      timestamp: new Date(),
+      runId: "earlier",
+    };
+    act(() => useChatStore.getState().rereadMessages([question, earlier]));
+    expect(result.current.interrupted).toBe(true);
+
+    act(() =>
+      useChatStore.getState().rereadMessages([
+        question,
+        earlier,
+        {
+          id: "saved-answer",
+          role: "assistant",
+          content: "The five slowest orders",
+          timestamp: new Date(),
+          runId: "this",
+        },
+      ]),
+    );
+    expect(result.current.interrupted).toBe(false);
+    expect(useChatStore.getState().messages.some((m) => m.socketDropped)).toBe(false);
+  });
+
+  it("does not mistake a saved question segment for its dropped continuation", () => {
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("user_prompt", { message_id: "saved-question" });
+    const question = {
+      ...useChatStore.getState().messages.find((message) => message.id === "saved-question")!,
+      isTemporaryId: false,
+      runId: "this",
+    };
+    const questionCard = {
+      id: "saved-question-card",
+      role: "assistant" as const,
+      content: "Which day?",
+      timestamp: new Date(),
+      runId: "this",
+    };
+    act(() => useChatStore.getState().rereadMessages([question, questionCard]));
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Preparing the agenda" });
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    const earlier = {
+      id: "earlier-answer",
+      role: "assistant" as const,
+      content: "A detached earlier turn finished",
+      timestamp: new Date(),
+      runId: "earlier",
+    };
+    act(() => useChatStore.getState().rereadMessages([question, questionCard, earlier]));
+    expect(result.current.interrupted).toBe(true);
+
+    act(() =>
+      useChatStore.getState().rereadMessages([
+        question,
+        questionCard,
+        earlier,
+        {
+          id: "saved-continuation",
+          role: "assistant",
+          content: "The agenda is ready",
+          timestamp: new Date(),
+          runId: "this",
+        },
+      ]),
+    );
+    expect(result.current.interrupted).toBe(false);
+  });
+
+  it("follows the turn again when the socket comes back while it runs", () => {
+    // Back on the conversation the socket asks to follow the turn, and the server
+    // replays it. The bubble the dropped socket left is that same turn: drawing
+    // both put two answers on screen, and the notice stayed over a turn this
+    // client was following again.
+    const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper,
+    });
+    act(() => result.current.sendMessage("a long question"));
+    receive("user_prompt", { message_id: "saved-question" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Asking Logistics" });
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Asking Logistics" });
+
+    const answers = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.isStreaming).toBe(true);
+    expect(result.current.interrupted).toBe(false);
+  });
+
   it("re-reads a turn the chat page left streaming when it comes back (#2301)", () => {
     // Leaving the chat unmounts this hook and its socket, but the store keeps
     // the half-drawn turn: back on the page its timer ran on, and a question it

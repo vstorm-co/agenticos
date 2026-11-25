@@ -46,8 +46,12 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (answer?.role !== "assistant" || !answer.isTemporaryId) return;
     const suffix = history.slice(savedIndex + 1);
     const boundary = suffix.findIndex((item) => item.role === "user");
-    const responses = answer.runId
-      ? history.filter((item) => item.role === "assistant" && item.runId === answer.runId)
+    // The saved prompt carries its run too, and the run is what an answer belongs
+    // to: another turn's answer saved after this prompt - one asked earlier and
+    // still being written - is not this one's, however close it sits.
+    const run = answer.runId ?? saved.runId;
+    const responses = run
+      ? history.filter((item) => item.role === "assistant" && item.runId === run)
       : (boundary < 0 ? suffix : suffix.slice(0, boundary)).filter(
           (item) => item.role === "assistant",
         );
@@ -271,6 +275,27 @@ const chatState: StateCreator<ChatState> = (set) => ({
       const savedId = (message: ChatMessage): string =>
         aliases.get(message.id) ?? message.persistedId ?? message.id;
       const anchor = state.messages.findLastIndex((message) => incoming.has(savedId(message)));
+      // Runs with a saved answer this client has not drawn yet. A dropped bubble
+      // of one has landed under those rows - including a continuation streamed
+      // after a question card, which has no prompt beside it to be matched through.
+      const drawn = new Set(state.messages.map(savedId));
+      const landedRuns = new Set(
+        history
+          .filter(
+            (message) => message.role === "assistant" && message.runId && !drawn.has(message.id),
+          )
+          .map((message) => message.runId),
+      );
+      // The run of the question each dropped bubble answers: its own when it has
+      // one, the saved question's before it otherwise - wherever another turn's
+      // answer has landed between them since.
+      const droppedRuns = new Map<string, string | undefined>();
+      let questionRun: string | undefined;
+      for (const message of state.messages) {
+        if (message.role === "user")
+          questionRun = incoming.get(savedId(message))?.runId ?? message.runId;
+        else if (message.socketDropped) droppedRuns.set(message.id, message.runId ?? questionRun);
+      }
       const before = new Map<string | undefined, ChatMessage[]>();
       let nextPersisted: string | undefined;
       // The server's ordinal order is authoritative, including tied timestamps.
@@ -283,9 +308,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
           nextPersisted = id;
           const previous = state.messages[index - 1];
           // An acknowledged question still has a live answer until message_saved
-          // renames it. A recovered, unacknowledged question instead uses history.
+          // renames it. A recovered, unacknowledged question instead uses history,
+          // and so does an answer whose socket dropped: the rename was due on it.
           const awaitingSave =
             message.role === "assistant" &&
+            !message.socketDropped &&
             message.isTemporaryId &&
             aliases.has(message.id) &&
             previous?.role === "user" &&
@@ -300,6 +327,12 @@ const chatState: StateCreator<ChatState> = (set) => ({
                   renderKey: message.renderKey ?? message.id,
                 },
           );
+        } else if (
+          message.socketDropped &&
+          message.isTemporaryId &&
+          landedRuns.has(droppedRuns.get(message.id))
+        ) {
+          // Replaced by its run's saved rows, which the transcript draws.
         } else if (
           message.isStreaming ||
           (message.role === "assistant" && message.isTemporaryId) ||
