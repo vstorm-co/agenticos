@@ -113,11 +113,16 @@ async def test_clips_prints_across_segments():
     assert len(result.output.stdout) == _handler.MAX_OUTPUT_CHARS
 
 
-@pytest.mark.parametrize("damage", ["runtime", "digest", "alias", "encoding"])
-async def test_invalid_checkpoint_does_not_restart_the_script(damage: str) -> None:
+@pytest.mark.parametrize("damage", ["runtime", "digest", "alias", "encoding", "size"])
+async def test_invalid_checkpoint_does_not_restart_the_script(
+    damage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     code = "echo(message='first')"
     first = await segment(code)
     assert isinstance(first, ScriptActionRequest)
+    if damage == "size":
+        # Keep the snapshot otherwise valid so only the size guard can reject it.
+        monkeypatch.setattr(_handler, "_MAX_SNAPSHOT", 1)
     runtime, digest, data = first.checkpoint.split(":")
     state = ScriptResume(
         index=0,

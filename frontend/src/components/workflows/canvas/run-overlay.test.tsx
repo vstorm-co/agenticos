@@ -82,6 +82,11 @@ describe("summarizeNodeRuns", () => {
     );
   });
 
+  it("does not create a step summary for a call without its parent row", () => {
+    const call = row({ status: "running", scope_path: [{ action: "lookup", index: 0 }] });
+    expect(summarizeNodeRuns([call]).size).toBe(0);
+  });
+
   it("surfaces a child that needs a decision without counting its attempts, output, or time", () => {
     const child = row({
       status: "needs_attention",
