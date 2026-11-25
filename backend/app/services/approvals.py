@@ -86,26 +86,73 @@ def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
 
 
-def runs_as_its_person(approval: ToolApproval) -> bool:
+def runs_as_its_person(tool_id: str, *, always_asks: bool) -> bool:
     """Whether this is a platform call that always asks.
 
     Such a call runs with the platform authority of the person its run acts for,
     so only that person's answer may release it.
     """
-    return approval.always_asks and approval.tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
+    return always_asks and tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
 
 
-def answers_as_runs_person(ctx: AuthContext, run: AgentRun | None) -> bool:
-    """Whether `ctx` is the person `run` acts for, signed in as themselves.
+def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
+    """Whether `ctx` is `person_id`, signed in as themselves.
 
     Neither a key, the person's own included, nor an administrator impersonating
     them gives the fresh answer a call that always asks waits for.
     """
     return (
-        run is not None
-        and _own_run(ctx, run.user_id)
+        _own_run(ctx, person_id)
         and not ctx.subject_is_publisher_fallback
         and current_impersonator() is None
+    )
+
+
+def may_decide(
+    ctx: AuthContext, *, tool_id: str, always_asks: bool, person_id: UUID | None
+) -> bool:
+    """Whether `ctx` may answer this parked call at all.
+
+    `approvals:decide`, or the call's own person answering their own platform call
+    that always asks, which needs no permission beyond being that person.
+    """
+    return ctx.has(Perm.APPROVALS_DECIDE) or (
+        runs_as_its_person(tool_id, always_asks=always_asks) and answers_for(ctx, person_id)
+    )
+
+
+def may_approve(
+    ctx: AuthContext,
+    *,
+    tool_id: str,
+    always_asks: bool,
+    person_id: UUID | None,
+    content_hidden: bool,
+) -> bool:
+    """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
+    if always_asks and content_hidden:
+        return False
+    if runs_as_its_person(tool_id, always_asks=always_asks):
+        return answers_for(ctx, person_id)
+    return ctx.has(Perm.APPROVALS_DECIDE)
+
+
+async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentRun) -> bool:
+    """Whether `ctx` is the run's person and its current park holds their platform call.
+
+    Such a person may continue the run past that call without `approvals:decide`.
+    """
+    if not answers_for(ctx, run.user_id):
+        return False
+    state = run.paused_state or {}
+    parked = state.get("tool_call_ids", {})
+    approvals = await agent_run_repo.list_approvals_for_run(
+        db, run_id=run.id, organization_id=run.organization_id
+    )
+    return any(
+        str(approval.id) in parked
+        and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        for approval in approvals
     )
 
 
@@ -244,7 +291,17 @@ class ApprovalService:
         )
         person = decided_by_a_person(ctx)
         return [
-            replace(row, continues_in_chat=True) if person and row.parked_in_chat else row
+            replace(
+                row,
+                continues_in_chat=person and row.parked_in_chat,
+                may_approve=may_approve(
+                    ctx,
+                    tool_id=row.tool_id,
+                    always_asks=row.always_asks,
+                    person_id=row.acts_for_user_id,
+                    content_hidden=row.content_hidden,
+                ),
+            )
             for row in await self.as_read_by(ctx, rows)
         ], total
 
@@ -333,11 +390,14 @@ class ApprovalService:
         person on the call, through its socket, and nowhere else - the queue
         refuses it while the call is live (#54).
 
+        The caller needs `approvals:decide`, except for the run's own person
+        answering their own platform call that always asks.
+
         Raises:
-            AuthorizationError: If this is an approval of a call that only a person's
-                answer may let run, by somebody who may not see what it quotes - or,
-                for a platform call, by anybody but the run's own person signed in
-                as themselves.
+            AuthorizationError: If the caller may not decide this call at all; or if
+                this is an approval of a call that only a person's answer may let
+                run, by somebody who may not see what it quotes - or, for a platform
+                call, by anybody but the run's own person signed in as themselves.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -362,6 +422,18 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        run = await agent_run_repo.get_run(
+            self.db, approval.run_id, organization_id=ctx.organization_id
+        )
+        person_id = None if run is None else run.user_id
+        if not may_decide(
+            ctx, tool_id=approval.tool_id, always_asks=approval.always_asks, person_id=person_id
+        ):
+            raise AuthorizationError(
+                message="Deciding this tool call needs approvals:decide",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
+
         # This namespace is reserved for the platform; MCP tools are not capability aliases.
         if approved and approval.tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
             raise AuthorizationError(
@@ -369,13 +441,8 @@ class ApprovalService:
             )
         if (
             approved
-            and runs_as_its_person(approval)
-            and not answers_as_runs_person(
-                ctx,
-                await agent_run_repo.get_run(
-                    self.db, approval.run_id, organization_id=ctx.organization_id
-                ),
-            )
+            and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            and not answers_for(ctx, person_id)
         ):
             raise AuthorizationError(
                 message=(
@@ -402,9 +469,6 @@ class ApprovalService:
                     message="This tool asks every time, so its approval cannot be remembered",
                     details={"approval_id": approval_id, "tool_id": approval.tool_id},
                 )
-            run = await agent_run_repo.get_run(
-                self.db, approval.run_id, organization_id=ctx.organization_id
-            )
             if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
                 raise AuthorizationError(message="This chat cannot remember tool approvals")
             approval.remember_scope = remember_scope

@@ -810,6 +810,9 @@ class TestALiveCallsApproval:
                 new=AsyncMock(return_value=True),
             ) as live,
             patch(
+                "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=None)
+            ),
+            patch(
                 "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
             ) as decided,
             patch.object(ApprovalService, "_record_decision", new=AsyncMock()),

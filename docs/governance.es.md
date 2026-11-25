@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "76027ca7ebbd"
 ---
 
 # Governance { #governance }
@@ -1684,6 +1684,12 @@ La tarjeta de aprobación también ofrece permitir esta herramienta en este chat
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
 
 La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
+
+Una llamada de la plataforma que pregunta siempre - aceptar una mejora, publicar un agent, invitar a un miembro - se ejecuta con la autoridad de plataforma de la persona para la que actúa su run. Por eso solo esa persona, con su propia sesión, puede aprobarla: ni otro miembro con `approvals:decide`, ni una clave de API, aunque sea la suya, ni un administrador mediante suplantación. Quien tiene `approvals:decide` puede seguir rechazándola. Basta con ser esa persona, así que un Builder o un Member aprueba la tarjeta del Architect en su propio chat y continúa allí el run. Solo ella puede continuar un run tras una llamada de la plataforma aprobada.
+
+En un canal como Slack o Telegram, la persona responde en ese chat, desde la cuenta de chat vinculada a ella. Cuando el run pregunta a la vez por otras llamadas, la persona responde solo a las suyas, y el resto espera a alguien con `approvals:decide`. El run continúa cuando cada llamada tiene respuesta.
+
+Un run sin persona - el de un visitante en un widget o una página pública, el de un miembro de canal sin vincular, o uno cuya persona se eliminó - no tiene a nadie cuya respuesta cuente, así que su llamada de la plataforma espera hasta caducar; un run así nunca tiene autoridad de plataforma. Un cambio del despliegue (`change_deployment`) necesita las dos reglas a la vez: la persona del run, que además debe ser administradora de la aplicación. El Architect de cualquier otra persona no puede cambiarlo.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
 el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no

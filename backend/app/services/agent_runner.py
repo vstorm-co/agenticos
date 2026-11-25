@@ -364,7 +364,9 @@ from app.services.agent_registry import (
 from app.services.api_key import ApiKeyService, mint_for_run
 from app.services.approvals import (
     ApprovalService,
-    answers_as_runs_person,
+    answers_for,
+    may_approve,
+    may_decide,
     runs_as_its_person,
     withhold,
 )
@@ -7928,7 +7930,9 @@ class AgentRunnerService:
             structured.append(segment.structured)
         return segment.output, segment.run
 
-    async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
+    async def parked_calls(
+        self, ctx: AuthContext, run: AgentRun, *, for_decision: bool = False
+    ) -> list[ParkedCall]:
         """What this run is waiting on a decision for, right now.
 
         Read back off the row rather than returned from the run that parked it,
@@ -7943,7 +7947,24 @@ class AgentRunnerService:
         to the call it parked; the approval row does not carry one. Null where a run
         was parked before that map was stored, which is a step a surface cannot mark
         rather than a call it cannot decide.
+
+        Each row says whether this caller may decide and approve it. Read
+        `for_decision` - the rows offered to be decided, apart from the run that
+        produced them - it needs `approvals:decide` or the run's own person signed
+        in as themselves.
+
+        Raises:
+            AuthorizationError: Read `for_decision` by a caller who is neither.
         """
+        if (
+            for_decision
+            and not ctx.has(Perm.APPROVALS_DECIDE)
+            and not answers_for(ctx, run.user_id)
+        ):
+            raise AuthorizationError(
+                message="Reading what a run waits on needs approvals:decide",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
         if run.status != RunStatus.AWAITING_APPROVAL.value:
             return []
         approvals = await agent_run_repo.list_approvals_for_run(
@@ -7977,6 +7998,19 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    may_decide=may_decide(
+                        ctx,
+                        tool_id=approval.tool_id,
+                        always_asks=approval.always_asks,
+                        person_id=run.user_id,
+                    ),
+                    may_approve=may_approve(
+                        ctx,
+                        tool_id=approval.tool_id,
+                        always_asks=approval.always_asks,
+                        person_id=run.user_id,
+                        content_hidden=bool(hidden),
+                    ),
                 )
             )
         return parked
@@ -8827,8 +8861,8 @@ class AgentRunnerService:
                 continue
             if (
                 approval.status == ApprovalStatus.APPROVED.value
-                and runs_as_its_person(approval)
-                and not answers_as_runs_person(ctx, run)
+                and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+                and not answers_for(ctx, run.user_id)
             ):
                 raise AuthorizationError(
                     message=(
