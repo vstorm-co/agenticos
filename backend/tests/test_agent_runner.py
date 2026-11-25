@@ -4565,7 +4565,14 @@ class TestResume:
         return version
 
     def _approval(self, *, status: str, tool_args: dict, note: str | None = None):
-        return MagicMock(id=uuid.uuid4(), status=status, tool_args=tool_args, note=note)
+        return MagicMock(
+            id=uuid.uuid4(),
+            status=status,
+            tool_id="send_email",
+            tool_args=tool_args,
+            note=note,
+            always_asks=False,
+        )
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])

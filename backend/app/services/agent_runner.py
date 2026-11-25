@@ -362,7 +362,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
-from app.services.approvals import ApprovalService, withhold
+from app.services.approvals import ApprovalService, runs_as_its_person, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -8781,6 +8781,9 @@ class AgentRunnerService:
         Raises:
             BadRequestError: If any of them is still pending. Resuming with a
                 decision outstanding would drop that call silently.
+            AuthorizationError: If an approved platform call that always asks is
+                among them and the caller is not the person the run acts for: the
+                continuation would replay it on that person's authority.
         """
         approvals = await agent_run_repo.list_approvals_for_run(
             self.db, run_id=run.id, organization_id=ctx.organization_id
@@ -8800,6 +8803,18 @@ class AgentRunnerService:
                 # Decided during an earlier park of the same run and already
                 # replayed. Answering it again would repeat the side effect.
                 continue
+            if (
+                approval.status == ApprovalStatus.APPROVED.value
+                and runs_as_its_person(approval)
+                and (run.user_id is None or ctx.user_id != run.user_id)
+            ):
+                raise AuthorizationError(
+                    message=(
+                        "Only the person this run acts for may continue it past an "
+                        "approved platform call"
+                    ),
+                    details={"run_id": run.id, "approval_id": approval.id},
+                )
             decided[tool_call_id] = (
                 ApprovalGranted(tool_args=approval.tool_args)
                 if approval.status == ApprovalStatus.APPROVED.value
