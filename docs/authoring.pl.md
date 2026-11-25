@@ -1,5 +1,5 @@
 ---
-source_sha: "035a0af9c3f1"
+source_sha: "00510e13f0b4"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -89,9 +89,9 @@ każdej decyduje się osobno:
 
 Sugestia, której tekst zawiera znaki niewidoczne dla człowieka - znak sterujący
 inny niż nowa linia albo tabulator, znak sterujący kierunkiem tekstu, znak tagu
-Unicode - nie jest zapisywana, a zapisana wcześniej jest odrzucana przy
-**Przyjmij**; tak samo taka propozycja dla skilla albo pliku kontekstowego,
-wariant wyszukiwania i własne sformułowanie człowieka. Znaki zerowej szerokości
+Unicode - nie jest zapisywana, a zapisana wcześniej jest odrzucana przez check i
+przy **Przyjmij**; tak samo taka propozycja dla skilla albo pliku kontekstowego,
+wariant wyszukiwania, skill tworzony z pomysłu i własne sformułowanie człowieka. Znaki zerowej szerokości
 przechodzą, a każdy diff wypisuje je kodem i o tym mówi. Koniec wiersza z Windows
 albo samotny powrót karetki jest czytany jako nowa linia i tak zapisywany.
 

@@ -87,9 +87,9 @@ evidence, and each is decided on its own:
 
 A suggestion whose text holds characters a person cannot see - a control
 character other than a newline or a tab, a bidirectional control, a Unicode tag
-character - is not recorded, and one stored before is refused at **Accept**; so
-is such a proposal for a skill or a context file, a search variant and a
-person's own wording. Zero-width characters are let through, and every diff
+character - is not recorded, and one stored before is refused by a check and at
+**Accept**; so is such a proposal for a skill or a context file, a search
+variant, a skill created from an idea and a person's own wording. Zero-width characters are let through, and every diff
 writes each one out by its code and says so. A Windows line break or a lone
 carriage return is read as a newline and stored as one.
 

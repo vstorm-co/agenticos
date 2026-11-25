@@ -1,5 +1,5 @@
 ---
-source_sha: "035a0af9c3f1"
+source_sha: "00510e13f0b4"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -91,9 +91,9 @@ Begründung und die Belege, und über jeden wird einzeln entschieden:
 Ein Vorschlag, dessen Text Zeichen enthält, die ein Mensch nicht sehen kann - ein
 Steuerzeichen außer Zeilenumbruch oder Tabulator, ein Steuerzeichen für die
 Schreibrichtung, ein Unicode-Tag-Zeichen -, wird nicht erfasst, und ein früher
-gespeicherter wird bei **Annehmen** abgelehnt; ebenso ein solcher Vorschlag für
-einen Skill oder eine Context-Datei, eine Suchvariante und die eigene
-Formulierung einer Person. Zeichen ohne Breite werden durchgelassen, und jeder
+gespeicherter wird von einer Prüfung und bei **Annehmen** abgelehnt; ebenso ein
+solcher Vorschlag für einen Skill oder eine Context-Datei, eine Suchvariante, ein
+aus einer Idee erstellter Skill und die eigene Formulierung einer Person. Zeichen ohne Breite werden durchgelassen, und jeder
 Diff schreibt sie mit ihrem Code aus und sagt das. Ein Windows-Zeilenende oder ein
 einzelner Wagenrücklauf gilt als Zeilenumbruch und wird so gespeichert.
 
