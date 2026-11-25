@@ -1,6 +1,8 @@
 """A search attempt across real PostgreSQL transactions, with scripted answers and proposals."""
 
+import asyncio
 import json
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -490,6 +492,59 @@ class TestUnitsOutOfTime:
         assert seed.status == "scored" and seed.cases_scored == 12
         assert all(failure["failed"] != ["kept"] for failure in seed.failures)
 
+    async def test_a_kept_answer_to_a_question_erased_since_is_left_out(self, db):
+        ctx, _, data, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        _, clock, tick = self._clock()
+        model = Searcher(db, before=tick)
+        with (
+            _answering(model),
+            patch("app.services.improvement_search.CASE_PARALLELISM", 1),
+            patch("app.services.improvement_search.UNIT_SECONDS", 5),
+            patch("app.services.improvement_search.time", clock),
+        ):
+            await SearchWorker(read.id, ctx.organization_id, sessions=_sessions(db)).run()
+        partial = (await _iteration(db, read.id)).search["partial"]  # ty: ignore[not-subscriptable]
+        erased = uuid.UUID(next(iter(partial["answers"])))
+        for row in await db.scalars(select(DatasetCase).where(DatasetCase.case_id == erased)):
+            row.anonymised_at = datetime.now(UTC)
+        await db.flush()
+
+        await _units(db, ctx, read.id, model)
+
+        iteration = await _iteration(db, read.id)
+        variants = await improvement_repo.list_variants(
+            db, organization_id=ctx.organization_id, iteration_id=iteration.id
+        )
+        seed = next(v for v in variants if v.generation == 0)
+        assert (seed.status, seed.cases_scored) == ("scored", 11)
+
+    async def test_an_answer_still_going_at_the_stop_is_cut_and_the_rest_kept(self):
+        """An answer started before the deadline that would outlast the job is cut before
+        the job's timeout, and the unit still has every other answer to record."""
+        questions = [SimpleNamespace(case_id=uuid.uuid4()) for _ in range(3)]
+        done = search_module._Answered(share=1.0)
+
+        async def answer(_unit: object, question: SimpleNamespace) -> object:
+            if question is questions[0]:
+                await asyncio.sleep(30)
+            return done
+
+        worker = SearchWorker(uuid.uuid4(), uuid.uuid4())
+        with (
+            patch.object(worker, "_answer", answer),
+            patch.object(worker, "_still_searching", AsyncMock(return_value=True)),
+        ):
+            now = time.monotonic()
+            answered = await worker._answer_all(
+                SimpleNamespace(questions=questions),  # ty: ignore[invalid-argument-type]
+                now + 60,
+                now + 0.2,
+            )
+
+        assert answered[questions[0].case_id].deferred
+        assert [answered[q.case_id] for q in questions[1:]] == [done, done]
+
 
 class TestBudget:
     async def test_the_search_goes_over_its_budget_by_at_most_the_variant_it_was_scoring(self, db):
@@ -580,7 +635,7 @@ class TestBudget:
     async def test_a_longer_variant_is_given_a_cap_for_its_longer_instructions(self, db):
         ctx, _, _, read = await _start(db)
         await _to_search(db, ctx, read.id)
-        longer = INSTRUCTIONS + "\n" + "Refunds take 30 days. " * 2000
+        longer = INSTRUCTIONS + "\n" + "Refunds take 30 days. " * 200
         caps: dict[bool, set[Decimal]] = {True: set(), False: set()}
 
         def cost(kw: dict[str, Any]) -> Decimal:
@@ -593,6 +648,31 @@ class TestBudget:
 
         assert caps[True] and caps[False]
         assert min(caps[True]) > max(caps[False])
+
+    async def test_a_variant_whose_longer_instructions_do_not_fit_is_not_scored(self, db):
+        ctx, _, _, read = await _start(db, search=_options(budget_usd=Decimal("1")))
+        await _to_search(db, ctx, read.id)
+        longer = INSTRUCTIONS + "\n" + "Refunds take 30 days. " * 2000
+        asked_longer: list[Decimal] = []
+
+        def cost(kw: dict[str, Any]) -> Decimal:
+            if kw["candidate"].spec.instructions == longer:
+                asked_longer.append(kw["run_limit_usd"])
+            return Decimal("0.01")
+
+        async def surcharge(_db: object, _ctx: object, _spec: object, text: str) -> Decimal:
+            return Decimal("1") if text == longer else Decimal(0)
+
+        model = Searcher(db, cost=cost, variants=[{"instructions": longer}])
+        with (
+            _priced(),
+            _proposal_costs(),
+            patch("app.services.improvement_search._longer_instructions_usd", surcharge),
+        ):
+            await _units(db, ctx, read.id, model)
+
+        assert (await _iteration(db, read.id)).search["stop_reason"] == "budget"  # ty: ignore[not-subscriptable]
+        assert asked_longer == []
 
     async def test_longer_instructions_are_priced_at_the_agents_model(self, db):
         ctx, _, _ = await _setup(db)

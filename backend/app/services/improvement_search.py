@@ -121,6 +121,10 @@ UNIT_SECONDS = 12 * 60
 """How long into its job a scoring unit still starts answers. The worker stops the job at 15
 minutes (`SEARCH_IMPROVEMENT`); what it answered by then is kept for the next unit."""
 
+ANSWER_STOP_SECONDS = 14 * 60
+"""When a scoring unit cuts an answer still going, which the next unit asks again: before the
+job's timeout, with time left to keep what the unit answered."""
+
 MAX_PROPOSAL_ATTEMPTS = 3
 """Times one round of proposals may begin before the search ends: a provider that keeps
 failing, or a job that keeps dying, would otherwise ask the improver once a minute."""
@@ -583,10 +587,12 @@ class SearchWorker:
         self.sessions = sessions
 
     async def run(self) -> None:
-        deadline = time.monotonic() + UNIT_SECONDS
+        started = time.monotonic()
         unit = await self._claim()
         if isinstance(unit, _Score):
-            answered = await self._answer_all(unit, deadline)
+            answered = await self._answer_all(
+                unit, started + UNIT_SECONDS, started + ANSWER_STOP_SECONDS
+            )
             await self._record_score(unit, answered)
         elif isinstance(unit, _Propose):
             proposed = await self._propose(unit)
@@ -718,15 +724,18 @@ class SearchWorker:
         if earlier is None:
             earlier = {}
             progress = SearchProgress(**{**progress, "partial": None})
+        asked = {question.case_id for question in questions}
+        earlier = {case_id: kept for case_id, kept in earlier.items() if case_id in asked}
         questions = [question for question in questions if question.case_id not in earlier]
-        estimate = priced.total_usd / max(1, priced.cases) * len(questions)
+        longer = await _longer_instructions_usd(db, ctx, spec, variant.instructions)
+        estimate = (priced.total_usd / max(1, priced.cases) + longer) * len(questions)
         if estimate > left:
             await _end(db, run, iteration, progress, "budget")
             return None
         # Past answers that cost nothing (an unpriced model) would give a cap of nothing,
         # which stops every answer at its first request.
         per_case = priced.arms[0].cost_per_case_usd or settings.EVAL_FALLBACK_CASE_COST_USD
-        answer_usd = per_case + await _longer_instructions_usd(db, ctx, spec, variant.instructions)
+        answer_usd = per_case + longer
         await improvement_repo.update_variant(
             db, variant=variant, values={"attempts": variant.attempts + 1, "estimate_usd": estimate}
         )
@@ -857,7 +866,9 @@ class SearchWorker:
             for case in cases
         ]
 
-    async def _answer_all(self, unit: _Score, deadline: float) -> dict[UUID, _Answered]:
+    async def _answer_all(
+        self, unit: _Score, deadline: float, stop: float
+    ) -> dict[UUID, _Answered]:
         gate = asyncio.Semaphore(CASE_PARALLELISM)
 
         async def one(question: _Question) -> tuple[UUID, _Answered]:
@@ -867,7 +878,13 @@ class SearchWorker:
                 # Every answer is paid for, so a session stopped meanwhile asks no more.
                 if not await self._still_searching(unit):
                     return question.case_id, _Answered(counted=False)
-                return question.case_id, await self._answer(unit, question)
+                try:
+                    answered = await asyncio.wait_for(
+                        self._answer(unit, question), max(0.0, stop - time.monotonic())
+                    )
+                except TimeoutError:
+                    return question.case_id, _Answered(counted=False, deferred=True)
+                return question.case_id, answered
 
         return dict(await asyncio.gather(*(one(q) for q in unit.questions)))
 
