@@ -1,5 +1,5 @@
 ---
-source_sha: "fba2a036141f"
+source_sha: "2a83c32d5bcd"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -86,6 +86,13 @@ każdej decyduje się osobno:
 | **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. Dla instrukcji otwiera się cały tekst: obecna wersja obok proponowanej, którą edytujesz, a diff odświeża się w trakcie pisania. Zapisywany jest tylko sugerowany fragment; tekst poza nim zmienia się w edytorze instrukcji. |
 | **Odrzuć** | Zapisane; późniejsze zlecenie nie zasugeruje tego ponownie. |
 | **Cofnij** | Odwraca decyzję, dopóki pasuje ona do wersji roboczej. |
+
+Sugestia, której tekst zawiera znaki niewidoczne dla człowieka - znak sterujący
+inny niż nowa linia albo tabulator, znak sterujący kierunkiem tekstu, znak tagu
+Unicode - nie jest zapisywana, a zapisana wcześniej jest odrzucana przy
+**Przyjmij**; tak samo taka propozycja dla skilla albo pliku kontekstowego,
+wariant wyszukiwania i własne sformułowanie człowieka. Znaki zerowej szerokości
+przechodzą, a każdy diff wypisuje je kodem i o tym mówi.
 
 Sugestia jest zakotwiczona w miejscu, w którym był jej fragment, i w tym, co go
 otaczało, a nie w samym tekście, więc linia, która występuje dwa razy, jest

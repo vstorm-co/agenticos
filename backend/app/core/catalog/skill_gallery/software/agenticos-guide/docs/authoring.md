@@ -85,6 +85,13 @@ evidence, and each is decided on its own:
 | **Dismiss** | Recorded; a later request does not suggest it again. |
 | **Undo** | Reverses the decision while it still fits the draft. |
 
+A suggestion whose text holds characters a person cannot see - a control
+character other than a newline or a tab, a bidirectional control, a Unicode tag
+character - is not recorded, and one stored before is refused at **Accept**; so
+is such a proposal for a skill or a context file, a search variant and a
+person's own wording. Zero-width characters are let through, and every diff
+writes each one out by its code and says so.
+
 A suggestion anchors on where its passage sat and what surrounded it, not on the
 text alone, so a line that appears twice is changed where it was meant to be. If
 the draft has moved on - the passage edited away, or a tool's description changed
