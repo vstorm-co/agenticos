@@ -90,13 +90,40 @@ test("choose an agent from a dataset, estimate and complete its eval", async ({ 
     await start.click();
     await page.waitForURL(new RegExp(`/agents/${agent}/evals/[^/?]+$`));
     const runId = new URL(page.url()).pathname.split("/").pop();
+    const pollingTimeout = 15_000;
+    const pollingDeadline = Date.now() + pollingTimeout;
     await expect
-      .poll(async () => {
-        const response = await page.request.get(`/api/eval-runs/${runId}`);
-        expect(response.ok(), await response.text()).toBeTruthy();
-        const body: unknown = await response.json();
-        return typeof body === "object" && body !== null && "status" in body ? body.status : null;
-      })
+      .poll(
+        async () => {
+          const response = await page.request.get(`/api/eval-runs/${runId}`);
+          if (response.status() === 429) {
+            const body: unknown = await response.json();
+            const error =
+              typeof body === "object" && body !== null && "error" in body ? body.error : null;
+            expect(error).toMatchObject({ code: "RATE_LIMIT_EXCEEDED" });
+            const details =
+              typeof error === "object" && error !== null && "details" in error
+                ? error.details
+                : null;
+            const retryAfter =
+              typeof details === "object" && details !== null && "retry_after_seconds" in details
+                ? details.retry_after_seconds
+                : null;
+            if (typeof retryAfter !== "number" || !Number.isFinite(retryAfter) || retryAfter <= 0)
+              throw new Error("The comparison refusal has no valid retry_after_seconds");
+            // The page may already hold the organization's comparison lease.
+            const retryDelay = retryAfter * 1000;
+            if (retryDelay > pollingDeadline - Date.now())
+              throw new Error("The comparison backoff exceeds the remaining polling timeout");
+            await page.waitForTimeout(retryDelay);
+            return null;
+          }
+          expect(response.ok(), await response.text()).toBeTruthy();
+          const body: unknown = await response.json();
+          return typeof body === "object" && body !== null && "status" in body ? body.status : null;
+        },
+        { timeout: pollingTimeout },
+      )
       .toBe("completed");
     await expect(page.getByRole("heading", { name: "1 of 1 answers passed" })).toBeVisible();
   } finally {
