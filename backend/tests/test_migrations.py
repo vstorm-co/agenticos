@@ -3060,6 +3060,8 @@ class TestCaseFromConversationBackfill:
         rows: dict[str, tuple[str, str | None]] = {
             "copied": ("conversation", None),
             "drafted from a deleted chat": ("synthetic", "asked_by_user_id"),
+            "noted from a deleted chat": ("synthetic", "noted_by_user_id"),
+            "with a person's turn": ("synthetic", "history_author_ids"),
             "drafted from a run": ("synthetic", "source_run_id"),
             "drafted from a document": ("synthetic", "source_document_id"),
             "typed": ("manual", None),
@@ -3075,9 +3077,12 @@ class TestCaseFromConversationBackfill:
                         text(
                             "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
                             "input, source, position, added_in, improvement_partition, "
-                            "asked_by_user_id, source_run_id, source_document_id) VALUES (:id, "
+                            "asked_by_user_id, noted_by_user_id, source_run_id, "
+                            "source_document_id, history, history_author_ids) VALUES (:id, "
                             ":dataset, :org, :case, 'Q', :source, :position, 1, 'train', "
-                            ":asked_by_user_id, :source_run_id, :source_document_id)"
+                            ":asked_by_user_id, :noted_by_user_id, :source_run_id, "
+                            ":source_document_id, CAST(:history AS jsonb), "
+                            "CAST(:authors AS uuid[]))"
                         ),
                         {
                             "id": ids[name],
@@ -3090,10 +3095,15 @@ class TestCaseFromConversationBackfill:
                                 column: uuid4() if column == link else None
                                 for column in (
                                     "asked_by_user_id",
+                                    "noted_by_user_id",
                                     "source_run_id",
                                     "source_document_id",
                                 )
                             },
+                            "history": '[{"role": "user", "content": "Hi"}]'
+                            if link == "history_author_ids"
+                            else "[]",
+                            "authors": [str(uuid4())] if link == "history_author_ids" else [],
                         },
                     )
             up = _alembic("upgrade", "head")
@@ -3107,6 +3117,8 @@ class TestCaseFromConversationBackfill:
             assert {name: flags[ids[name]] for name in rows} == {
                 "copied": True,
                 "drafted from a deleted chat": True,
+                "noted from a deleted chat": True,
+                "with a person's turn": True,
                 "drafted from a run": True,
                 "drafted from a document": False,
                 "typed": False,

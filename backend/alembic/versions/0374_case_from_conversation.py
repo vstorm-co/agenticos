@@ -6,12 +6,13 @@ case drafted from it by Generate cases (`source = synthetic`) kept nothing sayin
 where it came from, and every reader of the dataset saw its text. A copied case
 (`source = conversation`) stayed masked only because of its source.
 
-The flag is set when a case is written with any of those links, and carried to
-every later revision. The backfill marks every revision that has a link, a
-conversation source, or a recorded asker: the asker is only ever taken from a
-chat, and it outlives the conversation. A generated case whose chat was deleted
-before this revision, from an anonymous visitor's conversation, has none of these
-left and cannot be recovered.
+The flag is set when a case is written with any of those links or a recorded
+person, and carried to every later revision. The backfill marks every revision
+that has a link, a conversation source, or a recorded asker, note author or
+history author: each is only ever taken from a chat, and outlives the
+conversation. A generated case whose chat was deleted before this revision, from
+an anonymous visitor's conversation, has none of these left and cannot be
+recovered.
 
 Downgrade drops the column; the code before this revision masks on the source and
 the conversation link, as it did.
@@ -40,7 +41,9 @@ def upgrade() -> None:
         "OR source_run_id IS NOT NULL "
         "OR source_conversation_id IS NOT NULL "
         "OR source_message_id IS NOT NULL "
-        "OR asked_by_user_id IS NOT NULL"
+        "OR asked_by_user_id IS NOT NULL "
+        "OR noted_by_user_id IS NOT NULL "
+        "OR EXISTS (SELECT 1 FROM unnest(history_author_ids) AS author WHERE author IS NOT NULL)"
     )
 
 
