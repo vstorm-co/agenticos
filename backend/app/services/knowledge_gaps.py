@@ -251,6 +251,15 @@ def _require_open(row: TopicRow) -> None:
         )
 
 
+def _held_to_quote(price: Decimal | None, quoted_usd: Decimal) -> None:
+    """Refuse a draft priced above what the person agreed to; an unpriced one has no price."""
+    if price is not None and price > quoted_usd:
+        raise ConcurrentChangeError(
+            message="A draft now costs more than was quoted; estimate it again",
+            details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
+        )
+
+
 def _require_runs_view(ctx: AuthContext) -> None:
     """Refuse a caller who may not read every run: a topic is made of people's questions."""
     if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
@@ -1128,12 +1137,7 @@ class KnowledgeGapService:
         """Refuse a draft that would now cost more than the price the person agreed to."""
         if quoted_usd is None:
             return
-        price = (await self.draft_estimate(ctx, topic_id)).total_usd
-        if price is not None and price > quoted_usd:
-            raise ConcurrentChangeError(
-                message="A draft now costs more than was quoted; estimate it again",
-                details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
-            )
+        _held_to_quote((await self.draft_estimate(ctx, topic_id)).total_usd, quoted_usd)
 
     async def draft(
         self, ctx: AuthContext, topic_id: UUID, *, quoted_usd: Decimal | None = None
@@ -1177,11 +1181,7 @@ class KnowledgeGapService:
                 agent_id=kb.gap_drafter_agent_id,
                 chars=DRAFT_PROMPT_CHARS,
             )
-            if price is not None and price > quoted_usd:
-                raise ConcurrentChangeError(
-                    message="A draft now costs more than was quoted; estimate it again",
-                    details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
-                )
+            _held_to_quote(price, quoted_usd)
             drafter_id, version_id = drafter.id, version.id
         material = await knowledge_gap_repo.drafting_material(
             self.db,
