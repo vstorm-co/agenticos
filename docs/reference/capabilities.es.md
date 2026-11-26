@@ -1,5 +1,5 @@
 ---
-source_sha: "4a9eb6a24e5b"
+source_sha: "9adb8c26e7ba"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -515,7 +515,21 @@ activas, el revisor recibe un aviso en Inbox cuando cambia un plazo existente.
 La regla funciona sin un modelo. Antes de guardar, el worker vuelve a comprobar
 la autorización del buzón y del revisor. El límite diario conserva el cursor
 para poder reintentar los eventos pendientes. Eliminar la regla borra sus
-eventos, registros y avisos.
+eventos, registros sustentados solo por Gmail y avisos.
+
+Para combinar evidencia de Gmail y de una afirmación revisada del chat, usa la
+misma clave del objeto de negocio en la regla de Gmail y en
+`object_ref.external_key` de la afirmación. Publica la afirmación a la
+organización. Los valores tipados de la misma propiedad con periodos de vigencia
+coincidentes comparten un registro. Cada fuente puede eliminarse por separado.
+Una regla de Gmail sin clave conserva la identidad de su objeto.
+
+En **Organización → Memories → Solo conflictos** puedes ver los valores en
+disputa. Un miembro con `context:edit` para toda la organización puede elegir y
+confirmar un valor. Las alternativas permanecen en la cronología y la decisión
+queda en la auditoría. Si llega otro candidato, revisa la lista actualizada.
+Inbox avisa de cambios de la misma fuente autorizada. Los conflictos quedan
+pendientes de revisión en Memory.
 
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats

@@ -1,5 +1,5 @@
 ---
-source_sha: "4a9eb6a24e5b"
+source_sha: "9adb8c26e7ba"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -503,8 +503,21 @@ termin i dowód na wspólnej osi czasu zobowiązania. Opcja informowania w Inbox
 wysyła zatwierdzającemu jedną kartę, gdy zmieni się dotychczasowy termin.
 Reguła działa bez wywołania modelu. Worker przed zapisem ponownie sprawdza
 autoryzację skrzynki i prawa zatwierdzającego. Dzienny limit zatrzymuje kursor,
-aby ponowić odczyt oczekujących zdarzeń. Usunięcie reguły usuwa jej wpisy,
-zdarzenia w kolejce i karty Inbox.
+aby ponowić odczyt oczekujących zdarzeń. Usunięcie reguły usuwa wpisy oparte
+wyłącznie na Gmailu, zdarzenia w kolejce i karty Inbox.
+
+Aby połączyć dowody z Gmaila i zatwierdzonego wpisu z czatu, użyj tego samego
+klucza biznesowego w regule Gmaila i w polu `object_ref.external_key` wpisu.
+Opublikuj wpis z czatu do organizacji. Zgodne wartości tego samego typu,
+właściwości i okresu trafiają do jednego wpisu. Każde źródło można usunąć
+niezależnie. Reguła Gmaila bez wspólnego klucza zachowuje dotychczasowy obiekt.
+
+W **Organizacyjna → Memories → Tylko konflikty** znajdziesz sporne wartości.
+Osoba z uprawnieniem `context:edit` dla całej organizacji może otworzyć konflikt,
+wybrać wartość i ją zatwierdzić. Alternatywy zostają na osi czasu, a decyzja
+trafia do audytu. Jeśli pojawi się kolejna wartość, sprawdź aktualny zestaw.
+Inbox informuje o zmianach z tego samego autoryzowanego źródła. Sporne wpisy
+pozostają w pamięci do sprawdzenia.
 
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych

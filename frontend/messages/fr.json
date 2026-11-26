@@ -6822,6 +6822,14 @@
         "sourceSender": "Expéditeur authentifié",
         "sourceSubject": "Objet exact du courriel",
         "sourceCommitment": "Nom de l’engagement",
+        "sourceObjectKey": "Clé de l’objet métier (facultative)",
+        "sourceObjectKeyHint": "Utilisez la même clé externe dans Gmail et dans le souvenir validé issu du chat pour relier leurs preuves.",
+        "conflictsOnly": "Conflits uniquement",
+        "conflictPending": "En attente de vérification",
+        "conflictPick": "Quelle valeur la mémoire de l’entreprise doit-elle utiliser ?",
+        "conflictConfirm": "Confirmer la valeur",
+        "conflictResolved": "Conflit de mémoire résolu",
+        "conflictChanged": "Ce conflit a changé. Vérifiez les valeurs actualisées.",
         "sourceMode": "Mode",
         "shadow": "Aperçu uniquement",
         "active": "Enregistrer dans la mémoire de l’organisation",
@@ -6849,6 +6857,7 @@
           "shadow": "Correspondance en aperçu",
           "late": "Courriel ancien",
           "unchanged": "Aucun changement",
+          "disputed": "Conflit en attente de vérification",
           "applied": "Enregistré"
         }
       },

@@ -28,7 +28,7 @@ import re
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID, uuid5
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +59,19 @@ def normalise_subject(subject: str | None) -> str | None:
 
 def _same(left: str, right: str) -> bool:
     return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
+
+
+def same_observation(claim: MemoryClaim, value: MemoryValue | None, statement: str) -> bool:
+    """Use a typed fact where available, and exact normalized wording for untyped facts."""
+    if value is None:
+        return claim.value is None and _same(claim.statement, statement)
+    return type(claim.value) is type(value) and claim.value == value
+
+
+def covers(claim: MemoryClaim, instant: datetime) -> bool:
+    return (claim.effective_from is None or claim.effective_from <= instant) and (
+        claim.effective_to is None or instant < claim.effective_to
+    )
 
 
 @dataclass(frozen=True)
@@ -103,7 +116,7 @@ async def _hold_person(db: AsyncSession, scope_key: str) -> None:
 async def _hold_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
     await _hold_person(db, scope_key)
     # Serialize all agent bindings too: consolidation traverses an owner's scopes together.
-    await hold_subject(db, LockScope.MEMORY_CLAIMS_PER_SCOPE, uuid5(organization_id, scope_key))
+    await claim_repo.hold_scope_write_lock(db, organization_id=organization_id, scope_key=scope_key)
 
 
 async def _live_for_mutation(db: AsyncSession, claim: MemoryClaim) -> MemoryClaim:
@@ -136,6 +149,8 @@ async def remember(
     object_id: UUID | None = None,
     mail_event_id: UUID | None = None,
     value: MemoryValue | None = None,
+    observation_source: str | None = None,
+    reviewed_publication: bool = False,
 ) -> Remembered:
     """Record one claim in `scope`, applying the precedence rules above.
 
@@ -176,6 +191,7 @@ async def remember(
             scope=scope,
             subject=topic,
             object_id=object_id,
+            lock=reviewed_publication,
             statuses=("current", "disputed", "superseded")
             if effective_from is not None
             else ("current", "disputed"),
@@ -186,7 +202,29 @@ async def remember(
         )
     )
     now = datetime.now(UTC)
+    boundary = effective_from or now
+    overlaps_observation = False
     for existing in live:
+        if (
+            reviewed_publication
+            and object_id is not None
+            and existing.status in ("current", "disputed")
+            and covers(existing, boundary)
+            and (
+                existing.mail_event_id is not None
+                or (existing.origin == "agent" and existing.observation_source is not None)
+                or await claim_repo.has_mail_evidence(db, claim=existing)
+            )
+        ):
+            overlaps_observation = True
+            if (
+                existing.effective_to == effective_to
+                and existing.kind == kind
+                and existing.episode == episode_data
+                and same_observation(existing, value, statement)
+            ):
+                return Remembered(existing, created=False, disputed=existing.status == "disputed")
+
         same_period = (
             existing.effective_from == effective_from
             and (effective_to is None or existing.effective_to == effective_to)
@@ -215,7 +253,6 @@ async def remember(
             if item.effective_from is not None and item.effective_from > effective_from
         ]
         effective_to = min(future_starts, default=None)
-    boundary = effective_from or now
     live = [
         item
         for item in live
@@ -227,7 +264,7 @@ async def remember(
             or item.effective_from < effective_to
         )
     ]
-    supersedes_live = corrects or origin == "person"
+    supersedes_live = corrects or (origin == "person" and not overlaps_observation)
     if supersedes_live and any(
         (item.origin == "person" or item.supersedes_id is not None)
         and item.effective_from is not None
@@ -269,6 +306,7 @@ async def remember(
         subject=topic,
         object_id=object_id,
         mail_event_id=mail_event_id,
+        observation_source=observation_source,
         value=value,
         statement=statement,
         kind=kind,
@@ -482,9 +520,22 @@ async def share(
         effective_to=claim.effective_to,
         mail_event_id=claim.mail_event_id,
         value=claim.value,
+        reviewed_publication=True,
         author_user_id=author_user_id,
         conversation_id=conversation_id,
     )
+    if result.claim.mail_event_id is not None and claim.mail_event_id is None:
+        # The admitted delivery remains separate evidence. The authorized chat
+        # publication keeps the claim visible even if the mailbox is revoked.
+        event = await claim_repo.mail_event(
+            db, organization_id=claim.organization_id, event_id=result.claim.mail_event_id
+        )
+        assert event is not None  # The claim's primary evidence FK is still under the scope lock.
+        event.supported_claim_id = result.claim.id
+        event.claim_statement = result.claim.statement
+        result.claim.mail_event_id = None
+        result.claim.origin = "person"
+        result.claim.author_user_id = author_user_id
     # A second person sharing the same sentence is deduplicated into the first copy, which
     # then keeps both sources: erasing one person must not take the other's authorized
     # share with it (`delete_descendants` removes a copy only when no source is left).

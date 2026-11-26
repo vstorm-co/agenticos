@@ -18,9 +18,9 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.background_job import BackgroundJob
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.credential import ModelProfile
-from app.db.models.memory_claim import MemoryClaim
+from app.db.models.memory_claim import MemoryClaim, MemoryClaimEvidence
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
 from app.db.models.user import User
@@ -1018,3 +1018,38 @@ async def test_removing_a_maintenance_model_disables_its_role(db: AsyncSession) 
     await ModelProfileService(db).delete_profile(ctx, model.id)
     profile = await system_agent_repo.get(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
     assert profile is not None and profile.enabled is False and profile.model_profile_id is None
+
+
+async def test_native_answer_contributes_without_forging_message_evidence(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, version, _, _ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("assistant", "")])
+    message_id = await db.scalar(select(Message.id).where(Message.run_id == run.id))
+    assert message_id is not None
+    db.add(
+        ToolCall(
+            message_id=message_id,
+            tool_call_id="question-about-dates",
+            tool_name="ask_user_question",
+            tool_id="ask_user_question",
+            args={"questions": [{"header": "Dates", "question": "Report date format?"}]},
+            result=json.dumps({"Dates": ["ISO dates"]}),
+            status="completed",
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    _think(
+        monkeypatch,
+        [extraction._Extracted(statement="Use ISO dates in reports", evidence="ISO dates")],
+    )
+    assert await extraction.extract(db, org.id, run.id) == 1
+    claim = await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id))
+    assert claim is not None and claim.statement == "Use ISO dates in reports"
+    assert (
+        await db.scalar(select(MemoryClaimEvidence).where(MemoryClaimEvidence.claim_id == claim.id))
+        is None
+    )

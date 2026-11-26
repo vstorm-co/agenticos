@@ -196,6 +196,7 @@ export interface MemoryClaimDetail extends MemoryClaim {
   sources: MemoryClaim[];
   superseded: MemoryClaim | null;
   withheld: number;
+  conflicts: MemoryClaim[];
 }
 
 export interface SharedMemoryNote {
@@ -235,9 +236,16 @@ export function getMemoryClaimDetail(library: MemoryLibrary, id: string) {
   return apiClient.get<MemoryClaimDetail>(`${ROOT}/claims/${location}/${id}`);
 }
 
-export function getSharedClaims(q: string, skip: number) {
+export function getSharedClaims(q: string, skip: number, disputed = false) {
   const query = new URLSearchParams({ q, skip: String(skip) });
+  if (disputed) query.set("disputed", "true");
   return apiClient.get<MemoryClaimPage>(`${ROOT}/claims/shared?${query}`);
+}
+
+export function resolveSharedMemoryConflict(winnerId: string, candidateIds: string[]) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/shared/${winnerId}/resolve`, {
+    candidate_ids: candidateIds,
+  });
 }
 
 export function getSharedNotes(cursor: string | null) {
@@ -264,13 +272,15 @@ export interface MemoryMailRule {
   sender: string;
   subject: string;
   commitment: string;
+  object_key?: string | null;
   mode: "shadow" | "active";
   notify: boolean;
 }
 
 export interface MemoryMailState extends MemoryMailRule {
   authorized: boolean;
-  last_outcome: "daily_limit" | "withheld" | "shadow" | "late" | "unchanged" | "applied" | null;
+  last_outcome:
+    "daily_limit" | "withheld" | "shadow" | "late" | "unchanged" | "applied" | "disputed" | null;
 }
 
 export function getMemoryMailRule() {

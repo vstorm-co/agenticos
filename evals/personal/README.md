@@ -251,6 +251,11 @@ runner creates and drops a separate database. It uses synthetic portal deliverie
 and does not invoke models. It checks stored values and intervals, exact-shape
 input, visibility, replay and Inbox delivery in the same production data path.
 
+The synthetic CRM fixture goes through the same typed observation contract as
+Gmail. Its replay covers A → B → A and a contradictory second record. Additional
+cases cover reviewed chat/Gmail agreement in both arrival orders, removal of either
+proof, and stale or unauthorized conflict decisions. The fixture needs no CRM grant.
+
 For paid comparisons, freeze the dataset and baseline SHA, record per-case
 evidence, answers and abstentions, and keep the answering model and read budget
 constant for the current and candidate AgenticOS, raw retrieval, Mem0 OSS and

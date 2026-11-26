@@ -4,8 +4,11 @@ import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, Brain, FileText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, Input, ListCard, ListCardEmpty, SearchInput } from "@/components/ui";
+import { usePermissions } from "@/hooks/use-permissions";
+import { ApiError } from "@/lib/api-error";
 import {
   amendHistoricalClaim,
   getMemoryClaimDetail,
@@ -13,6 +16,7 @@ import {
   getMemoryTimeline,
   getSharedClaims,
   getSharedNotes,
+  resolveSharedMemoryConflict,
   type DecisionEpisode,
   type MemoryClaim,
   type MemoryLibrary,
@@ -25,7 +29,15 @@ import { MemoryPager, MemoryRow } from "./memory-list";
 
 const KINDS = ["all", "person", "company", "project", "commitment"] as const;
 
-export function ClaimSources({ library, claimId }: { library: MemoryLibrary; claimId: string }) {
+export function ClaimSources({
+  library,
+  claimId,
+  review = false,
+}: {
+  library: MemoryLibrary;
+  claimId: string;
+  review?: boolean;
+}) {
   const t = useTranslations("pages.memory.library");
   const org = useOrgStore((state) => state.activeOrgId) ?? "current";
   const { data, isPending, error } = useQuery({
@@ -34,11 +46,12 @@ export function ClaimSources({ library, claimId }: { library: MemoryLibrary; cla
   });
   if (isPending) return <p className="text-muted-foreground text-sm">{t("loadingEvidence")}</p>;
   if (error || !data) return <p role="alert">{t("evidenceUnavailable")}</p>;
-  if (!data.sources.length && !data.evidence.length && !data.superseded && !data.withheld)
-    return null;
+  const hasEvidence =
+    data.sources.length || data.evidence.length || data.superseded || data.withheld;
+  if (!hasEvidence && (!review || data.conflicts.length === 0)) return null;
   return (
     <section className="space-y-2">
-      <h4 className="text-sm font-medium">{t("evidence")}</h4>
+      {!!hasEvidence && <h4 className="text-sm font-medium">{t("evidence")}</h4>}
       {data.evidence.map((source) => (
         <blockquote className="border-s-2 ps-2 text-sm wrap-anywhere" key={source.source_id}>
           {source.quote}
@@ -58,7 +71,76 @@ export function ClaimSources({ library, claimId }: { library: MemoryLibrary; cla
         </p>
       )}
       {!!data.withheld && <p className="text-muted-foreground text-sm">{t("withheld")}</p>}
+      {review && data.conflicts.length > 0 && (
+        <ConflictReview
+          key={data.conflicts.map((option) => option.id).join(",")}
+          candidates={data.conflicts}
+          org={org}
+        />
+      )}
     </section>
+  );
+}
+
+function ConflictReview({ candidates, org }: { candidates: MemoryClaim[]; org: string }) {
+  const t = useTranslations("pages.memory.library");
+  const errors = useTranslations("errors");
+  const formId = useId();
+  const permissions = usePermissions();
+  const client = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (winnerId: string) =>
+      resolveSharedMemoryConflict(
+        winnerId,
+        candidates.map((candidate) => candidate.id),
+      ),
+    onSuccess: () => {
+      toast.success(t("conflictResolved"));
+      return client.invalidateQueries({ queryKey: qk.memory.all(org) });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        toast.error(t("conflictChanged"));
+        return client.invalidateQueries({ queryKey: qk.memory.all(org) });
+      }
+    },
+  });
+
+  if (permissions.scopeOf?.("context:edit") !== "all") {
+    return <p className="text-muted-foreground text-sm">{t("conflictPending")}</p>;
+  }
+
+  return (
+    <form
+      aria-labelledby={formId}
+      className="space-y-2 rounded-md border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const winner = new FormData(event.currentTarget).get("winner");
+        if (typeof winner === "string") mutation.mutate(winner);
+      }}
+    >
+      <fieldset disabled={mutation.isPending} className="space-y-1">
+        <legend id={formId} className="text-sm font-medium">
+          {t("conflictPick")}
+        </legend>
+        {candidates.map((candidate) => (
+          <label key={candidate.id} className="flex items-start gap-2 py-2 text-sm wrap-anywhere">
+            <input className="mt-1" type="radio" name="winner" value={candidate.id} required />
+            {candidate.statement}
+          </label>
+        ))}
+      </fieldset>
+      <Button type="submit" size="sm" variant="outline" disabled={mutation.isPending}>
+        {t("conflictConfirm")}
+      </Button>
+      {mutation.isError &&
+        !(mutation.error instanceof ApiError && mutation.error.status === 409) && (
+          <p role="alert" className="text-destructive text-sm">
+            {errors("unexpected")}
+          </p>
+        )}
+    </form>
   );
 }
 
@@ -88,7 +170,13 @@ function TimelineClaim({
         {" · "}
         {snapshot ? t("historical") : status(claim.status)}
       </p>
-      {opened && <ClaimSources library={library} claimId={claim.id} />}
+      {opened && (
+        <ClaimSources
+          library={library}
+          claimId={claim.id}
+          review={library === "organization" && !snapshot}
+        />
+      )}
       {opened &&
         !snapshot &&
         library === "personal" &&
@@ -345,24 +433,38 @@ export function SharedMemoryClaims() {
   const org = useOrgStore((state) => state.activeOrgId) ?? "current";
   const [q, setQ] = useState("");
   const [skip, setSkip] = useState(0);
+  const [disputed, setDisputed] = useState(false);
   const page = useQuery({
-    queryKey: [...qk.memory.all(org), "shared-claims", q, skip],
-    queryFn: () => getSharedClaims(q, skip),
+    queryKey: [...qk.memory.all(org), "shared-claims", q, skip, disputed],
+    queryFn: () => getSharedClaims(q, skip, disputed),
   });
   return (
     <ListCard
       fill
       title={t("sharedClaims")}
       controls={
-        <SearchInput
-          value={q}
-          onChange={(value) => {
-            setQ(value);
-            setSkip(0);
-          }}
-          maxLength={200}
-          placeholder={t("searchShared")}
-        />
+        <>
+          <SearchInput
+            value={q}
+            onChange={(value) => {
+              setQ(value);
+              setSkip(0);
+            }}
+            maxLength={200}
+            placeholder={t("searchShared")}
+          />
+          <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={disputed}
+              onChange={(event) => {
+                setDisputed(event.target.checked);
+                setSkip(0);
+              }}
+            />
+            {t("conflictsOnly")}
+          </label>
+        </>
       }
     >
       {page.isPending ? (

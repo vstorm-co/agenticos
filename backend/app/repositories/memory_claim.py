@@ -11,14 +11,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid5
 
-from sqlalchemy import ARRAY, Text, and_, case, func, literal, or_, select, true, tuple_
+from sqlalchemy import ARRAY, Select, Text, and_, case, func, literal, or_, select, true, tuple_
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.memory_keys import organization_owner_key
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.db.models.memory_claim import (
@@ -40,6 +42,11 @@ class ClaimScope:
 
     scope_key: str
     agent_id: UUID | None = None
+
+
+async def hold_scope_write_lock(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
+    """Serialize ledger mutations within an organization and audience."""
+    await hold_subject(db, LockScope.MEMORY_CLAIMS_PER_SCOPE, uuid5(organization_id, scope_key))
 
 
 def _texts(values: list[str]) -> Any:
@@ -75,19 +82,32 @@ def _in_scopes(scopes: Sequence[ClaimScope]) -> Any:
     )
 
 
-def readable_mail_source() -> ColumnElement[bool]:
-    """A published mail fact stays available only while the same mailbox is authorized."""
+def _authorized_mail_events() -> Select[MemoryMailEvent]:
     return (
-        select(MemoryMailEvent.id)
+        select(MemoryMailEvent)
         .join(MemoryMailSource, MemoryMailSource.organization_id == MemoryMailEvent.organization_id)
         .join(McpConnection, McpConnection.id == MemoryMailSource.grant_id)
         .where(
-            MemoryMailEvent.id == MemoryClaim.mail_event_id,
-            MemoryMailEvent.organization_id == MemoryClaim.organization_id,
             MemoryMailEvent.grant_id == McpConnection.id,
+            McpConnection.organization_id == MemoryMailEvent.organization_id,
             MemoryMailSource.authorization_generation == McpConnection.authorization_generation,
+            McpConnection.purpose == "portal",
+            McpConnection.portal_key == "google",
+            McpConnection.oauth_payload.is_not(None),
             McpConnection.is_enabled.is_(True),
             McpConnection.last_error.is_distinct_from(AUTHORIZATION_EXPIRED),
+        )
+    )
+
+
+def readable_mail_source() -> ColumnElement[bool]:
+    """A published mail fact stays available only while the same mailbox is authorized."""
+    return (
+        _authorized_mail_events()
+        .with_only_columns(MemoryMailEvent.id)
+        .where(
+            MemoryMailEvent.id == MemoryClaim.mail_event_id,
+            MemoryMailEvent.organization_id == MemoryClaim.organization_id,
         )
         .correlate(MemoryClaim)
         .exists()
@@ -222,20 +242,33 @@ async def about_subject(
     subject: str,
     statuses: Sequence[str] = ("current", "disputed"),
     object_id: UUID | None = None,
+    lock: bool = False,
+    in_effect: bool = False,
+    limit: int | None = None,
 ) -> list[MemoryClaim]:
     """The claims on one topic and object in one scope, oldest first."""
-    result = await db.execute(
-        select(MemoryClaim)
-        .where(
-            MemoryClaim.organization_id == organization_id,
-            _in_scopes([scope]),
-            MemoryClaim.subject == subject,
-            MemoryClaim.object_id == object_id,
-            MemoryClaim.status.in_(list(statuses)),
-        )
-        .order_by(MemoryClaim.observed_at.asc(), MemoryClaim.id.asc())
+    query = select(MemoryClaim).where(
+        MemoryClaim.organization_id == organization_id,
+        _in_scopes([scope]),
+        MemoryClaim.subject == subject,
+        MemoryClaim.object_id == object_id,
+        MemoryClaim.status.in_(list(statuses)),
+        _visible(),
+        _in_effect() if in_effect else true(),
     )
-    return list(result.scalars().all())
+    if limit is not None:
+        query = query.limit(limit)
+    if lock:
+        # Erasure locks shared descendants in id order too.
+        query = (
+            query.order_by(MemoryClaim.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    else:
+        query = query.order_by(MemoryClaim.observed_at, MemoryClaim.id)
+    rows = list((await db.execute(query)).scalars().all())
+    return sorted(rows, key=lambda row: (row.observed_at, row.id)) if lock else rows
 
 
 async def without_subject(
@@ -631,13 +664,15 @@ async def _delete_descendants(
         query = select(MemoryClaim).where(MemoryClaim.derived_from.has_any(_texts(frontier)))
         if organization_id is not None:
             query = query.where(MemoryClaim.organization_id == organization_id)
-        rows = (await db.execute(query)).scalars().all()
+        rows = list(await db.scalars(query.order_by(MemoryClaim.id).with_for_update()))
         frontier = []
         for row in rows:
             remaining = [item for item in row.derived_from if item not in gone]
             if remaining:
                 row.derived_from = remaining
                 db.add(row)
+                continue
+            if await _retain_mail_observation(db, row):
                 continue
             frontier.append(str(row.id))
             gone.add(str(row.id))
@@ -661,6 +696,10 @@ async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key
         .scalars()
         .all()
     )
+    if own:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
     copies = await _delete_descendants(
         db, [str(identifier) for identifier in own], organization_id=organization_id
     )
@@ -695,12 +734,19 @@ async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
             )
         )
     ).all()
+    # Use the worker's organization lock before selecting an independent mail
+    # source. The event cannot cascade away between lookup and FK assignment.
+    affected = sorted({row.organization_id for row in own})
+    for organization_id in affected:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
     removed = await _delete_descendants(db, [str(row.id) for row in own])
     own_removed = await db.execute(sa_delete(MemoryClaim).where(MemoryClaim.scope_key == scope_key))
     removed += own_removed.rowcount or 0  # ty: ignore[missing-attribute]
     await db.execute(sa_delete(MemoryScopeState).where(MemoryScopeState.scope_key == scope_key))
     await db.flush()
-    for organization_id in {row.organization_id for row in own}:
+    for organization_id in affected:
         await prune_empty_objects(db, organization_id=organization_id)
     return removed
 
@@ -724,6 +770,10 @@ async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id:
         .scalars()
         .all()
     )
+    if own:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
     copies = await _delete_descendants(
         db, [str(identifier) for identifier in own], organization_id=organization_id
     )
@@ -829,6 +879,59 @@ async def mail_event(
         )
         .execution_options(populate_existing=True)
     )
+
+
+def _mail_evidence_of(claim: MemoryClaim) -> Select[MemoryMailEvent]:
+    return _authorized_mail_events().where(
+        MemoryMailEvent.organization_id == claim.organization_id,
+        or_(
+            MemoryMailEvent.id == claim.mail_event_id,
+            MemoryMailEvent.supported_claim_id == claim.id,
+        ),
+    )
+
+
+async def has_mail_evidence(db: AsyncSession, *, claim: MemoryClaim) -> bool:
+    return bool(await db.scalar(select(_mail_evidence_of(claim).exists())))
+
+
+async def mail_evidence(db: AsyncSession, *, claim: MemoryClaim) -> list[MemoryMailEvent]:
+    return list(
+        await db.scalars(
+            _mail_evidence_of(claim)
+            .order_by(MemoryMailEvent.received_at.desc(), MemoryMailEvent.id.desc())
+            .limit(20)
+        )
+    )
+
+
+async def _retain_mail_observation(db: AsyncSession, claim: MemoryClaim) -> bool:
+    # Drop the private publication and its wording while retaining what the mail
+    # independently disclosed. Reads still apply the mailbox's current authorization.
+    query = select(MemoryMailEvent).where(
+        MemoryMailEvent.organization_id == claim.organization_id,
+        MemoryMailEvent.supported_claim_id == claim.id,
+        MemoryMailEvent.claim_statement.is_not(None),
+    )
+    if claim.effective_to is not None:
+        query = query.where(MemoryMailEvent.received_at < claim.effective_to)
+    event = await db.scalar(
+        query.order_by(MemoryMailEvent.received_at, MemoryMailEvent.id).limit(1)
+    )
+    if event is None:
+        return False
+    assert event.claim_statement is not None
+    claim.derived_from = []
+    claim.author_user_id = None
+    claim.source_run_id = None
+    claim.source_conversation_id = None
+    claim.origin = "agent"
+    claim.statement = event.claim_statement
+    claim.mail_event_id = event.id
+    claim.effective_from = event.received_at
+    claim.observed_at = max(claim.observed_at, event.admitted_at)
+    claim.observation_source = event.observation_source
+    return True
 
 
 async def admit_mail(

@@ -7054,6 +7054,14 @@
         "sourceSender": "Authenticated sender",
         "sourceSubject": "Exact email subject",
         "sourceCommitment": "Commitment name",
+        "sourceObjectKey": "Business object key (optional)",
+        "sourceObjectKeyHint": "Use the same external key in Gmail and the reviewed chat memory to link their evidence.",
+        "conflictsOnly": "Conflicts only",
+        "conflictPending": "Awaiting review",
+        "conflictPick": "Which value should company memory use?",
+        "conflictConfirm": "Confirm value",
+        "conflictResolved": "Memory conflict resolved",
+        "conflictChanged": "This conflict changed. Review the updated values.",
         "sourceMode": "Mode",
         "shadow": "Preview only",
         "active": "Save to company memory",
@@ -7081,6 +7089,7 @@
           "shadow": "Preview matched",
           "late": "Older message",
           "unchanged": "No change",
+          "disputed": "Awaiting conflict review",
           "applied": "Saved"
         }
       },

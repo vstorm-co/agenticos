@@ -35,6 +35,7 @@ from app.schemas.memory import (
     MemoryClaimList,
     MemoryClaimRead,
     MemoryClaimShare,
+    MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
     MemoryMailConfig,
@@ -128,9 +129,10 @@ async def shared_memory_claims(
     q: str = Query("", max_length=200),
     skip: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
+    disputed: bool = False,
 ) -> Any:
     """Read current claims shared with this member's organization or groups."""
-    return await service.shared_claims(ctx, q=q, skip=skip, limit=limit)
+    return await service.shared_claims(ctx, q=q, skip=skip, limit=limit, disputed=disputed)
 
 
 @router.get("/claims/shared/{claim_id}", response_model=MemoryClaimDetail)
@@ -141,6 +143,17 @@ async def shared_memory_claim(
 ) -> Any:
     """Read one shared claim and any ancestry available to the member."""
     return await service.shared_claim_detail(ctx, claim_id)
+
+
+@router.post("/claims/shared/{claim_id}/resolve", response_model=MemoryClaimRead)
+async def resolve_shared_memory_conflict(
+    claim_id: UUID,
+    data: MemoryConflictResolve,
+    service: MemorySvc,
+    ctx: Auth,
+) -> Any:
+    """Confirm the chosen value in a shared object's current dispute."""
+    return await service.resolve_shared_conflict(ctx, claim_id, data)
 
 
 @router.get("/notes/shared", response_model=SharedMemoryNotePage)

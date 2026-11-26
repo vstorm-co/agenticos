@@ -2,9 +2,11 @@
 
 import uuid
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import pytest
+from pydantic import AwareDatetime, BaseModel, TypeAdapter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,12 +26,14 @@ from app.schemas.decision_episode import DecisionEpisode
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimShare,
+    MemoryConflictResolve,
     MemoryMailConfig,
     MemoryNoteShare,
     MemoryObjectRef,
 )
 from app.services.memory import MemoryService, claims, runtime
 from app.services.memory.mail import MemoryMailService
+from app.services.memory.sources import SourceObservation, apply_observation
 from app.services.portals.base import PolledEvent
 from app.worker.jobs import ApplyMemoryMail
 
@@ -218,7 +222,7 @@ async def test_project_no_workspace_and_group_revocation(db: AsyncSession) -> No
         await store.shared_claim_detail(viewer, published.id)
 
 
-async def _mail(db: AsyncSession, mode: str = "active"):
+async def _mail(db: AsyncSession, mode: str = "active", *, object_key: str | None = None):
     org, owner, reader = await _org(db)
     ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
     grant = McpConnection(
@@ -240,6 +244,7 @@ async def _mail(db: AsyncSession, mode: str = "active"):
             sender="desk@example.org",
             subject="XYZ delivery deadline",
             commitment="XYZ handoff",
+            object_key=object_key,
             mode=mode,
             notify=True,
             confirmed=True,
@@ -783,7 +788,8 @@ async def test_mail_rule_reconfiguration_fences_queued_items_and_ties(db: AsyncS
     config = await service.configuration(ctx)
     assert config is not None and config.last_outcome == "withheld"
     assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
-    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0)).total == 1
+    conflicts = await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0, disputed=True)
+    assert {row.value for row in conflicts.items} == {"2026-12-01", "2026-12-02"}
     await service.disable(ctx)
     await service.disable(ctx)
 
@@ -835,3 +841,307 @@ async def test_share_cannot_copy_an_object_from_a_different_scope(db: AsyncSessi
     with pytest.raises(ConflictError):
         await store.publish_claim(actor, claim.id, MemoryClaimShare(confirmed=True))
     assert (await store.shared_claims(actor, q="", limit=10, skip=0)).total == 0
+
+
+_HANDOFF_KEY = "business:atlas-handoff"
+
+
+async def _chat_deadline(
+    db: AsyncSession,
+    org: Organization,
+    owner: User,
+    value: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> uuid.UUID:
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(runtime, "get_db_context", current_db)
+    result = await runtime.remember(
+        organization_id=org.id,
+        scope=ClaimScope(person_owner_key(owner.id)),
+        statement=f"The chat confirmed {value} for XYZ handoff in the customer call.",
+        subject="deadline",
+        kind="fact",
+        author_user_id=owner.id,
+        conversation_id=None,
+        run_id=None,
+        effective_from=None,
+        object_ref=MemoryObjectRef(
+            kind="commitment", name="XYZ handoff", external_key=_HANDOFF_KEY
+        ),
+        value=value,
+    )
+    assert result is not None
+    return result[0].id
+
+
+@pytest.mark.parametrize("chat_first", [True, False])
+async def test_chat_gmail_agreement_keeps_both_sources(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, chat_first: bool
+) -> None:
+    org, owner, reader, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    store = MemoryService(db)
+    private = await _chat_deadline(db, org, owner, "2026-12-01", monkeypatch)
+    share = MemoryClaimShare(confirmed=True)
+    if chat_first:
+        published = await store.publish_claim(ctx, private, share)
+    events = (
+        _delivery("first", "Deadline: 2026-12-01"),
+        _delivery("second", "Deadline: 2026-12-01"),
+    )
+    assert (await mail.admit(grant, events)).queued == 2
+    for key in ("first", "second"):
+        await mail.apply(await _event(db, org, key))
+    before_publication = (await store.shared_claims(ctx, q="", skip=0, limit=10)).items
+    assert len(before_publication) == 1
+    if not chat_first:
+        assert before_publication[0].derived_from_count == 0
+        published = await store.publish_claim(ctx, private, share)
+    assert published.id == before_publication[0].id
+
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    detail = await store.shared_claim_detail(viewer, published.id)
+    assert detail.derived_from_count == 0  # The organization API does not expose private ancestry.
+    assert detail.sources == []
+    assert {item.source_id for item in detail.evidence} == {"gmail:first", "gmail:second"}
+    assert len((await store.shared_claims(viewer, q="", skip=0, limit=10)).items) == 1
+    if chat_first:
+        await store.forget_person(ctx, owner.id)
+        detail = await store.shared_claim_detail(viewer, published.id)
+        assert detail.statement == "XYZ handoff deadline: 2026-12-01"
+        assert len(detail.evidence) == 2
+        await mail.disable(ctx)
+        with pytest.raises(NotFoundError):
+            await store.shared_claim_detail(viewer, published.id)
+    else:
+        grant.authorization_generation = uuid.uuid4()
+        await db.flush()
+        detail = await store.shared_claim_detail(viewer, published.id)
+        assert detail.evidence == []
+        assert detail.statement == "XYZ handoff deadline: 2026-12-01"
+        await mail.disable(ctx)
+        assert (await store.shared_claim_detail(viewer, published.id)).evidence == []
+        await store.forget_person(ctx, owner.id)
+        with pytest.raises(NotFoundError):
+            await store.shared_claim_detail(viewer, published.id)
+
+
+@pytest.mark.parametrize(("chat_first", "keep_chat"), [(True, True), (False, True), (True, False)])
+async def test_conflicting_chat_and_gmail_need_a_member_decision(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, chat_first: bool, keep_chat: bool
+) -> None:
+    org, owner, reader, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    store = MemoryService(db)
+    private = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
+    if chat_first:
+        published = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
+    event = _delivery("email", "Deadline: 2026-12-01")
+    assert (await mail.admit(grant, (event,))).queued == 1
+    await mail.apply(await _event(db, org, "email"))
+    if not chat_first:
+        published = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
+    contested = (
+        await store.shared_claims(ctx, q="deadline", skip=0, limit=10, disputed=True)
+    ).items
+    assert contested
+    stored = await store.shared_claim_detail(ctx, published.id)
+    assert {row.value for row in stored.conflicts} == {"2026-12-01", "2026-12-02"}
+    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id) == []
+    data = MemoryConflictResolve(candidate_ids=[row.id for row in stored.conflicts])
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    with pytest.raises(AuthorizationError):
+        await store.resolve_shared_conflict(viewer, published.id, data)
+    with pytest.raises(ConflictError):
+        await store.resolve_shared_conflict(
+            ctx, published.id, MemoryConflictResolve(candidate_ids=[published.id, uuid.uuid4()])
+        )
+    elsewhere, other_owner, _ = await _org(db)
+    with pytest.raises(NotFoundError):
+        await store.resolve_shared_conflict(
+            AuthContext(user_id=other_owner.id, organization_id=elsewhere.id, role="owner"),
+            published.id,
+            data,
+        )
+    kept = (
+        published if keep_chat else next(row for row in stored.conflicts if row.id != published.id)
+    )
+    winner = await store.resolve_shared_conflict(ctx, kept.id, data)
+    assert winner.status == "current"
+    assert (await store.shared_claim_detail(ctx, published.id)).conflicts == []
+    if not keep_chat:
+        older = await store.shared_claim_detail(ctx, published.id)
+        assert older.status == "superseded" and older.effective_to is not None
+    assert (await store.shared_claims(ctx, q="", skip=0, limit=10, disputed=True)).total == 0
+    with pytest.raises(ConflictError):
+        await store.resolve_shared_conflict(ctx, published.id, data)
+    assert [
+        row.value
+        for row in await claims.recall(
+            db,
+            organization_id=org.id,
+            scopes=[ClaimScope(organization_owner_key(org.id))],
+            query="XYZ deadline",
+        )
+    ] == [kept.value]
+
+
+class CrmDealFixture(BaseModel):
+    account: str
+    deal_id: str
+    handoff_key: str
+    handoff_label: str
+    target_date: date
+    changed_at: AwareDatetime
+
+    def observation(self) -> SourceObservation:
+        value = self.target_date.isoformat()
+        return SourceObservation(
+            source_key=f"crm:{self.account}/{self.deal_id}",
+            delivery_id=f"crm:{self.account}/{self.deal_id}/{self.changed_at.isoformat()}",
+            quote=f"target_date={value}",
+            object=MemoryObjectRef(
+                kind="commitment", name=self.handoff_label, external_key=self.handoff_key
+            ),
+            subject="deadline",
+            statement=f"CRM target date for {self.handoff_label}: {value}",
+            value=value,
+            effective_at=self.changed_at,
+        )
+
+
+async def test_crm_fixture_through_shared_memory_contract(db: AsyncSession) -> None:
+    fixture = Path(__file__).resolve().parents[3] / "evals/personal/fixtures/memory_crm.json"
+    rows = TypeAdapter(list[CrmDealFixture]).validate_json(fixture.read_bytes())
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    store = MemoryService(db)
+
+    async def apply(index: int):
+        return await apply_observation(
+            db, organization_id=org.id, observation=rows[index].observation()
+        )
+
+    first = await apply(0)
+    assert first.memory.created
+    replay = await apply(0)
+    assert not replay.memory.created
+    assert replay.memory.claim.id == first.memory.claim.id
+    corrected = await apply(1)
+    assert corrected.previous is not None and corrected.previous.id == first.memory.claim.id
+    replay = await apply(0)
+    assert not replay.memory.created and replay.memory.claim.id == first.memory.claim.id
+    assert corrected.memory.claim.object_id == first.memory.claim.object_id
+    reverted = await apply(2)
+    assert reverted.previous is not None and reverted.previous.id == corrected.memory.claim.id
+    assert reverted.memory.claim.id != first.memory.claim.id
+    contested = await apply(3)
+    assert contested.memory.disputed
+    detail = await store.shared_claim_detail(ctx, contested.memory.claim.id)
+    assert {row.value for row in detail.conflicts} == {"2026-12-01", "2026-12-03"}
+
+
+async def test_source_contract_refuses_a_mismatched_admitted_proof(db: AsyncSession) -> None:
+    org, _, _, _, grant, mail = await _mail(db)
+    delivery = _delivery("original", "Deadline: 2026-12-01")
+    assert (await mail.admit(grant, (delivery,))).queued == 1
+    job = await _event(db, org, "original")
+    event = await memory_claim.mail_event(db, organization_id=org.id, event_id=job.event_id)
+    assert event is not None
+    observation = SourceObservation(
+        source_key="gmail:rule",
+        delivery_id=event.delivery_id,
+        quote="wrong proof",
+        object=MemoryObjectRef(kind="commitment", name="XYZ"),
+        subject="deadline",
+        statement="Deadline is 2026-12-01",
+        value="2026-12-01",
+        effective_at=event.received_at,
+    )
+    with pytest.raises(BadRequestError, match="admitted Gmail evidence"):
+        await apply_observation(
+            db, organization_id=org.id, observation=observation, mail_event=event
+        )
+    with pytest.raises(BadRequestError, match="normalized subject"):
+        await apply_observation(
+            db, organization_id=org.id, observation=observation.model_copy(update={"subject": "."})
+        )
+
+
+async def test_mail_rule_without_its_reviewer_withholds_queued_evidence(db: AsyncSession) -> None:
+    org, _, _, ctx, grant, mail = await _mail(db)
+    delivery = _delivery("original", "Deadline: 2026-12-01")
+    assert (await mail.admit(grant, (delivery,))).queued == 1
+    source = await memory_claim.mail_source(db, org.id)
+    assert source is not None
+    source.reviewer_id = None
+    await db.flush()
+    assert not await mail.subscribed(grant, "gmail")
+    await mail.apply(await _event(db, org, "original"))
+    config = await mail.configuration(ctx)
+    assert config is not None and config.last_outcome == "withheld"
+    assert (await MemoryService(db).shared_claims(ctx, q="", skip=0, limit=5)).total == 0
+
+
+async def test_retaining_mail_after_erasing_a_closed_chat_publication(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org, owner, _, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    store = MemoryService(db)
+    first = await _chat_deadline(db, org, owner, "2026-12-01", monkeypatch)
+    published = await store.publish_claim(ctx, first, MemoryClaimShare(confirmed=True))
+    received = datetime.now(UTC)
+    assert (
+        await mail.admit(grant, (_delivery("agree", "Deadline: 2026-12-01", received=received),))
+    ).queued == 1
+    await mail.apply(await _event(db, org, "agree"))
+    revised = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
+    other = await store.publish_claim(ctx, revised, MemoryClaimShare(confirmed=True))
+    assert other.status == "disputed"
+    decision = MemoryConflictResolve(candidate_ids=[published.id, other.id])
+    await store.resolve_shared_conflict(ctx, other.id, decision)
+
+    await store.forget_person(ctx, owner.id)
+    retained = await store.shared_claim_detail(ctx, published.id)
+    assert retained.statement == "XYZ handoff deadline: 2026-12-01"
+    assert retained.effective_from == received and retained.effective_to is not None
+    assert retained.status == "superseded"
+    assert (await store.shared_claims(ctx, q="", skip=0, limit=10)).total == 0
+
+
+async def test_an_observation_before_a_scheduled_revision_cannot_overwrite_reviewed_memory(
+    db: AsyncSession,
+) -> None:
+    org, _, _, _, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    scope = ClaimScope(organization_owner_key(org.id))
+    ref = MemoryObjectRef(kind="commitment", name="XYZ handoff", external_key=_HANDOFF_KEY)
+    now = datetime.now(UTC)
+    first = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=scope,
+        object_ref=ref,
+        origin="person",
+        subject="deadline",
+        statement="XYZ deadline is Dec 1",
+        value="2026-12-01",
+        effective_from=now - timedelta(days=1),
+    )
+    await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=scope,
+        object_ref=ref,
+        origin="person",
+        subject="deadline",
+        statement="XYZ deadline is Dec 2 from tomorrow",
+        value="2026-12-02",
+        effective_from=now + timedelta(days=1),
+    )
+    assert (await mail.admit(grant, (_delivery("contradict", "Deadline: 2026-12-03"),))).queued == 1
+    await mail.apply(await _event(db, org, "contradict"))
+    recalled = await claims.recall(db, organization_id=org.id, scopes=[scope], query="XYZ deadline")
+    assert [item.id for item in recalled if item.status == "current"] == [first.claim.id]
+    assert [item.value for item in recalled if item.status == "disputed"] == ["2026-12-03"]
+    assert first.claim.effective_to == now + timedelta(days=1)

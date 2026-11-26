@@ -2564,6 +2564,14 @@
         "sourceSender": "Kimliği doğrulanmış gönderen",
         "sourceSubject": "E-postanın tam konusu",
         "sourceCommitment": "Taahhüt adı",
+        "sourceObjectKey": "İş nesnesi anahtarı (isteğe bağlı)",
+        "sourceObjectKeyHint": "Kanıtları bağlamak için Gmail’de ve incelenmiş sohbet belleğinde aynı harici anahtarı kullanın.",
+        "conflictsOnly": "Yalnızca çakışmalar",
+        "conflictPending": "İnceleme bekliyor",
+        "conflictPick": "Şirket belleği hangi değeri kullanmalı?",
+        "conflictConfirm": "Değeri onayla",
+        "conflictResolved": "Bellek çakışması çözüldü",
+        "conflictChanged": "Bu çakışma değişti. Güncel değerleri inceleyin.",
         "sourceMode": "Mod",
         "shadow": "Yalnızca önizleme",
         "active": "Kuruluş belleğine kaydet",
@@ -2591,6 +2599,7 @@
           "shadow": "Önizleme eşleşti",
           "late": "Eski mesaj",
           "unchanged": "Değişiklik yok",
+          "disputed": "Çakışma inceleme bekliyor",
           "applied": "Kaydedildi"
         }
       },

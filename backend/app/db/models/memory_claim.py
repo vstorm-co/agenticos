@@ -89,6 +89,8 @@ class MemoryClaim(Base, TimestampMixin):
         ForeignKey("memory_mail_events.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
+    observation_source: Mapped[str | None] = mapped_column(String(260))
+
     subject: Mapped[str | None] = mapped_column(String(120), nullable=True)
     """A normalised topic (`invoice_owner`): claims sharing one in a scope are about the same thing."""
 
@@ -237,6 +239,7 @@ class MemoryMailSource(Base, TimestampMixin):
     sender: Mapped[str] = mapped_column(String(254))
     subject: Mapped[str] = mapped_column(String(200))
     commitment: Mapped[str] = mapped_column(String(160))
+    object_key: Mapped[str | None] = mapped_column(String(260))
     mode: Mapped[str] = mapped_column(String(12))
     notify: Mapped[bool]
     admitted_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -270,3 +273,8 @@ class MemoryMailEvent(Base):
     quote: Mapped[str] = mapped_column(String(64))
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     state: Mapped[str] = mapped_column(String(20))
+    supported_claim_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("memory_claims.id", ondelete="SET NULL", use_alter=True), index=True
+    )
+    claim_statement: Mapped[str | None] = mapped_column(Text)
+    observation_source: Mapped[str | None] = mapped_column(String(260))

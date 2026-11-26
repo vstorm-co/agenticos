@@ -7,20 +7,26 @@ import {
   getMemoryClaimDetail,
   getMemoryObjects,
   getMemoryTimeline,
+  getSharedClaims,
+  resolveSharedMemoryConflict,
   type MemoryClaim,
 } from "@/lib/memory-api";
-import { MemoryObjectLibrary } from "./memory-object-library";
+import { MemoryObjectLibrary, SharedMemoryClaims } from "./memory-object-library";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useFormatter: () => ({ dateTime: () => "1 Jul 2020" }),
 }));
+const scopeOf = vi.fn();
+
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ scopeOf }) }));
 vi.mock("@/lib/memory-api", () => ({
   amendHistoricalClaim: vi.fn(),
   getMemoryObjects: vi.fn(),
   getMemoryTimeline: vi.fn(),
   getMemoryClaimDetail: vi.fn(),
   getSharedClaims: vi.fn(),
+  resolveSharedMemoryConflict: vi.fn(),
   getSharedNotes: vi.fn(),
 }));
 
@@ -83,6 +89,7 @@ describe("company memory objects", () => {
       sources: [],
       superseded: null,
       withheld: 0,
+      conflicts: [],
     });
     vi.mocked(amendHistoricalClaim).mockResolvedValue({ ...claim, statement: "22 employees" });
     render(
@@ -102,5 +109,72 @@ describe("company memory objects", () => {
     await waitFor(() =>
       expect(amendHistoricalClaim).toHaveBeenCalledWith(claim.id, "22 employees", undefined),
     );
+  });
+});
+
+describe("shared memory conflicts", () => {
+  const mail: MemoryClaim = {
+    id: "mail-deadline",
+    object_id: "xyz",
+    agent_id: null,
+    agent_name: null,
+    scope: "organization",
+    subject: "deadline",
+    statement: "Gmail says December 1",
+    kind: "fact",
+    origin: "agent",
+    status: "disputed",
+    observed_at: "2026-10-01T00:00:00Z",
+    effective_from: "2026-10-01T00:00:00Z",
+    effective_to: null,
+    supersedes_id: null,
+    derived_from_count: 0,
+  };
+  const published = { ...mail, id: "reviewed-chat", statement: "Chat says December 2" };
+
+  function showConflict(permission: "all" | undefined) {
+    scopeOf.mockReturnValue(permission);
+    vi.mocked(getSharedClaims).mockResolvedValue({ items: [mail], total: 1 });
+    vi.mocked(getMemoryClaimDetail).mockResolvedValue({
+      ...mail,
+      evidence: [],
+      sources: [],
+      superseded: null,
+      withheld: 0,
+      conflicts: [mail, published],
+    });
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <SharedMemoryClaims />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("filters disputes and only submits a value when the editor confirms", async () => {
+    showConflict("all");
+    vi.mocked(resolveSharedMemoryConflict).mockResolvedValue({ ...published, status: "current" });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "conflictsOnly" }));
+    await waitFor(() => expect(getSharedClaims).toHaveBeenLastCalledWith("", 0, true));
+    await user.click(await screen.findByText(mail.statement));
+    await user.click(await screen.findByRole("radio", { name: published.statement }));
+    expect(resolveSharedMemoryConflict).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "conflictConfirm" }));
+    await waitFor(() =>
+      expect(resolveSharedMemoryConflict).toHaveBeenCalledWith(published.id, [
+        mail.id,
+        published.id,
+      ]),
+    );
+  });
+
+  it("shows a pending dispute without the decision form to a reader", async () => {
+    showConflict(undefined);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText(mail.statement));
+    expect(await screen.findByText("conflictPending")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "conflictConfirm" })).toBeNull();
   });
 });

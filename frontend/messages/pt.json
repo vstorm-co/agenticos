@@ -6938,6 +6938,14 @@
         "sourceSender": "Remetente autenticado",
         "sourceSubject": "Assunto exato do e-mail",
         "sourceCommitment": "Nome do compromisso",
+        "sourceObjectKey": "Chave do objeto de negócio (opcional)",
+        "sourceObjectKeyHint": "Use a mesma chave externa no Gmail e na memória de chat aprovada para vincular as evidências.",
+        "conflictsOnly": "Somente conflitos",
+        "conflictPending": "Aguardando revisão",
+        "conflictPick": "Qual valor a memória da empresa deve usar?",
+        "conflictConfirm": "Confirmar valor",
+        "conflictResolved": "Conflito de memória resolvido",
+        "conflictChanged": "Este conflito mudou. Confira os valores atualizados.",
         "sourceMode": "Modo",
         "shadow": "Apenas pré-visualização",
         "active": "Guardar na memória da organização",
@@ -6965,6 +6973,7 @@
           "shadow": "Correspondência na pré-visualização",
           "late": "Mensagem anterior",
           "unchanged": "Sem alteração",
+          "disputed": "Conflito aguardando revisão",
           "applied": "Guardado"
         }
       },

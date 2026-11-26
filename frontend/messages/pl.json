@@ -2246,6 +2246,14 @@
         "sourceSender": "Uwierzytelniony nadawca",
         "sourceSubject": "Dokładny temat wiadomości",
         "sourceCommitment": "Nazwa zobowiązania",
+        "sourceObjectKey": "Klucz obiektu biznesowego (opcjonalny)",
+        "sourceObjectKeyHint": "Użyj tego samego klucza zewnętrznego w Gmailu i zatwierdzonej pamięci z czatu, aby połączyć dowody.",
+        "conflictsOnly": "Tylko konflikty",
+        "conflictPending": "Oczekuje na sprawdzenie",
+        "conflictPick": "Której wartości ma używać pamięć firmowa?",
+        "conflictConfirm": "Zatwierdź wartość",
+        "conflictResolved": "Konflikt pamięci rozstrzygnięty",
+        "conflictChanged": "Ten konflikt się zmienił. Sprawdź aktualne wartości.",
         "sourceMode": "Tryb",
         "shadow": "Tylko podgląd",
         "active": "Zapisuj w pamięci firmowej",
@@ -2273,6 +2281,7 @@
           "shadow": "Pasuje w podglądzie",
           "late": "Starsza wiadomość",
           "unchanged": "Bez zmian",
+          "disputed": "Konflikt oczekuje na sprawdzenie",
           "applied": "Zapisano"
         }
       },

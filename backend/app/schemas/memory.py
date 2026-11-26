@@ -132,6 +132,16 @@ class MemoryClaimDetail(MemoryClaimRead):
     """Sources the reader may not see; counted so the ancestry is never silently shorter."""
 
     superseded: MemoryClaimRead | None = None
+    conflicts: list[MemoryClaimRead] = Field(default_factory=list)
+
+
+MAX_CONFLICT_CANDIDATES = 100
+
+
+class MemoryConflictResolve(BaseSchema):
+    """Confirm a claim against the exact set of alternatives the reviewer saw."""
+
+    candidate_ids: list[UUID] = Field(min_length=1, max_length=MAX_CONFLICT_CANDIDATES)
 
 
 class MemoryClaimCorrect(BaseSchema):
@@ -209,6 +219,10 @@ class MemoryMailConfig(BaseSchema):
     commitment: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)
     ]
+    object_key: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=260)]
+        | None
+    ) = None
     mode: Literal["shadow", "active"]
     notify: bool = False
     confirmed: Literal[True]
@@ -218,6 +232,7 @@ class MemoryMailSourceRead(BaseSchema):
     sender: str
     subject: str
     commitment: str
+    object_key: str | None = None
     mode: str
     notify: bool
     last_outcome: str | None = None

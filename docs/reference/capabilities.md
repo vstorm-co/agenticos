@@ -481,7 +481,20 @@ one Inbox finding to the reviewer for a change to an existing deadline. No model
 is called for this rule. The worker rechecks the portal's authorization
 generation and the reviewer's current authority before writing. The daily
 admission limit holds the mailbox cursor so unread events can be retried. Remove
-the rule to discard its queued events, saved claims and Inbox findings.
+the rule to discard its queued events, Gmail-only claims and Inbox findings.
+
+To combine evidence from Gmail and a reviewed chat claim, use the same business
+object key in the Gmail rule and in the chat claim's `object_ref.external_key`.
+Publish the chat claim to the organization. Matching typed values for the same
+property and overlapping validity share one entry. Either source can be removed
+independently. An unbound Gmail rule keeps its existing object identity.
+
+Open **Organization → Memories → Conflicts only** to find disputed values.
+A member with organization-wide `context:edit` can open a dispute, choose a value
+and confirm it. The alternatives stay in the timeline and the resolution is
+audited. If a new candidate arrives during the review, review the updated set.
+Inbox notifications cover revisions from the same authorized source. A dispute
+appears in Memory for review.
 
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.

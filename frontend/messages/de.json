@@ -6326,6 +6326,14 @@
         "sourceSender": "Authentifizierter Absender",
         "sourceSubject": "Exakter E-Mail-Betreff",
         "sourceCommitment": "Name der Zusage",
+        "sourceObjectKey": "Geschäftsobjektschlüssel (optional)",
+        "sourceObjectKeyHint": "Verwende in Gmail und der freigegebenen Chat-Erinnerung denselben externen Schlüssel, um die Belege zu verknüpfen.",
+        "conflictsOnly": "Nur Konflikte",
+        "conflictPending": "Prüfung ausstehend",
+        "conflictPick": "Welchen Wert soll das Unternehmensgedächtnis verwenden?",
+        "conflictConfirm": "Wert bestätigen",
+        "conflictResolved": "Konflikt im Gedächtnis gelöst",
+        "conflictChanged": "Dieser Konflikt hat sich geändert. Prüfe die aktuellen Werte.",
         "sourceMode": "Modus",
         "shadow": "Nur Vorschau",
         "active": "Im Firmengedächtnis speichern",
@@ -6353,6 +6361,7 @@
           "shadow": "Vorschau passt",
           "late": "Ältere Nachricht",
           "unchanged": "Keine Änderung",
+          "disputed": "Konfliktprüfung ausstehend",
           "applied": "Gespeichert"
         }
       },

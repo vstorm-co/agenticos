@@ -56,7 +56,7 @@ function MemorySourceDialog({ onClose }: { onClose: () => void }) {
           <DialogDescription>{t("sourceHint")}</DialogDescription>
         </DialogHeader>
         {rule.isPending ? (
-          <LoadingState />
+          <LoadingState variant="pending" />
         ) : rule.error ? (
           <ErrorState />
         ) : (
@@ -73,6 +73,7 @@ function MemorySourceForm({ org, rule }: { org: string; rule: MemoryMailState | 
   const senderId = useId();
   const subjectId = useId();
   const commitmentId = useId();
+  const objectKeyId = useId();
   const [mode, setMode] = useState(rule?.mode ?? "shadow");
   const [confirming, setConfirming] = useState(false);
   const client = useQueryClient();
@@ -105,6 +106,7 @@ function MemorySourceForm({ org, rule }: { org: string; rule: MemoryMailState | 
           const sender = values.get("sender");
           const subject = values.get("subject");
           const commitment = values.get("commitment");
+          const objectKey = values.get("object_key");
           if (
             typeof sender !== "string" ||
             typeof subject !== "string" ||
@@ -115,6 +117,7 @@ function MemorySourceForm({ org, rule }: { org: string; rule: MemoryMailState | 
             sender,
             subject,
             commitment,
+            object_key: typeof objectKey === "string" ? objectKey.trim() || null : null,
             mode,
             notify: mode === "active" && values.has("notify"),
           });
@@ -156,6 +159,21 @@ function MemorySourceForm({ org, rule }: { org: string; rule: MemoryMailState | 
             defaultValue={rule?.commitment}
             required
           />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor={objectKeyId} className="text-sm">
+            {t("sourceObjectKey")}
+          </label>
+          <Input
+            id={objectKeyId}
+            name="object_key"
+            maxLength={260}
+            defaultValue={rule?.object_key ?? undefined}
+            aria-describedby={`${objectKeyId}-hint`}
+          />
+          <p id={`${objectKeyId}-hint`} className="text-muted-foreground text-xs">
+            {t("sourceObjectKeyHint")}
+          </p>
         </div>
         <fieldset className="space-y-2">
           <legend className="mb-1 text-sm">{t("sourceMode")}</legend>

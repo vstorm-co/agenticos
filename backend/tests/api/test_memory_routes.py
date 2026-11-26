@@ -405,3 +405,19 @@ async def test_memory_mail_rule_lifecycle() -> None:
             assert (await client.delete(url)).status_code == 204
     configure.assert_awaited_once()
     disable.assert_awaited_once()
+
+
+async def test_shared_memory_conflict_route_forwards_reviewed_ids() -> None:
+    claim = MemoryClaimRead(**_CLAIM)
+    with patch(
+        "app.services.memory.MemoryService.resolve_shared_conflict",
+        new=AsyncMock(return_value=claim),
+    ) as resolve:
+        async with _client() as client:
+            url = f"{ROOT}/claims/shared/{_CLAIM_ID}/resolve"
+            assert (await client.post(url, json={"candidate_ids": []})).status_code == 422
+            response = await client.post(url, json={"candidate_ids": [str(_CLAIM_ID), str(NOTE)]})
+            assert response.status_code == 200
+            assert response.json()["id"] == str(_CLAIM_ID)
+    resolve.assert_awaited_once()
+    assert resolve.await_args.args[2].candidate_ids == [_CLAIM_ID, NOTE]

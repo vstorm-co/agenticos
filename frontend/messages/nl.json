@@ -6938,6 +6938,14 @@
         "sourceSender": "Geverifieerde afzender",
         "sourceSubject": "Exact e-mailonderwerp",
         "sourceCommitment": "Naam van de toezegging",
+        "sourceObjectKey": "Sleutel bedrijfsobject (optioneel)",
+        "sourceObjectKeyHint": "Gebruik in Gmail en in het goedgekeurde chatgeheugen dezelfde externe sleutel om de bronnen te koppelen.",
+        "conflictsOnly": "Alleen conflicten",
+        "conflictPending": "Wacht op beoordeling",
+        "conflictPick": "Welke waarde moet het bedrijfsgeheugen gebruiken?",
+        "conflictConfirm": "Waarde bevestigen",
+        "conflictResolved": "Geheugenconflict opgelost",
+        "conflictChanged": "Dit conflict is gewijzigd. Controleer de bijgewerkte waarden.",
         "sourceMode": "Modus",
         "shadow": "Alleen voorbeeld",
         "active": "Opslaan in organisatiegeheugen",
@@ -6965,6 +6973,7 @@
           "shadow": "Voorbeeld komt overeen",
           "late": "Ouder bericht",
           "unchanged": "Geen wijziging",
+          "disputed": "Conflict wacht op beoordeling",
           "applied": "Opgeslagen"
         }
       },

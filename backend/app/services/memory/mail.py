@@ -23,10 +23,10 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory_claim import MemoryMailSource
 from app.db.models.suggestion import SuggestionKind
 from app.repositories import mcp_connection_repo, memory_claim, suggestion_repo
-from app.schemas.memory import MemoryMailConfig, MemoryMailSourceRead
+from app.schemas.memory import MemoryMailConfig, MemoryMailSourceRead, MemoryObjectRef
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
-from app.services.memory import _claims
+from app.services.memory import _claims, sources
 from app.services.portals.base import PolledEvent
 from app.worker.jobs import APPLY_MEMORY_MAIL, ApplyMemoryMail
 
@@ -133,6 +133,7 @@ class MemoryMailService:
             sender=source.sender,
             subject=source.subject,
             commitment=source.commitment,
+            object_key=source.object_key,
             mode=source.mode,
             notify=source.notify,
             last_outcome=source.last_outcome,
@@ -162,7 +163,7 @@ class MemoryMailService:
             )
         source = await memory_claim.mail_source(self.db, ctx.organization_id, lock=True)
         if source is not None and not _authorized(source, grant):
-            await memory_claim.remove_mail_source(self.db, source)
+            await self._remove(source)
             source = None
         if source is None:
             source = MemoryMailSource(
@@ -175,6 +176,7 @@ class MemoryMailService:
         source.sender = data.sender.casefold()
         source.subject = data.subject
         source.commitment = data.commitment
+        source.object_key = data.object_key
         source.mode = data.mode
         source.notify = data.notify
         source.admitted_from = datetime.now(UTC)
@@ -196,7 +198,7 @@ class MemoryMailService:
         self._require_operator(ctx)
         source = await memory_claim.mail_source(self.db, ctx.organization_id, lock=True)
         if source is not None:
-            await memory_claim.remove_mail_source(self.db, source)
+            await self._remove(source)
             await record_audit(
                 self.db,
                 actor_user_id=ctx.subject_id,
@@ -206,6 +208,14 @@ class MemoryMailService:
                 target_id=str(ctx.organization_id),
                 details={},
             )
+
+    async def _remove(self, source: MemoryMailSource) -> None:
+        await _claims._hold_scope(
+            self.db,
+            organization_id=source.organization_id,
+            scope_key=organization_owner_key(source.organization_id),
+        )
+        await memory_claim.remove_mail_source(self.db, source)
 
     async def _current_reviewer(self, source: MemoryMailSource) -> AuthContext | None:
         if source.reviewer_id is None:
@@ -317,86 +327,44 @@ class MemoryMailService:
             source.last_outcome = "shadow"
             return
 
-        scope_key = organization_owner_key(payload.organization_id)
         identity = hashlib.sha256(
             f"{grant.id}/{grant.authorization_generation}/{source.sender}/{source.subject}/{source.commitment}".encode()
         ).hexdigest()
-        entity = await memory_claim.put_object(
-            self.db,
-            organization_id=payload.organization_id,
-            scope_key=scope_key,
-            kind="commitment",
-            name=source.commitment,
-            identity_key=f"gmail:{identity}",
-        )
-        scope = memory_claim.ClaimScope(scope_key)
-        await _claims._hold_scope(
-            self.db, organization_id=payload.organization_id, scope_key=scope_key
-        )
-        previous = await memory_claim.about_subject(
-            self.db,
-            organization_id=payload.organization_id,
-            scope=scope,
-            subject="deadline",
-            object_id=entity.id,
-            statuses=("current", "disputed", "superseded"),
-        )
-        active = next(
-            (
-                claim
-                for claim in reversed(previous)
-                if claim.effective_to is None and claim.status == "current"
-            ),
-            None,
-        )
-        effective = event.received_at
-        current_start = active.effective_from if active is not None else None
-        late = current_start is not None and effective < current_start
-        if current_start == effective:
-            event.state = "unchanged"
-            source.last_outcome = "unchanged"
-            return
+        value = event.deadline.date().isoformat() if event.deadline is not None else None
         statement = (
-            f"{source.commitment} deadline: {event.deadline.date().isoformat()}"
-            if event.deadline is not None
+            f"{source.commitment} deadline: {value}"
+            if value is not None
             else f"{source.commitment} deadline cancelled"
         )
-        if late:
-            for earlier in previous:
-                if (
-                    earlier.mail_event_id is not None
-                    and earlier.effective_from is not None
-                    and earlier.effective_to is not None
-                    and earlier.effective_from < effective < earlier.effective_to
-                ):
-                    await memory_claim.set_status(
-                        self.db, earlier, "superseded", effective_to=effective
-                    )
-        if not late and active is not None and active.statement == statement:
-            event.state = "unchanged"
-            source.last_outcome = "unchanged"
-            return
-        stored = await _claims.remember(
+        result = await sources.apply_observation(
             self.db,
             organization_id=payload.organization_id,
-            scope=scope,
-            object_id=entity.id,
-            statement=statement,
-            subject="deadline",
-            effective_from=effective,
-            mail_event_id=event.id,
-            value=event.deadline.date().isoformat() if event.deadline is not None else None,
-            corrects=not late and active is not None and active.mail_event_id is not None,
+            observation=sources.SourceObservation(
+                source_key=f"gmail:{identity}",
+                delivery_id=event.delivery_id,
+                quote=event.quote,
+                object=MemoryObjectRef(
+                    kind="commitment", name=source.commitment, external_key=source.object_key
+                ),
+                subject="deadline",
+                statement=statement,
+                value=value,
+                effective_at=event.received_at,
+            ),
+            mail_event=event,
         )
-        event.state = "late" if late else "applied"
+        stored = result.memory
+        event.state = (
+            "unchanged"
+            if not stored.created
+            else "disputed"
+            if stored.disputed
+            else "late"
+            if result.late
+            else "applied"
+        )
         source.last_outcome = event.state
-        if (
-            not late
-            and source.notify
-            and active is not None
-            and stored.created
-            and not stored.disputed
-        ):
+        if source.notify and result.previous is not None and stored.created and not stored.disputed:
             await suggestion_repo.propose(
                 self.db,
                 organization_id=payload.organization_id,
@@ -406,10 +374,10 @@ class MemoryMailService:
                 detail=None,
                 payload={
                     "memory_mail": True,
-                    "memory_object_id": str(entity.id),
+                    "memory_object_id": str(stored.claim.object_id),
                     "memory_mail_grant_id": str(grant.id),
                     "memory_mail_authorization": str(grant.authorization_generation),
-                    "deadline_before": active.statement,
+                    "deadline_before": result.previous.statement,
                     "deadline_after": statement,
                 },
                 dedupe_key=hashlib.sha256(

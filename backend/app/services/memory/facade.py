@@ -58,12 +58,14 @@ from app.repositories import (
 from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead
 from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
+    MAX_CONFLICT_CANDIDATES,
     MemoryClaimCorrect,
     MemoryClaimDetail,
     MemoryClaimEvidenceRead,
     MemoryClaimList,
     MemoryClaimRead,
     MemoryClaimShare,
+    MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
     MemoryMailConfig,
@@ -357,14 +359,14 @@ class MemoryService:
         )
 
     async def shared_claims(
-        self, ctx: AuthContext, *, q: str, limit: int, skip: int
+        self, ctx: AuthContext, *, q: str, limit: int, skip: int, disputed: bool = False
     ) -> MemoryClaimList:
         keys = await self._library_keys(ctx, "organization")
         rows, total = await memory_claim.list_for_owner(
             self.db,
             organization_id=ctx.organization_id,
             scope_key=keys,
-            statuses=_LIVE_STATUSES,
+            statuses=("disputed",) if disputed else _LIVE_STATUSES,
             in_effect=True,
             q=q.strip(),
             skip=skip,
@@ -372,39 +374,93 @@ class MemoryService:
         )
         return MemoryClaimList(items=[_claim_read(row, {}) for row in rows], total=total)
 
-    async def shared_claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
+    async def _shared_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
         keys = await self._library_keys(ctx, "organization")
         claim = await memory_claim.get(
             self.db, organization_id=ctx.organization_id, claim_id=claim_id
         )
         if claim is None or claim.scope_key not in keys:
             raise NotFoundError(message="Memory claim not found")
+        return claim
+
+    async def _conflict_candidates(
+        self, claim: MemoryClaim, *, lock: bool = False
+    ) -> list[MemoryClaim]:
+        if claim.object_id is None or claim.subject is None or claim.status not in _LIVE_STATUSES:
+            return []
+        rows = await memory_claim.about_subject(
+            self.db,
+            organization_id=claim.organization_id,
+            scope=memory_claim.ClaimScope(claim.scope_key, claim.agent_id),
+            subject=claim.subject,
+            object_id=claim.object_id,
+            in_effect=True,
+            lock=lock,
+            limit=MAX_CONFLICT_CANDIDATES + 1,
+        )
+        if (
+            len(rows) > MAX_CONFLICT_CANDIDATES
+            or not any(row.id == claim.id for row in rows)
+            or not any(row.status == "disputed" for row in rows)
+        ):
+            return []
+        return rows
+
+    async def resolve_shared_conflict(
+        self, ctx: AuthContext, claim_id: UUID, data: MemoryConflictResolve
+    ) -> MemoryClaimRead:
+        if ctx.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL:
+            raise AuthorizationError(message="Resolving shared memory requires context:edit")
+        claim = await self._shared_claim(ctx, claim_id)
+        await _claims._hold_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=claim.scope_key
+        )
+        claim = await self._shared_claim(ctx, claim_id)
+        peers = await self._conflict_candidates(claim, lock=True)
+        if not peers or {row.id for row in peers} != set(data.candidate_ids):
+            raise ConflictError(message="Memory conflict changed; reload before resolving it")
+        now = datetime.now(UTC)
+        for row in peers:
+            if row.id == claim_id:
+                await memory_claim.set_status(self.db, row, "current")
+            elif row.status == "current":
+                await memory_claim.set_status(self.db, row, "superseded", effective_to=now)
+            else:
+                await memory_claim.set_status(self.db, row, "retracted")
+        await memory_claim.bump_revision(
+            self.db, organization_id=ctx.organization_id, scope_key=claim.scope_key
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.conflict.resolved",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            details={"alternatives": len(peers) - 1},
+        )
+        return _claim_read(claim, {})
+
+    async def shared_claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
+        claim = await self._shared_claim(ctx, claim_id)
+        # A claim's sources may live in a different shared audience.
+        keys = await self._library_keys(ctx, "organization")
         found = await _claims.provenance(self.db, claim=claim, readable_keys=keys)
         return MemoryClaimDetail(
             **_claim_read(claim, {}).model_dump(),
-            evidence=await self._mail_evidence(claim),
+            evidence=[
+                MemoryClaimEvidenceRead(
+                    kind="gmail",
+                    source_id=event.delivery_id,
+                    quote=event.quote,
+                    occurred_at=event.received_at,
+                )
+                for event in await memory_claim.mail_evidence(self.db, claim=claim)
+            ],
             sources=[_claim_read(row, {}) for row in found.sources],
             superseded=_claim_read(found.superseded, {}) if found.superseded else None,
+            conflicts=[_claim_read(row, {}) for row in await self._conflict_candidates(claim)],
         )
-
-    async def _mail_evidence(self, claim: MemoryClaim) -> list[MemoryClaimEvidenceRead]:
-        event = (
-            await memory_claim.mail_event(
-                self.db, organization_id=claim.organization_id, event_id=claim.mail_event_id
-            )
-            if claim.mail_event_id is not None
-            else None
-        )
-        if event is None:
-            return []
-        return [
-            MemoryClaimEvidenceRead(
-                kind="gmail",
-                source_id=event.delivery_id,
-                quote=event.quote,
-                occurred_at=event.received_at,
-            )
-        ]
 
     async def claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
         """One of the caller's claims with its ancestry, filtered to what they may read.

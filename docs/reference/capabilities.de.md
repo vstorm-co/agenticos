@@ -1,5 +1,5 @@
 ---
-source_sha: "4a9eb6a24e5b"
+source_sha: "9adb8c26e7ba"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -528,7 +528,21 @@ erhält die prüfende Person bei einer Terminänderung einen Posteingangseintrag
 Die Regel ruft kein Modell auf. Der Worker prüft vor dem Speichern erneut die
 Postfachautorisierung und die Befugnisse der prüfenden Person. Wird das
 Tageslimit erreicht, bleibt der Postfachcursor stehen. Das Entfernen der Regel
-löscht ihre Daten, wartende Ereignisse und Posteingangseinträge.
+löscht die nur durch Gmail belegten Einträge, wartende Ereignisse und Posteingangseinträge.
+
+Um Belege aus Gmail und einer geprüften Chat-Aussage zu verbinden, verwende
+denselben Geschäftsschlüssel in der Gmail-Regel und in
+`object_ref.external_key` der Chat-Aussage. Gib die Chat-Aussage für die
+Organisation frei. Übereinstimmende typisierte Werte zur gleichen Eigenschaft
+mit überlappender Gültigkeit teilen sich einen Eintrag. Jede Quelle kann
+einzeln entfernt werden. Eine Gmail-Regel ohne Schlüssel behält ihre Identität.
+
+Unter **Organisation → Memories → Nur Konflikte** findest du strittige Werte.
+Mit organisationsweitem `context:edit` kannst du einen Wert auswählen und
+bestätigen. Die Alternativen bleiben auf der Zeitachse und die Entscheidung
+wird protokolliert. Kommt ein neuer Wert hinzu, prüfe die aktuelle Auswahl.
+Inbox meldet Änderungen derselben autorisierten Quelle. Konflikte stehen zur
+Prüfung im Gedächtnis.
 
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
