@@ -193,13 +193,15 @@ export function useWorkflow(workflowId: string | null) {
     enabled: !!workflowId,
   });
 
-  // A publish changes this workflow's detail and its row in the
-  // list — invalidate just those two keys, never the whole `workflows` subtree,
-  // so the immutable node catalog and the frozen version graphs stay cached
-  // (#1787 F2). The published-version list rides `detail`'s key prefix.
+  // Detail also covers the workflow's live exposures and published-version list.
+  // Republishing may move subscriptions between sources, including removing the
+  // last binding to a source that the new graph no longer names.
   const invalidate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId as string) });
-    await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId as string) }),
+      queryClient.invalidateQueries({ queryKey: qk.workflows.list() }),
+      queryClient.invalidateQueries({ queryKey: qk.eventSources.usage() }),
+    ]);
   }, [queryClient, workflowId]);
 
   const saveDraft = useMutation({

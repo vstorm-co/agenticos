@@ -3670,6 +3670,13 @@
       "background-tasks": {
         "title": "Tópicos em segundo plano",
         "description": "Seu trabalho delegado e seus resultados"
+      },
+      "event-sources": {
+        "title": "Fontes de eventos",
+        "description": "Veja quantas fontes de webhook estão ativas ou pausadas.",
+        "empty": "Ainda não há fontes de eventos",
+        "active": "Ativas",
+        "paused": "Pausadas"
       }
     },
     "edit": {
@@ -4856,7 +4863,8 @@
     "monitoring": "Monitoramento",
     "backgroundWork": "Trabalho em segundo plano",
     "developerAccess": "API e MCP",
-    "subscriptions": "Assinaturas"
+    "subscriptions": "Assinaturas",
+    "eventSources": "Fontes de eventos"
   },
   "navigation": {
     "dashboard": "Painel",
@@ -4941,6 +4949,10 @@
       "skill-improvement-session": {
         "title": "Percorrer esta sessão",
         "body": "Veja as etapas, o resultado de cada agente e o que você pode fazer com a mudança."
+      },
+      "create-event-source": {
+        "title": "Criar nova fonte",
+        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
       }
     },
     "steps": {
@@ -6260,6 +6272,18 @@
       "personal-console-notices": {
         "title": "Sugestões do produto",
         "body": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se."
+      },
+      "event-sources-header": {
+        "title": "Fontes de eventos",
+        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
+      },
+      "event-sources-create": {
+        "title": "Criar nova fonte",
+        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+      },
+      "flow-event-source-create": {
+        "title": "Criar nova fonte",
+        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
       }
     },
     "chooseLanguage": "Idioma",
@@ -6515,7 +6539,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Uma entrega HTTP assinada de outro sistema inicia uma execução."
+          "description": "Um evento autenticado inicia uma execução. Selecione ou crie uma fonte de eventos no editor."
         },
         "schedule": {
           "name": "Agendamento",
@@ -6904,7 +6928,8 @@
       "runQuestionsFailed": "Não foi possível carregar as perguntas.",
       "runQuestionsRetry": "Tentar novamente",
       "startRunSchema": "Esquema de entrada esperado",
-      "nameRequired": "Digite um nome para este workflow."
+      "nameRequired": "Digite um nome para este workflow.",
+      "triggerSourceCredentials": "Gerenciar credenciais em Fontes de eventos"
     },
     "retention": {
       "title": "Retenção de dados",
@@ -9311,14 +9336,14 @@
     "share": "Compartilhar",
     "sharingUpdated": "Compartilhamento atualizado",
     "visibilityOrg": "Todos na organização",
-    "visibilityOrgReaches": "Todos na organização que podem visualizar {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} other {segredos}} em geral.",
+    "visibilityOrgReaches": "Todos na organização que podem visualizar {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} event_source {fontes de eventos} other {segredos}} em geral.",
     "visibilityPrivate": "Somente pessoas com acesso",
-    "visibilityPrivateReaches": "Somente as pessoas listadas acima. Ninguém mais encontra {resource, select, agent {este agente} skill {esta skill} collection {esta coleção} artifact {este app} dataset {este dataset} context {este arquivo de contexto} mcp_connection {este servidor MCP} project {este projeto} other {este segredo}} na lista - e, se ainda não tiver um proprietário, ele passa a ser seu.",
+    "visibilityPrivateReaches": "Somente as pessoas listadas acima. Ninguém mais encontra {resource, select, agent {este agente} skill {esta skill} collection {esta coleção} artifact {este app} dataset {este dataset} context {este arquivo de contexto} mcp_connection {este servidor MCP} project {este projeto} event_source {esta fonte de eventos} other {este segredo}} na lista - e, se ainda não tiver um proprietário, ele passa a ser seu.",
     "visibilityTeam": "Equipe (não é mais oferecido)",
     "visibilityTeamReaches": "Qualquer pessoa cuja função alcance {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} other {segredos}} da equipe. Esta organização não tem equipes - escolha uma das duas opções acima.",
     "visibilityUpdated": "Visibilidade atualizada",
     "workflowPrivateReaches": "O proprietário, as pessoas e os grupos listados acima e as funções que podem acessar todos os workflows. Funções limitadas a workflows compartilhados podem perder o acesso quando você o torna privado.",
-    "workflowRuntimeNote": "O compartilhamento também controla o acesso às execuções anteriores. Ele não pausa agendamentos nem desativa webhooks.",
+    "workflowRuntimeNote": "Quem tem acesso às execuções do workflow pode ver os dados dos eventos entregues, inclusive em execuções anteriores. Compartilhar o workflow não concede acesso à fonte de eventos, não pausa os agendamentos nem desativa os webhooks.",
     "groupsHeading": "Grupos",
     "membersHeading": "Membros",
     "groupSubject": "Grupo",
@@ -9327,7 +9352,8 @@
     "owner": "Proprietário",
     "shareNamed": "Compartilhar {name}",
     "requestSent": "Solicitação enviada para {name}",
-    "requestSentNobody": "Solicitação enviada. Ninguém pode aprová-la ainda."
+    "requestSentNobody": "Solicitação enviada. Ninguém pode aprová-la ainda.",
+    "eventSourceRuntimeNote": "Quem tem a permissão “Pode usar” pode capturar os dados enviados pela fonte sem filtros."
   },
   "skills": {
     "addFile": "Adicionar arquivo",
@@ -10678,7 +10704,8 @@
       "readiness_checking": "Verificando se esta rotina pode ser executada…",
       "readiness_unavailable": "Não foi possível verificar se esta rotina pode ser executada. Executar agora ainda verificará as permissões dela."
     },
-    "deliveryPending": "Enviando a última resposta ao chat"
+    "deliveryPending": "Enviando a última resposta ao chat",
+    "createdDescriptionShared": "Esta rotina usa a URL e as credenciais existentes da fonte de eventos. Não é necessário registrar outro webhook no provedor."
   },
   "portals": {
     "backToServices": "Voltar para os serviços",
@@ -12417,7 +12444,8 @@
     "stepEditorView": "Visualização da etapa",
     "stepEditorSettings": "Configurações da etapa",
     "problemTableSchemaChanged": "Esta tabela mudou desde que a etapa foi configurada: uma coluna que ela lê foi removida ou teve o tipo alterado. Atualize-a para o esquema atual e verifique o que lê esta etapa.",
-    "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela."
+    "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela.",
+    "webhookSourceAudience": "Quem pode ver as execuções deste workflow também pode ver os dados entregues pela fonte de eventos. Isso inclui execuções anteriores, mesmo que você compartilhe o workflow só depois. Ver uma execução não concede acesso à fonte."
   },
   "artifacts": {
     "title": "Aplicativos",
@@ -19224,7 +19252,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Uma entrega HTTP assinada chega no endereço próprio deste fluxo de trabalho."
+        "description": "Um evento JSON autenticado chega a uma fonte reutilizável ou ao endereço deste workflow."
       },
       "trigger_workflow_call": {
         "name": "Chamado por um fluxo de trabalho",
@@ -21662,6 +21690,18 @@
             "title": "Entrada"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Exigir fonte",
+            "description": "Para publicar um novo rascunho no editor, é preciso selecionar uma fonte reutilizável"
+          },
+          "source_id": {
+            "title": "ID da fonte",
+            "description": "Fonte de eventos reutilizável que este workflow passará a acompanhar quando for publicado"
+          }
+        }
       }
     }
   },
@@ -21886,5 +21926,99 @@
     "zipTooLarge": "Os pacotes ZIP não podem exceder 512 MiB.",
     "noTransferSelected": "Nenhuma transferência selecionada",
     "noReviewedTransfer": "Nenhuma transferência revisada selecionada"
+  },
+  "eventSources": {
+    "title": "Fontes de eventos",
+    "description": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows.",
+    "name": "Nome",
+    "provider": "Provedor",
+    "providers": {
+      "webhook": "Webhook personalizado",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Autenticação",
+    "auth": {
+      "hmac": "HMAC personalizado (SHA-256)",
+      "basic": "Autenticação básica",
+      "api_key": "Chave de API",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Nome de usuário",
+    "password": "Senha",
+    "secret": "Segredo",
+    "secretHelp": "Deixe em branco para gerar um segredo ou informe o segredo que o remetente já usa. As credenciais ficam no vault e nunca são retornadas em consultas.",
+    "manualSetup": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte.",
+    "visibility": "Visibilidade",
+    "private": "Privada",
+    "organization": "Organização",
+    "deliveryHeader": "Cabeçalho de ID da entrega (opcional)",
+    "deliveryHelp": "Os IDs de eventos do provedor são detectados automaticamente. Sem um ID de evento, novas tentativas podem gerar execuções adicionais.",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "create": "Criar fonte",
+    "header": "Nome do cabeçalho",
+    "prefix": "Prefixo da assinatura ou da chave (opcional)",
+    "encoding": "Codificação da assinatura",
+    "legacy": "Usar o formato antigo de assinatura com carimbo de data e hora",
+    "standardHelp": "Assinaturas simétricas v1 abrangem o ID, o carimbo de data e hora e o corpo, com tolerância de cinco minutos para o horário.",
+    "selectSource": "Fonte de eventos",
+    "dedicated": "Endpoint dedicado (resposta síncrona)",
+    "chooseSource": "Selecione uma fonte existente",
+    "paused": "Pausada",
+    "active": "Ativa",
+    "liveUrl": "URL do endpoint ativo",
+    "revealOnce": "Copie este segredo agora. Ele não será exibido novamente.",
+    "createNew": "Criar nova fonte",
+    "loadError": "Não foi possível carregar as fontes de eventos.",
+    "retry": "Tentar novamente",
+    "liveWarning": "A captura aguarda eventos nesta URL ativa por dois minutos. Os assinantes ativos continuam funcionando normalmente. As amostras são temporárias e expiram após dez minutos. Usar uma amostra é opcional.",
+    "noUse": "É preciso ter permissão de uso da fonte para capturar eventos.",
+    "captureError": "Não foi possível capturar a amostra do evento. Isso não afeta o processamento das entregas em tempo real.",
+    "expired": "O tempo de espera terminou. Inicie uma nova captura quando o remetente estiver pronto.",
+    "caught": "Evento capturado. A amostra está pronta para uso.",
+    "listen": "Aguardar evento",
+    "listenTo": "Aguardar evento de {name}",
+    "sourceUnavailable": "Fonte atual (indisponível)",
+    "listening": "Aguardando um evento autenticado…",
+    "pasteExample": "Ou cole um exemplo em JSON",
+    "exampleJson": "Objeto JSON de exemplo",
+    "invalidJson": "Insira um objeto JSON válido.",
+    "sampleTooLarge": "Esta amostra excede o limite de {limit} bytes do editor.",
+    "useExample": "Usar exemplo",
+    "noView": "Você não tem permissão para ver as fontes de eventos.",
+    "empty": "Ainda não há fontes de eventos. Crie uma fonte para receber eventos para rotinas e workflows.",
+    "edit": "Editar",
+    "done": "Concluir",
+    "pause": "Pausar fonte",
+    "resume": "Retomar fonte",
+    "pauseHelp": "Pausar esta fonte interrompe novas entregas. Também é possível pausar cada assinante separadamente.",
+    "replaceCredentials": "Substituir credenciais",
+    "status": "Status",
+    "subscribers": "Assinantes",
+    "actions": "Ações",
+    "usageError": "Não foi possível carregar os assinantes.",
+    "usage": "{count, plural, =0 {Nenhum assinante} =1 {1 assinante} other {# assinantes}}",
+    "routine": "Rotina",
+    "workflow": "Workflow",
+    "delete": "Excluir fonte",
+    "confirmDelete": "Confirmar exclusão",
+    "deleteBlocked": "Desvincule os assinantes antes de excluir esta fonte.",
+    "sourceRoutine": "Criar rotina a partir de uma fonte de eventos",
+    "privateRoutine": "Rotina privada",
+    "privateWorkflow": "Workflow privado",
+    "credentialHelp": "Informe o segredo do remetente. As credenciais existentes nunca são exibidas.",
+    "filters": {
+      "event_types": "Tipos de evento",
+      "actions": "Ações",
+      "subscription_types": "Tipos de assinatura",
+      "property_names": "Nomes das propriedades",
+      "help": "Separe os valores com vírgulas. Deixe o filtro em branco para aceitar qualquer valor."
+    },
+    "eventPreset": "Eventos desta rotina",
+    "currentFilters": "Filtros atuais ou padrão",
+    "presetError": "Não foi possível carregar as predefinições de eventos."
   }
 }

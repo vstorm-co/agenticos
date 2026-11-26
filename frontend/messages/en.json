@@ -3288,6 +3288,13 @@
         "title": "Version to version",
         "description": "Whether a new agent version behaves better than the last."
       },
+      "event-sources": {
+        "title": "Event sources",
+        "description": "Check how many webhook sources are active or paused.",
+        "empty": "No event sources yet",
+        "active": "Active",
+        "paused": "Paused"
+      },
       "routines": {
         "title": "Routines",
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
@@ -4972,7 +4979,8 @@
     "monitoring": "Monitoring",
     "backgroundWork": "Background work",
     "developerAccess": "API & MCP",
-    "subscriptions": "Subscriptions"
+    "subscriptions": "Subscriptions",
+    "eventSources": "Event sources"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5057,6 +5065,10 @@
       "skill-improvement-session": {
         "title": "Walk through this session",
         "body": "See the steps, each agent's result, and what you may do with the change."
+      },
+      "create-event-source": {
+        "title": "Create new source",
+        "body": "Receive authenticated events once and share them with routines and workflows."
       }
     },
     "steps": {
@@ -6321,6 +6333,18 @@
         "title": "Check readiness",
         "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
       },
+      "event-sources-header": {
+        "title": "Event sources",
+        "body": "Receive authenticated events once and share them with routines and workflows."
+      },
+      "event-sources-create": {
+        "title": "Create new source",
+        "body": "Configure the sender manually to POST JSON to the source URL."
+      },
+      "flow-event-source-create": {
+        "title": "Create new source",
+        "body": "Configure the sender manually to POST JSON to the source URL."
+      },
       "channels-binding": {
         "title": "Choose who answers",
         "body": "Bind an agent to a bot, or unbind it. A bot answers as one agent; its environment, pause and lookups stay on the agent's Availability tab."
@@ -6616,6 +6640,7 @@
       "triggerTableLive": "Each record added to the table that matches the trigger's filters starts one run with that record. Pause it, or read what it decided, from the table's Triggers.",
       "triggerOpenTable": "Open the table",
       "triggerOn": "On",
+      "triggerSourceCredentials": "Manage credentials in Event sources",
       "triggerRotate": "New secret",
       "triggerPause": "Pause",
       "triggerResume": "Resume",
@@ -6631,7 +6656,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "A signed HTTP delivery from another system starts a run."
+          "description": "An authenticated event starts a run. Select or create an event source in the editor."
         },
         "schedule": {
           "name": "Schedule",
@@ -9427,14 +9452,15 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} event_source {event sources} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
-    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} event_source {event source} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
     "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "workflowPrivateReaches": "The owner, people and groups listed above, and roles that can access all workflows. Roles limited to shared workflows can lose access when you make it private.",
-    "workflowRuntimeNote": "Sharing also controls access to past runs. It does not pause schedules or disable webhooks.",
+    "eventSourceRuntimeNote": "“Can use” includes listening to the source’s unfiltered payloads.",
+    "workflowRuntimeNote": "People you give access to workflow runs may see delivered event data, including in past runs. Sharing the workflow does not grant access to the event source, pause schedules, or disable webhooks.",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
     "groupSubject": "Group",
@@ -10585,6 +10611,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "createdTitle": "One more step",
+    "createdDescriptionShared": "This routine uses the event source’s existing URL and credentials. You don’t need to register another webhook with the provider.",
     "createdDescription": "Add this webhook URL to your provider, signed with the secret you set. Nothing fires until it delivers.",
     "createdDescriptionLinear": "Use this URL and the same signing secret to create a webhook in Linear. The Linear API accepts both when creating a webhook.",
     "createdSecretNote": "Copy it now - it is not shown again after this. The provider signs each delivery with it.",
@@ -12210,6 +12237,7 @@
     "branchKey": "Branch name",
     "nodeSummarySplitBranches": "{count, plural, one {# branch} other {# branches}}",
     "webhookTestListen": "Listen for test event",
+    "webhookSourceAudience": "Anyone who can view this workflow’s runs may see data delivered by the event source. This includes past runs if you share the workflow later. Viewing a run does not grant access to the source.",
     "webhookTestWaiting": "Waiting for a call",
     "webhookTestUrl": "Test URL",
     "webhookTestHint": "Send one POST with a JSON object body within two minutes. It is kept here and pinned as this trigger's output, and no run starts.",
@@ -19340,7 +19368,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "A signed HTTP delivery arrives at this workflow's own address."
+        "description": "An authenticated JSON event arrives at a reusable source or this workflow's address."
       },
       "trigger_workflow_call": {
         "name": "Called by a workflow",
@@ -21715,6 +21743,18 @@
           }
         }
       },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Require Source",
+            "description": "A new editor draft awaits selection of a reusable source before publishing"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "description": "A reusable event source to subscribe to when this workflow is published"
+          }
+        }
+      },
       "trigger_workflow_call": {
         "config": {
           "fields": {
@@ -21780,6 +21820,100 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Event sources",
+    "description": "Receive authenticated events once and share them with routines and workflows.",
+    "name": "Name",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Custom webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authentication",
+    "auth": {
+      "hmac": "Custom HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Username",
+    "password": "Password",
+    "secret": "Secret",
+    "secretHelp": "Leave blank to generate a secret, or enter the sender’s existing secret. Credentials are stored in the vault and never returned by reads.",
+    "manualSetup": "Configure the sender manually to POST JSON to the source URL.",
+    "visibility": "Visibility",
+    "private": "Private",
+    "organization": "Organization",
+    "deliveryHeader": "Delivery ID header (optional)",
+    "deliveryHelp": "Provider event IDs are detected automatically. Without an event ID, retries can create additional runs.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create source",
+    "header": "Header name",
+    "prefix": "Signature or key prefix (optional)",
+    "encoding": "Signature encoding",
+    "legacy": "Use legacy timestamp-signing format",
+    "standardHelp": "Symmetric v1 signatures over ID, timestamp and body, with a five-minute timestamp tolerance.",
+    "selectSource": "Event source",
+    "dedicated": "Dedicated endpoint (synchronous response)",
+    "chooseSource": "Select an existing source",
+    "paused": "Paused",
+    "active": "Active",
+    "liveUrl": "Live endpoint URL",
+    "revealOnce": "Copy this secret now. It will not be shown again.",
+    "createNew": "Create new source",
+    "loadError": "Event sources could not be loaded.",
+    "retry": "Retry",
+    "liveWarning": "Listen on this live URL for two minutes. Active subscribers still execute normally. Samples are temporary and expire after ten minutes. A sample is optional.",
+    "noUse": "Source-use permission is required to capture events.",
+    "captureError": "The event sample could not be captured. Live delivery processing is unaffected.",
+    "expired": "Listening expired. Start listening again when the sender is ready.",
+    "caught": "Event captured. The sample is ready to use.",
+    "listen": "Listen for event",
+    "listenTo": "Listen to {name}",
+    "sourceUnavailable": "Current source (unavailable)",
+    "listening": "Waiting for an authenticated event…",
+    "pasteExample": "Or paste example JSON",
+    "exampleJson": "Example JSON object",
+    "invalidJson": "Enter a valid JSON object.",
+    "sampleTooLarge": "This sample exceeds the {limit}-byte editor limit.",
+    "useExample": "Use example",
+    "noView": "You do not have permission to view event sources.",
+    "empty": "No event sources yet. Create a source to receive events for routines and workflows.",
+    "edit": "Edit",
+    "done": "Done",
+    "pause": "Pause source",
+    "resume": "Resume source",
+    "pauseHelp": "Pausing this source stops new deliveries. Each subscriber can also be paused independently.",
+    "replaceCredentials": "Replace credentials",
+    "status": "Status",
+    "subscribers": "Subscribers",
+    "actions": "Actions",
+    "usageError": "Subscribers could not be loaded.",
+    "usage": "{count, plural, =0 {No subscribers} =1 {1 subscriber} other {# subscribers}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Delete source",
+    "confirmDelete": "Confirm deletion",
+    "deleteBlocked": "Detach subscribers before deleting this source.",
+    "sourceRoutine": "Create routine from an event source",
+    "privateRoutine": "Private routine",
+    "privateWorkflow": "Private workflow",
+    "credentialHelp": "Enter the sender’s secret. Existing credentials are never shown.",
+    "filters": {
+      "event_types": "Event types",
+      "actions": "Actions",
+      "subscription_types": "Subscription types",
+      "property_names": "Property names",
+      "help": "Separate values with commas. Leave a filter blank to match any value."
+    },
+    "eventPreset": "Events for this routine",
+    "currentFilters": "Current or default filters",
+    "presetError": "Event presets could not be loaded."
   },
   "personalModelKeys": {
     "title": "Your model connection",

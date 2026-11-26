@@ -46,11 +46,13 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     select,
     text,
@@ -340,6 +342,7 @@ class AgentTrigger(Base, TimestampMixin):
     )
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
     # When a *schedule* is next due. The heartbeat's claim query is
     # `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`,
@@ -472,6 +475,13 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_agent_trigger_tenant"),
+        ForeignKeyConstraint(
+            ["source_id", "organization_id"],
+            ["event_sources.id", "event_sources.organization_id"],
+            name="fk_agent_trigger_source_tenant",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint(
             "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
             name="ck_trigger_action_mode",
@@ -529,16 +539,18 @@ class AgentTrigger(Base, TimestampMixin):
         # webhook URL for a door that refuses it (#1068).
         CheckConstraint(
             "(trigger_type = 'schedule' AND (next_fire_at IS NOT NULL OR one_shot) "
-            "AND event_source IS NULL "
+            "AND event_source IS NULL AND source_id IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
             "OR (trigger_type = 'event' AND event_source IS NOT NULL "
-            f"AND ((event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
+            f"AND ((source_id IS NULL AND event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
             "AND secret_key_version IS NULL) "
-            f"OR (event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
-            "AND secret_key_version IS NOT NULL)) "
+            f"OR (source_id IS NULL AND event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
+            "AND secret_key_version IS NOT NULL) "
+            "OR (source_id IS NOT NULL AND event_source IN ('webhook', 'github', 'linear', 'hubspot', 'zendesk') "
+            "AND event_secret_encrypted IS NULL AND secret_key_version IS NULL)) "
             "AND next_fire_at IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL)",
             name="ck_trigger_shape",

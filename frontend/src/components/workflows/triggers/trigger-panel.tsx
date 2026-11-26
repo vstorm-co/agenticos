@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink, KeyRound, Link2, Pause, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -10,6 +10,7 @@ import { Badge, Button, ConfirmDialog } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWorkflowExposure } from "@/hooks";
+import { useEventSource } from "@/hooks/use-event-sources";
 import { ROUTES } from "@/lib/constants";
 import { scheduleText } from "@/lib/trigger-format";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -74,11 +75,12 @@ export function TriggerPanel({ workflow, draft, catalog, canEdit }: TriggerPanel
       ) : (
         <div className="space-y-4">
           {(workflow.live_triggers?.length ? workflow.live_triggers : [live]).map(
-            (trigger, index) => (
+            (trigger, index, triggers) => (
               <div key={`${trigger ?? "default"}-${index}`} className="rounded-xl border p-4">
                 <LiveTrigger
                   workflow={workflow}
                   trigger={trigger}
+                  occurrence={triggers.slice(0, index).filter((item) => item === trigger).length}
                   name={nameOf(trigger)}
                   definition={trigger === null ? undefined : byId.get(trigger)}
                   draftConfig={draft?.nodes.find((node) => node.definition_id === trigger)?.config}
@@ -103,6 +105,7 @@ export function TriggerPanel({ workflow, draft, catalog, canEdit }: TriggerPanel
 interface LiveTriggerProps {
   workflow: WorkflowDetail;
   trigger: string | null;
+  occurrence: number;
   name: string;
   definition: NodeDefinition | undefined;
   /** The draft's configuration of the same trigger, where it names a table. */
@@ -113,6 +116,7 @@ interface LiveTriggerProps {
 function LiveTrigger({
   workflow,
   trigger,
+  occurrence,
   name,
   definition,
   draftConfig,
@@ -184,7 +188,12 @@ function LiveTrigger({
         trigger === GMAIL_TRIGGER ||
         trigger === OUTLOOK_TRIGGER ||
         trigger === CHANNEL_MESSAGE_TRIGGER) && (
-        <ExposureStatus workflow={workflow} trigger={trigger} canEdit={canEdit} />
+        <ExposureStatus
+          workflow={workflow}
+          trigger={trigger}
+          occurrence={occurrence}
+          canEdit={canEdit}
+        />
       )}
       {trigger === WORKFLOW_CALL_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerWorkflowCallLive")}</p>
@@ -210,10 +219,12 @@ function LiveTrigger({
 function ExposureStatus({
   workflow,
   trigger,
+  occurrence,
   canEdit,
 }: {
   workflow: WorkflowDetail;
   trigger: string;
+  occurrence: number;
   canEdit: boolean;
 }) {
   const t = useTranslations("pages.workflows");
@@ -222,6 +233,7 @@ function ExposureStatus({
   const { exposure, isLoading, setActive, rotate, renewLink } = useWorkflowExposure(
     workflow.id,
     trigger,
+    occurrence,
   );
   const [revealed, setRevealed] = useState<WorkflowExposureWithSecret | null>(null);
   const [renewing, setRenewing] = useState(false);
@@ -229,6 +241,17 @@ function ExposureStatus({
   if (isLoading) return <LoadingState variant="pending" />;
   if (exposure === null) return null;
   const busy = setActive.isPending || rotate.isPending || renewLink.isPending;
+  const toggle = (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={busy}
+      onClick={() => setActive.mutate({ id: exposure.id, active: !exposure.is_active })}
+    >
+      {exposure.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      {exposure.is_active ? t("triggerPause") : t("triggerResume")}
+    </Button>
+  );
 
   return (
     <div className={cn("space-y-3 rounded-lg border p-3", !exposure.is_active && "bg-muted/30")}>
@@ -243,16 +266,22 @@ function ExposureStatus({
         </div>
         {canEdit && (
           <div className="flex shrink-0 items-center gap-1">
-            {(exposure.adapter === "webhook" || exposure.adapter === "github") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => rotate.mutate(exposure.id, { onSuccess: setRevealed })}
-              >
-                <KeyRound className="h-4 w-4" />
-                {t("triggerRotate")}
+            {exposure.source_id ? (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={ROUTES.EVENT_SOURCES}>{t("triggerSourceCredentials")}</Link>
               </Button>
+            ) : (
+              (exposure.adapter === "webhook" || exposure.adapter === "github") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => rotate.mutate(exposure.id, { onSuccess: setRevealed })}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  {t("triggerRotate")}
+                </Button>
+              )
             )}
             {exposure.adapter === "form" && (
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRenewing(true)}>
@@ -260,20 +289,20 @@ function ExposureStatus({
                 {t("formNewLink")}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => setActive.mutate({ id: exposure.id, active: !exposure.is_active })}
-            >
-              {exposure.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {exposure.is_active ? t("triggerPause") : t("triggerResume")}
-            </Button>
+            {!exposure.is_active && exposure.source_id ? (
+              <SharedSourceResume sourceId={exposure.source_id}>{toggle}</SharedSourceResume>
+            ) : (
+              toggle
+            )}
           </div>
         )}
       </div>
       {exposure.webhook_url !== null && (
-        <CopyableValue id="webhook-url" label={t("webhookUrl")} value={exposure.webhook_url} />
+        <CopyableValue
+          id={`webhook-url-${exposure.id}`}
+          label={t("webhookUrl")}
+          value={exposure.webhook_url}
+        />
       )}
       {exposure.adapter === "github" && (
         <p className="text-muted-foreground text-xs">
@@ -329,6 +358,11 @@ function ExposureStatus({
       )}
     </div>
   );
+}
+
+function SharedSourceResume({ sourceId, children }: { sourceId: string; children: ReactNode }) {
+  const source = useEventSource(sourceId);
+  return source.data?.can_use ? children : null;
 }
 
 function cadenceOf(exposure: WorkflowExposureRead) {

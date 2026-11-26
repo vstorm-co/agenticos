@@ -57,6 +57,7 @@ class ResourceType:
     key: str
     view: Perm
     edit: Perm
+    visibilities: tuple[Visibility, ...] = (Visibility.PRIVATE, Visibility.TEAM, Visibility.ORG)
 
 
 COLLECTION = ResourceType(key="collection", view=Perm.COLLECTIONS_VIEW, edit=Perm.COLLECTIONS_EDIT)
@@ -72,6 +73,12 @@ WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORK
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
+EVENT_SOURCE = ResourceType(
+    key="event_source",
+    view=Perm.EVENT_SOURCES_VIEW,
+    edit=Perm.EVENT_SOURCES_EDIT,
+    visibilities=(Visibility.PRIVATE, Visibility.ORG),
+)
 PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECTS_EDIT)
 # An organization's MCP server. One permission both sees and manages it, as it
 # always has; what changed is that a server can be narrowed to groups (#2072).
@@ -107,6 +114,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.DATASETS_VIEW: GrantLevel.READ,
     Perm.DATASETS_RUN: GrantLevel.USE,
     Perm.DATASETS_EDIT: GrantLevel.EDIT,
+    Perm.EVENT_SOURCES_VIEW: GrantLevel.READ,
+    Perm.EVENT_SOURCES_USE: GrantLevel.USE,
+    Perm.EVENT_SOURCES_EDIT: GrantLevel.EDIT,
     Perm.PROJECTS_VIEW: GrantLevel.READ,
     # Working in a project - a chat, a file added - is `use`, the level a
     # project shared with a group grants, so a group can work in it without

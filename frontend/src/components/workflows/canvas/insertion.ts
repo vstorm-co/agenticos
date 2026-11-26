@@ -12,7 +12,7 @@ import type {
 } from "@/lib/workflows/types";
 
 import { ownsAScope } from "@/components/workflows/palette/scope";
-import { isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
+import { initialNodeConfig, isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
 
 import { NODE_HEIGHT, NODE_WIDTH, cardHeight, stepFootprint, type Footprint } from "./node-size";
 import { autoBindings, isConnectionValid, isErrorPort } from "./graph-adapter";
@@ -464,7 +464,7 @@ function blankStep(definition: NodeDefinition, id: Uuid, scopeId: Uuid | null): 
     id,
     definition_id: definition.id,
     definition_version: definition.version,
-    config: {},
+    config: initialNodeConfig(definition.id),
     layout: { x: 0, y: 0 },
     ...(scopeId !== null ? { scope_id: scopeId } : {}),
   };

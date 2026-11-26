@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
+
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
@@ -72,6 +74,8 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0365_reusable_event_sources.py` first. Drain and stop old workers before starting upgraded workers or schedulers, then roll out the API. This keeps old workers from claiming source dispatch and retention jobs they cannot execute. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
 
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all

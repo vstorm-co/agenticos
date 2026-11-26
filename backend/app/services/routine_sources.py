@@ -222,6 +222,7 @@ def source_scope(trigger: AgentTrigger) -> str:
         json.dumps(
             {
                 **{name: getattr(trigger, name) for name in fields},
+                **({"source_id": str(trigger.source_id)} if trigger.source_id is not None else {}),
                 **(
                     {"project_id": str(trigger.project_id)}
                     if trigger.project_id is not None
@@ -734,6 +735,19 @@ class RoutineSourceService:
             )
             channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
+        if trigger.source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            try:
+                source = await EventSourceService(self.db).require_use(ctx, trigger.source_id)
+            except NotFoundError:
+                unavailable.add("event source")
+                required_unavailable.add("event source")
+            else:
+                resources.add(f"Event source · {source.name} · {source.id}")
+                items.append(
+                    RoutineSourceItem(kind="event_source", id=str(source.id), name=source.name)
+                )
         if trigger.connection_id is not None:
             connection = await mcp_connection_repo.get_by_id(
                 self.db, trigger.connection_id, fresh=True

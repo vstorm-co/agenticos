@@ -1652,6 +1652,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsEdit,
   },
 
+  {
+    id: "event-sources-header",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-header",
+    permission: Perm.eventSourcesView,
+  },
+  {
+    id: "event-sources-create",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-create",
+    permission: Perm.eventSourcesEdit,
+  },
+
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create
   // stop is gated on the run floor a trigger is created at, not on a role: a
