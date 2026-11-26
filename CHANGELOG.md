@@ -25,6 +25,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+
+## [1.95.0] - 2026-11-26
+
+### Fixed
+
 - Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
 
 - Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
@@ -45,7 +51,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
 - Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
 - Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
-- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
 
 ### Changed
 
@@ -23057,7 +23062,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
