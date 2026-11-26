@@ -1,12 +1,17 @@
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChatPrompt } from "./use-chat-prompt";
+import { useOrgStore } from "@/stores/org-store";
 
 const params = vi.hoisted(() => ({ value: new URLSearchParams() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => params.value }));
 
 describe("useChatPrompt", () => {
+  beforeEach(() => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+  });
+
   it("offers the prompt as a draft and takes it off the address when consumed", () => {
     window.history.replaceState({}, "", "/chat?prompt=Draft%20a%20workflow");
     params.value = new URLSearchParams("prompt=Draft a workflow");
@@ -35,6 +40,24 @@ describe("useChatPrompt", () => {
     params.value = new URLSearchParams("with=agent-1&prompt=Draft");
     const { result } = renderHook(() => useChatPrompt());
     expect(result.current).toBeUndefined();
+  });
+
+  it("retains the prompt until the initial organization selection is ready", () => {
+    window.history.replaceState({}, "", "/chat?prompt=Draft");
+    params.value = new URLSearchParams("prompt=Draft");
+    useOrgStore.setState({ activeOrgId: null });
+
+    const { result } = renderHook(() => useChatPrompt());
+
+    // Selecting the initial organization remounts the composer. Its earlier
+    // instance must not consume the only copy of the prompt from the address.
+    expect(result.current).toBeUndefined();
+    expect(window.location.search).toBe("?prompt=Draft");
+
+    act(() => useOrgStore.getState().setActiveOrgId("org-1"));
+    expect(result.current?.text).toBe("Draft");
+    result.current?.consume();
+    expect(window.location.search).toBe("");
   });
 
   it("offers nothing without a prompt, or with an empty one", () => {

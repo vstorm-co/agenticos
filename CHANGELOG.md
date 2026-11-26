@@ -192,6 +192,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Direct chat links retain their unsent prompt while the initial organization selection loads, so the composer does not lose the draft when it remounts.
 - Queued chat recovery waits for the saved outbox and confirmed server receipts before sending, resumes persisted cancellation requests, and preserves pauses, cancellations and newly queued messages made during recovery. Uncertain receipts stay blocked for retry; delayed reads cannot restore cancelled rows or overwrite newer local actions.
 - Files panels hide the resize handle when their capped width leaves no resizing range, including panels docked beside the workspace rail.
 - Publishing refuses legacy native Claude profiles whose saved owner is missing, including fallback profiles. Gateway subscription profiles retain their caller-bound behavior.
