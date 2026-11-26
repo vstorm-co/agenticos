@@ -39,6 +39,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext
 from app.db.models.project import Project
 from app.db.session import get_db_context
+from app.repositories import agent_workspace as workspace_repo
 from app.services.access import member_context
 from app.services.api_key import ApiKeyService
 from app.services.channels.attachments import workspace_snapshot
@@ -998,6 +999,28 @@ class RunProjectWorkspace(Workspace):
         self._require_open()
         yield opened.workspace
 
+    async def _record_mounted_origin(self) -> None:
+        """Keep mounted Project outputs discoverable in this conversation's Files picker."""
+        project_id = self._require_selection()
+        async with get_db_context() as db:
+            try:
+                _, project = await self._project(db, project_id)
+                if project.workspace_generation != self.project_generation:
+                    raise ConcurrentChangeError(
+                        message="Select this project again after its workspace changed.", details={}
+                    )
+                row = await workspace_repo.get_for_project(
+                    db, organization_id=self.ctx.organization_id, project_id=project_id
+                )
+                if row is not None:
+                    self.origins[row.id] = {
+                        "kind": "project",
+                        "workspace_id": str(row.id),
+                        "project_id": str(project_id),
+                    }
+            except AppException as error:
+                raise PermissionError(error.message) from error
+
     def stop_admission(self) -> None:
         """Fence subsequent delegated operations before the root scans or closes providers."""
         self._lifecycle_owner._closed = True
@@ -1063,6 +1086,7 @@ class RunProjectWorkspace(Workspace):
                         project_id=self.project_id,
                         generation=self.project_generation,
                     )
+                    await self._record_mounted_origin()
                 return await workspace.run(
                     command, shell=shell, env=environment, timeout=timeout, cwd=cwd
                 )

@@ -33,6 +33,7 @@ def setup(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         yield db
 
     monkeypatch.setattr(module, "get_db_context", session)
+    monkeypatch.setattr(module.workspace_repo, "get_for_project", AsyncMock(return_value=None))
     member = AsyncMock(return_value=SimpleNamespace(role="member", is_app_admin=False))
     guard = AsyncMock(
         return_value=SimpleNamespace(
@@ -1293,3 +1294,54 @@ async def test_project_actor_refuses_revoked_key_before_project_lookup(
     with pytest.raises(AuthenticationError, match="revoked"):
         await setup.selector.select(uuid4())
     setup.guard.assert_not_awaited()
+
+
+async def test_mounted_project_is_recorded_as_a_file_origin_before_command_execution(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    selector.filesystem_binding_id = uuid4()
+    await selector.select(uuid4())
+    selector._project_mount = SimpleNamespace(directory=AsyncMock(return_value="/project/lease"))
+    row = SimpleNamespace(id=uuid4())
+    lookup = AsyncMock(return_value=row)
+    monkeypatch.setattr(module.workspace_repo, "get_for_project", lookup)
+    assert (await selector.run([sys.executable, "-c", "pass"], timeout=5)).exit_code == 0
+    assert selector.origins[row.id] == {
+        "kind": "project",
+        "workspace_id": str(row.id),
+        "project_id": str(selector.project_id),
+    }
+    lookup.assert_awaited_once_with(
+        setup.guard.await_args.args[0],
+        organization_id=setup.ctx.organization_id,
+        project_id=selector.project_id,
+    )
+
+
+async def test_mount_origin_generation_race_refuses_command_without_inventing_an_origin(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    selector.filesystem_binding_id = uuid4()
+    await selector.select(uuid4())
+
+    async def admitted(**_kwargs):
+        setup.guard.return_value.workspace_generation = uuid4()
+        return "/project/old-lease"
+
+    selector._project_mount = SimpleNamespace(directory=AsyncMock(side_effect=admitted))
+    with pytest.raises(PermissionError, match="workspace changed"):
+        await selector.run([sys.executable, "-c", "open('unexpected','w').write('no')"])
+    assert selector.origins == {} and not (tmp_path / "unexpected").exists()
