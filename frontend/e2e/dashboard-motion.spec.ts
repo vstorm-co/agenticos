@@ -14,6 +14,14 @@ for (const { preference, system, moving } of [
     await page.addInitScript((motion) => {
       localStorage.setItem("motion-storage", JSON.stringify({ state: { motion }, version: 0 }));
     }, preference);
+    // The account's saved appearance wins over this browser, so it holds the choice too.
+    await page.route("**/api/users/me/appearance", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object") throw new Error("Expected account appearance data");
+      await route.fulfill({ response, json: { ...body, motion: preference } });
+    });
     const response = await page.request.get("/api/agents");
     expect(response.ok()).toBe(true);
     const agents: unknown = await response.json();
