@@ -53,7 +53,7 @@ it("never renders masked questions, answers or tags", () => {
   expect(screen.queryByText("Private answer")).toBeNull();
   expect(screen.queryByText("private-tag")).toBeNull();
   expect(
-    screen.getByRole("button", { name: /From a conversation you cannot open/ }),
+    screen.getByRole("button", { name: /Source unavailable or origin unverified/ }),
   ).toBeInTheDocument();
 });
 

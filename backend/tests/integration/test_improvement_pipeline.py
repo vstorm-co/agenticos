@@ -287,6 +287,53 @@ async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_
     assert await service.awaiting(ctx, open_sessions=True) == []
 
 
+@pytest.mark.security
+async def test_every_session_waiting_for_a_person_is_listed_past_twenty(db):
+    """An agent holds one open session, so the organization's list is every waiting
+    session; a session on an agent the caller cannot read is still left out."""
+    from datetime import timedelta
+
+    from sqlalchemy import insert
+
+    from tests.integration.test_eval_suites import _agent
+
+    ctx, agent, _, first = await _started(db)
+    row = await db.get(ImprovementRun, first.id)
+    assert row is not None
+    row.status, row.stage = "waiting", "analyzing"
+    await db.flush()
+    columns = {column.key: getattr(row, column.key) for column in ImprovementRun.__table__.columns}
+    hidden = None
+    for n in range(21):
+        other, _ = await _agent(db, ctx)
+        hidden = hidden or other.id
+        await db.execute(
+            insert(ImprovementRun).values(
+                {
+                    **columns,
+                    "id": uuid4(),
+                    "agent_id": other.id,
+                    "created_at": row.created_at - timedelta(minutes=n + 1),
+                }
+            )
+        )
+    service = ImprovementPipelineService(db)
+
+    listed = await service.awaiting(ctx)
+    real_get = service.registry.get
+
+    async def one_unreadable(caller: AuthContext, agent_id: UUID, **kwargs: Any) -> Any:
+        if agent_id == hidden:
+            raise NotFoundError(message="Agent not found")
+        return await real_get(caller, agent_id, **kwargs)
+
+    with patch.object(service.registry, "get", one_unreadable):
+        readable = await service.awaiting(ctx, open_sessions=True)
+
+    assert len(listed) == 22 and listed[0].id == first.id
+    assert len(readable) == 21 and hidden not in {item.agent_id for item in readable}
+
+
 async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):
     from app.db.models.eval_run import ArmRole, EvalRunArm, EvalRunCase
     from app.repositories import eval_run_repo

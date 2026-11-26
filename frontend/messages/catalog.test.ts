@@ -472,3 +472,20 @@ it.each([en, pl, de, tr])(
     }
   },
 );
+
+describe.each([
+  ["en", en],
+  ["pl", pl],
+  ["de", de],
+  ["fr", fr],
+  ["nl", nl],
+  ["pt", pt],
+  ["tr", tr],
+])("%s protected-source copy", (_locale, catalog) => {
+  it("provides localized masked labels for both case lists and answer review", () => {
+    const messages = new Map(entries(catalog));
+    for (const key of ["datasets.maskedConversation", "datasets.scoring.maskedConversation"]) {
+      expect(messages.get(key), key).toBeTruthy();
+    }
+  });
+});
