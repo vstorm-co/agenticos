@@ -56,6 +56,7 @@ from app.agents.mcp import (
     probe_mcp_server,
     tool_prefix,
 )
+from app.agents.mcp_apps import McpAppResults
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.config import settings
@@ -177,6 +178,7 @@ def _connection(**overrides) -> McpConnection:
         "is_enabled": True,
         "trust_read_only_hints": False,
         "include_instructions": False,
+        "mcp_apps": False,
         "auth_type": "bearer",
         "purpose": "mcp",
         "oauth_state": None,
@@ -420,7 +422,8 @@ class TestMakeToolset:
         toolset = fitted.wrapped.wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
-        assert isinstance(toolset.wrapped, MCPToolset)
+        assert isinstance(toolset.wrapped, McpAppResults)
+        assert isinstance(toolset.wrapped.wrapped, MCPToolset)
 
     @pytest.mark.parametrize("include", [True, False])
     def test_the_server_instructions_join_only_when_the_connection_opted_in(self, include):
@@ -428,7 +431,10 @@ class TestMakeToolset:
             name="notion", url="https://example.com/mcp", include_instructions=include
         )
 
-        assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.include_instructions is include
+        assert (
+            _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.wrapped.include_instructions
+            is include
+        )
 
     @pytest.mark.parametrize("in_process", [False, True])
     def test_initialization_deadline_distinguishes_local_platform_from_remote_servers(
@@ -460,7 +466,10 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.tool_error_behavior == "failed"
+        assert (
+            _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.wrapped.tool_error_behavior
+            == "failed"
+        )
 
     @pytest.mark.parametrize(("test", "trusted"), [(False, False), (True, False), (False, True)])
     def test_every_tool_says_which_side_of_an_override_it_came_from(self, test, trusted):

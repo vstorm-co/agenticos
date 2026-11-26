@@ -77,6 +77,7 @@ pytestmark = pytest.mark.anyio
                 "allowed_tools": ["read"],
                 "include_instructions": True,
                 "trust_read_only_hints": False,
+                "mcp_apps": True,
                 "catalog_key": None,
                 "auth_token": "SEALED ENVELOPE",
                 "oauth_payload": {"refresh_token": "POISON"},

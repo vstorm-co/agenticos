@@ -117,6 +117,33 @@ class TestReadingToolCallsOffARun:
             )
         ]
 
+    def test_a_calls_mcp_apps_page_is_kept_with_it(self):
+        """The record its toolset stamped (#3450), for web chat to draw the page from."""
+        record = {
+            "resource_uri": "ui://charts/viewer.html",
+            "tool_input": {},
+            "result": {"content": [], "isError": False},
+            "connection_id": "6f1c1f4e-1111-4c8a-9a54-0d1e1c1f4e11",
+            "tool_name": "data_query",
+            "allowed_tools": None,
+            "approval": "writes",
+            "tool_approval": {},
+        }
+        returned = ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="charts_data_query",
+                    content="5 rows",
+                    tool_call_id="c1",
+                    metadata={"mcp_app": record},
+                )
+            ]
+        )
+
+        [call] = tool_calls_in([_called("charts_data_query", "c1"), returned])
+
+        assert call.mcp_app == record
+
     def test_a_call_the_model_was_told_to_retry_records_a_notice_not_its_text(self, caplog):
         """It happened and it failed, so dropping it would read as "still
         running" for ever - but the retry text is written by whatever raised,

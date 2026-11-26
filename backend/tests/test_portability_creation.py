@@ -44,6 +44,7 @@ pytestmark = pytest.mark.anyio
                 "allowed_tools": ["read"],
                 "include_instructions": True,
                 "trust_read_only_hints": True,
+                "mcp_apps": True,
             },
         ),
     ],
@@ -84,6 +85,7 @@ async def test_create_is_private_and_does_not_publish_run_or_export_credentials(
         assert data.group_ids == [] and data.user_ids == []
         assert update.await_args.kwargs["data"].include_instructions is True
         assert update.await_args.kwargs["data"].trust_read_only_hints is True
+        assert update.await_args.kwargs["data"].mcp_apps is True
     elif kind == "model_profile":
         assert create.await_args.kwargs["params"] == {"temperature": 0.2}
         assert "api_key" not in create.await_args.kwargs
