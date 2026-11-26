@@ -79,6 +79,11 @@ async def generate(args: argparse.Namespace) -> None:
     for value in (args.input_per_million, args.output_per_million, args.max_usd):
         if not value.is_finite() or value < 0:
             raise ValueError("Rates and maximum USD must be finite and nonnegative.")
+    settings = (
+        {"reasoning": {"effort": args.openrouter_effort}}
+        if args.openrouter_effort
+        else {"temperature": 0}
+    )
     material = {key: request_content(row) for key, row in rows.items()}
     reservations = {
         key: charge(estimate_tokens(content), args.max_output_tokens, args)
@@ -124,6 +129,7 @@ async def generate(args: argparse.Namespace) -> None:
                         "arm": header.arm,
                         "label": header.label,
                         "model": args.model,
+                        "settings": settings,
                         "reserved_usd": str(planned),
                         "prompt_sha256": hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
                         "max_output_tokens": args.max_output_tokens,
@@ -143,7 +149,7 @@ async def generate(args: argparse.Namespace) -> None:
                     endpoint,
                     json={
                         "model": args.model,
-                        "temperature": 0,
+                        **settings,
                         "max_completion_tokens": args.max_output_tokens,
                         "messages": [
                             {"role": "system", "content": INSTRUCTIONS},
@@ -198,6 +204,7 @@ def main() -> int:
     parser.add_argument("--output-per-million", type=Decimal, required=True)
     parser.add_argument("--max-usd", type=Decimal, required=True)
     parser.add_argument("--max-output-tokens", type=int, default=400)
+    parser.add_argument("--openrouter-effort", choices=("low", "medium", "high"))
     parser.add_argument("--estimate-only", action="store_true")
     args = parser.parse_args()
     try:

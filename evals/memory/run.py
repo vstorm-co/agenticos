@@ -9,10 +9,10 @@ import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
 from time import perf_counter
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
-from adapters import hindsight, local_url, mem0
+from adapters import check_mem0_config, hindsight, local_url, mem0
 from dataset import (
     Manifest,
     fingerprint,
@@ -91,11 +91,23 @@ async def retrieve(args: argparse.Namespace) -> int:
     failures = 0
     run_id = uuid4().hex
     async with AsyncExitStack() as stack:
-        if args.arm in {"agenticos-ledger", "agenticos-legacy"}:
+        if args.arm in {
+            "agenticos-ledger",
+            "agenticos-legacy",
+            "agenticos-maintenance",
+        }:
             from ledger import disposable_engine, replay
 
             engine = disposable_engine(os.environ.get("MEMORY_BENCH_AGENTICOS_DSN", ""))
             stack.push_async_callback(engine.dispose)
+        if args.arm == "agenticos-maintenance":
+            from maintenance import check_setup, replay_maintenance
+
+            if not args.allow_service_calls or not args.maintenance_agent or not args.extract_model:
+                raise ValueError(
+                    "Maintenance requires --allow-service-calls, --maintenance-agent and --extract-model."
+                )
+            starter = await check_setup(engine, args.maintenance_agent, args.extract_model)
         if args.arm in {"mem0", "hindsight"}:
             if not args.allow_service_calls or not args.url:
                 raise ValueError("Pass --url and --allow-service-calls for competitor arms.")
@@ -114,6 +126,8 @@ async def retrieve(args: argparse.Namespace) -> int:
                     trust_env=False,
                 )
             )
+        if args.arm == "mem0" and args.extract_model:
+            await check_mem0_config(client, args.extract_model)
         with args.out.open("x", encoding="utf-8") as out:
             print(header.model_dump_json(), file=out, flush=True)
             for number, case in enumerate(cases, 1):
@@ -136,6 +150,10 @@ async def retrieve(args: argparse.Namespace) -> int:
                         result = Retrieved(evidence, 0, (perf_counter() - started) * 1_000, 0)
                     elif args.arm in {"agenticos-ledger", "agenticos-legacy"}:
                         result = await replay(engine, case.query, manifest.top_k, legacy=legacy)
+                    elif args.arm == "agenticos-maintenance":
+                        result = await replay_maintenance(
+                            engine, starter, case.query, manifest.top_k
+                        )
                     else:
                         adapter = mem0 if args.arm == "mem0" else hindsight
                         result = await adapter(client, case.query, scope, manifest.top_k)
@@ -186,6 +204,10 @@ def parser() -> argparse.ArgumentParser:
     )
     retrieve_args.add_argument("--legacy-checkout", type=Path)
     retrieve_args.add_argument("--url")
+    retrieve_args.add_argument("--extract-model", help="Verify the OpenRouter model at low effort.")
+    retrieve_args.add_argument(
+        "--maintenance-agent", type=UUID, help="Published disposable starter ID."
+    )
     retrieve_args.add_argument("--allow-service-calls", action="store_true")
     retrieve_args.add_argument("--timeout", type=float, default=300)
     retrieve_args.add_argument("--max-errors", type=int, default=3)
@@ -207,6 +229,10 @@ def main() -> int:
             return asyncio.run(retrieve(args))
         else:
             print(json.dumps(compare(args.reports, args.grade), indent=2))
+    except httpx.HTTPStatusError as error:
+        root.exit(2, f"Benchmark setup failed with HTTP {error.response.status_code}.\n")
+    except httpx.RequestError as error:
+        root.exit(2, f"Benchmark setup failed: {type(error).__name__}.\n")
     except (ValueError, TypeError, OSError, KeyError) as error:
         root.exit(2, f"Benchmark input error: {error}\n")
     return 0

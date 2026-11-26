@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 import httpx
-from adapters import hindsight, local_url, mem0
+from adapters import check_mem0_config, hindsight, local_url, mem0
 from answer import request_content
 from dataset import Manifest, fingerprint, load_cases, make_case, read_dataset, sample_ids
 from report import Header, Result, compare
@@ -140,6 +140,24 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 local_url(address)
 
+    async def test_mem0_requires_the_same_extractor_and_effort(self) -> None:
+        model = {"model": "openai/gpt-6-luna", "reasoning_effort": "low"}
+        config = {"llm": {"provider": "openai", "config": model}}
+
+        def handle(request: httpx.Request) -> httpx.Response:
+            self.assertEqual((request.method, request.url.path), ("GET", "/configure"))
+            return httpx.Response(200, json=config)
+
+        async with httpx.AsyncClient(
+            base_url="http://localhost:8000", transport=httpx.MockTransport(handle)
+        ) as client:
+            await check_mem0_config(client, "openai/gpt-6-luna")
+            with self.assertRaisesRegex(ValueError, "same OpenRouter extraction model"):
+                await check_mem0_config(client, "openai/gpt-5")
+            model["reasoning_effort"] = "high"
+            with self.assertRaisesRegex(ValueError, "low effort"):
+                await check_mem0_config(client, "openai/gpt-6-luna")
+
     async def test_mem0_scope_and_provenance(self) -> None:
         query = make_case(fixture()).query
         requests = []
@@ -211,6 +229,7 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
                 output_per_million=Decimal("20"),
                 max_usd=Decimal(0),
                 max_output_tokens=50,
+                openrouter_effort="low",
                 estimate_only=False,
             )
             header = Header(
@@ -254,6 +273,8 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
                 await generate(args)
             self.assertEqual(len(requests), 1)
             self.assertEqual(requests[0]["max_completion_tokens"], 50)
+            self.assertEqual(requests[0]["reasoning"], {"effort": "low"})
+            self.assertNotIn("temperature", requests[0])
             self.assertEqual(
                 json.loads(args.out.read_text()),
                 {

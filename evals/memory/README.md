@@ -7,6 +7,8 @@ for ledger performance. The three tracks measure different parts of the system.
 
 The [November 27 local smoke report](LOCAL-SMOKE-2026-11-27.md) records the end-to-end
 Sonnet, Luna worker and workflow checks, with a token-based LongMemEval-S estimate.
+The [AgenticOS–Mem0 OSS protocol](AGENTICOS-MEM0.md) adds a paired maintenance
+comparison, run commands, the product tool path and GPT-5 cost estimates.
 
 ## Implementation against the plan
 
@@ -14,7 +16,7 @@ Sonnet, Luna worker and workflow checks, with a token-based LongMemEval-S estima
 | --- | --- | --- |
 | Ledger correctness and timeline | The existing ledger preserves effective dates on publication, ranks before applying the limit, and supports `as_of` and `known_at`. The PostgreSQL replay covers headcount, retroactive correction, relevance after noise and history pagination. | Measure quality and latency on the frozen slices. |
 | Personal and organization memory | Settings → Memory offers personal and organization views, Memories and Notes, business objects, history, publication review and conflicts. A business project can exist independently of an AgenticOS workspace. Existing rows remain readable. | General alias suggestions, auditable object merge/split and bulk identity backfill. |
-| Agent tools and maintenance | `remember` handles explicit memory, `write_memory` keeps agents' notes, and maintenance extracts admissible claims from conversations. External observations use `memory.observe` inside Workflows. | A single end-to-end quality benchmark that exercises real agent tools, model extraction, persistence and recall across a large corpus. The retrieval harness below seeds deterministic transcript chunks. |
+| Agent tools and maintenance | `remember` handles explicit memory, `write_memory` keeps agents' notes, and maintenance extracts admissible claims from conversations. External observations use `memory.observe` inside Workflows. | Run the paired maintenance path and extend the product path to combine real agent tools with the frozen corpus. |
 | Gmail and CRM | Existing Gmail and signed webhook triggers admit observations to a common contract. The CRM fixture exercises that contract. There are PostgreSQL tests for chat/Gmail agreement, conflicts, retry, preview and revocation. | A direct native CRM-to-memory path, real provider runs and end-to-end lease-loss testing. Use the signed relay for the implemented CRM path. A dedicated memory-specific connector manager was removed in favor of Workflows. |
 | Proactivity and Inbox | Workflows can route the action's typed result, including `changed`, through existing workflow steps. Replay checks the observation and its change signal. | Versioned decision policy, transactional and idempotent Inbox delivery, recipient authorization at delivery, correction cards and shadow results. The existing replay does not assert delivery to Inbox. |
 | Quality, scale and governance | The three TSV datasets, context packets and enterprise replay cover initial cases. This directory adds frozen comparison slices, paired metrics and a synthetic scale runner. | Published measurements, a frozen enterprise holdout with PL/EN pairs, concurrent tenant load, index rebuild and erasure after restore. An ontology or graph backend and decision models remain separate experiments. |
@@ -135,7 +137,8 @@ Use one pinned Chat Completions model for all arms. Set
 `MEMORY_BENCH_ANSWER_URL` to its full `/chat/completions` endpoint and
 `MEMORY_BENCH_ANSWER_API_KEY` if needed. Supply the actual per-million input and output
 rates for that model, a fixed output limit and a per-arm budget. The provider must
-support `temperature: 0`, `max_completion_tokens` and reported token usage.
+support `max_completion_tokens` and reported token usage. The default sends
+`temperature: 0`; for OpenRouter reasoning models choose `--openrouter-effort` instead.
 
 ```sh
 uv run python "$B/answer.py" --retrieval "$OUT/ledger.jsonl" \

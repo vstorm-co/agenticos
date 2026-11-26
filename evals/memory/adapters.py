@@ -9,6 +9,35 @@ from pydantic import BaseModel, Field
 from retrieval import Evidence, Retrieved
 
 
+class Mem0Model(BaseModel, hide_input_in_errors=True):
+    model: str
+    reasoning_effort: str | None = None
+    models: list[str] | None = None
+
+
+class Mem0LLM(BaseModel, hide_input_in_errors=True):
+    provider: str
+    config: Mem0Model
+
+
+class Mem0Config(BaseModel, hide_input_in_errors=True):
+    llm: Mem0LLM
+
+
+async def check_mem0_config(client: httpx.AsyncClient, model_id: str) -> None:
+    response = await client.get("/configure")
+    config = Mem0Config.model_validate_json(response.raise_for_status().content).llm
+    if (
+        config.provider != "openai"
+        or config.config.model != model_id
+        or config.config.reasoning_effort != "low"
+        or config.config.models
+    ):
+        raise ValueError(
+            "Configure the same OpenRouter extraction model at low effort for Mem0 OSS."
+        )
+
+
 class Mem0Item(BaseModel):
     memory: str
     metadata: dict[str, object] | None = None

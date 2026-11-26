@@ -12,8 +12,22 @@ from typing import Literal
 from pydantic import BaseModel
 from retrieval import Evidence
 
-Arm = Literal["bm25", "agenticos-legacy", "agenticos-ledger", "mem0", "hindsight"]
-ARMS = ("bm25", "agenticos-legacy", "agenticos-ledger", "mem0", "hindsight")
+Arm = Literal[
+    "bm25",
+    "agenticos-legacy",
+    "agenticos-ledger",
+    "agenticos-maintenance",
+    "mem0",
+    "hindsight",
+]
+ARMS = (
+    "bm25",
+    "agenticos-legacy",
+    "agenticos-ledger",
+    "agenticos-maintenance",
+    "mem0",
+    "hindsight",
+)
 
 
 class Header(BaseModel):
