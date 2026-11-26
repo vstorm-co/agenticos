@@ -38,14 +38,16 @@ async def _accept_improvement(
 
     agent = await AgentRegistryService(db).get(ctx, _id(args["agent_id"]))
     session = await ImprovementPipelineService(db).read(ctx, agent.id, _id(args["session_id"]))
-    chosen = next(item for item in session.iterations if item.id == session.best_iteration_id)
-    publishes = args.get("publish") is True and session.next_version is not None
+    # The attempt the call names, which the server holds the acceptance to.
+    number = int(args["attempt"])
+    attempt = next((item for item in session.iterations if item.number == number), None)
+    if attempt is None:
+        raise KeyError("attempt")
     return {
         "agent": agent.name,
-        "attempt": str(chosen.number),
-        "verdict": "" if chosen.verdict is None else str(chosen.verdict.value),
-        "publish": "yes" if publishes else "no",
-        "version": str(session.next_version) if publishes else "",
+        "attempt": str(number),
+        "verdict": "" if attempt.verdict is None else str(attempt.verdict.value),
+        "publish": "yes" if args.get("publish") is True else "no",
     }
 
 
@@ -53,42 +55,53 @@ async def _publish_agent(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
     # Imported here: the services reach the agent capabilities this module serves.
-    from app.repositories import agent as agent_repo
     from app.services.agent_registry import AgentRegistryService
 
+    # No version number: a publish takes the next one when it runs, not when it parks.
     agent = await AgentRegistryService(db).get(ctx, _id(args["agent_id"]))
-    newest = await agent_repo.newest_version(
-        db, agent_id=agent.id, organization_id=agent.organization_id
-    )
-    return {"agent": agent.name, "version": str(1 if newest is None else newest.version + 1)}
+    return {"agent": agent.name}
 
 
 async def _change_skill_version(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
     # Imported here: the services reach the agent capabilities this module serves.
+    from app.repositories import skill_version as skill_version_repo
     from app.services.agent_registry import AgentRegistryService
     from app.services.skills import SkillService
 
     skill = await SkillService(db).get(ctx, _id(args["skill_id"]))
     agent = await AgentRegistryService(db).get(ctx, _id(args["agent_id"]))
-    version = args.get("version")
-    return {
-        "skill": skill.name,
-        "agent": agent.name,
-        "state": str(args.get("state", "")),
-        "version": "" if version is None else str(version),
-    }
+    state = str(args.get("state", ""))
+    described = {"skill": skill.name, "agent": agent.name, "state": state}
+    if state == "pinned":
+        described["version"] = str(int(args["version"]))
+    elif state == "fork":
+        fork = await skill_version_repo.get_fork(
+            db, _id(args["fork_id"]), organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        if fork is None:
+            raise KeyError("fork_id")
+        described["fork"] = fork.name
+    return described
 
 
 async def _accept_skill_improvement(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
     # Imported here: the services reach the agent capabilities this module serves.
+    from app.services.agent_registry import AgentRegistryService
     from app.services.skills import SkillService
 
     skill = await SkillService(db).get(ctx, _id(args["skill_id"]))
-    return {"skill": skill.name, "outcome": str(args.get("outcome", ""))}
+    outcome = str(args.get("outcome", ""))
+    chosen = args.get("fork_agent_ids") or []
+    if outcome != "fork_for_helped" or not chosen:
+        return {"skill": skill.name, "outcome": outcome}
+    # Named agents move instead of the helped ones, so the card names exactly them.
+    registry = AgentRegistryService(db)
+    names = [(await registry.get(ctx, _id(agent_id))).name for agent_id in chosen]
+    return {"skill": skill.name, "outcome": "fork_for_chosen", "agents": ", ".join(names)}
 
 
 async def _start_eval_run(
@@ -133,7 +146,7 @@ def platform_describer(tool_name: str) -> PlatformDescriber | None:
                 return None
             try:
                 return await read(db, ctx, args)
-            except AppException, KeyError, StopIteration, ValueError:
+            except AppException, KeyError, TypeError, ValueError:
                 return None
 
     return describe

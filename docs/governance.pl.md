@@ -1,5 +1,5 @@
 ---
-source_sha: "215ff831ae21"
+source_sha: "ad8c16ba300b"
 ---
 
 # Governance { #governance }
@@ -1675,7 +1675,7 @@ Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, 
 
 Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, publikacja agenta, zaproszenie członka - działa z uprawnieniami platformy osoby, w której imieniu działa run. Dlatego zatwierdzić je może tylko ta osoba, zalogowana jako ona sama: nie inny członek z `approvals:decide`, nie klucz API, także jej własny, i nie administrator w trybie impersonacji. Każdy z `approvals:decide` może je nadal odrzucić. Osoba nie potrzebuje do tego żadnego uprawnienia poza tym, że jest tą osobą, więc Builder albo Member zatwierdza kartę Architekta we własnym czacie i tam wznawia run. Tylko ona może wznowić run po zatwierdzonym wywołaniu platformy.
 
-Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, wersja, którą utworzy publikacja, dataset, na którym działa eval, i podana cena. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
+Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, fork skilla albo agenci, których przeniesie zmiana skilla, dataset, na którym działa eval, i podana cena. Akceptacja dotyczy tylko próby nazwanej na karcie. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
 
 Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
 

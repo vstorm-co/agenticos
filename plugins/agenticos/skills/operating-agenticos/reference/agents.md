@@ -116,4 +116,4 @@ Improve progress:
 - The step that spends takes `budget_usd` (the session's limit), the estimate's `total_usd` as `estimate_usd`, and its `candidate_hash`. A session that changed since the estimate is refused: estimate again.
 - Compare attempts by their `change` on held-out questions, not by pass rates in `details`. When `measurement_noise.noisy` is true, the test cannot tell better from worse; say so.
 - `agenticos:use_attempt` picks a finished attempt; `agenticos:estimate_improve_again` and `agenticos:improve_again` start another, with the user's `note`.
-- `agenticos:accept_improvement` with `publish: false` unless the user asked to publish. Link the user to the session's `link` for the full wizard.
+- `agenticos:accept_improvement` with the `chosen` attempt's number as `attempt`, and `publish: false` unless the user asked to publish; it is refused when another attempt has been chosen since. Link the user to the session's `link` for the full wizard.

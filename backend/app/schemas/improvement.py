@@ -557,6 +557,15 @@ class ImprovementFinish(BaseSchema):
             "selected first, as selecting it on its own does"
         ),
     )
+    attempt: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description=(
+            "The attempt the person agreed to accept; refused when another has been chosen "
+            "since, and omitted it is not checked"
+        ),
+    )
 
 
 class ImprovementFinished(BaseSchema):

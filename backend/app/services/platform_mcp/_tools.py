@@ -3300,10 +3300,17 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def accept_improvement(
-        agent_id: UUID, session_id: UUID, publish: bool, automatic_check: bool = False
+        agent_id: UUID,
+        session_id: UUID,
+        attempt: int,
+        publish: bool,
+        automatic_check: bool = False,
     ) -> dict[str, Any]:
         """Accept a ready session's chosen attempt into the agent: as a draft, or published.
         Needs `agents:edit` and `runs:view`; `publish` also needs `agents:publish`.
+
+        `attempt` is the number of the attempt get_improvement marks `chosen`, the
+        one the person agreed to; it is refused when another has been chosen since.
 
         Publish only when the person asked for exactly that; otherwise accept as a
         draft they publish themselves. An environment guarded by an automatic
@@ -3314,7 +3321,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         finished = await api.request(
             "POST",
             f"/agents/{agent_id}/improvements/{session_id}/finish",
-            json={"confirmed": True, "publish": publish, "automatic_check": automatic_check},
+            json={
+                "confirmed": True,
+                "attempt": attempt,
+                "publish": publish,
+                "automatic_check": automatic_check,
+            },
         )
         return {
             "status": finished["session"]["status"],

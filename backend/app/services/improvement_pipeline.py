@@ -1564,6 +1564,11 @@ class ImprovementPipelineService:
                 message="Wait for this session's checks to finish, or stop the session"
             )
         selected, hunks = await self._measured_selection(run)
+        if data.attempt is not None and selected.number != data.attempt:
+            raise ConcurrentChangeError(
+                message="Another attempt was chosen since; review the session again",
+                details={"attempt": selected.number},
+            )
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
