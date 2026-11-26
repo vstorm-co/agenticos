@@ -325,3 +325,51 @@ class ModelComparisonTests(unittest.TestCase):
         self.assertEqual(result["cost_usd_known"], "0.001")
         self.assertFalse(result["cost_complete"])
         self.assertEqual((result["case_p50_ms"], result["case_p95_ms"]), (200, 300))
+
+
+class ProductReplayTests(unittest.TestCase):
+    def test_review_sees_original_session_and_question_sees_no_transcript(self) -> None:
+        from product import archive_prompt, question_prompt
+
+        query = make_case(fixture()).query
+        session = query.sessions[0]
+        archived = json.loads(archive_prompt(session))
+        asked = json.loads(question_prompt(query))
+        self.assertEqual(archived["source_date"], session.date.isoformat())
+        self.assertEqual(archived["turns"], [turn.model_dump() for turn in session.turns])
+        self.assertNotIn(query.question, archive_prompt(session))
+        self.assertEqual(
+            asked, {"question_date": query.date.isoformat(), "question": query.question}
+        )
+        self.assertNotIn(session.turns[0].content, question_prompt(query))
+
+    def test_product_accepts_same_manifest_and_judge(self) -> None:
+        case = make_case(fixture())
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            reports, grades = [], []
+            for arm in ("agenticos-product", "mem0"):
+                report = root / f"{arm}.report"
+                header = Header(
+                    manifest="fixture",
+                    arm=arm,
+                    label=arm,
+                    git_sha="rev",
+                    top_k=8,
+                    evidence_chars=12000,
+                    case_ids=[case.id],
+                )
+                report.write_text(header.model_dump_json() + "\n" + row_with([]).model_dump_json())
+                reports.append(report)
+                grade = root / f"{arm}.grades"
+                grade.write_text(
+                    json.dumps(
+                        {
+                            "question_id": case.id,
+                            "autoeval_label": {"model": "shared-judge", "label": True},
+                        }
+                    )
+                )
+                grades.append(grade)
+            result = compare(reports, grades)
+        self.assertEqual(result["judge_model"], "shared-judge")

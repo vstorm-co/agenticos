@@ -38,27 +38,39 @@ provider key or metered gateway. Its REST search response does not contain usage
 The grader sees only the question, gold answer and hypothesis. Keep technical failures
 visible, and audit paired disagreements before interpreting the gap.
 
-## Agent tools and maintenance in the product eval
+## Full product LongMemEval
 
-Use **both** together in the product path. Put Luna maintenance on the history and use a
-published Sonnet agent to retrieve with `recall`. For explicit instructions, test that
-Sonnet writes through `remember` or `write_memory` while maintenance processes other
-eligible input. Track actual tool calls and final ledger state.
+Use both paths in each isolated case. Replay the earlier sessions in order. For each
+session, Sonnet receives the original dated transcript as data in a separate review
+call. Its production memory tools can save a useful note or handle an explicit
+remember/correct request in the source. Luna processes the original dated session
+through the maintenance handler and writes supported claims. The agent's synthetic
+review call is excluded from maintenance. The frozen history is independent of the
+held-out question and the gold answer.
+
+At question time, the same agent identity starts a fresh chat. The run can see the
+memory overview and use `recall`, `list_memory` and `read_memory` to answer. The eval
+guard blocks side-effecting tools on this turn and the runner skips maintenance on it.
+Some sessions need no durable note. The harness measures actual note and claim rows,
+tool calls, per-stage spend and answer latency rather than forcing a write or a read
+on every case.
 
 | Variant | History | Question | What it measures |
 | --- | --- | --- | --- |
-| Controlled LongMemEval pair, implemented below | Production maintenance or Mem0 extraction | Shared direct recall and answer prompt | Memory quality with the answerer held fixed |
-| Product LongMemEval extension | Same Luna-maintained history | Sonnet with real `recall` and the same judge | Tool selection, additional model turns and user-visible answers |
-| Explicit-write regression, existing personal evals | Scripted explicit save, correction and self-note turns with maintenance off; repeat mixed cases with it on | Fresh chat recalls the resulting memory | Tool writes, duplicate suppression and implicit writes that only maintenance should make |
+| Full product | Sonnet saves useful Notes or acts on explicit memory requests; Luna maintains Memories | Live Sonnet with memory tools in a fresh chat | End-to-end user experience with the two write paths |
+| Controlled comparison | Luna inside both memory systems | Shared direct recall and Sonnet answer prompt | Memory quality with the answer prompt and model held fixed |
+| Authored personal evals | Scripted explicit save, correction, handoff and mixed-source scenarios | Fresh chat checks expected writes and then recalls them | Correct tool selection, expected persistence and ACLs |
 
-For the product LongMemEval extension, do not rewrite historical prompts to solicit memory
-writes. Reuse the maintenance snapshot and disable writes and extraction from the held-out
-question itself. If comparing agentic retrieval across vendors, expose one equivalent
-read-only search tool to the same Sonnet agent for Mem0 and keep that score alongside the
-controlled pair. Evaluate `remember`, `correct_memory`, `write_memory`, person/org boundaries
-and workflow ingestion on the existing product datasets, where expected writes and ACLs
-are annotated. The product LongMemEval extension is specified here. The new runner implements
-the controlled pair.
+The full product run uses the standard agent runner with a frozen memory-only eval spec
+on the starter identity. It reports answer quality and does not score document recall
+from tool narration. Grade its hypotheses using the same judge and slice as the
+controlled comparison. A comparison against the existing Mem0 arm is a system result
+under different workflows. The controlled pair remains the comparison under shared
+answer conditions.
+
+If adding maintainer-generated Notes later, use a separate experiment with source-linked
+drafts and compare against this run. Track wrong or stale handoffs, duplicate content,
+evidence coverage and when a person actually needs to review a draft.
 
 ## Commands
 
@@ -137,6 +149,27 @@ before the paid run. OpenAI has announced retirement of both legacy snapshots. T
 GPT-5 variant below is an estimate. Running it later with GPT-5 as judge requires the
 Mem0 evaluator or an explicit GPT-5 judge adaptation because the official pinned
 LongMemEval script has no GPT-5 entry. [OpenAI retirement schedule](https://developers.openai.com/api/docs/deprecations)
+
+## Run the full product variant
+
+After preparing the same slice, use the published starter and the OpenRouter Sonnet
+model profile ID. The starter must be runnable by a member. The agent budget covers
+Sonnet's transcript reviews and question turns. Luna uses the Memory Maintenance
+budget set on the disposable organization. Begin with 25 questions. Measure actual
+agent review spend in `usage.jsonl` before budgeting the full set. Those reviews
+process the source sessions and sit outside the controlled comparison estimate below.
+
+```sh
+uv run python "$B/product.py" --dataset "$DATA" --manifest "$OUT/slice.json" \
+  --out "$OUT/product" --agent "$AGENTICOS_STARTER_ID" \
+  --agent-profile "$SONNET_PROFILE_ID" --agent-budget "$PRODUCT_AGENT_CAP" \
+  --allow-service-calls --label "$AGENTICOS_REVISION_AND_CONFIG"
+```
+
+Grade `product/answers.jsonl` with the same pinned official judge. Pass
+`product/report.jsonl` and its grades to `run.py compare` alongside the other arms.
+Keep `product/usage.jsonl` for tool counts, persistence counts and stage costs. A
+partially completed run has visible rows for finished cases and is refused by compare.
 
 ## Estimated API cost
 

@@ -17,6 +17,7 @@ Arm = Literal[
     "agenticos-legacy",
     "agenticos-ledger",
     "agenticos-maintenance",
+    "agenticos-product",
     "mem0",
     "hindsight",
 ]

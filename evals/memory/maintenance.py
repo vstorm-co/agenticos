@@ -123,52 +123,65 @@ async def seed_session(
     return conversation_id, run_id
 
 
+async def seed_user(db: AsyncSession, starter: Starter) -> UUID:
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"{user_id}@memory-bench.invalid"))
+    await db.flush()
+    db.add(
+        OrganizationMember(organization_id=starter.organization_id, user_id=user_id, role="member")
+    )
+    await db.commit()
+    return user_id
+
+
+async def maintain_session(
+    db: AsyncSession, starter: Starter, user_id: UUID, session: Session
+) -> UUID:
+    conversation_id, run_id = await seed_session(db, starter, user_id, session)
+    await extract_memory(ExtractMemory(organization_id=starter.organization_id, run_id=run_id))
+    return conversation_id
+
+
+async def maintenance_cost(
+    db: AsyncSession, starter: Starter, user_id: UUID, query: Query
+) -> float | None:
+    runs = (
+        await db.scalars(
+            select(AgentRun).where(
+                AgentRun.organization_id == starter.organization_id,
+                AgentRun.user_id == user_id,
+                AgentRun.system_role == MEMORY_MAINTENANCE,
+            )
+        )
+    ).all()
+    expected = sum(
+        any(turn.role == "user" and turn.content.strip() for turn in session.turns)
+        for session in query.sessions
+    )
+    if len(runs) != expected or any(
+        run.status != RunStatus.COMPLETED.value or not run.input_tokens for run in runs
+    ):
+        raise ValueError(
+            "Maintenance did not complete a model-backed run for each user-bearing session."
+        )
+    return (
+        None
+        if any(run.cost_is_partial for run in runs)
+        else float(sum(run.cost_usd for run in runs))
+    )
+
+
 async def replay_maintenance(
     engine: AsyncEngine, starter: Starter, query: Query, top_k: int
 ) -> Retrieved:
     started = perf_counter()
-    user_id = uuid4()
     sources: dict[UUID, Session] = {}
     async with AsyncSession(engine) as db:
-        db.add(User(id=user_id, email=f"{user_id}@memory-bench.invalid"))
-        await db.flush()
-        db.add(
-            OrganizationMember(
-                organization_id=starter.organization_id, user_id=user_id, role="member"
-            )
-        )
-        await db.commit()
+        user_id = await seed_user(db, starter)
         for session in query.sessions:
-            conversation_id, run_id = await seed_session(db, starter, user_id, session)
+            conversation_id = await maintain_session(db, starter, user_id, session)
             sources[conversation_id] = session
-            await extract_memory(
-                ExtractMemory(organization_id=starter.organization_id, run_id=run_id)
-            )
-
-        runs = (
-            await db.scalars(
-                select(AgentRun).where(
-                    AgentRun.organization_id == starter.organization_id,
-                    AgentRun.user_id == user_id,
-                    AgentRun.system_role == MEMORY_MAINTENANCE,
-                )
-            )
-        ).all()
-        expected = sum(
-            any(turn.role == "user" and turn.content.strip() for turn in session.turns)
-            for session in query.sessions
-        )
-        if len(runs) != expected or any(
-            run.status != RunStatus.COMPLETED.value or not run.input_tokens for run in runs
-        ):
-            raise ValueError(
-                "Maintenance did not complete a model-backed run for each user-bearing session."
-            )
-        cost = (
-            None
-            if any(run.cost_is_partial for run in runs)
-            else float(sum(run.cost_usd for run in runs))
-        )
+        cost = await maintenance_cost(db, starter, user_id, query)
         indexed = perf_counter()
         owner_key = person_owner_key(user_id)
         hits = await recall(
