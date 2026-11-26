@@ -109,7 +109,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
-- Refine project resource and export dialogs with real resource identities and expandable views, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
+- Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
 
 ### Upgrading
 

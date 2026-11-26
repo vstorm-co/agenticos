@@ -48,7 +48,7 @@ contract; it cannot be implemented as a path alias in this router.
 The primary chat card shows the active Project context, with executor overrides
 under Advanced. Personal coding accounts are a separate disclosure. Project
 resources and export use typed groups, real authorized avatar metadata and
-expandable dialogs. Python Actions presents inputs, callable functions and its
+responsive dialogs. Python Actions presents inputs, callable functions and its
 result together. Personal navigation is edited from the sidebar or the same
 profile dialog; organization role defaults remain in organization settings.
 

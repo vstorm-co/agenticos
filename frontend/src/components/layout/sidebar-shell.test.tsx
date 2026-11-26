@@ -76,6 +76,13 @@ describe("SidebarShell", () => {
     expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
   });
 
+  it("places navigation customization beside notifications", () => {
+    renderShell();
+    expect(screen.getByRole("button", { name: "the bell" }).parentElement).toContainElement(
+      screen.getByRole("button", { name: "Customize sidebar" }),
+    );
+  });
+
   it("puts the account last", () => {
     renderShell();
 

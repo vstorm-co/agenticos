@@ -349,7 +349,7 @@ describe("CreateProjectDialog", () => {
 const KACPER = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
 
 describe("ProjectChats", () => {
-  it("lists everybody's chats with whose each is, and starts a new one", () => {
+  it("lists everybody's chats without duplicating the page header's new-chat action", () => {
     chats.mockReturnValue({
       chats: [
         {
@@ -388,10 +388,7 @@ describe("ProjectChats", () => {
     const row = screen.getByRole("row", { name: /Press release/ });
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /New chat/ })).toHaveAttribute(
-      "href",
-      "/chat?project=p-1",
-    );
+    expect(screen.queryByRole("link", { name: /New chat/ })).not.toBeInTheDocument();
   });
 
   it("opens a chat from its row, sorts by any column and marks one unread", async () => {

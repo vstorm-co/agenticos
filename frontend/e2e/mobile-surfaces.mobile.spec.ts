@@ -258,7 +258,13 @@ for (const platform of ["ios", "android"] as const) {
         const more = page.getByRole("button", { name: "More", exact: true });
         await expectTouchTarget(add);
         await expectTouchTarget(more);
-        expect((await add.boundingBox())?.y).toBe((await more.boundingBox())?.y);
+        // Read the shared row in one frame: separate protocol calls can straddle
+        // the tab panel's entrance animation and compare different translations.
+        const tops = await page
+          .getByRole("button", { name: /^(Upload files|More)$/ })
+          .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().y));
+        expect(tops).toHaveLength(2);
+        expect(tops[0]).toBe(tops[1]);
         await expect(page.getByRole("button", { name: "Upload folder", exact: true })).toBeHidden();
         await expect(page.getByRole("button", { name: "New folder", exact: true })).toBeHidden();
         await more.tap();

@@ -11,12 +11,22 @@ import ProjectPage from "./page";
 let project: Project | null = null;
 let tab = "files";
 vi.mock("@/hooks/use-url-state", () => ({ useUrlState: () => [tab, vi.fn()] }));
+vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/hooks/use-projects", async () => {
   const actual =
     await vi.importActual<typeof import("@/hooks/use-projects")>("@/hooks/use-projects");
   return {
     ...actual,
     useProject: () => ({ project, isLoading: project === null, error: null }),
+    useProjectChats: () => ({
+      chats: [],
+      total: 0,
+      isLoading: false,
+      error: null,
+      hasMore: false,
+      loadingMore: false,
+      loadMore: vi.fn(),
+    }),
     useProjectFiles: () => ({
       files: null,
       isLoading: true,
@@ -111,4 +121,37 @@ it("opens a project on Chats while keeping explicit Files links", async () => {
   tab = "files";
   view.rerender(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
   expect(await screen.findByRole("tab", { selected: true })).toHaveTextContent("Files");
+});
+
+it("keeps just the header New chat action and its walkthrough anchor on the Chats tab", async () => {
+  tab = "chats";
+  project = {
+    id: "p-1",
+    name: "Launch",
+    description: null,
+    instructions: "",
+    default_agent_id: null,
+    default_agent_name: null,
+    owner_user_id: "me",
+    visibility: "private",
+    backend: "state",
+    runtime: null,
+    chat_count: 0,
+    last_active_at: null,
+    shared_groups: [],
+    can_use: true,
+    can_edit: false,
+    created_at: null,
+    updated_at: null,
+  };
+  await mount(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
+  expect(await screen.findAllByRole("link", { name: "New chat" })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute(
+    "href",
+    "/chat?project=p-1",
+  );
+  expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute(
+    "data-tour",
+    "project-new-chat",
+  );
 });

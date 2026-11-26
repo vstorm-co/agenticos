@@ -71,23 +71,25 @@ export function ConversationSearchDialog({
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN, "gap-0 p-0")}>
         <DialogTitle className="sr-only">{t("searchLabel")}</DialogTitle>
         <Command shouldFilter={false} label={t("searchLabel")} className="flex min-h-0 flex-col">
-          <div
-            className={cn(
-              SEARCH_FIELD_FOCUS,
-              "border-border flex shrink-0 items-center gap-2.5 border-b px-4 pr-12",
-            )}
-          >
-            <Search className="text-muted-foreground size-4 shrink-0" aria-hidden />
-            <Command.Input
-              autoFocus
-              value={term}
-              onValueChange={setTerm}
-              maxLength={500}
-              placeholder={t("searchLabel")}
-              aria-label={t("searchLabel")}
-              className="placeholder:text-muted-foreground h-14 min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
-            />
-            {isFetching && <Spinner className="size-4" />}
+          <div className="border-border shrink-0 border-b p-3 pr-12">
+            <div
+              className={cn(
+                SEARCH_FIELD_FOCUS,
+                "border-field-border bg-field has-[:focus-visible]:outline-foreground/60 flex items-center gap-2.5 rounded-xl border px-3",
+              )}
+            >
+              <Search className="text-muted-foreground size-4 shrink-0" aria-hidden />
+              <Command.Input
+                autoFocus
+                value={term}
+                onValueChange={setTerm}
+                maxLength={500}
+                placeholder={t("searchLabel")}
+                aria-label={t("searchLabel")}
+                className="placeholder:text-muted-foreground h-11 min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
+              />
+              {isFetching && <Spinner className="size-4" />}
+            </div>
           </div>
           {isError && (
             <div

@@ -2,18 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Bot,
-  Database,
-  Layers,
-  LayoutTemplate,
-  Plus,
-  Star,
-  Unlink,
-  Workflow,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
+import { Bot, Database, Layers, LayoutTemplate, Plus, Star, Unlink, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -37,7 +26,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useProjectResources, useProjectResourceCandidates } from "@/hooks/use-project-resources";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_FILL, DIALOG_BROAD, DIALOG_WINDOW } from "@/lib/dialog-sizes";
+import { DIALOG_FILL, DIALOG_BROAD } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type {
@@ -164,7 +153,6 @@ function AddResources({ projectId, close }: { projectId: string; close: () => vo
   const kind = allowed.find((item) => item === chosenKind) ?? allowed[0] ?? "agent";
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState(false);
   const candidates = useProjectResourceCandidates(kind, allowed.includes(kind));
   const resources = useProjectResources(projectId);
   const linked = new Set(
@@ -185,25 +173,10 @@ function AddResources({ projectId, close }: { projectId: string; close: () => vo
     >
       <DialogContent
         dismissible={!resources.add.isPending}
-        className={expanded ? DIALOG_WINDOW : cn(DIALOG_BROAD, DIALOG_FILL)}
+        className={cn(DIALOG_BROAD, DIALOG_FILL)}
       >
         <DialogHeader>
-          <div className="flex items-center justify-between gap-3 pr-7">
-            <DialogTitle>{t("add")}</DialogTitle>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label={common(expanded ? "workspaceCollapse" : "workspaceExpand")}
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? (
-                <Minimize2 className="size-4" aria-hidden />
-              ) : (
-                <Maximize2 className="size-4" aria-hidden />
-              )}
-            </Button>
-          </div>
+          <DialogTitle>{t("add")}</DialogTitle>
           <DialogDescription>{t("hint")}</DialogDescription>
         </DialogHeader>
         <Select

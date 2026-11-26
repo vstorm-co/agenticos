@@ -462,3 +462,26 @@ it("keeps semantic search editable and preserves its draft while bases load", as
   expect(screen.getByRole("textbox", { name: "rag.search.queryLabel" })).toBe(input);
   expect(input).toHaveValue("vacation");
 });
+
+describe("knowledge count beside the tabs", () => {
+  it("shows one count in the tab row and removes it when switching to search", async () => {
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    render(<RAGPage />, { wrapper });
+    const count = await screen.findByText("pages.kb.storedCount");
+    expect(count.parentElement).toBe(screen.getByRole("tablist").parentElement);
+    expect(screen.getAllByText("pages.kb.storedCount")).toHaveLength(1);
+    await openSearchTab();
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+  });
+  it("does not claim a count after a failed list or when the list is empty", async () => {
+    mockApi(new Error("Unavailable"));
+    const view = render(<RAGPage />, { wrapper });
+    await screen.findByText("pages.kb.listFailedTitle");
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+    view.unmount();
+    mockApi([]);
+    render(<RAGPage />, { wrapper });
+    await screen.findByText("pages.kb.noKnowledgeBasesYet");
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+  });
+});

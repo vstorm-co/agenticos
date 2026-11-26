@@ -105,7 +105,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
                   <Button asChild>
-                    <Link href={ROUTES.PROJECT_CHAT(project.id)}>
+                    <Link href={ROUTES.PROJECT_CHAT(project.id)} data-tour="project-new-chat">
                       <Plus className="h-4 w-4" />
                       {t("newChat")}
                     </Link>

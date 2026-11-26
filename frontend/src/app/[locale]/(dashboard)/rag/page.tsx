@@ -129,23 +129,34 @@ export default function RAGPage() {
         value={tab}
         onValueChange={(next) => setTab(next as RagTab)}
       >
-        <TabsList data-tour="knowledge-tabs">
-          <TabsTrigger value="bases">
-            <Database className="size-4 shrink-0" aria-hidden />
-            {t("knowledgeBases")}
-          </TabsTrigger>
-          <TabsTrigger value="search">
-            <Search className="size-4 shrink-0" aria-hidden />
-            {t("search")}
-          </TabsTrigger>
-          {/* A page-level concern, so a tab beside the other two rather than a
+        <div className="flex min-w-0 items-center gap-3">
+          <TabsList className="min-w-0 flex-1" data-tour="knowledge-tabs">
+            <TabsTrigger value="bases">
+              <Database className="size-4 shrink-0" aria-hidden />
+              {t("knowledgeBases")}
+            </TabsTrigger>
+            <TabsTrigger value="search">
+              <Search className="size-4 shrink-0" aria-hidden />
+              {t("search")}
+            </TabsTrigger>
+            {/* A page-level concern, so a tab beside the other two rather than a
               section below a grid three rows deep - and reachable without first
               choosing Knowledge bases (#939). */}
-          <TabsTrigger value="integrations" data-tour="knowledge-tab-integrations">
-            <Plug className="size-4 shrink-0" aria-hidden />
-            {t("integrations")}
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger value="integrations" data-tour="knowledge-tab-integrations">
+              <Plug className="size-4 shrink-0" aria-hidden />
+              {t("integrations")}
+            </TabsTrigger>
+          </TabsList>
+          {tab === "bases" && !listError && (loading || kbs.length > 0) && (
+            <div className="text-muted-foreground shrink-0 text-xs whitespace-nowrap tabular-nums">
+              {loading ? (
+                <Skeleton className="h-4 w-24" />
+              ) : (
+                t("storedCount", { count: kbs.length })
+              )}
+            </div>
+          )}
+        </div>
 
         {/* The scope selector is built from the base list, so a failed list is a
             failed search tab: handing it an empty array would have it say there
@@ -173,12 +184,9 @@ export default function RAGPage() {
             fill
             namedByPage
             title={t("bases")}
-            counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
             empty={!loading && !listError && kbs.length === 0}
             controls={
-              loading ? (
-                <Skeleton className="h-8 w-36 rounded-lg" />
-              ) : !listError && kbs.length > 0 ? (
+              !listError && kbs.length > 0 && groups.length > 0 ? (
                 <GroupFilter value={groupId} onChange={setGroupId} />
               ) : undefined
             }

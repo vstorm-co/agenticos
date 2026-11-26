@@ -54,7 +54,6 @@ export function SidebarShell({
         {children}
       </div>
 
-      <ConsoleNavigationDialog compact={collapsed} sidebar />
       <OnboardingReminder collapsed={collapsed} onNavigate={onNavigate} />
       {!collapsed && <DesktopInstallPrompt />}
       <div
@@ -69,6 +68,7 @@ export function SidebarShell({
             below now. */}
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           <NotificationBell variant="icon" />
+          <ConsoleNavigationDialog compact sidebar />
           <ConsoleVersion collapsed={collapsed} />
         </div>
         <SidebarUser compact={collapsed} />

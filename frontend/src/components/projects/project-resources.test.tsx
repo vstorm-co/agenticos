@@ -166,7 +166,7 @@ it("shows authorized agent avatars and descriptions without using a name as an a
   expect(container.querySelector('[data-agent-avatar="a"]')).toBeInTheDocument();
   expect(screen.getByText("Market evidence")).toBeVisible();
 });
-it("expands the resource selector without losing selection and searches descriptions", async () => {
+it("uses one resource selector layout and preserves selection while searching descriptions", async () => {
   candidates.data = [
     { id: "a", name: "Research", description: "Quarterly evidence", slug: "research" },
   ];
@@ -174,9 +174,8 @@ it("expands the resource selector without losing selection and searches descript
   await userEvent.click(screen.getByRole("button", { name: "Add existing resources" }));
   const dialog = screen.getByRole("dialog");
   await userEvent.click(screen.getByRole("checkbox", { name: "Research" }));
-  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(within(dialog).queryByRole("button", { name: "Full screen" })).toBeNull();
   expect(screen.getByRole("checkbox", { name: "Research" })).toBeChecked();
-  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
   await userEvent.type(within(dialog).getByPlaceholderText("Search resources"), "Quarterly");
   expect(screen.getByText("Quarterly evidence")).toBeVisible();
   expect(screen.getByRole("checkbox", { name: "Research" })).toBeChecked();

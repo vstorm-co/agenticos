@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -20,7 +19,7 @@ import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
- * The project's chats as a table, and a new one.
+ * The project's chats as a table; the page header owns starting a new chat.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -36,21 +35,12 @@ export function ProjectChats({ project }: { project: Project }) {
   const columns = useChatColumns();
   const router = useRouter();
 
-  const newChat = project.can_use ? (
-    <Button asChild size="sm">
-      <Link href={ROUTES.PROJECT_CHAT(project.id)} data-tour="project-new-chat">
-        <Plus className="h-4 w-4" />
-        {t("newChat")}
-      </Link>
-    </Button>
-  ) : undefined;
-
   return (
     <ListCard
-      fill
+      namedByPage
+      className="shrink-0"
       title={t("chats")}
       counted={error ? null : t("chatCount", { count: total })}
-      controls={newChat}
       empty={!isLoading && !error && total === 0}
     >
       {isLoading ? (
@@ -66,7 +56,7 @@ export function ProjectChats({ project }: { project: Project }) {
       ) : (
         <>
           <DataTable<ProjectChat>
-            fillHeight
+            className="rounded-none border-0"
             columns={columns}
             rows={chats}
             getRowKey={(chat) => chat.id}
