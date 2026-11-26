@@ -9,6 +9,7 @@ import { ChatWorkspaceTabs } from "./chat-workspace-tabs";
 
 interface FrameProps {
   panel?: "browser" | "files";
+  contained?: boolean;
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
 }
 
@@ -21,7 +22,7 @@ export function ChatWorkspaceFrame(props: FrameProps) {
   );
 }
 
-function Frame({ children, panel: kind = "browser" }: FrameProps) {
+function Frame({ children, panel: kind = "browser", contained = false }: FrameProps) {
   const t = useTranslations("chat");
   const ownId = useId();
   const panel = useRef<HTMLElement>(null);
@@ -46,12 +47,14 @@ function Frame({ children, panel: kind = "browser" }: FrameProps) {
       data-native-browser-blocked={kind === "files" && visible ? "" : undefined}
       style={style}
       className={cn(
-        "bg-background fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col",
+        "bg-background inset-0 z-50 flex min-h-0 min-w-0 flex-col",
+        contained ? "absolute" : "fixed",
         !fullscreen &&
+          !contained &&
           "@min-[1000px]/browser-layout:relative @min-[1000px]/browser-layout:inset-auto @min-[1000px]/browser-layout:z-20 @min-[1000px]/browser-layout:h-full @min-[1000px]/browser-layout:w-(--browser-panel-width) @min-[1000px]/browser-layout:shrink-0 @min-[1000px]/browser-layout:border-l",
       )}
     >
-      {!fullscreen && (
+      {!fullscreen && !contained && (
         <ChatPanelResize
           label={t("workspace.resize")}
           controls={id}

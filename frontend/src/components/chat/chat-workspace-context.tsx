@@ -6,6 +6,8 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -52,6 +54,15 @@ export function ChatWorkspaceProvider({
   const browserId = useBrowserPanelStore((state) => state.openCallId);
   const browserRequest = useBrowserPanelStore((state) => state.openRequest);
   const automaticBrowser = useBrowserPanelStore((state) => state.automatic);
+  const closeBrowser = useBrowserPanelStore((state) => state.close);
+  const browserConversation = useRef(conversationId);
+  useLayoutEffect(() => {
+    const previous = browserConversation.current;
+    browserConversation.current = conversationId;
+    // Reset before the new conversation's auto-open effects inspect the store.
+    // A draft receiving its first id still owns the same browser.
+    if (previous !== null && previous !== conversationId) closeBrowser();
+  }, [conversationId, closeBrowser]);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
   const [activePanel, setActivePanel] = useState<WorkspacePanel | null>(

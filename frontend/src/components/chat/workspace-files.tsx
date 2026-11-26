@@ -278,7 +278,7 @@ export function WorkspaceFiles({
           </button>,
           buttonSlot,
         )}
-      <ChatWorkspaceFrame panel="files">
+      <ChatWorkspaceFrame panel="files" contained={overlay}>
         {({ fullscreen, toggleFullscreen }) =>
           opened ? (
             <>
@@ -299,19 +299,21 @@ export function WorkspaceFiles({
                       {t("downloadAll")}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    aria-label={tWorkspace(fullscreen ? "dock" : "expand")}
-                    title={tWorkspace(fullscreen ? "dock" : "expand")}
-                    onClick={toggleFullscreen}
-                    className="text-muted-foreground hover:text-foreground rounded-md p-1"
-                  >
-                    {fullscreen ? (
-                      <Minimize2 className="size-4" />
-                    ) : (
-                      <Maximize2 className="size-4" />
-                    )}
-                  </button>
+                  {!overlay && (
+                    <button
+                      type="button"
+                      aria-label={tWorkspace(fullscreen ? "dock" : "expand")}
+                      title={tWorkspace(fullscreen ? "dock" : "expand")}
+                      onClick={toggleFullscreen}
+                      className="text-muted-foreground hover:text-foreground rounded-md p-1"
+                    >
+                      {fullscreen ? (
+                        <Minimize2 className="size-4" />
+                      ) : (
+                        <Maximize2 className="size-4" />
+                      )}
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label={t("close")}
@@ -334,7 +336,7 @@ export function WorkspaceFiles({
                 )}
               </div>
 
-              {selected !== null ? (
+              {selected !== null && (
                 <WorkspaceFilePreview
                   key={selected.key}
                   file={selected.file}
@@ -355,80 +357,82 @@ export function WorkspaceFiles({
                     closeAttachment();
                   }}
                 />
-              ) : (
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                  {conversationId === null && (
-                    <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
-                  )}
+              )}
+              <div
+                hidden={selected !== null}
+                className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4"
+              >
+                {conversationId === null && (
+                  <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
+                )}
 
-                  {readIssue !== null && (
-                    <WorkspaceReadNotice
-                      detail={readIssue}
-                      code={error === null ? workspace?.unreadable_code : undefined}
-                      onRetry={refresh}
-                      cloud={localRoot === null}
-                      failed={error !== null}
-                    />
-                  )}
+                {readIssue !== null && (
+                  <WorkspaceReadNotice
+                    detail={readIssue}
+                    code={error === null ? workspace?.unreadable_code : undefined}
+                    onRetry={refresh}
+                    cloud={localRoot === null}
+                    failed={error !== null}
+                  />
+                )}
 
-                  {/* Two different answers, and they were one. "Nothing yet" is right for a
+                {/* Two different answers, and they were one. "Nothing yet" is right for a
           workspace that is empty; for an agent that has none it describes a wait
           that will never end, since no turn is going to put a file there. */}
-                  {workspace !== null && workspace.unreadable_reason == null && empty && (
-                    <p className="text-muted-foreground text-xs">
-                      {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
-                    </p>
-                  )}
+                {workspace !== null && workspace.unreadable_reason == null && empty && (
+                  <p className="text-muted-foreground text-xs">
+                    {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
+                  </p>
+                )}
 
-                  {/* Full-width chips leave room for names in this narrow panel. */}
-                  {drawn && (
-                    <WorkspaceTree
-                      files={workspace?.items ?? []}
-                      onOpen={(file) => {
-                        closeAttachment();
-                        if (source) setReading({ kind: "workspace", file, source });
-                      }}
-                      onZipFolder={zipFolder}
-                    />
-                  )}
+                {/* Full-width chips leave room for names in this narrow panel. */}
+                {drawn && (
+                  <WorkspaceTree
+                    files={workspace?.items ?? []}
+                    onOpen={(file) => {
+                      closeAttachment();
+                      if (source) setReading({ kind: "workspace", file, source });
+                    }}
+                    onZipFolder={zipFolder}
+                  />
+                )}
 
-                  {/* What people attached and the agent has no copy of. Its own group, under its
+                {/* What people attached and the agent has no copy of. Its own group, under its
           own heading, because where a file came from changes what it means: the agent
           wrote the ones above and can read them back, while these are only in the
           chat - so an agent with no workspace can be *shown* one and cannot open it.
           Opened through the shared preview panel, which is what the attachment chips
           on the messages already use, rather than the workspace viewer that would
           have nothing to read. */}
-                  {unstored.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
-                      <ul className="space-y-2">
-                        {unstored.map((file) => (
-                          <li key={file.id}>
-                            <FileCard
-                              compact
-                              name={file.filename}
-                              mimeType={file.mime_type}
-                              // An attachment is behind the same authenticated address the
-                              // viewer reads it from, so the card can draw the picture rather
-                              // than a grey glyph standing in for one. Nothing is fetched here
-                              // - the browser loads what an `img` points at, and a chat holds
-                              // a handful of attachments rather than a listing. Only a
-                              // render-safe type: a TIFF is an `image` kind no browser draws, so
-                              // it gets its glyph rather than a broken thumbnail (#1591).
-                              imageUrl={
-                                isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null
-                              }
-                              onOpen={() => openAttachment(file)}
-                              className="w-full"
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                {unstored.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
+                    <ul className="space-y-2">
+                      {unstored.map((file) => (
+                        <li key={file.id}>
+                          <FileCard
+                            compact
+                            name={file.filename}
+                            mimeType={file.mime_type}
+                            // An attachment is behind the same authenticated address the
+                            // viewer reads it from, so the card can draw the picture rather
+                            // than a grey glyph standing in for one. Nothing is fetched here
+                            // - the browser loads what an `img` points at, and a chat holds
+                            // a handful of attachments rather than a listing. Only a
+                            // render-safe type: a TIFF is an `image` kind no browser draws, so
+                            // it gets its glyph rather than a broken thumbnail (#1591).
+                            imageUrl={
+                              isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null
+                            }
+                            onOpen={() => openAttachment(file)}
+                            className="w-full"
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </>
           ) : null
         }

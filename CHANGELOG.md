@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep Files contained in compact chats, retain listing position and folder folds behind the reader, and clear browser selection when switching conversations.
 - Limit preview memory use from oversized console output by bounding browser messages and cumulative event payloads.
 
 ## [1.93.0] - 2026-11-24

@@ -119,6 +119,11 @@ describe("the workspace panel", () => {
     );
     await openPanel();
     expect(useChatPanelStore.getState().filesOpen).toBe(false);
+    const panel = screen.getByRole("tabpanel", { name: "Files" });
+    expect(panel).toHaveClass("absolute");
+    expect(panel).not.toHaveClass("fixed");
+    expect(within(panel).queryByRole("separator")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Expand workspace" })).toBeNull();
   });
 
   it("does not open or fetch files before the first message", async () => {
@@ -1316,6 +1321,39 @@ it("groups duplicate file names under their actual folders and opens the full pa
       "/conversations/c1/workspace/file?path=site%2Findex.html",
     ),
   );
+});
+
+it("retains the listing node, scroll position and collapsed folders behind the reader", async () => {
+  const entries = ["report.csv", "folder/child.csv"].map((path) => ({
+    path,
+    size: 12,
+    is_dir: false,
+    modified_at: null,
+  }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/workspace/file?")
+      ? { content: "month,total\nJan,10", truncated: false }
+      : workspace({ items: entries }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
+  );
+  await openPanel();
+  const folder = await screen.findByRole("button", { name: "folder" });
+  const group = folder.closest("li")!;
+  await userEvent.click(folder);
+  expect(within(group).queryByText("child.csv")).toBeNull();
+  const listing = folder.closest<HTMLElement>(".overflow-y-auto")!;
+  listing.scrollTop = 320;
+  await userEvent.click(screen.getByRole("button", { name: /^report\.csv/ }));
+  const back = await screen.findByRole("button", { name: "Back to all files" });
+  expect(listing.isConnected).toBe(true);
+  expect(listing).not.toBeVisible();
+  await userEvent.click(back);
+  expect(screen.getByRole("button", { name: "folder" })).toBe(folder);
+  expect(listing).toBeVisible();
+  expect(listing.scrollTop).toBe(320);
+  expect(within(group).queryByText("child.csv")).toBeNull();
 });
 
 it("switches between files and sources without keeping both panels open", async () => {

@@ -163,8 +163,7 @@ function BrowserLink({ browse }: { browse: Browse }) {
 export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
   const newest = latestBrowserTabs(browses).at(-1);
   const opened = useRef(new Set<string>());
-  const openCallId = useBrowserPanelStore((state) => state.openCallId);
-  const open = useBrowserPanelStore((state) => state.open);
+  const panel = useBrowserPanelStore.useApi();
   const shell = useShell();
   const callId = newest?.callId;
   const session = newest?.runId ?? callId;
@@ -173,7 +172,7 @@ export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
   useEffect(() => {
     if (!callId || !session || !running || !supported || opened.current.has(session)) return;
     opened.current.add(session);
-    if (openCallId === null) open(callId, true);
-  }, [callId, session, running, supported, openCallId, open]);
+    if (panel.getState().openCallId === null) panel.getState().open(callId, true);
+  }, [callId, session, running, supported, panel]);
   return null;
 }
