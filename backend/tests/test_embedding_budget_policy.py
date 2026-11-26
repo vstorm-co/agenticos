@@ -24,7 +24,7 @@ from app.worker.registry import Handler, by_kind
 from tests import worker_handlers
 from tests.embedding_responses import embedding_response
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 MODEL = "text-embedding-3-small"
 
 
