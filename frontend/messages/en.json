@@ -5404,7 +5404,6 @@
     "helpReportProblem": "Report a problem",
     "helpReportProblemHint": "Opens a public GitHub issue with your version filled in",
     "helpReportVersion": "Reports include console version {version}",
-    "monitoring": "Monitoring",
     "subscriptions": "Subscriptions"
   },
   "navigation": {
