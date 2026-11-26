@@ -2742,6 +2742,7 @@ async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, 
         "key",
         "publisher",
         "malformed_calls",
+        "calls_not_a_list",
     ],
 )
 async def test_an_own_call_notice_rechecks_the_current_call_and_person(
@@ -2772,6 +2773,8 @@ async def test_an_own_call_notice_rechecks_the_current_call_and_person(
         reader = dataclasses.replace(reader, api_key_id=uuid.uuid4())
     elif change == "malformed_calls":
         notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: "not-a-list"}
+    elif change == "calls_not_a_list":
+        notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: 7}
     else:
         reader = dataclasses.replace(reader, subject_is_publisher_fallback=True)
     await db.flush()
