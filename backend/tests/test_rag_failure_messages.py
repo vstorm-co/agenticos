@@ -183,6 +183,7 @@ class TestTheIngestionServiceMovesItToTheLog:
         assert _VENDOR_TEXT in caplog.text
         assert "Indexing failed for handbook.pdf" in caplog.text
 
+    @pytest.mark.security
     async def test_a_budget_policy_refusal_escapes_for_permanent_job_settlement(self):
         from app.core.exceptions import EmbeddingBudgetError
 
