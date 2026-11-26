@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Upgrade croniter to 7 after migration `0376_croniter7_schedules.py` makes stored maximum-step expressions explicit, preserving routine, workflow and eval cadences and next-fire instants. Stop old API and workers first. New and explicitly edited expressions use croniter 7 semantics: `59/15` selects minute 59; use `*/15` for every 15 minutes. Unrepresentable executable schedules refuse migration with their owning row; unfinished drafts remain editable. Downgrade keeps new maximum-only steps as single values. Nonexistent local times during daylight-saving gaps are skipped.
+
 ### Security
 
 - Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.

@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "5c2d2a299294"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -46,6 +46,21 @@ wskaże inną (`time_zone`). Trzyma swoją godzinę przez zmianę czasu: „codz
 nią. Harmonogram zapisany, zanim harmonogramy miały strefy, jest czytany w UTC,
 jak zawsze, dopóki ktoś nie wybierze mu strefy. Harmonogram interwałowy nie ma
 pory dnia ani strefy.
+
+## Surowe wyrażenia cron { #raw-cron-expressions }
+
+Nowe i świadomie edytowane harmonogramy używają pięciu pól według zasad croniter 7.
+Krok zaczynający się od maksimum pola wybiera tylko tę wartość: `59/15 * * * *`
+oznacza minutę 59, a `*/15 * * * *` — co 15 minut. Do powtarzanego kroku użyj drugiej postaci.
+
+Migracja `0376_croniter7_schedules.py` przepisuje istniejące kroki od maksimum tak,
+aby zachowały dotychczasowy rytm. Obejmuje rutyny, ekspozycje workflowów, zapisane
+grafy workflowów i zestawy ewaluacji. Zachowuje strefy czasowe i terminy następnych
+runów. Przed migracją zatrzymaj stare API i workery. Wykonywalny harmonogram,
+którego nie da się zachować, przerywa transakcję ze wskazaniem rekordu; popraw go
+przed ponowieniem. Niedokończone szkice pozostają do edycji. Downgrade zapisuje
+nowe kroki wybierające maksimum jako pojedynczą wartość. Nieistniejące godziny
+podczas zmiany czasu są pomijane.
 
 ## Harmonogram, którego ostatni run wciąż trwa { #a-schedule-whose-last-run-is-still-going }
 

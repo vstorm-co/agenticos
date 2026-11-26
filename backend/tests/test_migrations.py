@@ -3490,3 +3490,123 @@ def test_embedding_receipt_precision_downgrade_refuses_financial_data_loss() -> 
             )
     finally:
         engine.dispose()
+
+
+def test_croniter7_preserves_schedule_owners_and_rolls_back_unrepresentable_rows() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import column as sql_column
+    from sqlalchemy import table as sql_table
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    path = Path(__file__).parents[1] / "alembic/versions/0376_croniter7_schedules.py"
+    spec = importlib.util.spec_from_file_location("cron7_pg", path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    schema = f"cron_test_{uuid4().hex}"
+    owners = (
+        ("agent_triggers", "cron_expression"),
+        ("workflow_exposures", "cron_expression"),
+        ("eval_suites", "schedule_cron"),
+    )
+    graphs = (
+        ("workflows", "draft_graph"),
+        ("workflow_versions", "graph"),
+        ("workflow_runs", "draft_graph_snapshot"),
+    )
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+            connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+            for table, column in owners:
+                connection.execute(
+                    text(
+                        f"CREATE TABLE {table} (id text PRIMARY KEY, {column} text, next_fire_at timestamptz)"
+                    )
+                )
+                connection.execute(
+                    sql_table(
+                        table, sql_column("id"), sql_column(column), sql_column("next_fire_at")
+                    )
+                    .insert()
+                    .values(
+                        id="old",
+                        **{
+                            column: "* * * * 6/1",
+                            "next_fire_at": datetime(2026, 11, 16, 12, 1, tzinfo=UTC),
+                        },
+                    )
+                )
+            graph = {
+                "nodes": [
+                    {
+                        "definition_id": "trigger.schedule",
+                        "config": {
+                            "cron_expression": "59/15 * * * *",
+                            "input": {"literal": "59/15 * * * *"},
+                        },
+                    },
+                    {
+                        "definition_id": "transform.map",
+                        "config": {"cron_expression": "59/15 * * * *"},
+                    },
+                    {
+                        "definition_id": "trigger.schedule",
+                        "config": {"cron_expression": "0 23/6 * * *"},
+                    },
+                ],
+                "note": "unchanged",
+            }
+            for table, column in graphs:
+                connection.execute(
+                    text(f"CREATE TABLE {table} (id text PRIMARY KEY, {column} jsonb)")
+                )
+                connection.execute(
+                    sql_table(table, sql_column("id"), sql_column(column, JSONB))
+                    .insert()
+                    .values(id="old", **{column: graph}),
+                )
+            with Operations.context(MigrationContext.configure(connection)):
+                migration.upgrade()
+                for table, column in owners:
+                    assert connection.execute(
+                        select(sql_table(table, sql_column(column), sql_column("next_fire_at")))
+                    ).one() == ("* * * * */1", datetime(2026, 11, 16, 12, 1, tzinfo=UTC))
+                expected = json.loads(json.dumps(graph))
+                expected["nodes"][0]["config"]["cron_expression"] = "*/15 * * * *"
+                expected["nodes"][2]["config"]["cron_expression"] = "0 */6 * * *"
+                for table, column in graphs:
+                    assert (
+                        connection.scalar(select(sql_table(table, sql_column(column, JSONB))))
+                        == expected
+                    )
+                connection.execute(
+                    text("UPDATE agent_triggers SET cron_expression='59/15 * * * *'")
+                )
+                migration.downgrade()
+                assert (
+                    connection.scalar(text("SELECT cron_expression FROM agent_triggers"))
+                    == "59 * * * *"
+                )
+                connection.execute(
+                    text("UPDATE agent_triggers SET cron_expression='59/15 * * * *'")
+                )
+                connection.execute(text("UPDATE eval_suites SET schedule_cron='0 0 31 2 *'"))
+                with (
+                    pytest.raises(ValueError, match="eval_suites row old"),
+                    connection.begin_nested(),
+                ):
+                    migration.upgrade()
+                assert (
+                    connection.scalar(text("SELECT cron_expression FROM agent_triggers"))
+                    == "59/15 * * * *"
+                )
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        engine.dispose()

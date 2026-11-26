@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "5c2d2a299294"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -48,6 +48,21 @@ keine andere nennt (`time_zone`). Er behält seine Stunde über die Zeitumstellu
 und der Run wandert mit. Ein Zeitplan, der gespeichert wurde, bevor Zeitpläne
 Zeitzonen hatten, wird wie immer in UTC gelesen, bis jemand ihm eine Zone wählt.
 Ein Intervall-Zeitplan hat keine Uhrzeit und keine Zone.
+
+## Rohe Cron-Ausdrücke { #raw-cron-expressions }
+
+Neue und ausdrücklich bearbeitete Zeitpläne verwenden fünf Felder nach croniter 7.
+Ein Schritt ab dem Feldmaximum wählt nur diesen Wert: `59/15 * * * *` bedeutet
+Minute 59, während `*/15 * * * *` alle 15 Minuten bedeutet. Verwenden Sie die zweite Form für Wiederholungen.
+
+Die Migration `0376_croniter7_schedules.py` schreibt bestehende Schritte ab dem
+Maximum so um, dass ihr bisheriger Rhythmus erhalten bleibt. Das umfasst Routinen,
+Workflow-Exposures, gespeicherte Workflow-Graphen und Eval-Suites. Zeitzonen und
+anstehende nächste Ausführungen bleiben erhalten. Stoppen Sie vorher alte API und
+Worker. Ein nicht darstellbarer ausführbarer Zeitplan bricht die Transaktion mit
+Angabe seiner Zeile ab; korrigieren Sie ihn vor dem nächsten Versuch. Unfertige
+Entwürfe bleiben bearbeitbar. Beim Downgrade werden neue Maximum-Schritte als
+Einzelwerte gespeichert. Nicht existierende Uhrzeiten bei Zeitumstellungen werden übersprungen.
 
 ## Ein Zeitplan, dessen letzter Run noch läuft { #a-schedule-whose-last-run-is-still-going }
 
