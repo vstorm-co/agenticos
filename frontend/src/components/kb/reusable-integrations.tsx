@@ -7,7 +7,7 @@ import { Copy, Pencil, Plug, Plus, Server, Trash2 } from "lucide-react";
 import { ServiceConnectionIcon } from "@/components/kb/service-connection-icon";
 import { ServiceConnectionDialog } from "@/components/kb/service-connection-dialog";
 import { ServiceConnectionRemove } from "@/components/kb/service-connections";
-import type { ServiceConnectionRecord } from "@/lib/service-connections-api";
+import type { ServiceConnectionKind, ServiceConnectionRecord } from "@/lib/service-connections-api";
 import { ConnectorIcon } from "@/components/rag/connector-icon";
 import { ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
@@ -55,6 +55,12 @@ interface KnowledgeIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
   targets: KnowledgeBase[];
 }
+
+const SERVICE_KIND_LABELS = {
+  embedding: "embeddingServer",
+  ocr: "ocrServer",
+  document_parser: "documentParserServer",
+} as const satisfies Record<ServiceConnectionKind, string>;
 
 const API_STYLE_LABELS = {
   ollama: "apiStyleOllama",
@@ -153,7 +159,7 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
         row.kind === "source"
           ? (connectors.find((entry) => entry.type === row.source.connector_type)?.name ??
             row.source.connector_type)
-          : t(row.service.kind === "embedding" ? "embeddingServer" : "ocrServer"),
+          : t(SERVICE_KIND_LABELS[row.service.kind]),
     },
     {
       key: "details",

@@ -505,7 +505,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         open={ingestionOpen}
         onOpenChange={setIngestionOpen}
         config={kb.ingestion_config}
-        collectionName={kb.collection_name}
+        knowledgeBaseName={kb.name}
         onSave={updateIngestion}
       />
 

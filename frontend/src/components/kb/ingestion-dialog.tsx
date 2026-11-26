@@ -26,7 +26,8 @@ interface IngestionDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The collection's configuration as the server currently holds it. */
   config: IngestionConfig;
-  collectionName: string;
+  /** Human-facing knowledge-base name; API addressing stays in the save callback. */
+  knowledgeBaseName: string;
   onSave: (config: IngestionConfig) => Promise<unknown>;
 }
 
@@ -42,7 +43,7 @@ export function IngestionDialog({
   open,
   onOpenChange,
   config,
-  collectionName,
+  knowledgeBaseName,
   onSave,
 }: IngestionDialogProps) {
   const tErrors = useTranslations("errors");
@@ -103,8 +104,8 @@ export function IngestionDialog({
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
             {t.rich("ingestionSettingsDescription", {
-              name: collectionName,
-              mono: (chunks) => <span className="text-foreground font-mono text-xs">{chunks}</span>,
+              name: knowledgeBaseName,
+              mono: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
             })}
           </DialogDescription>
         </DialogHeader>
