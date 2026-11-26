@@ -3983,6 +3983,7 @@ class TestApprovals:
             tool_id="send_email",
             tool_args={"to": "customer@example.com"},
             status=ApprovalStatus.PENDING.value,
+            platform_call=False,
         )
 
         with (

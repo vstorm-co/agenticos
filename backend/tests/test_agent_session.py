@@ -1071,6 +1071,7 @@ class TestATurnThatFinished:
                 tool_name="agenticos_accept_improvement",
                 tool_args={"publish": True},
                 always_asks=True,
+                platform_call=True,
             ),
         )
 

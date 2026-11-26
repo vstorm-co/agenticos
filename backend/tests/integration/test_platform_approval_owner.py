@@ -97,6 +97,7 @@ async def _parked(
     tool_id: str = _ACCEPT,
     always_asks: bool = True,
     status: ApprovalStatus = ApprovalStatus.PENDING,
+    platform_call: bool | None = None,
 ) -> tuple[AgentRun, ToolApproval]:
     """`owner`'s run, parked on one call, as the Architect leaves it."""
     agent = Agent(
@@ -146,6 +147,7 @@ async def _parked(
         tool_args=arguments,
         status=status.value,
         always_asks=always_asks,
+        platform_call=tool_id.startswith("agenticos_") if platform_call is None else platform_call,
         created_at=_NOW,
     )
     db.add(approval)
@@ -538,7 +540,9 @@ class TestACapabilityToolRenamedLikeAPlatformTool:
     async def test_its_person_without_the_permission_may_not_answer_it(self, db: AsyncSession):
         org = await _org(db)
         builder = await _member(db, org, OrgRoleName.BUILDER)
-        _run, approval = await _parked(db, org, builder, tool_id="agenticos_share_memory")
+        _run, approval = await _parked(
+            db, org, builder, tool_id="agenticos_share_memory", platform_call=False
+        )
         approval.capability_tool_id = "share_memory"
         await db.flush()
 
@@ -550,7 +554,9 @@ class TestACapabilityToolRenamedLikeAPlatformTool:
         org = await _org(db)
         builder = await _member(db, org, OrgRoleName.BUILDER)
         operator = await _member(db, org, OrgRoleName.OPERATOR)
-        _run, approval = await _parked(db, org, builder, tool_id="agenticos_share_memory")
+        _run, approval = await _parked(
+            db, org, builder, tool_id="agenticos_share_memory", platform_call=False
+        )
         approval.capability_tool_id = "share_memory"
         await db.flush()
 

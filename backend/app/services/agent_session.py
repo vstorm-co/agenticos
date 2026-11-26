@@ -1258,16 +1258,14 @@ class AgentSession:
                                 "always_asks": parked.always_asks,
                                 "may_decide": may_decide(
                                     decider,
-                                    tool_id=parked.tool_name,
                                     always_asks=parked.always_asks,
-                                    capability_tool_id=parked.capability_tool_id,
+                                    platform_call=parked.platform_call,
                                     person_id=self.user.id,
                                 ),
                                 "may_approve": may_approve(
                                     decider,
-                                    tool_id=parked.tool_name,
                                     always_asks=parked.always_asks,
-                                    capability_tool_id=parked.capability_tool_id,
+                                    platform_call=parked.platform_call,
                                     person_id=self.user.id,
                                     content_hidden=False,
                                 ),

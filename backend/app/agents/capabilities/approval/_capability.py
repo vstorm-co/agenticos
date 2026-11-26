@@ -313,6 +313,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 # tool can be given an account by metadata.
                 account=(tool_def.metadata or {}).get(ACCOUNT) if capability_id is None else None,
                 capability_tool_id=self.tool_ids.get(tool_def.name) if owned else None,
+                platform_call=not owned and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True,
                 # Handed over unawaited: the channel runs it only for a call it is
                 # about to record, never for one a resumed run already decided.
                 describe=(

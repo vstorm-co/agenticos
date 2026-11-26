@@ -54,6 +54,7 @@ def _approval(
         else datetime.now(UTC) - timedelta(hours=2),
         tool_id="send_email",
         tool_args={"to": "customer@example.com"},
+        platform_call=False,
     )
 
 

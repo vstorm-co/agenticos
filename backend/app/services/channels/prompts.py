@@ -633,9 +633,8 @@ class ChannelPrompts:
             and run is not None
             and may_decide(
                 ctx,
-                tool_id=approval.tool_id,
                 always_asks=approval.always_asks,
-                capability_tool_id=approval.capability_tool_id,
+                platform_call=approval.platform_call,
                 person_id=run.user_id,
             )
         )

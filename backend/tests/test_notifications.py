@@ -84,7 +84,7 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
         approval.account = None
         approval.tool_id = tool_id
         approval.always_asks = tool_id.startswith("agenticos_")
-        approval.capability_tool_id = None
+        approval.platform_call = tool_id.startswith("agenticos_")
         approvals.append(approval)
     return approvals
 

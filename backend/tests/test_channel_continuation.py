@@ -75,7 +75,7 @@ def _approved_platform_call() -> Any:
         status=ApprovalStatus.APPROVED.value,
         tool_id="agenticos_accept_improvement",
         always_asks=True,
-        capability_tool_id=None,
+        platform_call=True,
     )
 
 

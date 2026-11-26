@@ -1304,6 +1304,8 @@ class ParkedApproval:
     tool_consented_by: UUID | None = None
     always_asks: bool = False
     """Only a person's answer to this call may let it run - see `ApprovalRequest.always_asks`."""
+    platform_call: bool = False
+    """One of the platform's own tools - see `ApprovalRequest.platform_call`."""
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -1445,6 +1447,7 @@ class ApprovalChannel:
                 context=context,
                 account=request.account,
                 always_asks=request.always_asks,
+                platform_call=request.platform_call,
                 standing=consenting is not None,
                 routine_consented_by=request.routine_consented_by,
                 tool_consented_by=consenting,
@@ -7119,6 +7122,7 @@ class AgentRunnerService:
                 context=parked.context,
                 account=parked.account,
                 always_asks=parked.always_asks,
+                platform_call=parked.platform_call,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -7984,9 +7988,7 @@ class AgentRunnerService:
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            if not described_for(
-                ctx, approval.tool_id, run.user_id, capability_tool_id=approval.capability_tool_id
-            ):
+            if not described_for(ctx, run.user_id, platform_call=approval.platform_call):
                 context = None
             parked.append(
                 ParkedCall(
@@ -8005,16 +8007,14 @@ class AgentRunnerService:
                     always_asks=approval.always_asks,
                     may_decide=may_decide(
                         ctx,
-                        tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
-                        capability_tool_id=approval.capability_tool_id,
+                        platform_call=approval.platform_call,
                         person_id=run.user_id,
                     ),
                     may_approve=may_approve(
                         ctx,
-                        tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
-                        capability_tool_id=approval.capability_tool_id,
+                        platform_call=approval.platform_call,
                         person_id=run.user_id,
                         content_hidden=bool(hidden),
                     ),
@@ -8869,9 +8869,7 @@ class AgentRunnerService:
             if (
                 approval.status == ApprovalStatus.APPROVED.value
                 and runs_as_its_person(
-                    approval.tool_id,
-                    always_asks=approval.always_asks,
-                    capability_tool_id=approval.capability_tool_id,
+                    always_asks=approval.always_asks, platform_call=approval.platform_call
                 )
                 and not answers_for(ctx, run.user_id)
             ):

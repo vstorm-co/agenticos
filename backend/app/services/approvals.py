@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.approval import private_approval_fields
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
-from app.agents.mcp import PLATFORM_MCP_NAME
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -86,35 +85,25 @@ def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
 
 
-def _platform_call(tool_id: str, capability_tool_id: str | None) -> bool:
-    """Whether a parked call is one of the platform's own tools.
-
-    A capability's call is parked with its tool's stable id, and a binding may
-    rename that tool to anything, the platform's prefix included; a platform
-    tool has no such id.
-    """
-    return capability_tool_id is None and tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
-
-
-def described_for(
-    ctx: AuthContext, tool_id: str, person_id: UUID | None, *, capability_tool_id: str | None
-) -> bool:
+def described_for(ctx: AuthContext, person_id: UUID | None, *, platform_call: bool) -> bool:
     """Whether `ctx` may read the stored description of a parked call.
 
     A platform call is described with the names its run's person may read - an
     agent, a skill, a dataset - so only that person reads them; everyone else
     decides from its arguments. Any other call's description has its own rule.
     """
-    return not _platform_call(tool_id, capability_tool_id) or _own_run(ctx, person_id)
+    return not platform_call or _own_run(ctx, person_id)
 
 
-def runs_as_its_person(tool_id: str, *, always_asks: bool, capability_tool_id: str | None) -> bool:
-    """Whether this is a platform call that always asks.
+def runs_as_its_person(*, always_asks: bool, platform_call: bool) -> bool:
+    """Whether this is a call of the platform's own tools that always asks.
 
     Such a call runs with the platform authority of the person its run acts for,
-    so only that person's answer may release it.
+    so only that person's answer may release it. `platform_call` is the mark the
+    platform binding put on the tool and the call recorded when it parked, never
+    a reading of its name, which a binding may rename to anything.
     """
-    return always_asks and _platform_call(tool_id, capability_tool_id)
+    return always_asks and platform_call
 
 
 def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
@@ -131,12 +120,7 @@ def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
 
 
 def may_decide(
-    ctx: AuthContext,
-    *,
-    tool_id: str,
-    always_asks: bool,
-    capability_tool_id: str | None,
-    person_id: UUID | None,
+    ctx: AuthContext, *, always_asks: bool, platform_call: bool, person_id: UUID | None
 ) -> bool:
     """Whether `ctx` may answer this parked call at all.
 
@@ -144,7 +128,7 @@ def may_decide(
     that always asks, which needs no permission beyond being that person.
     """
     return ctx.has(Perm.APPROVALS_DECIDE) or (
-        runs_as_its_person(tool_id, always_asks=always_asks, capability_tool_id=capability_tool_id)
+        runs_as_its_person(always_asks=always_asks, platform_call=platform_call)
         and answers_for(ctx, person_id)
     )
 
@@ -152,16 +136,15 @@ def may_decide(
 def may_approve(
     ctx: AuthContext,
     *,
-    tool_id: str,
     always_asks: bool,
-    capability_tool_id: str | None,
+    platform_call: bool,
     person_id: UUID | None,
     content_hidden: bool,
 ) -> bool:
     """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
     if always_asks and content_hidden:
         return False
-    if runs_as_its_person(tool_id, always_asks=always_asks, capability_tool_id=capability_tool_id):
+    if runs_as_its_person(always_asks=always_asks, platform_call=platform_call):
         return answers_for(ctx, person_id)
     return ctx.has(Perm.APPROVALS_DECIDE)
 
@@ -181,9 +164,7 @@ async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentR
     return any(
         str(approval.id) in parked
         and runs_as_its_person(
-            approval.tool_id,
-            always_asks=approval.always_asks,
-            capability_tool_id=approval.capability_tool_id,
+            always_asks=approval.always_asks, platform_call=approval.platform_call
         )
         for approval in approvals
     )
@@ -202,9 +183,7 @@ async def holds_approved_own_call(db: AsyncSession, run: AgentRun) -> bool:
         str(approval.id) in parked
         and approval.status == ApprovalStatus.APPROVED.value
         and runs_as_its_person(
-            approval.tool_id,
-            always_asks=approval.always_asks,
-            capability_tool_id=approval.capability_tool_id,
+            always_asks=approval.always_asks, platform_call=approval.platform_call
         )
         for approval in approvals
     )
@@ -252,6 +231,7 @@ class ApprovalService:
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
         always_asks: bool = False,
+        platform_call: bool = False,
     ) -> ToolApproval:
         """Park a tool call until a human decides - or record one already decided.
 
@@ -289,6 +269,8 @@ class ApprovalService:
                 approval: pending, waiting for somebody.
             always_asks: Whether only a person's answer to this call could let it
                 run, which also means it can never be remembered.
+            platform_call: Whether the tool is one of the platform's own, as its
+                binding marked it.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -305,6 +287,7 @@ class ApprovalService:
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
             always_asks=always_asks,
+            platform_call=platform_call,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",
@@ -346,7 +329,6 @@ class ApprovalService:
                 filters or ApprovalFilters(),
                 statuses=None,
                 answerable_by=ctx.user_id,
-                tool_prefix=f"{PLATFORM_MCP_NAME}_",
             )
         rows, total = await agent_run_repo.list_approvals(
             self.db,
@@ -363,9 +345,8 @@ class ApprovalService:
                 continues_in_chat=person and row.parked_in_chat,
                 may_approve=may_approve(
                     ctx,
-                    tool_id=row.tool_id,
                     always_asks=row.always_asks,
-                    capability_tool_id=row.capability_tool_id,
+                    platform_call=row.platform_call,
                     person_id=row.acts_for_user_id,
                     content_hidden=row.content_hidden,
                 ),
@@ -384,9 +365,7 @@ class ApprovalService:
         """
         rows = [
             row
-            if described_for(
-                ctx, row.tool_id, row.acts_for_user_id, capability_tool_id=row.capability_tool_id
-            )
+            if described_for(ctx, row.acts_for_user_id, platform_call=row.platform_call)
             else replace(row, context=None)
             for row in rows
         ]
@@ -505,9 +484,8 @@ class ApprovalService:
         person_id = None if run is None else run.user_id
         if not may_decide(
             ctx,
-            tool_id=approval.tool_id,
             always_asks=approval.always_asks,
-            capability_tool_id=approval.capability_tool_id,
+            platform_call=approval.platform_call,
             person_id=person_id,
         ):
             raise AuthorizationError(
@@ -523,9 +501,7 @@ class ApprovalService:
         if (
             approved
             and runs_as_its_person(
-                approval.tool_id,
-                always_asks=approval.always_asks,
-                capability_tool_id=approval.capability_tool_id,
+                always_asks=approval.always_asks, platform_call=approval.platform_call
             )
             and not answers_for(ctx, person_id)
         ):

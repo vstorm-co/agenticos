@@ -2609,6 +2609,7 @@ async def create_approval(
     subagent_agent_id: UUID | None = None,
     standing_consent_by: UUID | None = None,
     always_asks: bool = False,
+    platform_call: bool = False,
 ) -> ToolApproval:
     """Write one approval row: pending, or already approved by standing consent.
 
@@ -2631,6 +2632,7 @@ async def create_approval(
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
         always_asks=always_asks,
+        platform_call=platform_call,
         status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
         decided_by_user_id=standing_consent_by,
         decided_at=datetime.now(UTC) if standing else None,
@@ -2784,6 +2786,8 @@ class ApprovalRow:
     """Set by the service when this reader may not see what the call quotes."""
     always_asks: bool = False
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
+    platform_call: bool = False
+    """One of the platform's own tools, as its binding marked it when the call parked."""
     may_approve: bool = False
     """Set by the service: whether an approval from this reader would be accepted."""
     acts_for_user_id: UUID | None = None
@@ -2807,9 +2811,8 @@ class ApprovalFilters:
         created_to: Inclusive upper bound.
         outside_live_calls: Leave out the calls parked by a run a voice call is
             still on: the call decides those, and the console may not.
-        answerable_by: Only calls that always ask, of no capability, on runs acting for
-            this person.
-        tool_prefix: Only calls of tools whose id starts with this.
+        answerable_by: Only the platform's own calls that always ask, on runs acting
+            for this person.
     """
 
     statuses: Sequence[str] | None = None
@@ -2818,7 +2821,6 @@ class ApprovalFilters:
     created_to: datetime | None = None
     outside_live_calls: bool = False
     answerable_by: UUID | None = None
-    tool_prefix: str | None = None
 
 
 async def list_approvals(
@@ -2881,9 +2883,7 @@ async def list_approvals(
     if narrowing.answerable_by is not None:
         clauses.append(AgentRun.user_id == narrowing.answerable_by)
         clauses.append(ToolApproval.always_asks.is_(True))
-        clauses.append(ToolApproval.capability_tool_id.is_(None))
-    if narrowing.tool_prefix is not None:
-        clauses.append(ToolApproval.tool_id.startswith(narrowing.tool_prefix, autoescape=True))
+        clauses.append(ToolApproval.platform_call.is_(True))
 
     ordering = ToolApproval.created_at.asc() if oldest_first else ToolApproval.created_at.desc()
     rows = await db.execute(
@@ -2947,6 +2947,7 @@ async def list_approvals(
             note=approval.note,
             created_at=approval.created_at,
             always_asks=approval.always_asks,
+            platform_call=approval.platform_call,
             acts_for_user_id=run_user_id,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
