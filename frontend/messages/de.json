@@ -15838,6 +15838,16 @@
     "cancelRun": "Stoppen",
     "progress": "Beantwortete Fälle",
     "comparisonFailed": "Das Urteil konnte nicht gelesen werden.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Die Suche hat den Entwurf nicht für jede bestätigte Verbesserung gefunden.",
+      "too_few_held_out": "{missing, plural, =1 {Fügen Sie 1 weitere zurückgehaltene Testfrage hinzu, um eine Änderung zu messen.} other {Fügen Sie # weitere zurückgehaltene Testfragen hinzu, um eine Änderung zu messen.}}",
+      "scoring_changed": "Die beiden Runs wurden mit unterschiedlichen Bewertungseinstellungen bewertet.",
+      "judge_changed_mid_run": "Der Bewerter hat sich geändert, während die Fälle dieses Runs bewertet wurden, daher sind seine Bewertungen nicht vergleichbar. Führen Sie ihn erneut aus.",
+      "judge_instructions_changed": "Die Anweisungen des Bewerters unterscheiden sich zwischen beiden Seiten, daher sind ihre Bewertungen nicht vergleichbar. Führen Sie die Baseline erneut aus, damit beide gleich bewertet werden.",
+      "judge_differs": "Die beiden Seiten wurden von einem anderen Bewerter, Modell oder nach einer anderen Rubrik bewertet.",
+      "knowledge_draft_changed": "Der Wissensentwurf wurde geändert oder entfernt. Prüfen Sie ihn erneut.",
+      "held_out_ungraded": "Zurückgehaltene Fragen sind noch unbewertet oder unvollständig."
+    },
     "compareArm": "Dieses Modell vergleichen",
     "draft": "Entwurf",
     "proposed": "Vorgeschlagene Änderungen",
@@ -18580,6 +18590,17 @@
       "live": "Zu main verschoben und veröffentlicht: {names}.",
       "drafts": "Im Entwurf zu main verschoben, der auf die Veröffentlichung wartet: {names}.",
       "refused": "{name} bleibt auf dem Fork: {reason}",
+      "refusal": {
+        "agent_not_found": "Sie dürfen ihn nicht ändern, oder er existiert nicht mehr",
+        "workflow_agent": "er ist in seinem Workflow-Schritt eingerichtet",
+        "architect_admin_only": "nur ein Administrator kann den AI Architect ändern",
+        "system_agent_admin_only": "er ist ein System-Agent, den nur ein Administrator ändern kann",
+        "via_specialist": "er nutzt den Skill nur über einen Spezialisten, der im Builder des Agents geändert wird",
+        "not_bound": "er nutzt den Skill nicht",
+        "binding_problems": "der Skill lässt sich so nicht an ihn binden",
+        "system_agent_parts": "ein System-Agent kann das nicht enthalten",
+        "does_not_publish": "er kann noch nicht veröffentlicht werden"
+      },
       "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, blieb unverändert.} other {# Agents, die Sie nicht sehen, blieben unverändert.}}",
       "archived": "Niemand liest den Fork mehr, daher wurde er archiviert.",
       "remaining": "{count, plural, =0 {Der Fork blieb unverändert.} =1 {1 Agent liest den Fork noch, daher wurde er nicht archiviert.} other {# Agents lesen den Fork noch, daher wurde er nicht archiviert.}}"

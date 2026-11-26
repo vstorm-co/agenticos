@@ -116,6 +116,7 @@ from app.schemas.eval_run import (
     EvalUngradedCaseRead,
     FamilyMoveRead,
     ImprovementMeasurement,
+    InvalidReasonCode,
     ProposalCheckRecord,
     RoutingErrorRead,
 )
@@ -503,6 +504,14 @@ class RunPlan:
     excluded_case_ids: list[UUID] = field(default_factory=list)
     not_asked: int = 0
     """Of the excluded cases, the ones a sample of named questions did not pick."""
+
+
+@dataclass(frozen=True)
+class Incomparable:
+    """Why two sides cannot be compared: the code a client translates, and the sentence."""
+
+    code: InvalidReasonCode
+    text: str
 
 
 @dataclass(frozen=True)
@@ -3087,12 +3096,15 @@ class EvalRunService:
             )
             for case_id in common
         ]
-        invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
+        incomparable = await self._incomparable(ctx, run, candidate, baseline, attempts)
+        invalid_reason = incomparable.text if incomparable else None
+        invalid_reason_code: InvalidReasonCode | None = incomparable.code if incomparable else None
+        invalid_reason_params: dict[str, int] = {}
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
                 invalid_reason = "The knowledge draft changed or was removed; check it again"
+                invalid_reason_code = "knowledge_draft_changed"
             elif knowledge is not None and knowledge.mode == "retrieval" and invalid_reason is None:
                 fixed = {
                     case.case_id
@@ -3117,12 +3129,14 @@ class EvalRunService:
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
             invalid_reason_code = "too_few_held_out"
+            invalid_reason_params = {"missing": missing}
         if (
             measured is not None
             and invalid_reason is None
             and any(case.candidate is None or case.baseline is None for case in paired_cases)
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
+            invalid_reason_code = "held_out_ungraded"
         criteria_comparison = CriterionComparison(moves=[], change=0.0)
         counted: dict[UUID, tuple[list[int] | None, list[int] | None]] = {}
 
@@ -3186,6 +3200,7 @@ class EvalRunService:
             p_value=quality.p_value,
             invalid_reason=invalid_reason,
             invalid_reason_code=invalid_reason_code,
+            invalid_reason_params=invalid_reason_params,
             regressions_confirmed=count(Flip.REGRESSION, True),
             regressions_unconfirmed=count(Flip.REGRESSION, False),
             fixed_confirmed=count(Flip.FIXED, True),
@@ -3308,7 +3323,7 @@ class EvalRunService:
         candidate: EvalRunArm,
         baseline: Baseline,
         attempts: Sequence[EvalRunCase],
-    ) -> str | None:
+    ) -> Incomparable | None:
         """Why the two sides cannot be compared at all, or `None` when they can.
 
         Different scoring decides cases by different rules; a different judge
@@ -3321,7 +3336,9 @@ class EvalRunService:
         to its outcome, which is already undecided on the other side.
         """
         if baseline.run.scoring_hash != run.scoring_hash:
-            return "The two runs were scored with different scoring settings."
+            return Incomparable(
+                "scoring_changed", "The two runs were scored with different scoring settings."
+            )
         other_attempts = (
             attempts
             if baseline.run.id == run.id
@@ -3335,9 +3352,10 @@ class EvalRunService:
         # them, so two sides holding the same two pins in other proportions still
         # do not compare.
         if any(len(pins) > 1 for side in (mine, theirs) for pins in side.values()):
-            return (
+            return Incomparable(
+                "judge_changed_mid_run",
                 "The judge changed while this run's cases were being graded, so its "
-                "grades do not compare. Run it again."
+                "grades do not compare. Run it again.",
             )
         differ = [
             case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
@@ -3345,11 +3363,14 @@ class EvalRunService:
         if not differ:
             return None
         if all(_unprompted(mine[case_id]) == _unprompted(theirs[case_id]) for case_id in differ):
-            return (
+            return Incomparable(
+                "judge_instructions_changed",
                 "The judge's instructions changed between the two sides, so their grades "
-                "do not compare. Run the baseline again to grade both the same way."
+                "do not compare. Run the baseline again to grade both the same way.",
             )
-        return "The two sides were graded by a different judge, model or rubric."
+        return Incomparable(
+            "judge_differs", "The two sides were graded by a different judge, model or rubric."
+        )
 
     async def _pins(
         self, ctx: AuthContext, attempts: Sequence[EvalRunCase]

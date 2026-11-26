@@ -160,6 +160,7 @@ async def test_a_swallowed_retrieval_error_cannot_become_a_success(db, engine):
     await _run(db, ctx, child, retrieval, break_embedding=True)
     compared = await EvalRunService(db).compare(ctx, child.id)
     assert compared.verdict == "invalid" and compared.candidate_summary.passed == 0
+    assert compared.invalid_reason_code == "held_out_ungraded"
     attempts = await eval_run_repo.list_cases(db, child.id, organization_id=ctx.organization_id)
     assert any(
         attempt.error == "Knowledge draft retrieval failed" and attempt.fault == "infrastructure"
@@ -179,5 +180,10 @@ async def test_adding_a_document_during_the_check_revokes_the_counterfactual(db,
     await _add(db, ctx, target.topic_id, "Returns take 30 days.", title="Returns")
     run = await EvalRunService(db).get(ctx, child.id)
     assert run.status == "failed" and run.proposal_check.knowledge.invalidated
+    compared = await EvalRunService(db).compare(ctx, child.id)
+    assert (compared.invalid_reason_code, compared.invalid_reason_params) == (
+        "knowledge_draft_changed",
+        {},
+    )
     arms = await eval_run_repo.list_arms(db, [child.id], organization_id=ctx.organization_id)
     assert all(arm.context_bodies is None for arm in arms)

@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { InvalidReason } from "@/components/evals/invalid-reason";
+import type { EvalComparison } from "@/types/eval-runs";
+
 export function IncomparableResult({
   agentId,
   runId,
-  reason,
+  comparison,
 }: {
   agentId: string;
   runId: string;
-  reason: string | null;
+  comparison: Pick<
+    EvalComparison,
+    "invalid_reason" | "invalid_reason_code" | "invalid_reason_params"
+  >;
 }) {
   const t = useTranslations("improvement");
   return (
@@ -18,7 +24,7 @@ export function IncomparableResult({
       <p role="alert" className="font-medium">
         {t("comparisonInvalid")}
       </p>
-      {reason && <p className="text-muted-foreground">{reason}</p>}
+      <InvalidReason comparison={comparison} className="text-muted-foreground" />
       <Link className="underline underline-offset-4" href={`/agents/${agentId}/evals/${runId}`}>
         {t("openCheck")}
       </Link>

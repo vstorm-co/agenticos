@@ -18208,6 +18208,16 @@
     "cancelRun": "Durdur",
     "progress": "Yanıtlanan vakalar",
     "comparisonFailed": "Karar okunamadı.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Arama, doğrulanmış her iyileştirme için taslağı döndürmedi.",
+      "too_few_held_out": "{missing, plural, =1 {Bir değişimi ölçmek için 1 ayrılmış test sorusu daha ekleyin.} other {Bir değişimi ölçmek için # ayrılmış test sorusu daha ekleyin.}}",
+      "scoring_changed": "İki run farklı puanlama ayarlarıyla puanlandı.",
+      "judge_changed_mid_run": "Bu run'ın vakaları puanlanırken hakem değişti, bu yüzden puanları karşılaştırılamaz. Run'ı yeniden çalıştırın.",
+      "judge_instructions_changed": "Hakemin talimatları iki taraf arasında değişti, bu yüzden puanları karşılaştırılamaz. İkisini de aynı şekilde puanlamak için temel ölçümü yeniden çalıştırın.",
+      "judge_differs": "İki taraf farklı bir hakem, model veya değerlendirme yönergesiyle puanlandı.",
+      "knowledge_draft_changed": "Bilgi taslağı değişti veya kaldırıldı. Yeniden kontrol edin.",
+      "held_out_ungraded": "Ayrılmış sorular hâlâ puanlanmamış veya eksik."
+    },
     "compareArm": "Bu modeli karşılaştır",
     "draft": "Taslak",
     "proposed": "Önerilen değişiklikler",
@@ -19087,6 +19097,17 @@
       "live": "Main'e taşındı ve yayınlandı: {names}.",
       "drafts": "{count, plural, =1 {Taslağında main'e taşındı, taslak yayınlanmayı bekliyor: {names}.} other {Taslaklarında main'e taşındı, taslaklar yayınlanmayı bekliyor: {names}.}}",
       "refused": "{name} fork'ta kalıyor: {reason}",
+      "refusal": {
+        "agent_not_found": "onu değiştiremezsiniz ya da artık yok",
+        "workflow_agent": "workflow adımında yapılandırılmış",
+        "architect_admin_only": "AI Architect'i yalnızca bir yönetici değiştirebilir",
+        "system_agent_admin_only": "yalnızca bir yöneticinin değiştirebileceği bir sistem agent'ı",
+        "via_specialist": "skill'i yalnızca bir uzman üzerinden kullanıyor; bu, agent'ın Builder'ında değiştirilir",
+        "not_bound": "skill'i kullanmıyor",
+        "binding_problems": "skill ona bu şekilde bağlanamıyor",
+        "system_agent_parts": "bir sistem agent'ı bunu içeremez",
+        "does_not_publish": "henüz yayınlanamıyor"
+      },
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent olduğu gibi bırakıldı.} other {Göremediğiniz # agent olduğu gibi bırakıldı.}}",
       "archived": "Fork'u artık kimse okumuyor, bu yüzden arşivlendi.",
       "remaining": "{count, plural, =0 {Fork olduğu gibi bırakıldı.} =1 {1 agent hâlâ fork'u okuyor, bu yüzden fork arşivlenmedi.} other {# agent hâlâ fork'u okuyor, bu yüzden fork arşivlenmedi.}}"
