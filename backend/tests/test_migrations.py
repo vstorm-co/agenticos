@@ -2332,8 +2332,11 @@ class TestRoomThreadMigration:
         assert queue_merge is not None
         assert queue_merge.down_revision == (
             "0366_merge_t3_thread_context",
-            "0357_accepted_queued_messages",
+            "0358_defer_dataset_source_links",
         )
+        source_links = script.get_revision("0358_defer_dataset_source_links")
+        assert source_links is not None
+        assert source_links.down_revision == "0357_accepted_queued_messages"
         context = script.get_revision("0358_room_thread_context")
         assert context is not None
         assert context.down_revision == "0356_trigger_webhook_receipts"

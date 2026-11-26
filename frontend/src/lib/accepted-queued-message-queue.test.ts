@@ -314,6 +314,9 @@ describe("accepted queued message payloads", () => {
     });
     expect(restored.replyTo).toMatchObject({ messageId: "reply-1", excerpt: "saved excerpt" });
 
+    const cancelIntent = queueFromReceipt(receipt(), queued({ cancelRequested: true }));
+    expect(cancelIntent.cancelRequested).toBe(true);
+
     const rebuilt = queueFromReceipt(
       receipt({
         mentions: [{ kind: "agent", id: "agent-2" }],

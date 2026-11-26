@@ -119,7 +119,7 @@ export function queueFromReceipt(
     transferError: undefined,
     transferErrorAction: undefined,
     receiptUnsupported: undefined,
-    cancelRequested: undefined,
+    cancelRequested: existing?.cancelRequested ? true : undefined,
     refused: undefined,
   };
 }
@@ -132,6 +132,7 @@ export function queueMayDrain(message: QueuedMessage | undefined, receiptMode: b
     message.receiptReconciliationPending ||
     message.accepting ||
     message.transferring ||
+    message.cancelRequested ||
     message.receiptError !== undefined ||
     message.transferError !== undefined
   )

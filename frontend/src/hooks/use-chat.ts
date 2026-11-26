@@ -419,6 +419,9 @@ export function useChat(options: UseChatOptions = {}) {
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const queueOperationsRef = useRef(new Set<string>());
+  const queueAcceptanceOperationsRef = useRef(
+    new Map<string, { generation: number; token: symbol }>(),
+  );
   const outboxLoadRef = useRef<OutboxLoad | null>(null);
   const [loadedOutbox, setLoadedOutbox] = useState<OutboxLoad | null>(null);
   const queueReceiptReconciliationRef = useRef<QueueReceiptReconciliation | null>(null);
@@ -2822,8 +2825,13 @@ export function useChat(options: UseChatOptions = {}) {
         );
         return;
       }
-      if (queueOperationsRef.current.has(payload.client_queue_id)) return;
-      queueOperationsRef.current.add(payload.client_queue_id);
+      const activeAcceptance = queueAcceptanceOperationsRef.current.get(payload.client_queue_id);
+      if (activeAcceptance?.generation === scope.generation) return;
+      const acceptanceToken = Symbol();
+      queueAcceptanceOperationsRef.current.set(payload.client_queue_id, {
+        generation: scope.generation,
+        token: acceptanceToken,
+      });
       setQueue(
         messageQueueRef.current.map((item) =>
           item.id === id
@@ -2860,7 +2868,11 @@ export function useChat(options: UseChatOptions = {}) {
           }
         }
       } finally {
-        queueOperationsRef.current.delete(payload.client_queue_id);
+        if (
+          queueAcceptanceOperationsRef.current.get(payload.client_queue_id)?.token ===
+          acceptanceToken
+        )
+          queueAcceptanceOperationsRef.current.delete(payload.client_queue_id);
       }
       if (!queueReceiptScopeIsCurrent(scope)) return;
       const current = messageQueueRef.current.find((item) => item.id === id);
@@ -3370,6 +3382,12 @@ export function useChat(options: UseChatOptions = {}) {
     async (id: string) => {
       const queued = messageQueueRef.current.find((item) => item.id === id);
       if (!queued) return;
+      const scope = captureQueueReceiptScope();
+      if (
+        queued.receiptConversationId !== undefined &&
+        queued.receiptConversationId !== scope.conversationId
+      )
+        return;
       if (!queueReceiptsEnabled && !queued.acceptedQueueId) {
         setQueue(messageQueueRef.current.filter((item) => item.id !== id));
         return;
@@ -3378,7 +3396,14 @@ export function useChat(options: UseChatOptions = {}) {
         if (queued.receiptAcceptanceAttempted) {
           setQueue(
             messageQueueRef.current.map((item) =>
-              item.id === id ? { ...item, cancelRequested: true, receiptError: undefined } : item,
+              item.id === id
+                ? {
+                    ...item,
+                    cancelRequested: true,
+                    receiptError: undefined,
+                    receiptErrorAction: undefined,
+                  }
+                : item,
             ),
           );
           if (!queued.accepting) void acceptQueuedMessage(id);
@@ -3388,7 +3413,6 @@ export function useChat(options: UseChatOptions = {}) {
         return;
       }
       if (queued.transferring) return;
-      const scope = captureQueueReceiptScope();
       if (!scope.conversationId) return;
       const lock = `cancel:${queued.acceptedQueueId}`;
       if (queueOperationsRef.current.has(lock)) return;
@@ -3398,7 +3422,10 @@ export function useChat(options: UseChatOptions = {}) {
           item.id === id
             ? {
                 ...item,
+                cancelRequested: true,
                 transferring: true,
+                receiptError: undefined,
+                receiptErrorAction: undefined,
                 transferError: undefined,
                 transferErrorAction: "cancel",
               }
@@ -3416,6 +3443,7 @@ export function useChat(options: UseChatOptions = {}) {
                   ...item,
                   receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
                   transferring: false,
+                  cancelRequested: false,
                   receiptReconciliationPending: undefined,
                   transferError: getErrorMessage(
                     outcome.error,
@@ -3616,38 +3644,51 @@ export function useChat(options: UseChatOptions = {}) {
     void keptOutbox(activeConversationId).then(
       (kept) => {
         if (!current || !queueReceiptScopeIsCurrent(scope)) return;
-        if (kept.length > 0) {
-          const merged = kept
-            .filter(
-              (item) =>
-                !load.removedReceiptKeys.has(`row:${item.id}`) &&
-                !load.removedReceiptKeys.has(`client:${item.clientQueueId}`) &&
-                !load.removedReceiptKeys.has(`receipt:${item.acceptedQueueId}`),
-            )
-            .map((item) =>
-              queueReceiptsEnabled && scope.conversationId
-                ? {
-                    ...item,
-                    receiptConversationId: item.receiptConversationId ?? scope.conversationId,
-                    ...(item.acceptedQueueId ? { receiptReconciliationPending: true } : {}),
-                  }
-                : item,
-            );
-          for (const visible of messageQueueRef.current) {
-            const index = merged.findIndex(
-              (restored) =>
-                restored.id === visible.id ||
-                (!!restored.clientQueueId && restored.clientQueueId === visible.clientQueueId) ||
-                (!!restored.acceptedQueueId &&
-                  restored.acceptedQueueId === visible.acceptedQueueId),
-            );
-            if (index < 0) merged.push(visible);
-            else merged[index] = { ...merged[index], ...visible };
-          }
-          const restored =
-            stoppedAt === queueStopVersion.current
-              ? merged
-              : merged.map((message) => ({ ...message, paused: true }));
+        const merged = kept
+          .filter(
+            (item) =>
+              !load.removedReceiptKeys.has(`row:${item.id}`) &&
+              !load.removedReceiptKeys.has(`client:${item.clientQueueId}`) &&
+              !load.removedReceiptKeys.has(`receipt:${item.acceptedQueueId}`),
+          )
+          .map((item) =>
+            queueReceiptsEnabled && scope.conversationId
+              ? {
+                  ...item,
+                  receiptConversationId: item.receiptConversationId ?? scope.conversationId,
+                  ...(item.acceptedQueueId ? { receiptReconciliationPending: true } : {}),
+                }
+              : item,
+          );
+        for (const visible of messageQueueRef.current) {
+          const index = merged.findIndex(
+            (restored) =>
+              restored.id === visible.id ||
+              (!!restored.clientQueueId && restored.clientQueueId === visible.clientQueueId) ||
+              (!!restored.acceptedQueueId && restored.acceptedQueueId === visible.acceptedQueueId),
+          );
+          if (index < 0) merged.push(visible);
+          else merged[index] = { ...merged[index], ...visible };
+        }
+        const normalized = merged.map((item) => {
+          const activeAcceptance = item.clientQueueId
+            ? queueAcceptanceOperationsRef.current.get(item.clientQueueId)
+            : undefined;
+          if (
+            scope.enabled &&
+            item.accepting &&
+            item.receiptAcceptanceAttempted &&
+            !item.acceptedQueueId &&
+            activeAcceptance?.generation !== scope.generation
+          )
+            return { ...item, accepting: false };
+          return item;
+        });
+        const restored =
+          stoppedAt === queueStopVersion.current
+            ? normalized
+            : normalized.map((message) => ({ ...message, paused: true }));
+        if (restored.length > 0) {
           setQueue(restored);
           // Nothing else the drainer watches moved: with a connection up and the
           // agent idle, it is this that sends them.
@@ -3771,7 +3812,6 @@ export function useChat(options: UseChatOptions = {}) {
         item.acceptedQueueId ||
         item.accepting ||
         item.receiptErrorAction !== undefined ||
-        item.cancelRequested ||
         item.refused !== undefined ||
         (item.receiptConversationId !== undefined &&
           item.receiptConversationId !== activeConversationId)
@@ -5578,8 +5618,11 @@ export function useChat(options: UseChatOptions = {}) {
       const snapshotsById = new Map(rowsAtListStart.map((item) => [item.id, item] as const));
       const actionInFlight = (item: QueuedMessage) => {
         const receiptId = item.acceptedQueueId;
+        const acceptance = item.clientQueueId
+          ? queueAcceptanceOperationsRef.current.get(item.clientQueueId)
+          : undefined;
         return (
-          (!!item.clientQueueId && queueOperationsRef.current.has(item.clientQueueId)) ||
+          acceptance?.generation === scope.generation ||
           (!!receiptId &&
             ["cancel", "task", "steer", "reconcile"].some((action) =>
               queueOperationsRef.current.has(`${action}:${receiptId}`),
@@ -5755,6 +5798,32 @@ export function useChat(options: UseChatOptions = {}) {
     queueReceiptScopeIsCurrent,
     setQueue,
     t,
+  ]);
+  useEffect(() => {
+    if (!queueReceiptsEnabled || !activeConversationId || !queueReceiptRecoveryReady()) return;
+    const scope = captureQueueReceiptScope();
+    if (!scope.enabled || scope.conversationId !== activeConversationId) return;
+    for (const item of queuedMessages) {
+      if (
+        !item.acceptedQueueId ||
+        item.receiptConversationId !== scope.conversationId ||
+        !item.cancelRequested ||
+        item.accepting ||
+        item.transferring ||
+        item.receiptReconciliationPending ||
+        queueOperationsRef.current.has(`cancel:${item.acceptedQueueId}`)
+      )
+        continue;
+      void cancelQueued(item.id);
+    }
+  }, [
+    queueReceiptsEnabled,
+    activeConversationId,
+    queuedMessages,
+    queueReceiptRecoveryReady,
+    drainTick,
+    captureQueueReceiptScope,
+    cancelQueued,
   ]);
   useEffect(() => {
     if (!isConnected || processingRef.current) return;

@@ -277,7 +277,7 @@ def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> N
     assert queue_merge is not None
     assert queue_merge.down_revision == (
         "0366_merge_t3_thread_context",
-        "0357_accepted_queued_messages",
+        "0358_defer_dataset_source_links",
     )
     upstream_merge = chain.get_revision("0365_merge_t3_v1930")
     assert upstream_merge is not None
@@ -292,6 +292,7 @@ def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> N
         "0358_room_thread_context",
     )
     expected = {
+        "0358_defer_dataset_source_links": "0357_accepted_queued_messages",
         "0339_browser_teaching_capture": "0338_message_reply_excerpt",
         "0340_browser_teaching_review": "0339_browser_teaching_capture",
         "0341_room_task_handoffs": "0340_browser_teaching_review",
