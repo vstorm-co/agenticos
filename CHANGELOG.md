@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Choose Nederlands on the desktop app's start screen. Local setup, permissions and workspace updates are translated, and the choice is carried to the console.
+
 - Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
 - Members can answer their own verified platform approval cards without organization-wide approval authority. Other approvers can reject those calls but cannot release work as another person. Conversation links in approval notices recheck the current run person and waiting call.
 

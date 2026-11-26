@@ -32,6 +32,7 @@ The practical result is a more configurable console, portable agents/workflows w
 | [#3403](https://github.com/vstorm-co/agenticos/pull/3403) | Improve session reads/lists require `runs:view` after agent access resolution. A caller who may stop work but cannot read it receives only a minimal stop receipt. | Improve page, lists, HTTP/MCP reads and stop action. | Do not hydrate timeline, attempts, financial/dataset details or measurement noise during an unauthorized stop; clear cached details in the console. | Agent visibility alone does not grant run/session visibility. Stop permission does not become read permission. [R8] |
 | [#3105](https://github.com/vstorm-co/agenticos/pull/3105) | Create authenticated reusable Event sources, inspect a live sample and attach independent routine/workflow subscribers. Existing dedicated webhook URLs keep working. | Event sources page, credential/source dialogs, dashboard widget and routine/workflow trigger pickers. | Preserve raw-byte signature verification, receipt-time consent, tenant-bound Vault credentials and commit-before-dispatch/capture. Include the page in role presentation controls. Imported workflow source IDs are omitted and explicitly require reconnection. | Shared sources acknowledge asynchronously; synchronous Respond to webhook needs a dedicated endpoint. Sample access does not grant target access. #3274 prompt interpolation was not selected. Live external provider deliveries are not claimed. [R11] |
 | [#3305](https://github.com/vstorm-co/agenticos/pull/3305) | Deterministic Python workflow code can call named/versioned native actions; each call has a durable child step with normal authorization, approval, budget and result handling. | Python action binding editor, snippets/guidance, live workflow canvas and run detail. | Resource bundles walk each bound action's owned config schema. Remap table IDs/versions together; refuse source column subsets. Reject forged action scopes on other node types. Reuse proven receipts and never blindly repeat an uncertain external write. | Monty is pinned to 1.6.0 for checkpoint compatibility. At most 100 calls, bounded checkpoints/output and no recursive Python-action nodes or direct graph wiring. Trigger/output response nodes cannot be called. No arbitrary host Python or hidden model call is introduced. [R12] |
+| [#3456](https://github.com/vstorm-co/agenticos/pull/3456) | Dutch native desktop setup and language handoff to the console. | Native start/setup screen, language picker and local runtime progress. | Complete the ten runtime transition messages in every supported native locale; verify translation parity and language handoff. | Native startup supports en/pl/de/tr/nl/pt; French remains a console locale. Browser rendering of the native HTML is visual evidence, not a packaged Tauri run. |
 
 ## Requested issues implemented in the same train
 
@@ -48,10 +49,13 @@ The maintainer's subsequent acceptance feedback separates Project files from the
 agent's own execution environment according to discussion #3272. Agent execution
 is now the default in attached Project chats. Explicit binary file transfers,
 executor-aligned generic tools, compact chat controls, resource/export identities,
-Python Actions guidance, sidebar customization and non-flickering settings are
+Python Actions guidance, compact sidebar customization and non-flickering settings are
 described in [the follow-up contract](project-workspaces-3272.md). Earlier screen
 captures below document the previous candidate; fresh captures and exact-head CI
-are required for this follow-up.
+are required for this follow-up. The subsequent feedback removes the resource
+picker expansion control, aligns the knowledge count with its tabs, keeps only
+the top Project chat action, rounds the conversation search focus and places
+sidebar customization beside notifications.
 
 The definitive full-CI evidence is the latest source SHA's checks on PR #3455.
 A passing source PR, focused local test or combined report does not replace that
