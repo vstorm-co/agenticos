@@ -1108,6 +1108,29 @@ class TestCheck:
         assert judged.suite_check is not None and judged.suite_check.status == "failed"
         assert run.suite_check is not None and run.suite_check["judged"] is None
 
+    @pytest.mark.security
+    async def test_a_suite_verdict_is_judged_again_from_the_run_verdict_a_read_recomputes(self, db):
+        ctx, _, _, started = await _finished_suite_check(db)
+        evals = EvalRunService(db)
+        first = await evals.get(ctx, started.id)
+        assert first.suite_check is not None and first.suite_check.status == "failed"
+        run = await db.get(EvalRun, started.id)
+        assert run is not None and run.outcome_at is not None
+        kept_at = run.outcome_at
+        await db.execute(
+            update(CaseScore)
+            .where(CaseScore.eval_run_id == started.id)
+            .values(human_passed=True, reviewed_at=kept_at + timedelta(seconds=1))
+        )
+
+        again = await evals.get(ctx, started.id)
+        await db.refresh(run)
+
+        assert run.outcome_at is not None and run.outcome_at > kept_at
+        assert again.suite_check is not None and again.suite_check.status == "inconclusive"
+        assert run.suite_check is not None
+        assert run.suite_check["judged"]["outcome_at"] == run.outcome_at.isoformat()
+
     async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))

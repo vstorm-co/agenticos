@@ -84,6 +84,17 @@ def test_a_vendor_message_stays_in_the_log_and_off_the_row(
     assert f"in {raise_it.__name__}" in described
 
 
+@pytest.mark.security
+def test_a_credential_a_person_named_is_redacted_from_our_own_message() -> None:
+    leaked = BadRequestError(message="Agent postgres://app:Kanar3kName@db/app cannot run")
+    plain = BadRequestError(message="Agent Support cannot run")
+
+    described = describe(leaked)
+
+    assert "Kanar3kName" not in described and "[redacted:url_credentials]" in described
+    assert describe(plain).startswith("BadRequestError: Agent Support cannot run")
+
+
 def test_a_validation_error_names_the_fields_that_failed() -> None:
     described = describe(_caught(_invalid_payload))
 

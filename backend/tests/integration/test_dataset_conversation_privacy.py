@@ -282,6 +282,39 @@ async def test_a_case_written_before_the_flag_is_masked_by_its_source(db) -> Non
 
 
 @pytest.mark.security
+@pytest.mark.parametrize("authorship", ["note", "history"])
+async def test_an_edit_of_a_case_with_chat_authorship_stays_masked(db, authorship: str) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="noted", visibility="org"))
+    case = await service.add_case(
+        owner,
+        dataset.id,
+        DatasetCaseCreate(input="Can I return a kettle?", reference_answer="Yes."),
+    )
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(
+            noted_by_user_id=owner.user_id if authorship == "note" else None,
+            history_author_ids=[owner.user_id] if authorship == "history" else [],
+            history=[{"role": "user", "content": "Earlier question"}]
+            if authorship == "history"
+            else [],
+            from_conversation=False,
+        )
+    )
+    await service.update_case(
+        owner, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer="Within 30 days.")
+    )
+
+    [read] = (await service.list_cases(viewer, dataset.id)).items
+
+    assert read.masked and read.input != "Can I return a kettle?"
+
+
+@pytest.mark.security
 async def test_a_reviewed_case_whose_chat_is_gone_is_still_masked(db) -> None:
     owner = await _owner(db)
     viewer = await _member(db, owner, OrgRoleName.VIEWER)

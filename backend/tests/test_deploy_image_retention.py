@@ -114,7 +114,9 @@ def test_old_tagged_images_are_removed_before_any_pull(host: Host) -> None:
     )
     removal = next(n for n, c in enumerate(after.calls) if c[:3] == ["docker", "image", "rm"])
     pull = next(n for n, c in enumerate(after.calls) if "compose" in c and "pull" in c)
-    assert removal < pull
+    drain = after.calls.index(["docker", "stop", "--timeout", "60", "app"])
+    start = next(n for n, c in enumerate(after.calls) if "compose" in c and "up" in c)
+    assert removal < pull < drain < start
     assert after.image(f"{BACKEND}:{pin('rollback', str(host.path.resolve()))}").id == current.id
     assert after.image(f"{BACKEND}:{pin('current', str(host.path.resolve()))}").id == target.id
 

@@ -6,9 +6,10 @@ case drafted from it by Generate cases (`source = synthetic`) kept nothing sayin
 where it came from, and every reader of the dataset saw its text. A copied case
 (`source = conversation`) stayed masked only because of its source.
 
-The flag is set when a case is written with chat provenance and carried to
-later revisions. The backfill also protects every existing synthetic revision
-without a surviving document reference: a deleted anonymous chat and a generated
+The flag is set when a case is written with chat links or a recorded asker,
+note author or history author, and carried to later revisions. Recorded people
+are taken from a chat and outlive its deletion. The backfill also protects every
+existing synthetic revision without a surviving document reference: a deleted anonymous chat and a generated
 case without an origin cannot be distinguished. This is a conservative privacy
 classification, not proof of conversation origin. Known document-only revisions,
 manual cases and imports remain unchanged. No case text is deleted.
@@ -45,6 +46,8 @@ def upgrade() -> None:
         "OR source_conversation_id IS NOT NULL "
         "OR source_message_id IS NOT NULL "
         "OR asked_by_user_id IS NOT NULL "
+        "OR noted_by_user_id IS NOT NULL "
+        "OR EXISTS (SELECT 1 FROM unnest(history_author_ids) AS author WHERE author IS NOT NULL) "
         "OR (source = 'synthetic' AND source_document_id IS NULL)"
     )
 
