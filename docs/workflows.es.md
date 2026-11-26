@@ -1,5 +1,5 @@
 ---
-source_sha: "6bad529c4682"
+source_sha: "03247070052f"
 ---
 
 # Workflows { #workflows }
@@ -1525,3 +1525,5 @@ El diálogo de espera de respuesta también permite preparar un borrador de segu
 Los paquetes de recursos seleccionables también admiten flujos como raíz mediante `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` y los endpoints bundle-import. Elige qué definiciones vinculadas copiar, reutilizar u omitir. La importación crea borradores privados sin publicar ni activar disparadores. No transfiere vínculos de archivos subidos ni resultados fijados de ejecuciones. El resultado enumera las rutas omitidas; la publicación sigue comprobando los recursos que faltan. Los delegados requieren seleccionar explícitamente una versión publicada existente del agente asignado. Los flujos de error deben apuntar a un manejador de fallos publicado y accesible; nunca se publican borradores automáticamente. Los ciclos de creación requieren reutilizar un recurso existente u omitir un vínculo.
 
 Los vínculos con columnas seleccionadas se omiten para elegirlas manualmente en el destino; los vínculos de tabla completa usan la versión del esquema de destino.
+
+Las suscripciones a fuentes de eventos reutilizables no se transfieren en paquetes de workflows. La exportación e importación eliminan el ID de la fuente, muestran la ruta del vínculo omitido y dejan el paso webhook requiriendo una fuente. Antes de publicar, vuelve a elegir una fuente autorizada en el borrador privado; importar no activa un endpoint dedicado como alternativa.

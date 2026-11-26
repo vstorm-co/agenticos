@@ -1,5 +1,5 @@
 ---
-source_sha: "6bad529c4682"
+source_sha: "03247070052f"
 ---
 
 # Workflows { #workflows }
@@ -1596,3 +1596,5 @@ Im Dialog für das Warten auf eine Antwort kannst du auch einen Follow-up-Entwur
 Auswählbare Ressourcenpakete unterstützen auch Workflow-Wurzeln über `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` und die Bundle-Import-Endpunkte. Verknüpfte Definitionen lassen sich kopieren, wiederverwenden oder auslassen. Der Import erstellt private, unveröffentlichte Entwürfe ohne aktive Trigger. Bindungen hochgeladener Dateien und angeheftete Laufergebnisse werden nicht übertragen. Das Ergebnis nennt ausgelassene Bindungspfade; die Veröffentlichung prüft fehlende Ressourcen weiterhin. Delegierte benötigen eine ausdrücklich ausgewählte veröffentlichte Version des zugeordneten Agenten. Fehler-Workflows müssen auf einen zugänglichen veröffentlichten Fehlerhandler verweisen; Entwürfe werden dafür niemals automatisch veröffentlicht. Erstellungszyklen erfordern Wiederverwendung oder das Auslassen einer Bindung.
 
 Tabellenbindungen mit ausgewählten Spalten werden zur manuellen Auswahl am Ziel ausgelassen; Bindungen ganzer Tabellen verwenden die Schema-Version des Ziels.
+
+Abonnements wiederverwendbarer Ereignisquellen werden nicht mit Workflow-Paketen übertragen. Export und Import entfernen die Quellen-ID, melden den ausgelassenen Bindungspfad und lassen den Webhook-Schritt eine Quelle verlangen. Wählen Sie vor der Veröffentlichung im privaten Entwurf erneut eine berechtigte Quelle; der Import aktiviert keinen eigenen Endpunkt als Ersatz.

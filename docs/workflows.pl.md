@@ -1,5 +1,5 @@
 ---
-source_sha: "6bad529c4682"
+source_sha: "03247070052f"
 ---
 
 # Workflows { #workflows }
@@ -1478,3 +1478,5 @@ W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szk
 Pakiety zasobów obsługują też workflow jako zasób główny przez `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` i endpointy bundle-import. Wybierz definicje do skopiowania, ponownego użycia lub pominięcia. Import tworzy prywatne, nieopublikowane szkice bez aktywacji wyzwalaczy. Powiązania przesłanych plików i przypięte wyniki uruchomień nie są przenoszone. Wynik importu podaje ścieżki pominiętych powiązań; publikacja nadal sprawdza brakujące zasoby. Delegaci wymagają jawnego wyboru istniejącej opublikowanej wersji należącej do wskazanego agenta. Workflow obsługi błędów musi wskazywać dostępną opublikowaną obsługę awarii; szkice nigdy nie są automatycznie publikowane. Cykle tworzenia zależności wymagają ponownego użycia istniejącego zasobu lub pominięcia powiązania.
 
 Powiązania wybranych kolumn tabel są pomijane do ręcznego wyboru na miejscu; powiązania całej tabeli używają wersji schematu docelowego.
+
+Subskrypcje współdzielonych źródeł zdarzeń nie są przenoszone w pakiecie workflow. Eksport i import usuwają identyfikator źródła, pokazują ścieżkę pominiętego powiązania i pozostawiają krok webhook wymagający źródła. Przed publikacją wybierz ponownie dostępne źródło w prywatnym szkicu; import nie włącza osobnego endpointu jako zastępstwa.
