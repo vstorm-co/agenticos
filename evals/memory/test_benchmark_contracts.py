@@ -265,3 +265,42 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
                 Decimal(json.loads(args.usage.read_text().splitlines()[1])["cost_usd"]),
                 Decimal("0.00016"),
             )
+
+
+class ModelComparisonTests(unittest.TestCase):
+    def test_summary_separates_quality_technical_and_missing_rows(self) -> None:
+        from decimal import Decimal
+
+        from compare_models import HAIKU, Phase, Receipt, summarize
+
+        rows = [
+            Receipt(
+                case="pass",
+                model=HAIKU,
+                errors=[],
+                latency_ms=100,
+                cost_usd=Decimal("0.001"),
+                cost_is_partial=False,
+            ),
+            Receipt(case="wrong", model=HAIKU, errors=["unexpected claim"], latency_ms=200),
+            Receipt(
+                case="provider",
+                model=HAIKU,
+                errors=["technical: Model HTTP 429"],
+                latency_ms=300,
+            ),
+        ]
+        result = summarize([Phase("extraction", 4, rows, 0.8, 1, "fixture.jsonl")])
+        self.assertEqual(
+            (
+                result["passed"],
+                result["quality_failures"],
+                result["technical_failures"],
+                result["missing"],
+            ),
+            (1, 1, 1, 1),
+        )
+        self.assertEqual(result["pass_rate"], 0.25)
+        self.assertEqual(result["cost_usd_known"], "0.001")
+        self.assertFalse(result["cost_complete"])
+        self.assertEqual((result["case_p50_ms"], result["case_p95_ms"]), (200, 300))

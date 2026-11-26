@@ -31,6 +31,34 @@ Sol's fast tier charges $4/$20 and OpenRouter lists other DeepSeek providers at
 different prices. Prefer one provider route per model if the eval profile can
 pin it. Mark runs with incomplete cost in the scorecard.
 
+## Run the paired comparison
+
+Prepare the disposable [personal eval stack](../personal/README.md#run-agenticos-in-docker)
+and set `AGENTICOS_PERSONAL_EVAL=1`. Create distinct OpenRouter Sonnet and Sol
+profiles at medium effort on that same published starter, with one dedicated
+key in the test vault. Disable Memory maintenance in the test organization for
+the live tool probe. Set `OPENROUTER_API_KEY` for the independent extraction
+replay. From `backend/`:
+
+```sh
+uv run python ../evals/memory/compare_models.py \
+  --organization-id "$ORG_ID" --user-id "$USER_ID" \
+  --sonnet-profile "$SONNET_PROFILE" --sol-profile "$SOL_PROFILE" \
+  --out ../evals/memory/results/model-comparison
+```
+
+Each interactive model gets the same eight isolated tool cases and the three-turn
+persisted memory probe. Each background model gets all 53 extraction cases. The
+new output directory contains a `summary.json` with deterministic passes,
+quality and technical failures, missing cases, spend completeness, total wall time,
+and p50/p95 case latency by model and phase. Raw case receipts and logs sit beside it.
+The live probe stops at the first failed step and the summary counts remaining
+steps as missing. An incomplete or failed comparison exits nonzero.
+
+The AgenticOS cap defaults to $5 per model across both phases. The background
+runner stops between cases at $0.25 per model. Override these with
+`--agent-max-usd` and `--maintenance-max-usd`.
+
 ## What the public evidence measures
 
 | Source | Observed result | Relevance |
