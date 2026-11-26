@@ -9,9 +9,17 @@ import ChatPage from "./page";
 let queryString = "";
 const push = vi.fn();
 const runExample = vi.fn();
+const organizations = vi.hoisted(() => ({
+  isSuccess: true,
+  data: [] as import("@/types").Organization[],
+}));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(queryString),
+}));
+vi.mock("@/hooks/use-organizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-organizations")>()),
+  useOrganizationList: () => organizations,
 }));
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({ suggestions: [], isLoading: false, error: null }),
