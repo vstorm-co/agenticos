@@ -3129,3 +3129,54 @@ class TestServiceConnectionsRename:
             assert again.returncode == 0, again.stderr
         finally:
             engine.dispose()
+
+
+def test_embedding_receipt_precision_downgrade_refuses_financial_data_loss() -> None:
+    """0367 preserves sub-microdollar receipts and never silently rounds on downgrade."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    receipt_id = uuid4()
+    from decimal import Decimal
+
+    try:
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO ingestion_spend (id, model, input_tokens, output_tokens, cost_usd, cost_is_partial) VALUES (:id, 'text-embedding-3-small', 8, 0, 0.00000016, false)"
+                ),
+                {"id": receipt_id},
+            )
+        refused = _alembic("downgrade", "0366_docling_parser")
+        assert refused.returncode != 0
+        assert "sub-microdollar receipts would lose financial data" in refused.stderr
+        with engine.begin() as db:
+            value = db.scalar(
+                text("SELECT cost_usd FROM ingestion_spend WHERE id=:id"), {"id": receipt_id}
+            )
+            assert value == Decimal("0.00000016")
+            db.execute(text("DELETE FROM ingestion_spend WHERE id=:id"), {"id": receipt_id})
+        result = _alembic("downgrade", "0366_docling_parser")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_scale FROM information_schema.columns WHERE table_name='ingestion_spend' AND column_name='cost_usd'"
+                    )
+                )
+                == 6
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_scale FROM information_schema.columns WHERE table_name='ingestion_spend' AND column_name='cost_usd'"
+                    )
+                )
+                == 12
+            )
+    finally:
+        engine.dispose()

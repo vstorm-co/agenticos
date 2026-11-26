@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "dc9bdc2927bb"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -862,8 +862,13 @@ Einschränkungen:
 
 - Ein fehlgeschlagener Test hat keinen Weg weiter außer einer neuen Wissensbasis: Es gibt
   **keinen Neuaufbau** eines bestehenden Index auf ein anderes Model.
-- Testaufrufe **zählen nicht zu den Ausgaben der Organisation**: drei kurze Aufrufe je
-  betroffener Wissensbasis, nach einer Wiederholung doppelt so viele.
+- Jeder Testaufruf mit Schlüssel prüft das Monatslimit der zahlenden Organisation und
+  speichert die gemeldete Embedding-Nutzung vor Rückgabe oder Wiederholung, auch bei
+  fehlgeschlagenem Vergleich oder abgebrochener Anfrage. Unbekannte Preise verhindern Tests
+  unter einem Dollar-Limit; fehlende Nutzung bleibt ausdrücklich unvollständig und stoppt
+  weitere begrenzte Aufrufe. Bereits zugelassene parallele Aufrufe können das Limit überschreiten.
+  Ein Abbruch wartet auf zeitlich begrenzte Abrechnung; eine verlorene Antwort oder ein
+  Prozessausfall macht unbekannte Gebühren nicht ermittelbar. Die Abrechnung wiederholt nach Abbruch oder Speicherfehler keinen Aufruf.
 - Ein im Vault nach dem Speichern an Ort und Stelle rotierter Schlüssel wird **nicht
   erneut getestet** - dieselbe Schlüssel-ID besteht weiterhin.
 - Ein Test prüft **3 Chunks**. Ein Endpunkt, der damit übereinstimmt und sonst abweicht,

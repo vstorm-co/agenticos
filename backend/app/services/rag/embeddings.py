@@ -17,7 +17,7 @@ from openai import (
 from pydantic import BaseModel, Field, FiniteFloat, StrictInt, TypeAdapter, ValidationError
 from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities.budget import record_ambient_cost, record_ambient_usage
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
@@ -56,8 +56,13 @@ _PROBE_FAILURES = {
 }
 
 
+# pgvector stores IEEE-754 binary32, even though Python/JSON use binary64.
+_FLOAT32_MAX = 3.4028234663852886e38
+_EmbeddingNumber = Annotated[FiniteFloat, Field(ge=-_FLOAT32_MAX, le=_FLOAT32_MAX)]
+
+
 class _EmbeddingResult(BaseModel):
-    embedding: Annotated[list[FiniteFloat], Field(min_length=1)]
+    embedding: Annotated[list[_EmbeddingNumber], Field(min_length=1)]
 
 
 _EMBEDDING_RESULTS = TypeAdapter(list[_EmbeddingResult])
@@ -88,7 +93,7 @@ def _embedding_vectors(data: object, *, expected: int) -> list[list[float]]:
         results = _EMBEDDING_RESULTS.validate_python(data, from_attributes=True, strict=True)
     except ValidationError:
         raise ExternalServiceError(
-            message="The embedding endpoint returned invalid vectors. Expected nonempty finite numeric arrays.",
+            message="The embedding endpoint returned invalid vectors. Expected nonempty finite float32 numeric arrays.",
             details={},
         ) from None
     if len(results) != expected:
@@ -127,24 +132,33 @@ async def embed_for_probe(
         response = await client.embeddings.with_raw_response.create(
             model=model, input=[text], encoding_format="float"
         )
+        try:
+            answer = _embedding_answer(response.http_response.content)
+        except ExternalServiceError:
+            record_ambient_cost(model, None)
+            raise
+        if answer.usage is None:
+            record_ambient_cost(model, None)
+        else:
+            record_ambient_usage(
+                model, RequestUsage(input_tokens=answer.usage.prompt_tokens), provider="openai"
+            )
+        return _embedding_vectors(answer.data, expected=1)[0]
     except (AuthenticationError, PermissionDeniedError) as error:
-        raise _probe_failure("key_refused", error) from error
+        raise _probe_failure("key_refused", error) from None
     except (NotFoundError, BadRequestError, UnprocessableEntityError) as error:
-        raise _probe_failure("model_unknown", error) from error
+        raise _probe_failure("model_unknown", error) from None
     except (APIConnectionError, APIStatusError) as error:
-        raise _probe_failure("unreachable", error) from error
+        record_ambient_cost(model, None)
+        raise _probe_failure("unreachable", error) from None
     except OpenAIError as error:
-        # An answer the SDK could not read as an embeddings response.
-        raise _probe_failure("model_unknown", error) from error
-    finally:
-        await client.close()
-    try:
-        return _embedding_vectors(
-            _embedding_answer(response.http_response.content).data, expected=1
-        )[0]
+        record_ambient_cost(model, None)
+        raise _probe_failure("model_unknown", error) from None
     except ExternalServiceError:
         logger.warning("embedding_probe_invalid_vector")
         raise EmbeddingProbeError("model_unknown") from None
+    finally:
+        await client.close()
 
 
 def _probe_failure(outcome: str, error: Exception) -> EmbeddingProbeError:
@@ -234,7 +248,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         """
         if self._client is None:
             if self._keyless:
-                self._client = OpenAI(api_key=_KEYLESS_PLACEHOLDER, base_url=self._base_url)
+                self._client = OpenAI(
+                    api_key=_KEYLESS_PLACEHOLDER, base_url=self._base_url, max_retries=0
+                )
                 return self._client
             if not self._api_key:
                 details: dict[str, str] = {
@@ -258,7 +274,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                     ),
                     details={**details, "key_origin": self._key_origin},
                 )
-            self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
+            self._client = OpenAI(api_key=self._api_key, base_url=self._base_url, max_retries=0)
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:

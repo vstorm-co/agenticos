@@ -777,8 +777,12 @@ Limitations:
 
 - A failed Test has no way forward but a new knowledge base: there is **no rebuild** of an
   existing index onto another model.
-- Probe calls are **not counted toward the organization's spend**: three short calls per
-  affected knowledge base, and twice that after a retry.
+- Each keyed Test call checks the paying organization's monthly cap and records its reported
+  embedding usage before returning or retrying, including a failed comparison or a cancelled
+  request. Unknown prices cannot run under a dollar cap; missing usage remains explicitly
+  partial and stops further capped calls. Concurrent calls already admitted may overshoot the
+  cap. Cancellation waits for bounded settlement; a lost provider response or process failure
+  cannot reveal unknown fees. Settlement never replays a request after cancellation or a receipt failure.
 - A key rotated in place in the Vault after a save is **not tested again** - the same key id
   still passes.
 - A Test samples **3 chunks**. An endpoint that matches those and differs elsewhere is not

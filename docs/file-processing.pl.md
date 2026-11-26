@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "dc9bdc2927bb"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -814,8 +814,13 @@ Ograniczenia:
 
 - Nieudany Test nie ma dalszej drogi poza nową bazą wiedzy: **nie ma przebudowy**
   istniejącego indeksu na inny model.
-- Wywołania testowe **nie liczą się do wydatków organizacji**: trzy krótkie wywołania na
-  objętą bazę wiedzy, a po ponowieniu dwa razy tyle.
+- Każde wywołanie Testu z kluczem sprawdza miesięczny limit płacącej organizacji i zapisuje
+  zgłoszone zużycie embeddingów przed zwróceniem wyniku lub ponowieniem, również przy
+  nieudanym porównaniu lub anulowaniu żądania. Nieznana cena blokuje Test przy limicie USD;
+  brak zużycia pozostaje jawnie częściowym rozliczeniem i zatrzymuje dalsze płatne wywołania.
+  Wcześniej dopuszczone równoległe wywołania mogą przekroczyć limit. Anulowanie czeka na
+  ograniczone czasowo rozliczenie; utracona odpowiedź lub awaria procesu nie pozwala ustalić
+  nieznanych opłat. Rozliczenie nigdy nie powtarza żądania po anulowaniu ani błędzie zapisu opłaty.
 - Klucz zrotowany w miejscu w vaulcie po zapisie **nie jest testowany ponownie** - ten sam
   identyfikator klucza nadal przechodzi.
 - Test próbkuje **3 chunki**. Endpoint, który się z nimi zgadza, a gdzie indziej różni,

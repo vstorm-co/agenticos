@@ -118,7 +118,10 @@ class _CapturedOpenAI:
         self.api_keys: list[str] = []
         self.embedded: list[list[str]] = []
 
-    def __call__(self, *, api_key: str, base_url: str | None = None) -> MagicMock:
+    def __call__(
+        self, *, api_key: str, base_url: str | None = None, max_retries: int = 0
+    ) -> MagicMock:
+        assert max_retries == 0
         self.api_keys.append(api_key)
 
         def create(*, model: str, input: list[str], encoding_format: str) -> MagicMock:

@@ -28,7 +28,18 @@ def _provider(vectors: list[object]) -> OpenAIEmbeddingProvider:
 
 
 @pytest.mark.parametrize(
-    "vector", [["not-numeric"], [None], [True], [float("nan")], [float("inf")], [], [[1.0]]]
+    "vector",
+    [
+        ["not-numeric"],
+        [None],
+        [True],
+        [float("nan")],
+        [float("inf")],
+        [1e308],
+        [-1e308],
+        [],
+        [[1.0]],
+    ],
 )
 def test_actual_provider_refuses_invalid_vectors_and_retains_billed_usage(
     vector: list[object],
@@ -70,7 +81,7 @@ def test_service_checks_every_vector_width_before_database_use(method: str) -> N
 
 
 @pytest.mark.parametrize(
-    "vector", [["not-numeric"], [None], [True], [float("nan")], [float("inf")]]
+    "vector", [["not-numeric"], [None], [True], [float("nan")], [float("inf")], [1e308], [-1e308]]
 )
 def test_actual_sdk_http_response_is_refused_before_returning_invalid_vectors(
     vector: list[object],
@@ -157,3 +168,43 @@ async def test_async_probe_refuses_raw_boolean_and_closes_the_actual_sdk_client(
     assert client.is_closed()
     assert len(requests) == 1
     assert json.loads(requests[0].content)["encoding_format"] == "float"
+
+
+@pytest.mark.anyio
+async def test_paid_raw_response_is_recorded_before_sdk_close_and_vector_refusal(monkeypatch):
+    from openai import AsyncOpenAI
+
+    from app.agents.capabilities.budget import SpendLedger, metered_by
+    from app.services.rag import embeddings
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"data": [{"embedding": [True]}], "usage": {"prompt_tokens": 8}}
+        )
+
+    client = AsyncOpenAI(
+        api_key="fixture-key",
+        base_url="https://gateway.example/v1",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(answer)),
+        max_retries=0,
+    )
+    ledger = SpendLedger()
+    close = client.close
+
+    async def checked_close():
+        assert ledger.input_tokens == 8
+        assert ledger.total_usd > 0
+        await close()
+
+    monkeypatch.setattr(client, "close", checked_close)
+    monkeypatch.setattr(embeddings, "AsyncOpenAI", lambda **_: client)
+    with metered_by(ledger), pytest.raises(embeddings.EmbeddingProbeError):
+        await embeddings.embed_for_probe(
+            base_url="https://gateway.example/v1",
+            api_key="fixture-key",
+            keyless=False,
+            model="text-embedding-3-small",
+            text="query",
+        )
+    assert client.is_closed()
+    assert len(ledger.entries) == 1

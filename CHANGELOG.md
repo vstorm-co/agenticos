@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Meter every keyed embedding Test call independently, refresh authority and target before each retry, retain known usage on failure or cancellation, and refuse unknown prices under dollar caps. Sub-microdollar receipts now retain precision instead of rounding each small call to zero.
+
 - Require connection access before testing a retained keyed embedding endpoint, including model-only and unchanged tests. Refuse Docling tests when a required Vault key was deleted instead of retrying without credentials.
 - Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Invalid responses stay controlled provider failures, with reported usage retained.
 - Keep Docling Test results bound to the address, credentials and ownership actually tested, including when a form changes while the request is still running.
@@ -46,6 +48,8 @@ Two things are versioned separately from this file and worth knowing about:
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading
+
+- Migration `0367_embedding_probe_spend` widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
 
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
 - Migration `0365_service_connections` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.

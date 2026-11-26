@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "dc9bdc2927bb"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -832,8 +832,13 @@ Limitaciones:
 
 - Un Test fallido no tiene más salida que una base de conocimiento nueva: **no hay
   reconstrucción** de un índice existente sobre otro modelo.
-- Las llamadas de prueba **no cuentan en el gasto de la organización**: tres llamadas
-  cortas por base de conocimiento afectada, y el doble tras un reintento.
+- Cada llamada de Test con clave comprueba el límite mensual de la organización que paga y
+  registra el uso de embeddings informado antes de devolver o reintentar, también si falla la
+  comparación o se cancela la petición. Un precio desconocido impide el Test bajo un límite
+  en dólares; el uso ausente queda explícitamente parcial y detiene más llamadas limitadas.
+  Las llamadas concurrentes ya admitidas pueden superar el límite. La cancelación espera una
+  liquidación acotada; una respuesta perdida o un fallo del proceso no permite conocer cargos
+  desconocidos. La liquidación no repite llamadas tras una cancelación o un fallo al guardar el cargo.
 - Una clave rotada en el sitio en el vault después de guardar **no se vuelve a probar** -
   el mismo id de clave sigue pasando.
 - Un Test muestrea **3 chunks**. Un endpoint que coincide en ellos y difiere en otros

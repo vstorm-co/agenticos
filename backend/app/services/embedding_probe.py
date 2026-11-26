@@ -15,8 +15,11 @@ is reported as such rather than compared.
 
 The person triggers it, so it is never a side effect of a save. A pass mints a
 token (`embedding_probe_token`) the save presents, bound to what was tested.
-Requests made here are not booked to spend: the sample is at most a few
-requests per base, and the budget is checked before the first of them.
+Each outbound call refreshes its resource authority and target, checks the payer's
+monthly cap and settles reported usage independently before the next call. Tests
+with unknown model prices cannot run under a dollar cap. Receipts retain partial
+or unknown usage without inventing fees; already admitted concurrent work may
+overshoot the cap, matching other model calls.
 """
 
 import math
@@ -42,6 +45,7 @@ from app.schemas.embedding_probe import (
     NewEmbeddingProbeRequest,
 )
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
+from app.services.embedding_probe_call import AuthorizeProbe, run_probe_call
 from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, mint_probe_token
 from app.services.embedding_resolution import (
     EmbeddingKeySource,
@@ -58,7 +62,6 @@ from app.services.rag.embeddings import EmbeddingProbeError, embed_for_probe
 from app.services.rag.models import StoredChunk
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.service_connection import KEY_PURPOSES, ServiceConnectionService
-from app.services.spend import assert_organization_within_budget
 
 PROBE_MIN_COSINE = 0.995
 PROBE_MIN_CHUNK_CHARS = 100
@@ -122,6 +125,27 @@ class EmbeddingProbeService:
         self.bases = KnowledgeBaseService(db)
         self.connections = ServiceConnectionService(db)
 
+    async def _call(
+        self,
+        ctx: AuthContext,
+        target: EmbeddingTarget,
+        model: str,
+        text: str,
+        authorize: AuthorizeProbe,
+    ) -> list[float]:
+        async def request() -> list[float]:
+            return await embed_for_probe(
+                base_url=target.identity.base_url,
+                api_key=target.api_key,
+                keyless=target.keyless,
+                model=model,
+                text=text,
+            )
+
+        return await run_probe_call(
+            actor=ctx, identity=target.identity, model=model, authorize=authorize, request=request
+        )
+
     async def measure_new(
         self, ctx: AuthContext, data: NewEmbeddingProbeRequest
     ) -> EmbeddingProbeResult:
@@ -155,14 +179,26 @@ class EmbeddingProbeService:
         )
         identity = await identify_target(self.db, settings, organization_id=organization_id)
         target = await self._usable(identity, key_field="embedding_endpoint_id", kb=True)
-        await self._within_budget(identity)
+
+        async def authorize(db: AsyncSession, current: AuthContext) -> None:
+            if not current.has(Perm.COLLECTIONS_EDIT) or (
+                data.scope == KBScope.APP.value and not current.is_app_admin
+            ):
+                raise AuthorizationError(
+                    message="You may no longer create this knowledge base", details={}
+                )
+            await KnowledgeBaseService(db)._check_embedding_endpoint(
+                data.embedding_endpoint_id,
+                organization_id=organization_id,
+                provider=provider,
+                ctx=current,
+            )
+            found = await identify_target(db, settings, organization_id=organization_id)
+            _same_target(identity, found)
+
         try:
-            vector = await embed_for_probe(
-                base_url=identity.base_url,
-                api_key=target.api_key,
-                keyless=target.keyless,
-                model=data.embedding_model,
-                text=PROBE_WIDTH_TEXT,
+            vector = await self._call(
+                ctx, target, data.embedding_model, PROBE_WIDTH_TEXT, authorize
             )
         except EmbeddingProbeError as error:
             return _failed(ProbeOutcome(error.outcome), calls=1)
@@ -215,7 +251,27 @@ class EmbeddingProbeService:
             dim=kb.embedding_dim,
             knowledge_bases=[kb],
         )
-        return await self._run(ctx, binding, target, [_Pending(kb, target_settings.model)])
+
+        async def authorize(db: AsyncSession, current: AuthContext) -> None:
+            service = KnowledgeBaseService(db)
+            fresh = await service.get_for_write(kb_id, ctx=current)
+            planned = await service.plan_embedding(fresh, update, ctx=current)
+            found = await identify_target(db, planned, organization_id=fresh.organization_id)
+            if planned != target_settings:
+                raise refused_field(
+                    "probe_token", "The embedding settings changed during the Test. Test again."
+                )
+            if found.key_source is EmbeddingKeySource.CONNECTION and not current.has(
+                Perm.CONNECTIONS_VIEW
+            ):
+                raise AuthorizationError(
+                    message="You may no longer test this keyed connection", details={}
+                )
+            _same_target(identity, found)
+
+        return await self._run(
+            ctx, binding, target, [_Pending(kb, target_settings.model)], authorize
+        )
 
     async def estimate_connection_change(
         self, ctx: AuthContext, connection_id: UUID
@@ -262,8 +318,42 @@ class EmbeddingProbeService:
         binding = ProbeBinding.of(
             ProbePurpose.CONNECTION_CHANGE, identity, model=None, dim=None, knowledge_bases=affected
         )
+        active = row.is_active
+
+        async def authorize(db: AsyncSession, current: AuthContext) -> None:
+            if not current.has(Perm.CONNECTIONS_MANAGE):
+                raise AuthorizationError(
+                    message="You may no longer test this connection", details={}
+                )
+            service = ServiceConnectionService(db)
+            fresh = await service._editable(current, connection_id)
+            found = await identify_connection(
+                db,
+                fresh,
+                provider=fresh.provider,
+                base_url=data.base_url or fresh.base_url,
+                secret_id=data.secret_id or fresh.secret_id,
+                requires_key=fresh.requires_key or data.secret_id is not None,
+            )
+            if fresh.is_active != active:
+                raise refused_field(
+                    "probe_token", "The connection changed during the Test. Test again."
+                )
+            if data.secret_id is not None:
+                await service._check_key(
+                    current, data.secret_id, owner=fresh.organization_id, provider=fresh.provider
+                )
+            if (
+                fresh.secret_id is not None
+                and fresh.organization_id is not None
+                and data.secret_id is None
+                and data.base_url not in (None, fresh.base_url)
+            ):
+                await service._viewable_key(current, fresh.secret_id, owner=fresh.organization_id)
+            _same_target(identity, found)
+
         return await self._run(
-            ctx, binding, target, [_Pending(kb, kb.embedding_model) for kb in affected]
+            ctx, binding, target, [_Pending(kb, kb.embedding_model) for kb in affected], authorize
         )
 
     async def _estimate(self, bases: Sequence[KnowledgeBase]) -> EmbeddingProbeEstimate:
@@ -308,37 +398,29 @@ class EmbeddingProbeService:
         binding: ProbeBinding,
         target: EmbeddingTarget,
         pending: Sequence[_Pending],
+        authorize: AuthorizeProbe,
     ) -> EmbeddingProbeResult:
-        await self._within_budget(target.identity)
-        results = [await self._probe_base(item, target) for item in pending]
+        results = [await self._probe_base(ctx, item, target, authorize) for item in pending]
         return _result(ctx, binding, results)
 
-    async def _within_budget(self, identity: TargetIdentity) -> None:
-        """Refuse before the first request when the organization that pays is out of budget.
-
-        A deployment's own keyless endpoint bills nobody.
-        """
-        payer = identity.key_organization_id
-        if payer is not None and identity.key_source in (
-            EmbeddingKeySource.ORGANIZATION,
-            EmbeddingKeySource.CONNECTION,
-        ):
-            await assert_organization_within_budget(self.db, payer)
-
-    async def _probe_base(self, item: _Pending, target: EmbeddingTarget) -> KnowledgeBaseProbeRead:
+    async def _probe_base(
+        self, ctx: AuthContext, item: _Pending, target: EmbeddingTarget, authorize: AuthorizeProbe
+    ) -> KnowledgeBaseProbeRead:
         chunks = await self._sample(item.kb)
         if not chunks:
-            return await self._probe_width(item, target)
+            return await self._probe_width(ctx, item, target, authorize)
         calls = 0
         outcome, cosine = ProbeOutcome.VECTORS_DIFFER, None
         for _ in range(PROBE_ATTEMPTS):
-            outcome, cosine, made = await self._attempt(item, target, chunks)
+            outcome, cosine, made = await self._attempt(ctx, item, target, chunks, authorize)
             calls += made
             if outcome is ProbeOutcome.PASSED:
                 break
         return _read(item.kb, outcome, cosine, calls)
 
-    async def _probe_width(self, item: _Pending, target: EmbeddingTarget) -> KnowledgeBaseProbeRead:
+    async def _probe_width(
+        self, ctx: AuthContext, item: _Pending, target: EmbeddingTarget, authorize: AuthorizeProbe
+    ) -> KnowledgeBaseProbeRead:
         """A base with no stored chunk: nothing to compare, but its width is fixed.
 
         The vector column was sized at creation, so a model answering at another
@@ -350,13 +432,7 @@ class EmbeddingProbeService:
         for _ in range(PROBE_ATTEMPTS):
             calls += 1
             try:
-                vector = await embed_for_probe(
-                    base_url=target.identity.base_url,
-                    api_key=target.api_key,
-                    keyless=target.keyless,
-                    model=item.model,
-                    text=PROBE_WIDTH_TEXT,
-                )
+                vector = await self._call(ctx, target, item.model, PROBE_WIDTH_TEXT, authorize)
             except EmbeddingProbeError as error:
                 outcome = ProbeOutcome(error.outcome)
                 continue
@@ -369,19 +445,18 @@ class EmbeddingProbeService:
         return _read(item.kb, outcome, None, calls)
 
     async def _attempt(
-        self, item: _Pending, target: EmbeddingTarget, chunks: list[StoredChunk]
+        self,
+        ctx: AuthContext,
+        item: _Pending,
+        target: EmbeddingTarget,
+        chunks: list[StoredChunk],
+        authorize: AuthorizeProbe,
     ) -> tuple[ProbeOutcome, float | None, int]:
         """One pass over the sample: one request per chunk, stopping at the first that fails."""
         fresh: list[list[float]] = []
         for made, chunk in enumerate(chunks, start=1):
             try:
-                vector = await embed_for_probe(
-                    base_url=target.identity.base_url,
-                    api_key=target.api_key,
-                    keyless=target.keyless,
-                    model=item.model,
-                    text=chunk.content,
-                )
+                vector = await self._call(ctx, target, item.model, chunk.content, authorize)
             except EmbeddingProbeError as error:
                 return ProbeOutcome(error.outcome), None, made
             if len(vector) != len(chunk.embedding):
@@ -471,3 +546,10 @@ def _passed_empty() -> EmbeddingProbeResult:
         probe_token=None,
         expires_at=None,
     )
+
+
+def _same_target(expected: TargetIdentity, current: TargetIdentity) -> None:
+    if current != expected:
+        raise refused_field(
+            "probe_token", "The connection or its key changed during the Test. Test again."
+        )
