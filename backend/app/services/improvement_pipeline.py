@@ -2552,11 +2552,12 @@ class ImprovementPipelineService:
         A sweep may come after more than one publish, so every version newer than the
         session's base is looked at, newest first.
         """
-        for version in await agent_repo.list_versions(
-            self.db, agent_id=run.agent_id, organization_id=run.organization_id
+        for version in await agent_repo.list_versions_after(
+            self.db,
+            agent_id=run.agent_id,
+            organization_id=run.organization_id,
+            version_id=run.base_version_id,
         ):
-            if version.id == run.base_version_id:
-                break
             spec, skills = authoring_hunks.as_measured(
                 AgentSpec.model_validate(version.spec), hunks
             )

@@ -924,6 +924,29 @@ async def list_versions(
     return list(result.scalars().all())
 
 
+async def list_versions_after(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, version_id: UUID | None
+) -> list[AgentVersion]:
+    """Every version published after `version_id`, newest first; all of them for `None`."""
+    statement = select(AgentVersion).where(
+        AgentVersion.agent_id == agent_id,
+        AgentVersion.organization_id == organization_id,
+    )
+    if version_id is not None:
+        after = (
+            select(AgentVersion.version)
+            .where(
+                AgentVersion.id == version_id,
+                AgentVersion.agent_id == agent_id,
+                AgentVersion.organization_id == organization_id,
+            )
+            .scalar_subquery()
+        )
+        statement = statement.where(AgentVersion.version > after)
+    result = await db.execute(statement.order_by(AgentVersion.version.desc()))
+    return list(result.scalars().all())
+
+
 async def newest_version(
     db: AsyncSession, *, agent_id: UUID, organization_id: UUID
 ) -> AgentVersion | None:

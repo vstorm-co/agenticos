@@ -16,7 +16,7 @@ async def test_an_agent_never_published_has_no_measured_version(mock_db_session)
     service = ImprovementPipelineService(mock_db_session)
 
     with patch(
-        "app.services.improvement_pipeline.agent_repo.list_versions",
+        "app.services.improvement_pipeline.agent_repo.list_versions_after",
         AsyncMock(return_value=[]),
     ):
         assert await service._measured_version(run, ImprovementIteration(), []) == {}

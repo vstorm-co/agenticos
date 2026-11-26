@@ -358,6 +358,61 @@ async def test_a_kept_draft_names_its_version_after_two_publishes_before_a_sweep
     assert settled.published_version == measured.version
 
 
+async def test_a_kept_draft_names_its_version_past_a_page_of_later_publishes(db):
+    """More publishes after the measured one than a page of the history holds: the version
+    recorded is still the one that published what the session measured."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    await _improve(db, ctx, agent, Improver(db))
+    registry = AgentRegistryService(db)
+    measured = await registry.publish(ctx, agent.id)
+    for later in range(26):
+        agent.draft_spec = {**agent.draft_spec, "instructions": f"Other {later}."}
+        await db.flush()
+        await registry.publish(ctx, agent.id)
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == measured.version
+
+
+async def test_the_history_after_a_version_is_its_agent_s_later_versions_newest_first(db):
+    from app.db.models.agent import AgentVersion
+    from app.repositories import agent_repo
+    from tests.integration.test_authoring import _owner, _published
+
+    ctx = await _owner(db)
+    agent = await _published(db, ctx, name="Clerk", spec={"instructions": "v1"})
+    other = await _published(db, ctx, name="Desk", spec={"instructions": "v1"})
+    for number in (2, 3):
+        db.add(
+            AgentVersion(
+                agent_id=agent.id,
+                organization_id=ctx.organization_id,
+                version=number,
+                spec={"instructions": f"v{number}"},
+            )
+        )
+    await db.flush()
+
+    async def after(agent_id, version_id):
+        return await agent_repo.list_versions_after(
+            db, agent_id=agent_id, organization_id=ctx.organization_id, version_id=version_id
+        )
+
+    history = await after(agent.id, None)
+    [others] = await after(other.id, None)
+    assert [version.version for version in history] == [3, 2, 1]
+    assert [version.version for version in await after(agent.id, history[-1].id)] == [3, 2]
+    assert await after(agent.id, others.id) == []
+
+
 async def test_a_kept_draft_whose_draft_was_discarded_is_rejected(db):
     """Discarding the draft puts the published version back and takes the kept changes
     out with it, so the session is no longer kept as a draft."""
