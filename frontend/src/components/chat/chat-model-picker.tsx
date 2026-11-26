@@ -624,76 +624,76 @@ export function ChatModelPicker({
                 profiles.some(
                   (profile) => profile.provider === entry.id && usableForAgents(profile),
                 ),
-      }))}
-      providerId={providerId}
-      connectionLabel={providerView ? effectiveKey?.name : undefined}
-      catalogConnection={catalogConnection}
-      catalogSource={source}
-      catalogError={!!catalogError}
-      onRefresh={
-        canRefresh && !personalSource && !requiresEndpoint
-          ? () => void refetchModels()
-          : undefined
-      }
-      loadingProviders={loadingPurposes}
-      configurationForm={endpointForm}
-      needsCredential={
-        !requiresEndpoint &&
-        !!credentialForm &&
-        providerKeys.length === 0 &&
-        !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
-      }
-      credentialPicker={credentialPicker}
-      model={
-        current?.provider === providerId &&
-        currentEndpointMatches &&
-        (!currentProfile || matchesKey(currentProfile))
-          ? current.model
-          : ""
-      }
-      models={suggestions}
-      profiles={sourceProfiles}
-      catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
-      loading={(loadingModels && !hasCachedListing) || loadingProfiles}
-      catalogRefreshing={loadingModels}
-      applying={createProfile.isPending}
-      disabled={connectionUnavailable}
-      onProviderChange={(id) => {
-        setProviderId(id);
-        setFailure(null);
-      }}
-      onModelChange={(id) => void apply(id)}
-      credentialForm={
-        requiresEndpoint ? null : providerView ? (
-          credentialForm
-        ) : credentialForm && provider ? (
-          <ModelConnectionIntro provider={provider.id} name={provider.label}>
-            {credentialForm}
-          </ModelConnectionIntro>
-        ) : null
-      }
-      failure={
-        profilesStatus === "failed" || (!personalSource && secretReadError) ? (
-          <p role="alert" className="text-destructive text-xs">
-            {t("profilesUnavailable")}{" "}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void refetchProfiles();
-                void refetchSecrets();
-              }}
-            >
-              {tRoot("common.retry")}
-            </Button>
-          </p>
-        ) : failure ? (
-          <p role="alert" className="text-destructive text-xs">
-            {failure}
-          </p>
-        ) : null
-      }
-    />
+        }))}
+        providerId={providerId}
+        connectionLabel={providerView ? effectiveKey?.name : undefined}
+        catalogConnection={catalogConnection}
+        catalogSource={source}
+        catalogError={!!catalogError}
+        onRefresh={
+          canRefresh && !personalSource && !requiresEndpoint
+            ? () => void refetchModels()
+            : undefined
+        }
+        loadingProviders={loadingPurposes}
+        configurationForm={endpointForm}
+        needsCredential={
+          !requiresEndpoint &&
+          !!credentialForm &&
+          providerKeys.length === 0 &&
+          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+        }
+        credentialPicker={credentialPicker}
+        model={
+          current?.provider === providerId &&
+          currentEndpointMatches &&
+          (!currentProfile || matchesKey(currentProfile))
+            ? current.model
+            : ""
+        }
+        models={suggestions}
+        profiles={sourceProfiles}
+        catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
+        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+        catalogRefreshing={loadingModels}
+        applying={createProfile.isPending}
+        disabled={connectionUnavailable}
+        onProviderChange={(id) => {
+          setProviderId(id);
+          setFailure(null);
+        }}
+        onModelChange={(id) => void apply(id)}
+        credentialForm={
+          requiresEndpoint ? null : providerView ? (
+            credentialForm
+          ) : credentialForm && provider ? (
+            <ModelConnectionIntro provider={provider.id} name={provider.label}>
+              {credentialForm}
+            </ModelConnectionIntro>
+          ) : null
+        }
+        failure={
+          profilesStatus === "failed" || (!personalSource && secretReadError) ? (
+            <p role="alert" className="text-destructive text-xs">
+              {t("profilesUnavailable")}{" "}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchSecrets();
+                }}
+              >
+                {tRoot("common.retry")}
+              </Button>
+            </p>
+          ) : failure ? (
+            <p role="alert" className="text-destructive text-xs">
+              {failure}
+            </p>
+          ) : null
+        }
+      />
     );
 
   return (
