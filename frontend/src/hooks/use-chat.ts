@@ -3671,18 +3671,27 @@ export function useChat(options: UseChatOptions = {}) {
           else merged[index] = { ...merged[index], ...visible };
         }
         const normalized = merged.map((item) => {
-          const activeAcceptance = item.clientQueueId
-            ? queueAcceptanceOperationsRef.current.get(item.clientQueueId)
+          const hasLiveTransfer = item.acceptedQueueId
+            ? ["cancel", "task", "steer", "reconcile"].some((action) =>
+                queueOperationsRef.current.has(`${action}:${item.acceptedQueueId}`),
+              )
+            : false;
+          const restored =
+            item.acceptedQueueId && item.transferring && !hasLiveTransfer
+              ? { ...item, transferring: false, receiptReconciliationPending: true }
+              : item;
+          const activeAcceptance = restored.clientQueueId
+            ? queueAcceptanceOperationsRef.current.get(restored.clientQueueId)
             : undefined;
           if (
             scope.enabled &&
-            item.accepting &&
-            item.receiptAcceptanceAttempted &&
-            !item.acceptedQueueId &&
+            restored.accepting &&
+            restored.receiptAcceptanceAttempted &&
+            !restored.acceptedQueueId &&
             activeAcceptance?.generation !== scope.generation
           )
-            return { ...item, accepting: false };
-          return item;
+            return { ...restored, accepting: false };
+          return restored;
         });
         const restored =
           stoppedAt === queueStopVersion.current

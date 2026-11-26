@@ -44,7 +44,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 // hook hands it and what it does with what comes back.
 const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
   keepOutbox: vi.fn(() => Promise.resolve()),
-  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+  keptOutbox: vi.fn((_conversationId: string | null): Promise<unknown[]> => Promise.resolve([])),
 }));
 vi.mock("@/lib/offline/device-cache", () => ({
   keepOutbox,
@@ -6446,7 +6446,15 @@ describe("useChat - receipt-backed queue actions", () => {
   beforeEach(() => {
     post.mockReset();
     get.mockReset();
+    del.mockReset();
     get.mockImplementation(mockReceiptGetDefaults);
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
+  });
+
+  afterEach(() => {
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
   });
 
   function prepareConversation(agentId: string | null = "agent-1") {
@@ -7528,8 +7536,8 @@ describe("useChat - receipt-backed queue actions", () => {
         expect(result.current.queuedMessages[0]).toMatchObject({
           clientQueueId,
           accepting: true,
-          acceptedQueueId: undefined,
         });
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
 
         await act(async () =>
           acceptanceResolvers[0]!(acceptedReceipt(acceptancePayloads[0] ?? {})),
@@ -7537,8 +7545,8 @@ describe("useChat - receipt-backed queue actions", () => {
         expect(result.current.queuedMessages[0]).toMatchObject({
           clientQueueId,
           accepting: true,
-          acceptedQueueId: undefined,
         });
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
 
         await act(async () =>
           acceptanceResolvers[1]!(acceptedReceipt(acceptancePayloads[1] ?? {})),
@@ -7594,6 +7602,44 @@ describe("useChat - receipt-backed queue actions", () => {
     ).toBe(false);
   });
 
+  it("allows cancelling a stale persisted transfer when receipt recovery is disabled", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174043";
+    const content = "cancel the interrupted transfer";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: clientQueueId,
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+        transferring: true,
+      },
+    ]);
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(clientQueueId, receiptId, content),
+      state: "cancelled",
+    });
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        transferring: false,
+        receiptReconciliationPending: true,
+      }),
+    );
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === content)).toBe(false);
+
+    await act(async () => result.current.cancelQueued(clientQueueId));
+    expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`);
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
   it("keeps an in-flight cancellation intent through a recovery-list merge", async () => {
     prepareConversation();
     mockAcceptance();
@@ -7647,10 +7693,10 @@ describe("useChat - receipt-backed queue actions", () => {
         });
       });
       expect(result.current.queuedMessages[0]).toMatchObject({
-        acceptedQueueId: undefined,
         accepting: true,
         cancelRequested: true,
       });
+      expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
 
       del.mockResolvedValueOnce({
         ...receiptForQueue(clientQueueId, receiptId, "cancel while acceptance is in flight"),
