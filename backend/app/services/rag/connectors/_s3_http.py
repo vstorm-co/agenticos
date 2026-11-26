@@ -9,7 +9,6 @@ import ipaddress
 import socket
 import sys
 from collections.abc import Callable, Mapping
-from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from botocore.awsrequest import (
@@ -19,7 +18,7 @@ from botocore.awsrequest import (
     AWSHTTPSConnectionPool,
 )
 from botocore.client import BaseClient
-from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connection import HTTPConnection, HTTPSConnection, _TYPE_BODY
 from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 from urllib3.util.timeout import _DEFAULT_TIMEOUT
 
@@ -104,8 +103,8 @@ def _tunnel(
 
 
 def _forward_target(
-    url: str, headers: Mapping[str, str | bytes]
-) -> tuple[str, Mapping[str, str | bytes]]:
+    url: str, headers: Mapping[str, str]
+) -> tuple[str, Mapping[str, str]]:
     parsed = urlsplit(url)
     if parsed.scheme != "http":
         return url, headers
@@ -132,13 +131,25 @@ def pin_s3_client(client: BaseClient) -> None:
             self,
             method: str,
             url: str,
-            body: Any = None,
-            headers: Mapping[str, str | bytes] | None = None,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Any:
+            body: _TYPE_BODY | None = None,
+            headers: Mapping[str, str] | None = None,
+            *,
+            chunked: bool = False,
+            preload_content: bool = True,
+            decode_content: bool = True,
+            enforce_content_length: bool = True,
+        ) -> None:
             url, headers = _forward_target(url, headers or {})
-            return super().request(method, url, body, headers, *args, **kwargs)
+            super().request(
+                method,
+                url,
+                body,
+                headers,
+                chunked=chunked,
+                preload_content=preload_content,
+                decode_content=decode_content,
+                enforce_content_length=enforce_content_length,
+            )
 
     class PinnedHTTPSConnection(AWSHTTPSConnection):
         _s3_tunnel_candidates: tuple[str, ...] | None = None
@@ -178,14 +189,26 @@ def pin_s3_client(client: BaseClient) -> None:
             self,
             method: str,
             url: str,
-            body: Any = None,
-            headers: Mapping[str, str | bytes] | None = None,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Any:
+            body: _TYPE_BODY | None = None,
+            headers: Mapping[str, str] | None = None,
+            *,
+            chunked: bool = False,
+            preload_content: bool = True,
+            decode_content: bool = True,
+            enforce_content_length: bool = True,
+        ) -> None:
             # An HTTP origin may be forwarded over a TLS connection to its proxy.
             url, headers = _forward_target(url, headers or {})
-            return super().request(method, url, body, headers, *args, **kwargs)
+            super().request(
+                method,
+                url,
+                body,
+                headers,
+                chunked=chunked,
+                preload_content=preload_content,
+                decode_content=decode_content,
+                enforce_content_length=enforce_content_length,
+            )
 
     class PinnedHTTPPool(AWSHTTPConnectionPool):
         # urllib3's protocol requires mutable default_socket_options but its

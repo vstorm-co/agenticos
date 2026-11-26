@@ -320,6 +320,9 @@ async def test_ending_a_membership_wipes_the_persons_accounts() -> None:
     from app.services import member as member_module
 
     membership = MagicMock(organization_id=uuid.uuid4(), user_id=uuid.uuid4())
+    session_repo = AsyncMock()
+    session_repo.deactivate_all_user_sessions.return_value = 0
+    db = MagicMock()
     with (
         patch.object(module, "queue_wipe", AsyncMock()) as wipe,
         patch(
@@ -338,11 +341,13 @@ async def test_ending_a_membership_wipes_the_persons_accounts() -> None:
             mcp_connection_repo=AsyncMock(),
             agent_trigger_repo=AsyncMock(),
             telephony_repo=AsyncMock(),
+            session_repo=session_repo,
             member_repo=AsyncMock(),
             resource_grant_repo=AsyncMock(),
         ),
     ):
-        await member_module.end_membership(MagicMock(), membership)
+        await member_module.end_membership(db, membership)
+    session_repo.deactivate_all_user_sessions.assert_awaited_once_with(db, membership.user_id)
     wipe.assert_awaited_once()
     assert wipe.await_args.args[1:] == (membership.organization_id, [membership.user_id])
 
