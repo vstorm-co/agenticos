@@ -45,7 +45,6 @@ export function DelegateFace({
           <span className="size-full overflow-hidden rounded-full">
             <AvatarFace seed={`harness:${who.harness}`} background={false} />
           </span>
-
         )}
       </span>
     );

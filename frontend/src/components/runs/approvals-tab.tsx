@@ -205,8 +205,8 @@ function ScopedApprovalsTab({ period, onFocusRun, periodControl }: ApprovalsTabP
                       approval={approval}
                       deciding={decide.isPending}
                       onDecide={(approved, note) =>
-                      decide.mutate({ id: approval.id, approved, note })
-                    }
+                        decide.mutate({ id: approval.id, approved, note })
+                      }
                       onOpenRun={() => onFocusRun(approval.run_id)}
                       onReviewCredential={setCredentialReview}
                     />

@@ -619,11 +619,11 @@ export function ChatModelPicker({
                   })
                 : null
               : secretReadError || loadingSecrets
-              ? null
-              : secrets.some((secret) => secret.purpose === entry.id) ||
-                profiles.some(
-                  (profile) => profile.provider === entry.id && usableForAgents(profile),
-                ),
+                ? null
+                : secrets.some((secret) => secret.purpose === entry.id) ||
+                  profiles.some(
+                    (profile) => profile.provider === entry.id && usableForAgents(profile),
+                  ),
         }))}
         providerId={providerId}
         connectionLabel={providerView ? effectiveKey?.name : undefined}
