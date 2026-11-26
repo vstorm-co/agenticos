@@ -125,3 +125,61 @@ def test_deployer_gateway_overlay_survives_a_target_that_predates_the_file(
     assert resolved["networks"]["data"]["internal"] is True
     assert not resolved["networks"]["projectfs_gateway"].get("internal", False)
     assert not list(tmp_path.glob("agenticos-projectfs.*"))
+
+
+@pytest.mark.parametrize("failure", ["", "list", "stop", "already-stopped"])
+def test_deployment_stops_only_current_stack_writers_and_refuses_failed_drain(
+    tmp_path: Path, failure: str
+) -> None:
+    executable = tmp_path / "docker"
+    executable.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "with Path(os.environ['DEPLOY_TEST_LOG']).open('a') as log:\n"
+        "    log.write(json.dumps(args) + '\\n')\n"
+        "mode = os.environ['DEPLOY_TEST_FAILURE']\n"
+        "if args[0] == 'ps':\n"
+        "    if mode == 'list': sys.exit(71)\n"
+        "    assert 'label=com.docker.compose.project.working_dir=/owned-stack' in args\n"
+        "    if mode != 'already-stopped':\n"
+        "        print('a1\\na2' if args[-1].endswith('=app') else 'b1')\n"
+        "elif args[0] == 'stop':\n"
+        "    if mode == 'stop': sys.exit(72)\n"
+        "else: raise AssertionError(args)\n"
+    )
+    executable.chmod(0o700)
+    source = (ROOT / "scripts/deploy.sh").read_text()
+    script = (
+        source[: source.index('SHA="${1:?usage:')]
+        + '\nAPP_DIR=/owned-stack\nstop_api_writers\nprintf "%s\\n" after-drain\n'
+    )
+    log = tmp_path / "commands.jsonl"
+    result = subprocess.run(
+        [shutil.which("bash") or "/bin/bash", "-c", script],
+        env={
+            **os.environ,
+            "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+            "DEPLOY_TEST_LOG": str(log),
+            "DEPLOY_TEST_FAILURE": failure,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    if failure in ("list", "stop"):
+        assert result.returncode == (71 if failure == "list" else 72)
+        assert "after-drain" not in result.stdout
+    else:
+        assert result.returncode == 0
+        assert "after-drain" in result.stdout
+    stops = [args for args in commands if args[0] == "stop"]
+    if not failure:
+        assert stops == [["stop", "--timeout", "60", "a1", "a2"], ["stop", "--timeout", "60", "b1"]]
+    elif failure == "already-stopped":
+        assert stops == []
+    assert source.index("\nstop_api_writers\n") < source.index('say "Starting the API"')
+    assert source.index('say "Pulling the frontend image"') < source.index("\nstop_api_writers\n")

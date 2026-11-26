@@ -626,6 +626,8 @@ or not. It takes a
 whatever `main` has moved to since - and what runs is byte-for-byte what CI
 built, on a host that never needs the toolchain.
 
+After pulling images and preparing runtimes, the script stops the current Compose stack's API and background worker before applying migrations. This keeps old writers from using outdated privacy rules. A failed stop aborts deployment before migration. The script verifies service health before reporting success. For multiple hosts, drain the other API and worker replicas separately.
+
 !!! warning "Copy it to the host, then run it — do not pipe it into `bash -s`"
 
     Under `bash -s` the script is the shell's own standard input, and the first
