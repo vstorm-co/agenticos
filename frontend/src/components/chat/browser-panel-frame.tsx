@@ -93,7 +93,9 @@ export function BrowserPanelFrame({
             "hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none",
             // A narrower Sources dock cannot resize: its 38% cap binds even at 360px.
             layout === "browser"
-              ? "@min-[900px]/browser-layout:block"
+              ? sizing === "sources"
+                ? "@min-[948px]/browser-layout:block"
+                : "@min-[900px]/browser-layout:block"
               : "@min-[948px]/sources-layout:block",
           )}
           onKeyDown={(event) => {
