@@ -26,6 +26,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
+
+### Security
+
+- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
+- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
+- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
+- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
+- Ask before the Architect edits a skill or a Context file that published agents read.
+- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
+- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
+- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
+
+### Upgrading
+
+- Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
+- Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
+- A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
+- `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
+- Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` and `attempt` optional.
+
+## [1.95.0] - 2026-11-26
+
+### Fixed
+
 - Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
 
 - Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
@@ -46,7 +71,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
 - Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
 - Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
-- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
 
 ### Changed
 
@@ -68,25 +92,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
 - Recheck the acting person's access to the agent, `runs:view` and the dataset before each unit of an Improve search reads questions or pays for a model call, and stop the session when it is gone.
 - Fence every quoted question, answer, failed check and earlier version in the Improve search's proposal prompt, so a dataset's text cannot read as the platform's own instructions.
-- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
-- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
-- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
-- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
-- Ask before the Architect edits a skill or a Context file that published agents read.
-- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
-- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
-- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
 
 ### Upgrading
 
 - Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
 - Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
 - Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
-- Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
-- Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
-- A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
-- `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
-- Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` and `attempt` optional.
 
 ## [1.94.0] - 2026-11-26
 
@@ -23071,7 +23082,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
