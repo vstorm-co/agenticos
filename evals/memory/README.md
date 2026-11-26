@@ -5,6 +5,9 @@ Use the [existing personal-assistant datasets](../personal/README.md) for regres
 LongMemEval for paired retrieval and answer comparisons, and synthetic PostgreSQL claims
 for ledger performance. The three tracks measure different parts of the system.
 
+The [November 27 local smoke report](LOCAL-SMOKE-2026-11-27.md) records the end-to-end
+Sonnet, Luna worker and workflow checks, with a token-based LongMemEval-S estimate.
+
 ## Implementation against the plan
 
 | Planned work | Evidence in this PR | Open work |

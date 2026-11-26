@@ -15,6 +15,7 @@ from uuid import UUID, uuid5
 
 from sqlalchemy import ARRAY, Select, Text, and_, case, func, literal, or_, select, true, tuple_
 from sqlalchemy import delete as sa_delete
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
@@ -365,7 +366,7 @@ async def states_known_at(
             MemoryClaimRevision.claim_id.in_([row.id for row in rows]),
             MemoryClaimRevision.known_from <= known_at,
         )
-        .distinct(MemoryClaimRevision.claim_id)
+        .ext(distinct_on(MemoryClaimRevision.claim_id))
         .order_by(MemoryClaimRevision.claim_id, MemoryClaimRevision.known_from.desc())
     )
     return {row.claim_id: row for row in revisions}
