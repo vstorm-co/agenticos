@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
@@ -97,6 +97,22 @@ class ImprovementStart(ImprovementTarget):
     budget_usd: Decimal = Field(gt=0, max_digits=12, decimal_places=6)
 
 
+class HelperGuidance(BaseSchema):
+    """The dataset's guidance for the improver, and who last changed it, as a start shows it."""
+
+    text: str
+    updated_at: datetime | None = None
+    updated_by_name: str | None = Field(
+        default=None,
+        description="The full name of the member who last changed it; null when nobody is "
+        "recorded, the name is unknown, or they are no longer a member",
+    )
+    updated_by_former_member: bool = Field(
+        default=False,
+        description="Whoever last changed it is no longer a member of this organization",
+    )
+
+
 class ImprovementEstimate(BaseSchema):
     proposal_usd: Decimal
     knowledge_usd: Decimal = Decimal(0)
@@ -111,6 +127,11 @@ class ImprovementEstimate(BaseSchema):
     )
     max_iterations: int
     cases: int
+    guidance: HelperGuidance | None = Field(
+        default=None,
+        description="The dataset's guidance the improver reads below the platform's rules, "
+        "when it has any",
+    )
     held_out: int | None = Field(
         default=None,
         description="How many questions the first attempt is measured on - kept aside, and "
@@ -384,6 +405,15 @@ class NextStepBlocked(BaseSchema):
         "to measure its check, and the session's questions are fixed"
     )
     needed: int = Field(ge=1, description="How many more such questions the check needs")
+
+
+class ImprovementStopRead(BaseSchema):
+    """Only acknowledgement of a stop when its caller cannot read session details."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    status: ImprovementStatus
 
 
 class ImprovementRead(BaseSchema):

@@ -5,6 +5,7 @@ The deadlocks the order prevents are shown on Postgres in
 `tests/integration/test_account_delete_writer_deadlock.py`.
 """
 
+import asyncio
 import itertools
 import uuid
 from collections.abc import Callable
@@ -207,12 +208,18 @@ async def test_a_busy_user_row_lets_everything_go_waits_for_it_and_starts_again(
 async def test_rows_still_busy_when_the_time_is_up_refuse_without_waiting_again() -> None:
     """Busy at every attempt: once the time is up the deletion refuses at once,
     rather than waiting for a row it would not use."""
-    account = _Account(user_row=lambda _call, nowait: _BUSY if nowait else None)
-    # Read for the deadline, then after each busy attempt; the time stays up.
+
+    def user_row(_call: int, nowait: bool) -> str | None:
+        # A database call may read the event loop clock without advancing the test deadline.
+        asyncio.get_running_loop().time()
+        return _BUSY if nowait else None
+
+    account = _Account(user_row=user_row)
+    # Keep the synthetic deadline local: asyncio and instrumentation use the real clock.
     clock = iter([0.0, 1.0])
 
     with (
-        patch("app.services.user.time.monotonic", side_effect=lambda: next(clock, 11.0)),
+        patch("app.services.user.time", SimpleNamespace(monotonic=lambda: next(clock, 11.0))),
         pytest.raises(ConcurrentChangeError) as refused,
     ):
         await account.lock()

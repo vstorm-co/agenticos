@@ -26,7 +26,7 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_run_error_code_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BEFORE = "0364_merge_routine_and_kb"
+_BEFORE = "0370_console_role_presentation"
 _REVISION = "0369_run_error_code"
 
 type Coded = tuple[str | None, dict[str, int] | None]
@@ -244,4 +244,4 @@ def test_a_failure_written_before_codes_gets_the_code_its_sentence_names() -> No
     for table in ("improvement_runs", "authoring_requests"):
         assert {"error", "error_code", "error_params"} & _columns(table) == {"error"}
 
-    _alembic("upgrade", "head")
+    _alembic("upgrade", _REVISION)

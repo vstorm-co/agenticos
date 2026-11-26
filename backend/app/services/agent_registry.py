@@ -227,6 +227,8 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
+        "projects:read",
+        "projects:write",
         "conversations:read",
         "web:read",
         "web:fetch",
@@ -1524,6 +1526,7 @@ class AgentRegistryService:
         kind: AgentKind = AgentKind.AGENT,
         categories: Sequence[str] = (),
         tags: Sequence[str] = (),
+        project_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRead], int]:
@@ -1549,6 +1552,14 @@ class AgentRegistryService:
         if norm_categories is None or norm_tags is None:
             return [], 0
         see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
+        member_ids = None
+        if project_id is not None:
+            from app.db.models.project_resource import ProjectResourceKind
+            from app.services.project_resources import ProjectResourceService
+
+            member_ids = await ProjectResourceService(self.db).member_ids(
+                ctx, project_id, ProjectResourceKind.AGENT
+            )
         agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -1560,6 +1571,7 @@ class AgentRegistryService:
             kind=kind,
             categories=norm_categories,
             tags=norm_tags,
+            **({"only_ids": member_ids} if project_id is not None else {}),
             skip=skip,
             limit=limit,
         )

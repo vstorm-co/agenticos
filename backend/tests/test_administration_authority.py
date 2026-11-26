@@ -15,7 +15,7 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.schemas.oauth_server import OAuthConsentApprove
 from app.services.api_key import KeyCaller
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, may_approve
 from app.services.assistant import AssistantService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -110,6 +110,11 @@ async def test_org_approvers_cannot_answer_global_changes_or_remember_them(
         patch(
             "app.services.approvals.voice_call_repo.is_live_run", new=AsyncMock(return_value=False)
         ),
+        # The administrator's own run: a platform call is approved only by its person.
+        patch(
+            "app.services.approvals.agent_run_repo.get_run",
+            new=AsyncMock(return_value=MagicMock(user_id=CTX.user_id)),
+        ),
         patch.object(service, "hidden_fields", new=AsyncMock(return_value=frozenset())),
     ):
         expected = AuthorizationError if approved and not app_admin else BadRequestError
@@ -117,3 +122,21 @@ async def test_org_approvers_cannot_answer_global_changes_or_remember_them(
             await service.decide(
                 replace(CTX, is_app_admin=app_admin), ID, approved=approved, remember_scope="agent"
             )
+
+
+@pytest.mark.parametrize("app_admin", [False, True])
+def test_deployment_approval_flags_require_the_runs_application_administrator(
+    app_admin: bool,
+) -> None:
+    ctx = replace(CTX, is_app_admin=app_admin)
+    assert (
+        may_approve(
+            ctx,
+            tool_id="agenticos_change_deployment",
+            always_asks=True,
+            person_id=ctx.user_id,
+            content_hidden=False,
+            context={"platform_tool": "true"},
+        )
+        is app_admin
+    )

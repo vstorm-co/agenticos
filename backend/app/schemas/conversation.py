@@ -446,9 +446,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "the input rate. Null when not recorded"
         ),
     )
-    cost_usd: Decimal | None = None
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
     cost_is_partial: bool | None = Field(
         default=None,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether `cost_usd` is a floor rather than the whole of it - true when this "
             "turn reached a model with no price entry. Null means not recorded, which is "
@@ -746,9 +747,10 @@ class ConversationCost(BaseSchema):
 
     input_tokens: int
     output_tokens: int
-    cost_usd: Decimal
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
     cost_is_partial: bool | None = Field(
         default=None,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether the total is a floor - true when any turn reached a model with no "
             "price entry. Null where no turn recorded the flag at all, which is 'nobody "

@@ -272,3 +272,15 @@ it("keeps the search toolbar and actual table columns in place during the initia
       .map((cell) => cell.textContent),
   ).toEqual(columns);
 });
+
+it("keeps expansion with the panel controls and preserves a search across expansion", async () => {
+  useApiKeysMock.mockReturnValue(state());
+  render(<ApiKeysManager />);
+  const search = screen.getByRole("textbox", { name: "Search API keys…" });
+  await userEvent.type(search, "Nightly");
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(screen.getByRole("textbox", { name: "Search API keys…" })).toBe(search);
+  expect(search).toHaveValue("Nightly");
+  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+  expect(search).toHaveValue("Nightly");
+});

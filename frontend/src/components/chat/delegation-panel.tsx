@@ -1,5 +1,6 @@
 "use client";
 
+import { useChatCostsVisible } from "@/components/settings/console-experience-provider";
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -137,6 +138,7 @@ function DelegationPanel({
   agents: readonly DelegateRef[];
 }) {
   const t = useTranslations("chat.delegation");
+  const costsVisible = useChatCostsVisible();
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   // Closed even while it works: three delegates streaming their briefs, steps and
@@ -203,7 +205,7 @@ function DelegationPanel({
         {/* A fan-out of five is six model conversations against one budget, and a
             reader who cannot see the split has no way to tell an expensive
             specialist from a cheap one. */}
-        {delegation.costUsd !== null && (
+        {costsVisible && delegation.costUsd !== null && (
           <span
             className="text-muted-foreground shrink-0 font-mono text-xs"
             title={t("tokens", {

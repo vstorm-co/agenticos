@@ -16,13 +16,19 @@ vi.mock("@/components/vault/secret-dialog", () => ({
     open,
     kind,
     onSubmit,
+    fixedVisibility,
   }: {
     open: boolean;
     kind?: string;
+    fixedVisibility?: string;
     onSubmit: (data: object) => Promise<unknown>;
   }) =>
     open ? (
-      <button type="button" onClick={() => void onSubmit({ name: "new" })}>
+      <button
+        type="button"
+        data-visibility={fixedVisibility}
+        onClick={() => void onSubmit({ name: "new" })}
+      >
         store {kind ?? "any kind"}
       </button>
     ) : null,
@@ -158,4 +164,45 @@ it("returns from SMTP to the platform sender without creating another secret", a
   await userEvent.click(screen.getByRole("combobox", { name: "SMTP account" }));
   await userEvent.click(screen.getByRole("option", { name: "Platform sender" }));
   expect(onChange).toHaveBeenCalledWith(null);
+});
+
+it("offers only organization-owned credentials for an ingress binding and fixes new secret visibility", async () => {
+  useSecretsMock.mockReturnValue({
+    ...vault([]),
+    secrets: [
+      {
+        id: "org",
+        name: "Shared signing key",
+        kind: "api_key",
+        visibility: "org",
+        owner_user_id: null,
+      },
+      {
+        id: "private",
+        name: "Personal key",
+        kind: "api_key",
+        visibility: "private",
+        owner_user_id: "me",
+      },
+      {
+        id: "owned",
+        name: "Owned shared key",
+        kind: "api_key",
+        visibility: "org",
+        owner_user_id: "me",
+      },
+    ],
+  });
+  const change = vi.fn();
+  render(<SecretPicker kind="api_key" organizationOnly value={null} onChange={change} />);
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.queryByRole("option", { name: /Personal key/ })).toBeNull();
+  expect(screen.queryByRole("option", { name: /Owned shared key/ })).toBeNull();
+  await userEvent.click(screen.getByRole("option", { name: /Shared signing key/ }));
+  expect(change).toHaveBeenCalledWith("org");
+  await userEvent.click(screen.getByRole("button", { name: "Add API key" }));
+  expect(screen.getByRole("button", { name: "store api_key" })).toHaveAttribute(
+    "data-visibility",
+    "org",
+  );
 });

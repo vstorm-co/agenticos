@@ -1,6 +1,6 @@
 import { TRANSLATIONS } from "./translations.js";
 
-export const LANGUAGES = ["en", "pl", "de", "tr", "pt"];
+export const LANGUAGES = ["en", "pl", "de", "tr", "nl", "pt"];
 /** @param {string} value @returns {string} */
 export function languageOf(value) {
   const candidate = String(value).split("-")[0].toLowerCase();

@@ -2,7 +2,7 @@ import logging
 import re
 import secrets
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -632,6 +632,68 @@ class KnowledgeBaseService:
             )
         raise AuthorizationError(
             message="Changing this knowledge base requires 'collections:edit' on it or an edit grant"
+        )
+
+    async def create_portable_snapshot(
+        self,
+        *,
+        ctx: AuthContext,
+        name: str,
+        description: str | None,
+        ingestion_config: IngestionConfig,
+        embedding_model: str,
+        embedding_provider: str,
+        embedding_dim: int,
+        embedding_secret_id: UUID | None,
+        embedding_endpoint_id: UUID | None,
+    ) -> KnowledgeBase:
+        """Create a private, unindexed clone without requiring or invoking providers.
+
+        Historical provider/model identifiers describe the source. Credentials
+        and endpoints are destination mappings, never source addresses. Normal
+        configuration validation still applies before any later reindex.
+        """
+        if ctx.subject_id is None:
+            raise AuthorizationError(message="Importing knowledge needs a signed-in owner")
+        if not ctx.has(Perm.COLLECTIONS_EDIT):
+            raise AuthorizationError(message="Importing knowledge requires collections:edit")
+        self._check_create_permission(scope=KBScope.PERSONAL.value, ctx=ctx)
+        if embedding_secret_id is not None and embedding_endpoint_id is not None:
+            raise BadRequestError(message="Choose either a vault key or a local embedding endpoint")
+        if embedding_secret_id is not None:
+            await self._check_embedding_secret(
+                embedding_secret_id,
+                ctx=ctx,
+                organization_id=ctx.organization_id,
+                provider=embedding_providers.require(
+                    embedding_provider, model=embedding_model, dim=embedding_dim
+                ),
+            )
+        if embedding_endpoint_id is not None:
+            from app.services.local_service import LocalServiceService
+
+            endpoint = await LocalServiceService(self.db).get_visible(ctx, embedding_endpoint_id)
+            if (
+                endpoint.kind != LocalServiceKind.EMBEDDING
+                or endpoint.provider != embedding_provider
+            ):
+                raise BadRequestError(message="Choose an embedding endpoint for this provider")
+        collection = f"portable_{uuid4().hex}"
+        await CollectionAccessService(self.db).claim(ctx, collection)
+        return await knowledge_base_repo.create(
+            self.db,
+            name=name,
+            description=description,
+            collection_name=collection,
+            scope=KBScope.PERSONAL.value,
+            owner_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            ingestion_config=ingestion_config.model_dump(mode="json"),
+            embedding_model=embedding_model,
+            embedding_provider=embedding_provider,
+            embedding_dim=embedding_dim,
+            embedding_secret_id=embedding_secret_id,
+            embedding_endpoint_id=embedding_endpoint_id,
         )
 
     async def create(

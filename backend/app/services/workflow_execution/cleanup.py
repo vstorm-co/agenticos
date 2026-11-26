@@ -36,7 +36,7 @@ from app.db.models.workflow_run import NodeRun, NodeRunStatus, WorkflowRun, Work
 from app.repositories import background_job as background_job_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
-from app.services.workflow_execution import delivery, events
+from app.services.workflow_execution import delivery, events, script_calls
 from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 
 if TYPE_CHECKING:
@@ -83,6 +83,7 @@ async def _cancel_nodes(
         agent_run_ids=[node_run.waiting_agent_run_id for node_run in node_runs],
     )
     for node_run in node_runs:
+        await script_calls.discard_cursor(db, run, node_run)
         await workflow_run_repo.update_node_run(
             db,
             node_run=node_run,

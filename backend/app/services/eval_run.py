@@ -55,6 +55,7 @@ from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
 )
@@ -1737,6 +1738,7 @@ class EvalRunService:
         org_left = await self._org_left(ctx)
         return EvalRunEstimate(
             cases=cases,
+            dataset_version=plan.dataset_version.number,
             arms=arms,
             judge_usd=judge_usd,
             judge_model_profile_id=judge_model,
@@ -1864,6 +1866,14 @@ class EvalRunService:
             proposal_check,
         )
         proposal_check = self._priced_check(proposal_check, estimate)
+        if request.quoted_usd is not None and estimate.total_usd > request.quoted_usd:
+            raise ConcurrentChangeError(
+                message="This eval now costs more than was quoted; estimate it again",
+                details={
+                    "estimate_usd": str(estimate.total_usd),
+                    "quoted_usd": str(request.quoted_usd),
+                },
+            )
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(

@@ -14,7 +14,6 @@
     "confirmPassword": "Şifreyi onayla",
     "continueWithGithub": "GitHub ile devam et",
     "continueWithGoogle": "Google ile devam et",
-    "googleNotConfigured": "Bu kurulumda Google ile oturum açma yapılandırılmamış.",
     "continueWithProvider": "{provider} ile devam et",
     "continueWithMicrosoft": "Microsoft ile devam et",
     "createHeading": "Hesap oluştur",
@@ -111,7 +110,10 @@
     "directorySignIn": "{provider} ile giriş yap",
     "directoryUsername": "{provider} kullanıcı adı",
     "useEmailInstead": "Bunun yerine e-posta ve şifre kullan",
-    "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi."
+    "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi.",
+    "providerSignInOnly": "Kuruluşunuzun kimlik sağlayıcısıyla oturum açın. Yerel parolalar ve e-posta oturum açma bağlantıları devre dışıdır.",
+    "providerSignInUnavailable": "Kullanılabilir kimlik sağlayıcısı yok. Dağıtım yöneticinizle iletişime geçin.",
+    "chooseSignInMethod": "Başka bir oturum açma yöntemi seçin"
   },
   "approvalFeedback": {
     "savedApproval": "Zaten onaylandı: {action}",
@@ -314,7 +316,8 @@
     "whatsNewTitle": "{version} sürümündeki yenilikler",
     "whatsNewDescription": "Kullandığınız sürümdeki son değişiklikler.",
     "whatsNewDone": "Anladım",
-    "developerAccess": "API ve MCP"
+    "developerAccess": "API ve MCP",
+    "eventSources": "Olay kaynakları"
   },
   "layout": {
     "breadcrumb": "Gezinme yolu",
@@ -622,7 +625,8 @@
     "title": "Bilgi tabanları",
     "updated": "Bilgi tabanı güncellendi",
     "uploadFailed": "Yükleme başarısız oldu",
-    "uploaded": "{name} yüklendi"
+    "uploaded": "{name} yüklendi",
+    "documentIndexingQueued": "Belge dizine ekleme işlemi kuyruğa alındı"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -680,7 +684,8 @@
     "done": "Tamamlandı",
     "error": "Başarısız oldu",
     "processing": "İşleniyor",
-    "running": "Çalışıyor"
+    "running": "Çalışıyor",
+    "stored": "Saklandı · dizine eklenmedi"
   },
   "sharing": {
     "access": "Erişim",
@@ -707,14 +712,15 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} workflow {iş akışlarını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} workflow {iş akışlarını} event_source {olay kaynaklarını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
-    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
+    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} event_source {olay kaynağını} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
     "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} workflow {iş akışlarına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
     "workflowPrivateReaches": "İş akışının sahibi, yukarıda listelenen kişiler ve gruplar ve tüm iş akışlarına erişebilen roller. Yalnızca paylaşılan iş akışlarına erişen roller, özel olarak ayarlandığında erişimi kaybedebilir.",
-    "workflowRuntimeNote": "Paylaşım, geçmiş run’lara erişimi de belirler. Zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
+    "eventSourceRuntimeNote": "Kullanma izni, kaynağın filtrelenmemiş olay verilerini dinleme yetkisini de içerir.",
+    "workflowRuntimeNote": "İş akışının çalıştırmalarına erişim verdiğiniz kişiler, geçmiş çalıştırmalar da dahil olmak üzere iletilen olay verilerini görebilir. İş akışını paylaşmak olay kaynağına erişim vermez, zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
     "groupSubject": "Grup",
@@ -854,6 +860,7 @@
     }
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook kimlik bilgileri",
     "conditionOps": {
       "eq": "eşittir",
       "ne": "eşit değil",
@@ -1248,6 +1255,29 @@
       "badMethod": "Bir HTTP adımı GET, POST, PUT, PATCH veya DELETE gönderir.",
       "unclosedQuote": "Komutta açılan bir tırnak kapatılmamış."
     },
+    "pythonActions": "Kullanılabilir işlevler",
+    "pythonActionsHint": "Bir eylemi bir kez bağlayın, ardından işlevini betiğinizde adlandırılmış argümanlarla çağırın.",
+    "pythonInputGuide": "Girdi · Eşlenen değerleri args içinden okuyun: {keys}",
+    "pythonInputUnbound": "henüz girdi alanı eşlenmedi",
+    "pythonFunctionsGuide": "Fonksiyonlar · {names} fonksiyonlarını adlandırılmış argümanlarla çağırın.",
+    "pythonFunctionsEmpty": "Fonksiyonlar · Fonksiyonunu betikte kullanmak için aşağıdan bir eylem ekleyin.",
+    "pythonOutputGuide": "Çıktı · Son ifade bu adımın sonucu olur.",
+    "pythonExampleGuide": "Bu adımı yazma",
+    "pythonCallGuide": "Girdi değerleri için args kullanın ve bağlanan fonksiyonları adlarıyla çağırın. Fonksiyon eylemin sonucunu döndürür; sonraki adıma iletilecek değerle bitirin.",
+    "pythonExamplePlaceholders": "Her ... yerine bir girdi veya sabit değer yazın. Fonksiyon eklemek ya da betiği düzenlemek eylem çalıştırmaz.",
+    "pythonActionsEmpty": "Henüz eylem bağlanmadı. Bir eylem seçin, Python adı verin ve çağrısını betiğe ekleyin. Eylem çağırmadan args ile de hesaplama yapabilirsiniz.",
+    "pythonActionsDiscover": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python adımı ekleyin ve her eyleme bir işlev adı verin.",
+    "pythonSelectAction": "Bir eylem seçin",
+    "pythonInsertCall": "İşlev çağrısı ekle",
+    "pythonInvalidName": "Anahtar sözcük veya yerleşik ad olmayan benzersiz bir Python tanımlayıcısı kullanın.",
+    "pythonFunctionName": "Python işlev adı",
+    "pythonBindAction": "Eylemi bağla",
+    "pythonActionUnavailable": "Eylem kullanılamıyor",
+    "pythonRemoveAction": "{name} işlevini kaldır",
+    "pythonToolArguments": "Araç argümanlarının şeması",
+    "pythonRequiredConfigArgs": "Her çağrıda {fields} belirtin veya aşağıda varsayılan bir değer ayarlayın.",
+    "pythonOverrideFields": "İsteğe bağlı geçersiz kılmalar: {fields}. Yapılandırılan değerleri kullanmak için bu argümanları atlayın.",
+    "pythonResultFields": "Sonuç alanları: {fields}",
     "codeArgKeys": "args anahtarları",
     "codeKeysHint": "Tab girinti ekler, Shift+Tab girintiyi azaltır. Düzenleyiciden çıkmak için Esc, ardından Tab tuşuna basın.",
     "created": "Workflow oluşturuldu",
@@ -1583,6 +1613,7 @@
     "branchKey": "Dal adı",
     "nodeSummarySplitBranches": "{count, plural, one {# dal} other {# dal}}",
     "webhookTestListen": "Test etkinliğini dinle",
+    "webhookSourceAudience": "Bu iş akışının çalıştırmalarını görüntüleyebilen herkes, olay kaynağının ilettiği verileri görebilir. İş akışını daha sonra paylaşırsanız buna geçmiş çalıştırmalar da dahildir. Bir çalıştırmayı görüntülemek kaynağa erişim vermez.",
     "webhookTestWaiting": "Bir çağrı bekleniyor",
     "webhookTestUrl": "Test URL’si",
     "webhookTestHint": "İki dakika içinde gövdesinde JSON nesnesi olan bir POST gönderin. İstek burada saklanır ve bu trigger’ın çıktısı olarak sabitlenir; run başlatılmaz.",
@@ -1696,7 +1727,7 @@
     "notificationEmail": "E-posta",
     "notificationChannelHint": "Her kişinin bildirim tercihleri geçerliliğini korur.",
     "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin.",
-    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin.",
+    "problemTableSchemaChanged": "Tablo şeması değişti. Tablo başvurusunu güncellemeden önce bu adımın kullandığı sütun adlarını, türleri ve değerleri gözden geçirin.",
     "problemTableDependenciesChanged": "Tablo şemasını güncellemeden önce bu adımdaki değişen filtreleri, sıralamayı ve değer bağlamalarını kaldırın veya değiştirin."
   },
   "tables": {
@@ -2918,7 +2949,12 @@
       "indexingInProgress": "{count, plural, =1 {Dizin oluşturuluyor: 1 belge işleniyor} other {Dizin oluşturuluyor: # belge işleniyor}}",
       "indexingComplete": "Dizin oluşturma tamamlandı",
       "indexingFailed": "{count, plural, =1 {1 belgenin işlenmesi başarısız oldu} other {# belgenin işlenmesi başarısız oldu}}",
-      "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
+      "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}",
+      "indexDocument": "Dizine ekle",
+      "retryDocument": "Yeniden dene",
+      "indexDocumentNamed": "{name} dosyasını dizine ekle",
+      "retryDocumentNamed": "{name} dosyasını yeniden dene",
+      "indexDocumentHint": "Bu bilgi tabanının ayarlarını kullanır ve sağlayıcı maliyetleri oluşturabilir."
     },
     "orgs": {
       "searchOrganizations": "Organizasyonlarda ara…",
@@ -3172,7 +3208,11 @@
       "noMembers": "Üye yok",
       "membersTruncated": "{total} üyeden ilk {shown} tanesi gösteriliyor",
       "serviceMapTiles": "Harita döşemeleri",
-      "serviceMapTilesDetail": "Görsellerdeki haritaların arka planı"
+      "serviceMapTilesDetail": "Görsellerdeki haritaların arka planı",
+      "passwordSignInTitle": "Oturum açma yöntemleri",
+      "passwordSignInHint": "Yerel oturum açma; parolaları, hesap kaydını, parola kurtarmayı ve e-posta bağlantılarını kapsar. Kapatmadan önce bir kimlik sağlayıcısı yapılandırın.",
+      "passwordSignInEnabled": "Yerel oturum açmaya izin ver",
+      "passwordSignInForced": "Operatörün kurtarma ayarı şu anda yerel oturum açmayı etkinleştiriyor."
     },
     "channels": {
       "respondToBroadcasts": "Grup etiketlemelerine yanıt ver",
@@ -3373,7 +3413,6 @@
       "duplicate": "Çoğalt",
       "eachPublishFreezesSpec": "Her yayımlama bir spec sürümünü sabitler. Run kayıtları kullanılan sürümü tutar; böylece agentın geçen salı ne yaptığı, sonradan yapılan birçok düzenlemeden sonra da açıklanabilir. Geri yükleme, eski sürümün kopyası olarak yeni bir sürüm yayımlar. Zaman çizelgesi geri alma işlemini gösterir; hatalı sürüm hiç yaşanmamış gibi davranmaz.",
       "environments": "Ortamlar",
-      "exportYaml": "YAML olarak dışa aktar",
       "filterByStatus": "Duruma göre filtrele",
       "filterByCategory": "Kategoriye göre filtrele",
       "filterByTag": "Etikete göre filtrele",
@@ -4137,6 +4176,7 @@
       "runOutputNone": "Bu run çıktı üretmeden sona erdi.",
       "runStepList": "Adımlar",
       "runLogsFailed": "Adımların yazdığı log satırları okunamadı.",
+      "runPythonCall": "Çağrı {index}: {name}",
       "runStepIteration": "Yineleme {index}",
       "runAttempts": "{count} deneme",
       "triggers": "Tetikleyici",
@@ -4189,6 +4229,7 @@
       "triggerTableLive": "Tetikleyici filtreleriyle eşleşen her yeni tablo kaydı, o kayıtla bir run başlatır. Tablodaki Triggers bölümünden duraklatabilir veya kararını inceleyebilirsiniz.",
       "triggerOpenTable": "Tabloyu aç",
       "triggerOn": "Açık",
+      "triggerSourceCredentials": "Kimlik bilgilerini Olay kaynakları sayfasında yönet",
       "triggerRotate": "Yeni gizli anahtar",
       "triggerPause": "Duraklat",
       "triggerResume": "Sürdür",
@@ -4217,7 +4258,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Başka bir sistemden gelen imzalı HTTP isteği run başlatır."
+          "description": "Kimliği doğrulanmış bir olay çalıştırma başlatır. Düzenleyicide bir olay kaynağı seçin veya oluşturun."
         },
         "schedule": {
           "name": "Zamanlama",
@@ -4794,6 +4835,7 @@
       "askedFor": "{email} için",
       "contentHidden": "Bu çağrının run’ından alıntıladığı içeriği yalnızca o run’ı görebilenler görür.",
       "approveNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
+      "approveNeedsItsPerson": "Bunu yalnızca bu run’ın adına çalıştığı kişi onaylayabilir. Reddedebilirsiniz.",
       "account": "Hesap: {account}",
       "openTheRun": "Runı aç",
       "decidedByWhom": "{email} tarafından",
@@ -4807,6 +4849,7 @@
       "actionInService": "{service} içinde {action}",
       "approvalDetails": "Ayrıntılar",
       "approvalNoArguments": "Herhangi bir girdi gerekmiyor.",
+      "approvalQuotedPrice": "Bildirilen tahmin: {price}",
       "cache": {
         "title": "Prompt önbelleği",
         "description": "Önbelleğe alınmış promptun yeniden okunmadığı istekler. Önbellek atlaması, önekin değiştiği anlamına gelir (araçların sırasının değişmesi veya talimatlardaki zaman damgası gibi); bu durumda tam girdi ücreti alınır. Süresi dolmuş önbellek, provider önbelleğinin kullanım süresini aştığını gösterir.",
@@ -4876,7 +4919,8 @@
       "inputTokenCacheRead": "Önbellekten okunan",
       "inputTokenCacheWrite": "Önbelleğe yazılan",
       "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez.",
-      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)"
+      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)",
+      "approveNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -6227,6 +6271,14 @@
       "example2": "Adlandırılmış bir oturuma başka bir görevle devam edin",
       "needs": "Desktop uygulaması, kayıtlı ve oturum açılmış bir ACP programı ve tam erişimi onaylanmış bir klasör.",
       "never": "Yerel hesabınızın erişimiyle çalışır. Salt okunur yalıtım veya platform araçlarının iletimi yoktur. Her görev için insan onayını etkinleştirin."
+    },
+    "projects": {
+      "name": "Projeler",
+      "does": "Erişilebilir projeleri bulur, referans bağlamlarını seçer ve paylaşılan metin dosyalarını okur veya günceller.",
+      "example1": "Atlas projesini bul ve özetini çıkar",
+      "example2": "Kararlaştırılan proje raporunu komut çalıştırmadan güncelle",
+      "needs": "Projeye ve dosyalarına güncel erişim. Komut çalıştırmak ayrıca Sandbox ve kullanılabilir bir yürütme ortamı gerektirir.",
+      "never": "Bağlam seçmek sohbeti taşımaz, dosyaları agent çalışma alanına bağlamaz veya komut yetkisi vermez. Erişim kuralları ve onaylar geçerliliğini korur."
     }
   },
   "agents": {
@@ -7874,6 +7926,13 @@
         "title": "Sürümleri karşılaştır",
         "description": "Yeni agent sürümünün öncekinden daha iyi çalışıp çalışmadığı."
       },
+      "event-sources": {
+        "title": "Olay kaynakları",
+        "description": "Kaç webhook kaynağının etkin veya duraklatılmış olduğunu görün.",
+        "empty": "Henüz olay kaynağı yok",
+        "active": "Etkin",
+        "paused": "Duraklatıldı"
+      },
       "routines": {
         "title": "Rutinler",
         "description": "Kimse başında değilken çalışan işler, en yakında başlayandan itibaren ve son çalışmanın sonucu.",
@@ -8257,6 +8316,10 @@
       "explore-chat": {
         "title": "Sohbeti kısaca tanıyalım mı?",
         "body": "Nasıl sohbet başlatacağınızı, yanıt veren agent’ı nasıl değiştireceğinizi ve tek bir sohbet için modeli veya düşünme düzeyini nasıl ayarlayacağınızı görün. Hızlı bir rehberli tur ister misiniz?"
+      },
+      "create-event-source": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
       }
     },
     "chooseLanguage": "Dil",
@@ -8878,7 +8941,7 @@
       },
       "project-tabs": {
         "title": "Sohbetler, dosyalar ve talimatlar",
-        "body": "Projede sohbet başlatın, agent’ların çalışacağı dosya ve klasörleri ekleyin, buradaki tüm agent’lara verilecek talimatları belirleyin. Masaüstü uygulamasında dosyaları yüklemeden yerel bir klasör de bağlayabilirsiniz."
+        "body": "Mevcut ajanları, iş akışlarını, uygulamaları ve tabloları Kaynaklar altında gruplayın. Önce Sohbetler açılır; Dosyalar ve Talimatlar proje sohbetlerinin ortak çalışma alanını içerir."
       },
       "chat-visual": {
         "title": "Çizimler",
@@ -9040,6 +9103,10 @@
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
       },
+      "workflow-python-actions": {
+        "title": "Python’dan araç çağırın",
+        "body": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python seçin. Her eyleme bir işlev adı verin ve düzenleyicinin altındaki menüden çağrısını betiğe ekleyin. Her çağrının kendi onayları ve yürütme kaydı vardır."
+      },
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
         "title": "Kodlama modeli ve akıl yürütme"
@@ -9080,9 +9147,65 @@
         "title": "Hazırlığı denetle",
         "body": "Görev başlatmadan bot bağlantısını, ajan yayımını ve kendi bağlı hesaplarınızı denetleyin."
       },
+      "event-sources-header": {
+        "title": "Olay kaynakları",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
+      },
+      "event-sources-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+      },
+      "flow-event-source-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+      },
       "channels-binding": {
         "title": "Kimin yanıt vereceğini seçin",
         "body": "Bir agent’ı bota bağlayın veya bağlantısını kaldırın. Bot tek bir agent olarak yanıt verir; ortam, duraklatma ve aramalar agent’ın Kullanılabilirlik sekmesinde kalır."
+      },
+      "deployment-password-sign-in": {
+        "title": "Oturum açma yöntemleri",
+        "body": "Yapılandırılmış kimlik sağlayıcısını zorunlu tutun veya yerel parolalar ve e-posta bağlantılarına izin verin. Bu ilkeyi yalnızca dağıtım yöneticisi değiştirebilir."
+      },
+      "deployment-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Kuruluşların sohbette maliyet göstermesine izin verin. Kapatmak bunları herkesten gizler."
+      },
+      "organization-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Yanıt, delegasyon ve konuşma maliyetlerini kimlerin göreceğini seçin. Muhasebe, budget ve Activity ile pano erişimi değişmez."
+      },
+      "personal-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Kendi sohbetlerinizde maliyetleri gizleyin. Kuruluş veya deployment kısıtlamaları geçerli kalır."
+      },
+      "deployment-console-navigation": {
+        "title": "Konsol kullanılabilirliği",
+        "body": "Kuruluşlara sunulan gezinmeyi ve isteğe bağlı ürün önerilerini seçin. Kaynak izinleri değişmez."
+      },
+      "organization-console-navigation": {
+        "title": "Her rol için konsol",
+        "body": "Her yerleşik rol için görünür gezinmeyi seçin. Bu, sunumu değiştirir; erişim izinlerini değiştirmez."
+      },
+      "organization-console-notices": {
+        "title": "Ürün önerileri",
+        "body": "Bu kuruluş için isteğe bağlı önerileri seçin. Kullanılabilirlik ve güvenlik bildirimleri etkilenmez."
+      },
+      "personal-console-navigation": {
+        "title": "Gezinmem",
+        "body": "Kullandığınız bölümleri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır."
+      },
+      "personal-console-notices": {
+        "title": "Ürün önerileri",
+        "body": "Yararlı önerileri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır."
+      },
+      "personal-console-catalogs": {
+        "title": "Kataloglar",
+        "body": "Göz atmak istediğiniz galerileri seçin. Kuruluş ve dağıtım sınırları geçerliliğini korur."
+      },
+      "project-resources": {
+        "title": "İlgili kaynakları bir arada tutun",
+        "body": "Mevcut ajanları, iş akışlarını, Apps ve tabloları izinlerini değiştirmeden bağlayın. Buradan açın veya bağlı bir iş akışını projenin giriş noktası olarak seçin."
       }
     }
   },
@@ -9292,7 +9415,24 @@
         "approve_all": "Tümünü onayla",
         "ask_all": "Her zaman sor"
       },
-      "afterFirstMessage": "İlk mesajdan sonra kullanılabilir."
+      "afterFirstMessage": "İlk mesajdan sonra kullanılabilir.",
+      "projectExecution": {
+        "title": "Proje dosyaları",
+        "hint": "Paylaşılan dosyalar projede kalır. Agent kendi araçlarını korur ve gerektiğinde proje sandbox’ını kullanabilir.",
+        "filesOnly": "Paylaşılan proje dosyaları komut çalıştırmadan kullanılabilir.",
+        "projectFilesOnly": "Paylaşılan dosyalar projede kalır. Bu projenin komut ortamı yoktur; agent kendi araçlarını korur.",
+        "local": "Proje dosyaları paylaşılmaya devam eder. Komutlar bu bilgisayarda izin verilen klasörü kullanmaya devam eder.",
+        "loading": "Bu chat’in projesi denetleniyor…",
+        "unavailable": "Proje denetlenemedi. Güncel workspace’i görmek için yeniden deneyin.",
+        "advanced": "Gelişmiş komut hedefi",
+        "commandTarget": "Komut hedefi",
+        "automatic": "Otomatik — agent seçer",
+        "agent": "Yalnızca agent workspace’i",
+        "project": "Yalnızca proje sandbox’ı",
+        "overrideHint": "İsteğe bağlı: bu chat için komut hedefini sabitleyin. Otomatik mod agent’ın kendi ortamında başlar.",
+        "noProject": "Agent yapılandırılmış workspace’ini kullanır. Gerektiğinde bir proje kullanmasını isteyin.",
+        "workspace": "Agent workspace’i"
+      }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",
@@ -9398,7 +9538,16 @@
       "readNoticeBody": "Dosya bağlantısını kontrol etmek için tekrar deneyin. Bu sohbeti kullanmaya devam edebilirsiniz.",
       "connectionSettings": "Sandbox bağlantıları",
       "technicalDetails": "Teknik ayrıntılar",
-      "zipFailed": "Klasör indirilemedi."
+      "zipFailed": "Klasör indirilemedi.",
+      "fileLocation": "Dosya konumu",
+      "chooseLocation": "Bir dosya konumu seçin",
+      "agentLocation": "Ajan dosyaları · {name}",
+      "projectLocation": "Proje dosyaları · {name}",
+      "locationUnavailable": "Bu dosya konumu artık kullanılamıyor. Başka bir konum seçin.",
+      "locationsTruncated": "Bazı dosya konumları bu listede gösterilmiyor.",
+      "filesTruncated": "Bu dosya listesi eksik.",
+      "loading": "Dosyalar yükleniyor…",
+      "retry": "Yeniden dene"
     },
     "generateShareLink": "Paylaşım bağlantısı oluştur",
     "helpful": "Yararlı",
@@ -9595,7 +9744,9 @@
       "retryShared": "Paylaşılan konuşmaları yeniden yükle",
       "searchFailed": "Konuşmalar aranamadı.",
       "searchMatches": "{count, plural, one {# eşleşen mesaj} other {# eşleşen mesaj}}",
-      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat"
+      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat",
+      "flatView": "En son etkinlik (düz liste)",
+      "groupedView": "Sohbetleri projeye göre grupla"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -9926,7 +10077,18 @@
       "runAcpAgent": "Harici ACP ajanı",
       "runningAcpAgent": "Harici ACP ajanı",
       "inspectAcpAgent": "ACP model seçeneklerini oku",
-      "readingAcpModels": "ACP model seçenekleri okunuyor"
+      "readingAcpModels": "ACP model seçenekleri okunuyor",
+      "approveAcceptImprovement": "{agent} için {attempt}. denemeyi kabul et ({verdict, select, better {daha iyi} criteria_better {kriterlerde daha iyi} no_change {değişiklik yok} criteria_worse {kriterlerde daha kötü} regression {daha kötü} inconclusive {belirsiz} other {ölçülmedi}}) {publish, select, yes {ve v{version} olarak yayınla} other {taslak olarak}}",
+      "approvePublishAgent": "{agent} agent'ını v{version} olarak yayınla",
+      "approveChangeSkillVersion": "{state, select, main {{agent} agent'ını {skill} ana hattına taşı} pinned {{agent} agent'ını {skill} v{version} sürümüne sabitle} other {{agent} agent'ını bir {skill} fork'una taşı}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Geliştirilmiş {skill} skill'ini uygula} apply_and_pin {Geliştirilmiş {skill} skill'ini uygula ve zarar göreceği agent'ları sabitle} fork_for_helped {Yardım ettiği agent'lar için bir {skill} fork'u oluştur} catch_up {{skill} fork'unu main ile güncelle} other {{skill} fork'unu main'e geri döndür}}",
+      "approveStartEvalRun": "{agent} agent'ını {dataset} dataset'inin v{version} sürümünde test et",
+      "selectingProjectContext": "Proje bağlamı seçiliyor…",
+      "selectedProjectContext": "Proje bağlamı seçildi",
+      "selectingExecutionTarget": "Komut hedefi seçiliyor…",
+      "selectedExecutionTarget": "Komut hedefi seçildi",
+      "transferringProjectFile": "Proje dosyası aktarılıyor…",
+      "transferredProjectFile": "Proje dosyası aktarıldı"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -10426,6 +10588,8 @@
     "approvalRememberChat": "Bu sohbette bu araca izin ver",
     "approvalRememberAgent": "Bu ajan için bu araca her zaman izin ver",
     "approvalNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
+    "approvalOthersWait": "Yanıtınız yalnızca kendi platform çağrılarınızı kapsar. Diğerleri onaylara karar verebilecek birini bekler.",
+    "approvalNeedsItsPerson": "Bunu yalnızca bu run’ın adına çalıştığı kişi onaylayabilir. Reddedebilirsiniz.",
     "approvalRememberedTitle": "Hatırlanan araç onayları",
     "approvalRememberedEmpty": "Hatırlanan onay yok.",
     "approvalRememberForget": "Tekrar sor",
@@ -10487,7 +10651,8 @@
     "queuedPaused": "Kuyruk duraklatıldı",
     "resumeQueue": "Kuyruğu sürdür",
     "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
-    "routineContinueChat": "Yeni sohbette devam et"
+    "routineContinueChat": "Yeni sohbette devam et",
+    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
   },
   "admin": {
     "actions": "Eylemler",
@@ -10965,7 +11130,8 @@
     "citedFileGone": "Bu dosya artık bilgi tabanında değil; atıf yapıldıktan sonra silinmiş veya değiştirilmiş.",
     "embeddingEndpoint": "Uç nokta",
     "embeddingEndpointHint": "Genel OpenRouter API’si için boş bırakın veya https://eu.openrouter.ai/api/v1 gibi bölgesel URL girin. AB yönlendirmesi uygun OpenRouter planı gerektirir; ZDR, OpenRouter’da ayrıca yapılandırılır.",
-    "noConnectorsAvailable": "Kullanılabilir kaynak bağlayıcısı yok. Yönetici bu dağıtım için bağlayıcı etkinleştirebilir."
+    "noConnectorsAvailable": "Kullanılabilir kaynak bağlayıcısı yok. Yönetici bu dağıtım için bağlayıcı etkinleştirebilir.",
+    "parsedSnapshotOnly": "İçe aktarılan ayrıştırılmış metin. Orijinal dosya dahil edilmedi."
   },
   "rag": {
     "addSyncSource": "Eşitleme kaynağı ekle",
@@ -11273,6 +11439,7 @@
     "copy": "Kopyala",
     "copied": "Kopyalandı",
     "createdTitle": "Bir adım daha",
+    "createdDescriptionShared": "Bu rutin, olay kaynağının mevcut URL’sini ve kimlik bilgilerini kullanır. Sağlayıcıya yeni bir webhook kaydetmeniz gerekmez.",
     "createdDescription": "Bu webhook URL’sini belirlediğiniz secret ile imzalayarak provider’a ekleyin. İstek gönderilene kadar trigger çalışmaz.",
     "createdSecretNote": "Şimdi kopyalayın; daha sonra yeniden gösterilmez. Provider her isteği bununla imzalar.",
     "done": "Bitti",
@@ -11332,23 +11499,17 @@
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
-      "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
       "personalAccount": "{name} · hesabınız",
       "organizationAccount": "{name} · organizasyon hesabı",
       "title": "Eylem izni",
       "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
       "retry": "Yeniden dene",
-      "notAllowedPermission": "Onayları karara bağlama izniniz olmadığından bu rutine kalıcı onay veremezsiniz. Bir kuruluş yöneticisine başvurun. Tüm onayları yine de iptal edebilirsiniz.",
-      "notAllowedOrganization": "Kuruluşunuz kalıcı onayı kapattığı için bu rutin onayları atlayamaz. Budget ve approvals bölümünden açılabilir. Tüm onayları yine de iptal edebilirsiniz.",
-      "openApprovalSettings": "Onay ayarlarını aç",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
-      "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
-      "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
       "changed": {
         "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
         "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
@@ -11402,7 +11563,27 @@
       "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
     },
     "openExecutionChat": "Sohbeti aç",
-    "deliveryPending": "Son yanıt sohbete gönderiliyor"
+    "deliveryPending": "Son yanıt sohbete gönderiliyor",
+    "toolSettings": {
+      "title": "Rutin araçları",
+      "description": "Araçlar varsayılan olarak ajan ayarlarını izler. Bu rutin için araç kullanılmadan önce onay isteyebilir veya aracı kapatabilirsiniz. Zorunlu onaylar geçerliliğini korur; devredilen ajanlar kendi ayarlarını kullanır.",
+      "legacyMode": "Kaydetmek ajanın onay kurallarını uygular ve bu rutinin önceki kalıcı onaylarını kaldırır.",
+      "agentAsks": "Ajan onay gerektiriyor",
+      "agentFree": "Ajan otomatik kullanıma izin veriyor",
+      "follow": "Ajanı izle",
+      "ask": "Her seferinde sor",
+      "off": "Kapalı",
+      "search": "Araç bul",
+      "reset": "Tüm araçlarda ajanı izle",
+      "empty": "Bu rutinin yapılandırılabilir aracı yok.",
+      "noMatches": "Aramayla eşleşen araç yok.",
+      "personalAccount": "Kişisel hesap · {name}",
+      "organizationAccount": "Kuruluş hesabı · {name}",
+      "unavailable": "Araçlarını görmek için bu bağlantıları kontrol edin: {names}.",
+      "unavailableSettings": "Kullanılamayan araç kısıtlamaları",
+      "unavailableSettingsBody": "Bu kayıtlı kısıtlamalar araç şu anda sunulmasa bile korunur. Bir kısıtlamayı kaldırmak için açıkça silin.",
+      "removeRestriction": "{name} kısıtlamasını kaldır"
+    }
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -12634,9 +12815,30 @@
       "title": "Otomatik proje takibi",
       "openTracker": "Takip agentı"
     },
-    "initialSetup": "Talimatlar ve varsayılanlar"
+    "initialSetup": "Talimatlar ve varsayılanlar",
+    "newChatIn": "{name} içinde yeni sohbet",
+    "resources": {
+      "title": "Kaynaklar",
+      "search": "Kaynak ara",
+      "add": "Mevcut kaynakları ekle",
+      "hint": "Kaynaklar kendi izinlerini korur. Bağlantıyı kaldırmak kaynağı silmez.",
+      "empty": "Bağlı kaynak yok",
+      "agent": "Ajan",
+      "workflow": "İş akışı",
+      "app": "Uygulama",
+      "table": "Tablo",
+      "main": "Ana iş akışı",
+      "unsetMain": "Ana iş akışını temizle",
+      "setMain": "Ana iş akışı olarak ayarla",
+      "remove": "{name} kaynağını projeden kaldır",
+      "kind": "Kaynak türü",
+      "addSelected": "Seçilenleri ekle ({count})",
+      "filterHint": "Bu kataloğu filtrelemek için bir proje seçin.",
+      "noMatches": "Eşleşen kaynak yok."
+    }
   },
   "vault": {
+    "webhookCredentials": "Webhook kimlik bilgileri",
     "access": "Erişim",
     "actions": "İşlemler",
     "addKeyNamed": "Key ekle: {name}",
@@ -14244,6 +14446,20 @@
       "noProviders": "Bu kurulumda kullanılabilir model sağlayıcısı yok.",
       "existingModels": "Çalışma alanınıza zaten bağlı bir model seçin.",
       "noExistingModels": "Henüz kullanıma hazır çalışma alanı modeli yok. Bir yöneticiden model bağlamasını isteyin veya önceki adımda kendi aboneliğinizi kullanın."
+    },
+    "configurationGuide": {
+      "title": "İsteğe bağlı ayarları keşfedin",
+      "hint": "Kurulumu şimdi bitirip bu seçeneklere daha sonra dönebilirsiniz. Bir bağlantıyı açmak ayarlarınızı değiştirmez.",
+      "preferencesTitle": "Konsolu kişiselleştirin",
+      "preferencesBody": "Kuruluşunuzun izin verdiği ölçüde kenar çubuğunu, katalog keşfini, sohbet maliyetlerinin görünürlüğünü ve ürün ipuçlarını seçin.",
+      "projectsTitle": "Çalışmaları projelerde bir arada tutun",
+      "projectsBody": "Dosyaları, talimatları ve bağlı kaynakları sohbetler arasında paylaşın. Ajanlar kendi araçlarını korur; isteğe bağlı proje sandbox'ı ortak derlemeleri çalıştırır.",
+      "transferTitle": "Ajanları dışa ve içe aktarın",
+      "transferBody": "Dahil edilecek Skills, Context ve bilgi içeriklerini seçin. İçe aktarmadan önce bağımlılıkları inceleyin; hesap sırları ve arama dizinleri aktarılmaz.",
+      "workflowTitle": "Python eylemleriyle iş akışları oluşturun",
+      "workflowBody": "Araçları adlandırılmış işlevlere bağlayıp Python'dan çağırın. Her eylem kendi izinlerini, onaylarını ve yürütme kaydını korur.",
+      "organizationTitle": "Kuruluş varsayılanlarını belirleyin",
+      "organizationBody": "Her rol için gezinmeyi, katalogları, panoyu ve bildirimleri, ayrıca maliyet görünürlüğünü yapılandırın. Üyeler politikanızın izin verdiği seçenekleri kişiselleştirebilir."
     }
   },
   "notificationRoutes": {
@@ -14309,6 +14525,10 @@
       "code_python_sandbox": {
         "name": "Sandbox’ta Python",
         "description": "Tam Python’u run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
+      },
+      "code_python_actions": {
+        "name": "Eylemlerle Python",
+        "description": "Adlara bağladığınız iş akışı eylemlerini çağıran Python kodu yazın."
       },
       "code_python_simple": {
         "name": "Python betiği",
@@ -14640,7 +14860,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "İmzalı bir HTTP teslimatı bu workflow’un kendi adresine ulaşır."
+        "description": "Kimliği doğrulanmış bir JSON olayı, yeniden kullanılabilir bir olay kaynağına veya bu workflow’un adresine ulaşır."
       },
       "trigger_workflow_call": {
         "name": "Workflow’dan çağrıldığında",
@@ -14936,6 +15156,29 @@
           },
           "files__items__byte_size": {
             "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bağlanan değerleri `args` olarak okuyun; son ifade sonuçtur."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_memory_mb": {
+            "title": "En fazla bellek (MB)"
+          },
+          "actions": {
+            "title": "Eylemler",
+            "description": "Python işlev adları ve bu işlevlerin çağırdığı sürümlü iş akışı eylemleri."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
           }
         }
       },
@@ -17015,6 +17258,18 @@
           }
         }
       },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Kaynak gerekli",
+            "description": "Yeni bir düzenleyici taslağı yayımlanmadan önce yeniden kullanılabilir bir kaynak seçilmelidir"
+          },
+          "source_id": {
+            "title": "Kaynak kimliği",
+            "description": "Bu workflow yayımlandığında abone olunacak yeniden kullanılabilir olay kaynağı"
+          }
+        }
+      },
       "trigger_workflow_call": {
         "config": {
           "fields": {
@@ -17080,6 +17335,101 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "vaultBasicHelp": "Gelen webhook isteklerini doğrulamak için kullanıcı adı ve parola. Bu kimlik bilgileri hiçbir zaman harici bir URL’ye gönderilmez.",
+    "vaultCredentialHelp": "Vault’tan kuruluşa ait kimlik bilgilerini seçin. Kaynak, bilgiler yenilendiğinde de güncel değerlerini kullanır.",
+    "manageSources": "Olay kaynaklarını yönet",
+    "title": "Olay kaynakları",
+    "description": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın.",
+    "name": "Ad",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Özel webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Kimlik doğrulama",
+    "auth": {
+      "hmac": "Özel HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Kullanıcı adı",
+    "password": "Parola",
+    "secret": "Gizli anahtar",
+    "manualSetup": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın.",
+    "visibility": "Görünürlük",
+    "private": "Özel",
+    "organization": "Organizasyon",
+    "deliveryHeader": "Teslimat kimliği başlığı (isteğe bağlı)",
+    "deliveryHelp": "Provider olay kimlikleri otomatik olarak algılanır. Olay kimliği yoksa yeniden denemeler ek run'lar oluşturabilir.",
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "create": "Kaynak oluştur",
+    "header": "Başlık adı",
+    "prefix": "İmza veya anahtar öneki (isteğe bağlı)",
+    "encoding": "İmza kodlaması",
+    "legacy": "Eski zaman damgalı imza biçimini kullan",
+    "standardHelp": "Kimlik, zaman damgası ve gövde üzerinde beş dakikalık zaman toleransı ile simetrik v1 imzaları.",
+    "selectSource": "Olay kaynağı",
+    "dedicated": "Ayrı uç nokta (eşzamanlı yanıt)",
+    "chooseSource": "Mevcut bir kaynak seçin",
+    "paused": "Duraklatıldı",
+    "active": "Etkin",
+    "liveUrl": "Canlı endpoint URL'si",
+    "revealOnce": "Bu gizli anahtarı şimdi kopyalayın. Tekrar gösterilmeyecek.",
+    "createNew": "Yeni kaynak oluştur",
+    "loadError": "Olay kaynakları yüklenemedi.",
+    "retry": "Yeniden dene",
+    "liveWarning": "Bu canlı URL'de iki dakika dinleyin. Etkin aboneler normal çalışmaya devam eder. Örnekler geçicidir ve on dakika sonra sona erer. Örnek isteğe bağlıdır.",
+    "noUse": "Olayları yakalamak için kaynak kullanım izni gereklidir.",
+    "captureError": "Olay örneği yakalanamadı. Canlı teslimat işleme etkilenmez.",
+    "expired": "Dinleme süresi doldu. Gönderen hazır olduğunda tekrar başlatın.",
+    "caught": "Olay yakalandı. Örnek kullanıma hazır.",
+    "listen": "Olayı dinle",
+    "listenTo": "{name} kaynağını dinle",
+    "sourceUnavailable": "Geçerli kaynak (kullanılamıyor)",
+    "listening": "Kimliği doğrulanmış bir olay bekleniyor…",
+    "pasteExample": "Veya örnek JSON yapıştırın",
+    "exampleJson": "Örnek JSON nesnesi",
+    "invalidJson": "Geçerli bir JSON nesnesi girin.",
+    "sampleTooLarge": "Bu örnek {limit} baytlık düzenleyici sınırını aşıyor.",
+    "useExample": "Örneği kullan",
+    "noView": "Olay kaynaklarını görüntüleme izniniz yok.",
+    "empty": "Henüz olay kaynağı yok. Rutinler ve workflow'lar için bir kaynak oluşturun.",
+    "edit": "Düzenle",
+    "done": "Tamam",
+    "pause": "Kaynağı duraklat",
+    "resume": "Kaynağı sürdür",
+    "pauseHelp": "Bu kaynağı duraklatmak yeni teslimatları durdurur. Her abone de bağımsız olarak duraklatılabilir.",
+    "replaceCredentials": "Kimlik bilgilerini değiştir",
+    "status": "Durum",
+    "subscribers": "Aboneler",
+    "actions": "İşlemler",
+    "usageError": "Aboneler yüklenemedi.",
+    "usage": "{count, plural, =0 {Abone yok} =1 {1 abone} other {# abone}}",
+    "routine": "Rutin",
+    "workflow": "Workflow",
+    "delete": "Kaynağı sil",
+    "confirmDelete": "Silmeyi onayla",
+    "deleteBlocked": "Bu kaynağı silmeden önce abonelikleri kaldırın.",
+    "sourceRoutine": "Olay kaynağından rutin oluştur",
+    "privateRoutine": "Özel rutin",
+    "privateWorkflow": "Özel workflow",
+    "filters": {
+      "event_types": "Olay türleri",
+      "actions": "Eylemler",
+      "subscription_types": "Abonelik türleri",
+      "property_names": "Özellik adları",
+      "help": "Değerleri virgülle ayırın. Tüm değerleri eşleştirmek için filtreyi boş bırakın."
+    },
+    "eventPreset": "Bu rutin için olaylar",
+    "currentFilters": "Mevcut veya varsayılan filtreler",
+    "presetError": "Olay önayarları yüklenemedi."
   },
   "improvement": {
     "attributionUnconfirmed": "Değişiklik {number}: sonuç doğrulanmadı.",
@@ -17697,6 +18047,12 @@
     "linkedDatasetUnusable": "Bağlantıdaki dataset kullanılamıyor: kaldırıldı ya da onu çalıştıramazsınız. {usual, select, yes {Bunun yerine her zamanki kullanılıyor.} other {Aşağıdan başka birini seçin.}}",
     "linkedDatasetUnread": "Bağlantıdaki dataset okunamadı, bu yüzden henüz hiçbir şey fiyatlandırılmadı. {reason}",
     "analysisEstimate": "Tahmini analiz maliyeti",
+    "guidance": {
+      "title": "Yardımcı için dataset rehberi",
+      "hint": "Yardımcı bunu, her zaman geçerli olan platform kurallarının altında okur. Bu dataset'i düzenleyen kişi yazmıştır.",
+      "changed": "{who, select, named {Son değiştiren: {name}.} former {Son değiştiren: eski bir üye.} other {}}",
+      "changedOn": "{who, select, named {Son değiştiren: {name}, {date}.} former {Son değiştiren: eski bir üye, {date}.} other {Son değişiklik: {date}.}}"
+    },
     "startCostHint": "Önce analiz yapılır. Sonraki her deneme, oturum limiti içinde ve yaklaşık {cost} olarak ayrıca tahmin edilir.",
     "measuredOn": "{name} üzerinde ölçülür.",
     "comparisonInvalid": "Bu sonuçlar karşılaştırılamaz. Farkları düzeltme veya gerileme olarak görmeden yanıtları tek tek inceleyin.",
@@ -17776,7 +18132,8 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
-    }
+    },
+    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
   },
   "personalModelKeys": {
     "copilot": {
@@ -18082,7 +18439,8 @@
       "view": "Değişikliğin gösterimi",
       "unified": "Birleşik",
       "split": "Yan yana",
-      "showUnchanged": "{count, plural, one {Değişmeyen # satırı göster} other {Değişmeyen # satırı göster}}"
+      "showUnchanged": "{count, plural, one {Değişmeyen # satırı göster} other {Değişmeyen # satırı göster}}",
+      "hidden": "Bu değişiklik hiçbir şey çizmeyen veya metni yeniden sıralayan karakterler içeriyor. Her biri koduyla yazılı olarak gösteriliyor."
     },
     "instructionsEditor": {
       "current": "Mevcut talimatlar",
@@ -18156,7 +18514,87 @@
     "maintenanceEnd": "Planlanan bakım bitişi",
     "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
     "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
-    "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
+    "invalidTime": "Geçerli bir yerel tarih ve saat seçin.",
+    "costs": {
+      "title": "Sohbet maliyetleri",
+      "audience": "Sohbette maliyetleri kim görür",
+      "everyone": "Herkes",
+      "spend_privileged": "Harcamalara erişimi olan kişiler",
+      "nobody": "Sohbette hiç kimse",
+      "organizationHint": "Yanıt, delegasyon ve konuşma maliyetlerini kimlerin göreceğini seçin. Muhasebe, budget ve Activity ile pano erişimi değişmez.",
+      "personalLabel": "Sohbetlerimde maliyetleri göster",
+      "personalHint": "Kendi sohbetlerinizde maliyetleri gizleyin. Kuruluş veya deployment kısıtlamaları geçerli kalır.",
+      "restricted": "Kuruluşunuz veya deployment bu hesap için sohbet maliyetlerini gizliyor.",
+      "deploymentHint": "Kuruluşların sohbette maliyet göstermesine izin verin. Kapatmak bunları herkesten gizler.",
+      "available": "Sohbette maliyetlere izin ver"
+    },
+    "presentation": {
+      "organizationTitle": "Her rol için konsol",
+      "organizationHint": "Her yerleşik rol için görünür gezinmeyi seçin. Bu, sunumu değiştirir; erişim izinlerini değiştirmez.",
+      "personalTitle": "Gezinmem",
+      "personalHint": "Kullandığınız bölümleri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır.",
+      "deploymentTitle": "Konsol kullanılabilirliği",
+      "deploymentHint": "Kuruluşlara sunulan gezinmeyi ve isteğe bağlı ürün önerilerini seçin. Kaynak izinleri değişmez.",
+      "navigationHint": "Gizli sayfalara izin varsa URL üzerinden erişilebilir. Hesap ayarları ve kuruluş değiştirme kullanılabilir kalır.",
+      "simple": "Basit asistan",
+      "inheritNavigation": "Devralınan gezinmeyi kullan",
+      "role": "Rol",
+      "preview": "Gezinme önizlemesi",
+      "previewRole": "{role} olarak önizle",
+      "previewHint": "Yalnızca bu rol ve kendi izinlerinizle filtrelenen gezinme. Kimsenin kimliğine bürünülmez ve özel veri yüklenmez.",
+      "saveBeforeRole": "Başka bir rol seçmeden önce değişiklikleri kaydedin veya atın.",
+      "noticesTitle": "Ürün önerileri",
+      "noticesHint": "Bu kuruluş için isteğe bağlı önerileri seçin. Kullanılabilirlik ve güvenlik bildirimleri etkilenmez.",
+      "personalNoticesHint": "Yararlı önerileri tutun. Kuruluş ve deployment kısıtlamaları geçerli kalır.",
+      "desktop_install_prompt": "Masaüstü uygulaması daveti",
+      "desktop_install_promptHint": "Masaüstü uygulamasının kurulumunu önerin. Mevcut kurulumlar ve yerel kapatmalar değişmez.",
+      "product_notices": "Ürün duyuruları",
+      "product_noticesHint": "Otomatik sürüm notları ve mobil kurulum önerileri. Hizmet ve güvenlik bildirimleri görünmeye devam eder.",
+      "restricted": "Kuruluşunuz veya deployment bu seçeneği kısıtlıyor.",
+      "discard": "Değişiklikleri at",
+      "roles": {
+        "owner": "Sahip",
+        "admin": "Yönetici",
+        "builder": "Oluşturucu",
+        "operator": "Operatör",
+        "member": "Üye",
+        "viewer": "İzleyici"
+      },
+      "loadError": "Konsol tercihleri yüklenemedi.",
+      "customizeNavigation": "Kenar çubuğunu özelleştir"
+    },
+    "catalogs": {
+      "personalTitle": "Kataloglar",
+      "personalHint": "Göz atmak istediğiniz galerileri seçin. Kuruluş ve dağıtım sınırları geçerliliğini korur.",
+      "mcp_gallery": "MCP galerisi",
+      "skill_gallery": "Skill galerisi",
+      "hint": "Katalog seçimleri araç izinlerini veya mevcut bağlantıları değiştirmez. Kişisel seçimler devralınan sınırları yalnızca daraltabilir.",
+      "inherit": "Devralınan kataloğu kullan",
+      "all": "Kullanılabilir tüm öğeler",
+      "mcp_galleryAvailable": "Yalnızca kuruluşun bağladığı sunucular",
+      "skill_galleryAvailable": "Yalnızca görünür kurulu Skills",
+      "allowList": "Öğeleri seç",
+      "selected": "{count, plural, =1 {1 öğe seçildi} other {# öğe seçildi}}",
+      "remove": "{name} kaldır",
+      "empty": "Eşleşen öğe yok",
+      "discard": "Değişiklikleri iptal et",
+      "previous": "Önceki",
+      "emptySelection": "Boş seçim galeride hiçbir öğe sunmaz.",
+      "managerHint": "Bu rol kataloğu yönetir. Kuruluş galeri sınırları katalog yönetimi olmayan roller için geçerlidir; dağıtım ve kişisel sınırlar geçerliliğini korur.",
+      "limit": "En fazla {count, plural, other {# öğe}} veya kullanılabilir tüm öğeleri seçin."
+    },
+    "dashboard": {
+      "title": "Varsayılan pano",
+      "hint": "Bu rolün varsayılan düzeni ana sayfası olur. Kişisel kayıtlı düzenler önceliklidir. Bileşenler her kişinin izinlerine uymaya devam eder.",
+      "arrange": "Panomu düzenle ve kaydet",
+      "privateFilters": "Bu düzeni kuruluş varsayılanı olarak paylaşmadan önce kişi ve ajan filtrelerini kaldırın.",
+      "copy": "Kayıtlı düzenimi kopyala",
+      "inherit": "Standart panoyu kullan",
+      "standard": "Rol varsayılanı yok: standart ana sayfa kullanılır.",
+      "preview": "Yalnızca düzen önizlemesi. Veri ve izinler açılışta her kişi için belirlenir.",
+      "empty": "Bu rol varsayılanı bilinçli olarak hiç kart içermez.",
+      "discard": "Değişiklikleri iptal et"
+    }
   },
   "onboardingStatus": {
     "header": "Başlangıç kurulumu",
@@ -19137,8 +19575,98 @@
       "skillText": "Bu oturumda kontrol edilen skill"
     }
   },
+  "portability": {
+    "exportTitle": "Ajanı dışa aktar",
+    "exportDescription": "Dahil edilecek ajan tanımını ve bağlı içerikleri seçin.",
+    "secretsHint": "Vault gizli bilgileri ve paylaşım ayarları burada kalır. OAuth’u yeniden bağlayın; URL parametrelerini ve özel başlıkları hedefte yapılandırın.",
+    "loading": "Bağımlılıklar yükleniyor…",
+    "includedContent": "Dahil edilen içerik",
+    "rootDefinition": "Ajan tanımı · zorunlu",
+    "referenceOnly": "Yalnızca başvuru · içe aktarırken yeniden bağlayın veya seçin",
+    "format": "Dosya biçimi",
+    "close": "Kapat",
+    "downloading": "İndirme hazırlanıyor…",
+    "download": "İndir",
+    "importComplete": "İçe aktarma tamamlandı",
+    "importCompleteHint": "Özel taslaklarınız incelenmeye hazır. Hiçbir şey yayımlanmadı veya çalıştırılmadı.",
+    "importTitle": "Ajan içe aktar",
+    "mappingHint": "Nelerin oluşturulacağını, yeniden kullanılacağını veya atlanacağını seçin. Mevcut kaynakların üzerine yazılmaz.",
+    "importDescription": "Bir AgenticOS ZIP paketi, YAML veya JSON yapılandırması yükleyin ya da aşağıya bir yapılandırma yapıştırın.",
+    "fileTooLarge": "Yapılandırma dosyaları 4 MiB boyutunu aşmamalıdır.",
+    "readError": "Dosya okunamadı. Yeniden seçin.",
+    "importCounts": "Oluşturulan: {created} · yeniden kullanılan: {reused} · atlanan: {skipped}",
+    "skippedHint": "Atlanan bağlantılar kaldırıldı. Yayımlamadan önce taslağı inceleyin.",
+    "actionFor": "{name} için işlem",
+    "reuse": "Mevcut kaynağı kullan",
+    "skip": "Bu kaynağı atla",
+    "newName": "Yeni kopyanın adı",
+    "skipHint": "Bu kaynağa yapılan bağlantılar içe aktarılan taslaktan kaldırılacaktır.",
+    "chooseFile": "ZIP, YAML veya JSON dosyası seçin",
+    "pasteConfiguration": "Veya yapılandırmayı yapıştırın",
+    "openDraft": "Taslağı aç",
+    "back": "Geri",
+    "working": "İşleniyor…",
+    "importDrafts": "Özel taslakları içe aktar",
+    "review": "Bağımlılıkları incele",
+    "operationError": "İşlem tamamlanamadı. Yeniden deneyin.",
+    "createCopy": "Kopya oluştur",
+    "missingRoot": "İçe aktarma yanıtı yeni taslağı belirtmedi. Yeniden denemeden önce listeyi yenileyin.",
+    "destinationResource": "Hedef kaynak",
+    "searchDestinations": "Kaynak ara",
+    "chooseDestination": "Bir kaynak seçin",
+    "selectedDestination": "Seçilen kaynak",
+    "noDestinations": "Eşleşen kaynak yok.",
+    "previousDestinations": "Önceki kaynaklar",
+    "nextDestinations": "Sonraki kaynaklar",
+    "chooseExistingOwner": "Sürümünü veya çatallamasını seçmek için önce mevcut bir hedef ajan veya Skill seçin.",
+    "zipFormat": "ZIP · dosyalar dahil",
+    "transferWorking": "Aktarım arka planda hazırlanıyor…",
+    "transferFailed": "Aktarım başarısız oldu. Yapılandırmayı kontrol edip yeni bir aktarım başlatın.",
+    "zipTooLarge": "ZIP paketleri 512 MiB boyutunu aşamaz.",
+    "noTransferSelected": "Aktarım seçilmedi",
+    "noReviewedTransfer": "İncelenmiş bir aktarım seçilmedi",
+    "exportWorkflowTitle": "İş akışını dışa aktar",
+    "exportWorkflowDescription": "İş akışı tanımını ve bağlı içerikleri seçin.",
+    "workflowRootDefinition": "İş akışı tanımı · gerekli",
+    "importWorkflowTitle": "İş akışını içe aktar",
+    "omittedBefore": "Kaldırılacak bağlantılar: {count}.",
+    "omittedAfter": "Kaldırılan bağlantılar: {count}.",
+    "reviewBeforePublish": "Yayımlamadan önce taslağı inceleyin ve eksik kaynakları yeniden bağlayın.",
+    "affectedBindings": "Etkilenen bağlantıları göster",
+    "publishedVersionHint": "Seçilen hedef ajanın mevcut yayımlanmış sürümünü seçin. Alt ajanlar otomatik olarak yayımlanmaz.",
+    "reselectZip": "Yükleme kesildi. Baştan yüklemek için özgün ZIP dosyasını yeniden seçin.",
+    "layerDefinition": "Tanım",
+    "layerSkillFiles": "Skill dosyaları",
+    "layerContext": "Bağlam içeriği",
+    "layerOriginals": "Özgün belgeler",
+    "layerParsedText": "İşlenmiş metin kopyaları",
+    "unavailableLayer": "İçerik katmanı kullanılamıyor",
+    "fileLayersZip": "Dosya ve işlenmiş metin eklemek için ZIP seçin.",
+    "indexExcluded": "Arama dizinleri ve vektörler dahil edilmez. İçe aktarılan belgeler siz işlemeyi başlatana kadar saklanır.",
+    "importLegacy": "Eski iş akışı dosyasını içe aktar",
+    "exportLegacy": "Eski iş akışı dosyasını dışa aktar",
+    "startNewTransfer": "Yeni aktarım başlat",
+    "unsupportedMapping": "Bu kaynak için içe aktarma bağdaştırıcısı yok. Bağlantıyı atlayın ve hedef düzenleyicide yapılandırın.",
+    "searchResources": "Dahil edilen kaynakları ara",
+    "noResources": "Eşleşen kaynak yok.",
+    "groups": {
+      "root": "Gerekli tanım",
+      "agents": "Agent’lar",
+      "workflows": "Workflow’lar",
+      "skills": "Skill’ler",
+      "context": "Context",
+      "knowledge": "Bilgi tabanları",
+      "connections": "Modeller ve bağlantılar",
+      "other": "Diğer kaynaklar"
+    }
+  },
   "datasets": {
-    "linkedCaseUnread": "Bu bağlantının belirttiği vaka okunamadı. {reason}"
+    "linkedCaseUnread": "Bu bağlantının belirttiği vaka okunamadı. {reason}",
+    "helpers": {
+      "guidance": "Veri kümesine özgü yönlendirme",
+      "guidanceHint": "Bu yardımcı için platform kurallarının altına eklenir. Kurallar her zaman geçerlidir; yönlendirme bunları değiştiremez veya kaldıramaz.",
+      "platformRules": "Platform kuralları (salt okunur)"
+    }
   },
   "stepFailure": {
     "technicalDetails": "Teknik ayrıntılar",

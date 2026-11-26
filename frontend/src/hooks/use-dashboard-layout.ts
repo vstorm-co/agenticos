@@ -12,6 +12,8 @@ interface UseDashboardLayoutResult {
   /** The saved arrangement, or `null` when none is saved (use the default). */
   storedEntries: StoredEntry[] | null;
   isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
   save: (entries: StoredEntry[]) => Promise<void>;
   reset: () => Promise<void>;
 }
@@ -29,7 +31,7 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const queryKey = qk.dashboard.layout(activeOrgId ?? "current");
 
-  const { data, isLoading } = useQuery({ queryKey, queryFn: getLayout });
+  const { data, isLoading, error, refetch } = useQuery({ queryKey, queryFn: getLayout });
 
   const saveMutation = useMutation({
     // Snapshot the key when the mutation starts, not when onSuccess runs: save,
@@ -68,6 +70,10 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
   return {
     storedEntries: data ? data.entries : null,
     isLoading,
+    error,
+    refetch: () => {
+      void refetch();
+    },
     save,
     reset,
   };

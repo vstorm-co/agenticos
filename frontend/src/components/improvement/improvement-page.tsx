@@ -68,7 +68,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
           <LoadingState variant="pending" />
         ) : (
           <>
-            <p role="alert">{t("permission")}</p>
+            <p role="alert">{canViewRuns ? t("permission") : t("permissionRuns")}</p>
             <Link className="text-sm underline underline-offset-4" href={`/agents/${agentId}`}>
               {t("openAgent")}
             </Link>

@@ -888,6 +888,10 @@ class McpCatalogEntry(BaseSchema):
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
     )
+    gallery_visible: bool = Field(
+        default=True,
+        description="False for metadata retained only to resolve an existing accessible account",
+    )
     custom: bool = Field(
         default=False, description="A saved server with no catalog or registry entry"
     )
@@ -997,6 +1001,11 @@ MAX_RUN_FILES = 20
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None,
+        exclude_if=lambda target: target is None,
+        description="Shell executor only: agent keeps its configured toolchain, project uses the conversation project runtime; file context stays separate",
+    )
     prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,
@@ -1006,6 +1015,14 @@ class AgentRunRequest(BaseSchema):
             "conversation-scoped workspace is that conversation's. Left out, the run "
             "opens a new conversation and returns its id. Unknown, or somebody "
             "else's, answers 404"
+        ),
+    )
+    steer: bool = Field(
+        default=False,
+        description=(
+            "With Prefer: respond-async and an existing conversation_id, offer this text "
+            "to the matching active asynchronous run at its next model request. If not "
+            "consumed, it runs as a separate turn. Not supported with files or a draft."
         ),
     )
     environment_id: UUID | None = Field(
@@ -1074,6 +1091,17 @@ class ParkedCall(BaseSchema):
             "As `ApprovalRead.always_asks`. With `content_hidden`, the caller may reject the "
             "call but not approve it"
         ),
+    )
+    may_decide: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may answer this call at all: `approvals:decide`, or being "
+            "the run's own person answering their own platform call that always asks"
+        ),
+    )
+    may_approve: bool = Field(
+        default=False,
+        description="As `ApprovalRead.may_approve`: whether an approval from the caller is accepted",
     )
 
 
@@ -1159,9 +1187,10 @@ class AgentRunResult(BaseSchema):
         ),
     )
     status: str
-    cost_usd: Decimal
-    cost_is_partial: bool = Field(
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
+    cost_is_partial: bool | None = Field(
         default=False,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether `cost_usd` is a floor - true when the run reached a model with no "
             "price entry, whose request the ledger books at zero. The chat draws the "
@@ -1232,7 +1261,7 @@ class AgentRunResult(BaseSchema):
     )
 
 
-RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled", "steered"]
 
 
 class RunRequestRead(BaseSchema):
@@ -1240,6 +1269,13 @@ class RunRequestRead(BaseSchema):
 
     id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
     status: RunRequestStatus
+    steered_into_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "For a steered request, the active run that took the correction. This "
+            "request has no separate result; the original request owns the answer."
+        ),
+    )
     conversation_id: UUID = Field(
         description="The conversation the run files under, known from the moment it is queued."
     )

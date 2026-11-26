@@ -252,7 +252,10 @@ export function ChatComposerControls({
             </div>
             <div className="chat-settings-body">
               <YourConnections />
-              {(desktop || harnesses.length > 0) && (
+              {(desktop ||
+                agentCapabilities?.some(
+                  (capability) => capability === "sandbox" || capability === "projects",
+                )) && (
                 <NativeDisclosure className="chat-settings-section" open>
                   <summary>
                     <SquareTerminal className="size-4" aria-hidden />
@@ -260,15 +263,22 @@ export function ChatComposerControls({
                     <ChevronDown className="chat-settings-chevron size-3.5" aria-hidden />
                   </summary>
                   <div className="chat-settings-section-body">
-                    {harnesses.length > 0 && (
-                      <p className="text-muted-foreground mb-1 text-xs leading-relaxed">
-                        {coding("chatHelp")}
-                      </p>
-                    )}
+                    <WorkOn agentCapabilities={agentCapabilities} />
+                  </div>
+                </NativeDisclosure>
+              )}
+              {harnesses.length > 0 && (
+                <NativeDisclosure className="chat-settings-section">
+                  <summary>
+                    <SquareTerminal className="size-4" aria-hidden />
+                    <span>{coding("title")}</span>
+                    <ChevronDown className="chat-settings-chevron size-3.5" aria-hidden />
+                  </summary>
+                  <div className="chat-settings-section-body space-y-2">
+                    <p className="text-muted-foreground text-xs leading-5">{coding("chatHelp")}</p>
                     {harnesses.map((harness) => (
                       <PersonalCodingAccount compact key={harness} harness={harness} />
                     ))}
-                    {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
                   </div>
                 </NativeDisclosure>
               )}

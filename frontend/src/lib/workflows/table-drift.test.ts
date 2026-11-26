@@ -58,11 +58,87 @@ describe("graphTableRefs", () => {
   });
 });
 
+it("recognizes nested table refusals and valid omitted table pin defaults without widening malformed selections", () => {
+  const graph = {
+    ...GRAPH,
+    bindings: [],
+    nodes: [
+      {
+        ...GRAPH.nodes[0]!,
+        definition_id: "code.python.actions",
+        config: {
+          actions: {
+            find: {
+              type: "table.record.get",
+              config: { table: { table_id: "t", schema_version: 2 } },
+            },
+            broken: {
+              type: "table.record.get",
+              config: { table: { table_id: "t", schema_version: 2, column_ids: "wrong" } },
+            },
+          },
+        },
+      },
+    ],
+  };
+  expect(graphTableRefs(graph)).toEqual([
+    {
+      site: { nodeId: "a", binding: null, action: "find" },
+      labelledRecords: true,
+      ref: { kind: "table", table_id: "t", schema_version: 2, column_ids: null },
+    },
+  ]);
+  expect(isTableRefusalField("nodes.a.config.actions.find.config.table", graph)).toBe(true);
+  expect(isTableRefusalField("nodes.a.config.actions.find.config.tool", graph)).toBe(false);
+  expect(
+    withRebound(graph, [{ site: { nodeId: "a", binding: null, action: "find" }, ref: ref(null) }]),
+  ).toEqual(graph);
+});
+
+it("leaves dynamic writes for review if a previously written column changes outside the projection", () => {
+  const site = { nodeId: "a", binding: null, action: "put" };
+  const graph = {
+    ...GRAPH,
+    nodes: [
+      {
+        ...GRAPH.nodes[0]!,
+        definition_id: "code.python.actions",
+        config: { actions: { put: { type: "table.record.update", config: { table: ref([]) } } } },
+      },
+    ],
+  };
+  const old = { ...column("old"), label: "Name", nullable: true, default: null };
+  const addition = { ...column("new"), nullable: true, default: null };
+  for (const after of [
+    [],
+    [{ ...old, label: "Renamed" }],
+    [{ ...old, type: "number" as const }],
+    [{ ...old, revision: 2 }],
+    [{ ...old, nullable: false }],
+    [{ ...old, default: "different" }],
+    [old, { ...addition, label: "NAME" }],
+  ])
+    expect(nodeTableColumns(graph, site, { before: [old], after })).toBeNull();
+  expect(nodeTableColumns(graph, site)).toBeNull();
+  expect(nodeTableColumns(graph, { ...site, action: "gone" })).toEqual([]);
+  expect(withRebound(graph, [{ site: { ...site, action: "gone" }, ref: ref([]) }])).toEqual(graph);
+  expect(
+    withRebound(GRAPH, [
+      { site, ref: ref([]) },
+      { site: { ...site, nodeId: "gone" }, ref: ref([]) },
+    ]),
+  ).toEqual(GRAPH);
+});
+
 describe("safeToRebind", () => {
   it("accepts a schema that only added columns", () => {
     const bound = [column("c1"), column("c2")];
     expect(safeToRebind(ref(["c1"]), table([...bound, column("c3")]), versions(bound))).toBe(true);
     expect(safeToRebind(ref(null), table([...bound, column("c3")]), versions(bound))).toBe(true);
+    expect(
+      safeToRebind(ref(["c1"]), table([...bound, column("c3")]), versions(bound), [], true),
+    ).toBe(true);
+    expect(safeToRebind(ref(["unknown"]), table(bound), versions(bound), [], true)).toBe(false);
   });
 
   it("accepts a change to a column the reference does not read", () => {

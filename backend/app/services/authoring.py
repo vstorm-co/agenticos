@@ -39,7 +39,7 @@ from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER, refuse_system_agent, steps
+from app.agents.system_agents import IMPROVER, refuse_system_agent, steps, with_dataset_guidance
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -498,7 +498,7 @@ class AuthoringService:
         published = await self._improver_spec(ctx, improver)
         if helper is not None and helper.model_profile_id is not None:
             published = published.model_copy(update={"model_profile_id": helper.model_profile_id})
-            chars += len(helper.instructions or IMPROVER.instructions)
+            chars += len(with_dataset_guidance(IMPROVER.instructions, helper.instructions))
         if published.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=published.model_profile_id)
             usage = RunUsage(
@@ -640,10 +640,7 @@ class AuthoringService:
             raise NotFoundError(message="The improvement helper has no published version")
         spec = AgentSpec.model_validate(version.spec)
         helper = helper.model_copy(
-            update={
-                "model_profile_id": helper.model_profile_id or spec.model_profile_id,
-                "instructions": helper.instructions or IMPROVER.instructions,
-            }
+            update={"model_profile_id": helper.model_profile_id or spec.model_profile_id}
         )
         request = await authoring_repo.create_request(
             self.db,

@@ -1053,6 +1053,36 @@ class EvalSuiteService:
             baseline_version=baseline_version if baseline_version != version.version else None,
         )
 
+    async def price_on_version(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        suite_id: UUID,
+        *,
+        version: AgentVersion,
+        baseline_version: int | None,
+    ) -> Decimal:
+        """The most `run_on_version` would spend on this suite now: the run it would
+        start, its first answers and every rerun. Gated as `run_on_version` is."""
+        agent = await self._editable(ctx, agent_id)
+        suite = await self._suite(ctx, agent.id, suite_id)
+        request, _ = await self._hand_request(
+            ctx,
+            suite,
+            version,
+            baseline_version=baseline_version if baseline_version != version.version else None,
+            now=datetime.now(UTC),
+        )
+        estimate = await self.evals.estimate(
+            ctx,
+            agent.id,
+            request,
+            scoring=_pinned_scoring(suite),
+            judge_version_id=suite.pinned_judge_version_id,
+            judge_pinned=pin_of(suite) is not None,
+        )
+        return estimate.total_usd + estimate.rerun_ceiling_usd
+
     async def _run_by_hand(
         self,
         ctx: AuthContext,
@@ -1086,29 +1116,9 @@ class EvalSuiteService:
             due_at=now,
             baseline_version=baseline_version,
         )
-        alone: EvalRunRequest | None = None
-        if baseline_version is None:
-            request, alone = await self._drift_request(suite, version.id, version.version, now=now)
-        else:
-            request = self._request(
-                suite, version.version, baseline_version=baseline_version, baseline_run=None
-            )
-        try:
-            request, ran_alone = await self._capped(ctx, suite, request, alone)
-        except _OverCap as over:
-            raise BadRequestError(
-                message=(
-                    f"A run of '{suite.name}' is estimated at ${over.estimate:.2f}, over "
-                    f"the suite's ${over.cap:.2f} ceiling. Raise the ceiling to run it."
-                ),
-                details={
-                    "suite_id": suite.id,
-                    "reason": "over_cost_cap",
-                    # Money is stringified deliberately: a Decimal encodes to a float.
-                    "estimate_usd": str(over.estimate),
-                    "max_run_usd": str(over.cap),
-                },
-            ) from None
+        request, ran_alone = await self._hand_request(
+            ctx, suite, version, baseline_version=baseline_version, now=now
+        )
         run = await self.evals.start(
             ctx,
             agent.id,
@@ -1133,6 +1143,45 @@ class EvalSuiteService:
         assert result is not None, "a running result never conflicts with a waiting one"
         self._announce(suite)
         return result
+
+    async def _hand_request(
+        self,
+        ctx: AuthContext,
+        suite: EvalSuite,
+        version: AgentVersion,
+        *,
+        baseline_version: int | None,
+        now: datetime,
+    ) -> tuple[EvalRunRequest, bool]:
+        """The run a suite started by hand starts on `version`, and whether it runs alone.
+
+        Raises:
+            BadRequestError: Neither the pair nor the candidate alone fits the
+                suite's cost ceiling.
+        """
+        alone: EvalRunRequest | None = None
+        if baseline_version is None:
+            request, alone = await self._drift_request(suite, version.id, version.version, now=now)
+        else:
+            request = self._request(
+                suite, version.version, baseline_version=baseline_version, baseline_run=None
+            )
+        try:
+            return await self._capped(ctx, suite, request, alone)
+        except _OverCap as over:
+            raise BadRequestError(
+                message=(
+                    f"A run of '{suite.name}' is estimated at ${over.estimate:.2f}, over "
+                    f"the suite's ${over.cap:.2f} ceiling. Raise the ceiling to run it."
+                ),
+                details={
+                    "suite_id": suite.id,
+                    "reason": "over_cost_cap",
+                    # Money is stringified deliberately: a Decimal encodes to a float.
+                    "estimate_usd": str(over.estimate),
+                    "max_run_usd": str(over.cap),
+                },
+            ) from None
 
     async def _capped(
         self,
