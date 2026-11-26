@@ -752,6 +752,23 @@ class TestApprovalRequested:
         assert "tab=approvals" in queue["context_url"]
 
     @pytest.mark.anyio
+    async def test_a_person_who_is_the_whole_audience_gets_only_their_own_notice(self, written):
+        person = uuid.uuid4()
+        run = _run(user_id=person)
+        run.conversation_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=_approvals("agenticos_publish_agent")
+            )
+
+        [call] = written.calls
+        assert call["recipients"] == [person]
+        assert call["render_context"][APPROVABLE_BY] == str(person)
+
+    @pytest.mark.anyio
     async def test_a_call_that_names_its_account_lists_it_beside_the_tool(self, written):
         approvals = _approvals("gmail_send", "notion_search")
         approvals[0].account = "Work"

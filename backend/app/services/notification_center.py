@@ -1419,10 +1419,7 @@ class NotificationCenterService:
         """
         if notification.organization_id is None or approvable_by(notification) != ctx.user_id:
             return False
-        raw = (notification.render_context or {}).get(APPROVABLE_CALLS)
-        if not isinstance(raw, list):
-            return False
-        for approval_id in raw:
+        for approval_id in (notification.render_context or {}).get(APPROVABLE_CALLS, []):
             with contextlib.suppress(ValueError):
                 approval = await agent_run_repo.get_approval(
                     self.db,
