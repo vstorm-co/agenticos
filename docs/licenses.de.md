@@ -1,5 +1,5 @@
 ---
-source_sha: "54831c55840b"
+source_sha: "66361fa2c773"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -41,11 +41,12 @@ den Notices. Build-Werkzeuge, die in einer Builder-Stage laufen und in der
 finalen Schicht fehlen, etwa `uv`, sind in `licenses/components.toml` als nicht
 ausgeliefert festgehalten.
 
-Die optionalen Extras `kerberos` und `mirage` fehlen in den veröffentlichten
-Images, daher lassen die Notices sie aus. Das Backend-Image enthält `browser`. Wer ein Image mit
-`EXTRAS` baut, liefert auch diese Pakete aus, unter ihren eigenen Lizenzen. Das
-Extra `mirage` bringt [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0)
-und die Dienst-Clients mit, die seine Backends nutzen.
+Das veröffentlichte Backend enthält `browser` und [Mirage](https://github.com/strukto-ai/mirage)
+mit dem Extra `email` für IMAP (Apache-2.0). Diese Produktionsabhängigkeiten sind
+in den Notices enthalten. Das optionale Extra `kerberos` und zusätzliche
+Dienst-Clients des vollständigen Extras `mirage` fehlen in den veröffentlichten
+Images. Wer mit diesen `EXTRAS` baut, liefert zusätzliche Pakete unter deren
+eigenen Lizenzen aus.
 
 ## Das Inventar { #the-inventory }
 

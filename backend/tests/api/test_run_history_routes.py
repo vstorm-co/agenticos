@@ -491,6 +491,7 @@ async def test_run_listing_exposes_unlinked_asker_separately_from_publisher_auth
         "platform": "mattermost",
         "name": "@participant",
         "bot_name": None,
+        "handle": None,
     }
     assert detail.status_code == 200, detail.text
     assert detail.json()["asked_in_chat"] == item["asked_in_chat"]

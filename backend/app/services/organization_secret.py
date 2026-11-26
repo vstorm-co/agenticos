@@ -13,6 +13,8 @@ and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
 straight into its transport, never returning credentials to an API caller.
+`integration_token` exchanges an approved service-account credential directly at
+its provider token endpoint and returns only the short-lived access token.
 `native_runtime_key` exports a selected key only to a native template whose initiating
 member independently has vault visibility; it is never an HTTP secret reader.
 `event_source_credentials` opens only an organization-wide ingress credential
@@ -23,11 +25,17 @@ import hashlib
 from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import secret_purposes
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -37,6 +45,7 @@ from app.core.secret_kinds import (
     MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
+    SlackOAuthAppSecret,
     SmtpAccountSecret,
     StorableSecret,
     WebhookCredentialsSecret,
@@ -67,11 +76,14 @@ from app.services.sharing import Deferred, ShareChange, register_sharing_guard
 if TYPE_CHECKING:
     from app.agents.pi_keys import NativeKeyProvider, NativeRuntimeKey
     from app.services.email.service import EmailService
+    from app.services.integrations.app_auth import ApplicationGrant
     from app.services.model_catalog import CatalogModel
 
 # The credentials a connect flow spends: separate kinds even where the fields are
 # identical, because a kind names what a credential is for.
-OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret
+OAuthAppSecret = (
+    GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret | SlackOAuthAppSecret
+)
 
 
 class OrganizationSecretService:
@@ -709,6 +721,65 @@ class OrganizationSecretService:
             key_version=row.key_version,
         )
 
+    async def integration_token(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        provider: str,
+        subject: str | None,
+        scopes: list[str],
+    ) -> SecretStr:
+        """Renew a grant without silently retaining revoked application permissions."""
+        grant = await self.integration_grant(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=provider,
+            subject=subject,
+            scopes=scopes,
+        )
+        if provider == "microsoft" and not set(scopes) <= grant.granted_scopes:
+            raise AuthorizationError(
+                message="Microsoft application permissions changed; reconnect this account after checking administrator consent"
+            )
+        return grant.access_token
+
+    async def integration_grant(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        provider: str,
+        subject: str | None,
+        scopes: list[str],
+    ) -> ApplicationGrant:
+        """Hand a previously authorized native account's credential directly to its token transport.
+
+        This narrow plaintext reader returns the token and provider permission metadata.
+        The account service checks the source generation and narrows permissions.
+        """
+        from app.core.secret_kinds import EntraAppSecret, GcpServiceAccountSecret
+        from app.services.integrations import ApplicationGrant, google_token, microsoft_token
+
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        expected = SecretKind.GCP_SERVICE_ACCOUNT if provider == "google" else SecretKind.ENTRA_APP
+        if row is None or row.kind != expected.value:
+            raise NotFoundError(message="The integration credential is no longer available")
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=expected,
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+        if provider == "google" and isinstance(value, GcpServiceAccountSecret):
+            token = await google_token(value, subject=subject, scopes=scopes)
+            return ApplicationGrant(access_token=token, granted_scopes=frozenset(scopes))
+        if provider == "microsoft" and isinstance(value, EntraAppSecret):
+            return await microsoft_token(value)
+        raise NotFoundError(message="The integration credential belongs to another provider")
+
     async def native_runtime_key(
         self, *, organization_id: UUID, user_id: UUID, secret_id: UUID, provider: NativeKeyProvider
     ) -> NativeRuntimeKey:
@@ -774,15 +845,20 @@ class OrganizationSecretService:
         return value
 
     async def get_usable(
-        self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        kind: SecretKind,
+        perm: Perm = Perm.SECRETS_VIEW,
     ) -> OrganizationSecret:
-        """A secret of `kind` the caller may see, for naming on something that sends it.
+        """A secret of `kind` the caller may bind with the requested authority.
 
         Raises:
-            NotFoundError: If the caller may not see it, or it is another kind - the
+            NotFoundError: If the caller lacks the requested authority, or it is another kind - the
                 two read alike, as everywhere secrets are referenced.
         """
-        secret = await self._get(ctx, secret_id)
+        secret = await self._get(ctx, secret_id, perm=perm)
         if secret.kind != kind.value:
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         return secret

@@ -715,7 +715,9 @@ class TeamsAdapter(ChannelAdapter):
         response.raise_for_status()
         return True
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a file somebody sent.
 
         A file in a personal chat arrives with a pre-authorised download URL; a

@@ -3,12 +3,17 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ConsoleToaster } from "./console-toaster";
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
 
 afterEach(async () => {
-  act(() => toast.dismiss());
-  await act(async () => vi.runAllTimersAsync());
+  await act(async () => {
+    toast.dismiss();
+    await vi.runOnlyPendingTimersAsync();
+  });
   cleanup();
+  vi.clearAllTimers();
   vi.useRealTimers();
 });
 

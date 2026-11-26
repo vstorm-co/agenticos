@@ -66,6 +66,11 @@ class TestRendering:
             "It is Saturday 2026-10-10 12:30 (UTC). Policy v2 {{user_name}}."
         )
 
+    def test_a_whatsapp_run_says_it_is_on_whatsapp(self) -> None:
+        facts = replace(FACTS, surface="whatsapp")
+
+        assert render(_spec("on {{channel}}"), facts).instructions == "on WhatsApp"
+
     def test_nobody_signed_in_is_a_visitor_and_an_unknown_surface_is_named_as_is(self) -> None:
         facts = RunFacts(
             now=FACTS.now, user_name=None, user_email=None, organization_name=None, surface="x"

@@ -88,10 +88,16 @@ _CHANNELS = {
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "email": "e-mail",
+    "whatsapp": "WhatsApp",
     "discord": "Discord",
     "matrix": "Matrix",
     "schedule": "a scheduled run",
 }
+
+
+def channel_name(surface: str) -> str:
+    """What a run's surface is called to a person: "Slack", "WhatsApp", "the API"."""
+    return _CHANNELS.get(surface, surface)
 
 
 @dataclass(frozen=True)
@@ -161,7 +167,7 @@ def _system_values(facts: RunFacts, zone: ZoneInfo, agent_name: str) -> dict[str
         "organization_name": flattened(facts.organization_name or ""),
         "groups": ", ".join(flattened(name) for name in facts.groups),
         "agent_name": flattened(agent_name),
-        "channel": _CHANNELS.get(facts.surface, facts.surface),
+        "channel": channel_name(facts.surface),
     }
 
 

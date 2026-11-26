@@ -83,6 +83,7 @@ from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, tele
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, portability, projects
 from app.api.routes.v1 import teams_webhook
+from app.api.routes.v1 import whatsapp_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import embed_generated_media
 from app.api.routes.v1 import members, organizations
@@ -335,6 +336,7 @@ v1_router.include_router(
     sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
 )
 v1_router.include_router(teams_webhook.router, prefix="/teams", tags=["teams"])
+v1_router.include_router(whatsapp_webhook.router, prefix="/whatsapp", tags=["whatsapp"])
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])

@@ -260,3 +260,22 @@ describe("MCP catalog discovery", () => {
     expect(group?.app?.connectKey).toBeNull();
   });
 });
+
+it("keeps native product actions beside an app trigger without an MCP connection", () => {
+  const sections = pickerSections([
+    step("trigger.gmail", "triggers"),
+    step("integration.gmail.create_draft", "gmail"),
+    step("integration.google_slides.read_presentation", "google_slides"),
+    step("integration.word.read_document", "word"),
+  ]);
+  const groups = sections.find((section) => section.id === "apps")?.groups;
+  expect(groups?.find((group) => group.category === "gmail")?.items.map((item) => item.id)).toEqual(
+    ["trigger.gmail", "integration.gmail.create_draft"],
+  );
+  expect(groups?.find((group) => group.category === "google_slides")?.items[0]?.id).toBe(
+    "integration.google_slides.read_presentation",
+  );
+  expect(groups?.find((group) => group.category === "word")?.items[0]?.id).toBe(
+    "integration.word.read_document",
+  );
+});

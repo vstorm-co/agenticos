@@ -2946,7 +2946,7 @@
         "description": "Runs die gepauzeerd zijn op een toolaanroep en op een beslissing wachten.",
         "someAgent": "Een agent",
         "forPerson": "voor {email} · wacht {ago}",
-        "forChatAccount": "voor {name} (niet geverifieerd) · wacht {ago}"
+        "forChatAccount": "voor {name} (niet geverifieerd{hasHandle, select, yes {, {handle}} other {}}) · wacht {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -7603,7 +7603,7 @@
       "transcriptionInheritsFromOrg": "{pair}, van de organisatie",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {De desktop-app van Slack neemt audiofragmenten op als WebM} discord {Discord stuurt spraakberichten als Ogg/Opus} matrix {Matrix-clients sturen spraakberichten als Ogg/Opus} other {Telegram stuurt spraakberichten als Ogg/Opus}}, en Mistral vermeldt dat niet als een formaat dat het accepteert. Het transcriberen kan mislukken; kies dan een andere provider voor deze bot.",
+      "transcriptionMistralFormat": "{platform, select, slack {De desktop-app van Slack neemt audiofragmenten op als WebM} discord {Discord stuurt spraakberichten als Ogg/Opus} matrix {Matrix-clients sturen spraakberichten als Ogg/Opus} whatsapp {WhatsApp stuurt spraakberichten als Ogg/Opus} other {Telegram stuurt spraakberichten als Ogg/Opus}}, en Mistral vermeldt dat niet als een formaat dat het accepteert. Het transcriberen kan mislukken; kies dan een andere provider voor deze bot.",
       "transcriptionProviderNoKey": "{name} (geen bruikbare sleutel)",
       "transcriptionInheritedNoKey": "Er is geen sleutel gekozen op de plek waar deze combinatie vandaan komt, dus spraakberichten worden niet getranscribeerd tot dat wel gebeurt.",
       "botTokenHintEmail": "Het adres van waaruit de bot antwoordt, bijvoorbeeld agent@mail.example.com. Antwoorden gaan uit via de e-mailprovider van deze installatie.",
@@ -8232,8 +8232,8 @@
       "surfaceEmail": "E-mail",
       "systemRoleBriefing": "Dagelijkse briefing (systeem)",
       "systemRoleMaintenance": "Geheugenonderhoud (systeem)",
-      "askedInChat": "Gevraagd in {platform} door {name} (niet geverifieerd)",
-      "askedInChatThrough": "Gevraagd in {platform} door {name} (niet geverifieerd), via {bot}",
+      "askedInChat": "Gevraagd in {platform} door {name} (niet geverifieerd{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Gevraagd in {platform} door {name} (niet geverifieerd{hasHandle, select, yes {, {handle}} other {}}), via {bot}",
       "decisionApprovedInChat": "Goedgekeurd. Zodra er niets anders meer wacht, gaat de agent verder in de chat waarin het werd gevraagd.",
       "decisionRejectedInChat": "Afgewezen. Zodra er niets anders meer wacht, antwoordt de agent in de chat waarin het werd gevraagd.",
       "runResumedInChat": "Run hervat. Het antwoord wordt ook naar de chat gestuurd waarin het werd gevraagd.",
@@ -8555,7 +8555,7 @@
         "personalTitle": "Je gekoppelde accounts",
         "organizationTitle": "De gekoppelde accounts van de organisatie",
         "count": "{count, plural, one {# account} other {# accounts}}",
-        "connect": "Google-account koppelen",
+        "connect": "{provider}-account koppelen",
         "noneYet": "Nog geen accounts gekoppeld",
         "needsReconnect": "De login werkt niet meer. Koppel het opnieuw.",
         "scopes": "{count, plural, one {# recht verleend} other {# rechten verleend}}",

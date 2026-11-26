@@ -13,20 +13,33 @@ reaction is indistinguishable from a broken bot, so a deployment that cannot
 listen says so once rather than dropping the recording.
 """
 
+import contextlib
 import json
 from collections.abc import Callable, Iterator
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
-from app.core.exceptions import ExternalServiceError
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.core.exceptions import ExternalServiceError, NoSpendingLimitError
 from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.dedupe import delivery_ref
 from app.services.channels.mattermost import MattermostAdapter
-from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
+from app.services.channels.public_line import Ceiling
+from app.services.channels.router import (
+    STRANGER_RECORDING_MAX_BYTES,
+    TRANSCRIPTION_MAX_BYTES,
+    ChannelMessageRouter,
+)
 from app.services.channels.slack import SlackAdapter
+from app.services.channels.whatsapp import WhatsAppAdapter
+from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials
 from app.services.transcription import TranscriptionResult
+from tests.recordings import ogg_opus
+from tests.whatsapp_fakes import OpenWindow
 
 pytestmark = pytest.mark.anyio
 
@@ -170,7 +183,9 @@ class TestWhichAttachmentsGoWhere:
         with caplog.at_level("INFO", logger="app.services.channels.router"):
             ChannelMessageRouter._split_recordings(incoming)
 
-        assert "message=m-42 recording=0 type=audio/ogg" in caplog.text
+        reference = delivery_ref("m-42")
+        assert f"message={reference} recording=0 type=audio/ogg" in caplog.text
+        assert "m-42" not in caplog.text
         assert "Kowalska" not in caplog.text
         assert "report.pdf" not in caplog.text
 
@@ -311,6 +326,55 @@ class TestWhenItCannotListen:
 
         assert transcripts == ["the second one"]
         assert refusals == ["a.ogg: could not be downloaded."]
+
+    async def test_a_platform_that_cannot_fetch_files_yet_says_so_without_a_traceback(self, caplog):
+        adapter = MagicMock()
+        adapter.platform = "signal"
+        adapter.download_attachment = AsyncMock(side_effect=NotImplementedError)
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice("a.ogg")], requested_by=None
+            )
+
+        assert transcripts == []
+        assert refusals == ["a.ogg: this build cannot fetch files from signal yet."]
+        assert not [r for r in caplog.records if r.exc_info]
+
+    async def test_a_whatsapp_voice_note_reaches_transcription(self):
+        """The real adapter, a fake Graph: Meta's stated size and type feed the gates,
+        the note is fetched under the transcription limit, and its text comes back."""
+        creds = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="1")
+        graph = MagicMock(
+            media_info=AsyncMock(
+                return_value=MediaInfo(
+                    url="https://lookaside.fbsbx.com/v", mime_type="audio/ogg", file_size=2048
+                )
+            ),
+            download_media=AsyncMock(return_value=ogg_opus(3.0)),
+            aclose=AsyncMock(),
+        )
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        note = IncomingAttachment("audio", "application/octet-stream", 0, "12345")
+        [note] = await adapter.describe_attachments(creds.encode(), [note])
+        transcribe = AsyncMock(return_value=_heard("hello there"))
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value=creds.encode()),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [note], requested_by=None
+            )
+
+        assert refusals == []
+        assert transcripts == ["hello there"]
+        assert graph.download_media.await_args.kwargs["limit"] == TRANSCRIPTION_MAX_BYTES
+        await adapter.aclose()
 
     async def test_a_recording_too_large_to_transcribe_is_refused_before_it_is_fetched(self):
         """`TranscriptionService` applies its cap to bytes already in memory, so
@@ -791,3 +855,165 @@ class TestAVoiceNoteFromSlackOrMattermost:
         assert router._with_transcripts(message.text, transcripts) == (
             "[Voice message, transcribed]\nthe invoice is late"
         )
+
+
+_ROUTER = "app.services.channels.router"
+
+
+@contextlib.contextmanager
+def _stranger_line(
+    *, agent_cap: Decimal | None, org_cap: Decimal | None, within: bool = True
+) -> Iterator[SimpleNamespace]:
+    """A line that answers strangers, with these caps, and a provider that is counted."""
+    adapter = MagicMock()
+    adapter.download_attachment = AsyncMock(return_value=ogg_opus(3.0))
+    provider = AsyncMock(return_value=_heard("hello"))
+    within_cap = AsyncMock(
+        side_effect=None
+        if within
+        else BudgetExceeded(
+            limit_usd=Decimal(5), spent_usd=Decimal(5), scope=BudgetScope.ORGANIZATION
+        )
+    )
+    with (
+        patch(f"{_ROUTER}.get_adapter", return_value=adapter),
+        patch(f"{_ROUTER}.unseal_bot_token", return_value="tok"),
+        patch(f"{_ROUTER}.TranscriptionService.transcribe", provider),
+        patch(f"{_ROUTER}.bot_ceiling", AsyncMock(return_value=Ceiling(agent_cap, org_cap))),
+        patch(f"{_ROUTER}.assert_organization_within_budget", within_cap),
+    ):
+        yield SimpleNamespace(adapter=adapter, provider=provider)
+
+
+class TestAStrangersVoiceNote:
+    @pytest.mark.security
+    async def test_no_budget_and_no_cap_reaches_no_provider(self, usage: AsyncMock):
+        with _stranger_line(agent_cap=None, org_cap=None) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice(), _voice("b.ogg")], requested_by=None, as_agent=True
+            )
+
+        line.provider.assert_not_awaited()
+        line.adapter.download_attachment.assert_not_awaited()
+        usage.assert_not_awaited()
+        assert transcripts == []
+        assert refusals == [NoSpendingLimitError.message]
+
+    @pytest.mark.security
+    async def test_an_agent_budget_alone_does_not_take_voice(self, usage: AsyncMock):
+        with _stranger_line(agent_cap=Decimal(10), org_cap=None) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None, as_agent=True
+            )
+
+        line.provider.assert_not_awaited()
+        line.adapter.download_attachment.assert_not_awaited()
+        usage.assert_not_awaited()
+        assert transcripts == []
+        assert refusals == ["This line does not accept voice messages."]
+
+    @pytest.mark.security
+    async def test_a_strangers_voice_note_is_not_transcribed_past_the_org_cap(
+        self, usage: AsyncMock
+    ):
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5), within=False) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None, as_agent=True
+            )
+
+        line.provider.assert_not_awaited()
+        line.adapter.download_attachment.assert_not_awaited()
+        usage.assert_not_awaited()
+        assert transcripts == []
+        assert refusals == [NoSpendingLimitError.message]
+
+    @pytest.mark.security
+    async def test_a_strangers_long_voice_note_is_refused_before_the_provider(self):
+        long_claim = IncomingAttachment(
+            filename="long.ogg",
+            mime_type="audio/ogg",
+            size=STRANGER_RECORDING_MAX_BYTES + 1,
+            handle="h",
+            duration_seconds=3.0,
+        )
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5)) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [long_claim], requested_by=None, as_agent=True
+            )
+            line.adapter.download_attachment.assert_not_awaited()
+
+            # The claim understated the file: the bytes are held to the same limit.
+            line.adapter.download_attachment.return_value = bytes(STRANGER_RECORDING_MAX_BYTES + 1)
+            small_claim = IncomingAttachment(
+                filename="lie.ogg", mime_type="audio/ogg", size=10, handle="h", duration_seconds=3.0
+            )
+            more, again = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [small_claim], requested_by=None, as_agent=True
+            )
+
+        line.provider.assert_not_awaited()
+        assert transcripts == more == []
+        assert "too large to transcribe" in refusals[0]
+        assert "too large to transcribe" in again[0]
+
+    async def test_a_strangers_note_within_every_limit_is_transcribed(self):
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5)) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None, as_agent=True
+            )
+
+        assert transcripts == ["hello"]
+        assert refusals == []
+        line.provider.assert_awaited_once()
+
+    async def test_a_linked_senders_ten_megabyte_note_is_unaffected(self):
+        big = IncomingAttachment(
+            filename="big.ogg",
+            mime_type="audio/ogg",
+            size=10 * 1024 * 1024,
+            handle="h",
+            duration_seconds=60.0,
+        )
+        with _stranger_line(agent_cap=None, org_cap=None) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [big], requested_by=uuid4()
+            )
+
+        assert transcripts == ["hello"]
+        assert refusals == []
+        line.adapter.download_attachment.assert_awaited_once()
+
+    async def test_an_accepted_note_is_recorded_against_the_agent_and_no_person(
+        self, usage: AsyncMock
+    ):
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5)):
+            await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None, as_agent=True
+            )
+
+        assert usage.await_args.args[1].requested_by_user_id is None
+
+    async def test_a_strangers_download_is_capped_at_their_limit(self):
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5)) as line:
+            await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None, as_agent=True
+            )
+
+        assert line.adapter.download_attachment.await_args.kwargs["max_bytes"] == (
+            STRANGER_RECORDING_MAX_BYTES
+        )
+
+    @pytest.mark.parametrize("transcribe", [False, True], ids=["switched-off", "no-provider"])
+    async def test_a_stranger_is_not_told_how_the_line_is_set_up(
+        self, transcribe: bool, world: SimpleNamespace
+    ):
+        world.org.speech_to_text_secret_id = None
+        bot = _bot(provider=None, transcribe=transcribe)
+        with _stranger_line(agent_cap=None, org_cap=Decimal(5)) as line:
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), bot, [_voice()], requested_by=None, as_agent=True
+            )
+
+        assert transcripts == []
+        assert refusals == ["This line does not accept voice messages."]
+        line.adapter.download_attachment.assert_not_awaited()

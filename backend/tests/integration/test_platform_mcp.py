@@ -427,7 +427,7 @@ async def test_draft_creation_honors_default_free_and_explicit_confirmation(
         "granted": ApprovalGranted(tool_args=proposed),
     }[decision]
     ask = AsyncMock(return_value=answer)
-    deps = SimpleNamespace(request_approval=ask, run_id=uuid.uuid4())
+    deps = SimpleNamespace(request_approval=ask, run_id=uuid.uuid4(), acts_as_agent=False)
     agent = PydanticAgent(
         FunctionModel(proposes_a_draft),
         toolsets=[toolset],

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b896741cc56"
+source_sha: "0965548d0e5c"
 ---
 
 # Konfiguracja { #configuration }
@@ -67,6 +67,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy _publiczne_, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
 | `SMS_LINK_MAX_AGE_DAYS` | `90` | Jak długo numer telefonu pozostaje powiązany z kontem, zanim osoba musi go połączyć ponownie. Numer można przepisać lub przejąć, więc powiązanie SMS wygasa; `0` zostawia powiązania na zawsze. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, z którymi folder [wirtualnego terminala](reference/capabilities.md#mirage) może się połączyć, gdy autor wpisuje adres: serwer SSH, host w DSN Postgresa albo MongoDB, serwer IMAP. Adres pochodzi ze speca agenta albo z sekretu, który spec wskazuje, a połączenie nawiązuje to wdrożenie. Dopasowanie jest dokładne i niewrażliwe na wielkość liter. Publikacja sprawdza wpisany host, a każdy run sprawdza hosty w sekretach. Pusta wartość nie dopuszcza żadnego wpisanego adresu. Usługi ze stałym API, takie jak Dysk, GitHub i Notion, nie potrzebują wpisu |
+| `ODOO_ALLOWED_HOSTS` | `[]` | Dokładne hosty HTTPS Odoo, które mogą otrzymać klucze API baz; pusta lista blokuje wszystkie. Sprawdzane przy połączeniu i każdym żądaniu. |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent z [obsługą komputera](reference/capabilities.md#computer-use) może prowadzić pulpit `computerd`. `daemon_url` jest w specu agenta, a run wysyła token daemona pod adres, który on wskazuje, więc to ta sama lista dozwolonych co `BROWSER_CDP_ALLOWED_HOSTS`: dokładne dopasowanie bez rozróżniania wielkości liter, bez globów. Sprawdzana przy publikacji i ponownie za każdym razem, gdy run otwiera daemona, więc usunięcie hosta zatrzymuje agentów już opublikowanych. Token nie jest ustawieniem: należy do organizacji i leży w jej vaulcie, więc każda organizacja może wskazać dozwolony host, a wejdzie tylko ta, która ma token tego pulpitu. Pusta odmawia backendu daemon; pulpit w sandboksie agenta nie potrzebuje wpisu |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
 | `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
@@ -181,6 +182,8 @@ zasadę, jej egzekwowanie w API i awaryjne wymuszenie operatora
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL callbacku OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL frontendu dla przekierowań OAuth2 |
+| `OAUTH_BRIDGE_URL` | puste | Opcjonalny zaufany broker OAuth przez HTTPS dla kont natywnych; zobacz [Kontynuuj z AgenticOS](integrations.md#continue-with-agenticos). Pusta wartość oznacza własne credentials dostawcy. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | puste | Klucz instancji wydany po weryfikacji; wnioski na dev@vstorm.co. Tylko dla backendu. Bez klucza wspólna opcja jest ukryta. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Schemat, który rejestruje shell desktopowy dla logowania przekazanego przeglądarce systemowej ([Desktop](desktop.md#signing-in)). Callback buduje z niego przekierowanie, więc to ustawienie, a nie coś, co wybiera wołający |
 
 Skąd wziąć tę parę: [konsola Google Cloud](https://console.cloud.google.com/) →
@@ -197,6 +200,29 @@ tokenami sesji: token w URL-u przekierowania trafia do paska adresu, do logu
 dostępu serwera frontendu i do `Referer` następnego żądania same-origin, a refresh
 token jest ważny przez tydzień. Frontend wymienia kod na parę tokenów
 serwer–serwer pod `POST /api/v1/oauth/exchange`, które realizuje go dokładnie raz.
+
+### Logowanie przez Microsoft i GitHub { #microsoft-and-github-sign-in }
+
+Po skonfigurowaniu poświadczeń backendu dodaj `microsoft,github` obok `google`
+w `OAUTH_PROVIDERS` frontendu. Używaj osobnych aplikacji do logowania, niezależnych
+od integracji natywnych i poświadczeń Bridge. Logowanie nie daje agentom dostępu
+do poczty, plików, repozytoriów ani Teams.
+
+| Ustawienie backendu | Przeznaczenie |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | Wymagany UUID tenanta Entra; przycisk Microsoft loguje przez ten tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Poświadczenia poufnej aplikacji Web w Entra |
+| `MICROSOFT_REDIRECT_URI` | Domyślnie: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Poświadczenia GitHub OAuth App |
+| `GITHUB_REDIRECT_URI` | Domyślnie: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Zarejestruj dokładny callback u każdego dostawcy. Microsoft żąda tylko `openid
+email profile`; włącz opcjonalny claim `xms_edov` w ID tokenie i zapewnij zwracanie
+claimu `email`. Brak potwierdzenia adresu lub wartość false blokuje logowanie.
+GitHub żąda tylko `user:email` i używa potwierdzonego głównego adresu z
+`/user/emails`, również prywatnego. Publiczny adres w profilu nie dowodzi jego
+własności. Oba przepływy używają PKCE i istniejących zasad zaproszeń, rejestracji
+i sesji. Nieskonfigurowany dostawca zwraca 404; tokeny dostawcy nie są zapisywane.
 
 ### Logowanie jednokrotne (generyczne OIDC) { #single-sign-on-generic-oidc }
 

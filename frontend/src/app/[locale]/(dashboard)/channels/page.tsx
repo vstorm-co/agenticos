@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { MessagesSquare, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { BindingRequestsCard } from "@/components/channels/binding-requests-card";
+import { WhatsAppCustomersSheet } from "@/components/channels/whatsapp-customers-sheet";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
@@ -67,7 +69,7 @@ export default function ChannelsPage() {
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, refetch, create, update, setActive, remove } =
+  const { bots, isLoading, error, refetch, refresh, create, update, setActive, remove } =
     useChannelBots(canManage);
   // Read for what the viewer may publish, which the server re-checks on every
   // bind and unbind. Archived agents are included so one that is still bound
@@ -86,6 +88,7 @@ export default function ChannelsPage() {
   const [editing, setEditing] = useState<ChannelBot | null>(null);
   const [deleting, setDeleting] = useState<ChannelBot | null>(null);
   const [mapping, setMapping] = useState<ChannelBot | null>(null);
+  const [customersOf, setCustomersOf] = useState<ChannelBot | null>(null);
   const [binding, setBinding] = useState<ChannelBot | null>(null);
   const [unbinding, setUnbinding] = useState<{ bot: ChannelBot; agent: BotAgent } | null>(null);
   const mayPublish = useMemo<PublishAnswer>(() => {
@@ -135,6 +138,7 @@ export default function ChannelsPage() {
         }
       />
 
+      <BindingRequestsCard />
       <BotsCard count={error || permissionsError ? null : bots.length}>
         {isLoading || permissionsLoading ? (
           <ChannelBotsTable
@@ -185,6 +189,7 @@ export default function ChannelsPage() {
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={setDeleting}
             onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
+            onCustomers={setCustomersOf}
             onBind={canBind ? setBinding : undefined}
             onUnbind={canBind ? startUnbind : undefined}
             mayPublish={mayPublish}
@@ -194,6 +199,7 @@ export default function ChannelsPage() {
 
       {canManage && !permissionsLoading && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open={adding}
           onOpenChange={setAdding}
           onSubmit={create.mutateAsync}
@@ -214,6 +220,7 @@ export default function ChannelsPage() {
         />
       )}
 
+      <WhatsAppCustomersSheet bot={customersOf} onClose={() => setCustomersOf(null)} />
       {binding && canBind && (
         <BindAgentDialog
           bot={binding}

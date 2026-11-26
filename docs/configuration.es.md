@@ -1,5 +1,5 @@
 ---
-source_sha: "3b896741cc56"
+source_sha: "0965548d0e5c"
 ---
 
 # Configuración { #configuration }
@@ -70,6 +70,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones _públicas_, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
 | `SMS_LINK_MAX_AGE_DAYS` | `90` | Cuánto tiempo un número de teléfono sigue vinculado a una cuenta antes de que la persona tenga que vincularlo de nuevo. Un número puede reasignarse o ser tomado, así que un vínculo de SMS caduca; `0` mantiene los vínculos siempre. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede conectarse una carpeta del [terminal virtual](reference/capabilities.md#mirage) cuando su autor escribe la dirección: un servidor SSH, el host de un DSN de Postgres o MongoDB, un servidor IMAP. La dirección viene del spec de un agent o de un secreto que nombra, y la conexión la hace este deployment. La coincidencia es exacta y sin distinguir mayúsculas. La publicación comprueba un host escrito, y cada run comprueba los hosts dentro de los secretos. Vacío no admite ninguna dirección escrita. Los servicios con una API fija, como Drive, GitHub y Notion, no necesitan entrada |
+| `ODOO_ALLOWED_HOSTS` | `[]` | Hosts HTTPS exactos de Odoo autorizados para recibir claves API de bases; vacío bloquea todos. Se comprueba al conectar y en cada solicitud. |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent con [computer use](reference/capabilities.md#computer-use) puede dirigir un escritorio `computerd`. `daemon_url` está en el spec del agent y un run envía el token del daemon a la dirección que nombra, así que es la misma allowlist que `BROWSER_CDP_ALLOWED_HOSTS`: exacta y sin distinguir mayúsculas, sin globs. Se comprueba al publicar y de nuevo cada vez que un run abre el daemon, así que quitar un host detiene a los agents ya publicados. El token no es un ajuste: es de la organización, en su vault, de modo que cualquier organización puede nombrar un host permitido y solo la que tiene el token de ese escritorio entra. Vacía rechaza el backend daemon; un escritorio en la sandbox del agent no necesita entrada |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
 | `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
@@ -185,6 +186,8 @@ política, su aplicación en la API y la anulación de recuperación del operado
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret de Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL de callback de OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL del frontend para las redirecciones de OAuth2 |
+| `OAUTH_BRIDGE_URL` | vacío | Broker OAuth HTTPS de confianza opcional para cuentas nativas; consulte [Continuar con AgenticOS](integrations.md#continue-with-agenticos). Vacío utiliza credenciales propias. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | vacío | Clave de instancia solo del servidor, emitida tras revisión; solicítela en dev@vstorm.co. Sin clave la opción compartida está oculta. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | El esquema que la carcasa de escritorio registra para un inicio de sesión entregado al navegador del sistema ([Desktop](desktop.md#signing-in)). El callback construye una redirección con él, así que es un ajuste y no algo que elija quien llama |
 
 Cómo conseguir el par: [consola de Google Cloud](https://console.cloud.google.com/) →
@@ -203,6 +206,30 @@ direcciones, al log de acceso del servidor del frontend y al `Referer` de la
 siguiente petición del mismo origen, y el refresh token vale una semana. El
 frontend canjea el código por el par de tokens de servidor a servidor en
 `POST /api/v1/oauth/exchange`, que lo redime exactamente una vez.
+
+### Inicio de sesión con Microsoft y GitHub { #microsoft-and-github-sign-in }
+
+Tras configurar las credenciales del backend, añade `microsoft,github` junto a
+`google` en `OAUTH_PROVIDERS` del frontend. Usa aplicaciones de inicio de sesión
+separadas de las integraciones nativas y las credenciales de Bridge. Iniciar
+sesión no concede a los agentes acceso al correo, archivos, repositorios o Teams.
+
+| Ajuste del backend | Propósito |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | UUID obligatorio del tenant Entra; Microsoft autentica mediante este tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Credenciales de una aplicación Web confidencial de Entra |
+| `MICROSOFT_REDIRECT_URI` | Predeterminado: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Credenciales de una GitHub OAuth App |
+| `GITHUB_REDIRECT_URI` | Predeterminado: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Registra el callback exacto en cada proveedor. Microsoft solicita solo `openid
+email profile`; habilita el claim opcional `xms_edov` del ID token y asegura que
+se devuelva `email`. La ausencia de verificación o un valor false impide el
+acceso. GitHub solicita solo `user:email` y usa la dirección principal verificada
+de `/user/emails`, incluidas las privadas. Una dirección pública del perfil no
+prueba su propiedad. Ambos flujos usan PKCE y las reglas existentes de
+invitaciones, registro y sesiones. Los proveedores sin configurar responden 404;
+los tokens del proveedor no se guardan.
 
 ### Inicio de sesión único (OIDC genérico) { #single-sign-on-generic-oidc }
 

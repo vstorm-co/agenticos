@@ -9,9 +9,9 @@ conversation here, and a post reads the reference back.
 
 `key` is what the rest of the platform calls the conversation. A Teams
 conversation id is long - a personal chat's runs past a hundred characters - and
-full of colons, while `channel_sessions.platform_chat_id` is a hundred
-characters and the channel layer reads a colon as "channel, then thread". A
-hash of the id fits both.
+full of colons, while `channel_sessions.platform_chat_id` is 255 characters
+and the channel layer reads a colon as "channel, then thread". A hash of the
+id fits both.
 """
 
 import uuid

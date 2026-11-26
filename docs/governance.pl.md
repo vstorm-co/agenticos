@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "250edf9ea8a8"
 ---
 
 # Governance { #governance }
@@ -2597,6 +2597,9 @@ rutyna. Narzędzia MCP do Inbox działają w zalogowanej sesji i przez zaufane
 poświadczenia prywatnej rozmowy; te ostatnie obejmują wyłącznie sprawy tej rozmowy.
 Zwykłe klucze API, uruchomienia w tle i zastępcza tożsamość publikującego nie mogą
 czytać ani zamykać prywatnych spraw.
+
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.
 
 ## Grupy akceptujące { #approval-groups }
 

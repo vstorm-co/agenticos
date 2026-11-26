@@ -104,6 +104,7 @@ class SecretKind(StrEnum):
     GITHUB_OAUTH_APP = "github_oauth_app"
     GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
+    SLACK_OAUTH_APP = "slack_oauth_app"
     MCP_OAUTH_CLIENT = "mcp_oauth_client"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
@@ -682,6 +683,18 @@ class GoogleOAuthAppSecret(_SecretBase):
         return self.client_id[-4:]
 
 
+class SlackOAuthAppSecret(_SecretBase):
+    """An internal Slack app's client for native Web API account consent."""
+
+    kind: Literal[SecretKind.SLACK_OAUTH_APP] = SecretKind.SLACK_OAUTH_APP
+    client_id: str = Field(min_length=1, max_length=255, title="Client ID")
+    client_secret: CredentialStr = Field(title="Client secret")
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 class MicrosoftOAuthAppSecret(_SecretBase):
     """A Microsoft app registration a person signs in through: tenant, client id, secret.
 
@@ -726,6 +739,7 @@ StorableSecret = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | SlackOAuthAppSecret
     | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
@@ -747,6 +761,8 @@ TypedSecret = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | MicrosoftOAuthAppSecret
+    | SlackOAuthAppSecret
     | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
@@ -772,6 +788,7 @@ SecretValue = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | SlackOAuthAppSecret
     | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
@@ -882,6 +899,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
     SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
+    SecretKind.SLACK_OAUTH_APP: SlackOAuthAppSecret,
     SecretKind.MCP_OAUTH_CLIENT: McpOAuthClientSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
@@ -932,6 +950,10 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "A GitHub App's id, private key and webhook secret. Installed on chosen "
         "repositories with scoped permissions, and delivering without a "
         "per-repository hook.",
+    ),
+    SecretKind.SLACK_OAUTH_APP: (
+        "Slack OAuth app",
+        "An internal Slack app's client id and secret for connecting workspace accounts.",
     ),
     SecretKind.GOOGLE_OAUTH_APP: (
         "Google OAuth client",

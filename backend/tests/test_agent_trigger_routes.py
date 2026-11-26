@@ -60,6 +60,7 @@ async def test_the_portal_catalog_maps_every_portal_and_its_presets():
     """The mapping itself lives in the service now (it joins connection state);
     the route hands back one page of whatever it answered."""
     service = AgentTriggerService(MagicMock())
+    service.connections.list_accounts = AsyncMock(return_value=[])
     with (
         patch("app.services.agent_trigger.mcp_connection_repo") as connections,
         patch("app.services.agent_trigger.organization_secret_repo") as secrets,

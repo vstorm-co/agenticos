@@ -1,0 +1,10 @@
+{
+  "label": "Test mailbox",
+  "credential": {
+    "host": "imap.example.com",
+    "port": 993,
+    "username": "bot@example.com",
+    "password": "REPLACE_WITH_APP_PASSWORD",
+    "folder": "INBOX"
+  }
+}

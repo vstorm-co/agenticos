@@ -47,6 +47,14 @@ class _PlaceUnreadable(Exception):
 class MicrosoftFilesPortalAdapter(PortalAdapter):
     portal_key = "microsoft_files"
 
+    def __init__(self, *, subject: str | None = None, application_id: str | None = None) -> None:
+        self.subject = subject
+        self.application_id = application_id
+
+    @property
+    def _account_path(self) -> str:
+        return "/me" if self.subject is None else f"/users/{quote(self.subject, safe='')}"
+
     async def poll(
         self,
         *,
@@ -63,12 +71,25 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         now = datetime.now(UTC)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             if not cursor or not isinstance(cursor.get("account"), str):
-                user = await self._get(client, access_token, f"{_API_BASE}/me", {"$select": "id"})
-                identifier = user.get("id")
-                if not isinstance(identifier, str) or not identifier:
-                    raise PortalUnreachable(message="Microsoft Graph did not identify the account")
+                if self.subject is not None or self.application_id is not None:
+                    identifier = self.subject or self.application_id
+                else:
+                    user = await self._get(
+                        client, access_token, f"{_API_BASE}{self._account_path}", {"$select": "id"}
+                    )
+                    identifier = user.get("id")
+                    if not isinstance(identifier, str) or not identifier:
+                        raise PortalUnreachable(
+                            message="Microsoft Graph did not identify the account"
+                        )
                 return PolledEvents(
-                    events=(), cursor={"account": identifier, "user_id": identifier, "places": {}}
+                    events=(),
+                    cursor={
+                        "account": identifier,
+                        "user_id": self.subject if self.application_id else identifier,
+                        **({"application_id": self.application_id} if self.application_id else {}),
+                        "places": {},
+                    },
                 )
             previous = cursor.get("places")
             states: dict[str, Any] = previous if isinstance(previous, dict) else {}
@@ -83,7 +104,8 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
                         access_token,
                         key,
                         state=state if isinstance(state, dict) else {},
-                        user_id=cursor.get("user_id"),
+                        user_id=self.subject or cursor.get("user_id"),
+                        application_id=self.application_id,
                         watched_since=watched_since,
                         now=now,
                     )
@@ -97,6 +119,8 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
             events=tuple(events),
             cursor={
                 **{key: cursor[key] for key in ("account", "user_id") if key in cursor},
+                **({"user_id": self.subject} if self.subject else {}),
+                **({"application_id": self.application_id} if self.application_id else {}),
                 "places": next_states,
             },
             unreadable=frozenset(unreadable),
@@ -112,6 +136,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         user_id: Any,
         watched_since: datetime,
         now: datetime,
+        application_id: str | None = None,
     ) -> tuple[list[_files.ChangedFile], dict[str, Any]]:
         """The files changed in one place since its stored link, and its new state."""
         drive_id = state.get("drive_id")
@@ -164,7 +189,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
                             if (exc.details or {}).get("status") == 404:
                                 continue
                             raise
-                found = _changed_file(item, key=key, user_id=user_id)
+                found = _changed_file(item, key=key, user_id=user_id, application_id=application_id)
                 if found is not None:
                     changed.append(found)
             following = body.get("@odata.nextLink")
@@ -206,7 +231,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
             )
             url = f"{site}/drive"
         else:
-            url = f"{_API_BASE}/me/drive"
+            url = f"{_API_BASE}{self._account_path}/drive"
         try:
             drive = await self._get(client, access_token, url, {"$select": "id"})
         except PortalUnreachable as exc:
@@ -235,7 +260,9 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         )
 
 
-def _changed_file(item: Any, *, key: str, user_id: Any) -> _files.ChangedFile | None:
+def _changed_file(
+    item: Any, *, key: str, user_id: Any, application_id: str | None = None
+) -> _files.ChangedFile | None:
     """A delta item that is a file still there, or `None` - a deletion or a folder."""
     if not isinstance(item, dict) or "deleted" in item or not isinstance(item.get("file"), dict):
         return None
@@ -257,6 +284,17 @@ def _changed_file(item: Any, *, key: str, user_id: Any) -> _files.ChangedFile | 
         modified_at=modified,
         url=str(item.get("webUrl") or ""),
         modified_by=str(editor.get("email") or editor.get("displayName") or ""),
-        by_account=isinstance(user_id, str) and editor.get("id") == user_id,
+        by_account=(
+            isinstance(user_id, str)
+            and (
+                str(editor.get("id", "")).casefold() == user_id.casefold()
+                or str(editor.get("email", "")).casefold() == user_id.casefold()
+            )
+        )
+        or (
+            application_id is not None
+            and str(nested(nested(item, "lastModifiedBy"), "application").get("id", "")).casefold()
+            == application_id.casefold()
+        ),
         location={"place": key, "site_url": key or None, "folder": unquote(path).strip("/")},
     )

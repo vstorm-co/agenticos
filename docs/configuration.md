@@ -63,6 +63,7 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only _public_ addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
 | `SMS_LINK_MAX_AGE_DAYS` | `90` | How long a phone number stays linked to an account before the person has to link it again. A number can be reassigned or taken over, so an SMS link lapses; `0` keeps links for ever. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [virtual terminal](reference/capabilities.md#mirage) folder may connect to when its author types the address: an SSH server, the host in a Postgres or MongoDB DSN, an IMAP server. The address comes from an agent spec or a secret it names, and the connection is made from this deployment. Matching is exact and case-folded. Publishing checks a typed host, and each run checks the hosts inside secrets. Empty allows no typed address. Services with a fixed API, such as Drive, GitHub and Notion, need no entry |
+| `ODOO_ALLOWED_HOSTS` | `[]` | Exact HTTPS Odoo hosts permitted to receive database API keys; empty denies every host. Checked at connection and on every request. |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [computer-use](reference/capabilities.md#computer-use) agent may drive a `computerd` desktop at. `daemon_url` is in the agent spec and a run sends the daemon's token to whatever it names, so this is the same allowlist as `BROWSER_CDP_ALLOWED_HOSTS`: exact and case-folded, with no globs. Checked at publish and again whenever a run opens the daemon, so removing a host stops agents already published. The token is not a setting: it is the organization's, in its vault, so every organization can name an allowed host and only the one holding that desktop's token gets in. Empty refuses the daemon backend; a desktop in the agent's sandbox needs no entry |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
 | `VISUAL_RENDER_CDP_URL` | `""` (empty) | The browser a [visual](reference/capabilities.md#visuals) is drawn to a picture with where no frame can run it - a reply in Slack, Telegram or Mattermost, and the dashboard thumbnail of a page. The compose `browser` service is `http://browser:9222`; its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there: every request it makes is answered by the deployment or refused. Empty sends a chat app the answer without the picture |
@@ -177,6 +178,8 @@ recovery override.
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google OAuth2 client secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
+| `OAUTH_BRIDGE_URL` | empty | Optional trusted HTTPS OAuth broker for native accounts; see [Continue with AgenticOS](integrations.md#continue-with-agenticos). Empty uses your own provider credentials. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | empty | Server-only deployment key issued after review; request access at dev@vstorm.co. Without it the shared connection option is hidden. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | The scheme the desktop shell registers for a sign-in handed to the system browser ([Desktop](desktop.md#signing-in)). The callback builds a redirect out of it, so it is a setting rather than anything a caller can choose |
 
 Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →
@@ -195,6 +198,29 @@ frontend server's access log, and the `Referer` of the next same-origin request,
 and the refresh token is good for a week. The frontend swaps the code for the
 token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
 exactly once.
+
+### Microsoft and GitHub sign-in
+
+Enable `microsoft,github` alongside `google` in the frontend's `OAUTH_PROVIDERS`
+after configuring the corresponding backend credentials. Keep sign-in apps
+separate from native integration apps and Bridge credentials. Sign-in grants no
+mail, file, repository or Teams access to agents.
+
+| Backend setting | Purpose |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | Required Entra tenant UUID; the Microsoft button signs in through this tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Confidential Entra Web application credentials |
+| `MICROSOFT_REDIRECT_URI` | Default: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth App credentials |
+| `GITHUB_REDIRECT_URI` | Default: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Register the exact callback at each provider. Microsoft requests only `openid
+email profile`; enable the optional ID-token claim `xms_edov` and ensure an
+`email` claim is returned. An absent or false verification claim refuses sign-in.
+GitHub requests only `user:email` and uses the verified primary address from
+`/user/emails`, including private addresses. A public profile email is not proof
+of ownership. Both flows use PKCE and the existing invitation, registration and
+session rules. Unconfigured providers answer 404; provider tokens are not saved.
 
 ### Single sign-on (generic OIDC)
 

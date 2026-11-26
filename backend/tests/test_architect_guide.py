@@ -142,12 +142,13 @@ def test_the_skill_offers_every_copied_page_by_name(gen: GuideGenerator) -> None
         assert f"`{relative}`" in skill.content
 
 
-def test_the_architect_guide_remains_optional() -> None:
+@pytest.mark.parametrize("key", ["general/platform-assistant", "general/agenticos"])
+def test_shipped_agents_have_the_product_guide(key: str) -> None:
     from app.services import agent_templates
 
-    architect = agent_templates.get("general/platform-assistant")
-    assert architect is not None
-    assert "software/agenticos-guide" not in architect.skills
+    template = agent_templates.get(key)
+    assert template is not None
+    assert "software/agenticos-guide" in template.skills
     assert skill_library.gallery_get("software/agenticos-guide") is not None
 
 

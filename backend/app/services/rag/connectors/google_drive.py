@@ -23,11 +23,13 @@ import json as _json
 import logging
 from pathlib import Path
 from typing import ClassVar
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
+from app.services.integrations import AccountToken
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -50,6 +52,11 @@ class GoogleDriveConfig(BaseModel):
     default, so it is the one required field.
     """
 
+    connection_id: UUID | None = Field(
+        default=None,
+        title="Connected Google account",
+        description="An organization connected account. Leave the vault credential empty when using this.",
+    )
     folder_id: str = Field(
         title="Google Drive Folder ID",
         description="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
@@ -102,6 +109,8 @@ class GoogleDriveConnector(BaseSyncConnector):
             BadRequestError: the source names no credential, its secret has been
                 deleted, or the secret is not a service account.
         """
+        if isinstance(credential, AccountToken) and credential.provider == "google":
+            return DriveClient(lambda: credential.token_from_thread().get_secret_value())
         if credential is None:
             raise BadRequestError(
                 message=(

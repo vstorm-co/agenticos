@@ -33,6 +33,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 
   discord: "Discord",
   matrix: "Matrix",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 interface ChannelBotsTableProps {
@@ -48,6 +50,8 @@ interface ChannelBotsTableProps {
    * `members:manage`, which every mapping call takes, so nobody else sees the button.
    */
   onMapRoles?: (bot: ChannelBot) => void;
+  /** Opens a WhatsApp bot's customers; offered on that platform's rows only. */
+  onCustomers?: (bot: ChannelBot) => void;
   /** Passed only to somebody who may bind: `channels:manage` and `agents:view`. */
   onBind?: (bot: ChannelBot) => void;
   onUnbind?: (bot: ChannelBot, agent: BotAgent) => void;
@@ -112,6 +116,7 @@ export function ChannelBotsTable({
   onToggleActive,
   onDelete,
   onMapRoles,
+  onCustomers,
   onBind,
   onUnbind,
   mayPublish,
@@ -153,13 +158,25 @@ export function ChannelBotsTable({
             <div className={cn("flex flex-col items-start gap-1", paused(bot))}>
               <Badge variant="outline">{bot.webhook_mode ? t("webhook") : t("polling")}</Badge>
               {missing && <Badge variant="secondary">{t(missing)}</Badge>}
+              {/* A live WhatsApp bot with no template holds any answer that
+                  is ready after the customer's 24-hour window (#2076). */}
+              {bot.is_active && bot.platform === "whatsapp" && !bot.whatsapp_late_template && (
+                <Badge variant="secondary">{t("whatsappNoLateTemplate")}</Badge>
+              )}
               {/* Only "down", and only on a live bot. A paused one has no
                   connection by design and already says so on the next line, and
-                  an unknown state is not a fault to report. */}
+                  an unknown state is not a fault to report. A WhatsApp bot has
+                  no socket: its "down" is Meta refusing a send. */}
               {bot.is_active && bot.connection?.state === "down" && (
                 <Badge variant="destructive" title={bot.connection.reason ?? undefined}>
-                  {t("connectionDown")}
+                  {bot.platform === "whatsapp" ? t("whatsappSendDown") : t("connectionDown")}
                 </Badge>
+              )}
+              {/* Customers with no account are answered here. Whether a spending
+                  limit stands behind it is not worked out per row: the edit
+                  dialog's warning says so. */}
+              {bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true && (
+                <Badge variant="outline">{t("publicLineBadge")}</Badge>
               )}
               {!bot.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
             </div>
@@ -188,6 +205,17 @@ export function ChannelBotsTable({
         cell: (bot) => (
           <TooltipProvider>
             <div className={cn("flex justify-end gap-1 @max-md/table:justify-start", paused(bot))}>
+              {bot.platform === "whatsapp" && onCustomers && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-tour="channels-customers"
+                  aria-label={t("customersOf", { bot: bot.name })}
+                  onClick={() => onCustomers(bot)}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+              )}
               <ActionTooltip label={t("diagnostics.open", { bot: bot.name })} disabled={busy}>
                 <Button
                   variant="ghost"
@@ -263,7 +291,18 @@ export function ChannelBotsTable({
         ),
       },
     ],
-    [busy, onEdit, onToggleActive, onDelete, onMapRoles, onBind, onUnbind, mayPublish, t],
+    [
+      busy,
+      onEdit,
+      onToggleActive,
+      onDelete,
+      onMapRoles,
+      onCustomers,
+      onBind,
+      onUnbind,
+      mayPublish,
+      t,
+    ],
   );
 
   return (

@@ -40,6 +40,7 @@ class ContentGate(enum.Enum):
     ARTIFACTS_VIEW = "artifacts_view"
     WORKFLOWS_VIEW = "workflows_view"
     SHARED_CONVERSATION = "shared_conversation"
+    CHANNELS_MANAGE = "channels_manage"
     IMPROVEMENT_CRITERIA = "improvement_criteria"
 
 
@@ -74,6 +75,9 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     # Names a workflow and how many of its log lines matched, never the lines: only
     # someone who may still view the workflow is shown the row.
     NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
+    # Names an agent and a bot, never a customer: only someone who may still decide the
+    # request is shown the row. Its answer goes to the one who asked and needs no recheck.
+    NotificationEventType.CHANNEL_BINDING_REQUESTED: ContentGate.CHANNELS_MANAGE,
 }
 
 # `security_event`, `configuration_changed` and `background_task_paused` bypass

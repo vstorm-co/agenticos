@@ -2,11 +2,13 @@
 
 import { useTranslations } from "next-intl";
 
+import { ProviderRegistrationSteps } from "@/components/vault/provider-registration-steps";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Input, Label } from "@/components/ui";
 
 interface McpOAuthClientFieldsProps {
   required?: boolean;
+  catalogKey?: string | null;
   clientId: string;
   clientSecret: string;
   onClientIdChange: (value: string) => void;
@@ -27,6 +29,7 @@ interface McpOAuthClientFieldsProps {
  */
 export function McpOAuthClientFields({
   required = false,
+  catalogKey,
   clientId,
   clientSecret,
   onClientIdChange,
@@ -39,6 +42,13 @@ export function McpOAuthClientFields({
   // internal hostname), and a redirect URL registered off that would never
   // match the one the flow sends.
   const { siteUrl } = usePublicConfig();
+  const provider = catalogKey?.startsWith("google-")
+    ? "google"
+    : catalogKey === "slack"
+      ? "slack"
+      : catalogKey === "work-iq"
+        ? "microsoft"
+        : null;
   const redirectUrl = `${siteUrl}/api/me/mcp-connections/oauth/callback`;
 
   return (
@@ -51,13 +61,29 @@ export function McpOAuthClientFields({
           {t(required ? "googleOAuthClientHint" : "oauthOwnClientHint")}
         </p>
       </div>
-      <div>
-        <Label>{t("oauthRedirectUrl")}</Label>
-        <code className="bg-muted mt-1.5 block rounded px-2 py-1.5 font-mono text-xs break-all select-all">
-          {redirectUrl}
-        </code>
-        <p className="text-muted-foreground mt-1 text-xs">{t("oauthRedirectUrlHint")}</p>
-      </div>
+      {provider && (
+        <ProviderRegistrationSteps
+          provider={provider}
+          redirectUri={redirectUrl}
+          consoleUrl={
+            provider === "google"
+              ? "https://console.cloud.google.com/apis/credentials"
+              : provider === "slack"
+                ? "https://api.slack.com/apps"
+                : "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
+          }
+          mcp
+        />
+      )}
+      {!provider && (
+        <div>
+          <Label>{t("oauthRedirectUrl")}</Label>
+          <code className="bg-muted mt-1.5 block rounded px-2 py-1.5 font-mono text-xs break-all select-all">
+            {redirectUrl}
+          </code>
+          <p className="text-muted-foreground mt-1 text-xs">{t("oauthRedirectUrlHint")}</p>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="mcp-client-id">{t("oauthClientId")}</Label>

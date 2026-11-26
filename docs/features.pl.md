@@ -1,5 +1,5 @@
 ---
-source_sha: "f73ea6abcad6"
+source_sha: "8cc9c6583fa2"
 ---
 
 # Funkcje { #features }
@@ -172,6 +172,8 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **HTTP API** oraz surowy WebSocket do strumieniowania
 - **Slack**, **Telegram**, **Mattermost**, **Discord** i **Matrix**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
+- **WhatsApp**, w czatach bezpośrednich, z odpowiedziami tekstem i członkiem
+  powiązanym kodem wysłanym z czatu
 
 Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
 dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz

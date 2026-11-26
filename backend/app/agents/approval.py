@@ -111,6 +111,10 @@ class ApprovalGranted:
 
     tool_args: dict[str, Any]
 
+    decided_by: UUID | None = None
+    """The member who decided it, for a run that acts as its agent: an approved table
+    write runs as them. `None` for a standing consent, which no member decided."""
+
 
 @dataclass(frozen=True)
 class ApprovalRejected:

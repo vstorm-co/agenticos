@@ -24,7 +24,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.agents.audience import acting_for_no_person, acting_impersonated
+from app.agents.audience import acting_decider, acting_for_no_person, acting_impersonated
 from app.api import deps
 from app.core.audit import set_impersonator
 from app.core.config import settings
@@ -640,6 +640,55 @@ class TestThePublicOrigin:
 
         run = await world.run(run_id)
         assert (run.root_run_id, run.public_origin) == (root.run.id, True)
+
+    @pytest.mark.security
+    async def test_a_triggered_workflow_runs_as_the_triggers_principal(self, world: _World):
+        """An agent's approved write is made by the person who approved it, but the workflow
+        it starts runs as whoever switched the trigger on - and as an outsider's run."""
+        await world.trigger()
+        async with world.factory() as db:
+            decider = User(
+                id=uuid.uuid4(),
+                email=f"{uuid.uuid4().hex}@example.com",
+                hashed_password="x",
+                is_active=True,
+            )
+            db.add(decider)
+            await db.flush()
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(),
+                    organization_id=world.org.id,
+                    user_id=decider.id,
+                    role="admin",
+                )
+            )
+            await resource_grant_repo.upsert(
+                db,
+                organization_id=world.org.id,
+                subject_user_id=decider.id,
+                resource_type=TABLE.key,
+                resource_id=world.leads.id,
+                level=GrantLevel.EDIT,
+            )
+            await db.commit()
+        with acting_for_no_person(True), acting_decider("call-1", decider.id):
+            async with world.factory() as db:
+                await VirtualTableService(db).create_record(
+                    AuthContext(user_id=decider.id, organization_id=world.org.id, role="admin"),
+                    world.leads.id,
+                    RecordCreate(values={str(world.column("Email")): "agent@x"}),
+                )
+                await db.commit()
+
+        async with world.factory() as db:
+            record = (await db.execute(select(VirtualTableRecord))).scalar_one()
+        assert record.created_by == decider.id
+        ((run_id, _entry),) = await world.consume()
+        run = await world.run(run_id)
+        assert run.execution_principal_user_id == world.owner.id
+        assert run.execution_principal_user_id != decider.id
+        assert run.public_origin is True
 
     @pytest.mark.security
     async def test_a_table_write_by_a_widget_run_starts_a_public_run(self, world: _World):

@@ -1,9 +1,9 @@
 """ChannelBot repository (PostgreSQL async)."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_bot import ChannelBot
@@ -18,6 +18,29 @@ async def get_for_inbound(db: AsyncSession, bot_id: UUID) -> ChannelBot | None:
     use :func:`get_for_org` instead so a bot cannot be read across tenants.
     """
     return await db.get(ChannelBot, bot_id)
+
+
+async def get_active_whatsapp_by_numbers(
+    db: AsyncSession, *, pairs: Sequence[tuple[str, str]]
+) -> list[ChannelBot]:
+    """The active WhatsApp bots that own any of the `(account id, phone-number id)` pairs.
+
+    Deliberately unscoped for the same reason :func:`get_for_inbound` is: a webhook
+    batch names numbers, not organizations, and the bot row is where the
+    organization comes from. One query for the whole batch.
+    """
+    if not pairs:
+        return []
+    result = await db.execute(
+        select(ChannelBot).where(
+            ChannelBot.platform == "whatsapp",
+            ChannelBot.is_active.is_(True),
+            tuple_(ChannelBot.whatsapp_account_id, ChannelBot.whatsapp_phone_number_id).in_(
+                list(pairs)
+            ),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def get_by_ids(db: AsyncSession, bot_ids: set[UUID]) -> dict[UUID, ChannelBot]:
@@ -141,6 +164,9 @@ async def create(
     command_token_encrypted: str | None = None,
     teams_app_id: str | None = None,
     teams_tenant_id: str | None = None,
+    whatsapp_phone_number_id: str | None = None,
+    whatsapp_account_id: str | None = None,
+    whatsapp_verify_token_encrypted: str | None = None,
     speech_to_text_provider: str | None = None,
     speech_to_text_model: str | None = None,
     speech_to_text_secret_id: UUID | None = None,
@@ -170,6 +196,9 @@ async def create(
         webhook_secret_encrypted=webhook_secret_encrypted,
         teams_app_id=teams_app_id,
         teams_tenant_id=teams_tenant_id,
+        whatsapp_phone_number_id=whatsapp_phone_number_id,
+        whatsapp_account_id=whatsapp_account_id,
+        whatsapp_verify_token_encrypted=whatsapp_verify_token_encrypted,
         access_policy=access_policy or dict(DEFAULT_ACCESS_POLICY),
         slack_signing_secret_encrypted=slack_signing_secret_encrypted,
         slack_app_token_encrypted=slack_app_token_encrypted,

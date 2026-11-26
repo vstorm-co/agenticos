@@ -10,6 +10,11 @@ import {
   REACTION_PATTERN,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
+import {
+  MattermostSetupChoice,
+  MattermostPluginGuide,
+  type MattermostSetup,
+} from "@/components/channels/mattermost-setup";
 import { SlackTransport } from "@/components/channels/slack-transport";
 import {
   Button,
@@ -58,6 +63,7 @@ const PLATFORMS: readonly ChannelPlatform[] = [
   "sms",
   "email",
   "imessage",
+  "whatsapp",
 ];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -74,6 +80,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 
   discord: "Discord",
   matrix: "Matrix",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -88,6 +96,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
 
   discord: "botTokenHintDiscord",
   matrix: "botTokenHintMatrix",
+  whatsapp: "botTokenHintWhatsapp",
 };
 
 /** The shortest secret the backend accepts for a relay to sign with. */
@@ -106,6 +115,9 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_NAME = 255;
 const MAX_URL = 500;
 const MIN_TOKEN = 10;
+/** What the backend accepts as a WhatsApp id, and the shortest secret it seals. */
+const WHATSAPP_ID = /^\d{5,32}$/;
+const MIN_SECRET = 8;
 
 interface AddChannelDialogProps {
   open: boolean;
@@ -114,6 +126,7 @@ interface AddChannelDialogProps {
   isPending: boolean;
   /** The platform picked first - the Builder opens this from a platform's tile. */
   initialPlatform?: ChannelPlatform;
+  onPluginSetup?: () => void;
 }
 
 /**
@@ -138,10 +151,13 @@ export function AddChannelDialog({
   onSubmit,
   isPending,
   initialPlatform = "mattermost",
+  onPluginSetup,
 }: AddChannelDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.channels");
   const [platform, setPlatform] = useState<ChannelPlatform>(initialPlatform);
+  const [mattermostSetup, setMattermostSetup] = useState<MattermostSetup>("manual");
+  const usingMattermostPlugin = platform === "mattermost" && mattermostSetup === "plugin";
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
   const [serverUrl, setServerUrl] = useState("");
@@ -151,6 +167,9 @@ export function AddChannelDialog({
   const [slackWebhook, setSlackWebhook] = useState(true);
   const [teamsAppId, setTeamsAppId] = useState("");
   const [teamsTenantId, setTeamsTenantId] = useState("");
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
+  const [whatsappAccountId, setWhatsappAccountId] = useState("");
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
   const [discordGuilds, setDiscordGuilds] = useState("");
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(() =>
@@ -187,20 +206,33 @@ export function AddChannelDialog({
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
+  // A WhatsApp bot cannot send without its number, believe a webhook without the
+  // app secret, or be subscribed by Meta without the verify token.
+  const missingWhatsapp =
+    platform === "whatsapp" &&
+    !(
+      WHATSAPP_ID.test(whatsappPhoneNumberId.trim()) &&
+      WHATSAPP_ID.test(whatsappAccountId.trim()) &&
+      webhookSecret.trim().length >= MIN_SECRET &&
+      whatsappVerifyToken.trim().length >= MIN_SECRET
+    );
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
   const missingRelaySecret = platform === "email" && webhookSecret.trim().length < MIN_RELAY_SECRET;
   const complete =
+    !usingMattermostPlugin &&
     name.trim().length > 0 &&
     token.trim().length >= MIN_TOKEN &&
     !missingServerUrl &&
     !missingTeamsIds &&
     !missingRelaySecret &&
+    !missingWhatsapp &&
     !badReaction &&
     (platform !== "discord" || validDiscordGuilds(discordGuilds));
 
   function reset() {
     setPlatform(initialPlatform);
+    setMattermostSetup("manual");
     setName("");
     setToken("");
     setServerUrl("");
@@ -210,6 +242,9 @@ export function AddChannelDialog({
     setSlackWebhook(true);
     setTeamsAppId("");
     setTeamsTenantId("");
+    setWhatsappPhoneNumberId("");
+    setWhatsappAccountId("");
+    setWhatsappVerifyToken("");
     setAnswerStyle(defaultAnswerStyle(initialPlatform));
     setRespondToBroadcasts(false);
     setDiscordGuilds("");
@@ -221,6 +256,7 @@ export function AddChannelDialog({
   function choosePlatform(next: ChannelPlatform) {
     if (next !== platform) setToken("");
     setPlatform(next);
+    setMattermostSetup("manual");
     setDiscordGuilds("");
     setServerUrl("");
     setWebhookSecret("");
@@ -228,6 +264,9 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
+    setWhatsappPhoneNumberId("");
+    setWhatsappAccountId("");
+    setWhatsappVerifyToken("");
     setAnswerStyle((style) => ({ ...style, ack_reaction: defaultAnswerStyle(next).ack_reaction }));
     setErrors({});
   }
@@ -239,7 +278,7 @@ export function AddChannelDialog({
   }
 
   async function submit() {
-    if (isPending) return;
+    if (isPending || usingMattermostPlugin) return;
     try {
       await onSubmit({
         platform,
@@ -251,7 +290,8 @@ export function AddChannelDialog({
         serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
-        ...((platform === "mattermost" || platform === "email") && webhookSecret.trim()
+        ...((["mattermost", "email", "whatsapp"] as ChannelPlatform[]).includes(platform) &&
+        webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
           : {}),
         // Only the credential the chosen direction uses: Slack calling us is
@@ -270,8 +310,15 @@ export function AddChannelDialog({
         ...(platform === "teams"
           ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
           : {}),
+        ...(platform === "whatsapp"
+          ? {
+              whatsapp_phone_number_id: whatsappPhoneNumberId.trim(),
+              whatsapp_account_id: whatsappAccountId.trim(),
+              whatsapp_verify_token: whatsappVerifyToken.trim(),
+            }
+          : {}),
         ...answerStyle,
-        ...(platform === "discord" || respondToBroadcasts
+        ...(platform === "discord" || (respondToBroadcasts && platform !== "whatsapp")
           ? {
               access_policy: {
                 ...(respondToBroadcasts ? { respond_to_broadcasts: true } : {}),
@@ -307,6 +354,9 @@ export function AddChannelDialog({
             "speech_to_text_secret_id",
             "teams_app_id",
             "teams_tenant_id",
+            "whatsapp_phone_number_id",
+            "whatsapp_account_id",
+            "whatsapp_verify_token",
           ],
           identifiedBy: "name",
         },
@@ -395,243 +445,329 @@ export function AddChannelDialog({
               </div>
             </div>
 
-            <div className="space-y-5">
-              <FormField
-                label={t("name")}
-                htmlFor="channel-name"
-                error={errors.name}
-                description={t("nameHint")}
-                required
-              >
-                <Input
-                  id="channel-name"
-                  name="channel_name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t("supportBot")}
-                  autoComplete="off"
-                  maxLength={MAX_NAME}
-                />
-              </FormField>
-
-              <FormField
-                label={t(platform === "email" ? "emailAddress" : "botToken")}
-                htmlFor="channel-token"
-                error={errors.token}
-                description={t(TOKEN_HINT[platform])}
-                required
-              >
-                <Input
-                  key={platform}
-                  id="channel-token"
-                  name="channel_credential"
-                  type={platform === "email" ? "email" : "password"}
-                  value={token}
-                  onChange={(event) => setToken(event.target.value)}
-                  autoComplete={platform === "email" ? "off" : "new-password"}
-                />
-              </FormField>
-            </div>
-
-            {platform === "discord" && (
-              <DiscordGuildsField
-                idPrefix="channel"
-                value={discordGuilds}
-                onChange={setDiscordGuilds}
+            {platform === "mattermost" && (
+              <MattermostSetupChoice
+                value={mattermostSetup}
+                onChange={(method) => {
+                  setMattermostSetup(method);
+                  setToken("");
+                  setWebhookSecret("");
+                  setErrors({});
+                }}
               />
             )}
-            {platform === "mattermost" && (
-              <div className="space-y-5">
-                <FormField
-                  label={t("mattermostServerUrl")}
-                  htmlFor="channel-server-url"
-                  error={errors.api_base_url}
-                  description={t("mattermostServerUrlHint")}
-                  required
-                >
-                  <Input
-                    id="channel-server-url"
-                    value={serverUrl}
-                    onChange={(event) => setServerUrl(event.target.value)}
-                    placeholder="https://mattermost.example.com"
-                    maxLength={MAX_URL}
-                  />
-                </FormField>
-
-                <FormField
-                  label={t("mattermostWebhookToken")}
-                  htmlFor="channel-webhook-secret"
-                  error={errors.webhook_secret}
-                  description={t("mattermostWebhookTokenHint")}
-                >
-                  <Input
-                    id="channel-webhook-secret"
-                    type="password"
-                    value={webhookSecret}
-                    onChange={(event) => setWebhookSecret(event.target.value)}
-                    autoComplete="off"
-                    maxLength={MAX_NAME}
-                  />
-                </FormField>
-              </div>
-            )}
-
-            {platform === "matrix" && (
-              <FormField
-                label={t("matrixHomeserverUrl")}
-                htmlFor="matrix-homeserver-url"
-                description={t("matrixHomeserverUrlHint")}
-                error={errors.api_base_url}
-                required
-              >
-                <Input
-                  id="matrix-homeserver-url"
-                  value={serverUrl}
-                  onChange={(event) => setServerUrl(event.target.value)}
-                  placeholder="https://matrix.example.org"
-                  maxLength={MAX_URL}
-                />
-              </FormField>
-            )}
-
-            {platform === "imessage" && (
-              <FormField
-                label={t("imessageServerUrl")}
-                htmlFor="imessage-server-url"
-                description={t("imessageServerUrlHint")}
-                error={errors.api_base_url}
-                required
-              >
-                <Input
-                  id="imessage-server-url"
-                  value={serverUrl}
-                  onChange={(event) => setServerUrl(event.target.value)}
-                  maxLength={MAX_URL}
-                  placeholder="http://mac-bridge:1234"
-                />
-              </FormField>
-            )}
-
-            {platform === "email" && (
-              <FormField
-                label={t("emailRelaySecret")}
-                htmlFor="channel-relay-secret"
-                error={errors.webhook_secret}
-                description={t("emailRelaySecretHint")}
-                required
-              >
-                <div className="flex gap-2">
-                  <Input
-                    id="channel-relay-secret"
-                    type="password"
-                    value={webhookSecret}
-                    onChange={(event) => setWebhookSecret(event.target.value)}
-                    autoComplete="off"
-                    maxLength={MAX_NAME}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setWebhookSecret(generateRelaySecret())}
-                  >
-                    {t("emailGenerateSecret")}
-                  </Button>
-                </div>
-              </FormField>
-            )}
-
-            {platform === "teams" && (
-              <div className="space-y-5">
-                <FormField
-                  label={t("teamsAppId")}
-                  htmlFor="channel-teams-app-id"
-                  error={errors.teams_app_id}
-                  description={t("teamsAppIdHint")}
-                  required
-                >
-                  <Input
-                    id="channel-teams-app-id"
-                    value={teamsAppId}
-                    onChange={(event) => setTeamsAppId(event.target.value)}
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                    autoComplete="off"
-                  />
-                </FormField>
-                <FormField
-                  label={t("teamsTenantId")}
-                  htmlFor="channel-teams-tenant-id"
-                  error={errors.teams_tenant_id}
-                  description={t("teamsTenantIdHint")}
-                  required
-                >
-                  <Input
-                    id="channel-teams-tenant-id"
-                    value={teamsTenantId}
-                    onChange={(event) => setTeamsTenantId(event.target.value)}
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                    autoComplete="off"
-                  />
-                </FormField>
-              </div>
-            )}
-
-            {platform === "slack" && (
+            {usingMattermostPlugin ? (
+              <MattermostPluginGuide organizationId={activeOrgId} />
+            ) : (
               <>
-                <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
-                {slackWebhook ? (
+                <div className="space-y-5">
                   <FormField
-                    label={t("signingSecret")}
-                    htmlFor="channel-signing-secret"
-                    description={t("signingSecretHint")}
+                    label={t("name")}
+                    htmlFor="channel-name"
+                    error={errors.name}
+                    description={t("nameHint")}
+                    required
                   >
                     <Input
-                      id="channel-signing-secret"
-                      type="password"
-                      value={signingSecret}
-                      onChange={(event) => setSigningSecret(event.target.value)}
+                      id="channel-name"
+                      name="channel_name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder={t("supportBot")}
                       autoComplete="off"
+                      maxLength={MAX_NAME}
                     />
                   </FormField>
-                ) : (
+
                   <FormField
-                    label={t("appLevelToken")}
-                    htmlFor="channel-app-token"
-                    description={t("appLevelTokenHint")}
+                    label={t(platform === "email" ? "emailAddress" : "botToken")}
+                    htmlFor="channel-token"
+                    error={errors.token}
+                    description={t(TOKEN_HINT[platform])}
+                    required
                   >
                     <Input
-                      id="channel-app-token"
-                      type="password"
-                      value={appToken}
-                      onChange={(event) => setAppToken(event.target.value)}
-                      autoComplete="off"
+                      key={platform}
+                      id="channel-token"
+                      name="channel_credential"
+                      type={platform === "email" ? "email" : "password"}
+                      value={token}
+                      onChange={(event) => setToken(event.target.value)}
+                      autoComplete={platform === "email" ? "off" : "new-password"}
+                    />
+                  </FormField>
+                </div>
+
+                {platform === "matrix" && (
+                  <FormField
+                    label={t("matrixHomeserverUrl")}
+                    htmlFor="matrix-homeserver-url"
+                    description={t("matrixHomeserverUrlHint")}
+                    error={errors.api_base_url}
+                    required
+                  >
+                    <Input
+                      id="matrix-homeserver-url"
+                      value={serverUrl}
+                      onChange={(event) => setServerUrl(event.target.value)}
+                      placeholder="https://matrix.example.org"
+                      maxLength={MAX_URL}
                     />
                   </FormField>
                 )}
+
+                {platform === "whatsapp" && (
+                  <div className="space-y-5">
+                    <FormField
+                      label={t("whatsappPhoneNumberId")}
+                      htmlFor="channel-whatsapp-phone-number-id"
+                      error={errors.whatsapp_phone_number_id}
+                      description={t("whatsappPhoneNumberIdHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-whatsapp-phone-number-id"
+                        value={whatsappPhoneNumberId}
+                        onChange={(event) => setWhatsappPhoneNumberId(event.target.value)}
+                        inputMode="numeric"
+                        autoComplete="off"
+                      />
+                    </FormField>
+                    <FormField
+                      label={t("whatsappAccountId")}
+                      htmlFor="channel-whatsapp-account-id"
+                      error={errors.whatsapp_account_id}
+                      description={t("whatsappAccountIdHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-whatsapp-account-id"
+                        value={whatsappAccountId}
+                        onChange={(event) => setWhatsappAccountId(event.target.value)}
+                        inputMode="numeric"
+                        autoComplete="off"
+                      />
+                    </FormField>
+                    <FormField
+                      label={t("whatsappAppSecret")}
+                      htmlFor="channel-whatsapp-app-secret"
+                      error={errors.webhook_secret}
+                      description={t("whatsappAppSecretHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-whatsapp-app-secret"
+                        type="password"
+                        value={webhookSecret}
+                        onChange={(event) => setWebhookSecret(event.target.value)}
+                        autoComplete="off"
+                        maxLength={MAX_NAME}
+                      />
+                    </FormField>
+                    <FormField
+                      label={t("whatsappVerifyToken")}
+                      htmlFor="channel-whatsapp-verify-token"
+                      error={errors.whatsapp_verify_token}
+                      description={t("whatsappVerifyTokenHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-whatsapp-verify-token"
+                        type="password"
+                        value={whatsappVerifyToken}
+                        onChange={(event) => setWhatsappVerifyToken(event.target.value)}
+                        autoComplete="off"
+                        maxLength={MAX_NAME}
+                      />
+                    </FormField>
+                  </div>
+                )}
+
+                {platform === "discord" && (
+                  <DiscordGuildsField
+                    idPrefix="channel"
+                    value={discordGuilds}
+                    onChange={setDiscordGuilds}
+                  />
+                )}
+                {platform === "mattermost" && (
+                  <div className="space-y-5">
+                    <FormField
+                      label={t("mattermostServerUrl")}
+                      htmlFor="channel-server-url"
+                      error={errors.api_base_url}
+                      description={t("mattermostServerUrlHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-server-url"
+                        value={serverUrl}
+                        onChange={(event) => setServerUrl(event.target.value)}
+                        placeholder="https://mattermost.example.com"
+                        maxLength={MAX_URL}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label={t("mattermostWebhookToken")}
+                      htmlFor="channel-webhook-secret"
+                      error={errors.webhook_secret}
+                      description={t("mattermostWebhookTokenHint")}
+                    >
+                      <Input
+                        id="channel-webhook-secret"
+                        type="password"
+                        value={webhookSecret}
+                        onChange={(event) => setWebhookSecret(event.target.value)}
+                        autoComplete="off"
+                        maxLength={MAX_NAME}
+                      />
+                    </FormField>
+                  </div>
+                )}
+
+                {platform === "imessage" && (
+                  <FormField
+                    label={t("imessageServerUrl")}
+                    htmlFor="imessage-server-url"
+                    description={t("imessageServerUrlHint")}
+                    error={errors.api_base_url}
+                    required
+                  >
+                    <Input
+                      id="imessage-server-url"
+                      value={serverUrl}
+                      onChange={(event) => setServerUrl(event.target.value)}
+                      maxLength={MAX_URL}
+                      placeholder="http://mac-bridge:1234"
+                    />
+                  </FormField>
+                )}
+
+                {platform === "email" && (
+                  <FormField
+                    label={t("emailRelaySecret")}
+                    htmlFor="channel-relay-secret"
+                    error={errors.webhook_secret}
+                    description={t("emailRelaySecretHint")}
+                    required
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        id="channel-relay-secret"
+                        type="password"
+                        value={webhookSecret}
+                        onChange={(event) => setWebhookSecret(event.target.value)}
+                        autoComplete="off"
+                        maxLength={MAX_NAME}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setWebhookSecret(generateRelaySecret())}
+                      >
+                        {t("emailGenerateSecret")}
+                      </Button>
+                    </div>
+                  </FormField>
+                )}
+
+                {platform === "teams" && (
+                  <div className="space-y-5">
+                    <FormField
+                      label={t("teamsAppId")}
+                      htmlFor="channel-teams-app-id"
+                      error={errors.teams_app_id}
+                      description={t("teamsAppIdHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-teams-app-id"
+                        value={teamsAppId}
+                        onChange={(event) => setTeamsAppId(event.target.value)}
+                        placeholder="00000000-0000-0000-0000-000000000000"
+                        autoComplete="off"
+                      />
+                    </FormField>
+                    <FormField
+                      label={t("teamsTenantId")}
+                      htmlFor="channel-teams-tenant-id"
+                      error={errors.teams_tenant_id}
+                      description={t("teamsTenantIdHint")}
+                      required
+                    >
+                      <Input
+                        id="channel-teams-tenant-id"
+                        value={teamsTenantId}
+                        onChange={(event) => setTeamsTenantId(event.target.value)}
+                        placeholder="00000000-0000-0000-0000-000000000000"
+                        autoComplete="off"
+                      />
+                    </FormField>
+                  </div>
+                )}
+
+                {platform === "slack" && (
+                  <>
+                    <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
+                    {slackWebhook ? (
+                      <FormField
+                        label={t("signingSecret")}
+                        htmlFor="channel-signing-secret"
+                        description={t("signingSecretHint")}
+                      >
+                        <Input
+                          id="channel-signing-secret"
+                          type="password"
+                          value={signingSecret}
+                          onChange={(event) => setSigningSecret(event.target.value)}
+                          autoComplete="off"
+                        />
+                      </FormField>
+                    ) : (
+                      <FormField
+                        label={t("appLevelToken")}
+                        htmlFor="channel-app-token"
+                        description={t("appLevelTokenHint")}
+                      >
+                        <Input
+                          id="channel-app-token"
+                          type="password"
+                          value={appToken}
+                          onChange={(event) => setAppToken(event.target.value)}
+                          autoComplete="off"
+                        />
+                      </FormField>
+                    )}
+                  </>
+                )}
+
+                {platform !== "whatsapp" && (
+                  <MentionPolicyFields
+                    idPrefix="channel"
+                    platform={platform}
+                    enabled={respondToBroadcasts}
+                    onChange={setRespondToBroadcasts}
+                  />
+                )}
+                <MoreOptions label={t("moreOptions")}>
+                  <AnswerStyleFields
+                    idPrefix="channel"
+                    platform={platform}
+                    value={answerStyle}
+                    onChange={setAnswerStyle}
+                  />
+                  <TranscriptionFields
+                    idPrefix="channel"
+                    platform={platform}
+                    inherited={inherited}
+                    value={transcription}
+                    onChange={setTranscription}
+                    keyError={errors.speech_to_text_secret_id}
+                  />
+                </MoreOptions>
               </>
             )}
-
-            <MentionPolicyFields
-              idPrefix="channel"
-              platform={platform}
-              enabled={respondToBroadcasts}
-              onChange={setRespondToBroadcasts}
-            />
-            <MoreOptions label={t("moreOptions")}>
-              <AnswerStyleFields
-                idPrefix="channel"
-                platform={platform}
-                value={answerStyle}
-                onChange={setAnswerStyle}
-              />
-              <TranscriptionFields
-                idPrefix="channel"
-                platform={platform}
-                inherited={inherited}
-                value={transcription}
-                onChange={setTranscription}
-                keyError={errors.speech_to_text_secret_id}
-              />
-            </MoreOptions>
           </fieldset>
         </div>
 
@@ -639,9 +775,21 @@ export function AddChannelDialog({
           <Button variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={submit} loading={isPending} disabled={!complete}>
-            {t("register")}
-          </Button>
+          {usingMattermostPlugin ? (
+            <Button
+              onClick={() => {
+                onPluginSetup?.();
+                changeOpen(false);
+              }}
+              disabled={isPending}
+            >
+              {t("mattermostPluginRefresh")}
+            </Button>
+          ) : (
+            <Button onClick={submit} loading={isPending} disabled={!complete}>
+              {t("register")}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

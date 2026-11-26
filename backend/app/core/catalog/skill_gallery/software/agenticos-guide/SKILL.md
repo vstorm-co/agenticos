@@ -18,6 +18,7 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | What the platform can do, on one page                                                          | `docs/features.md`                                            |
 | Agents, versions, specs, runs, capabilities - how the pieces fit                               | `docs/concepts.md`                                            |
 | Connecting a tool through MCP; the server catalog; OAuth sign-in                               | `docs/mcp.md`                                                 |
+| Native Google, Microsoft / Exchange Online, Slack, Odoo and IMAP accounts, tools and change feeds | `docs/integrations.md` |
 | Using AgenticOS from Claude Code, Codex, Cursor or Claude Desktop (AgenticOS as an MCP server) | `docs/mcp.md`, section "AgenticOS as an MCP server"           |
 | Calling the HTTP API, API keys, streaming, errors                                              | `docs/api.md`                                                 |
 | Ongoing work, shared files across chats, creating a project, an LLM wiki                       | `docs/projects.md`                                            |
@@ -43,6 +44,8 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | Questions the knowledge base could not answer, grouped into topics, and drafting documents for them       | `docs/knowledge-gaps.md`                                      |
 | Skills and how they differ from knowledge                                                                 | https://vstorm-co.github.io/agenticos/skills/                 |
 | The sandbox: running code, files, browsers                                                                | https://vstorm-co.github.io/agenticos/sandbox/                |
+
+For Google connection advice, read `docs/mcp.md` → "Choose MCP or built-in Google capabilities" and `docs/integrations.md`. Explain the native option when it covers the task, separate hosted MCP preview admission from OAuth verification, and inspect the agent’s actual bindings and accounts before promising access.
 
 ## How to answer
 

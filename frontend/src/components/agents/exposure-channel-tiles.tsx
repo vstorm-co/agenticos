@@ -25,6 +25,7 @@ const PLATFORMS: readonly ExposureSurface[] = [
 
   "discord",
   "matrix",
+  "whatsapp",
 ];
 
 export const SURFACE_LABEL: Record<ExposureSurface, string> = {
@@ -41,6 +42,8 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
 
   discord: "Discord",
   matrix: "Matrix",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 const TILE =
@@ -69,7 +72,7 @@ export function ExposureChannelTiles({
   /** Registering a bot is `channels:manage`, a different permission from binding one. */
   canRegister: boolean;
   disabled: boolean;
-  onBind: (botId: string) => void;
+  onBind: (bot: ExposureTarget) => void;
   onRegister: (platform: ExposureSurface) => void;
 }) {
   const t = useTranslations("agents");
@@ -133,7 +136,7 @@ export function ExposureChannelTiles({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-56">
                 {bots.map((bot) => (
-                  <DropdownMenuItem key={bot.id} onSelect={() => onBind(bot.id)}>
+                  <DropdownMenuItem key={bot.id} onSelect={() => onBind(bot)}>
                     <span className="min-w-0 flex-1 truncate">{bot.name}</span>
                     {/* Binding to a switched-off bot is legal and answers
                         nothing; this is the one place that says so before
@@ -141,6 +144,13 @@ export function ExposureChannelTiles({
                     {!bot.is_active && (
                       <span className="text-muted-foreground shrink-0 pl-3 text-xs">
                         {t("inactive")}
+                      </span>
+                    )}
+                    {/* A public line is opened to customers by somebody with
+                        `channels:manage`; anyone else sends the administrator a request. */}
+                    {bot.public_line === true && !canRegister && (
+                      <span className="text-muted-foreground shrink-0 pl-3 text-xs">
+                        {t("askAnAdministrator")}
                       </span>
                     )}
                   </DropdownMenuItem>

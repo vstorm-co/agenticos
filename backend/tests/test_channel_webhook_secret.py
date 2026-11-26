@@ -97,7 +97,10 @@ class TestSealing:
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
             await service.create(
-                ChannelBotCreate(platform="telegram", name="bot", token="t" * 20, webhook_mode=True)
+                ChannelBotCreate(
+                    platform="telegram", name="bot", token="t" * 20, webhook_mode=True
+                ),
+                actor_user_id=None,
             )
 
         stored = repo_create.call_args.kwargs["webhook_secret_encrypted"]
@@ -117,7 +120,8 @@ class TestSealing:
             await service.create(
                 ChannelBotCreate(
                     platform="telegram", name="bot", token="t" * 20, webhook_mode=False
-                )
+                ),
+                actor_user_id=None,
             )
 
         assert repo_create.call_args.kwargs["webhook_secret_encrypted"] is None
@@ -132,7 +136,10 @@ class TestSealing:
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
             await service.create(
-                ChannelBotCreate(platform="telegram", name="bot", token="t" * 20, webhook_mode=True)
+                ChannelBotCreate(
+                    platform="telegram", name="bot", token="t" * 20, webhook_mode=True
+                ),
+                actor_user_id=None,
             )
 
         kwargs = repo_create.call_args.kwargs

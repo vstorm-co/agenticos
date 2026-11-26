@@ -632,7 +632,9 @@ class MatrixAdapter(ChannelAdapter):
         except Exception:
             logger.warning("matrix_typing_failed", extra={"bot_id": bot_id}, exc_info=True)
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a file over authenticated media, from the URL the parser resolved.
 
         Read no further than the upload limit: the claimed size is what the
@@ -641,6 +643,8 @@ class MatrixAdapter(ChannelAdapter):
         if not attachment.handle:
             raise ValueError("This Matrix file has no address to fetch it from.")
         limit = settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if max_bytes is not None:
+            limit = min(limit, max_bytes)
         if attachment.size > limit:
             raise ValueError("The Matrix file exceeds the upload limit")
         received = bytearray()

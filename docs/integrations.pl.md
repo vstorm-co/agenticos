@@ -1,0 +1,137 @@
+---
+source_sha: "ce72ae8886cc"
+---
+
+# Wbudowane integracje { #built-in-integrations }
+
+Konta osobiste podłączysz w **Ustawienia czatu → Preferencje → Twoje konta** pod `/chat` albo **Ustawienia → Profil → Twoje podłączone konta**. Konta organizacji podłącza się w **Vault → Podłącz konto**. Możesz dodać kilka kont tej samej usługi. Każdy produkt Google, Microsoft lub Slack jest osobną capability w **Toolbox** agenta. Integracje korzystają bezpośrednio z API dostawców; nie wymagają ich serwerów MCP, Google Workspace MCP preview ani licencji Microsoft Copilot.
+
+
+## Kontynuuj z AgenticOS { #continue-with-agenticos }
+
+Opcja **Kontynuuj z AgenticOS** jest domyślnie ukryta. Aby poprosić o dostęp, napisz na **dev@vstorm.co**, podając organizację, dokładny publiczny adres AgenticOS, potrzebnych dostawców i kontakt na wypadek incydentu. Vstorm rozpatruje wnioski indywidualnie; dostęp nie jest automatyczny. Po zatwierdzeniu ustaw w backendzie `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` i otrzymany `OAUTH_BRIDGE_ACCESS_KEY`. Klucz przechowuj w sekretach serwera, nigdy w zmiennych frontendu, specyfikacji agenta ani repozytorium. Opcja pojawi się dopiero po zaakceptowaniu klucza, adresu instancji i dostawcy. **Użyj własnych credentials** pozostaje dostępne bez zgody Vstorm i bez klucza bridge’a.
+
+Przez bridge przechodzą tylko wymiana kodu OAuth i odświeżanie. Tokeny są szyfrowane w Vault tej instancji, przypisanym do właściciela; dane robocze trafiają bezpośrednio do Google, Microsoft lub Slacka. Bridge ma credentials aplikacji i klucz szyfrowania w konfiguracji serwera, bez bazy tokenów użytkowników. Szyfrowane bilety mają termin ważności i wymagają PKCE; odświeżanie wymaga potwierdzenia przypisanego do tokena i aplikacji OAuth. Operator bridge’a pozostaje zaufaną stroną, bo tokeny chwilowo są w pamięci jego procesu. Nadal obowiązują weryfikacja dostawcy, zasady dystrybucji i zgody administratorów tenantów.
+
+Bridge obsługuje natywne capabilities produktów oraz konta osobiste i organizacji, także kilka równocześnie. Mounty Mirage wymagające sekretu aplikacji OAuth nadal korzystają z własnych credentials. Ponowne połączenie zachowuje źródło credentials. Zmiana adresu bridge’a wymaga ponownego podłączenia kont; tokeny nigdy nie są przekazywane innemu brokerowi.
+
+Dostępem zarządza się wyłącznie przez CLI operatora bridge’a. Klucz jest przypisany do jednego dokładnego originu instancji, zatwierdzonych dostawców i daty ważności; przechowywane są jego skrót oraz metadane dostępu i kontaktu, oddzielnie od tokenów użytkowników.
+
+Unieważnienie blokuje kolejne rozpoczęcia, callbacki, wymiany kodu i odświeżenia, ale nie cofa już wydanych tokenów dostawcy ani trwającej operacji u dostawcy. Przy podejrzeniu włamania cofnij również zgodę u dostawcy. Nowy klucz wymaga ponownego podłączenia kont zarządzanych. Operator własnego bridge’a wydaje własne klucze. Przed połączeniem zapoznaj się z polityką prywatności i regulaminem bridge’a oraz zasadami swojej instancji; bridge pozostaje zaufaną stroną, bo obsługuje tokeny w pamięci.
+
+
+## Konfiguracja konta { #set-up-an-account }
+
+Przy własnych credentials najpierw administrator otwiera **Vault → Integracje**, konfiguruje aplikację dostawcy i zapisuje jednego klienta OAuth widocznego dla organizacji. Ten etap pokazuje dokładny callback, konsolę i uprawnienia. „Zapisano klienta OAuth” potwierdza tylko zapis konfiguracji; dostawca może nadal wymagać zgody lub zatwierdzenia aplikacji. Brak klienta albo kilka klientów blokuje logowanie i wskazuje potrzebę działania administratora. Potem użytkownik wybiera aplikacje i loguje się z czatu lub profilu, bez konfigurowania konsoli dostawcy. Domyślny jest odczyt; zapis wymaga jawnego wyboru.
+
+W **Podłącz konto** wybierz konkretną usługę, np. Gmail, Google Calendar, Outlook mail lub Excel. Usługi Google i Microsoft mają osobne pozycje i logo. Formularz zgody zaznacza tylko wybraną usługę; przed logowaniem możesz dodać inne. Sam wybór usługi nie daje dostępu — wymaga on zatwierdzenia ekranu zgody dostawcy.
+
+Google: utwórz projekt Cloud, włącz wskazane API (kreator podaje polecenie `gcloud services enable`), skonfiguruj ekran zgody i klienta OAuth typu **Web application**. Skopiuj callback i zapisz `google_oauth_app`. Internal służy organizacji Workspace będącej właścicielem projektu. Tokeny odświeżania aplikacji External w trybie Testing mogą wygasać po siedmiu dniach. Zwykła integracja API nie wymaga klienta AI-powered-agent ani API hostowanego MCP.
+
+Microsoft: zarejestruj aplikację Entra, wybierz typy kont i tenant, dodaj przekierowanie Web oraz pokazane delegowane uprawnienia Graph i zapisz `microsoft_oauth_app`. Konta służbowe i osobiste działają tam, gdzie obsługuje je dany produkt Graph; Teams wymaga konta służbowego. Polityka tenanta może wymagać zgody administratora.
+
+Slack: przycisk konsoli dostawcy otwiera manifest z callbackiem wdrożenia i obsługiwanymi zakresami użytkownika. Sprawdź zakresy przed rejestracją aplikacji; zgoda każdego konta nadal obejmuje tylko wybrany dostęp do odczytu lub zapisu. Zapisz `slack_oauth_app`. Możesz wykorzystać aplikację bota kanałowego, dodając callback i zakresy użytkownika. Nadal obowiązują limity aplikacji workspace i zgoda administratora. **Agents → MCP Server** jest potrzebny tylko przy hostowanym MCP Slacka.
+
+## Alternatywy dla OAuth { #alternatives-to-oauth }
+
+Wybór tożsamości konta aplikacyjnego wymaga prawa edycji jego credentiala w Vault, także dla kont osobistych. Sam odczyt współdzielonego credentiala nie upoważnia do działania jako inna osoba. Konto osobiste sprawdza prawo edycji przed każdą wymianą tokenu.
+
+Google obsługuje `gcp_service_account` z Vault i subject dla delegacji domenowej Workspace. Administrator Workspace musi autoryzować wyświetlone zakresy. Samo konto serwisowe czyta tylko udostępnione mu zasoby; nie staje się osobistym kontem Gmail.
+
+Microsoft obsługuje sekret klienta `entra_app` i uprawnienia aplikacyjne zatwierdzone przez administratora. Dla poczty/kalendarza podaj skrzynkę, a dla Teams identyfikator obiektu użytkownika w katalogu: pozwala to dopasować wzmianki bez dostępu do całego katalogu. Excel wymaga delegated OAuth. Uprawnienia aplikacyjne nie pozwalają na zwykłe publikowanie wiadomości Teams; użyj delegated OAuth. Kreator pokazuje właściwą listę uprawnień dla wybranego trybu.
+
+Konta aplikacyjne Microsoft zapisują tylko role Graph zwrócone przez tenant i dotyczące wybranych produktów. Tryb tylko do odczytu blokuje zapisy także wtedy, gdy Entra przyznała szerszą rolę. Każde odnowienie sprawdza, czy zapisane role nadal są przyznane; po zmianie zgody połącz konto ponownie.
+
+Konfiguracja wymaga czytelnego pola ról Graph w tokenie zwróconym przez stały endpoint Microsoft. Tokeny aplikacyjne o nieprzezroczystym lub zaszyfrowanym formacie są odrzucane ze wskazaniem delegowanego OAuth; AgenticOS nie żąda dostępu do całego katalogu, aby sprawdzać zgody. Pole jest metadanymi konfiguracji, a nie uwierzytelnieniem użytkownika platformy; token weryfikuje Microsoft Graph.
+
+Slack przyjmuje istniejące tokeny użytkownika `xoxp-` i bota `xoxb-`. Bot publikuje jako aplikacja, ale nie używa wyszukiwania dostępnego tylko użytkownikom. Przed operacją sprawdzane są rzeczywiście przyznane zakresy. Tokeny i klucze są szyfrowane przez Vault, nigdy zapisywane w specyfikacji agenta.
+
+Przed zapisaniem triggera, watcha lub źródła wiedzy Slack AgenticOS sprawdza dostęp do historii każdej wybranej rozmowy. Weryfikuje właściwe uprawnienie dla kanału publicznego/prywatnego lub wiadomości bezpośrednich/grupowych oraz członkostwo, bez dodatkowych uprawnień do katalogu. Rozmowy bez dostępu są odrzucane podczas konfiguracji.
+
+**IMAP** to osobne połączenie poczty tylko do odczytu: host, port ze zweryfikowanym TLS, użytkownik, hasło aplikacji i stały folder. Operator musi dopuścić dokładny host w `MIRAGE_ALLOWED_HOSTS`. Połączenie korzysta z zainstalowanego klienta Mirage. Basic-auth IMAP Microsoft 365 nie jest tu alternatywą dla OAuth Microsoftu.
+
+## Uprawnienia agenta { #choose-what-an-agent-can-do }
+
+Produkty Google: Gmail (wyszukiwanie, odczyt, etykiety, szkice i wysyłka), Calendar (wydarzenia i dostępność), Drive (wyszukiwanie, metadane, odczyt, upload i kopie), Docs, Sheets i Slides (odczyt, tworzenie i edycja). Sheets obejmuje zakresy, dopisywanie wierszy i aktualizację komórek.
+
+Produkty Microsoft: Outlook mail, Calendar, pliki OneDrive/SharePoint, Excel, dokumenty Word oraz rozmowy i kanały Teams. Slack oferuje wyszukiwanie, wzmianki o mnie, historię i wątki, kanały i użytkowników, publikację, odpowiedzi, DM i reakcje. IMAP wyszukuje i czyta wiadomości bez oznaczania ich jako przeczytane.
+
+Czytniki Drive, SharePoint i Slack pobierają token uprawnionego konta przed każdym żądaniem do dostawcy. Długi sync może dzięki temu odnowić OAuth bez przechowywania sekretów odświeżania w konfiguracji konektora. Cofnięcie grantu do konta wejściowego zatrzymuje też polling natywnych triggerów przed otwarciem tokenu. Triggery plików Microsoft rozpoznają własne edycje konta aplikacyjnego po skonfigurowanym użytkowniku i identyfikatorze aplikacji; domyślny filtr je pomija.
+
+Wybierz **personal**, aby używać kont osoby rozmawiającej z agentem. Capability nie pyta autora o nazwy kont użytkowników. Istniejące filtry nazw w zapisanych specyfikacjach pozostają widoczne i można je jawnie usunąć. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji; agent nie korzysta z kont innych osób ani wydawcy.
+
+Wybierz **organization** i zaznacz konta dostępne dla agenta. Dotychczasowe specy z jednym `connection_id` pozostają poprawne; `connection_ids` dopuszcza kilka kont. Publikacja sprawdza każde konto i włączone operacje. Każda operacja ponownie sprawdza bieżący dostęp autora konfiguracji.
+
+Model otrzymuje nazwy i etykiety kont przed odpowiedzią. Wybiera konto argumentem narzędzia `account_name` i może użyć kilku kont w jednej prośbie. Jeśli prośba nie wskazuje konta, dopytuje przed odczytem danych. Przy braku dostępu wyjaśnia problem i wskazuje ustawienia czatu lub Vault. Operacje workflow również przyjmują `account_name` na wejściu, gdy skonfigurowano kilka kont. Dodanie konta lub ponowna autoryzacja wymaga przeglądu źródeł routine, zanim routine będzie mogła go użyć.
+
+Każdy zapis wymaga zatwierdzenia przez człowieka w uruchomieniach agenta, niezależnie od łagodniejszych ustawień narzędzia. Wyłączone narzędzie znika z oferty. Workflow udostępnia te same operacje jako `integration.<product>.<operation>`, z tym samym kontem i transportem. Zapisy nie są automatycznie ponawiane. Przed zapisem wymagającym zatwierdzenia w workflow umieść węzeł approval.
+
+Węzły plikowe przyjmują base64, nigdy lokalną ścieżkę serwera. Word przyjmuje tytuł i akapity i tworzy `.docx`. Upload i download mają limit 20 MB, JSON 2 MB, a wyodrębniony tekst 100 000 znaków. Nieudany zapis mógł dotrzeć do dostawcy: przed ponowieniem sprawdź wynik po jego stronie.
+
+Wybór tylko do odczytu jest lokalnym limitem dla kont OAuth, aplikacyjnych i kont z wklejonym tokenem Slack. Wcześniej przyznane prawa zapisu u dostawcy nie omijają go, także przy przyrostowej zgodzie Google. Aby zmienić ten wybór, połącz konto ponownie i jawnie włącz zapisy.
+
+Publikacja powiązania z kontem organizacji sprawdza zakresy każdego włączonego narzędzia. Przy koncie tylko do odczytu wyłącz narzędzia zapisu przed publikacją albo połącz konto ponownie z prawami zapisu.
+
+## Wiedza, triggery i watche { #knowledge-triggers-and-watches }
+
+Źródła Drive i SharePoint wybierają to samo konto organizacji zamiast osobnego credentiala. OneDrive używa konektora SharePoint z wybranym dyskiem/folderem. Slack indeksuje tylko wybrane kanały i ich wątki. Przy każdej synchronizacji sprawdzana jest autoryzacja konta; wspólna baza wiedzy nie używa po cichu prywatnych kont członków.
+
+Triggery rutyn używają istniejącej kolejki transakcyjnej, deduplikacji i zatwierdzonych źródeł. Na kontach natywnych działają filtry Gmail/Outlook, zapowiedzi spotkań i zmiany plików. Slack dodaje wiadomości, wzmianki i DM, Teams wiadomości i wzmianki, a IMAP nową pocztę. Sheets śledzi **dopisywane wiersze** wybranego arkusza i zakładki; pierwsze sprawdzenie zapamiętuje ostatni zajęty wiersz w zakresie kolumn A:ZZ. Wstawianie/usuwanie wierszy i edycje istniejących nie są dopisaniem.
+
+Watch wybiera jedno osobiste konto i produkt oraz otrzymuje stałe narzędzie zmian tylko do odczytu. Najpierw włącz produkt na agencie. Rozmowy Slack i delegowane czaty Teams wybiera się w capability. Kanały Teams mają zapis `channel/team-id/channel-id`; app-only Teams bez wskazanych rozmów czyta wszystkie czaty skonfigurowanego użytkownika.
+
+Każdy watch ma osobny trwały kursor, przesuwany dopiero po pomyślnym sprawdzeniu. Nowy lub zresetowany kursor ustala cichy punkt startowy. Gmail używa history IDs, Outlook i kalendarze kursorów dostawcy, Slack czasu na rozmowę, a IMAP UIDVALIDITY/UID. Czaty Teams delegated używają `lastModifiedDateTime`, a kanały i app-only Graph delta. Przy przekroczeniu limitu zaległości zawęź źródło.
+
+Połącz ponownie konto z jego wiersza, aby wymienić credentials w istniejącym rekordzie. ID konta i stała nazwa pozostają, zachowując odwołania agentów, źródeł i triggerów; generacja autoryzacji zmienia się, a istniejące rutyny wymagają przeglądu źródeł. Użyj tej samej metody logowania. Błędy pollingu są widoczne na koncie i znikają po poprawnym odczycie. Niedostępny arkusz zachowuje swój kursor, a zdrowe arkusze są nadal odczytywane. Feedy zmian Slack pomijają wiadomości wysłane przez połączonego użytkownika lub bota, aby zapobiec pętlom odpowiedzi.
+
+Zobacz [capabilities](reference/capabilities.md), [triggery](triggers.md), [zarządzanie i watche](governance.md#proactive-work) oraz [MCP](mcp.md).
+
+Przy łączeniu nadaj etykietę, np. Praca; używaj tej samej etykiety dla odpowiedniego konta każdej osoby.
+
+Tworząc natywny trigger przez API, podaj `connection_id`. Edycja filtrów ponownie sprawdza konto, uprawnienia i wybór rozmów. Każdy odrębny wybór rozmów Slack/Teams ma własny kursor i zasila tylko powiązane triggery; jeden wybór może zawierać do 20 rozmów.
+
+## Połączenie bez przeglądarki { #connect-without-a-browser }
+
+IMAP i Odoo można podłączyć przez HTTP API. Skopiuj [dane żądania IMAP](assets/setup/imap-account.example.json) lub [Odoo](assets/setup/odoo-account.example.json) oraz [szablon uwierzytelnienia curl](assets/setup/agenticos-auth.example.conf) poza repozytorium. Zastąp wszystkie przykładowe wartości zatwierdzonym kontem testowym i [tokenem dostępu AgenticOS](api.md). Ogranicz dostęp do obu plików do operatora (`chmod 600 account.json auth.conf`); nigdy nie commituj uzupełnionych credentials. Szablony nie zawierają działających danych dostępowych.
+
+Dodaj dokładny host IMAP do backendowego `MIRAGE_ALLOWED_HOSTS` albo host Odoo do `ODOO_ALLOWED_HOSTS`, zachowując istniejące wpisy. IMAP używa zweryfikowanego TLS; Odoo wymaga HTTPS i JSON-2 w wersji 19+. Wyślij żądanie do swojego wdrożenia AgenticOS:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+Dla Odoo zmień końcówkę ścieżki na `/odoo`; szablon pozostawia zapis wyłączony. Konto organizacji korzysta z `/api/v1/connected-accounts/imap` albo `/odoo`; wywołujący potrzebuje `mcp:manage`. Sukces zwraca identyfikator połączenia, nie credentials. Aby odnowić istniejące połączenie, dodaj `connection_id` do żądania. Odrzucony host lub niepoprawne credentials trzeba poprawić przed użyciem konta. Szablony i testy lokalne nie potwierdzają połączenia z prawdziwą usługą.
+
+### Konfiguracja rutyn z terminala { #configure-polled-routines-from-the-terminal }
+
+Dla już podłączonego konta `integration-trigger-setup --list` wypisuje dostępne presety odczytu zmian z katalogu platformy, bez połączeń sieciowych. `--accounts` pobiera identyfikatory kont dopuszczonych dla źródła, właściciela oraz status ponownego połączenia i błędów odczytu z własnej instancji. Nie kontaktuje się z Google, Microsoft ani innym dostawcą. Lista dotyczy danego źródła; konta niedostępne lub bez wymaganych uprawnień mogą być pominięte. Osobisty token dostępu AgenticOS podaj w ukrytym polu terminala lub przez `--access-token-file`. Lista kont wymaga `agents:view`; zapis korzysta z istniejących kontroli dostępu do agenta i konta w API.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+Ostatnia komenda jedynie wypisuje lokalnie żądanie JSON wraz z instrukcjami; nie tworzy ani nie uruchamia rutyny. Zastąp przykładowe UUID i przygotuj plik instrukcji UTF-8. Opcjonalne `--filter-file filters.json` przyjmuje obiekt JSON nadpisujący filtry presetu. Przygotowanie offline sprawdza strukturę żądania, ale nie dostępność konta ani poprawność filtrów danego źródła. Sheets wymaga wskazania arkusza, a Slack i Teams wyboru rozmów tam, gdzie jest to wymagane. Serwer sprawdza te pola przy tworzeniu.
+
+Dodaj `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID`, aby zapisać rutynę **zatrzymaną**, z wymaganym przeglądem źródeł przed aktywacją. Zapis to jedno uwierzytelnione żądanie, bez automatycznego ponawiania i bez uruchamiania agenta. Przy niepewnym wyniku sprawdź istniejące rutyny przed ponowną próbą. Odczyt zmian korzysta z istniejących workerów i trwałych kursorów; komenda nie tworzy Pub/Sub, webhooków dostawcy ani wygasających subskrypcji push i nie zmienia częstotliwości odczytu. Brakujące połączenie OAuth nadal wymaga zgody właściciela konta.
+
+## Odoo { #odoo }
+
+Połącz Odoo 19+ przez JSON-2, podając adres HTTPS, nazwę bazy i klucz API użytkownika biznesowego. Operator musi dodać dokładny host do `ODOO_ALLOWED_HOSTS`; ścieżki, przekierowania i niestandardowe porty są odrzucane. Zewnętrzne API Odoo Online wymaga planu Custom. Zainstaluj używane moduły i ogranicz uprawnienia oraz reguły rekordów użytkownika w Odoo. Klucze wygasają: po rotacji połącz konto ponownie. Zapis jest opcjonalny, a każdy zapis agenta wymaga zatwierdzenia.
+
+Capabilities obejmują kontakty, CRM, sprzedaż, faktury, magazyn i projekty. Udostępniają metadane pól, ograniczone wyszukiwanie i odczyt oraz osobne narzędzia tworzenia i edycji tam, gdzie są obsługiwane. Stany magazynowe są tylko do odczytu; operacje magazynowe korzystają z transferów i ruchów. Narzędzia i węzły workflow używają wspólnego konta i adaptera JSON-2. Dowolne modele, metody i kontekst podany przez użytkownika są niedozwolone.
+
+Watche i triggery rutyn czytają nowe i zmienione rekordy wybranego obszaru. Każdy model ma własny kursor `(write_date, id)`; pierwszy odczyt tworzy cichą bazę. Kolejne odczyty pobierają do 100 rekordów modelu, zachowując pozostałe do następnego przebiegu. Usunięcia nie są zdarzeniami. Znaczniki Odoo mają dokładność sekundy, więc zmiany tego samego rekordu w jednej sekundzie mogą się połączyć. Synchronizacja wiedzy indeksuje wyłącznie wskazane pola przez konto organizacji; niepełne listy nie usuwają niewidocznych dokumentów.
+
+Potwierdzenie sprzedaży, księgowanie faktur oraz potwierdzanie, rezerwacja i zatwierdzanie transferów mają osobne narzędzia wymagające zatwierdzenia. Używaj tych akcji zamiast zmieniać pole stanu. Akcja może zwrócić kreator do dokończenia w Odoo; przed zgłoszeniem sukcesu odczytaj rekord. Tworzenie faktury wymaga jawnego `move_type` (klient, dostawca, korekta lub paragon). Obsługiwane są pola skalarne i dołączanie/zastępowanie/czyszczenie identyfikatorów relacji. Powiązane rekordy twórz i edytuj ich własnymi narzędziami; zagnieżdżone mutacje ORM i wartości pól będące obiektami JSON są odrzucane.
+
+Kursor Odoo zachowuje też deduplikowany snapshot ostatniej sekundy, dzięki czemu ponownie odczytuje późniejszą zmianę rekordu o niższym ID. Odciski obejmują zwrócone ID, nazwę wyświetlaną i datę zapisu. Snapshot mieści do 2000 rekordów modelu z jednym znacznikiem czasu; po przekroczeniu limitu podziel operacje masowe.
+
+## Exchange Online { #exchange-online }
+
+Outlook mail i Outlook Calendar łączą się z Microsoft Exchange Online przez Microsoft Graph. W kreatorze Microsoft użyj delegowanego OAuth albo konta aplikacyjnego Entra z uprawnieniami zatwierdzonymi przez administratora i wskazaną skrzynką. Osobne hasło IMAP i licencja Work IQ nie są potrzebne. Ta ścieżka dotyczy Exchange Online; nie dodaje obsługi lokalnego Exchange ani EWS.

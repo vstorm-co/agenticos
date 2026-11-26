@@ -69,17 +69,17 @@ test("phone channel registration clears cancelled credentials and survives a ref
     await platform.click();
     await page.getByRole("option", { name: "Slack", exact: true }).click();
     await dialog.getByLabel(/^Name/).fill(name);
-    await dialog.getByLabel(/Bot token/i).fill("ui-audit-demo-token-not-real");
+    await dialog.getByLabel(/^Bot token/i).fill("ui-audit-demo-token-not-real");
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await page.getByRole("button", { name: "Add channel", exact: true }).first().click();
     await expect(dialog.getByLabel(/^Name/)).toHaveValue("");
-    await expect(dialog.getByLabel(/Bot token/i)).toHaveValue("");
-    await dialog.getByLabel(/Bot token/i).scrollIntoViewIfNeeded();
+    await expect(dialog.getByLabel(/^Bot token/i)).toHaveValue("");
+    await dialog.getByLabel(/^Bot token/i).scrollIntoViewIfNeeded();
     await photo(page, "channel-cancel-mobile-after.png");
     await platform.click();
     await page.getByRole("option", { name: "Slack", exact: true }).click();
     await dialog.getByLabel(/^Name/).fill(name);
-    await dialog.getByLabel(/Bot token/i).fill("ui-audit-demo-token-not-real");
+    await dialog.getByLabel(/^Bot token/i).fill("ui-audit-demo-token-not-real");
     const held = await pausedRefusal(page, "/api/channels/bots");
     release = held.release;
     await dialog.getByRole("button", { name: "Register", exact: true }).click();
@@ -88,7 +88,7 @@ test("phone channel registration clears cancelled credentials and survives a ref
     await expect(platform).toBeDisabled();
     held.release();
     await expect(dialog.getByLabel(/^Name/)).toBeEnabled();
-    await expect(dialog.getByLabel(/Bot token/i)).toHaveValue("ui-audit-demo-token-not-real");
+    await expect(dialog.getByLabel(/^Bot token/i)).toHaveValue("ui-audit-demo-token-not-real");
     await held.remove();
     await submitDialog(page, {
       dialog,
@@ -107,7 +107,7 @@ test("phone channel registration clears cancelled credentials and survives a ref
     expect(stored.webhook_mode).toBe(true);
     await page.reload();
     await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
-    await expect(dialog.getByLabel(/Bot token/i)).toHaveValue("");
+    await expect(dialog.getByLabel("Replace bot token", { exact: true })).toHaveValue("");
     await dialog.getByLabel(/^Name/).fill(`${name} updated`);
     const editHeld = await pausedRefusal(page, `/api/channels/bots/${id}`, "PATCH");
     release = editHeld.release;
@@ -133,7 +133,7 @@ test("phone channel registration clears cancelled credentials and survives a ref
     await page.reload();
     await page.getByRole("button", { name: `Edit ${name} updated`, exact: true }).click();
     await expect(dialog.getByLabel(/^Name/)).toHaveValue(`${name} updated`);
-    await expect(dialog.getByLabel(/Bot token/i)).toHaveValue("");
+    await expect(dialog.getByLabel("Replace bot token", { exact: true })).toHaveValue("");
   } finally {
     release?.();
     if (id) expect((await page.request.delete(`/api/channels/bots/${id}`)).ok()).toBe(true);

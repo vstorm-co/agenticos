@@ -31,16 +31,18 @@ async def get_by_platform_user(
     platform_user_id: str,
     *,
     server_url: str = "",
+    for_update: bool = False,
 ) -> ChannelIdentity | None:
-    """Get an account within its platform and asserting homeserver."""
+    """Get identity by platform + platform_user_id, locked when `for_update`."""
     require_identity_scope(platform, server_url)
-    result = await db.execute(
-        select(ChannelIdentity).where(
-            ChannelIdentity.platform == platform,
-            ChannelIdentity.platform_user_id == platform_user_id,
-            ChannelIdentity.server_url == server_url,
-        )
+    query = select(ChannelIdentity).where(
+        ChannelIdentity.platform == platform,
+        ChannelIdentity.platform_user_id == platform_user_id,
+        ChannelIdentity.server_url == server_url,
     )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

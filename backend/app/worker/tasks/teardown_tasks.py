@@ -132,7 +132,8 @@ async def _vector_store() -> AsyncGenerator[PgVectorStore]:
     from app.services.rag.vectorstore import PgVectorStore
 
     rag_settings = settings.rag
-    engine = create_async_engine(settings.DATABASE_URL)
+    # A statement's values can be personal data: keep them out of error logs.
+    engine = create_async_engine(settings.DATABASE_URL, hide_parameters=True)
     try:
         yield PgVectorStore(
             settings=rag_settings,

@@ -120,6 +120,7 @@ from app.repositories import (
     skill_repo,
     skill_version_repo,
     user_repo,
+    virtual_table_repo,
 )
 from app.repositories import group as group_repo
 from app.repositories import workflow as workflow_repo
@@ -163,6 +164,7 @@ from app.services.access import (
     MCP_CONNECTION,
     SECRET,
     SKILL,
+    TABLE,
     WORKFLOW,
     accessible_ids,
     resolve_access,
@@ -170,6 +172,7 @@ from app.services.access import (
 )
 from app.services.agent_defaults import ARCHITECT
 from app.services.channels.base import ROOM_HANDLES
+from app.services.channels.public_line import refuse_unbounded_bindings, served_versions
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import (
     IMAGE_MIME_TYPES,
@@ -2485,6 +2488,9 @@ class AgentRegistryService:
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
+        problems.add(
+            await self._table_problems(ctx, [grant.table_id for grant in spec.table_bindings])
+        )
         problems.add(await self.skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
@@ -2631,6 +2637,31 @@ class AgentRegistryService:
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
         else:
+            from app.services.integrations import PRODUCTS, AccountSelection, IntegrationService
+
+            if (
+                binding.enabled
+                and binding.id in PRODUCTS
+                and isinstance(config, AccountSelection)
+                and config.account == "organization"
+            ):
+                try:
+                    product = PRODUCTS[binding.id]
+                    accounts = await IntegrationService(self.db).binding_accounts(
+                        product, config, ctx
+                    )
+                    for account in accounts:
+                        for operation in product.operations:
+                            if f"{product.id}_{operation.id}" not in config.disabled_tools:
+                                IntegrationService.check_operation_scopes(
+                                    account, product, operation
+                                )
+                except (AuthorizationError, BadRequestError, NotFoundError) as exc:
+                    problems.merge(
+                        _SpecProblems.at(
+                            f"capabilities.{binding.id}.config.connection_id", exc.message
+                        )
+                    )
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
@@ -3101,6 +3132,25 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Collection not found: {collection_id}")
+        return problems
+
+    async def _table_problems(self, ctx: AuthContext, table_ids: Sequence[UUID]) -> list[str]:
+        """Validate tables lent through app bindings against the publisher's access.
+
+        Missing, cross-organization and inaccessible tables have the same refusal
+        to avoid disclosing another person's private table identifiers. These grants
+        do not restore the withdrawn table tools or offer platform MCP to a public line.
+        """
+        problems: list[str] = []
+        for table_id in table_ids:
+            table = await virtual_table_repo.get_table(
+                self.db, table_id, organization_id=ctx.organization_id
+            )
+            reachable = table is not None and await resolve_access(
+                self.db, ctx, table, Perm.TABLES_VIEW, resource_type=TABLE
+            )
+            if not reachable:
+                problems.append(f"Table not found: {table_id}")
         return problems
 
     async def skill_problems(
@@ -3957,7 +4007,16 @@ class AgentRegistryService:
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
+        served_before = await served_versions(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
         headed = await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await refuse_unbounded_bindings(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            served_before=served_before,
+        )
         await self.withdraw_creator_consent(ctx, agent, environment_ids=headed)
         from app.services.eval_suite import EvalSuiteService
 
@@ -4168,12 +4227,21 @@ class AgentRegistryService:
         # version exists, and what serves it is a promotion. Putting the old
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
+        served_before = await served_versions(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
         headed = await self._move_environments_that_follow(ctx, agent=agent, version=version)
         from app.services.eval_suite import EvalSuiteService
 
         # A rollback is a publish: the suites a publish runs - a guarded
         # follower's guards among them - run on the version it minted.
         await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
+        await refuse_unbounded_bindings(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            served_before=served_before,
+        )
         await self.withdraw_creator_consent(ctx, agent, environment_ids=headed)
         await record_audit(
             self.db,

@@ -16,6 +16,7 @@ const MARKS = {
 
   discord: brandMark("discord"),
   matrix: brandMark("matrix"),
+  whatsapp: brandMark("whatsapp"),
 } as const;
 
 /**

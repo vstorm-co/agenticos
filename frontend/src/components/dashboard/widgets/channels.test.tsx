@@ -1,85 +1,154 @@
 import { render, screen, within } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it, vi } from "vitest";
-import messages from "../../../../messages/en.json";
-import { TooltipProvider } from "@/components/ui";
-import type { ChannelBot } from "@/types/channels";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { ChannelsWidget } from "./channels";
-const useBots = vi.fn();
-vi.mock("@/hooks", () => ({ useChannelBots: () => useBots() }));
+import type { ChannelBot } from "@/types/channels";
+
+const useChannelBotsMock = vi.fn();
+const useBindingRequestsMock = vi.fn();
+vi.mock("@/hooks", () => ({
+  useChannelBots: (...args: unknown[]) => useChannelBotsMock(...args),
+  useChannelBindingRequests: (...args: unknown[]) => useBindingRequestsMock(...args),
+}));
+
 function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
   return {
     id: "b1",
-    platform: "slack",
-    name: "Jarvis",
+    platform: "whatsapp",
+    name: "Support line",
     is_active: true,
-    webhook_mode: false,
-    webhook_url: null,
-    api_base_url: null,
-    access_policy: {
-      mode: "open",
-      whitelist: [],
-      allowed_groups: [],
-      require_link: false,
-      rate_limit_rpm: 10,
-      denied_message: "Denied",
-    },
-    has_webhook_secret: false,
-    has_slack_signing_secret: false,
-    has_slack_app_token: false,
-    has_command_token: false,
-    command_url: null,
-    ack_reaction: null,
-    stream_answers: true,
-    step_display: "timeline",
-    rate_answers: true,
-    connection: null,
-    transcribe_voice_notes: true,
-    speech_to_text_provider: null,
-    speech_to_text_model: null,
-    speech_to_text_secret_id: null,
-    agents: [],
-    created_at: "2026-08-31T09:00:00Z",
+    webhook_mode: true,
+    access_policy: { mode: "open", rate_limit_rpm: 10 },
     ...overrides,
-  };
+  } as ChannelBot;
 }
 
-describe("channel connection status", () => {
-  it("distinguishes down, unknown, connected, webhook and paused bots", () => {
-    useBots.mockReturnValue({
-      bots: [
-        bot({
-          id: "down",
-          name: "Disconnected bot",
-          connection: { state: "down", reason: "Reconnect" },
-        }),
-        bot({ id: "unknown", name: "Unknown bot" }),
-        bot({ id: "up", name: "Connected bot", connection: { state: "up", reason: null } }),
-        bot({ id: "webhook", name: "Webhook bot", webhook_mode: true }),
-        bot({ id: "paused", name: "Paused bot", is_active: false }),
-      ],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-    render(
-      <NextIntlClientProvider locale="en" messages={messages}>
-        <TooltipProvider>
-          <ChannelsWidget title="Channels" hint="" period={{ preset: "30d", from: "", to: "" }} />
-        </TooltipProvider>
-      </NextIntlClientProvider>,
-    );
-    for (const [name, key] of [
+function show(bots: ChannelBot[], waiting = 0) {
+  useBindingRequestsMock.mockReturnValue({
+    requests: Array.from({ length: waiting }, (_, index) => ({ id: `r${index}` })),
+  });
+  useChannelBotsMock.mockReturnValue({ bots, isLoading: false, error: null, refetch: vi.fn() });
+  render(
+    <ChannelsWidget
+      title="Channels"
+      hint=""
+      period={{ preset: "30d", from: "2026-10-05", to: "2026-11-04" }}
+    />,
+  );
+}
+
+beforeEach(() => {
+  useChannelBotsMock.mockReset();
+  useBindingRequestsMock.mockReset();
+});
+
+describe("the channels card", () => {
+  it("marks a line that answers people with no account", () => {
+    show([
+      bot({
+        access_policy: {
+          mode: "open",
+          rate_limit_rpm: 10,
+          answer_unlinked_direct: true,
+        } as ChannelBot["access_policy"],
+      }),
+    ]);
+
+    expect(screen.getByText("listening · public line")).toBeInTheDocument();
+  });
+
+  it("shows the plain mode of a line that does not", () => {
+    show([bot()]);
+
+    expect(screen.getByText("listening")).toBeInTheDocument();
+  });
+
+  it("does not mark a switched-off bot's line, which answers nobody", () => {
+    show([
+      bot({
+        is_active: false,
+        access_policy: {
+          mode: "open",
+          rate_limit_rpm: 10,
+          answer_unlinked_direct: true,
+        } as ChannelBot["access_policy"],
+      }),
+    ]);
+
+    expect(screen.getByText("switched off")).toBeInTheDocument();
+  });
+
+  it("says when nothing is registered", () => {
+    show([]);
+
+    expect(screen.getByText("No channels yet")).toBeInTheDocument();
+  });
+
+  it("says how many binding requests wait, and links to them", () => {
+    show([bot()], 2);
+
+    const row = screen.getByRole("link", { name: "2 binding requests" });
+    expect(row).toHaveAttribute("href", "/channels?requests=open");
+  });
+
+  it("uses the singular for one", () => {
+    show([bot()], 1);
+
+    expect(screen.getByRole("link", { name: "1 binding request" })).toBeInTheDocument();
+  });
+
+  it("says nothing when none wait", () => {
+    show([bot()], 0);
+
+    expect(screen.queryByText(/binding request/)).not.toBeInTheDocument();
+  });
+
+  it("shows the requests even with no bot listed yet", () => {
+    show([], 1);
+
+    expect(screen.getByRole("link", { name: "1 binding request" })).toBeInTheDocument();
+  });
+});
+
+describe("channel connection health", () => {
+  it("keeps disconnected and unknown states alongside the public-line flag", () => {
+    show([
+      bot({
+        id: "down",
+        name: "Disconnected bot",
+        connection: { state: "down", reason: "Reconnect" },
+      }),
+      bot({ id: "unknown", name: "Unknown bot", platform: "slack", webhook_mode: false }),
+      bot({
+        id: "up",
+        name: "Connected bot",
+        platform: "slack",
+        webhook_mode: false,
+        connection: { state: "up", reason: null },
+      }),
+      bot({ id: "webhook", name: "Webhook bot" }),
+      bot({ id: "paused", name: "Paused bot", is_active: false }),
+    ]);
+    for (const [name, label] of [
       ["Disconnected bot", "disconnected"],
-      ["Unknown bot", "unknown"],
+      ["Unknown bot", "connection unknown"],
       ["Connected bot", "polling"],
-      ["Webhook bot", "webhook"],
-      ["Paused bot", "switchedOff"],
+      ["Webhook bot", "listening"],
+      ["Paused bot", "switched off"],
     ] as const) {
       const row = screen.getByText(name).closest("li");
       expect(row).not.toBeNull();
-      if (row)
-        expect(within(row).getByText(messages.dashboard.widgets.channels[key])).toBeVisible();
+      if (row) expect(within(row).getByText(label)).toBeVisible();
     }
+  });
+  it("shows a disconnected public line as disconnected", () => {
+    show([
+      bot({
+        connection: { state: "down", reason: "Reconnect" },
+        access_policy: { ...bot().access_policy, answer_unlinked_direct: true },
+      }),
+    ]);
+    expect(screen.getByText("disconnected")).toBeVisible();
+    expect(screen.queryByText("listening · public line")).not.toBeInTheDocument();
   });
 });

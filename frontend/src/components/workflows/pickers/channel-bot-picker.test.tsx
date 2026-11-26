@@ -16,21 +16,26 @@ vi.mock("@/components/channels/add-channel-dialog", () => ({
   AddChannelDialog: ({
     initialPlatform,
     onSubmit,
+    onPluginSetup,
   }: {
     initialPlatform?: string;
+    onPluginSetup?: () => void;
     onSubmit: (data: { platform: string; name: string; token: string }) => Promise<unknown>;
   }) => (
-    <button
-      onClick={() =>
-        void onSubmit({
-          platform: initialPlatform ?? "mattermost",
-          name: "New bot",
-          token: "write-only",
-        })
-      }
-    >
-      Create connected bot
-    </button>
+    <>
+      <button
+        onClick={() =>
+          void onSubmit({
+            platform: initialPlatform ?? "mattermost",
+            name: "New bot",
+            token: "write-only",
+          })
+        }
+      >
+        Create connected bot
+      </button>
+      <button onClick={onPluginSetup}>Plugin setup completed</button>
+    </>
   ),
 }));
 
@@ -136,4 +141,22 @@ it("creates a channel inline and selects its returned identity", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Create connected bot" }));
   expect(create).toHaveBeenCalledWith({ platform: "slack", name: "New bot", token: "write-only" });
   expect(onChange).toHaveBeenCalledWith("fresh");
+});
+
+it("refreshes after external plugin setup without selecting an invented bot", async () => {
+  const onChange = vi.fn();
+  const refresh = vi.fn().mockResolvedValue(undefined);
+  const create = vi.fn();
+  bots.mockReturnValue({
+    bots: [],
+    isLoading: false,
+    refresh,
+    create: { isPending: false, mutateAsync: create },
+  });
+  render(<ChannelBotPicker value={null} onChange={onChange} platform="mattermost" />);
+  await userEvent.click(screen.getByRole("button", { name: "Connect channel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Plugin setup completed" }));
+  expect(refresh).toHaveBeenCalledOnce();
+  expect(create).not.toHaveBeenCalled();
+  expect(onChange).not.toHaveBeenCalled();
 });

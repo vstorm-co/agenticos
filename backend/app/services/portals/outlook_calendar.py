@@ -9,6 +9,7 @@ converts a Windows zone name.
 from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -28,6 +29,13 @@ _FIELDS = (
 class OutlookCalendarPortalAdapter(PortalAdapter):
     portal_key = "outlook_calendar"
 
+    def __init__(self, *, subject: str | None = None) -> None:
+        self.subject = subject
+
+    @property
+    def _account_path(self) -> str:
+        return "/me" if self.subject is None else f"/users/{quote(self.subject, safe='')}"
+
     async def poll(
         self,
         *,
@@ -45,7 +53,10 @@ class OutlookCalendarPortalAdapter(PortalAdapter):
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             if not cursor or not isinstance(cursor.get("account"), str):
                 calendar = await self._get(
-                    client, access_token, f"{_API_BASE}/me/calendar", {"$select": "id,owner"}
+                    client,
+                    access_token,
+                    f"{_API_BASE}{self._account_path}/calendar",
+                    {"$select": "id,owner"},
                 )
                 owner = nested(calendar, "owner")
                 account = str(owner.get("address") or "").casefold()
@@ -60,7 +71,7 @@ class OutlookCalendarPortalAdapter(PortalAdapter):
                 "$orderby": "start/dateTime",
                 "$top": "1000",
             }
-            url = f"{_API_BASE}/me/calendarView"
+            url = f"{_API_BASE}{self._account_path}/calendarView"
             meetings: list[_calendar.Meeting] = []
             for _ in range(10):
                 listing = await self._get(client, access_token, url, params)

@@ -21,11 +21,14 @@ logger = logging.getLogger(__name__)
 
 # setup_logging owns DB_ECHO. Engine echo would add an unredacted stdout
 # handler alongside the application's redacted stderr handler.
+# A statement's values can be personal data (a chat id, an email, message text), so
+# every engine hides them from the errors it raises and error logs never carry them.
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_timeout=settings.DB_POOL_TIMEOUT,
+    hide_parameters=True,
 )
 
 # The vector store's pool, deliberately not the one above. A vector query runs
@@ -42,6 +45,7 @@ vector_engine = create_async_engine(
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_timeout=settings.DB_POOL_TIMEOUT,
+    hide_parameters=True,
 )
 
 # The knowledge capability's store, and pool-less on purpose. A pooled asyncpg
@@ -58,6 +62,7 @@ vector_engine = create_async_engine(
 agent_vector_engine = create_async_engine(
     settings.DATABASE_URL,
     poolclass=NullPool,
+    hide_parameters=True,
 )
 
 async_session_maker = async_sessionmaker(
@@ -208,6 +213,7 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession]:
         settings.DATABASE_URL,
         echo=False,
         poolclass=NullPool,
+        hide_parameters=True,
     )
     factory = async_sessionmaker(
         worker_engine,
@@ -232,7 +238,9 @@ async def get_worker_connection() -> AsyncGenerator[AsyncConnection]:
     for the caller, and nothing rolls back; the connection closes when the block
     exits, whatever it was doing.
     """
-    worker_engine = create_async_engine(settings.DATABASE_URL, echo=False, poolclass=NullPool)
+    worker_engine = create_async_engine(
+        settings.DATABASE_URL, echo=False, poolclass=NullPool, hide_parameters=True
+    )
     try:
         async with worker_engine.connect() as connection:
             yield connection

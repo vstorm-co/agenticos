@@ -4,15 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { YourConnections } from "./your-connections";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
-import type { McpServerRef } from "@/types/agents";
+import type { CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const state = vi.hoisted(() => ({
   selectedAgentId: "a1" as string | null,
   bindings: [] as McpServerRef[],
+  capabilities: [] as CapabilityBindingSpec[],
   connections: [] as McpConnectionRecord[],
 }));
 
+vi.mock("./native-personal-connections", () => ({
+  NativePersonalConnections: ({ bindings }: { bindings: CapabilityBindingSpec[] }) => (
+    <div aria-label="Native accounts">{bindings.map((binding) => binding.id).join(", ")}</div>
+  ),
+}));
 vi.mock("@/stores", () => ({
   useAgentSelectionStore: (pick: (s: { selectedAgentId: string | null }) => unknown) =>
     pick({ selectedAgentId: state.selectedAgentId }),
@@ -20,7 +26,10 @@ vi.mock("@/stores", () => ({
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({ agents: [{ id: "a1", current_version_id: "v1" }] }),
   useAgentVersion: (agentId: string | null, versionId: string | null) => ({
-    version: agentId && versionId ? { spec: { mcp_servers: state.bindings } } : undefined,
+    version:
+      agentId && versionId
+        ? { spec: { mcp_servers: state.bindings, capabilities: state.capabilities } }
+        : undefined,
     isLoading: false,
     error: null,
   }),
@@ -186,4 +195,23 @@ describe("YourConnections and a key the catalog no longer holds", () => {
     expect(screen.getByText("gone")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open MCP servers" })).toBeInTheDocument();
   });
+});
+
+it("keeps native accounts reachable even when the agent has no personal MCP bindings", () => {
+  state.capabilities = [
+    {
+      id: "gmail",
+      config: {},
+      enabled: true,
+      approval: "default",
+      tool_approval: {},
+      tool_overrides: {},
+      secret_id: null,
+    },
+  ];
+  const { container } = render(<YourConnections />);
+  expect(screen.getByLabelText("Native accounts")).toHaveTextContent("gmail");
+  expect(container.querySelector('[data-tour="chat-your-connections"]')).toContainElement(
+    screen.getByLabelText("Native accounts"),
+  );
 });

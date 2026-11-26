@@ -147,3 +147,23 @@ async def exchange_code(
         expires_in=expires if isinstance(expires, int) else None,
         granted_scopes=str(payload.get("scope") or "").split(),
     )
+
+
+async def account_email(access_token: str) -> str | None:
+    """The consenting user's address, used as a label rather than an authority."""
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.get(
+                "https://graph.microsoft.com/v1.0/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"$select": "mail,userPrincipalName"},
+            )
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+    except httpx.HTTPError, ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("mail") or payload.get("userPrincipalName")
+    return value if isinstance(value, str) and value else None

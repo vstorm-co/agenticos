@@ -9,6 +9,7 @@ log lines rather than return values.
 
 import asyncio
 import logging
+from contextlib import nullcontext
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -354,3 +355,31 @@ class TestDrainingOnShutdown:
 
         release.set()
         await asyncio.sleep(0)
+
+
+@pytest.mark.parametrize("failure", [None, ValueError, asyncio.CancelledError])
+async def test_savepoint_handoffs_preserve_outer_work_and_release_only_failed_claims(failure):
+    effects = []
+
+    async def record(name):
+        effects.append(name)
+
+    async with AsyncSession() as session:
+        background.spawn_after_commit(session, record("outer commit"), name="outer commit")
+        background.spawn_after_rollback(session, record("outer rollback"), name="outer rollback")
+        with pytest.raises(failure) if failure is not None else nullcontext():
+            async with background.deferred_savepoint(session):
+                background.spawn_after_commit(session, record("inner commit"), name="inner commit")
+                background.spawn_after_rollback(
+                    session, record("inner rollback"), name="inner rollback"
+                )
+                if failure is not None:
+                    raise failure()
+        await background.drain()
+        assert effects == (["inner rollback"] if failure is not None else [])
+        background.start_deferred(session)
+        await background.drain()
+        assert set(effects) == {
+            "outer commit",
+            "inner rollback" if failure is not None else "inner commit",
+        }

@@ -1,0 +1,46 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA1",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "PNID1"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ada Lovelace",
+                  "username": "ada"
+                },
+                "user_id": "US.111",
+                "wa_id": "4915112345678"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "US.111",
+                "id": "wamid.T1",
+                "timestamp": "1790000000",
+                "type": "button",
+                "button": {
+                  "payload": "show_answer",
+                  "text": "Show me"
+                },
+                "context": {
+                  "from": "15550001111",
+                  "id": "wamid.OUT1"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

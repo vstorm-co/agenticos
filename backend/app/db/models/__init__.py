@@ -160,6 +160,7 @@ from app.db.models.project import Project
 from app.db.models.project_filesystem import ProjectFilesystemBinding, ProjectFilesystemLease
 from app.db.models.suggestion import RoutineFindingRevision, Suggestion
 from app.db.models.watch import Watch
+from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
 from app.db.models.teams_conversation import TeamsConversation
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
@@ -228,6 +229,7 @@ from app.db.models.virtual_table_trigger import (
     VirtualTableTriggerRevision,
 )
 from app.db.models.artifact_share_request import ArtifactShareRequest
+from app.db.models.channel_binding_request import ChannelBindingRequest
 
 __all__ = [
     "ProjectResource",
@@ -259,6 +261,8 @@ __all__ = [
     "RoutineFindingRevision",
     "Suggestion",
     "Watch",
+    "WhatsAppCustomer",
+    "WhatsAppHeldRun",
     "TeamsConversation",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
@@ -269,6 +273,7 @@ __all__ = [
     "ArtifactFollower",
     "ArtifactMediaType",
     "ArtifactShareRequest",
+    "ChannelBindingRequest",
     "ArtifactVersion",
     "CaseGeneration",
     "CaseKeyDraft",

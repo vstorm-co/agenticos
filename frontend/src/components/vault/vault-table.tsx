@@ -60,7 +60,7 @@ export function VaultTable({
     ...accounts.map((account) => ({
       kind: "account" as const,
       id: `account:${account.owner}:${account.id}`,
-      name: account.email,
+      name: account.label || account.email,
       account,
     })),
   ];
@@ -88,26 +88,33 @@ export function VaultTable({
             brand={
               row.kind === "key"
                 ? purposes.find((p) => p.id === row.secret.purpose)?.icon || undefined
-                : "google"
+                : row.account.provider
             }
           />
           <div className="min-w-0 space-y-0.5">
             <p title={row.name} className="truncate text-sm font-medium">
               {row.name}
             </p>
+            {row.kind === "account" &&
+              row.account.label &&
+              row.account.label !== row.account.email && (
+                <p className="text-muted-foreground truncate text-xs">{row.account.email}</p>
+              )}
             {row.kind === "key" ? (
               <p className="text-muted-foreground font-mono text-xs">····{row.secret.hint}</p>
             ) : (
               <p
                 className={
-                  row.account.needs_reconnect
+                  row.account.needs_reconnect || row.account.polling_failed
                     ? "text-destructive text-xs"
                     : "text-muted-foreground text-xs"
                 }
               >
                 {row.account.needs_reconnect
                   ? ta("needsReconnect")
-                  : ta("scopes", { count: row.account.scopes.length })}
+                  : row.account.polling_failed
+                    ? ta("pollingFailed")
+                    : ta("scopes", { count: row.account.scopes.length })}
               </p>
             )}
             <span className="text-muted-foreground text-xs sm:hidden">{access(row)}</span>
@@ -122,7 +129,7 @@ export function VaultTable({
       cell: (row) => (
         <span className="text-muted-foreground text-sm">
           {row.kind === "account"
-            ? t("googleAccount")
+            ? ta(`setup.provider.${row.account.provider}`)
             : !row.secret.purpose || row.secret.purpose === "custom"
               ? t("customService")
               : (purposes.find((p) => p.id === row.secret.purpose)?.label ?? row.secret.purpose)}
@@ -242,16 +249,17 @@ export function VaultTable({
             )
           : canManageAccount?.(row.account) && (
               <div className="flex justify-end gap-1">
-                {row.account.needs_reconnect && onReconnectAccount && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={ta("reconnectNamed", { email: row.account.email })}
-                    onClick={() => onReconnectAccount(row.account)}
-                  >
-                    <RotateCw className="size-4" />
-                  </Button>
-                )}
+                {(row.account.needs_reconnect || row.account.polling_failed) &&
+                  onReconnectAccount && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={ta("reconnectNamed", { email: row.account.email })}
+                      onClick={() => onReconnectAccount(row.account)}
+                    >
+                      <RotateCw className="size-4" />
+                    </Button>
+                  )}
                 {onDisconnectAccount && (
                   <Button
                     variant="ghost"

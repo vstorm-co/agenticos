@@ -458,40 +458,48 @@ describe("a voice call's row", () => {
   });
 });
 
-it("names the unlinked channel sender instead of the publisher on desktop and mobile", () => {
-  render(
-    <RunTable
-      runs={[
-        run({
-          user_id: "publisher",
-          surface: "mattermost",
-          initiated_by_publisher_fallback: true,
-          asked_in_chat: { platform: "mattermost", name: "@participant", bot_name: "Sales bot" },
-        }),
-      ]}
-      membersById={
-        new Map([
-          [
-            "publisher",
-            {
-              user_id: "publisher",
-              email: "publisher@example.test",
-              full_name: "Publisher Person",
+it.each([null, "•••• 1234"])(
+  "names the unlinked sender and optional handle on desktop and mobile: %s",
+  (handle) => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            user_id: "publisher",
+            surface: "mattermost",
+            initiated_by_publisher_fallback: true,
+            asked_in_chat: {
+              platform: "mattermost",
+              name: "@participant",
+              bot_name: "Sales bot",
+              handle,
             },
-          ],
-        ])
-      }
-    />,
-  );
-  expect(within(row()).getAllByText("@participant")).toHaveLength(2);
-  expect(within(row()).getAllByText("Unverified")).toHaveLength(2);
-  expect(within(row()).queryByText("Publisher Person")).toBeNull();
-  expect(
-    within(row()).getAllByTitle(
-      /Asked in Mattermost by @participant \(unverified\), through Sales bot/,
-    ),
-  ).toHaveLength(2);
-});
+          }),
+        ]}
+        membersById={
+          new Map([
+            [
+              "publisher",
+              {
+                user_id: "publisher",
+                email: "publisher@example.test",
+                full_name: "Publisher Person",
+              },
+            ],
+          ])
+        }
+      />,
+    );
+    expect(within(row()).getAllByText("@participant")).toHaveLength(2);
+    expect(within(row()).getAllByText("Unverified")).toHaveLength(2);
+    expect(within(row()).queryByText("Publisher Person")).toBeNull();
+    expect(
+      within(row()).getAllByTitle(
+        `Asked in Mattermost by @participant (unverified${handle ? `, ${handle}` : ""}), through Sales bot`,
+      ),
+    ).toHaveLength(2);
+  },
+);
 
 it("can show an unverified chat account without a member-directory lookup", () => {
   render(

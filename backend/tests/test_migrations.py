@@ -726,6 +726,8 @@ class TestMigrations:
         "0345_merge_mcp_and_personal",
         "0349_personal_work_context",
         "0350_member_onboarding_progress",
+        "0375_native_integration_triggers",
+        "0330_linear_trigger",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -1154,6 +1156,8 @@ def test_workflow_migrations_preserve_main_notification_types(table: str) -> Non
             "artifact_owner_changed",
             "artifact_share_requested",
             "workflow_log_alert",
+            "channel_binding_requested",
+            "channel_binding_decided",
         ):
             assert f"'{event}'" in definition
     finally:
@@ -1484,6 +1488,163 @@ class TestChatNoticeColumn:
                         "WHERE table_name='agent_runs' AND column_name='chat_notice_sent_at'"
                     )
                 ).first()
+        finally:
+            engine.dispose()
+
+
+class TestRunsAsAgentColumn:
+    def test_existing_runs_are_member_runs_and_the_models_match_head(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0378_whatsapp_followups")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        run_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, status, surface, "
+                        "modality, started_at, input_tokens, output_tokens, cache_read_tokens, "
+                        "cache_write_tokens, cost_usd, cost_is_partial, tool_args_repaired) "
+                        "VALUES (:id, :org, :agent, 'completed', 'whatsapp', 'text', now(), "
+                        "0, 0, 0, 0, 0, false, 0)"
+                    ),
+                    {"id": run_id, "org": uuid4(), "agent": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT runs_as_agent FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    is False
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0378_whatsapp_followups")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT status FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    == "completed"
+                )
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name='agent_runs' AND column_name='runs_as_agent'"
+                    )
+                ).first()
+        finally:
+            engine.dispose()
+
+
+class TestChannelBindingRequestsTable:
+    def test_the_table_and_the_notification_types_come_and_go_with_the_revision(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0378_whatsapp_followups")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        user_id = uuid4()
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for event in ("channel_binding_requested", "channel_binding_decided"):
+                    connection.execute(
+                        text(
+                            "INSERT INTO notifications (id, organization_id, recipient_user_id, "
+                            "event_type, occurrence_id, summary, in_app_visible) "
+                            "VALUES (:id, :org, :user, :event, 'x', 'Somebody asked.', true)"
+                        ),
+                        {"id": uuid4(), "org": uuid4(), "user": user_id, "event": event},
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO notification_preferences (id, user_id, event_type, "
+                            "channel, enabled) VALUES (:id, :user, :event, 'in_app', false)"
+                        ),
+                        {"id": uuid4(), "user": user_id, "event": event},
+                    )
+                bot, requester = uuid4(), uuid4()
+                insert = text(
+                    "INSERT INTO channel_binding_requests (id, organization_id, channel_bot_id, "
+                    "agent_id, exposure_id, kind, requester_user_id, status) "
+                    "VALUES (:id, :org, :bot, :agent, :exposure, :kind, :requester, :status)"
+                )
+                connection.execute(
+                    insert,
+                    {
+                        "id": uuid4(),
+                        "org": uuid4(),
+                        "bot": bot,
+                        "agent": uuid4(),
+                        "exposure": None,
+                        "kind": "bind",
+                        "requester": requester,
+                        "status": "pending",
+                    },
+                )
+            for refused in (
+                {"kind": "unbind", "status": "pending", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "waiting", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "pending", "bot": bot, "requester": requester},
+                {
+                    "kind": "resume",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": None,
+                },
+                {
+                    "kind": "bind",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": uuid4(),
+                },
+            ):
+                with (
+                    pytest.raises(Exception, match="channel_binding_request"),
+                    engine.begin() as connection,
+                ):
+                    connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    connection.execute(
+                        insert,
+                        {
+                            "id": uuid4(),
+                            "org": uuid4(),
+                            "agent": uuid4(),
+                            "exposure": None,
+                            **refused,
+                        },
+                    )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0378_whatsapp_followups")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+                for left in (
+                    "SELECT count(*) FROM notifications WHERE event_type LIKE 'channel_binding_%'",
+                    "SELECT count(*) FROM notification_preferences "
+                    "WHERE event_type LIKE 'channel_binding_%'",
+                ):
+                    assert connection.scalar(text(left)) == 0
         finally:
             engine.dispose()
 
@@ -2100,6 +2261,31 @@ class TestDraftPresentationMigration:
                     ).all()
                 )
                 assert rows == {real_id: "draft", spoof_id: None}
+
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+        finally:
+            engine.dispose()
+
+
+class TestWhatsAppCustomerPhoneColumn:
+    def test_the_column_comes_and_goes_and_the_models_match_head(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0379_whatsapp_public_line")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        query = text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='whatsapp_customers' AND column_name='phone'"
+        )
+        try:
+            with engine.connect() as connection:
+                assert not connection.execute(query).first()
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert connection.execute(query).first()
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2450,10 +2636,15 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
                 text(
                     "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
                     "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
-                    "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
-                    "'{\"acts_as_creator\": true}'::jsonb)"
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', "
+                    "0, 0, 0, false, CAST(:policy AS jsonb))"
                 ),
-                {"id": run_id, "org": org_id, "agent": agent.id},
+                {
+                    "id": run_id,
+                    "org": org_id,
+                    "agent": agent.id,
+                    "policy": json.dumps({"acts_as_creator": True}),
+                },
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2815,16 +3006,19 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
                 },
             )
             agent = Agent(organization_id=org_id, slug="matrix-migration", name="Matrix migration")
-            bot = ChannelBot(
-                organization_id=org_id,
-                platform="slack",
-                name="Existing bot",
-                token_encrypted="sealed",
-            )
-            db.add_all([agent, bot])
+            db.add(agent)
             db.flush()
+            bot_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO channel_bots (id, organization_id, platform, name, "
+                    "token_encrypted, secret_key_version, is_active, webhook_mode, access_policy) "
+                    "VALUES (:id, :org, 'slack', 'Existing bot', 'sealed', 1, true, false, '{}')"
+                ),
+                {"id": bot_id, "org": org_id},
+            )
             exposure = AgentExposure(
-                organization_id=org_id, agent_id=agent.id, channel_bot_id=bot.id, surface="slack"
+                organization_id=org_id, agent_id=agent.id, channel_bot_id=bot_id, surface="slack"
             )
             db.add(exposure)
             db.flush()
@@ -2949,6 +3143,100 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         with DatabaseSession(engine) as db:
             assert db.get(AgentExposure, existing_id) is not None
             assert db.get(AgentExposure, matrix_id) is None
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_native_integration_upgrade_preserves_matrix_and_reusable_webhooks() -> None:
+    released = "0374_case_from_conversation"
+    for action, revision in (("upgrade", "head"), ("downgrade", released)):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    matrix_id, whatsapp_id, trigger_id, source_id, bot_id = (uuid4() for _ in range(5))
+    long_room = "matrix:" + "r" * 600
+    params = {
+        "matrix": matrix_id,
+        "whatsapp": whatsapp_id,
+        "trigger": trigger_id,
+        "source": source_id,
+        "bot": bot_id,
+        "org": uuid4(),
+        "agent": uuid4(),
+        "identity": uuid4(),
+        "room": long_room,
+    }
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO agent_exposures (id, organization_id, agent_id, channel_bot_id, "
+                    "surface, is_active) VALUES (:matrix, :org, :agent, :bot, 'matrix', true)"
+                ),
+                params,
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO channel_sessions (id, bot_id, identity_id, platform_chat_id, "
+                    "chat_type, is_active) VALUES (:matrix, :bot, :identity, :room, 'private', true)"
+                ),
+                params,
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO agent_triggers (id, organization_id, agent_id, is_active, prompt, "
+                    "schedule_kind, trigger_type, event_config, event_source, source_id) VALUES "
+                    "(:trigger, :org, :agent, true, 'Test', 'interval', 'event', "
+                    "'{}'::jsonb, 'webhook', :source)"
+                ),
+                params,
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO agent_exposures (id, organization_id, agent_id, channel_bot_id, "
+                    "surface, is_active) VALUES (:whatsapp, :org, :agent, :identity, 'whatsapp', true)"
+                ),
+                params,
+            )
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr + result.stdout
+        result = _alembic("downgrade", released)
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.scalar(
+                    text("SELECT platform_chat_id FROM channel_sessions WHERE id = :matrix"), params
+                )
+                == long_room
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT source_id FROM agent_triggers WHERE id = :trigger"), params
+                )
+                == source_id
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT surface FROM agent_exposures WHERE id = :matrix"), params
+                )
+                == "matrix"
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT surface FROM agent_exposures WHERE id = :whatsapp"), params
+                )
+                is None
+            )
+            connection.execute(text("DELETE FROM channel_sessions WHERE id = :matrix"), params)
+            connection.execute(text("DELETE FROM agent_triggers WHERE id = :trigger"), params)
+            connection.execute(text("DELETE FROM agent_exposures WHERE id = :matrix"), params)
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

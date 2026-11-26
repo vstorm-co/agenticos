@@ -2946,7 +2946,7 @@
         "description": "Execuções pausadas em uma chamada de ferramenta, aguardando uma decisão.",
         "someAgent": "Um agente",
         "forPerson": "para {email} · aguardando há {ago}",
-        "forChatAccount": "para {name} (não verificado) · aguardando há {ago}"
+        "forChatAccount": "para {name} (não verificado{hasHandle, select, yes {, {handle}} other {}}) · aguardando há {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -7603,7 +7603,7 @@
       "transcriptionInheritsFromOrg": "{pair}, da organização",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provedor",
-      "transcriptionMistralFormat": "{platform, select, slack {O aplicativo de desktop do Slack grava os clipes de áudio como WebM} discord {O Discord envia mensagens de voz como Ogg/Opus} matrix {Clientes Matrix enviam mensagens de voz como Ogg/Opus} other {O Telegram envia mensagens de voz como Ogg/Opus}}, formato que a Mistral não lista entre os que aceita. Elas podem falhar na transcrição; se isso acontecer, escolha outro provedor para este bot.",
+      "transcriptionMistralFormat": "{platform, select, slack {O aplicativo de desktop do Slack grava os clipes de áudio como WebM} discord {O Discord envia mensagens de voz como Ogg/Opus} matrix {Clientes Matrix enviam mensagens de voz como Ogg/Opus} whatsapp {O WhatsApp envia mensagens de voz como Ogg/Opus} other {O Telegram envia mensagens de voz como Ogg/Opus}}, formato que a Mistral não lista entre os que aceita. Elas podem falhar na transcrição; se isso acontecer, escolha outro provedor para este bot.",
       "transcriptionProviderNoKey": "{name} (sem chave utilizável)",
       "transcriptionInheritedNoKey": "Nenhuma chave está escolhida onde este par é definido, então as mensagens de voz não são transcritas até que uma seja escolhida.",
       "botTokenHintEmail": "O endereço de onde o bot responde, por exemplo agent@mail.example.com. As respostas saem pelo provedor de e-mail desta implantação.",
@@ -8232,8 +8232,8 @@
       "surfaceEmail": "E-mail",
       "systemRoleBriefing": "Resumo diário (sistema)",
       "systemRoleMaintenance": "Manutenção de memória (sistema)",
-      "askedInChat": "Perguntado em {platform} por {name} (não verificado)",
-      "askedInChatThrough": "Perguntado em {platform} por {name} (não verificado), por meio de {bot}",
+      "askedInChat": "Perguntado em {platform} por {name} (não verificado{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Perguntado em {platform} por {name} (não verificado{hasHandle, select, yes {, {handle}} other {}}), por meio de {bot}",
       "decisionApprovedInChat": "Aprovado. Quando nada mais estiver aguardando, o agente continua no chat em que foi acionado.",
       "decisionRejectedInChat": "Rejeitado. Quando nada mais estiver aguardando, o agente responde no chat em que foi acionado.",
       "runResumedInChat": "Execução retomada. A resposta também é enviada ao chat em que foi acionada.",
@@ -8555,7 +8555,7 @@
         "personalTitle": "Suas contas conectadas",
         "organizationTitle": "As contas conectadas da organização",
         "count": "{count, plural, one {# conta} other {# contas}}",
-        "connect": "Conectar conta do Google",
+        "connect": "Conectar conta do {provider}",
         "noneYet": "Nenhuma conta conectada ainda",
         "needsReconnect": "O login dela parou de funcionar. Conecte-a novamente.",
         "scopes": "{count, plural, one {# permissão concedida} other {# permissões concedidas}}",

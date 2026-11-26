@@ -164,6 +164,28 @@ beforeEach(() => {
   state.permissions = [Perm.secretsEdit];
 });
 
+it("persists removing a native account filter while preserving the rest of the capability", async () => {
+  serve([]);
+  const onChange = vi.fn();
+  const spec = binding({ config: { account_name: "Work", write: false } });
+  mount(spec, {
+    onChange,
+    definition: {
+      ...WEATHER,
+      category: "integrations",
+      requires_secret: null,
+      config_schema: { type: "object", "x-integration-provider": "google" },
+    },
+  });
+
+  await userEvent.click(screen.getByRole("button", { name: "Remove account filter" }));
+
+  expect(onChange).toHaveBeenCalledWith({
+    ...spec,
+    config: { account_name: "", write: false },
+  });
+});
+
 /**
  * The secret picker, against a mocked vault.
  *

@@ -43,6 +43,7 @@ PAGES = (
     "features.md",
     "concepts.md",
     "mcp.md",
+    "integrations.md",
     "api.md",
     "projects.md",
     "authoring.md",

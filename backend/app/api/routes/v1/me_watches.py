@@ -13,6 +13,7 @@ from app.api.deps import Auth, WatchSvc, key_needs
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.watch import (
+    WatchConnectionRead,
     WatchCreate,
     WatchList,
     WatchPresetList,
@@ -22,6 +23,12 @@ from app.schemas.watch import (
 )
 
 router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
+
+
+@router.get("/connections", response_model=list[WatchConnectionRead])
+async def watch_connections(service: WatchSvc, ctx: Auth) -> Any:
+    """Personal MCP servers and native accounts the caller may watch."""
+    return await service.connections(ctx)
 
 
 @router.get("", response_model=WatchList)

@@ -304,3 +304,72 @@ async def test_reconsented_account_is_fresh_in_an_existing_session(
         await mcp_connection_repo.get_account(db, account.id)
     ).authorization_generation == generation
     assert generation != before
+
+
+@pytest.mark.security
+async def test_native_account_names_never_cross_the_current_person_or_organization(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.organization import OrganizationMember
+    from app.services.integrations import (
+        PRODUCTS,
+        AccountSelection,
+        IntegrationAccountRequired,
+        IntegrationService,
+    )
+
+    ana, ben = await _person(db), await _person(db)
+    org, other_org = await _organization(db, ana), await _organization(db, ana)
+    db.add_all(
+        [
+            OrganizationMember(organization_id=org.id, user_id=ana.id, role="member"),
+            OrganizationMember(organization_id=org.id, user_id=ben.id, role="member"),
+            OrganizationMember(organization_id=other_org.id, user_id=ana.id, role="member"),
+        ]
+    )
+    rows = []
+    for person, source_org, name in [
+        (ana, org, "work-one"),
+        (ana, org, "work-two"),
+        (ben, org, "colleague"),
+        (ana, other_org, "another-org"),
+    ]:
+        row = McpConnection(
+            user_id=person.id,
+            scope="user",
+            account_source_organization_id=source_org.id,
+            name=name,
+            purpose="account",
+            catalog_key="google",
+            url="https://www.googleapis.com",
+            oauth_payload="sealed",
+            secret_key_version=1,
+            is_enabled=True,
+        )
+        db.add(row)
+        rows.append(row)
+    await db.flush()
+    service = IntegrationService(db)
+    own = await service.accounts(
+        PRODUCTS["gmail"], AccountSelection(), organization_id=org.id, person_id=ana.id
+    )
+    assert {row.name for row in own} == {"work-one", "work-two"}
+    assert (
+        await service.account(
+            PRODUCTS["gmail"],
+            AccountSelection(),
+            organization_id=org.id,
+            person_id=ana.id,
+            account_name="work-two",
+        )
+        is rows[1]
+    )
+    for name in ("colleague", "another-org"):
+        with pytest.raises(IntegrationAccountRequired):
+            await service.account(
+                PRODUCTS["gmail"],
+                AccountSelection(),
+                organization_id=org.id,
+                person_id=ana.id,
+                account_name=name,
+            )

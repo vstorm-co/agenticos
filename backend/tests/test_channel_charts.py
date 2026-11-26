@@ -431,6 +431,29 @@ class TestTheTurnsPicture:
         assert len(refused) == 1
         assert "could not be attached" in refused[0]
 
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("stranger", [True, False])
+    async def test_a_missing_visual_names_the_console_only_to_a_member(
+        self, stranger: bool
+    ) -> None:
+        from app.services.channels.mentions import drawn_picture
+
+        notices: list[str] = []
+        with patch(
+            "app.services.channels.mentions.visual_render.picture_of_turn",
+            new=AsyncMock(return_value=None),
+        ):
+            await drawn_picture(
+                [_call("Drew 'Flow' as visual `v`.", name="draw")],
+                organization_id=uuid.uuid4(),
+                conversation_id=None,
+                notices=notices,
+                stranger=stranger,
+            )
+        assert "could not be attached" in notices[0]
+        assert ("AgenticOS" not in notices[0] and "operator" not in notices[0]) is stranger
+
     @pytest.mark.anyio
     async def test_a_visual_that_failed_leaves_the_chart_before_it_as_the_picture(self) -> None:
         from app.services.channels.mentions import drawn_picture

@@ -9,6 +9,9 @@ import Link from "next/link";
 
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
+import { IntegrationSetupDialog } from "@/components/vault/integration-setup-dialog";
+import { OdooSetupDialog } from "@/components/vault/odoo-setup-dialog";
+import { ImapSetupDialog } from "@/components/vault/imap-setup-dialog";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { MailboxInterval } from "@/components/triggers/mailbox-interval";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
@@ -111,7 +114,7 @@ function vaultFixable(item: PortalWithState): boolean {
 
 /** Whether this portal's connect flow cannot start yet - see `connect_blocked_by`. */
 function blocked(item: PortalWithState): boolean {
-  return item.portal.connect_blocked_by !== null;
+  return !item.portal.native_provider && item.portal.connect_blocked_by !== null;
 }
 
 export function PortalCatalog({
@@ -123,6 +126,7 @@ export function PortalCatalog({
   const tErrors = useTranslations("errors");
   const { items, isLoading, error } = usePortals();
 
+  const [nativeSetup, setNativeSetup] = useState<PortalCatalogEntry["native_provider"]>(null);
   const [category, setCategory] = useState("all");
   const [installing, setInstalling] = useState<PortalWithState | null>(null);
   const [installationId, setInstallationId] = useState("");
@@ -168,6 +172,10 @@ export function PortalCatalog({
   });
 
   async function connect(item: PortalWithState) {
+    if (item.portal.native_provider) {
+      setNativeSetup(item.portal.native_provider);
+      return;
+    }
     if (item.portal.delivery === "app_webhook") {
       setInstallationId("");
       setInstalling(item);
@@ -452,7 +460,7 @@ export function PortalCatalog({
                               </Button>
                             )}
                             {item.action === "connect" &&
-                              canManageConnections &&
+                              (canManageConnections || (canRun && item.portal.native_provider)) &&
                               !blocked(item) && (
                                 <Button
                                   size="sm"
@@ -467,7 +475,7 @@ export function PortalCatalog({
                                 </Button>
                               )}
                             {item.action === "reauthorize" &&
-                              canManageConnections &&
+                              (canManageConnections || (canRun && item.portal.native_provider)) &&
                               !blocked(item) && (
                                 <Button
                                   size="sm"
@@ -550,6 +558,17 @@ export function PortalCatalog({
         />
       </ListCard>
 
+      {nativeSetup === "imap" ? (
+        <ImapSetupDialog owner="personal" onClose={() => setNativeSetup(null)} />
+      ) : nativeSetup === "odoo" ? (
+        <OdooSetupDialog owner="personal" onClose={() => setNativeSetup(null)} />
+      ) : nativeSetup ? (
+        <IntegrationSetupDialog
+          provider={nativeSetup}
+          owner="personal"
+          onClose={() => setNativeSetup(null)}
+        />
+      ) : null}
       {dialog !== null && (
         <PortalTriggerDialog
           portal={dialog.portal}

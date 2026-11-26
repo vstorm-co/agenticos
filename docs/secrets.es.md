@@ -1,5 +1,5 @@
 ---
-source_sha: "62a1e2196945"
+source_sha: "3c6d903fe5da"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -265,7 +265,7 @@ cuenta y los scopes concedidos, nunca un token.
 del bot bajo una misma `key_version`: el token del bot, el signing secret y el app
 token de una app de Slack, y el secreto compartido contra el que se autentica un
 webhook entrante — el `X-Telegram-Bot-Api-Secret-Token` de Telegram, el token de
-un webhook saliente de Mattermost. Mira [Canales](channels.md).
+un webhook saliente de Mattermost, y el app secret y el verify token de un bot de WhatsApp. Mira [Canales](channels.md).
 
 **Triggers de eventos.** El secreto contra el que se verifica el webhook entrante
 de un trigger de evento - la clave HMAC de GitHub, o el signing secret que envía

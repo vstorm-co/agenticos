@@ -831,6 +831,16 @@ class TestHistoryAndFiles:
         ):
             await adapter.download_attachment("tok", attachment)
 
+    async def test_the_callers_byte_limit_caps_the_stream(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        path = "/_matrix/client/v1/media/download/example.org/oversized"
+        server.answer("GET", path, httpx.Response(200, content=b"too large"))
+        with pytest.raises(ValueError, match="upload limit"):
+            await adapter.download_attachment(
+                "tok", IncomingAttachment("a.txt", "text/plain", 0, BASE + path), max_bytes=3
+            )
+
     async def test_a_file_is_fetched_with_the_bots_token(
         self, adapter: MatrixAdapter, server: _Homeserver
     ):

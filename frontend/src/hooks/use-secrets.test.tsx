@@ -37,6 +37,11 @@ describe("useSecrets", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   });
 
+  it("does not request organization credentials for a personal consent form", () => {
+    renderHook(() => useSecrets({ enabled: false }), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("loads the stored secrets and the shapes a new one may take", async () => {
     // The kinds are fetched, not listed here: every form on this surface is
     // generated from the schema the server publishes for them.

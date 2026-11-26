@@ -57,6 +57,7 @@ async def feature_counts(db: AsyncSession, *, since: datetime) -> dict[Feature, 
                 "sms",
                 "email",
                 "imessage",
+                "whatsapp",
             ]
         ),
         "routines": AgentRun.surface == "schedule",

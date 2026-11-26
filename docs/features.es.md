@@ -1,5 +1,5 @@
 ---
-source_sha: "f73ea6abcad6"
+source_sha: "8cc9c6583fa2"
 ---
 
 # Funciones { #features }
@@ -175,6 +175,8 @@ Publica una vez. El mismo runner responde en todas estas:
 - **La API HTTP**, y un WebSocket en crudo para streaming
 - **Slack**, **Telegram**, **Mattermost**, **Discord** y **Matrix**, donde una `@mention` se ejecuta como
   la persona que la envió — no como el bot
+- **WhatsApp**, en chats directos, con respuestas en texto y un miembro vinculado con
+  un código enviado desde el chat
 
 La transcripción de voz también funciona en ellas con el propio provider de la
 organización: dictado en el chat web, en una página alojada y en el widget, y

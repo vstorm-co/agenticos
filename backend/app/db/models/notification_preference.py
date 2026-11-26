@@ -52,7 +52,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'artifact_owner_changed', 'artifact_share_requested', "
             "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
             "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-            "'workflow_log_alert')",
+            "'workflow_log_alert', 'channel_binding_requested', 'channel_binding_decided')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

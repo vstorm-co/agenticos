@@ -159,7 +159,10 @@ class EmailAdapter(ChannelAdapter):
         if not msg.text.strip() and not files:
             return
         thread = await email_state.thread_of(sender.lower(), msg.platform_chat_id.lower())
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {
+            "Auto-Submitted": "auto-replied",
+            "X-Auto-Response-Suppress": "All",
+        }
         if thread is not None and thread.message_id:
             headers["In-Reply-To"] = thread.message_id
             headers["References"] = " ".join(thread.references)
@@ -211,12 +214,17 @@ class EmailAdapter(ChannelAdapter):
             press.bot_id, press.platform_chat_id.lower(), press.value, platform=PLATFORM
         )
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """The file the relay sent inline, which waits briefly under its handle."""
         encoded = await email_state.take_attachment(attachment.handle)
         if encoded is None:
             raise ValueError("The attachment is no longer available; ask for it to be sent again.")
-        return base64.b64decode(encoded)
+        content = base64.b64decode(encoded)
+        if max_bytes is not None and len(content) > max_bytes:
+            raise ValueError("The attachment exceeds the upload limit")
+        return content
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Mail arrives only through the relay's webhook; there is nothing to poll."""
@@ -250,6 +258,30 @@ class EmailAdapter(ChannelAdapter):
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """A mail from an address. One with no sender, or neither text nor files, is ignored."""
+        auto_submitted = raw_payload.get("auto_submitted")
+        precedence = raw_payload.get("precedence")
+        envelope_from = raw_payload.get("envelope_from")
+        if (
+            (
+                auto_submitted is not None
+                and (
+                    not isinstance(auto_submitted, str)
+                    or auto_submitted.split(";", 1)[0].strip().lower() != "no"
+                )
+            )
+            or (
+                precedence is not None
+                and (
+                    not isinstance(precedence, str)
+                    or precedence.strip().lower() in {"bulk", "list", "junk"}
+                )
+            )
+            or (
+                envelope_from is not None
+                and (not isinstance(envelope_from, str) or envelope_from.strip() in {"", "<>"})
+            )
+        ):
+            return None
         sender = str(raw_payload.get("from") or "").strip().lower()
         if not is_address(sender):
             return None
@@ -385,6 +417,8 @@ async def queue_delivery(
     """Commit the complete signed delivery before acknowledging it; False means cache quota."""
     from app.db.locks import LockScope, hold_subject
 
+    if incoming.platform_user_id.strip().lower() == bot_address.strip().lower():
+        return True
     await hold_subject(db, LockScope.EMAIL_DELIVERY_STORAGE_PER_ORG, organization_id)
     key = (
         f"email:{bot_id}:{hashlib.sha256(incoming.message_id.encode()).hexdigest()}"

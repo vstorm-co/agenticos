@@ -57,6 +57,13 @@ class ExposureRead(BaseSchema):
     surface: ExposureSurface
     channel_bot_id: UUID
     channel_bot_name: str
+    public_line: bool = Field(
+        default=False,
+        description=(
+            "Whether the bot answers people who have not linked an account, so "
+            "this agent talks to customers rather than colleagues here"
+        ),
+    )
     environment_id: UUID | None = None
     session_scope: str | None = None
     # Read back, unlike a credential: it is instructions somebody wrote and has
@@ -143,6 +150,15 @@ class ExposureCreate(BaseSchema):
             "conversation, the other a channel with threads in it."
         ),
     )
+    request_note: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Shown to whoever decides the request, when this change on a bot that answers "
+            "people with no account is filed as one instead of applied. Ignored when the "
+            "change applies directly."
+        ),
+    )
 
 
 class ExposureUpdate(BaseSchema):
@@ -200,21 +216,40 @@ class ExposureUpdate(BaseSchema):
             "conversation, the other a channel with threads in it."
         ),
     )
+    request_note: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Shown to whoever decides the request, when this change on a bot that answers "
+            "people with no account is filed as one instead of applied. Ignored when the "
+            "change applies directly."
+        ),
+    )
 
 
 class ExposureTarget(BaseSchema):
     """A bot an agent could be bound to.
 
-    Deliberately three fields. A bot row also holds a sealed token, a webhook
+    Deliberately five small fields. A bot row also holds a sealed token, a webhook
     secret and an access policy, and none of that is any of the Builder's
     business - this endpoint exists so choosing where an agent is available does
     not require permission to reconfigure the bot itself.
+
+    `public_line` is the one fact taken from the access policy, and only as a
+    yes or no: whether the bot answers people who have not linked an account.
+    Binding an agent there puts it in front of customers, and the Builder
+    choosing the bot is the person who must know that, without being shown the
+    policy that says so.
     """
 
     id: UUID
     platform: ExposureSurface
     name: str
     is_active: bool
+    public_line: bool = Field(
+        default=False,
+        description="Whether the bot answers people who have not linked an account",
+    )
 
 
 class ExposureTargetList(BaseSchema):

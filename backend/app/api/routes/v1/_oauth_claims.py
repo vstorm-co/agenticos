@@ -17,6 +17,7 @@ import logging
 from typing import Any
 
 from app.core.exceptions import AuthenticationError
+from app.services.sign_in_identity import github_claims
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,9 @@ logger = logging.getLogger(__name__)
 _SUFFICIENT = ("sub", "email")
 
 
-async def claims_for(client: Any, token: dict[str, Any]) -> dict[str, Any] | None:
+async def claims_for(
+    client: Any, token: dict[str, Any], *, provider: str = "oidc"
+) -> dict[str, Any] | None:
     """The claims to judge this sign-in on, from the ID token or UserInfo.
 
     Args:
@@ -36,11 +39,13 @@ async def claims_for(client: Any, token: dict[str, Any]) -> dict[str, Any] | Non
         merged *over* the ID token: where both carry a claim, the endpoint the
         provider directs profile reads at is the one that is current.
     """
+    if provider == "github":
+        return await github_claims(token.get("access_token"))
     parsed: dict[str, Any] = dict(token.get("userinfo") or {})
     if (
         all(parsed.get(name) for name in _SUFFICIENT)
         and _says_verified(parsed)
-        and _has_groups_if_read(parsed)
+        and (provider != "oidc" or _has_groups_if_read(parsed))
     ):
         return parsed
 
@@ -52,7 +57,7 @@ async def claims_for(client: Any, token: dict[str, Any]) -> dict[str, Any] | Non
         # which, the claims in hand do not say "no groups" - they say nothing.
         # Signing in on them would strip every membership the directory gave
         # the person, so the sign-in is refused for them to try again.
-        if not _has_groups_if_read(parsed):
+        if provider == "oidc" and not _has_groups_if_read(parsed):
             raise AuthenticationError(
                 message="Your groups could not be read from the identity provider. Try again."
             ) from exc

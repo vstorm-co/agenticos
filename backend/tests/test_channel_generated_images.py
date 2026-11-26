@@ -384,7 +384,10 @@ async def test_an_adapter_failure_reports_unconfirmed_delivery_without_retrying_
     if resumed:
         monkeypatch.setattr(prompts, "drawn_picture", AsyncMock(return_value=b"png"))
         await prompts.ChannelPrompts(MagicMock())._send_segment(
-            bot, "mattermost", "channel:thread", MagicMock(output="Ready", tool_calls=[])
+            bot,
+            "mattermost",
+            "channel:thread",
+            MagicMock(output="Ready", tool_calls=[], run=MagicMock(runs_as_agent=False)),
         )
     else:
         await router.ChannelMessageRouter()._send_reply(
@@ -555,3 +558,75 @@ async def test_a_forged_generated_image_receipt_cannot_post_another_conversation
     )
     read.assert_not_awaited()
     assert len(notices) == 1
+
+
+@pytest.mark.parametrize("run_id", ["r1", None])
+async def test_send_reply_carries_the_run_to_the_adapter(
+    monkeypatch: pytest.MonkeyPatch, run_id: str | None
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.channels import router
+
+    adapter = MagicMock(send_message=AsyncMock())
+    monkeypatch.setattr(router, "get_adapter", lambda _: adapter)
+    monkeypatch.setattr(router, "unseal_bot_token", lambda _: "test-token")
+    incoming = MagicMock(platform="whatsapp", platform_chat_id="US.1")
+    if run_id is None:
+        await router.ChannelMessageRouter()._send_reply(MagicMock(), incoming, "Ready")
+    else:
+        await router.ChannelMessageRouter()._send_reply(
+            MagicMock(), incoming, "Ready", run_id=run_id
+        )
+    assert adapter.send_message.await_args.args[1].run_id == run_id
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("stranger", [True, False])
+async def test_a_missing_generated_photo_names_the_console_only_to_a_member(
+    stranger: bool,
+) -> None:
+    notices: list[str] = []
+    await drawn_picture(
+        [receipt(None)],
+        organization_id=uuid4(),
+        conversation_id=None,
+        notices=notices,
+        stranger=stranger,
+    )
+    assert ("AgenticOS" not in notices[0] and "operator" not in notices[0]) is stranger
+    assert notices[0].startswith("The generated image could not be attached to this reply.")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("stranger", [True, False])
+async def test_a_delivery_that_could_not_be_confirmed_names_no_conversation_to_a_stranger(
+    monkeypatch: pytest.MonkeyPatch, stranger: bool
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.channels import prompts, router
+
+    adapter = MagicMock(send_message=AsyncMock(side_effect=[OSError("x"), None]))
+    monkeypatch.setattr(router, "get_adapter", lambda _: adapter)
+    monkeypatch.setattr(router, "unseal_bot_token", lambda _: "t")
+    await router.ChannelMessageRouter()._send_reply(
+        MagicMock(),
+        MagicMock(platform="whatsapp", platform_chat_id="c"),
+        "Ready",
+        image_png=b"png",
+        as_agent=stranger,
+    )
+    resumed = MagicMock(send_message=AsyncMock(side_effect=[OSError("x"), None]))
+    monkeypatch.setattr(prompts, "get_adapter", lambda _: resumed)
+    monkeypatch.setattr(prompts, "unseal_bot_token", lambda _: "t")
+    monkeypatch.setattr(prompts, "drawn_picture", AsyncMock(return_value=b"png"))
+    await prompts.ChannelPrompts(MagicMock())._send_segment(
+        MagicMock(),
+        "whatsapp",
+        "c",
+        MagicMock(output="Ready", tool_calls=[], run=MagicMock(runs_as_agent=stranger)),
+    )
+    for sender in (adapter, resumed):
+        sent = sender.send_message.await_args_list[-1].args[1].text
+        assert ("AgenticOS" not in sent) is stranger

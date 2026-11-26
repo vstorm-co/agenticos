@@ -62,7 +62,12 @@ export interface AgentRun {
   user_id: string | null;
   /** Publisher authority is distinct from the actual channel sender. */
   initiated_by_publisher_fallback?: boolean | null;
-  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
+  asked_in_chat?: {
+    platform: string;
+    name: string;
+    bot_name: string | null;
+    handle?: string | null;
+  } | null;
   surface: string;
   /** The platform role that did this run when no agent's instructions ran (#2575). */
   system_role?: string | null;
@@ -87,6 +92,11 @@ export interface AgentRun {
   cost_is_partial: boolean;
   /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
   tool_args_repaired?: number;
+  /**
+   * Why the answer did not reach the person: `window_no_template` or
+   * `window_template_failed` today. A string, so a later value is still readable.
+   */
+  undelivered_reason?: string | null;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the
@@ -392,7 +402,13 @@ export interface ToolApproval {
    * ran as the binding's publisher, so `triggered_by_*` are null. Unverified: the
    * name is what the account's owner typed.
    */
-  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
+  asked_in_chat?: {
+    platform: string;
+    name: string;
+    bot_name: string | null;
+    /** The masked number or the username the account is known by, beside the unverified name. */
+    handle?: string | null;
+  } | null;
   /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   /**

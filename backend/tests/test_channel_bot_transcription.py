@@ -67,7 +67,9 @@ async def _created(**fields: object) -> dict:
         ) as repo_create,
         patch("app.services.channel_bot.spawn_after_commit"),
     ):
-        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+            data, actor_user_id=None
+        )
     return repo_create.call_args.kwargs
 
 

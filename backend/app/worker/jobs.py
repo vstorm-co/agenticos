@@ -99,6 +99,21 @@ class ChannelDelivery(Payload):
     payload: dict[str, JsonValue]
 
 
+class WhatsAppDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    chat_id: str = Field(max_length=255, repr=False)
+    messages_json: str = Field(max_length=4 * 1024 * 1024, repr=False)
+
+
+class WhatsAppWindowRefusal(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    chat_id: str = Field(max_length=255, repr=False)
+    run_id: UUID
+    at: datetime | None = None
+
+
 class ChannelMessageFile(Payload):
     filename: str
     mime_type: str
@@ -929,6 +944,7 @@ SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
 SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
+WHATSAPP_NUDGES = _sweep("whatsapp-nudges")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 EXPIRE_CASE_KEY_DRAFTS = _sweep("expire-case-key-drafts")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
@@ -1048,6 +1064,24 @@ PROCESS_EMAIL_DELIVERY = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_WHATSAPP_DELIVERY = Task(
+    kind="process-whatsapp-delivery",
+    payload_type=WhatsAppDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
+PROCESS_WHATSAPP_WINDOW_REFUSAL = Task(
+    kind="process-whatsapp-window-refusal",
+    payload_type=WhatsAppWindowRefusal,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 DELIVER_CHANNEL_REPLY = Task(
     kind="deliver-channel-reply",
     payload_type=ChannelHandback,
@@ -1085,6 +1119,8 @@ TASKS: dict[str, TaskKind] = {
         PROCESS_CHANNEL_MESSAGE,
         PROCESS_CHANNEL_DELIVERY,
         PROCESS_EMAIL_DELIVERY,
+        PROCESS_WHATSAPP_DELIVERY,
+        PROCESS_WHATSAPP_WINDOW_REFUSAL,
         DELIVER_CHANNEL_REPLY,
         DELIVER_CHANNEL_HANDBACK,
         ROUTINE_CHAT_ANSWER,
@@ -1137,6 +1173,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_MCP_CONNECTIONS,
         SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
+        WHATSAPP_NUDGES,
         EXPIRE_INVITATIONS,
         EXPIRE_CASE_KEY_DRAFTS,
         REAP_STALE_RUNS,

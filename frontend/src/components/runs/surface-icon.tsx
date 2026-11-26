@@ -51,6 +51,7 @@ const MARKS = {
 
   discord: brandMark("discord"),
   matrix: brandMark("matrix"),
+  whatsapp: brandMark("whatsapp"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
   // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
@@ -81,6 +82,7 @@ const LABEL_KEYS = {
 
   discord: "surfaceDiscord",
   matrix: "surfaceMatrix",
+  whatsapp: "surfaceWhatsapp",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
   eval: "surfaceEval",
