@@ -1367,7 +1367,8 @@ arguments. Running the script lets nothing through that a direct call would not
 get.
 
 Each call the script makes is kept with the run, under the script: its tool,
-arguments and result, up to 100 calls a script. An eval grades those calls in
+arguments and result, up to 100 calls and
+about 1 MB a script. An eval grades those calls in
 the script's place and lists them under it
 ([expected tool calls](datasets.md#trajectory)). A recording of the run answers
 each of them when an eval runs the script again, so the replay lists them too.

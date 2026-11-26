@@ -1,5 +1,5 @@
 ---
-source_sha: "449d73c9dbf6"
+source_sha: "6ee0a9347a24"
 ---
 
 # Governance { #governance }
@@ -1461,7 +1461,7 @@ retiene y se registra con sus argumentos. Ejecutar el script no deja pasar nada
 que una llamada directa no obtendría.
 
 Cada llamada que hace el script se guarda con el run, bajo el script: su
-herramienta, sus argumentos y su resultado, hasta 100 llamadas por script. Un
+herramienta, sus argumentos y su resultado, hasta 100 llamadas y alrededor de 1 MB por script. Un
 eval califica esas llamadas en lugar del script y las enumera bajo él
 ([llamadas a herramientas esperadas](datasets.md#trajectory)). Una grabación del
 run responde a cada una cuando un eval vuelve a ejecutar el script, así que la

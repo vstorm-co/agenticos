@@ -76,6 +76,24 @@ async def test_a_case_drafted_from_a_code_mode_reply_expects_what_its_script_did
     assert expected == ["create_ticket", "notify"]
 
 
+async def test_a_case_drafted_from_a_cut_script_expects_no_calls(monkeypatch) -> None:
+    """The calls its run left out may be the very ones the case should expect."""
+    rows = [
+        MagicMock(
+            tool_name="run_code",
+            status="completed",
+            script_calls={"calls": [_entry("create_ticket", "success")], "omitted": 40},
+        ),
+        MagicMock(tool_name="notify", status="completed", script_calls=None),
+    ]
+    monkeypatch.setattr(
+        dataset_module.conversation_repo, "tool_calls_of_messages", AsyncMock(return_value=rows)
+    )
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+    assert await DatasetService(AsyncMock())._expected_calls(ctx, None, [MagicMock()]) == []
+
+
 class _Ended:
     """An agent run that has already ended, or that ends by raising."""
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "449d73c9dbf6"
+source_sha: "6ee0a9347a24"
 ---
 
 # Governance { #governance }
@@ -1453,7 +1453,7 @@ zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
 nie dostałoby bezpośrednie wywołanie.
 
 Każde wywołanie skryptu jest zachowywane z runem, pod skryptem: narzędzie,
-argumenty i wynik, do 100 wywołań na skrypt. Ewaluacja ocenia te wywołania w
+argumenty i wynik, do 100 wywołań i około 1 MB na skrypt. Ewaluacja ocenia te wywołania w
 miejsce skryptu i wymienia je pod nim
 ([oczekiwane wywołania narzędzi](datasets.md#trajectory)). Nagranie runu
 odpowiada na każde z nich, gdy ewaluacja uruchamia skrypt ponownie, więc

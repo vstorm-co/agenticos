@@ -59,6 +59,7 @@ from uuid import UUID
 
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
+from pydantic_ai.exceptions import ToolFailed
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 from pydantic_core import to_jsonable_python
@@ -274,11 +275,16 @@ def normalized_args(args: Mapping[str, Any]) -> str:
 
 @dataclass(frozen=True)
 class RecordedCall:
-    """One call the original run made, and what it returned."""
+    """One call the original run made, and what it returned.
+
+    `failed` is a call a code-mode script made that raised in the original run: the
+    replay raises it again, so the script takes the branch it took then.
+    """
 
     tool_id: str
     args: str
     result: Any
+    failed: bool = False
 
 
 @dataclass
@@ -311,6 +317,7 @@ class CallRow:
     tool_name: str
     args: Mapping[str, Any]
     result: str
+    failed: bool = False
 
 
 def recorded_calls(
@@ -329,6 +336,7 @@ def recorded_calls(
             else f"tool:{row.tool_name}",
             args=normalized_args(row.args),
             result=row.result,
+            failed=row.failed,
         )
         for row in rows
     ]
@@ -455,6 +463,8 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
             recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
                 self._intercept(call, tool, InterceptionOutcome.REPLAYED)
+                if recorded.failed:
+                    raise ToolFailed(recorded.result)
                 return recorded.result
             if not (tool.script or (tool.live and self.isolation.live_reads)):
                 self._intercept(call, tool, InterceptionOutcome.DIVERGENT)

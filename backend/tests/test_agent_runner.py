@@ -8161,8 +8161,33 @@ class TestARecordingOfAPastRun:
 
         recording = await self._recording(rows, self._manifest("run_code"))
 
-        assert recording.answer("tool:look_up_note", {"name": "a"}) is not None
+        answered = recording.answer("tool:look_up_note", {"name": "a"})
+        assert answered is not None
+        assert not answered.failed
         assert recording.answer("tool:run_code", {"code": "await look_up_note(name='a')"}) is None
+
+    @pytest.mark.anyio
+    async def test_a_script_call_that_failed_is_recorded_as_failed(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        script = self._script()
+        script["calls"][0]["outcome"] = "denied"
+        rows = [
+            _row(
+                "run_code",
+                {"code": "..."},
+                "A",
+                call_id="s",
+                at=self.START,
+                turn=turn,
+                script_calls=script,
+            )
+        ]
+
+        recording = await self._recording(rows, self._manifest("run_code"))
+
+        answered = recording.answer("tool:look_up_note", {"name": "a"})
+        assert answered is not None
+        assert answered.failed
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("script_calls", [None, "omitted"])

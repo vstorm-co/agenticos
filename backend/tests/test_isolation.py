@@ -1104,6 +1104,43 @@ class TestCodeMode:
         ]
         assert "crm_create did Ada" in result.output
 
+    @pytest.mark.parametrize(("failed", "taken"), [(True, "caught"), (False, "found")])
+    async def test_a_recorded_script_call_that_failed_fails_again_on_replay(self, failed, taken):
+        """A script that caught the error takes the same branch from a recording."""
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [
+                    RecordedCall(
+                        "tool:crm_find",
+                        normalized_args({"name": "Ada"}),
+                        "The tool failed.",
+                        failed=failed,
+                    )
+                ]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[_World().toolset("crm_find", test=False, read_only=True)],
+        )
+        code = (
+            "try:\n"
+            "    await crm_find(name='Ada')\n"
+            "    taken = 'found'\n"
+            "except Exception:\n"
+            "    taken = 'caught'\n"
+            "taken"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert taken in result.output
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED)
+        ]
+
     def test_only_code_modes_own_tool_is_a_script(self):
         """A server can call its tool `run_code`; it cannot stamp it as code mode's."""
         from app.agents.code_mode import CODE_MODE_ID

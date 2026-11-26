@@ -63,6 +63,16 @@ to a recording call by call: a partial list would answer some calls and leave th
 rest divergent, which reads as the agent's doing.
 """
 
+SCRIPT_CALL_BYTES = 64_000
+"""The most one kept script call may take, as JSON. A larger one is counted, not kept."""
+
+SCRIPT_CALLS_BYTES = 1_000_000
+"""The most one script's kept calls may take together, as JSON.
+
+A script on a public surface can call a tool that returns a page a hundred times;
+without this, one turn could add megabytes to one row.
+"""
+
 logger = logging.getLogger(__name__)
 
 
@@ -165,34 +175,47 @@ def script_calls_record(
     Each call keeps its id, tool, arguments, result and outcome (`success`,
     `failed` or `denied`), the result exactly as a direct call's row holds it
     (:func:`_result_text`). `earlier` is what the row
-    already holds from before a park; a call it lists is not added twice. Past
-    :data:`SCRIPT_CALLS_KEPT` calls are counted rather than kept.
+    already holds from before a park; a call it lists is not added twice. Calls are
+    kept in order until :data:`SCRIPT_CALLS_KEPT`, :data:`SCRIPT_CALL_BYTES` or
+    :data:`SCRIPT_CALLS_BYTES` is reached; from there on they are counted, so the
+    kept ones are always the script's first.
     """
     kept: list[ScriptCallEntry] = [] if earlier is None else list(earlier["calls"])
     omitted = 0 if earlier is None else earlier["omitted"]
     listed = {entry["tool_call_id"] for entry in kept}
+    size = sum(_size(entry) for entry in kept)
     for script in calls:
         if script.call.tool_call_id in listed:
             continue
-        if len(kept) >= SCRIPT_CALLS_KEPT:
+        entry: ScriptCallEntry = {
+            "tool_call_id": script.call.tool_call_id,
+            "tool_name": script.call.tool_name,
+            "args": to_jsonable_python(
+                script.call.args_as_dict(raise_if_invalid=False),
+                bytes_mode="base64",
+                serialize_unknown=True,
+            ),
+            "result": _result_text(script.returned),
+            "outcome": script.returned.outcome,
+        }
+        grown = _size(entry)
+        if (
+            omitted
+            or len(kept) >= SCRIPT_CALLS_KEPT
+            or grown > SCRIPT_CALL_BYTES
+            or size + grown > SCRIPT_CALLS_BYTES
+        ):
             omitted += 1
             continue
-        kept.append(
-            {
-                "tool_call_id": script.call.tool_call_id,
-                "tool_name": script.call.tool_name,
-                "args": to_jsonable_python(
-                    script.call.args_as_dict(raise_if_invalid=False),
-                    bytes_mode="base64",
-                    serialize_unknown=True,
-                ),
-                "result": _result_text(script.returned),
-                "outcome": script.returned.outcome,
-            }
-        )
+        kept.append(entry)
+        size += grown
     if not kept and not omitted:
         return None
     return {"calls": kept, "omitted": omitted}
+
+
+def _size(entry: ScriptCallEntry) -> int:
+    return len(json.dumps(entry, ensure_ascii=False).encode())
 
 
 def tool_calls_in(

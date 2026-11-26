@@ -503,7 +503,12 @@ def _answers_of(call: ToolCall) -> list[CallRow]:
     script = call.script_calls
     if script is not None and script["calls"] and not script["omitted"]:
         return [
-            CallRow(tool_name=entry["tool_name"], args=entry["args"], result=entry["result"])
+            CallRow(
+                tool_name=entry["tool_name"],
+                args=entry["args"],
+                result=entry["result"],
+                failed=entry["outcome"] != "success",
+            )
             for entry in script["calls"]
         ]
     if call.result is None:

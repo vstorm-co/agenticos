@@ -1,5 +1,5 @@
 ---
-source_sha: "449d73c9dbf6"
+source_sha: "6ee0a9347a24"
 ---
 
 # Governance { #governance }
@@ -1545,7 +1545,7 @@ wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skri
 lässt nichts durch, was ein direkter Aufruf nicht bekäme.
 
 Jeder Aufruf des Skripts wird mit dem Run aufbewahrt, unter dem Skript: sein
-Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe pro Skript. Ein Eval
+Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe und etwa 1 MB pro Skript. Ein Eval
 bewertet diese Aufrufe an Stelle des Skripts und führt sie darunter auf
 ([erwartete Tool-Aufrufe](datasets.md#trajectory)). Eine Aufzeichnung des Runs
 beantwortet jeden von ihnen, wenn ein Eval das Skript erneut ausführt, sodass

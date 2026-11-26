@@ -88,6 +88,7 @@ from app.services.access import DATASET, accessible_ids, resolve_access, visible
 from app.services.conversation import ConversationService
 from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, stamp
 from app.services.model_outputs import model_outputs
+from app.services.scorers import every_call_kept
 
 logger = logging.getLogger(__name__)
 
@@ -1744,7 +1745,8 @@ class DatasetService:
         and that the answering agent's spec does not declare read-only.
 
         A code-mode script stands for the calls it made, as it does when the case is
-        graded (`scored_calls`)."""
+        graded (`scored_calls`). A script whose run did not keep every call drafts no
+        expectation: the calls left out may be the ones a case should expect."""
         calls = await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
         reads: set[str] = set()
         run = (
@@ -1759,6 +1761,8 @@ class DatasetService:
             if version is not None:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
                 reads = {name for name, tool in tools.items() if tool.read_only}
+        if not every_call_kept(calls):
+            return []
         succeeded: list[str] = []
         for call in calls:
             script = [] if call.script_calls is None else call.script_calls["calls"]

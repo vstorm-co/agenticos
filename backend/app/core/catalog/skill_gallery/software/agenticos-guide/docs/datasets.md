@@ -473,7 +473,7 @@ old name.
 An agent in [code mode](https://vstorm-co.github.io/agenticos/governance/#code-mode) calls one tool, `run_code`, and
 its script calls the rest. The script's calls are matched in its place, in the
 order the script asked for them, and a script that called nothing is matched as
-`run_code`. A run keeps the first 100 calls of each script; when a script
+`run_code`. A run keeps the first 100 calls of each script, up to about 1 MB; when a script
 made more, its expected tool calls are not graded, because the calls left out
 could pass or fail the case. A case drafted with **Add to dataset** from a code-mode reply
 expects the script's calls, not `run_code`.

@@ -939,6 +939,36 @@ class TestWhatAScriptCalled:
         assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1", "c9__2"]
         assert kept["omitted"] == 2
 
+    def test_a_call_too_large_to_keep_is_counted_and_so_is_every_call_after_it(self, monkeypatch):
+        """The kept calls stay the script's first, so `omitted` marks the rest unknown."""
+        monkeypatch.setattr(transcript, "SCRIPT_CALL_BYTES", 400)
+
+        kept = script_calls_record([_made(1), _made(2, content="x" * 500), _made(3)])
+
+        assert kept is not None
+        assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1"]
+        assert kept["omitted"] == 2
+
+    def test_a_script_stops_keeping_calls_at_its_total_size(self, monkeypatch):
+        """A public visitor can make a script fetch a page a hundred times."""
+        monkeypatch.setattr(transcript, "SCRIPT_CALLS_BYTES", 450)
+
+        kept = script_calls_record([_made(n, content="y" * 100) for n in (1, 2, 3, 4)])
+
+        assert kept is not None
+        assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1", "c9__2"]
+        assert kept["omitted"] == 2
+
+    def test_a_resumed_script_after_a_cut_keeps_nothing_more(self):
+        cut = script_calls_record([_made(1)])
+        assert cut is not None
+        cut["omitted"] = 1
+
+        kept = script_calls_record([_made(2)], earlier=cut)
+
+        assert kept is not None
+        assert ([c["tool_call_id"] for c in kept["calls"]], kept["omitted"]) == (["c9__1"], 2)
+
     def test_a_resumed_script_adds_only_the_calls_its_row_does_not_hold(self):
         before_the_park = script_calls_record([_made(1)])
 
