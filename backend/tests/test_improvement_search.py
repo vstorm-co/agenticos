@@ -283,8 +283,9 @@ async def test_search_retry_notes_keep_requests_but_never_send_credentials_to_th
         prompt = await _prompt(AsyncMock(), run, _progress(), [], count=2, note=note)
     assert "Kanar3kRetrySecret" not in prompt
     if note:
-        assert "Keep" in prompt
         if "api_key=" in note:
-            assert "[redacted:" in prompt
+            assert "Keep deadlines; [redacted:" in prompt
+        else:
+            assert f"<note>\n{note}\n</note>" in prompt
     else:
         assert "<note>" not in prompt

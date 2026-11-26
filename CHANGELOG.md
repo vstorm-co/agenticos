@@ -88,11 +88,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 
-- Migration `0367_embedding_probe_spend` widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
+- Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
 
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
-- Migration `0365_service_connections` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
-- Migration `0366_docling_parser` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
+- Migration `0365_service_connections.py` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
+- Migration `0366_docling_parser.py` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
 - A LlamaParse collection now uploads new `.docx` files to LlamaParse.
 - A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
 
