@@ -70,6 +70,8 @@ internal Compose hostname such as `api` is not available on that isolated bridge
 `host.docker.internal:<port>` requires an API bound to an interface reachable from
 Docker; a production loopback-only published port does not meet that condition.
 
+For Compose, add `-f docker-compose.project-filesystem.yml` after the base and proxy files when enabling live mounts. `scripts/deploy.sh` selects it automatically when both settings are present and refuses partial configuration. Only sandboxd receives a separate outbound bridge; the private data network, agent isolation and absence of published supervisor ports remain unchanged.
+
 The feature is disabled until configured. Clients cannot choose host paths, images
 or gateway addresses. The helper has no published ports, the agent never joins its
 control bridge and receives no FUSE device or extra mount privileges. Existing

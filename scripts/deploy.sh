@@ -295,6 +295,20 @@ case "${PROXY:-nginx}" in
     ;;
 esac
 
+
+# The supervisor must prove a binding through the same gateway the private
+# filesystem helper reaches. Keep it off the proxy network and opt in to an
+# otherwise empty outbound bridge only when both filesystem settings are set.
+FILESYSTEM_GATEWAY="$(env_value SANDBOXD_FILESYSTEM_GATEWAY_URL)"
+FILESYSTEM_EXPORT_IMAGE="$(env_value SANDBOXD_FILESYSTEM_EXPORT_IMAGE)"
+if [ -n "$FILESYSTEM_GATEWAY" ] || [ -n "$FILESYSTEM_EXPORT_IMAGE" ]; then
+  if [ -z "$FILESYSTEM_GATEWAY" ] || [ -z "$FILESYSTEM_EXPORT_IMAGE" ]; then
+    echo "Configure both SANDBOXD_FILESYSTEM_GATEWAY_URL and SANDBOXD_FILESYSTEM_EXPORT_IMAGE before deploying." >&2
+    exit 1
+  fi
+  BACKEND+=(-f docker-compose.project-filesystem.yml)
+fi
+
 # The sandbox service is behind a compose profile, so it is opt-in - and a
 # profile compose is not told about is a service compose treats as nothing to do
 # with this project. It does not merely leave it alone: `up -d` on the same

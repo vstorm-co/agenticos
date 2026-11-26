@@ -1,5 +1,5 @@
 ---
-source_sha: "164e156b21c9"
+source_sha: "279162aefa3d"
 ---
 
 # Sandbox { #the-sandbox }
@@ -73,6 +73,8 @@ mostu pomocnika. Może to być osiągalny adres HTTPS API; wewnętrzna nazwa Com
 np. `api`, nie jest dostępna na izolowanym moście. `host.docker.internal:<port>`
 wymaga API nasłuchującego na interfejsie osiągalnym z Dockera; produkcyjny port
 opublikowany tylko na loopback nie spełnia tego warunku.
+
+W Compose przy włączaniu montowania na żywo dodaj `-f docker-compose.project-filesystem.yml` po plikach bazowych i proxy. `scripts/deploy.sh` wybiera go automatycznie, gdy ustawiono obie zmienne, i odmawia niepełnej konfiguracji. Osobny most z wyjściem do sieci dostaje tylko sandboxd; prywatna sieć danych, izolacja agentów i brak opublikowanych portów supervisora pozostają bez zmian.
 
 Funkcja jest wyłączona do skonfigurowania. Klient nie wybiera ścieżek hosta, obrazów
 ani adresu bramy. Pomocnik nie publikuje portów, agent nie dołącza do jego mostu
