@@ -26,6 +26,7 @@ from app.api.deps import get_db_session, get_redis, get_session_service, get_use
 from app.core.config import settings
 from app.core.security import create_magic_link_token
 from app.main import app
+from app.repositories import deployment_settings_repo
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -44,7 +45,10 @@ class _User:
 
 
 @pytest.fixture
-async def client(mock_redis: MagicMock, mock_db_session) -> AsyncGenerator[AsyncClient]:
+async def client(
+    mock_redis: MagicMock, mock_db_session, monkeypatch: pytest.MonkeyPatch
+) -> AsyncGenerator[AsyncClient]:
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
     service = MagicMock()
     service.issue_magic_link_token = AsyncMock(return_value=None)
     service.consume_magic_link_token = AsyncMock(return_value=(_User(), None))

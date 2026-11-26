@@ -2195,7 +2195,11 @@
       "approvePublishAgent": "{agent} als v{version} veröffentlichen",
       "approveChangeSkillVersion": "{state, select, main {{agent} auf die Hauptlinie von {skill} setzen} pinned {{agent} an {skill} v{version} heften} other {{agent} auf einen Fork von {skill} setzen}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Die verbesserte Skill {skill} anwenden} apply_and_pin {Die verbesserte Skill {skill} anwenden und die Agenten anheften, denen sie schaden würde} fork_for_helped {Einen Fork von {skill} für die Agenten anlegen, denen sie half} catch_up {Den Fork von {skill} auf den Stand von main bringen} other {Den Fork von {skill} zu main zurückführen}}",
-      "approveStartEvalRun": "{agent} mit dem Dataset {dataset} v{version} testen"
+      "approveStartEvalRun": "{agent} mit dem Dataset {dataset} v{version} testen",
+      "selectingProjectContext": "Projektkontext auswählen…",
+      "selectedProjectContext": "Projektkontext ausgewählt",
+      "selectingExecutionTarget": "Ausführungsziel auswählen…",
+      "selectedExecutionTarget": "Ausführungsziel ausgewählt"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -13854,6 +13858,14 @@
       "example2": "Setze eine benannte Sitzung mit einer weiteren Aufgabe fort",
       "needs": "Desktop-App, ein registriertes und angemeldetes ACP-Programm sowie ein Ordner mit genehmigtem Vollzugriff.",
       "never": "Läuft mit den Rechten deines lokalen Kontos. Keine Nur-Lese-Isolierung und keine Weiterleitung von Plattformwerkzeugen. Aktiviere die menschliche Genehmigung für jede Aufgabe."
+    },
+    "projects": {
+      "name": "Projekte",
+      "does": "Findet zugängliche Projekte, wählt deren Referenzkontext und liest oder aktualisiert gemeinsame Textdateien.",
+      "example1": "Projekt Atlas finden und sein Briefing zusammenfassen",
+      "example2": "Den vereinbarten Projektbericht ohne Befehle aktualisieren",
+      "needs": "Aktueller Zugriff auf Projekt und Dateien. Befehle benötigen zusätzlich Sandbox und eine verfügbare Ausführungsumgebung.",
+      "never": "Die Kontextwahl verschiebt keinen Chat, bindet keine Dateien in den Agentenarbeitsbereich ein und erlaubt keine Befehle. Zugriffsrechte und Genehmigungen gelten weiterhin."
     }
   },
   "capabilityCategories": {

@@ -50,7 +50,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.system_agents import refuse_system_agent
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_commit, spawn_after_rollback
-from app.core.cron import cron_has_next, cron_next
+from app.core.cron import cron_has_next
+from app.core.cron import schedule_next as _next_fire
 from app.core.exceptions import (
     AppException,
     AuthorizationError,
@@ -255,29 +256,6 @@ class TriggerDispatch:
     trigger: AgentTrigger
     activation_id: UUID
     job_id: UUID | None
-
-
-def _next_fire(
-    *,
-    schedule_kind: str,
-    interval_seconds: int | None,
-    cron_expression: str | None,
-    now: datetime,
-    time_zone: str | None = None,
-) -> datetime:
-    """When a schedule with these fields should next fire, measured from `now`.
-
-    Both kinds answer "the next time strictly after now", never a burst of
-    catch-up runs a worker owes nobody after being down: an interval is
-    `now + interval` rather than `last_fire + interval`, and cron takes the
-    next matching instant, not every one it missed. The database CHECK
-    (`ck_trigger_schedule_shape`) and the create-time schema both guarantee the
-    kind's own field is present, so the casts cannot be reached with a null - a
-    guard here would be an untestable branch under the 100% gate.
-    """
-    if schedule_kind == ScheduleKind.CRON.value:
-        return cron_next(cast(str, cron_expression), now=now, time_zone=time_zone or "UTC")
-    return now + timedelta(seconds=cast(int, interval_seconds))
 
 
 def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime | None:
@@ -2618,7 +2596,7 @@ class AgentTriggerService:
         The shape CHECK guarantees an event trigger's secret and its key version
         are both present, so the casts cannot be reached with a null - a guard
         here would be an untestable branch under the 100% gate, the same reason
-        `_next_fire` casts rather than checks.
+        `_next_fire` requires the selected cadence field.
         """
         return unseal(
             cast(str, trigger.event_secret_encrypted),

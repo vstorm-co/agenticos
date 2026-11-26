@@ -221,6 +221,10 @@ class TestTheLineAChannelCarries:
 
 
 class TestAssemblingIt:
+    @pytest.fixture(autouse=True)
+    def conversation_has_no_project(self, mock_db_session: AsyncMock) -> None:
+        mock_db_session.scalar = AsyncMock(return_value=None)
+
     async def test_the_token_half_is_read_off_the_run_row(self, monkeypatch, mock_db_session):
         """Already written by the runner, so it costs nothing and cannot disagree
         with what the ledger recorded."""

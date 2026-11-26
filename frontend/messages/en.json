@@ -2195,7 +2195,11 @@
       "approvePublishAgent": "Publish {agent} as v{version}",
       "approveChangeSkillVersion": "{state, select, main {Move {agent} to the main line of {skill}} pinned {Pin {agent} to {skill} v{version}} other {Move {agent} to a fork of {skill}}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Apply the improved skill {skill}} apply_and_pin {Apply the improved skill {skill} and pin the agents it would hurt} fork_for_helped {Fork {skill} for the agents it helped} catch_up {Catch the fork of {skill} up with main} other {Return the fork of {skill} to main}}",
-      "approveStartEvalRun": "Test {agent} on the dataset {dataset} v{version}"
+      "approveStartEvalRun": "Test {agent} on the dataset {dataset} v{version}",
+      "selectingProjectContext": "Selecting project context…",
+      "selectedProjectContext": "Project context selected",
+      "selectingExecutionTarget": "Selecting command target…",
+      "selectedExecutionTarget": "Command target selected"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -14168,6 +14172,14 @@
       "example2": "Continue a named session with another task",
       "needs": "Desktop app, a registered and signed-in ACP program, and an approved full-access folder.",
       "never": "Runs with your local account’s access. No read-only confinement or platform tool forwarding. Set Human approval to Always ask to approve each task."
+    },
+    "projects": {
+      "name": "Projects",
+      "does": "Find accessible projects, select their reference guidance, and read or update their shared text files.",
+      "example1": "Find project Atlas and summarize its brief",
+      "example2": "Update the agreed project report without running commands",
+      "needs": "Current access to the project and its files. Command execution separately needs Sandbox and an available executor.",
+      "never": "Selecting context does not move the chat, mount files into the agent workspace or grant command execution. Access and approvals still apply."
     }
   },
   "capabilityCategories": {

@@ -484,6 +484,20 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
+    Call("POST", "/workflows/bundle-import-preview", Perm.WORKFLOWS_CREATE, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/workflows/bundle-import",
+        Perm.WORKFLOWS_CREATE,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"workflow/{_SOME_ID}"],
+                "resources": [{"key": f"workflow/{_SOME_ID}", "kind": "workflow", "name": "Draft"}],
+            },
+            "choices": {},
+        },
+    ),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on

@@ -90,7 +90,9 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_dashboard import OrganizationDashboardUpdate
 from app.schemas.console_experience import ConsoleExperienceUpdate
+from app.schemas.console_presentation import RoleConsoleUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.conversation_share import ConversationShareUpdate
@@ -159,6 +161,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     CodingAccountUpdate: None,
     # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
     ConsoleExperienceUpdate: OrganizationMember,
+    # Nested role policies replace or clear typed JSONB values, not individual row columns.
+    OrganizationDashboardUpdate: None,
+    RoleConsoleUpdate: None,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
@@ -342,6 +347,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "WorkflowDraftUpdate",
             "WorkflowActiveUpdate",
             "ProjectEntrypointUpdate",
+            "OrganizationDashboardUpdate",
+            "RoleConsoleUpdate",
         }
 
 

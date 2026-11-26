@@ -1,10 +1,10 @@
 """Cron expressions shared by agent triggers and eval suites."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.core.cron import cron_fires, cron_has_next, cron_next
+from app.core.cron import cron_fires, cron_has_next, cron_next, schedule_next
 
 
 class TestCronHasNext:
@@ -83,3 +83,49 @@ class TestCronFires:
     def test_a_dense_schedule_is_extrapolated_from_its_first_fires(self) -> None:
         """Thirty days of every minute is 43,200 fires; walking them would hold the worker."""
         assert cron_fires("* * * * *", start=self.start, end=self.end, sample=100) == 43_200
+
+
+class TestScheduleNext:
+    @pytest.mark.parametrize("zone, hour", [(None, 9), ("Europe/Warsaw", 8)])
+    def test_a_cron_schedule_uses_its_zone_or_utc(self, zone: str | None, hour: int) -> None:
+        now = datetime(2026, 1, 1, 10, tzinfo=UTC)
+        assert schedule_next(
+            schedule_kind="cron",
+            interval_seconds=None,
+            cron_expression="0 9 * * *",
+            now=now,
+            time_zone=zone,
+        ) == datetime(2026, 1, 2, hour, tzinfo=UTC)
+
+    def test_an_interval_does_not_replay_missed_occurrences(self) -> None:
+        now = datetime(2026, 1, 1, 10, tzinfo=UTC)
+        assert schedule_next(
+            schedule_kind="interval",
+            interval_seconds=600,
+            cron_expression=None,
+            now=now,
+        ) == now + timedelta(minutes=10)
+
+    @pytest.mark.parametrize(
+        "kind, interval, expression",
+        [
+            ("cron", None, None),
+            ("interval", None, None),
+            ("interval", 0, None),
+            ("interval", -1, None),
+            ("unknown", 600, None),
+        ],
+    )
+    def test_a_malformed_internal_schedule_is_refused(
+        self,
+        kind: str,
+        interval: int | None,
+        expression: str | None,
+    ) -> None:
+        with pytest.raises(ValueError):
+            schedule_next(
+                schedule_kind=kind,
+                interval_seconds=interval,
+                cron_expression=expression,
+                now=datetime(2026, 1, 1, tzinfo=UTC),
+            )

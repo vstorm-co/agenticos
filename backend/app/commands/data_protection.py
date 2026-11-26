@@ -137,6 +137,10 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "sandbox": "the sandbox runtime this deployment configures",
+    "projects": (
+        "the selected project's configured workspace service, with file paths and contents; "
+        "stored-file projects remain in this deployment's file storage"
+    ),
     "mirage": (
         "the mounted services' APIs; author-specified hosts must be on MIRAGE_ALLOWED_HOSTS; "
         "RAM folders stay in the API process"

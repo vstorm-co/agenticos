@@ -63,6 +63,8 @@ class TestTheIdIsWrittenHoweverTheRunEnded:
     def _prepared() -> MagicMock:
         prepared = MagicMock(earlier_attachments_checked=False, admitted_as=AdmittedAs())
         prepared.run = MagicMock(id=uuid.uuid4(), conversation_id=None)
+        prepared.workspace = None
+        prepared.project_workspace = None
         prepared.built.ledger = MagicMock(
             input_tokens=10,
             output_tokens=2,

@@ -2016,6 +2016,7 @@ class TestWritingTheQueuedRows:
         prepared.built.ledger = SpendLedger()
         prepared.delegations = delegations
         prepared.workspace = None
+        prepared.project_workspace = None
         prepared.ctx = None
         return prepared
 
@@ -2260,7 +2261,12 @@ class TestResumingIntoADelegation:
             surface="api",
             routine_origin_id=None,
             status=RunStatus.AWAITING_APPROVAL.value,
-            paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "delegations": [frame],
+                "project_delegation_pinned": False,
+            },
             test_spec=None,
             model_label="gpt-4.1",
             input_tokens=0,

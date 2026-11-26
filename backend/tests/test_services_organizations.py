@@ -1767,12 +1767,16 @@ def test_every_setting_the_row_holds_reaches_the_response():
     the schema but not to the builder reads as its default forever - watches were
     switched on in the database and off in every console (#2301)."""
     row = _org_row(name="Acme")
+    row.chat_cost_visibility = "spend_privileged"
+    row.console_role_defaults = {}
+    row.console_notices = {"desktop_install_prompt": False, "product_notices": False}
     read = _org_read(row, member_count=1, role="owner", is_default=False)
     columns = set(Organization.__table__.columns.keys())
     shared = [name for name in OrganizationRead.model_fields if name in columns]
 
     assert shared
-    assert {name: getattr(read, name) for name in shared} == {
+    serialized = read.model_dump()
+    assert {name: serialized[name] for name in shared} == {
         name: getattr(row, name) for name in shared
     }
 

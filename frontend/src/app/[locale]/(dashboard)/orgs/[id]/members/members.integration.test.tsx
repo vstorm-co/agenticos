@@ -538,6 +538,7 @@ describe("organization settings tabs", () => {
     });
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    const aiServices = screen.getByRole("tabpanel", { name: "AI & services" });
     const titles = [
       "Memory maintenance",
       "AI Architect",
@@ -549,9 +550,9 @@ describe("organization settings tabs", () => {
     ];
     const headers: HTMLElement[] = [];
     for (const title of titles) {
-      const card = await screen.findByRole("region", { name: title });
+      const card = await within(aiServices).findByRole("region", { name: title });
       expect(card).toHaveAttribute("data-slot", "service-card");
-      const chatHome = screen.getByRole("region", { name: "Chat home" });
+      const chatHome = within(aiServices).getByRole("region", { name: "Chat home" });
       expect(
         card.compareDocumentPosition(chatHome) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
@@ -577,7 +578,13 @@ describe("organization settings tabs", () => {
       expect(toggle).toBeVisible();
     }
     expect(new Set(headers.map((header) => header.className)).size).toBe(1);
-    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(9);
+    const serviceTitles = [...titles, "Chat home", "Setup reminders"];
+    for (const title of serviceTitles) {
+      expect(within(aiServices).getByRole("region", { name: title })).toHaveAttribute(
+        "data-slot",
+        "service-card",
+      );
+    }
   });
 
   it("groups background services without adding a second interactive disclosure", async () => {

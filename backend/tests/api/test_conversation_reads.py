@@ -17,6 +17,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import (
     get_active_organization,
     get_auth_context,
+    get_chat_cost_visibility_service,
     get_conversation_service,
     get_current_user,
     get_db_session,
@@ -25,6 +26,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.conversation import MessageList
 
 pytestmark = pytest.mark.anyio
 
@@ -46,6 +48,13 @@ class _Organization:
         self.id = uuid4()
 
 
+class _VisibleTranscriptCosts:
+    """Reader-scope tests leave disclosure policy to its service contract tests."""
+
+    async def transcript(self, _ctx: AuthContext, data: MessageList) -> MessageList:
+        return data
+
+
 @pytest.fixture
 async def service() -> AsyncGenerator[AsyncMock]:
     caller = _User()
@@ -56,6 +65,7 @@ async def service() -> AsyncGenerator[AsyncMock]:
         user_id=caller.id, organization_id=organization.id, role=str(OrgRoleName.MEMBER)
     )
     app.dependency_overrides[get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[get_chat_cost_visibility_service] = _VisibleTranscriptCosts
     conversations = AsyncMock()
     app.dependency_overrides[get_conversation_service] = lambda: conversations
     yield conversations

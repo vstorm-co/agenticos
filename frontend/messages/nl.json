@@ -2195,7 +2195,11 @@
       "approvePublishAgent": "{agent} publiceren als v{version}",
       "approveChangeSkillVersion": "{state, select, main {{agent} naar de hoofdlijn van {skill} zetten} pinned {{agent} vastzetten op {skill} v{version}} other {{agent} naar een fork van {skill} zetten}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {De verbeterde skill {skill} toepassen} apply_and_pin {De verbeterde skill {skill} toepassen en de agents vastzetten die hij zou schaden} fork_for_helped {Een fork van {skill} maken voor de agents die hij hielp} catch_up {De fork van {skill} bijwerken met main} other {De fork van {skill} terugzetten naar main}}",
-      "approveStartEvalRun": "{agent} testen op de dataset {dataset} v{version}"
+      "approveStartEvalRun": "{agent} testen op de dataset {dataset} v{version}",
+      "selectingProjectContext": "Projectcontext kiezen…",
+      "selectedProjectContext": "Projectcontext gekozen",
+      "selectingExecutionTarget": "Uitvoerdoel kiezen…",
+      "selectedExecutionTarget": "Uitvoerdoel gekozen"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",
@@ -14052,6 +14056,14 @@
       "example2": "Een benoemde sessie voortzetten met een andere taak",
       "needs": "De desktop-app, een geregistreerd en ingelogd ACP-programma, en een goedgekeurde map met volledige toegang.",
       "never": "Draait met de toegang van je lokale account. Geen beperking tot alleen lezen en geen doorgifte van platformtools. Zet Menselijke goedkeuring op Altijd vragen om elke taak goed te keuren."
+    },
+    "projects": {
+      "name": "Projecten",
+      "does": "Vindt toegankelijke projecten, kiest hun referentiecontext en leest of wijzigt gedeelde tekstbestanden.",
+      "example1": "Zoek project Atlas en vat de briefing samen",
+      "example2": "Werk het afgesproken projectrapport bij zonder opdrachten uit te voeren",
+      "needs": "Actuele toegang tot het project en de bestanden. Opdrachten vereisen apart Sandbox en een beschikbare uitvoeromgeving.",
+      "never": "Context kiezen verplaatst de chat niet, koppelt geen bestanden aan de agentwerkruimte en staat geen opdrachten toe. Toegang en goedkeuringen blijven gelden."
     }
   },
   "capabilityCategories": {

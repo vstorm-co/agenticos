@@ -40,6 +40,27 @@ const t = createTranslator({ locale: "en", messages, namespace: "chat.tools" }) 
  * is the part nobody reads.
  */
 describe("the line for one tool call", () => {
+  it("distinguishes project reference work from selecting a command executor", () => {
+    expect(toolStep("search_projects", { query: "Atlas" }, false, t).label).toBe(
+      "Looking for Atlas",
+    );
+    expect(toolStep("select_project_context", { project_id: "project-1" }, true, t).label).toBe(
+      "Project context selected",
+    );
+    expect(toolStep("select_execution_target", { target: "project" }, true, t).label).toBe(
+      "Command target selected",
+    );
+    expect(toolStep("read_project_file", { path: "briefs/overview.md" }, true, t).label).toBe(
+      "Read overview.md",
+    );
+    expect(toolStep("write_project_file", { path: "reports/weekly.md" }, true, t).label).toBe(
+      "Wrote weekly.md",
+    );
+    // Project results carry scoped metadata, not the sandbox's command-output contract.
+    expect(isWorkspaceTool("read_project_file")).toBe(false);
+    expect(isWorkspaceTool("write_project_file")).toBe(false);
+  });
+
   it("identifies a question from validated text and tolerates incomplete streamed arguments", () => {
     expect(
       toolStep(

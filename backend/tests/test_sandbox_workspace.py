@@ -103,6 +103,8 @@ def no_project_recovery_copies(monkeypatch):
 @pytest.fixture
 def mock_db_session() -> AsyncMock:
     session = AsyncMock()
+    # These conversation fixtures do not belong to a project workspace.
+    session.scalar = AsyncMock(return_value=None)
     session.info = {}
     session.begin_nested = MagicMock(return_value=MagicMock())
     return session

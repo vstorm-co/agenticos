@@ -1,5 +1,5 @@
 ---
-source_sha: "75494f696b30"
+source_sha: "75480de53aad"
 ---
 
 # Słownik { #glossary }
@@ -147,6 +147,7 @@ w [Capabilities](capabilities.md).
 | Pamięć | `memory_files` |
 | Mirage (wirtualny terminal) | `mirage` |
 | Planowanie | `planning` |
+| Projekty | `projects` |
 | Praca w trakcie narzędzi | `background_tools` |
 | Tematy w tle | `background_tasks` |
 | Obserwuj polecenie | `monitor` |

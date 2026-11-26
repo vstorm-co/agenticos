@@ -2195,7 +2195,11 @@
       "approvePublishAgent": "Publicar {agent} como v{version}",
       "approveChangeSkillVersion": "{state, select, main {Mover {agent} para a linha principal de {skill}} pinned {Fixar {agent} em {skill} v{version}} other {Mover {agent} para um fork de {skill}}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Aplicar o skill melhorado {skill}} apply_and_pin {Aplicar o skill melhorado {skill} e fixar os agents que ele prejudicaria} fork_for_helped {Criar um fork de {skill} para os agents que ele ajudou} catch_up {Atualizar o fork de {skill} com a main} other {Devolver o fork de {skill} à main}}",
-      "approveStartEvalRun": "Testar {agent} no dataset {dataset} v{version}"
+      "approveStartEvalRun": "Testar {agent} no dataset {dataset} v{version}",
+      "selectingProjectContext": "Selecionando contexto do projeto…",
+      "selectedProjectContext": "Contexto do projeto selecionado",
+      "selectingExecutionTarget": "Selecionando destino dos comandos…",
+      "selectedExecutionTarget": "Destino dos comandos selecionado"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -14052,6 +14056,14 @@
       "example2": "Continuar uma sessão nomeada com outra tarefa",
       "needs": "Aplicativo de desktop, um programa ACP registrado e com login feito, e uma pasta aprovada com acesso total.",
       "never": "Executa com o acesso da sua conta local. Sem confinamento somente leitura nem encaminhamento de ferramentas da plataforma. Defina a Aprovação humana como Sempre perguntar para aprovar cada tarefa."
+    },
+    "projects": {
+      "name": "Projetos",
+      "does": "Encontra projetos acessíveis, seleciona seu contexto de referência e lê ou atualiza arquivos de texto compartilhados.",
+      "example1": "Encontre o projeto Atlas e resuma seu briefing",
+      "example2": "Atualize o relatório combinado sem executar comandos",
+      "needs": "Acesso atual ao projeto e aos arquivos. Comandos precisam separadamente de Sandbox e de um ambiente disponível.",
+      "never": "Selecionar contexto não move o chat, não monta arquivos na área do agente nem permite comandos. Permissões e aprovações continuam valendo."
     }
   },
   "capabilityCategories": {

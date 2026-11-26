@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.config import settings
+from app.core.cron import schedule_next
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -73,7 +74,6 @@ from app.schemas.workflow_exposure import (
 )
 from app.services import portal_catalog, portals, rate_limit, trigger_events
 from app.services.access import WORKFLOW, resolve_access
-from app.services.agent_trigger import _next_fire
 from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingMessage, split_thread
 from app.services.mcp_connection import McpConnectionService
@@ -237,7 +237,7 @@ def workflow_timezone(workflow: Workflow) -> str:
 
 def _next_tick(exposure: WorkflowExposure, *, now: datetime) -> datetime:
     """When a schedule exposure next fires after `now`, in its own timezone."""
-    return _next_fire(
+    return schedule_next(
         schedule_kind=cast(str, exposure.schedule_kind),
         interval_seconds=exposure.interval_seconds,
         cron_expression=exposure.cron_expression,
@@ -710,7 +710,7 @@ class WorkflowExposureService:
             )
             != (config.schedule_kind, interval, cron, timezone)
         ):
-            fields["next_fire_at"] = _next_fire(
+            fields["next_fire_at"] = schedule_next(
                 schedule_kind=config.schedule_kind,
                 interval_seconds=interval,
                 cron_expression=cron,
@@ -808,7 +808,7 @@ class WorkflowExposureService:
         require_human_publisher(ctx)
         changes: dict[str, Any] = {"timezone": timezone}
         if exposure.is_active and exposure.schedule_kind == "cron":
-            changes["next_fire_at"] = _next_fire(
+            changes["next_fire_at"] = schedule_next(
                 schedule_kind=cast(str, exposure.schedule_kind),
                 interval_seconds=exposure.interval_seconds,
                 cron_expression=exposure.cron_expression,

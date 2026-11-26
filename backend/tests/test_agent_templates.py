@@ -497,6 +497,7 @@ def test_agenticos_ships_the_requested_tools_without_a_shared_coding_account() -
         "coding_agent",
         "computer_use",
         "sandbox",
+        "projects",
         "visuals",
         "monitor",
         "context",

@@ -608,6 +608,40 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
 
+  // Projects return scoped metadata/text, not sandbox command output.
+  search_projects: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "lookingFor", done: "lookedFor" },
+  },
+  select_project_context: {
+    kind: "knowledge",
+    render: "generic",
+    captionKey: "selectingProjectContext",
+    displayNameKey: "selectedProjectContext",
+  },
+  list_project_files: {
+    kind: "list",
+    render: "generic",
+    verbs: { now: "listing", done: "listed" },
+  },
+  read_project_file: {
+    kind: "read",
+    render: "generic",
+    verbs: { now: "reading", done: "read" },
+  },
+  write_project_file: {
+    kind: "write",
+    render: "generic",
+    verbs: { now: "writing", done: "wrote" },
+  },
+  select_execution_target: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "selectingExecutionTarget",
+    displayNameKey: "selectedExecutionTarget",
+  },
+
   // drafts - the card draws in the turn; the step stays a line, since opening it
   // would print the draft's arguments as JSON under the card. Not hidden: a hidden
   // step is dropped from the turn's runs and no card would be drawn.

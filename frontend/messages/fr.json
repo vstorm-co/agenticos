@@ -2162,7 +2162,11 @@
       "approvePublishAgent": "Publier {agent} en v{version}",
       "approveChangeSkillVersion": "{state, select, main {Passer {agent} sur la ligne principale de {skill}} pinned {Épingler {agent} à {skill} v{version}} other {Passer {agent} sur un fork de {skill}}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Appliquer le skill amélioré {skill}} apply_and_pin {Appliquer le skill amélioré {skill} et épingler les agents qu’il pénaliserait} fork_for_helped {Créer un fork de {skill} pour les agents qu’il a aidés} catch_up {Mettre le fork de {skill} à jour avec main} other {Ramener le fork de {skill} sur main}}",
-      "approveStartEvalRun": "Tester {agent} sur le dataset {dataset} v{version}"
+      "approveStartEvalRun": "Tester {agent} sur le dataset {dataset} v{version}",
+      "selectingProjectContext": "Sélection du contexte du projet…",
+      "selectedProjectContext": "Contexte du projet sélectionné",
+      "selectingExecutionTarget": "Sélection de la cible des commandes…",
+      "selectedExecutionTarget": "Cible des commandes sélectionnée"
     },
     "turnWasStopped": "arrêté",
     "unfavourite": "Retirer des favoris",
@@ -13807,6 +13811,14 @@
       "example2": "Planifier une mise à jour hebdomadaire dans un fil convenu",
       "needs": "Une liaison de bot active, des actions sélectionnées et l’appartenance à chaque destination. Les routines exigent une revue de la source et de l’action.",
       "never": "Ne rejoint jamais un canal, n’emprunte jamais le bot d’un autre agent et ne retente jamais en silence un envoi incertain."
+    },
+    "projects": {
+      "name": "Projets",
+      "does": "Recherche les projets accessibles, sélectionne leur contexte de référence et lit ou met à jour leurs fichiers texte partagés.",
+      "example1": "Trouver le projet Atlas et résumer son brief",
+      "example2": "Mettre à jour le rapport convenu sans exécuter de commandes",
+      "needs": "Un accès actuel au projet et à ses fichiers. Les commandes nécessitent séparément Sandbox et un environnement disponible.",
+      "never": "Sélectionner un contexte ne déplace pas le chat, ne monte pas de fichiers dans l’espace de l’agent et n’autorise pas de commandes. Accès et approbations restent applicables."
     }
   },
   "capabilityCategories": {

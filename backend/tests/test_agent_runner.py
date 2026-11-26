@@ -4186,6 +4186,10 @@ class TestParking:
             # And no kept specialists, which is a run that invented none - or, as
             # here, one whose agent binds no delegation at all (agenticos#175).
             "dynamic_specialists": [],
+            "project_context_observed": False,
+            "project_delegation_pinned": False,
+            "selected_execution_target": None,
+            "selected_project_generation": None,
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "run_limit_usd": None,
@@ -4198,6 +4202,7 @@ class TestParking:
             "admitted_as": {
                 "can_ask_questions": False,
                 "local": None,
+                "project_execution_target": None,
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
                 "audience_user_id": None,

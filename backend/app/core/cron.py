@@ -4,7 +4,7 @@ Shared by everything the minute sweeps schedule - agent triggers, which keep a
 schedule in UTC, and eval suites, which keep one in the zone their owner names.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -69,3 +69,27 @@ def cron_fires(
             return fires
         fires += 1
     return round(fires * (end - start) / (fired - start))
+
+
+def schedule_next(
+    *,
+    schedule_kind: str,
+    interval_seconds: int | None,
+    cron_expression: str | None,
+    now: datetime,
+    time_zone: str | None = None,
+) -> datetime:
+    """The next cron or interval occurrence, without catching up missed runs.
+
+    Rows and request schemas validate cadence before use; a malformed internal
+    call must fail rather than silently turning an unknown kind into an interval.
+    This calculation is shared by routines and workflow schedules, independently
+    of either execution runtime.
+    """
+    if schedule_kind == "cron":
+        if cron_expression is None:
+            raise ValueError("A cron schedule requires its expression")
+        return cron_next(cron_expression, now=now, time_zone=time_zone or "UTC")
+    if schedule_kind != "interval" or interval_seconds is None or interval_seconds < 1:
+        raise ValueError("An interval schedule requires a positive interval")
+    return now + timedelta(seconds=interval_seconds)

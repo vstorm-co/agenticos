@@ -6256,6 +6256,14 @@
       "example2": "Adlandırılmış bir oturuma başka bir görevle devam edin",
       "needs": "Desktop uygulaması, kayıtlı ve oturum açılmış bir ACP programı ve tam erişimi onaylanmış bir klasör.",
       "never": "Yerel hesabınızın erişimiyle çalışır. Salt okunur yalıtım veya platform araçlarının iletimi yoktur. Her görev için insan onayını etkinleştirin."
+    },
+    "projects": {
+      "name": "Projeler",
+      "does": "Erişilebilir projeleri bulur, referans bağlamlarını seçer ve paylaşılan metin dosyalarını okur veya günceller.",
+      "example1": "Atlas projesini bul ve özetini çıkar",
+      "example2": "Kararlaştırılan proje raporunu komut çalıştırmadan güncelle",
+      "needs": "Projeye ve dosyalarına güncel erişim. Komut çalıştırmak ayrıca Sandbox ve kullanılabilir bir yürütme ortamı gerektirir.",
+      "never": "Bağlam seçmek sohbeti taşımaz, dosyaları agent çalışma alanına bağlamaz veya komut yetkisi vermez. Erişim kuralları ve onaylar geçerliliğini korur."
     }
   },
   "agents": {
@@ -10049,7 +10057,11 @@
       "approvePublishAgent": "{agent} agent'ını v{version} olarak yayınla",
       "approveChangeSkillVersion": "{state, select, main {{agent} agent'ını {skill} ana hattına taşı} pinned {{agent} agent'ını {skill} v{version} sürümüne sabitle} other {{agent} agent'ını bir {skill} fork'una taşı}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Geliştirilmiş {skill} skill'ini uygula} apply_and_pin {Geliştirilmiş {skill} skill'ini uygula ve zarar göreceği agent'ları sabitle} fork_for_helped {Yardım ettiği agent'lar için bir {skill} fork'u oluştur} catch_up {{skill} fork'unu main ile güncelle} other {{skill} fork'unu main'e geri döndür}}",
-      "approveStartEvalRun": "{agent} agent'ını {dataset} dataset'inin v{version} sürümünde test et"
+      "approveStartEvalRun": "{agent} agent'ını {dataset} dataset'inin v{version} sürümünde test et",
+      "selectingProjectContext": "Proje bağlamı seçiliyor…",
+      "selectedProjectContext": "Proje bağlamı seçildi",
+      "selectingExecutionTarget": "Komut hedefi seçiliyor…",
+      "selectedExecutionTarget": "Komut hedefi seçildi"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",

@@ -1197,7 +1197,11 @@
       "approvePublishAgent": "Opublikować {agent} jako v{version}",
       "approveChangeSkillVersion": "{state, select, main {Przenieść {agent} na główną linię skilla {skill}} pinned {Przypiąć {agent} do skilla {skill} v{version}} other {Przenieść {agent} na fork skilla {skill}}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Zastosować ulepszony skill {skill}} apply_and_pin {Zastosować ulepszony skill {skill} i przypiąć agentów, którym by zaszkodził} fork_for_helped {Utworzyć fork skilla {skill} dla agentów, którym pomógł} catch_up {Zaktualizować fork skilla {skill} do main} other {Przywrócić fork skilla {skill} do main}}",
-      "approveStartEvalRun": "Przetestować {agent} na datasecie {dataset} v{version}"
+      "approveStartEvalRun": "Przetestować {agent} na datasecie {dataset} v{version}",
+      "selectingProjectContext": "Wybieranie kontekstu projektu…",
+      "selectedProjectContext": "Wybrano kontekst projektu",
+      "selectingExecutionTarget": "Wybieranie miejsca wykonania poleceń…",
+      "selectedExecutionTarget": "Wybrano miejsce wykonania poleceń"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -14333,6 +14337,14 @@
       "example2": "Kontynuuj nazwaną sesję kolejnym zadaniem",
       "needs": "Aplikacja Desktop, zarejestrowany i zalogowany program ACP oraz folder z zatwierdzonym pełnym dostępem.",
       "never": "Działa z dostępem Twojego konta lokalnego. Bez gwarancji trybu tylko do odczytu i bez przekazywania narzędzi platformy. Włącz zatwierdzanie każdego zadania przez człowieka."
+    },
+    "projects": {
+      "name": "Projekty",
+      "does": "Wyszukuje dostępne projekty, wybiera ich kontekst referencyjny oraz czyta i aktualizuje wspólne pliki tekstowe.",
+      "example1": "Znajdź projekt Atlas i podsumuj jego brief",
+      "example2": "Zaktualizuj uzgodniony raport projektu bez uruchamiania poleceń",
+      "needs": "Aktualny dostęp do projektu i jego plików. Wykonywanie poleceń wymaga osobno Sandboxa i dostępnego środowiska.",
+      "never": "Wybór kontekstu nie przenosi czatu, nie montuje plików w przestrzeni agenta i nie daje prawa do wykonywania poleceń. Uprawnienia i zgody nadal obowiązują."
     }
   },
   "capabilityCategories": {
