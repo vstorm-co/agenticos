@@ -524,9 +524,9 @@ class TestReadingSessions:
             "at_most_usd": "0.02",
         }
         assert session["found"] == {
-            "problems": ["Order numbers are not taken as receipts"],
             "not_the_skill": 2,
             "not_a_problem": 1,
+            "untrusted": {"problems": ["Order numbers are not taken as receipts"]},
         }
         assert session["waiting_for"] is None
 
@@ -809,7 +809,7 @@ class TestReadingSessions:
 
         read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
 
-        assert read["found"]["problems"] == ["Order numbers are not taken as receipts"]
+        assert read["found"]["untrusted"]["problems"] == ["Order numbers are not taken as receipts"]
 
     async def test_a_waiting_session_whose_step_cannot_be_priced_says_why(
         self, server: FastMCP, api: MagicMock
@@ -848,7 +848,7 @@ class TestReadingSessions:
             (
                 "failed",
                 {"error": "The helper stopped unexpectedly."},
-                "A step failed: The helper stopped unexpectedly.",
+                "A step failed; its error is in `untrusted.error`.",
                 ["Retry this step", "End the session"],
             ),
         ],
@@ -872,6 +872,7 @@ class TestReadingSessions:
         session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
 
         assert sentence in session["summary"]
+        assert session.get("untrusted", {}).get("error") == fields.get("error")
         assert session["next_actions"] == actions
         assert session["closed"] is (status == "accepted")
 
@@ -1435,6 +1436,7 @@ class TestCatchingUp:
                     "expected_usd": "0.01",
                     "at_most_usd": "0.03",
                     "affordable": True,
+                    "base_version": {"id": VERSION, "number": 4, "fork_id": None},
                     "agents": [row],
                 },
                 ("POST", path): {**BLOCKED, "id": VERSION, "status": "running", "agents": [row]},
@@ -1449,10 +1451,20 @@ class TestCatchingUp:
             thorough=thorough,
         )
         check = await _call(
-            server, "start_skill_update_check", skill_id=SKILL, agent_id=COUNTER, thorough=thorough
+            server,
+            "start_skill_update_check",
+            skill_id=SKILL,
+            agent_id=COUNTER,
+            quoted_usd=quote["at_most_usd"],
+            base_version_id=quote["base_version_id"],
+            thorough=thorough,
         )
 
-        assert _sent(api, "POST", path) == {"mode": mode}
+        assert _sent(api, "POST", path) == {
+            "mode": mode,
+            "quoted_usd": "0.03",
+            "base_version_id": str(VERSION),
+        }
         assert quote["at_most_usd"] == "0.03"
         assert check["check_id"] == VERSION
 

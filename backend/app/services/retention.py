@@ -502,7 +502,7 @@ class RetentionService:
         if self.remove_vectors is None:
             raise RuntimeError("retention sweep has no vector remover; cannot purge documents")
 
-        for _, collection, vector_document_id, _, scope in expiring:
+        for _, collection, vector_document_id, _, scope, _ in expiring:
             if not vector_document_id:
                 continue
             # `IngestionService.remove_document` catches its own store failures
@@ -512,7 +512,8 @@ class RetentionService:
             if not await self.remove_vectors(collection, vector_document_id, scope):
                 raise RuntimeError("the vector store did not confirm the removal")
         await self._queue_unlink(
-            [row[3] for row in expiring if row[3]], organization_id=organization_id
+            [path for row in expiring for path in (row[3], row[5]) if path],
+            organization_id=organization_id,
         )
         return await retention_repo.delete_documents(
             self.db, document_ids=[row[0] for row in expiring]

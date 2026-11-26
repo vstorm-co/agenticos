@@ -27,7 +27,6 @@ from app.agents.model_resolver import (
     is_decision_api,
     lacks_key,
 )
-from app.agents.profile_pricing import catalog_token_pricing as catalog_token_pricing
 from app.clients.subscription_gateway import configured_gateway
 from app.core.audit import record_audit
 from app.core.config import settings

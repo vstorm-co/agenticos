@@ -30,8 +30,8 @@ class ProjectCreate(AudienceChoice):
         ),
     )
     backend: Literal["auto", "service", "state"] = Field(
-        default="auto",
-        description="Automatic sandbox selection, a service container, or stored files without a shell",
+        default="state",
+        description="Shared stored files by default; explicitly choose automatic sandbox selection or a service container",
     )
     sandbox_connection_id: UUID | None = Field(
         default=None, description="The organization's sandbox connection; omitted uses its default"

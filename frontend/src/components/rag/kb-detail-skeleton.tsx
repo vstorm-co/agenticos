@@ -64,6 +64,7 @@ export function KBDetailSkeleton({
           onLoadMore={pending}
           onPreview={pending}
           onRemove={pending}
+          onRetry={() => Promise.resolve()}
           onChooseFiles={pending}
         />
       ) : (

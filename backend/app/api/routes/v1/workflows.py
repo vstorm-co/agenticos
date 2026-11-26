@@ -12,10 +12,11 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import (
     Auth,
+    PortabilitySvc,
     WorkflowPortableSvc,
     WorkflowRegistrySvc,
     WorkflowStatsSvc,
@@ -25,6 +26,14 @@ from app.api.public_api import PUBLIC
 from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import McpConnectionUsable, McpConnectionUsableList
+from app.schemas.resource_bundle import (
+    BundleDocumentCreate,
+    BundleDownloadCreate,
+    BundleImportCreate,
+    BundleImportRead,
+    BundlePreview,
+    BundleResourceKind,
+)
 from app.schemas.workflow import (
     NodeCatalog,
     WorkflowActiveUpdate,
@@ -51,6 +60,54 @@ from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
 router = APIRouter(dependencies=[PUBLIC])
 
 
+@router.post(
+    "/bundle-import-preview",
+    response_model=BundlePreview,
+    dependencies=[Depends(require(Perm.WORKFLOWS_CREATE))],
+)
+async def preview_workflow_bundle(
+    data: BundleDocumentCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Review a selectable resource bundle before importing a workflow draft."""
+    return await service.preview_document(ctx, data.text, workflow=True)
+
+
+@router.post(
+    "/bundle-import",
+    response_model=BundleImportRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.WORKFLOWS_CREATE))],
+)
+async def import_workflow_bundle(
+    data: BundleImportCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Create reviewed drafts without publishing or enabling their triggers."""
+    return await service.import_workflow(ctx, data)
+
+
+@router.get("/{workflow_id}/export-preview", response_model=BundlePreview)
+async def preview_workflow_export(workflow_id: UUID, service: PortabilitySvc, ctx: Auth) -> Any:
+    """List accessible workflow dependencies before selecting portable content."""
+    return await service.export_resource(
+        ctx, BundleResourceKind.WORKFLOW, workflow_id, metadata_only=True
+    )
+
+
+@router.post("/{workflow_id}/bundle-export", response_class=Response)
+async def download_workflow_bundle(
+    workflow_id: UUID, data: BundleDownloadCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Download selected workflow definitions without run output or uploaded-file bindings."""
+    content = await service.download_workflow(ctx, workflow_id, data)
+    return Response(
+        content=content,
+        media_type="application/json" if data.file_format == "json" else "application/yaml",
+        headers={
+            "Content-Disposition": f'attachment; filename="workflow-{workflow_id}.{data.file_format}"'
+        },
+    )
+
+
 @router.get(
     "/node-catalog",
     response_model=NodeCatalog,
@@ -65,11 +122,19 @@ async def list_node_catalog(service: WorkflowRegistrySvc) -> Any:
 async def list_workflows(
     service: WorkflowRegistrySvc,
     ctx: Auth,
+    project_id: UUID | None = Query(
+        None, description="Only resources linked to this accessible project"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Workflows this member can see - their own, plus what was shared with them."""
-    return await service.list(ctx, skip=skip, limit=limit)
+    return await service.list(
+        ctx,
+        skip=skip,
+        limit=limit,
+        **({"project_id": project_id} if project_id is not None else {}),
+    )
 
 
 @router.post(

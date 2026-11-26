@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "1b7c73e09d28"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1158,6 +1158,8 @@ odpowiada, mógł kontynuować przebieg. Każdy przebieg ma własny, zrobiony z 
 sekretem wdrożenia i nikomu innemu niepokazywany: to jego posiadanie pozwala wznowić
 przebieg, więc wysyła się go tylko tam, skąd ma przyjść odpowiedź.
 
+Ponowienie uruchamia nowy przebieg. Krok Resume link generuje dla niego nowy adres, także przy wywołaniu z Pythona. Stary adres nie przekierowuje do nowego przebiegu, a wysłana wcześniej wiadomość z adresem nie jest wysyłana ponownie.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Obsługa błędów { #error-handling }
@@ -1385,7 +1387,37 @@ Wyniki sandboxa są ograniczane także podczas strumieniowego pobierania z hosta
 
 ## Python { #python }
 
-Dwa węzły uruchamiają Pythona, do dwóch rodzajów pracy.
+**Python z akcjami** (`code.python.actions`) uruchamia skrypt bez modelu. Powiąż każdą akcję raz z nazwą w Pythonie i skonfiguruj jej zasoby. Przekaż pola wejściowe jako argumenty nazwane; funkcja zwróci taki sam obiekt jak odpowiedni krok na kanwie. Możesz też przekazać pola danych, które akcja pozwala powiązać, np. nazwę pliku lub adres URL. Pole wymagane przez akcję, które można powiązać, np. adres URL żądania HTTP, wolno pominąć przy konfiguracji. Wtedy podaj je przy każdym wywołaniu. Dane uwierzytelniające i uprawnienia pozostają bez zmian.
+
+Jeśli na przykład powiążesz porównywanie tekstów z nazwą `compare`, wyrażenie `compare(a=args["expected"], b=args["actual"])["score"]` przekaże do następnego kroku tylko wynik podobieństwa jako `result`.
+
+Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funkcja ma nazwę `lookup`, wywołaj `lookup(arguments={"hostname": "leaf-01"})` i odczytaj pole `structured` lub `text`. Jeśli akcja się nie powiedzie, obowiązują zasady obsługi błędów kroku Pythona, a nie klauzula `except` w skrypcie. Do przewidzianych rozgałęzień użyj wyniku, na przykład decyzji o zatwierdzeniu.
+
+Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
+
+Odczyt zapisanego wyniku nie rezerwuje budżetu. Jeśli przy ponowieniu zmienią się argumenty tej samej akcji bez skutków ubocznych lub tego samego żądania HTTP GET, wywołanie wykona się ponownie z nowymi wartościami. Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
+
+Limit czasu obejmuje łączny czas wykonywania kodu Pythona we wszystkich częściach skryptu. Oczekiwanie na akcję, zatwierdzenie lub odpowiedź nie wlicza się do limitu. Limit pamięci ogranicza rozmiar sterty interpretera podczas wykonywania kodu.
+
+Wstrzymany krok **Python z akcjami** można wznowić tylko przy użyciu wersji Monty, która zapisała jego stan. Przed wdrożeniem wydania zmieniającego przypiętą wersję `pydantic-monty` poczekaj, aż wstrzymane skrypty zakończą się na starej wersji. Jeśli skrypt nadal jest wstrzymany w chwili zmiany, zakończy się błędem `PYTHON_CHECKPOINT_INVALID`. W widoku runa użyj opcji ponowienia od nieudanego kroku.
+
+| Co się stało | Wynik |
+|---|---|
+| Wywołanie używa niepowiązanej funkcji lub metody obiektu | `PYTHON_ACTION_UNKNOWN` |
+| Wywołanie używa argumentów pozycyjnych lub wartości, które nie są danymi JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Argumenty nazwane nie pasują do powiązanej akcji | `INVALID_BINDING` |
+| Skrypt czeka na kilka wywołań naraz | `PYTHON_ACTION_ASYNC` |
+| Skrypt wykonuje 101. wywołanie | `PYTHON_ACTION_LIMIT` |
+| Argumenty wywołania przekraczają limit bajtów danych osadzonych | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| Stan interpretera przy wywołaniu przekracza 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| Interpreter nie może przywrócić zapisanego stanu | `PYTHON_CHECKPOINT_INVALID`, nie można pominąć |
+| Powiązana akcja lub jej zasoby nie są już dostępne dla tego uruchomienia | `SCRIPT_ACTION_UNAVAILABLE`, uruchomienie się kończy |
+| Ponowienie nie może wykazać, że wcześniejszy zapis nie został wysłany | `SCRIPT_ACTION_RETRY_UNSAFE`, uruchomienie się kończy |
+| Skrypt wyczerpuje limit czasu lub pamięci Pythona | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

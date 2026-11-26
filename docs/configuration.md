@@ -125,6 +125,8 @@ Raise both upload allowances when raising
 the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
 The Compose files run uvicorn without its own body limit.
 
+Portable ZIP uploads have a separate 512 MiB allowance on both hosts. The console streams `/api/portability/{id}/upload` to the API without buffering the archive in Next.js. Transfer control requests allow 4 MiB, and text import requests allow 25 MiB for JSON string framing while the decoded document still has a 4 MiB limit. Keep these scoped locations when replacing the proxy configuration.
+
 ## Authentication
 
 ### JWT
@@ -162,6 +164,12 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 Production validation: `API_KEY` cannot use the default value in
 `ENVIRONMENT=production`.
+
+Local account admission is controlled in **Admin → Deployment → Access &
+accounts**, independently of the provider-button filter. See
+[Provider-only sign-in](deployment.md#provider-only-sign-in) for the policy,
+its API enforcement and the `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` operator
+recovery override.
 
 ### OAuth2 (Google)
 
@@ -222,7 +230,7 @@ Two buttons on the frontend, configured there:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Display order/filter for configured backend providers. Empty hides provider buttons. Local passwords are controlled separately in Admin → Deployment → Access & accounts. |
 | `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
 
@@ -1323,7 +1331,7 @@ whole API should carry a ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. A workflow's [form](workflows.md#from-a-form) is read on a counter of this size per form. See below |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Answers one workflow [form](workflows.md#from-a-form) takes, **per form**: each one is a run its publisher pays for, and the console's server forwards them all, so an address would count nobody |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Deliveries one workflow [webhook](workflows.md) or GitHub trigger takes, **per webhook**, counted once the signature has verified and the delivery would start a run, so strangers and skipped deliveries spend nothing of it: each one is a run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests one address may send the workflow webhook and GitHub trigger addresses in a minute, whatever they carry, counted before anything is read. Wide, because senders such as GitHub deliver for many hooks from a few addresses |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests per minute from one IP address across workflow webhooks, workflow GitHub triggers and reusable event source URLs. The limit applies before the request body is read. The default accommodates providers such as GitHub that deliver many hooks from a few addresses |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unique workflow email recipients per issuer, across keys and organizations; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unique workflow email recipients per organization; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unique workflow email recipients across the deployment; [email.send](reference/workflow-nodes.md#email-send) |

@@ -29,6 +29,8 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.main import app
+from app.schemas.console_experience import ChatCostRead
+from app.services.chat_cost_visibility import ChatCostVisibilityService
 
 pytestmark = pytest.mark.anyio
 
@@ -60,6 +62,9 @@ async def _client(
     )
     app.dependency_overrides[deps.get_active_organization] = lambda: organization
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
+    costs = ChatCostVisibilityService(AsyncMock())
+    costs.read = AsyncMock(return_value=ChatCostRead())
+    app.dependency_overrides[deps.get_chat_cost_visibility_service] = lambda: costs
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
     # The read routes now carry the caller's context too, so a trigger's run-log
     # can resolve against its agent. Stubbed: these tests assert on what the

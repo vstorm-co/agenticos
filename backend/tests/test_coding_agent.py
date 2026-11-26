@@ -1976,9 +1976,14 @@ async def test_run_selected_project_never_receives_personal_coding_credentials(p
     shell = _Shell()
     ctx = _ctx(shell)
     selector = RunProjectWorkspace(
-        ctx.workspace, AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member")
+        ctx.workspace,
+        AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member"),
+        audience=RunAudience(user_id=RUNNER),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
     )
     selector.project_id = uuid4()
+    selector.project_context_observed = True
+    selector.execution_target = "project"
     ctx = replace(ctx, workspace=selector.workspace)
     executor = MagicMock()
     store = _Store()
@@ -1998,3 +2003,60 @@ async def test_run_selected_project_never_receives_personal_coding_credentials(p
     executor.session.assert_not_called()
     assert store.asked_for == []
     assert shell.commands == []
+
+
+@pytest.mark.security
+async def test_coding_harness_uses_agent_files_and_commands_with_selected_project(monkeypatch):
+    from contextlib import asynccontextmanager
+    from dataclasses import replace
+    from unittest.mock import AsyncMock
+
+    from app.core.permissions import AuthContext
+    from app.services import run_project_workspace as project_module
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    class CodingShell(_Shell):
+        async def run(
+            self,
+            command: str,
+            *,
+            shell: bool = False,
+            env: Mapping[str, str] | None = None,
+            timeout: float | None = None,
+            cwd: str | None = None,
+        ) -> CommandResult:
+            assert cwd is None
+            return await super().run(command, shell=shell, env=env, timeout=timeout)
+
+    shell = CodingShell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+    ctx = _ctx(shell)
+    actor = AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member")
+    selector = RunProjectWorkspace(
+        ctx.workspace,
+        actor,
+        audience=RunAudience(user_id=RUNNER),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+        agent_execution_available=True,
+    )
+    selector.project_id = uuid4()
+    selector.project_generation = uuid4()
+    selector.project_context_observed = True
+
+    @asynccontextmanager
+    async def database():
+        yield MagicMock()
+
+    monkeypatch.setattr(project_module, "get_db_context", database)
+    monkeypatch.setattr(
+        selector,
+        "_project",
+        AsyncMock(
+            return_value=(actor, SimpleNamespace(workspace_generation=selector.project_generation))
+        ),
+    )
+    answer = await _tools()["run_coding_agent"].function(
+        replace(ctx, workspace=selector.workspace), task="Edit the agent-local report"
+    )
+    assert "Fixed the off-by-one" in answer
+    assert len(shell.started) == 1
+    assert selector.execution_target == "agent"

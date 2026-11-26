@@ -364,7 +364,7 @@ async def test_the_timeline_names_who_decided_what_and_only_to_those_who_see_mem
         (ctx.user_id, True)
     }
 
-    outsider = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+    outsider = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW}))
     hidden = (await service.read(outsider, agent.id, ready.id)).timeline
     assert {
         (event.actor_user_id, event.actor_name)

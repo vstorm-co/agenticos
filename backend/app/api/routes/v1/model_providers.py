@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
+from app.agents.profile_pricing import catalog_token_pricing
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, SubscriptionAccountSvc, require
 from app.api.public_api import ASSISTANT, PUBLIC
 from app.clients.subscription_gateway import configured_gateway
@@ -53,7 +54,6 @@ from app.services.image_models import image_providers
 from app.services.model_catalog import CUSTOM_LISTINGS, models_for
 from app.services.model_outputs import stated_outputs
 from app.services.model_profile import (
-    catalog_token_pricing,
     native_runtime_availability,
     provider_catalog,
     validate_endpoint_url,

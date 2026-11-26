@@ -499,6 +499,7 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -552,6 +553,7 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -566,13 +568,14 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText(/cannot be compared yet: too few held-out/)).toBeVisible();
     expect(
-      screen.getByText("Add 4 more held-out test questions to measure a change"),
+      screen.getByText("Add 4 more held-out test questions to measure a change."),
     ).toBeVisible();
     expect(skills.asked.every((id) => id === null)).toBe(true);
   });

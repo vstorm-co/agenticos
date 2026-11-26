@@ -34,8 +34,10 @@ from pydantic import AwareDatetime, Field, field_validator
 
 from app.core.currency import CurrencySettings
 from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
+from app.core.sign_in_methods import SignInProvider
 from app.schemas.base import BaseSchema
 from app.schemas.console_experience import ChatHomeOverrides
+from app.schemas.console_presentation import ConsolePreferences, StoredConsolePreferences
 from app.schemas.retention import RetentionDays
 
 SignupMode = Literal["open", "invite_only", "closed"]
@@ -107,6 +109,8 @@ class BrandingRead(BaseSchema):
     terms_url: str | None = None
     privacy_url: str | None = None
 
+    password_sign_in_enabled: bool = True
+    sign_in_providers: list[SignInProvider] = Field(default_factory=list)
     signup_mode: SignupMode = "open"
     allowed_email_domains: list[str] = Field(default_factory=list)
     """Published on purpose. A sign-up form that refuses an address *after* it is
@@ -166,6 +170,9 @@ class DeploymentSettingsRead(BrandingRead):
     environment_currency_settings: CurrencySettings = Field(default_factory=CurrencySettings)
     """The administrator's view: everything, in one request."""
 
+    password_sign_in_forced: bool = False
+    console_availability: StoredConsolePreferences | None = None
+    chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
         default=None,
@@ -218,6 +225,8 @@ class DeploymentSettingsUpdate(BaseSchema):
     a path is written only by the upload route, which puts the bytes there itself.
     """
 
+    console_availability: ConsolePreferences | None = None
+    chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
         default=None,
@@ -235,6 +244,7 @@ class DeploymentSettingsUpdate(BaseSchema):
     terms_url: str | None = Field(default=None, max_length=512)
     privacy_url: str | None = Field(default=None, max_length=512)
 
+    password_sign_in_enabled: bool | None = None
     signup_mode: SignupMode | None = None
     allowed_email_domains: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_DOMAINS)
 

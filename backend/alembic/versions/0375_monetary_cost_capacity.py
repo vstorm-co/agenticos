@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0366_monetary_cost_capacity"
-down_revision: str = "0365_model_profile_pricing"
+revision: str = "0375_monetary_cost_capacity"
+down_revision: str = "0374_model_profile_pricing"
 branch_labels: None = None
 depends_on: None = None
 

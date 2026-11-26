@@ -61,6 +61,7 @@ async def record_filtered_event(
             AgentTrigger.organization_id == trigger.organization_id,
             AgentTrigger.is_active.is_(True),
             AgentTrigger.event_source == trigger.event_source,
+            AgentTrigger.source_id.is_not_distinct_from(trigger.source_id),
             AgentTrigger.event_config == trigger.event_config,
             AgentTrigger.approved_sources.is_not_distinct_from(trigger.approved_sources),
             or_(received_at.is_(None), received_at < diagnostic.received_at),
@@ -388,6 +389,7 @@ async def create(
     one_shot: bool = False,
     is_active: bool = True,
     project_id: UUID | None = None,
+    source_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         project_id=project_id,
@@ -398,6 +400,7 @@ async def create(
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,
         prompt=prompt,
+        source_id=source_id,
         name=name,
         trigger_type=trigger_type,
         schedule_kind=schedule_kind,

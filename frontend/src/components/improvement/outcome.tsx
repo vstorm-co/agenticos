@@ -74,11 +74,7 @@ export function ResultSummary({
   if (comparison?.verdict === "invalid" && runId) {
     return (
       <div className="space-y-3">
-        <IncomparableResult
-          agentId={session.agent_id}
-          runId={runId}
-          reason={comparison.invalid_reason}
-        />
+        <IncomparableResult agentId={session.agent_id} runId={runId} comparison={comparison} />
         <p className="text-muted-foreground text-sm">{knowledge}</p>
       </div>
     );
@@ -278,9 +274,7 @@ function AgentSentence({
   if (measured.error) return <StepError error={measured.error} retry={measured.refetch} />;
   if (!comparison || !measured.run) return <p role="status">{t("loading")}</p>;
   if (comparison.verdict === "invalid")
-    return (
-      <IncomparableResult agentId={agentId} runId={runId} reason={comparison.invalid_reason} />
-    );
+    return <IncomparableResult agentId={agentId} runId={runId} comparison={comparison} />;
   const before = comparison.baseline_summary;
   const after = comparison.candidate_summary;
   const total = measured.run.cases;

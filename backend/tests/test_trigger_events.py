@@ -696,7 +696,9 @@ class TestGithubEvents:
         ids=["main", "other-branch", "tag", "deleted"],
     )
     def test_a_push_fires_on_its_branches_only(self, payload, fires):
-        assert _github("push", payload, {"event": "push", "branches": ["main"]}) is fires
+        stored = GithubTriggerConfig(event="push", branches=["main"]).model_dump(mode="json")
+        assert stored["actions"] == []  # The shape already stored on existing routines.
+        assert _github("push", payload, stored) is fires
 
 
 class TestGithubConfigRefusals:
@@ -705,6 +707,7 @@ class TestGithubConfigRefusals:
         [
             {"event": "pull_request", "actions": ["published"]},
             {"event": "push", "actions": ["opened"]},
+            {"event": "issues", "actions": []},
             {"event": "issues", "mention": "@agent"},
             {"event": "release", "branches": ["main"]},
             {"event": "issues", "conclusions": ["failure"]},
@@ -712,6 +715,7 @@ class TestGithubConfigRefusals:
         ids=[
             "foreign-action",
             "push-action",
+            "empty-issue-actions",
             "mention-on-issues",
             "branches-on-release",
             "conclusion-on-issues",

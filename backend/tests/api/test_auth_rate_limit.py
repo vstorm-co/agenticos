@@ -16,6 +16,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.main import app
+from app.repositories import deployment_settings_repo
 from app.services import rate_limit
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -53,6 +54,7 @@ async def test_login_over_the_window_is_refused_with_429(client: AsyncClient, mo
 async def test_login_inside_the_window_reaches_the_service(client: AsyncClient, monkeypatch):
     """The refusal is about the rate, not about login: under the window the
     request reaches the service, which answers 401 on bad credentials."""
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
     monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 3)
     rate_limit.configure(_redis_counting(1))
     service = MagicMock()

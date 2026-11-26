@@ -61,6 +61,7 @@ export type WidgetId =
   | "knowledge"
   | "activity-rhythm"
   | "routines"
+  | "event-sources"
   | "notifications"
   | "artifacts"
   | "datasets"
@@ -273,6 +274,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "attention",
     seeAll: ROUTES.ROUTINES,
+  },
+  "event-sources": {
+    id: "event-sources",
+    gate: holds(Perm.eventSourcesView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+    seeAll: ROUTES.EVENT_SOURCES,
   },
   channels: {
     id: "channels",

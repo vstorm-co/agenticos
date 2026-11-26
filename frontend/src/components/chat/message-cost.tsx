@@ -1,6 +1,8 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useMoney } from "@/components/providers/currency-provider";
 
+import { useChatCostsVisible } from "@/components/settings/console-experience-provider";
+
 import type { TurnUsage } from "@/types";
 
 interface MessageCostProps {
@@ -30,7 +32,10 @@ interface MessageCostProps {
 export function MessageCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
   const money = useMoney();
-  const cost = money.format(usage.cost_usd, useLocale(), 4);
+  const visible = useChatCostsVisible();
+  const locale = useLocale();
+  if (!visible || usage.cost_usd == null) return null;
+  const cost = money.format(usage.cost_usd, locale, 4);
   const tokens = { input: usage.input_tokens, output: usage.output_tokens };
   const detail = usage.cost_is_partial
     ? t("tokensDetailPartial", tokens)
@@ -69,7 +74,9 @@ const CENT = 0.01;
 export function RoundedCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
   const money = useMoney();
+  const visible = useChatCostsVisible();
   const locale = useLocale();
+  if (!visible || usage.cost_usd == null) return null;
   const exact = money.amount(usage.cost_usd);
   const precise = money.format(usage.cost_usd, locale, 4);
   const rounded =

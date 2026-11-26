@@ -133,24 +133,30 @@ export function useWorkflowTableDrift(enabled: boolean): void {
   let plan: string | null = null;
   if (graph !== null && behind === "") {
     const result: Plan = { rebound: [], drift: [], orphans: [] };
-    for (const { site, ref } of stale) {
+    for (const { site, ref, labelledRecords } of stale) {
       const table = detail(ref.table_id)!;
       const next = rebindRef(ref, table.schema_version, liveColumns(table));
       const versions = history(ref.table_id)!.items;
-      const dependencies = nodeTableColumns(graph, site, {
-        before: versions.find((version) => version.version === ref.schema_version)?.columns ?? [],
-        after: liveColumns(table),
-      });
-      if (safeToRebind(ref, table, versions, dependencies)) {
+      const previous = versions.find((version) => version.version === ref.schema_version);
+      const dependencies = nodeTableColumns(
+        graph,
+        site,
+        previous && { before: previous.columns, after: liveColumns(table) },
+      );
+      if (safeToRebind(ref, table, versions, dependencies, labelledRecords)) {
         result.rebound.push({ site, ref: next });
       } else {
-        const field = site.binding === null ? null : graph.bindings[site.binding]!.target_field;
-        const requiresReview = !safeToRebind(
-          { ...ref, column_ids: [] },
-          table,
-          versions,
-          dependencies,
-        );
+        const field =
+          site.action !== undefined
+            ? `actions/${site.action}/config/table`
+            : site.binding === null
+              ? null
+              : graph.bindings[site.binding]!.target_field;
+        // A script writer has no static value bindings to repair. Let its author
+        // inspect the code and explicitly accept the new table version.
+        const requiresReview =
+          !(site.action !== undefined && dependencies === null) &&
+          !safeToRebind({ ...ref, column_ids: [] }, table, versions, dependencies);
         result.drift.push({
           nodeId: site.nodeId,
           field,

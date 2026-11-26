@@ -38,7 +38,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
-      <ReleaseNotes />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
       <AccountAppearance />
@@ -63,6 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <CustomIconsProvider>
         <CurrencyProvider>
           <ConsoleExperienceProvider>
+            <ReleaseNotes />
             <OnScreenKeyboard />
             {/* As tall as what can be seen, keyboard and address bar included -
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}

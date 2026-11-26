@@ -39,7 +39,6 @@ export function HelperSettings({
 }) {
   const t = useTranslations("datasets.helpers");
   const tc = useTranslations("common");
-  const ta = useTranslations("pages.agents");
   const tErrors = useTranslations("errors");
   const stored = dataset.helper_settings ?? EMPTY;
   const [draft, setDraft] = useState(stored[kind]);
@@ -89,15 +88,25 @@ export function HelperSettings({
           allowAdd={can(Perm.connectionsManage)}
           disabled={disabled}
         />
-        <MoreOptions label={ta("instructions")} defaultOpen={draft.instructions !== null}>
+        <MoreOptions label={t("guidance")} defaultOpen={draft.instructions !== null}>
+          <p className="text-muted-foreground text-xs leading-5">{t("guidanceHint")}</p>
+          {dataset.helper_defaults?.[kind] && (
+            <MoreOptions label={t("platformRules")}>
+              <p className="bg-muted/40 text-muted-foreground max-h-64 overflow-y-auto rounded-md border p-3 text-xs leading-5 whitespace-pre-wrap">
+                {dataset.helper_defaults[kind]}
+              </p>
+            </MoreOptions>
+          )}
           <MarkdownEditor
-            label={ta("instructions")}
-            toolbar={<h3 className="text-sm font-medium">{ta("instructions")}</h3>}
-            value={draft.instructions ?? dataset.helper_defaults?.[kind] ?? ""}
+            label={t("guidance")}
+            toolbar={<h3 className="text-sm font-medium">{t("guidance")}</h3>}
+            value={draft.instructions ?? ""}
             rows={8}
             inertImages
             disabled={disabled}
-            onChange={(instructions) => setDraft((current) => ({ ...current, instructions }))}
+            onChange={(text) =>
+              setDraft((current) => ({ ...current, instructions: text.trim() ? text : null }))
+            }
           />
         </MoreOptions>
         {dataset.can_edit && (

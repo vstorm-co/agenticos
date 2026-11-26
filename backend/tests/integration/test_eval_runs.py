@@ -397,6 +397,34 @@ async def test_a_draft_run_is_twenty_eval_runs_none_attributed_to_a_version(db) 
 
 
 @pytest.mark.security
+async def test_a_run_dearer_than_its_quote_is_refused_and_one_within_it_starts(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=20)
+    service = EvalRunService(db)
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    with pytest.raises(ConcurrentChangeError):
+        await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, quoted_usd=estimate.total_usd - Decimal("0.01")),
+        )
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(
+            dataset_id=dataset.id,
+            dataset_version=estimate.dataset_version,
+            quoted_usd=estimate.total_usd,
+        ),
+    )
+    assert started.status == "queued"
+
+
+@pytest.mark.security
 async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -1084,6 +1112,10 @@ async def test_a_different_scoring_makes_the_comparison_invalid(
     assert unnamed.missing_baseline_version == 6
     assert comparison.verdict == "invalid"
     assert comparison.invalid_reason is not None
+    assert (comparison.invalid_reason_code, comparison.invalid_reason_params) == (
+        "scoring_changed",
+        {},
+    )
     assert comparison.criteria == [] and comparison.criterion_change == 0.0
     aggregate.assert_not_called()
 
@@ -1418,6 +1450,7 @@ async def test_a_baseline_graded_by_another_judge_is_not_compared(db) -> None:
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "different judge" in (comparison.invalid_reason or "")
+    assert comparison.invalid_reason_code == "judge_differs"
 
 
 async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None:
@@ -1439,6 +1472,7 @@ async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "instructions changed" in (comparison.invalid_reason or "")
+    assert comparison.invalid_reason_code == "judge_instructions_changed"
     # A run names the model its judge graded on, for a reader to set beside its own.
     assert (await service.get(ctx, v7.id)).judge_model_profile_id is None
     profile = uuid.uuid4()
@@ -1579,6 +1613,7 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
     mixed = await service.compare(ctx, started.id)
     assert mixed.verdict == "invalid"
     assert "judge changed while" in (mixed.invalid_reason or "")
+    assert mixed.invalid_reason_code == "judge_changed_mid_run"
 
 
 async def _with_checks(db: AsyncSession, ctx: AuthContext, cases: int) -> Dataset:

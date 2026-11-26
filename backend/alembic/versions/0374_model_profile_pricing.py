@@ -10,8 +10,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0365_model_profile_pricing"
-down_revision: str = "0364_merge_routine_and_kb"
+revision: str = "0374_model_profile_pricing"
+down_revision: str = "0373_project_filesystem_mounts"
 branch_labels: None = None
 depends_on: None = None
 

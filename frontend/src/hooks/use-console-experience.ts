@@ -52,16 +52,32 @@ export function useConsoleExperience() {
         throw new Error(tErrors("sessionExpired"));
       return saveConsoleExperience(ownerOrg, changes);
     },
-    onSuccess: (data, { ownerOrg, ownerUser }) =>
-      client.setQueryData(qk.consoleExperience.member(ownerOrg, ownerUser), data),
+    onSuccess: async (data, { ownerOrg, ownerUser }) => {
+      client.setQueryData(qk.consoleExperience.member(ownerOrg, ownerUser), data);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: qk.mcpServers.catalog() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+        client.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+        client.invalidateQueries({ queryKey: qk.skills.gallery() }),
+      ]);
+    },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
   const save = {
     ...mutation,
-    mutate: (changes: ConsoleExperienceChanges) =>
-      mutation.mutate({ changes, ownerOrg: organizationId, ownerUser: userId }),
+    mutate: (changes: ConsoleExperienceChanges, onSaved?: () => void) =>
+      mutation.mutate(
+        { changes, ownerOrg: organizationId, ownerUser: userId },
+        { onSuccess: onSaved },
+      ),
     mutateAsync: (changes: ConsoleExperienceChanges) =>
       mutation.mutateAsync({ changes, ownerOrg: organizationId, ownerUser: userId }),
   };
-  return { ...query, effective: query.data?.effective ?? DEFAULT_CHAT_HOME, save };
+  return {
+    ...query,
+    organizationId,
+    userId,
+    effective: query.data?.effective ?? DEFAULT_CHAT_HOME,
+    save,
+  };
 }
