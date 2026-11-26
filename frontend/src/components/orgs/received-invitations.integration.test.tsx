@@ -106,7 +106,7 @@ it("embeds received invitations in onboarding without a modal or automatic accep
   expect(env.push).not.toHaveBeenCalled();
 });
 
-it.each(["/onboarding", "/pl/onboarding"])(
+it.each(["/onboarding", "/en/onboarding"])(
   "leaves onboarding invitation UI to its inline owner: %s",
   (path) => {
     env.path = path;
