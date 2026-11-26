@@ -334,6 +334,18 @@ class PortabilityService:
         return BundlePreview(bundle=result, options=tuple(options.values()))
 
     async def preview_import(self, ctx: AuthContext, bundle: ResourceBundle) -> BundlePreview:
+        bundle = bundle.model_copy(
+            update={
+                "resources": tuple(
+                    item.model_copy(
+                        update={"definition": definition_model(item).model_dump(mode="json")}
+                    )
+                    if item.kind == BundleResourceKind.WORKFLOW and item.definition is not None
+                    else item
+                    for item in bundle.resources
+                )
+            }
+        )
         verify_references(bundle)
         options = []
         for item in bundle.resources:

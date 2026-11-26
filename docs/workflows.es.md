@@ -1,5 +1,5 @@
 ---
-source_sha: "5ea453f1d3f8"
+source_sha: "44ac71fe5475"
 ---
 
 # Workflows { #workflows }
@@ -1543,3 +1543,5 @@ Los paquetes de recursos seleccionables también admiten flujos como raíz media
 Los vínculos con columnas seleccionadas se omiten para elegirlas manualmente en el destino; los vínculos de tabla completa usan la versión del esquema de destino.
 
 Los vínculos de acciones Python usan el esquema de recursos de cada acción. Al reutilizar un destino, se sustituyen juntos el ID de tabla y la versión del esquema. Omitir una dependencia de acción elimina su vínculo completo; revisa el código Python antes de publicar. Se rechazan las exportaciones con una selección de columnas concretas: borra la selección antes de exportar y vuelve a elegir las columnas en el destino.
+
+Las suscripciones a fuentes de eventos reutilizables no se transfieren en paquetes de workflows. La exportación e importación eliminan el ID de la fuente, muestran la ruta del vínculo omitido y dejan el paso webhook requiriendo una fuente. Antes de publicar, vuelve a elegir una fuente autorizada en el borrador privado; importar no activa un endpoint dedicado como alternativa.

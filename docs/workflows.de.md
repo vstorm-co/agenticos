@@ -1,5 +1,5 @@
 ---
-source_sha: "5ea453f1d3f8"
+source_sha: "44ac71fe5475"
 ---
 
 # Workflows { #workflows }
@@ -1613,3 +1613,5 @@ Auswählbare Ressourcenpakete unterstützen auch Workflow-Wurzeln über `/workfl
 Tabellenbindungen mit ausgewählten Spalten werden zur manuellen Auswahl am Ziel ausgelassen; Bindungen ganzer Tabellen verwenden die Schema-Version des Ziels.
 
 Python-Aktionsbindungen verwenden das Ressourcenschema der jeweiligen Aktion. Bei Wiederverwendung eines Ziels werden Tabellen-ID und Schemaversion gemeinsam ersetzt. Wird eine Aktionsabhängigkeit ausgelassen, entfällt ihre gesamte Bindung; prüfen Sie den Python-Code vor der Veröffentlichung. Exporte mit einer Auswahl bestimmter Tabellenspalten werden abgelehnt: entfernen Sie die Auswahl vor dem Export und wählen Sie die Zielspalten erneut.
+
+Abonnements wiederverwendbarer Ereignisquellen werden nicht mit Workflow-Paketen übertragen. Export und Import entfernen die Quellen-ID, melden den ausgelassenen Bindungspfad und lassen den Webhook-Schritt eine Quelle verlangen. Wählen Sie vor der Veröffentlichung im privaten Entwurf erneut eine berechtigte Quelle; der Import aktiviert keinen eigenen Endpunkt als Ersatz.

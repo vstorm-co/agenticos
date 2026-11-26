@@ -1,5 +1,5 @@
 ---
-source_sha: "5ea453f1d3f8"
+source_sha: "44ac71fe5475"
 ---
 
 # Workflows { #workflows }
@@ -1496,3 +1496,5 @@ Pakiety zasobów obsługują też workflow jako zasób główny przez `/workflow
 Powiązania wybranych kolumn tabel są pomijane do ręcznego wyboru na miejscu; powiązania całej tabeli używają wersji schematu docelowego.
 
 Powiązania akcji Pythona korzystają ze schematu zasobów wybranej akcji. Ponowne użycie zasobu docelowego zmienia razem ID tabeli i wersję schematu. Pominięcie zależności akcji usuwa całe jej powiązanie; przed publikacją sprawdź kod Pythona. Eksport z wyborem konkretnych kolumn tabeli jest odrzucany: wyczyść wybór przed eksportem i wybierz kolumny ponownie w miejscu docelowym.
+
+Subskrypcje współdzielonych źródeł zdarzeń nie są przenoszone w pakiecie workflow. Eksport i import usuwają identyfikator źródła, pokazują ścieżkę pominiętego powiązania i pozostawiają krok webhook wymagający źródła. Przed publikacją wybierz ponownie dostępne źródło w prywatnym szkicu; import nie włącza osobnego endpointu jako zastępstwa.

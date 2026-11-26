@@ -11,6 +11,7 @@ from app.schemas.workflow import MAX_TAGS, WorkflowSettings, WorkflowTag
 from app.services.portability.references import ResourcePin, schema_resource_pins
 from app.workflows import _registry
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.triggers import WEBHOOK
 
 _OBJECT = TypeAdapter(dict[str, JsonValue])
 
@@ -34,6 +35,20 @@ class WorkflowContent(BaseSchema):
     @model_validator(mode="after")
     def no_run_data(self) -> WorkflowContent:
         if self.graph is not None:
+            nodes = []
+            omitted = list(self.omitted)
+            for index, node in enumerate(self.graph.nodes):
+                if node.definition_id == WEBHOOK and node.config.get("source_id") is not None:
+                    # A source is live tenant authority, not portable configuration.
+                    config = {
+                        key: value for key, value in node.config.items() if key != "source_id"
+                    }
+                    config["require_source"] = True
+                    node = node.model_copy(update={"config": config})
+                    omitted.append(("graph", "nodes", index, "config", "source_id"))
+                nodes.append(node)
+            self.graph = self.graph.model_copy(update={"nodes": tuple(nodes)})
+            self.omitted = tuple(dict.fromkeys(omitted))
             if any(node.pinned_output is not None for node in self.graph.nodes):
                 raise ValueError("Workflow bundles cannot include pinned run output")
             if any(

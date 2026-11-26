@@ -1459,3 +1459,5 @@ Selectable resource bundles also support workflow roots through `/workflows/{id}
 Table bindings with selected columns are omitted for manual selection at the destination; whole-table bindings use the destination schema version.
 
 Python action bindings use each bound action’s resource schema. Reusing a destination remaps table IDs and schema versions together. Omitting an action dependency removes its entire binding; review the Python code before publishing. Exports with column-specific table selections are rejected: clear the selection before exporting, then choose the destination columns again.
+
+Reusable event-source subscriptions do not travel with a workflow bundle. Export and import remove the source ID, report its omitted binding path, and leave the webhook step requiring a source. Select an authorized source again in the private draft before publishing; importing never activates a dedicated endpoint as a fallback.
