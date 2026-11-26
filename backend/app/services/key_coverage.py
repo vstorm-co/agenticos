@@ -509,12 +509,15 @@ class KeyCoverageService:
         readable = (
             None
             if ctx.has(Perm.RUNS_VIEW)
-            else set(await self._labels(ctx, dataset, report.dataset_version))
+            else {
+                label.casefold()
+                for label in await self._labels(ctx, dataset, report.dataset_version)
+            }
         )
         items: list[CoverageItem] = []
         for raw in report.items:
             stored = StoredItem.model_validate(raw)
-            if readable is not None and stored.key not in readable:
+            if readable is not None and stored.key.strip().casefold() not in readable:
                 continue
             items.append(
                 CoverageItem(

@@ -3060,6 +3060,8 @@ class TestCaseFromConversationBackfill:
         rows: dict[str, tuple[str, str | None]] = {
             "copied": ("conversation", None),
             "drafted from a deleted chat": ("synthetic", "asked_by_user_id"),
+            "noted from a deleted chat": ("synthetic", "noted_by_user_id"),
+            "with a person's turn": ("synthetic", "history_author_ids"),
             "drafted from a run": ("synthetic", "source_run_id"),
             "drafted from a document": ("synthetic", "source_document_id"),
             "typed": ("manual", None),
@@ -3068,6 +3070,8 @@ class TestCaseFromConversationBackfill:
             "uncertain current revision": ("synthetic", None),
             "document reference already deleted": ("synthetic", None),
             "document and chat": ("synthetic", "source_run_id"),
+            "document and note": ("synthetic", "noted_by_user_id"),
+            "document and history": ("synthetic", "history_author_ids"),
         }
         ids = {name: uuid4() for name in rows}
         dataset, organization, uncertain_case = uuid4(), uuid4(), uuid4()
@@ -3080,9 +3084,12 @@ class TestCaseFromConversationBackfill:
                         text(
                             "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
                             "input, source, position, added_in, removed_in, improvement_partition, "
-                            "asked_by_user_id, source_run_id, source_document_id) VALUES (:id, "
+                            "asked_by_user_id, noted_by_user_id, source_run_id, "
+                            "source_document_id, history, history_author_ids) VALUES (:id, "
                             ":dataset, :org, :case, 'Q', :source, :position, :added, :removed, 'train', "
-                            ":asked_by_user_id, :source_run_id, :source_document_id)"
+                            ":asked_by_user_id, :noted_by_user_id, :source_run_id, "
+                            ":source_document_id, CAST(:history AS jsonb), "
+                            "CAST(:authors AS uuid[]))"
                         ),
                         {
                             "id": ids[name],
@@ -3096,14 +3103,22 @@ class TestCaseFromConversationBackfill:
                             **{
                                 column: uuid4()
                                 if column == link
-                                or (name == "document and chat" and column == "source_document_id")
+                                or (
+                                    name.startswith("document and ")
+                                    and column == "source_document_id"
+                                )
                                 else None
                                 for column in (
                                     "asked_by_user_id",
+                                    "noted_by_user_id",
                                     "source_run_id",
                                     "source_document_id",
                                 )
                             },
+                            "history": '[{"role": "user", "content": "Hi"}]'
+                            if link == "history_author_ids"
+                            else "[]",
+                            "authors": [str(uuid4())] if link == "history_author_ids" else [],
                         },
                     )
             up = _alembic("upgrade", "head")
@@ -3117,6 +3132,8 @@ class TestCaseFromConversationBackfill:
             assert {name: flags[ids[name]] for name in rows} == {
                 "copied": True,
                 "drafted from a deleted chat": True,
+                "noted from a deleted chat": True,
+                "with a person's turn": True,
                 "drafted from a run": True,
                 "drafted from a document": False,
                 "typed": False,
@@ -3125,6 +3142,8 @@ class TestCaseFromConversationBackfill:
                 "uncertain current revision": True,
                 "document reference already deleted": True,
                 "document and chat": True,
+                "document and note": True,
+                "document and history": True,
             }
             check = _alembic("check")
             assert check.returncode == 0, check.stderr

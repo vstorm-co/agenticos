@@ -1049,6 +1049,8 @@ class DatasetService:
             noted_by_user_id=authorship.noted_by,
             from_conversation=source is CaseSource.CONVERSATION
             or authorship.asked_by is not None
+            or authorship.noted_by is not None
+            or any(author is not None for author in authorship.history)
             or any(provenance.get(link) is not None for link in chat),
             **fields,
             **provenance,

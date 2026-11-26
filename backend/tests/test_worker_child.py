@@ -48,6 +48,18 @@ async def test_a_kind_nobody_handles_and_a_payload_that_does_not_validate_are_fo
     assert malformed.error.startswith("ValidationError")
 
 
+@pytest.mark.security
+async def test_a_payload_that_does_not_validate_is_logged_without_its_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("ERROR", logger="app.worker.child"):
+        await run_one(HANDLERS, ChildRequest(kind="test-ok", payload={"seconds": "Kanar3kSoon"}))
+
+    [record] = [item for item in caplog.records if item.msg == "background_job_payload_invalid"]
+    assert record.exc_info is None
+    assert "seconds" in record.error and "Kanar3kSoon" not in caplog.text
+
+
 async def test_a_job_that_raises_is_retried_with_why() -> None:
     reply = await run_one(HANDLERS, ChildRequest(kind="test-fail", payload={"text": "no"}))
 

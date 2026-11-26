@@ -843,6 +843,10 @@ class TestReading:
         totals.source = "synthetic" if uncertain else "conversation"
         totals.source_conversation_id = None if uncertain else private.id
         totals.from_conversation = True
+        invoice = next(case for case in cases if "Invoice number" in json.dumps(case.checks))
+        invoice.checks = json.loads(
+            json.dumps(invoice.checks).replace('"Invoice number"', '" invoice NUMBER"')
+        )
         await db.flush()
         member = await _member(db, owner.organization_id)
 
