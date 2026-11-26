@@ -1,5 +1,5 @@
 ---
-source_sha: "091a3dc3c26c"
+source_sha: "39503248fc3a"
 ---
 
 # Governance { #governance }
@@ -16,8 +16,8 @@ GitHub-Issue, eine eingehende E-Mail (siehe [Konzepte](concepts.md#trigger)).
 
 Er nutzt dieselbe Kostenerfassung, Bestätigungswarteschlange und Prüfungsspur.
 Die [Richtlinie für unbeaufsichtigte Aktionen](#routine-action-consent) verschärft,
-welche Aufrufe eine Bestätigung brauchen; ausdrückliche dauerhafte Zustimmung
-benennt einzelne Aktionen und eine Version.
+welche Aufrufe eine Bestätigung brauchen; Werkzeugeinstellungen der Routine
+erhalten oder verschärfen die Regeln des Agenten.
 
 Unbeaufsichtigte Arbeit bestimmt auch den Umgang mit einer **Ablehnung**:
 
@@ -877,59 +877,40 @@ oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
 ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
-### Aktionsfreigaben { #routine-action-consent }
+### Werkzeuge der Routine { #routine-action-consent }
 
-Aktionen sind nach Capability oder konkretem MCP-Konto gruppiert und durchsuchbar.
-Wähle eine Gruppe oder alle zulässigen Aktionen aus oder ab; die Sammelauswahl umfasst
-auch ausgefilterte Einträge. Einzelne Ausnahmen bleiben möglich. Ein Review unterstützt
-bis zu 1.000 ausgewählte Aktionen; eine größere Auswahl wird angezeigt und muss vor
-dem Speichern verkleinert werden, statt still gekürzt zu werden.
+Neue Routinen laufen als ihr Ersteller mit dessen aktuellen Berechtigungen. Standardmäßig laufen zulässige Werkzeuge automatisch nach den Genehmigungsregeln des Agenten (`action_mode=agent`); Ausführungen werden in einem gemeinsamen, schreibgeschützten Chat gesammelt. Ein eigener bearbeitbarer Chat je Ausführung bleibt wählbar. Identität, Gesprächsverlauf und Werkzeugfreigaben sind unabhängige Einstellungen.
 
-Nur Titel oder Zeitplan zu ändern erhält die Zustimmung. Ändern sich Version, Aufgabe,
-Anweisungen oder Konto, erklärt der Dialog die betroffene Grenze. **Zuvor geprüfte
-Aktionen erneut auswählen** ist eine ausdrückliche neue Wahl passender zulässiger
-Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue Aktionen
-und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
-Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
+**Werkzeuge der Routine** gruppiert Fähigkeiten, AgenticOS-Werkzeuge und konkrete MCP-Konten. Eine Suche und folgende Einstellungen stehen zur Verfügung:
 
-Neue Routinen handeln standardmäßig als ihre erstellende Person mit deren aktuellen Berechtigungen. Ein Formular enthält Name, Anweisungen, Agent, Zeitplan und Werkzeugfreigaben; Quellenprüfung und Limits stehen unter den erweiterten Optionen. Identität und Freigabe sind unabhängig.
+| Einstellung | Wirkung in dieser Routine |
+|---|---|
+| **Agent folgen** | Die Genehmigungsregeln des Agenten gelten weiter. Eine erforderliche Genehmigung bleibt erforderlich. |
+| **Jedes Mal fragen** | Fügt vor jeder Nutzung eine Genehmigung hinzu, auch beim Lesen. Die Option erscheint, wenn der Agent nicht bereits fragt. |
+| **Aus** | Verhindert die Nutzung dieses Werkzeugs durch die Routine. Es bedeutet nicht, Genehmigungen zu überspringen. |
 
-**Zulässige Werkzeuge automatisch ausführen** nutzt die Agentenregeln (`agent`). **Vor Aktionen fragen** ergänzt eine Routinenfreigabe für Auswirkungen (`manual`) und widerruft bestehende Dauerfreigaben atomar. **Freigaben je Werkzeug wählen** erlaubt einmalige dauerhafte Freigaben ausgewählter zulässiger Aktionen dieser Routine (`per_tool`). Die Wahl gilt für beide Quellenmodi.
+Diese Einstellungen schränken den Agenten nur ein. Explizite Anforderungen des Agenten oder einer MCP-Verbindung sowie obligatorische Plattform- und native Genehmigungen bleiben wirksam. Delegierte Agenten behalten ihre eigenen Regeln; Einstellungen des übergeordneten Agenten erlauben keine Aktionen eines Delegierten. Vom Anbieter ausgeführte Werkzeuge fehlen, wenn die Plattform diese Einschränkungen nicht durchsetzen kann. Der Codemodus bleibt für Routinen deaktiviert.
 
-Bestehende Routinen ohne Aktionsmodus behalten ihre bisherige Richtlinie. Explizite Agenten-/Verbindungsvorgaben und verbindliche Plattform-/Gerätefreigaben bleiben bestehen. Der Codemodus bleibt für Routinen ausgeschaltet.
+Nur der als er selbst angemeldete Ersteller kann diese Einschränkungen ändern. API-Schlüssel, andere Administratoren, Identitätsübernahme, Agenten oder eine als Ersteller laufende Routine dürfen diese Prüfung nicht vornehmen. Zusätzliche Einschränkungen benötigen weder `approvals:decide` noch den Organisationsschalter für Genehmigungsverzicht: Sie gewähren keine neue Befugnis.
 
-Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
+Speichern ersetzt die Werkzeugbeschränkungen der Routine, mit höchstens 1.000 Einträgen. **Agent für alle Werkzeuge folgen** entfernt diese Abweichungen, nicht die Regeln des Agenten. Einschränkungen nicht verfügbarer Werkzeuge bleiben bis zur ausdrücklichen Entfernung gespeichert. Das erneute Verbinden eines MCP-Kontos entfernt seine Werkzeugbeschränkungen nicht stillschweigend.
 
-Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
+!!! warning "Speichern einer älteren Routine entfernt dauerhafte Genehmigungen"
+    Der Dialog warnt vor dem Speichern: Die Routine übernimmt die Genehmigungsregeln des Agenten und entfernt atomar alle bisherigen dauerhaften Aktionsfreigaben. Gespeicherte ältere Richtlinien gelten bis zum Speichern dieser Prüfung; **Agent folgen** erhält keine frühere Ausnahme.
 
-Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
+**Geprüfte Quellen** zeigt Fähigkeiten, Skills, Wissensbasen, Tabellen und Konten nach Art und Name. Jede Art ist auf eine Anzahl eingeklappt; fehlende Quellen sind gekennzeichnet. Werkzeugbeschränkungen umgehen weder Quellenprüfung noch aktuelle Ressourcenzugriffe oder den genehmigten Quellen- und Verhaltensrahmen.
 
-Die Prüfung zeigt Capabilities, AgenticOS und jedes MCP-Konto getrennt. Werkzeuge mit vorgeschriebener Freigabe bleiben sichtbar, sind jedoch mit Erklärung gesperrt. Sammelauswahl umfasst nur zulässige Aktionen. Speichern aktiviert die Freigabe je Werkzeug; nicht ausgewählte Auswirkungen fragen bei Verwendung. Quellenvererbung versteckt oder umgeht diese Entscheidungen nicht.
+Schreibzugriffe auf AgenticOS Virtual Tables verwenden weiterhin aktuelle Tabellen- und Operationsrechte. Eine Routinenbeschränkung kann eine zusätzliche Entscheidung verlangen; eine ausdrückliche Genehmigungsrichtlinie des Agenten gilt immer.
 
-Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
+**Ältere dauerhafte Genehmigungen.** Gespeicherte ältere Routinen und die Kompatibilitäts-API können Richtlinien mit `manual`, `per_tool` oder ohne Aktionsmodus enthalten. Diese unterscheiden sich von den neuen Einschränkungen. Eine ältere Ausnahme erfordert den Ersteller, `approvals:decide` und `chat_may_waive_approvals`; explizit erforderliche Genehmigungen sind nicht ausnehmbar. Änderungen nur an Name oder Rhythmus erhalten die Zustimmung, Änderungen an Arbeit oder Ziel machen sie ungültig.
 
-Wenn eine Routine als ihr Ersteller handelt, werden AgenticOS-Aktionen wie im Builder gruppiert: Tabellen, Aufgaben, Workflows, Agenten und weitere. Aktionen mit verpflichtender Freigabe bleiben sichtbar, aber gesperrt. Lesezugriffe und Werkzeugsuche erhalten keine zusätzliche Routinenfreigabe; eine explizite Agentenfreigabe gilt weiterhin. Routinen dürfen Agentenfreigaben beibehalten oder verschärfen, niemals eine Pflichtfreigabe entfernen.
+Eine ältere Ausnahme bindet geprüfte veröffentlichte Version, Routinenkonfiguration und stabile Aktionsidentität. Eine MCP-Ausnahme benennt zusätzlich Konto, Endpoint-Hash und Autorisierungsgeneration. Sie erlaubt weder eine andere Aktion noch ein anderes Konto. Persönliche Konten sind nur beim Handeln als Ersteller verfügbar; Zustimmung lässt sich auch ohne verfügbare gespeicherte Werkzeugliste widerrufen.
 
-Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
+Jede Ausführung behält ihre beim Start zugelassenen Zustimmungs-IDs. Spätere Zustimmung entsperrt keine bereits wartende Ausführung; Widerrufen und erneutes Erteilen erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationsrichtlinie und Zustimmung werden vor jedem Werkzeug geprüft. Jeder freigestellte Aufruf hat einen Audit-Eintrag mit zustimmender Person und Argumenten. Delegierte übernehmen keine Ausnahme des übergeordneten Agenten.
 
-Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
-entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile
-Fähigkeits- und Werkzeugkennungen sowie die Routinenkonfiguration. Geänderte Arbeit
-oder Ziele machen sie ungültig. Jeder Lauf behält seine zugelassenen Freigabe-IDs;
-eine spätere Zustimmung gibt keinen geparkten Lauf frei, und Widerruf mit erneuter
-Zustimmung erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationspolitik
-und Zustimmung werden vor jedem Werkzeug erneut geprüft. Jeder freigegebene Aufruf
-zeichnet eine genehmigte Zeile mit zustimmender Person und Argumenten auf.
-Delegierte brauchen eigene Entscheidungen und erben keine Ausnahme des Elternlaufs.
+Ältere Zustimmung bindet auch Revisionen von Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht sie ungültig, selbst nach Wiederherstellung des alten Texts. Ausnahmen ohne diesen Fingerabdruck bleiben nur für Agenten ohne solche veränderlichen Quellen gültig. Das Speichern neuer Werkzeugbeschränkungen entfernt ältere Ausnahmen, statt sie zu erneuern.
 
-Eine dauerhafte Aktionsfreigabe speichert auch die aktuellen Revisionen der gebundenen Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht die Ausnahme ungültig, selbst wenn die veröffentlichte Agentenversion gleich bleibt oder der alte Text später wiederhergestellt wird. Prüfen Sie die Aktionen erneut, um eine neue Ausnahme zu erteilen. Bestehende Ausnahmen ohne Revisionsfingerabdruck gelten nur für Agenten ohne solche veränderlichen Anweisungsquellen weiter.
-
-`0267_routine_action_consents.py` erzeugt keine Ausnahmen für bestehende Routinen.
-Eine bisher unbeaufsichtigte Aktion kann nun auf Bestätigung warten. Alte Worker
-abwickeln lassen und API sowie Worker gemeinsam aktualisieren, bevor Aufgaben
-weiterlaufen; ein alter Worker erzwingt diese Kontrolle nicht. Ein Downgrade
-entfernt gespeicherte Ausnahmen; Bestätigungsprotokolle und bereits ausgeführte
-Wirkungen bleiben bestehen.
+`0267_routine_action_consents.py` legte keine Ausnahmen für bestehende Routinen an. Diese Genehmigungsschranke für unbeaufsichtigte Arbeit erfordert ein gemeinsames Upgrade von API und Workern nach dem Leeren alter Worker. Ein Downgrade entfernt gespeicherte Ausnahmen, aber weder Genehmigungsprotokolle noch bereits ausgeführte Effekte.
 
 ### Antworten fortgesetzter Routinen { #resumed-routine-answers }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "091a3dc3c26c"
+source_sha: "39503248fc3a"
 ---
 
 # Governance { #governance }
@@ -16,7 +16,7 @@ przychodzący e-mail (zobacz [Koncepcje](concepts.md#trigger)).
 
 Korzysta z tej samej ewidencji kosztów, kolejki zatwierdzeń i audytu.
 [Polityka działań bez nadzoru](#routine-action-consent) zaostrza wybór wywołań
-wymagających zatwierdzenia; jawna stała zgoda wskazuje konkretne działania i wersję.
+wymagających zatwierdzenia; ustawienia narzędzi rutyny zachowują lub zaostrzają reguły agenta.
 
 Praca bez nadzoru określa też, co dzieje się z **odmową**:
 
@@ -822,56 +822,40 @@ otwarte sprawy budżetowe zamykają się i anulują oczekujące wysyłki. Zmiana
 pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaje
 wyciszona przez dany miesiąc.
 
-### Zgody na działania { #routine-action-consent }
+### Narzędzia rutyny { #routine-action-consent }
 
-Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
-Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
-też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
-Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
-zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+Nowa rutyna działa jako jej twórca, z jego aktualnymi uprawnieniami. Domyślnie dozwolone narzędzia działają automatycznie zgodnie z regułami zatwierdzania agenta (`action_mode=agent`), a uruchomienia trafiają do jednego wspólnego czatu tylko do odczytu. Nadal można wybrać osobny edytowalny czat dla każdego uruchomienia. Tożsamość, historia rozmowy i zatwierdzanie narzędzi są niezależnymi ustawieniami.
 
-Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
-instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
-sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
-zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
-się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
+**Narzędzia rutyny** grupują capabilities, narzędzia AgenticOS i konkretne konta MCP. Można je przeszukiwać i wybrać:
 
-Nowe rutyny domyślnie działają jako ich twórca, z jego aktualnymi uprawnieniami. Harmonogram tworzy się w jednym formularzu: nazwa, instrukcje, agent, termin i zgody na narzędzia; źródła i limity są opcjami zaawansowanymi. Tożsamość i Approval są niezależne.
+| Ustawienie | Działanie w tej rutynie |
+|---|---|
+| **Jak u agenta** | Zachowuje reguły zatwierdzania agenta. Narzędzie wymagające zgody nadal jej wymaga. |
+| **Pytaj za każdym razem** | Dodaje zatwierdzenie przed użyciem narzędzia, także odczytem. Opcja jest dostępna, gdy agent jeszcze nie pyta. |
+| **Wyłączone** | Uniemożliwia rutynie użycie narzędzia. Nie oznacza pomijania zatwierdzenia. |
 
-**Uruchamiaj dozwolone narzędzia automatycznie** stosuje zasady agenta (`agent`). **Pytaj przed działaniami** dodaje zgodę rutyny na efekty (`manual`) i atomowo usuwa wcześniejsze stałe zgody. **Wybierz zgody dla każdego narzędzia** pozwala raz zatwierdzić wybrane dozwolone działania tej rutyny (`per_tool`). Wybór działa w obu trybach źródeł.
+Te ustawienia tylko ograniczają agenta. Jawne wymagania agenta lub MCP oraz obowiązkowe zgody platformy i narzędzi natywnych nadal obowiązują. Delegowani agenci zachowują własne reguły; ustawienia rodzica nie upoważniają do działań delegata. Narzędzia wykonywane przez dostawcę są pomijane, jeśli platforma nie może wymusić tych ograniczeń. Tryb kodu pozostaje wyłączony dla rutyn.
 
-Rutyny bez tego pola zachowują dotychczasową politykę. Nie można wyłączyć jawnych wymagań agenta, połączenia ani obowiązkowych zgód platformy i urządzenia. Code mode pozostaje wyłączony dla rutyn.
+Ograniczenia może zmieniać twórca rutyny zalogowany jako on sam. Klucz API, inny administrator, sesja z impersonacją, agent ani rutyna działająca jako twórca nie mogą wykonać tego przeglądu. Dodanie ograniczeń nie wymaga `approvals:decide` ani organizacyjnego przełącznika zwalniania ze zgód: nie nadaje nowych uprawnień.
 
-Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
+Zapis zastępuje ograniczenia narzędzi rutyny; dopuszcza najwyżej 1000 wpisów. **Ustawienia agenta dla wszystkich narzędzi** usuwa te nadpisania, ale nie reguły agenta. Ograniczenia niedostępnych narzędzi pozostają zapisane do ich jawnego usunięcia. Ponowne połączenie konta MCP nie usuwa po cichu ograniczeń jego narzędzi.
 
-Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
+!!! warning "Zapis starszej rutyny usuwa jej stałe zgody"
+    Dialog ostrzega przed zapisem: rutyna przechodzi na reguły zatwierdzania agenta, a wszystkie poprzednie stałe zgody na działania są usuwane atomowo. Zapisane starsze polityki obowiązują do zapisania tego przeglądu; wybór **Jak u agenta** nie zachowuje dawnego wyjątku.
 
-Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
+Panel **Sprawdzone źródła** pokazuje capabilities, skille, bazy wiedzy, tabele i konta według rodzaju i nazwy. Każdy rodzaj jest zwinięty do licznika; brakujące źródła są oznaczone. Ograniczenia narzędzi nie omijają przeglądu źródeł, aktualnych grantów ani zatwierdzonego zakresu źródeł i zachowania.
 
-Przegląd pokazuje osobno capabilities, AgenticOS i każde konto MCP. Narzędzia wymagające zgody są widoczne, ale zablokowane z wyjaśnieniem. Zbiorczy wybór obejmuje tylko dozwolone działania. Zapis przełącza rutynę na zgody pojedynczych narzędzi; niezaznaczone działanie wymaga pytania przy użyciu. Dziedziczenie źródeł nie ukrywa ani nie pomija tych decyzji.
+Zapisy w AgenticOS Virtual Tables nadal korzystają z aktualnych grantów tabeli i operacji. Ograniczenie rutyny może dodać decyzję, a jawna polityka zatwierdzania agenta zawsze obowiązuje.
 
-Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
+**Starsze stałe zgody.** W zapisanych starszych rutynach i zgodnym API mogą występować polityki `manual`, `per_tool` lub nieokreślony tryb. Różnią się od nowych ograniczeń. Nadanie starszego wyjątku wymaga twórcy, `approvals:decide` i `chat_may_waive_approvals`; jawnie wymaganych zgód nie można wyłączyć. Zmiana samej nazwy lub częstotliwości zachowuje zgodę, a zmiana pracy lub celu ją unieważnia.
 
-Gdy rutyna działa jako jej twórca, działania AgenticOS są grupowane jak w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Działania z obowiązkową zgodą są widoczne, ale zablokowane. Odczyty i wyszukiwanie narzędzi nie dostają dodatkowej zgody rutyny; jawna zgoda wymagana przez agenta nadal obowiązuje. Rutyna zachowuje lub zaostrza zgody agenta, nigdy nie usuwa obowiązkowej zgody.
+Starszy wyjątek wiąże sprawdzoną opublikowaną wersję, konfigurację rutyny i trwałą tożsamość działania. Wyjątek MCP określa też konto, hash endpointu i generację autoryzacji. Nie obejmuje innego działania ani konta. Konta osobiste są dostępne tylko przy działaniu jako twórca; zgodę można cofnąć także przy niedostępnej zapisanej liście narzędzi.
 
-Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
+Każdy run zachowuje identyfikatory zgód przyjętych na starcie. Dodana zgoda nie odblokuje już zatrzymanego runu; cofnięcie i ponowne nadanie tworzy nową tożsamość. Członkostwo, uprawnienia, polityka organizacji i zgoda są sprawdzane przy każdym narzędziu. Pominięte zatwierdzenie ma wpis audytowy z osobą i argumentami. Delegaci nie dziedziczą wyjątków rodzica.
 
-Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
-Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i
-narzędzia oraz konfigurację rutyny. Zmiana pracy lub odbiorcy ją unieważnia. Każdy
-przebieg zachowuje przyjęte identyfikatory zgód; dodanie zgody później nie zwalnia
-wstrzymanego przebiegu, a cofnięcie i ponowne nadanie tworzy nową tożsamość. Przy
-każdym narzędziu ponownie sprawdzane są członkostwo, uprawnienia, polityka organizacji
-i zgoda. Każde wykonanie na podstawie zgody zapisuje zatwierdzony wpis z osobą i
-argumentami. Delegaci wymagają własnych decyzji; nie pożyczają wyjątku rodzica.
+Starsza zgoda wiąże też rewizje skilli, ich zasobów, plików context i instrukcji projektu. Edycja unieważnia ją nawet po przywróceniu starego tekstu. Wyjątki bez tego odcisku pozostają ważne tylko dla agentów bez takich zmiennych źródeł. Zapis nowych ograniczeń usuwa starsze wyjątki zamiast je odnawiać.
 
-Stała zgoda na działania zapisuje także aktualne rewizje przypiętych skills, ich zasobów, plików kontekstu i instrukcji projektu. Edycja któregokolwiek unieważnia wyjątek, nawet gdy opublikowana wersja agenta się nie zmienia lub później przywrócono dawną treść. Ponownie przejrzyj działania, aby nadać nowy wyjątek. Istniejące wyjątki bez odcisku rewizji pozostają ważne tylko dla agentów bez takich zmiennych źródeł instrukcji.
-
-`0267_routine_action_consents.py` nie tworzy wyjątków istniejącym rutynom. Zmienia
-się wykonanie bez nadzoru: dotychczasowe działanie może teraz czekać na zatwierdzenie.
-Opróżnij stare workery i zaktualizuj API oraz workery razem przed wznowieniem zadań,
-ponieważ stary worker nie egzekwuje tej kontroli. Downgrade usuwa zapisane wyjątki;
-wpisy audytu zatwierdzeń i wykonane już skutki pozostają.
+`0267_routine_action_consents.py` nie utworzyła wyjątków dla istniejących rutyn. Jej bramka zatwierdzania pracy bez nadzoru wymaga wspólnej aktualizacji API i workerów po opróżnieniu starych workerów. Downgrade usuwa zapisane wyjątki, lecz zachowuje audyt zgód i wykonane efekty.
 
 ### Odpowiedzi wznowionych rutyn { #resumed-routine-answers }
 

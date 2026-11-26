@@ -12,7 +12,7 @@ or on an incoming event — a GitHub issue, an inbound email (see
 
 It uses the same spending ledger, approval queue and audit trail. The
 [unattended action policy](#routine-action-consent) tightens which calls need
-approval; explicit standing consent names individual actions and one version.
+approval; routine tool settings retain or tighten the agent's rules.
 
 Unattended work also has defined outcomes for a **refusal**:
 
@@ -771,56 +771,40 @@ next activation has budget again, or the responsibility is removed, its open
 budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
 
-### Action consent { #routine-action-consent }
+### Routine tools { #routine-action-consent }
 
-Actions are grouped by capability or concrete MCP account and can be searched.
-Select or clear a group, or the entire eligible inventory; bulk controls also cover
-items hidden by the search. Individual exclusions remain available. A review supports
-up to 1,000 selected actions; a larger selection is shown and cannot be saved until
-reduced, never silently truncated.
+New routines run as their creator, with that person's current permissions. Creation defaults to eligible tools running automatically under the agent's approval rules (`action_mode=agent`), with runs collected in one shared, read-only chat. A separate editable chat per run remains available. Identity, conversation history and tool approval are independent settings.
 
-Changing only the title or cadence retains consent. When the version, work, instructions
-or an account changes, the dialog explains which boundary changed. **Reselect previously
-reviewed actions** is an explicit new choice over matching eligible identities; it grants
-nothing until you save the current review. New actions and changed accounts are not
-selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
+**Routine tools** groups capabilities, AgenticOS tools and concrete MCP accounts, with search and these choices:
 
-New routines run as their creator by default, with that person's current permissions. Creating a schedule uses one form: name, instructions, agent, schedule and tool approvals; source review and execution limits are advanced options. Identity and approval are independent.
+| Setting | Effect in this routine |
+|---|---|
+| **Follow agent** | Keep the agent's approval rules. A tool requiring approval still requires it. |
+| **Ask every time** | Add approval before using this tool, including reads. This choice is offered when the agent does not already ask. |
+| **Off** | Prevent the routine from using this tool. It does not mean skipping approval. |
 
-**Run eligible tools automatically** uses the agent's rules (`agent`). **Ask before actions** adds a routine gate to effects (`manual`) and atomically revokes existing standing consents. **Choose permissions for each tool** lets the owner preapprove selected eligible actions once for this routine (`per_tool`). These choices work with either source mode.
+These settings only restrict the agent. Explicit agent or MCP requirements and mandatory platform or native approvals remain enforced. Delegated agents keep their own rules; a parent's settings do not authorize a delegate's actions. Provider-executed tools are excluded when the platform cannot enforce these restrictions. Code mode remains disabled for routine runs.
 
-Existing routines with no action mode keep their historical policy. Explicit agent/connection requirements and mandatory platform/native approvals cannot be waived. Code mode remains disabled for routine runs.
+The routine's creator can change these restrictions while signed in as themselves. An API key, another administrator, impersonation, an agent or a routine acting as its creator cannot make this review. Adding restrictions does not require `approvals:decide` or the organization's approval-waiver switch: it grants no new authority.
 
-Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
+Saving replaces the routine's tool restrictions, with at most 1,000 entries. **Follow agent for all tools** clears these overrides, not the agent's rules. Restrictions on unavailable tools remain saved until explicitly removed. Reconnecting an MCP account does not silently remove restrictions on that connection's tools.
 
-The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
+!!! warning "Saving an older routine removes its standing approvals"
+    The dialog warns before saving: the routine switches to the agent's approval rules and all previous standing action approvals are removed atomically. Stored legacy policies remain effective until this review is saved; selecting **Follow agent** does not preserve an old waiver.
 
-An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
+The **Reviewed sources** panel lists capabilities, skills, knowledge bases, tables and accounts by kind and name. Each kind is folded to a count; unavailable sources are identified. Tool restrictions do not bypass source review, current resource grants or the approved source and behavior ceiling.
 
-The review lists capabilities, AgenticOS and each MCP account separately. Tools that require approval are visible but locked, with an explanation. Bulk selection chooses only eligible actions. Saving a selection switches the routine to per-tool approval; leaving an eligible effect unselected means asking when it is used. Source inheritance does not hide or bypass these choices.
+AgenticOS Virtual Tables writes still use live table and operation grants. A routine restriction may require an additional decision, while an explicit agent approval policy always applies.
 
-The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
+**Legacy standing approvals.** Older stored routines and the compatibility API can contain `manual`, `per_tool` or unspecified action policies. These are distinct from the new restriction controls. Granting a legacy exception requires the creator, `approvals:decide` and `chat_may_waive_approvals`; explicit required approvals cannot be waived. Changing only title or cadence retains consent, while changing work or destination invalidates it.
 
-When a routine acts as its creator, AgenticOS effects are grouped as in the Builder: tables, tasks, workflows, agents and the rest. Effects with explicit required approvals are visible but locked. Reads and tool search do not gain an additional routine approval; an explicit agent gate still applies. A routine may retain or tighten agent approvals, never remove a mandatory gate.
+A legacy exception binds the reviewed published version, routine configuration and stable action identity. An MCP exception also names the concrete account, endpoint hash and authorization generation. It never authorizes another action or account. Personal accounts are available only when acting as the creator; consent can be revoked even when the recorded tool inventory is unavailable.
 
-A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
+Each run retains its admitted consent IDs. Adding consent cannot release an already parked run; revoking and regranting creates a new identity. Current membership, permissions, organization policy and consent are checked at each tool. Each waived call has an approval audit row naming the consenting person and arguments. A parent's waiver is not lent to delegates.
 
-Saving requires the version and configuration the person reviewed to remain
-current. Consent names the immutable published version, stable capability/tool IDs and
-routine configuration. Changing the work or destination invalidates it. Each run
-retains its admitted consent IDs; adding consent later cannot release a parked
-run, and revoking then regranting creates a new identity. Current membership,
-permissions, organization policy and consent are checked again at each tool.
-Every waived call records an approved row naming its consenting person and
-arguments. Delegates require their own decisions; a parent's waiver is not lent.
+Legacy consent also binds revisions of skills, skill resources, context files and project instructions. Editing any invalidates it, even if old text is restored. Exceptions without this fingerprint remain valid only for agents without these mutable sources. Saving the new tool restrictions clears these legacy exceptions rather than renewing them.
 
-Standing action consent also records the current revisions of bound skills, skill resources, context files and project instructions. Editing any of them invalidates the exception, even if the published agent version stays the same or the old text is later restored. Review actions again to grant a new exception. Existing exceptions without a revision fingerprint remain valid only for agents without these mutable instruction sources.
-
-`0267_routine_action_consents.py` creates no exceptions for existing routines.
-This changes unattended execution: an existing action may now wait for approval.
-Drain old workers and upgrade the API and workers together before resuming duties,
-as an old worker does not enforce this gate. Downgrade removes stored exceptions;
-existing approval audit rows and already performed effects remain.
+`0267_routine_action_consents.py` created no exceptions for existing routines. Its unattended approval gate requires upgrading API and workers together after draining old workers. Downgrade removes stored exceptions, but not approval audit rows or effects already performed.
 
 ### Resumed routine answers { #resumed-routine-answers }
 

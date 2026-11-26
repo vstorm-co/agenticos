@@ -1,5 +1,5 @@
 ---
-source_sha: "c0b0cf70a14f"
+source_sha: "13b2c5710e80"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -335,6 +335,8 @@ instantánea que querías conservar.
 ## Rutinas y seguimientos { #routines-and-watches }
 
 Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
+
+Las nuevas rutinas usan automáticamente las herramientas permitidas según las reglas de aprobación del agente y reúnen ejecuciones en un chat de solo lectura. Un chat separado por ejecución permite continuar directamente; el historial compartido se puede bifurcar. En **Herramientas de la rutina**, **Seguir al agente**, **Preguntar siempre** y **Desactivada** conservan o restringen las reglas del agente; siguen vigentes las aprobaciones requeridas. Guardar restricciones de una rutina antigua elimina sus aprobaciones permanentes anteriores, con advertencia explícita del diálogo. Consulta [Herramientas de la rutina](governance.md#routine-action-consent).
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 

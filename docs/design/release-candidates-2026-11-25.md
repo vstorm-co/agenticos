@@ -43,3 +43,18 @@ Already represented: [#3449](https://github.com/vstorm-co/agenticos/pull/3449), 
 - #2805 is a separate large integration effort with documented live-provider gaps. It is not a small add-on to this train.
 
 Recommended first review group: correctness/security fixes #3447, #3425, #3426, #3427, #3403, #3416, #3441, #3444, #3448, #3442 and #3446. Candidate usability additions: #3284, #3440, #3445 and #3405. The selection above and the subsequent approval of #3402 supersede these recommendations. Unselected candidates remain outside the train. No source CI result establishes integrated train CI.
+
+## Maintainer additions on 26 November
+
+The maintainer subsequently selected #3451 (French/Turkish catalogs), #3452
+(localized eval/merge reasons), #3453 (localized stored failures), #3434
+(per-routine tool restrictions, with its missing UI), #3403 (Improve read
+authorization), #3105 (reusable Event sources) and #3305 (durable Python workflow actions). These are part of the train
+and receive review and regression checks; source-parent features are not
+automatically included.
+
+From the last live open-PR query, the remaining unselected source candidates
+are #3424, #3284, #3274, #3248, #3245, #3107 and #2805. #3274 remains
+outside the train even though its #3105 dependency was selected.
+
+#3305 is integrated after review at source `0b07ef43a` with additional binding authorization, portable table-version mapping and ambiguous-write receipt regressions. Source CI and CodeQL passed; integrated train CI is a separate gate.

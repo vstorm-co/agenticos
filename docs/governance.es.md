@@ -1,5 +1,5 @@
 ---
-source_sha: "091a3dc3c26c"
+source_sha: "39503248fc3a"
 ---
 
 # Governance { #governance }
@@ -17,7 +17,7 @@ correo recibido (mira [Conceptos](concepts.md#trigger)).
 
 Usa el mismo registro de gasto, cola de aprobaciones y auditoría. La
 [política de acciones desatendidas](#routine-action-consent) refuerza qué llamadas
-requieren aprobación; el consentimiento explícito identifica acciones y una versión.
+requieren aprobación; los ajustes de herramientas conservan o restringen las reglas del agente.
 
 El trabajo desatendido también define el resultado de un **rechazo**:
 
@@ -836,58 +836,40 @@ elimina la responsabilidad, sus casos presupuestarios abiertos se resuelven y
 se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
 alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
-### Consentimiento para acciones { #routine-action-consent }
+### Herramientas de la rutina { #routine-action-consent }
 
-Las acciones se agrupan por capability o cuenta MCP concreta y se pueden buscar.
-Selecciona o desmarca un grupo o todas las acciones permitidas; los controles masivos
-incluyen entradas ocultas por la búsqueda. Se mantienen las exclusiones individuales.
-Un review admite hasta 1000 acciones seleccionadas; una selección mayor se muestra y
-debe reducirse antes de guardar, nunca se trunca silenciosamente.
+Las nuevas rutinas se ejecutan como su creador, con sus permisos actuales. Por defecto, las herramientas permitidas se ejecutan automáticamente según las reglas de aprobación del agente (`action_mode=agent`); las ejecuciones se reúnen en un único chat compartido de solo lectura. Se puede elegir un chat editable distinto por ejecución. Identidad, historial y aprobación de herramientas son ajustes independientes.
 
-Cambiar solo el título o la frecuencia conserva el consentimiento. Si cambia la versión,
-el trabajo, las instrucciones o la cuenta, el diálogo explica el límite afectado.
-**Volver a seleccionar acciones revisadas** es una nueva elección explícita de identidades
-permitidas coincidentes; no concede nada hasta guardar el review actual. Las acciones
-nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
-aprobaciones obligatorias, la revocación y los controles de review obsoleto.
+**Herramientas de la rutina** agrupa capacidades, herramientas de AgenticOS y cuentas MCP concretas. Incluye búsqueda y estas opciones:
 
-Las rutinas nuevas actúan por defecto como su creador, con sus permisos actuales. Un formulario reúne nombre, instrucciones, agente, horario y aprobaciones; las fuentes y los límites son opciones avanzadas. Identidad y aprobación son independientes.
+| Ajuste | Efecto en esta rutina |
+|---|---|
+| **Seguir al agente** | Conserva sus reglas de aprobación. Una herramienta que requiere aprobación sigue requiriéndola. |
+| **Preguntar siempre** | Añade aprobación antes de usar la herramienta, también para lecturas. Se ofrece cuando el agente aún no pregunta. |
+| **Desactivada** | Impide que la rutina utilice la herramienta. No significa omitir la aprobación. |
 
-**Ejecutar herramientas permitidas automáticamente** aplica las reglas del agente (`agent`). **Preguntar antes de actuar** añade una aprobación de rutina para los efectos (`manual`) y revoca atómicamente los consentimientos permanentes anteriores. **Elegir permisos por herramienta** permite autorizar una vez acciones elegibles para esta rutina (`per_tool`). Funciona con ambos modos de fuentes.
+Estos ajustes solo restringen al agente. Siguen vigentes los requisitos explícitos del agente o MCP y las aprobaciones obligatorias de la plataforma o herramientas nativas. Los agentes delegados conservan sus propias reglas; los ajustes del padre no autorizan acciones del delegado. Se excluyen herramientas ejecutadas por el proveedor cuando la plataforma no puede imponer estas restricciones. El modo de código sigue desactivado en rutinas.
 
-Las rutinas existentes sin modo de acciones conservan su política anterior. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias de plataforma o dispositivo siguen vigentes. El modo de código permanece desactivado para las rutinas.
+El creador puede cambiar las restricciones iniciando sesión como él mismo. No pueden realizar esta revisión una clave API, otro administrador, una sesión suplantada, un agente ni una rutina que actúe como su creador. Añadir restricciones no requiere `approvals:decide` ni el interruptor organizativo para omitir aprobaciones: no concede nueva autoridad.
 
-Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
+Guardar reemplaza las restricciones de herramientas, con un máximo de 1000 entradas. **Seguir al agente en todas las herramientas** elimina estas excepciones, no las reglas del agente. Las restricciones de herramientas no disponibles se conservan hasta eliminarlas expresamente. Reconectar una cuenta MCP no elimina silenciosamente las restricciones de sus herramientas.
 
-El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
+!!! warning "Guardar una rutina antigua elimina sus aprobaciones permanentes"
+    El diálogo avisa antes de guardar: la rutina pasa a las reglas de aprobación del agente y elimina atómicamente todas sus aprobaciones permanentes anteriores. Las políticas antiguas guardadas siguen vigentes hasta guardar esta revisión; **Seguir al agente** no conserva una exención anterior.
 
-Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
+**Fuentes revisadas** muestra capacidades, Skills, bases de conocimiento, tablas y cuentas por tipo y nombre. Cada tipo se pliega en un contador; se identifican las fuentes no disponibles. Las restricciones de herramientas no evitan la revisión de fuentes, los permisos actuales ni el alcance aprobado de fuentes y comportamiento.
 
-La revisión muestra por separado las capabilities, AgenticOS y cada cuenta MCP. Las herramientas que requieren aprobación se muestran bloqueadas con una explicación. La selección colectiva solo incluye acciones elegibles. Guardar activa aprobaciones por herramienta; un efecto no seleccionado pregunta al usarse. La herencia de fuentes no oculta ni omite estas decisiones.
+Las escrituras en AgenticOS Virtual Tables siguen usando los permisos actuales de tabla y operación. Una restricción de rutina puede exigir una decisión adicional; siempre se aplica una política explícita de aprobación del agente.
 
-El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
+**Aprobaciones permanentes antiguas.** Las rutinas antiguas guardadas y la API de compatibilidad pueden contener políticas `manual`, `per_tool` o sin modo de acción. Son distintas de las restricciones nuevas. Conceder una excepción antigua requiere al creador, `approvals:decide` y `chat_may_waive_approvals`; no exime de aprobaciones explícitamente requeridas. Cambiar solo nombre o frecuencia conserva el consentimiento; cambiar el trabajo o destino lo invalida.
 
-Cuando una rutina actúa como su creador, las acciones de AgenticOS se agrupan como en Builder: tablas, tareas, workflows, agentes y otras. Las acciones con aprobación obligatoria aparecen bloqueadas. Las lecturas y la búsqueda de herramientas no reciben una aprobación adicional de rutina; sigue vigente cualquier aprobación explícita del agente. La rutina conserva o endurece las aprobaciones, nunca elimina una obligatoria.
+Una excepción antigua vincula versión publicada revisada, configuración de rutina e identidad estable de la acción. Una excepción MCP también identifica cuenta concreta, hash del endpoint y generación de autorización. No autoriza otra acción ni cuenta. Las cuentas personales solo están disponibles al actuar como creador; el consentimiento se puede revocar aunque no esté disponible la lista de herramientas registrada.
 
-Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
+Cada ejecución conserva los ID de consentimiento admitidos al inicio. Añadir consentimiento no libera una ejecución ya detenida; revocarlo y volver a concederlo crea una identidad nueva. Cada herramienta comprueba membresía, permisos, política organizativa y consentimiento actuales. Cada llamada exenta tiene una entrada de auditoría con persona y argumentos. Los delegados no reciben la exención del padre.
 
-Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
-por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
-estables de capacidad y herramienta y la configuración de la rutina. Cambiar el
-trabajo o destino lo invalida. Cada ejecución conserva las identidades admitidas;
-un consentimiento posterior no libera una ejecución suspendida y revocar y
-consentir de nuevo crea una identidad nueva. Se comprueban de nuevo la pertenencia,
-los permisos, la política y el consentimiento antes de cada herramienta. Cada
-llamada autorizada registra una fila aprobada con persona y argumentos. Los
-delegados requieren sus propias decisiones y no heredan la excepción del padre.
+El consentimiento antiguo vincula también revisiones de Skills, sus recursos, archivos de contexto e instrucciones del proyecto. Editarlos lo invalida, incluso si se restaura el texto anterior. Las excepciones sin esta huella siguen válidas solo para agentes sin esas fuentes mutables. Guardar las restricciones nuevas elimina las excepciones antiguas en vez de renovarlas.
 
-El consentimiento permanente también registra las revisiones actuales de las skills vinculadas, sus recursos, los archivos de contexto y las instrucciones del proyecto. Cualquier edición invalida la excepción, aunque no cambie la versión publicada del agente o se restaure después el texto anterior. Revisa las acciones de nuevo para conceder otra excepción. Las excepciones existentes sin huella de revisión siguen siendo válidas solo para agentes sin estas fuentes de instrucciones modificables.
-
-`0267_routine_action_consents.py` no crea excepciones para rutinas existentes.
-Una acción antes desatendida puede esperar ahora una aprobación. Drena los workers
-antiguos y actualiza API y workers juntos antes de reanudar tareas: un worker
-antiguo no aplica este control. El downgrade elimina excepciones guardadas;
-permanecen los registros de aprobación y los efectos ya ejecutados.
+`0267_routine_action_consents.py` no creó excepciones para rutinas existentes. Su control de aprobación desatendida exige actualizar API y workers juntos tras vaciar los workers antiguos. Una reversión elimina excepciones guardadas, pero no registros de aprobación ni efectos ya realizados.
 
 ### Respuestas de rutinas reanudadas { #resumed-routine-answers }
 
