@@ -28,6 +28,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
+### Fixed
+
+- An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
+
 ### Upgrading
 
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.

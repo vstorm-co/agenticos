@@ -43,9 +43,17 @@ pays for, which is a decision somebody should make rather than inherit.
 
 import logging
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    model_validator,
+)
 from pydantic_ai.settings import ModelSettings, ThinkingEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,15 +70,18 @@ from app.services.rag.config import (
     PdfParser,
     RAGSettings,
 )
+from app.services.rag.docling import DoclingTarget
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.image_describer import (
     IMAGE_DESCRIPTION_PROMPT,
     BaseImageDescriber,
     PydanticAIImageDescriber,
 )
+from app.services.service_connection import DOCLING_PROVIDER
 
 __all__ = [
     "ChunkingStrategy",
+    "DoclingTableMode",
     "ImageDescription",
     "ImageDescriptionOverride",
     "IngestionConfig",
@@ -85,17 +96,27 @@ __all__ = [
 
 
 class PdfParserName(StrEnum):
-    """Which of the three implemented parsers reads a PDF.
+    """Which of the four implemented parsers reads a PDF.
 
     `pymupdf` is local, fast and free, and the only one that extracts embedded
     images for description. `llamaparse` is a cloud service billed per page
     that returns markdown. `liteparse` is local and layout-aware, keeping
-    tables as ASCII grids rather than flattening them into markdown.
+    tables as ASCII grids rather than flattening them into markdown. `docling`
+    is the organization's own Docling Serve, reached through a service connection:
+    page-accurate markdown with tables and OCR, on hardware the organization runs.
     """
 
     PYMUPDF = "pymupdf"
     LLAMAPARSE = "llamaparse"
     LITEPARSE = "liteparse"
+    DOCLING = "docling"
+
+
+class DoclingTableMode(StrEnum):
+    """How closely Docling reads table structure. Ignored by the other parsers."""
+
+    FAST = "fast"
+    ACCURATE = "accurate"
 
 
 class LlamaParseTier(StrEnum):
@@ -190,13 +211,14 @@ class IngestionConfig(BaseModel):
 
     pdf_parser: PdfParserName = Field(
         default=PdfParserName.PYMUPDF,
-        description="Which parser reads PDFs. Other formats use the built-in readers.",
+        description="Which parser reads PDFs and every other format it claims. Only .txt and .md use the built-in reader.",
     )
     ocr: bool = Field(
         default=False,
         description=(
             "Read scanned pages as images. PyMuPDF falls back to the image model "
-            "for a page with almost no text; LiteParse runs its own OCR."
+            "for a page with almost no text; LiteParse runs its own OCR; Docling "
+            "OCRs the pages it finds no text on, or every page when auto OCR is off."
         ),
     )
     llamaparse_tier: LlamaParseTier = Field(
@@ -222,9 +244,9 @@ class IngestionConfig(BaseModel):
     auto_ocr: bool = Field(
         default=True,
         description=(
-            "Let LiteParse decide per document whether OCR is needed, using its "
-            "cheap text-layer check. OCR dominates the cost of a parse and most "
-            "documents are born digital and need none of it. Turn this off to "
+            "Let LiteParse or Docling decide per document whether OCR is needed, "
+            "using a cheap text-layer check. OCR dominates the cost of a parse and "
+            "most documents are born digital and need none of it. Turn this off to "
             "OCR every page unconditionally."
         ),
     )
@@ -255,15 +277,43 @@ class IngestionConfig(BaseModel):
         ge=1,
         le=10000,
         description=(
-            "Pages LiteParse reads before it stops. The setting that actually "
-            "bounds the cost of one document - the timeout only bounds the wait."
+            "Pages LiteParse or Docling reads before it stops. The setting that "
+            "actually bounds the cost of one document - the timeout only bounds the wait."
         ),
     )
     parse_timeout_seconds: float = Field(
         default=600.0,
         gt=0.0,
         le=3600.0,
-        description="How long LiteParse may spend on one document.",
+        description=(
+            "How long LiteParse may spend on one document. Docling is given the same "
+            "limit, capped at 3000 seconds so its refusal arrives before the job's own."
+        ),
+    )
+    docling_connection_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The Docling Serve the parser sends documents to: a service connection of "
+            "kind `document_parser`, the organization's own or the deployment's. "
+            "Required when the parser is Docling. Ignored by the other parsers."
+        ),
+    )
+    docling_ocr_languages: list[Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]] = Field(
+        default_factory=list,
+        max_length=8,
+        description=(
+            "Two-letter language codes Docling's OCR reads ('de', 'en'). Empty leaves "
+            "the choice to the engine. Ignored by the other parsers."
+        ),
+    )
+    docling_ocr_preset: str = Field(
+        default="auto",
+        pattern=r"^[a-z0-9_-]{1,64}$",
+        description="Docling's OCR engine preset. Ignored by the other parsers.",
+    )
+    docling_table_mode: DoclingTableMode = Field(
+        default=DoclingTableMode.ACCURATE,
+        description="How closely Docling reads table structure. Ignored by the other parsers.",
     )
     chunk_size: int = Field(
         default=2500, ge=64, le=8192, description="Characters per embedded chunk."
@@ -346,6 +396,11 @@ class IngestionOverride(BaseModel):
     liteparse_dpi: float | None = Field(default=None, ge=72.0, le=600.0)
     max_pages: int | None = Field(default=None, ge=1, le=10000)
     parse_timeout_seconds: float | None = Field(default=None, gt=0.0, le=3600.0)
+    docling_ocr_languages: list[Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]] | None = (
+        Field(default=None, max_length=8)
+    )
+    docling_ocr_preset: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
+    docling_table_mode: DoclingTableMode | None = None
     chunk_size: int | None = Field(default=None, ge=64, le=8192)
     chunk_overlap: int | None = Field(default=None, ge=0, le=4096)
     chunking_strategy: ChunkingStrategy | None = None
@@ -483,14 +538,16 @@ def rag_settings_for(
     *,
     llamaparse_api_key: str | None = None,
     ocr_server_url: str | None = None,
+    docling: DoclingTarget | None = None,
 ) -> RAGSettings:
     """Turn a collection's choices into the settings object the pipeline takes.
 
     `llamaparse_api_key` is the resolved credential of the vault key the
     configuration names; `ocr_server_url` the address of the service connection it
-    names. Both arrive resolved because the configuration holds ids, not values:
-    a credential must not sit in a stored row, and an address is a row an
-    operator may edit or turn off between two parses.
+    names; `docling` the address and key of the Docling connection it names. They
+    arrive resolved because the configuration holds ids, not values: a credential
+    must not sit in a stored row, and an address is a row an operator may edit or
+    turn off between two parses.
     """
     return RAGSettings(
         chunk_size=config.chunk_size,
@@ -508,6 +565,12 @@ def rag_settings_for(
             liteparse_output_format=config.liteparse_output_format.value,
             liteparse_dpi=config.liteparse_dpi,
             liteparse_max_pages=config.max_pages,
+            docling_connection_id=docling.connection_id if docling else None,
+            docling_base_url=docling.base_url if docling else None,
+            docling_api_key=(docling.api_key or "") if docling else "",
+            docling_ocr_languages=list(config.docling_ocr_languages),
+            docling_ocr_preset=config.docling_ocr_preset,
+            docling_table_mode=config.docling_table_mode.value,
         ),
         enable_image_description=config.describe_images,
     )
@@ -619,12 +682,19 @@ class IngestionConfigService:
     async def build_processor(
         self, organization_id: UUID | None, config: IngestionConfig
     ) -> DocumentProcessor:
-        """The parser/chunker pair a document is about to be run through."""
+        """The parser/chunker pair a document is about to be run through.
+
+        Every credential and address is resolved here, before the document is
+        ingested, so a connection that has gone, been turned off or lost its key
+        fails before any parsing starts. The queue retries such a failure once,
+        as it does a LlamaParse key that is gone.
+        """
         return DocumentProcessor(
             settings=rag_settings_for(
                 config,
                 llamaparse_api_key=await self._llamaparse_key(organization_id, config),
                 ocr_server_url=await self._ocr_server_url(organization_id, config),
+                docling=await self._docling_target(organization_id, config),
             ),
             image_describer=await self.build_describer(organization_id, config),
         )
@@ -681,6 +751,110 @@ class IngestionConfigService:
         if config.ocr_endpoint_id is None:
             return
         await self._ocr_service(organization_id, config.ocr_endpoint_id)
+
+    async def check_docling_connection(
+        self, organization_id: UUID | None, config: IngestionConfig, *, name_field: bool = True
+    ) -> None:
+        """Refuse a Docling collection with no usable connection, while the form is open.
+
+        Args:
+            name_field: Whether the caller sent `docling_connection_id`. An upload
+                never does - it can only switch the parser - so its refusal names no
+                field, which would mark a control the upload form does not have.
+
+        Raises:
+            BadRequestError: If the parser is Docling and no connection is named, or
+                the named one is not visible to this collection, is not a Docling
+                document parser, or is turned off.
+        """
+        if config.pdf_parser is not PdfParserName.DOCLING:
+            return
+        if config.docling_connection_id is None:
+            if not name_field:
+                raise BadRequestError(
+                    message=(
+                        "This collection has no Docling connection, so an upload cannot "
+                        "choose Docling."
+                    )
+                )
+            raise refused_field(
+                "docling_connection_id",
+                "Choose the Docling Serve this collection parses with; there is no "
+                "deployment-wide default.",
+            )
+        await self._document_parser_service(
+            organization_id, config.docling_connection_id, name_field=name_field
+        )
+
+    async def _docling_target(
+        self, organization_id: UUID | None, config: IngestionConfig
+    ) -> DoclingTarget | None:
+        """Where a Docling parse goes and the key it takes, or None for the other parsers.
+
+        Raises:
+            BadRequestError: If the connection is gone, turned off, not a Docling
+                document parser, or keyed and its key is gone, cannot be unsealed or
+                is not an API key. Our own words, so they reach the document row whole.
+        """
+        if config.pdf_parser is not PdfParserName.DOCLING:
+            return None
+        if config.docling_connection_id is None:
+            raise BadRequestError(
+                message="This collection is set to Docling but names no Docling connection."
+            )
+        row = await self._document_parser_service(organization_id, config.docling_connection_id)
+        api_key: str | None = None
+        if row.requires_key:
+            api_key = await self._docling_key(row)
+        return DoclingTarget(
+            connection_id=row.id, base_url=row.base_url.rstrip("/"), api_key=api_key
+        )
+
+    async def _docling_key(self, row: ServiceConnection) -> str:
+        """The unsealed key of a keyed Docling connection.
+
+        What the vault or the cipher said stays in the log's exception class; the
+        message names the connection and what to do.
+        """
+        gone = BadRequestError(
+            message=(
+                f"The vault key of the Docling connection '{row.name}' no longer holds a "
+                "usable key. Choose another key on the connection."
+            ),
+            details={"docling_connection_id": row.id},
+        )
+        if row.secret_id is None or row.organization_id is None:
+            raise gone
+        secret_row = await organization_secret_repo.get(
+            self.db, row.secret_id, organization_id=row.organization_id
+        )
+        if secret_row is None:
+            raise gone
+        try:
+            secret = unseal_secret(
+                secret_row.sealed_secret,
+                kind=SecretKind(secret_row.kind),
+                scope=VaultScope.organization(row.organization_id),
+                key_version=secret_row.key_version,
+            )
+        except Exception as exc:
+            logger.warning("docling_secret_unusable", extra={"error_type": type(exc).__name__})
+            raise BadRequestError(
+                message=(
+                    f"The vault key of the Docling connection '{row.name}' could not be "
+                    "unsealed. Store it again, or choose another."
+                ),
+                details={"docling_connection_id": row.id},
+            ) from exc
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(
+                message=(
+                    f"The vault entry of the Docling connection '{row.name}' does not hold "
+                    "an API key. Choose one that does."
+                ),
+                details={"docling_connection_id": row.id},
+            )
+        return secret.api_key.get_secret_value()
 
     async def _llamaparse_key(
         self, organization_id: UUID | None, config: IngestionConfig
@@ -772,5 +946,36 @@ class IngestionConfigService:
             raise refused_field(
                 "ocr_endpoint_id",
                 f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another.",
+            )
+        return row
+
+    async def _document_parser_service(
+        self, organization_id: UUID | None, service_id: UUID, *, name_field: bool = True
+    ) -> ServiceConnection:
+        """The Docling connection a collection names, if it may use it.
+
+        With `name_field` false the refusal is plain, because the caller (an upload)
+        never sent `docling_connection_id` and a field error would mark a control
+        it does not have.
+        """
+
+        def refuse(message: str) -> BadRequestError:
+            if name_field:
+                return refused_field("docling_connection_id", message)
+            return BadRequestError(message=message)
+
+        row = await service_connection_repo.get_visible(
+            self.db, service_id, organization_id=organization_id
+        )
+        if row is None:
+            raise refuse("That service connection is not one this collection may name.")
+        if (
+            row.kind != ServiceConnectionKind.DOCUMENT_PARSER.value
+            or row.provider != DOCLING_PROVIDER
+        ):
+            raise refuse(f"'{row.name}' is not a document parser.")
+        if not row.is_active:
+            raise refuse(
+                f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another."
             )
         return row

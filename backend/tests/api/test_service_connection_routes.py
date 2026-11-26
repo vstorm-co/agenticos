@@ -176,3 +176,113 @@ async def test_a_keyed_connection_is_read_back_by_the_key_id_alone(client: Async
     item = response.json()["items"][0]
     assert item["secret_id"] == str(key)
     assert item["requires_key"] is True
+
+
+_DOCLING = "http://docling.internal:5001"
+_TEST_BODY = {"kind": "document_parser", "provider": "docling", "base_url": _DOCLING}
+_PROBE = "app.services.service_connection.docling.probe"
+
+
+def _as(role: str) -> None:
+    app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+        user_id=uuid.uuid4(), organization_id=_ORG, role=role, is_app_admin=False
+    )
+
+
+async def test_connection_test_answers_with_the_outcome(client: AsyncClient) -> None:
+    from app.services.rag.docling import DoclingProbe
+
+    with patch(_PROBE, new=AsyncMock(return_value=DoclingProbe("ok", "1.39.0"))):
+        response = await client.post(f"{_V1}/service-connections/test", json=_TEST_BODY)
+
+    assert response.status_code == 200
+    assert response.json() == {"outcome": "ok", "version": "1.39.0"}
+
+
+async def test_connection_test_requires_manage(client: AsyncClient) -> None:
+    _as(OrgRoleName.VIEWER.value)
+    with patch(_PROBE, new=AsyncMock()) as probe:
+        response = await client.post(f"{_V1}/service-connections/test", json=_TEST_BODY)
+
+    assert response.status_code == 403
+    probe.assert_not_called()
+
+
+async def test_connection_test_refuses_embedding_kind(client: AsyncClient) -> None:
+    response = await client.post(
+        f"{_V1}/service-connections/test",
+        json={"kind": "embedding", "provider": "ollama", "base_url": "http://ollama:11434/v1"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "kind"
+
+
+@pytest.mark.security
+async def test_connection_test_with_new_address_needs_key_view(client: AsyncClient) -> None:
+    key = uuid.uuid4()
+    row = _row(
+        kind="document_parser",
+        provider="docling",
+        base_url=_DOCLING,
+        secret_id=key,
+        requires_key=True,
+    )
+    vault_row = MagicMock(purpose="docling")
+    with (
+        patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=row)),
+        patch(
+            "app.services.service_connection.organization_secret_repo.get",
+            new=AsyncMock(return_value=vault_row),
+        ),
+        patch("app.services.service_connection.resolve_access", new=AsyncMock(return_value=False)),
+        patch(_PROBE, new=AsyncMock()) as probe,
+    ):
+        response = await client.post(
+            f"{_V1}/service-connections/test",
+            json={**_TEST_BODY, "service_id": str(row.id), "base_url": "http://elsewhere:5001"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["details"]["secret_id"] == str(key)
+    probe.assert_not_called()
+
+
+@pytest.mark.security
+async def test_connection_test_never_returns_key_or_url_in_errors(client: AsyncClient) -> None:
+    from app.services.rag.docling import DoclingProbe
+
+    key = uuid.uuid4()
+    vault_row = MagicMock(purpose="docling", kind="api_key", key_version=1)
+    from app.core.secret_kinds import ApiKeySecret
+
+    with (
+        patch(
+            "app.services.service_connection.organization_secret_repo.get",
+            new=AsyncMock(return_value=vault_row),
+        ),
+        patch("app.services.service_connection.resolve_access", new=AsyncMock(return_value=True)),
+        patch(
+            "app.services.service_connection.unseal_secret",
+            return_value=ApiKeySecret(api_key="hunter2-docling"),
+        ),
+        patch(_PROBE, new=AsyncMock(return_value=DoclingProbe("key_refused", None))),
+    ):
+        response = await client.post(
+            f"{_V1}/service-connections/test", json={**_TEST_BODY, "secret_id": str(key)}
+        )
+
+    assert response.status_code == 200
+    assert "hunter2-docling" not in response.text
+    assert "docling.internal" not in response.text
+    assert response.json() == {"outcome": "key_refused", "version": None}
+
+
+async def test_connection_test_refuses_a_query_in_the_address(client: AsyncClient) -> None:
+    response = await client.post(
+        f"{_V1}/service-connections/test",
+        json={**_TEST_BODY, "base_url": f"{_DOCLING}/?api-key=abc"},
+    )
+
+    assert response.status_code == 422
+    assert "abc" not in response.text

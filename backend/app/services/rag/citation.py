@@ -16,14 +16,16 @@ without being ingested again.
 from collections.abc import Mapping
 from pathlib import PurePosixPath
 
-from app.services.rag.config import LITEPARSE_PAGED_OFFICE_FORMATS, NATIVE_FORMATS
+from app.services.rag.config import LITEPARSE_PAGED_OFFICE_FORMATS
 
 PAGED_FORMATS: frozenset[str] = frozenset(
     # A PDF, read page by page by every PDF parser, and the word-processing and
     # presentation formats LiteParse converts to PDF and LlamaParse paginates, so
-    # a page or slide number is one a reader can open. `.docx` is not one: the
-    # pipeline always reads it with the native parser, which returns one page.
-    {"pdf"} | {ext.lstrip(".") for ext in LITEPARSE_PAGED_OFFICE_FORMATS - NATIVE_FORMATS}
+    # a page or slide number is one a reader can open. `.docx` is left out on
+    # purpose even though every parser now paginates it: a stored chunk cannot
+    # say which parser produced it, and chunks ingested before `.docx` went to
+    # the chosen parser (and Docling's, when a page cannot be told) are all page 1.
+    {"pdf"} | {ext.lstrip(".") for ext in LITEPARSE_PAGED_OFFICE_FORMATS - {".docx"}}
 )
 """Formats whose stored `page_num` names a real page.
 

@@ -132,54 +132,6 @@ class TextDocumentParser(BaseDocumentParser):
         return self._parse_text_file(filepath)
 
 
-class DocxDocumentParser(BaseDocumentParser):
-    """Parser for DOCX documents using python-docx.
-
-    Extracts text content from Microsoft Word documents by reading
-    all paragraphs and joining them with newline characters.
-    """
-
-    allowed = [".docx"]
-
-    def _parse_docx_file(self, filepath: Path) -> Document:
-        """Extract raw text from the DOCX file.
-
-        Args:
-            filepath: Path to the DOCX file.
-
-        Returns:
-            Document object with the file content.
-        """
-        # Imported where a .docx is parsed: every API worker and background worker loads
-        # this module, and most never parse a document (#2225).
-        from docx import Document as DOCXDocument
-
-        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
-        # and a few megabytes of upload can inflate to gigabytes in python-docx -
-        # a child the memory watchdog kills, over and over (Codex, #2248). Over a
-        # bound is a `ValueError`, the document's own failure, not a death.
-        file: Any = DOCXDocument(safe_unzip(filepath.read_bytes()))
-        page = DocumentPage(page_num=1, content="\n".join([p.text for p in file.paragraphs]))
-        return Document(pages=[page], metadata=self.get_document_metadata(filepath))
-
-    async def parse(self, filepath: Path) -> Document:
-        """Parse a DOCX file.
-
-        Args:
-            filepath: Path to the DOCX file.
-
-        Returns:
-            Document object with parsed content.
-
-        Raises:
-            ValueError: If the file is not a DOCX file.
-        """
-        if not self.is_extension_allowed(filepath):
-            raise ValueError(f"Extension {filepath.suffix} not supported by DocxDocumentParser")
-
-        return self._parse_docx_file(filepath)
-
-
 class PyMuPDFParser(BaseDocumentParser):
     """Smart PDF parser using PyMuPDF.
 
@@ -194,8 +146,8 @@ class PyMuPDFParser(BaseDocumentParser):
 
     MIN_TEXT_LENGTH = 50  # below this -> likely a scan, try OCR
 
-    # PDFs only. The base class allows what the *pipeline* reads, which includes
-    # the three formats the Python-native parsers take; this parser is never
+    # PDFs and `.docx`. The base class allows what the *pipeline* reads, which
+    # includes the formats the built-in text reader takes; this parser is never
     # routed them, and saying so here keeps `is_extension_allowed` honest.
     allowed = sorted(PYMUPDF_PDF_FORMATS)
 
@@ -305,7 +257,9 @@ class PyMuPDFParser(BaseDocumentParser):
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
-        # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
+        # Imported where a PDF is parsed: every API worker and background worker loads
+        # this module, and most never parse a document (#2225). The OOXML bound for
+        # `.docx` is applied by `DocumentProcessor.process_file` before this runs.
         import pymupdf
 
         with pymupdf.open(filepath) as doc:
@@ -645,6 +599,9 @@ class LiteParseParser(BaseDocumentParser):
         )
 
 
+_OOXML_FORMATS = frozenset({".docx", ".pptx", ".xlsx"})
+
+
 class PdfParserFactory:
     """Builds the parser a collection's stored configuration asks for."""
 
@@ -673,10 +630,12 @@ class PdfParserFactory:
                 dpi=pdf.liteparse_dpi,
                 max_pages=pdf.liteparse_max_pages,
             )
-        return PyMuPDFParser(
-            enable_ocr=settings.enable_ocr if settings else False,
-            image_describer=image_describer,
-        )
+        if parser_name == "pymupdf":
+            return PyMuPDFParser(
+                enable_ocr=settings.enable_ocr if settings else False,
+                image_describer=image_describer,
+            )
+        raise ValueError(f"Unknown parser {parser_name!r}")
 
 
 class DocumentProcessor:
@@ -687,9 +646,9 @@ class DocumentProcessor:
     2. Parse document content
     3. Chunk document pages using RecursiveCharacterTextSplitter
     Supported file types:
-    - TXT, MD: TextDocumentParser (Python native)
-    - DOCX: DocxDocumentParser (Python native)
-    - PDF: PdfParserFactory selects PyMuPDF, LlamaParse, or LiteParse at runtime
+    - TXT, MD: TextDocumentParser (built in)
+    - everything else the chosen parser claims, DOCX included:
+      PdfParserFactory selects PyMuPDF, LlamaParse or LiteParse at runtime
     """
 
     def __init__(self, settings: RAGSettings, image_describer: BaseImageDescriber | None = None):
@@ -709,7 +668,6 @@ class DocumentProcessor:
         self.splitter = self._create_splitter(settings)
 
         self.text_parser = TextDocumentParser()
-        self.docx_parser = DocxDocumentParser()
         self.image_describer = image_describer
         self.pdf_parser = PdfParserFactory.create(
             parser_name=settings.pdf_parser.method,
@@ -773,14 +731,20 @@ class DocumentProcessor:
         suffix = filepath.suffix.lower()
         if suffix in (".txt", ".md"):
             document = await self.text_parser.parse(filepath)
-        elif suffix == ".docx":
-            document = await self.docx_parser.parse(filepath)
         elif suffix in self.pdf_parser.allowed:
             # Not only `.pdf`: LlamaParse is routed the spreadsheets, decks and
             # images it accepts. Asking the parser what it takes, rather than
             # naming extensions here, is what keeps this branch in step with
             # `PARSER_FORMATS` - the set the upload endpoint validated against
             # before the file ever reached a worker.
+            if suffix in _OOXML_FORMATS:
+                # A DOCX, PPTX or XLSX is a ZIP: a few megabytes of upload can
+                # inflate to gigabytes in a parser, a child the memory watchdog
+                # kills on every attempt (#2248). Unzipped under the chat's
+                # bounds first and the result discarded, so over a bound is a
+                # `ValueError`, the document's own failure, whichever parser
+                # reads it.
+                safe_unzip(filepath.read_bytes())
             document = await self.pdf_parser.parse(filepath)
         else:
             raise ValueError(

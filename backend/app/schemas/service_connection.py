@@ -31,7 +31,7 @@ def _no_query(value: str) -> str:
 
 ConnectionAddress = Annotated[ServiceAddress, AfterValidator(_no_query)]
 
-ServiceConnectionKindLiteral = Literal["embedding", "ocr"]
+ServiceConnectionKindLiteral = Literal["embedding", "ocr", "document_parser"]
 
 
 class ServiceConnectionCreate(BaseSchema):
@@ -42,7 +42,8 @@ class ServiceConnectionCreate(BaseSchema):
         description=(
             "`embedding` for an OpenAI-compatible embeddings endpoint a collection may "
             "embed through; `ocr` for a LiteParse OCR server a collection's parses may "
-            "send pages to."
+            "send pages to; `document_parser` for a Docling Serve a collection's "
+            "documents may be parsed by."
         )
     )
     provider: str = Field(
@@ -50,23 +51,24 @@ class ServiceConnectionCreate(BaseSchema):
         description=(
             "The API style. For `embedding`, an entry of `GET /rag/embedding-models` "
             "reached through a connection: `ollama`, or `openai_compatible` for any "
-            "OpenAI-compatible endpoint. For `ocr`, `liteparse`. It cannot be changed "
-            "afterwards."
+            "OpenAI-compatible endpoint. For `ocr`, `liteparse`. For `document_parser`, `docling`. It cannot be "
+            "changed afterwards."
         ),
     )
     base_url: ConnectionAddress = Field(
         max_length=512,
         description=(
             "Where it answers - an OpenAI-compatible root such as "
-            "`http://ollama:11434/v1`, or the OCR server's root."
+            "`http://ollama:11434/v1`, the OCR server's root, or a Docling Serve's root."
         ),
     )
     secret_id: UUID | None = Field(
         default=None,
         description=(
-            "The organization's vault key the endpoint wants, for an `openai_compatible` "
-            "connection - a secret whose purpose is `openai_compatible`. Only an "
-            "organization's own connection may carry one."
+            "The organization's vault key the endpoint wants: for an `openai_compatible` "
+            "connection a secret whose purpose is `openai_compatible`, for a `docling` one "
+            "a secret whose purpose is `docling`. Only an organization's own connection "
+            "may carry one."
         ),
     )
     deployment_wide: bool = Field(
@@ -129,3 +131,42 @@ class ServiceConnectionRead(BaseSchema, TimestampSchema):
 class ServiceConnectionList(BaseSchema):
     items: list[ServiceConnectionRead]
     total: int
+
+
+class ServiceConnectionTest(BaseSchema):
+    """Test a Docling Serve's address and key before they are saved.
+
+    Nothing here is stored. The key is named by id, never carried: either a vault key
+    of the organization (`secret_id`), or the one the connection `service_id` holds.
+    """
+
+    kind: ServiceConnectionKindLiteral = Field(
+        description="Only `document_parser` can be tested this way."
+    )
+    provider: str = Field(max_length=32, description="`docling`.")
+    base_url: ConnectionAddress = Field(max_length=512, description="Where it answers.")
+    secret_id: UUID | None = Field(
+        default=None,
+        description="A vault key of the organization, purpose `docling`, to test with.",
+    )
+    service_id: UUID | None = Field(
+        default=None,
+        description=(
+            "An existing `docling` connection whose stored key is tested with. Used when "
+            "`secret_id` is not given. Testing a new `base_url` with a stored key needs the "
+            "right to view that key."
+        ),
+    )
+
+
+class ServiceConnectionTestResult(BaseSchema):
+    """What a Docling Serve answered, and nothing it said."""
+
+    outcome: Literal["ok", "key_refused", "key_required", "unreachable", "not_docling"] = Field(
+        description=(
+            "`ok`: it is a Docling Serve and accepts the key. `key_refused`: it rejected the "
+            "key sent. `key_required`: it wants a key and none was sent. `unreachable`: no "
+            "usable answer. `not_docling`: it answered, but not as a Docling Serve."
+        )
+    )
+    version: str | None = Field(default=None, description="The Docling Serve version, when known.")

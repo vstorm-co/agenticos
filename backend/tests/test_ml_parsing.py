@@ -224,21 +224,32 @@ async def test_an_overlap_at_or_above_the_chunk_is_refused() -> None:
     assert caught.value.details["fields"][0]["field"] == "chunk_overlap"
 
 
-async def test_recognition_refuses_a_docx_rather_than_reading_its_paragraphs() -> None:
-    """The pipeline routes `.docx` natively, so OCR here would silently skip its scans."""
-    with pytest.raises(BadRequestError) as caught:
+async def test_recognition_reaches_the_ocr_parser_for_a_docx() -> None:
+    """`.docx` goes to the chosen parser like every other format, so a scan inside it is read."""
+    built: list[object] = []
+
+    class _Recording:
+        def __init__(self, settings: object) -> None:
+            built.append(settings)
+
+        async def process_file(self, path: Path) -> Document:
+            assert path.suffix == ".docx"
+            return _parsed()
+
+    with patch("app.services.ml.parsing.DocumentProcessor", _Recording):
         await parsing.recognise(b"PK", "scan.docx")
 
-    assert caught.value.details["fields"][0]["field"] == "file"
+    assert built[0].pdf_parser.method == parsing.OCR_PARSER
 
 
 def test_the_recognisable_formats_exclude_everything_routed_natively() -> None:
-    assert parsing.RECOGNISABLE_FORMATS.isdisjoint({".txt", ".md", ".docx"})
+    assert parsing.RECOGNISABLE_FORMATS.isdisjoint({".txt", ".md"})
+    assert ".docx" in parsing.RECOGNISABLE_FORMATS
     assert ".pdf" in parsing.RECOGNISABLE_FORMATS
 
 
 async def test_a_malformed_file_is_the_callers_problem_not_a_500() -> None:
-    """`python-docx` raises neither ValueError nor RuntimeError on a file that is not a zip."""
+    """A parser can raise something other than ValueError or RuntimeError on a malformed file."""
 
     class NotAZip(Exception):
         pass

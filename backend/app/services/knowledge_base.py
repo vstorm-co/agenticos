@@ -717,7 +717,9 @@ class KnowledgeBaseService:
         collection_name = data.collection_name or _derive_collection_name(data.name)
         await CollectionAccessService(self.db).claim(ctx, collection_name)
         shared = await self._shared_embedding(collection_name, data)
-        config = await self._usable_config(ctx, data.ingestion_config)
+        config = await self._usable_config(
+            ctx, data.ingestion_config, app_scoped=data.scope == KBScope.APP.value
+        )
         # The creator owns what they create, org scope included: `own` in the
         # permission matrix is meaningless for a row nobody owns, and sharing
         # starts from an owner. App-scoped bases stay ownerless - they belong
@@ -976,7 +978,9 @@ class KnowledgeBaseService:
         config = (
             None
             if data.ingestion_config is None
-            else await self._usable_config(ctx, data.ingestion_config)
+            else await self._usable_config(
+                ctx, data.ingestion_config, app_scoped=kb.scope == KBScope.APP.value
+            )
         )
         before = EmbeddingSettings.of(kb)
         target = await self.plan_embedding(kb, data, ctx=ctx)
@@ -1310,7 +1314,7 @@ class KnowledgeBaseService:
         )
 
     async def _usable_config(
-        self, ctx: AuthContext, config: IngestionConfig | None
+        self, ctx: AuthContext, config: IngestionConfig | None, *, app_scoped: bool
     ) -> IngestionConfig:
         """The configuration to store, proven to work before it is stored.
 
@@ -1320,12 +1324,22 @@ class KnowledgeBaseService:
         uploader had nothing to do with - into a message on the field that
         caused it. This is the same trade
         :func:`app.services.model_profile._validate_model_id` makes.
+
+        What the parser reaches is checked as the collection itself, not as its
+        creator: an app-scoped base belongs to no organization, and its syncs resolve
+        its parser connection, OCR server and LlamaParse key with none
+        (`app.worker.tasks.rag_tasks`). So it may only name deployment-wide
+        connections, and a LlamaParse key, which is always an organization's, is
+        refused for it. The image model stays the caller's: its syncs skip image
+        description, and an upload resolves it for the uploader's organization.
         """
         chosen = config or deployment_defaults()
+        owner = None if app_scoped else ctx.organization_id
         service = IngestionConfigService(self.db)
         await service.resolved_image_model(ctx.organization_id, chosen)
-        await service.check_llamaparse_secret(ctx.organization_id, chosen)
-        await service.check_ocr_endpoint(ctx.organization_id, chosen)
+        await service.check_llamaparse_secret(owner, chosen)
+        await service.check_ocr_endpoint(owner, chosen)
+        await service.check_docling_connection(owner, chosen)
         return chosen
 
     async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:

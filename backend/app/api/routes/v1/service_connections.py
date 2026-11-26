@@ -1,7 +1,7 @@
 """Service connections: the endpoints a collection may be pointed at.
 
 Two gates, the ones the vault and the sandbox connections carry. Writing here
-decides which host an organization's documents are sent to for embedding or OCR,
+decides which host an organization's documents are sent to for embedding, OCR or parsing,
 so it is `connections:manage`; reading is `connections:view`, because a collection
 form has to offer the list to whoever may create a collection. Who may touch a
 deployment-wide row - the deployment's administrator alone - is the service's
@@ -25,6 +25,8 @@ from app.schemas.service_connection import (
     ServiceConnectionCreate,
     ServiceConnectionList,
     ServiceConnectionRead,
+    ServiceConnectionTest,
+    ServiceConnectionTestResult,
     ServiceConnectionUpdate,
 )
 
@@ -52,6 +54,23 @@ async def create_service_connection(
     data: ServiceConnectionCreate, service: ServiceConnectionSvc, ctx: Auth
 ) -> Any:
     return await service.create(ctx, data)
+
+
+@router.post(
+    "/test",
+    response_model=ServiceConnectionTestResult,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def test_service_connection(
+    data: ServiceConnectionTest, service: ServiceConnectionSvc, ctx: Auth
+) -> Any:
+    """Ask a Docling Serve whether it is one and accepts the key, before saving it.
+
+    A POST, because the address must not sit in a query string. Nothing is stored and
+    nothing but the outcome and the server's version is returned. A stored key tested
+    against a new address needs the right to view it.
+    """
+    return await service.test(ctx, data)
 
 
 @router.patch(

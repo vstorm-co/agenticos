@@ -92,6 +92,10 @@ class RAGDocument(TimestampMixin, Base):
         JSONB, nullable=False, server_default="{}"
     )
     ingestion_override: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    # The Docling Serve task a parse of this document is waiting on, so a retry
+    # polls it instead of submitting the file again. Null when none is running.
+    # Written and cleared by `app.services.rag.docling`.
+    parser_task: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     # The model that described the images in this document, as `provider:model`.
     # Null means none did - either the configuration had image description off,
     # or the document predates this column. Stored resolved rather than as the

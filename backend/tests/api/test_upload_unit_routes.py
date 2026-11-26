@@ -13,7 +13,7 @@ address a client reached it at.
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -25,6 +25,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.schemas.rag import RAGIngestResponse
+from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
 
@@ -125,3 +126,67 @@ class TestTheUnitAnUploadNames:
 
         assert response.status_code == 422
         documents.dispatch_upload.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", _PATHS)
+async def test_upload_override_to_docling_without_connection_refused(
+    client: AsyncClient, path: str
+) -> None:
+    """The uploader never sent a connection id, so the refusal names no field.
+
+    Naming `docling_connection_id` would mark a control the upload form does not
+    have; the message says what is true of the collection instead.
+    """
+    service = RAGDocumentService(MagicMock())
+    app.dependency_overrides[deps.get_rag_document_service] = lambda: service
+
+    with (
+        patch("app.services.rag_document.assert_organization_within_budget", new=AsyncMock()),
+        patch(
+            "app.services.rag_document.IngestionConfigService.check_embedding_model",
+            new=MagicMock(),
+        ),
+    ):
+        response = await client.post(
+            path, files=_upload(), data={"ingestion": '{"pdf_parser": "docling"}'}
+        )
+
+    assert response.status_code == 400
+    error = response.json()["error"]
+    assert "Docling" in error["message"]
+    assert "fields" not in (error.get("details") or {})
+
+
+@pytest.mark.parametrize("path", _PATHS)
+@pytest.mark.parametrize(
+    "data", [{}, {"ingestion": '{"ocr": true}'}], ids=["no-override", "override"]
+)
+async def test_upload_to_a_docling_collection_with_a_paused_connection_refused(
+    client: AsyncClient, collection: KnowledgeBase, path: str, data: dict[str, str]
+) -> None:
+    """Checked on every upload, and named without a field the uploader never sent."""
+    collection.ingestion_config = {
+        "pdf_parser": "docling",
+        "docling_connection_id": str(uuid.uuid4()),
+    }
+    service = RAGDocumentService(MagicMock())
+    app.dependency_overrides[deps.get_rag_document_service] = lambda: service
+    paused = MagicMock(kind="document_parser", provider="docling", is_active=False)
+    paused.name = "Docling"
+
+    with (
+        patch("app.services.rag_document.assert_organization_within_budget", new=AsyncMock()),
+        patch(
+            "app.services.rag_document.IngestionConfigService.check_embedding_model",
+            new=MagicMock(),
+        ),
+        patch(
+            "app.services.ingestion_config.service_connection_repo.get_visible",
+            new=AsyncMock(return_value=paused),
+        ),
+    ):
+        response = await client.post(path, files=_upload(), data=data)
+
+    assert response.status_code == 400
+    assert "turned off" in response.json()["error"]["message"]
+    assert "fields" not in (response.json()["error"].get("details") or {})

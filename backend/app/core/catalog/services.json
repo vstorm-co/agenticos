@@ -54,6 +54,15 @@
     "icon": "llamaparse"
   },
   {
+    "id": "docling",
+    "label": "Docling Serve",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://docling-project.github.io/docling/usage/api_server/",
+    "description": "Key for a self-hosted Docling Serve, sent as X-Api-Key.",
+    "icon": ""
+  },
+  {
     "id": "elevenlabs",
     "label": "ElevenLabs",
     "category": "other",

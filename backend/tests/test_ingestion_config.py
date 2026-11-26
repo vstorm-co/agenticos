@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
@@ -32,6 +33,8 @@ from app.services.ingestion_config import (
     parse_override,
     rag_settings_for,
 )
+from app.services.knowledge_base import KnowledgeBaseService
+from app.services.rag.docling import DoclingTarget
 from app.services.rag.image_describer import PydanticAIImageDescriber
 
 pytestmark = pytest.mark.anyio
@@ -727,3 +730,351 @@ class TestBuildingWhatActuallyRuns:
             )
 
         assert "no organization" in refusal.value.message
+
+
+_DOCLING_URL = "http://docling.internal:5001"
+
+
+def _docling_service(**overrides: object) -> MagicMock:
+    row = MagicMock(
+        id=uuid.uuid4(),
+        kind="document_parser",
+        provider="docling",
+        base_url=f"{_DOCLING_URL}/",
+        is_active=True,
+        secret_id=None,
+        requires_key=False,
+        organization_id=ORG,
+    )
+    row.name = "Docling"
+    for key, value in overrides.items():
+        setattr(row, key, value)
+    return row
+
+
+def _docling_config(connection: uuid.UUID | None = None) -> IngestionConfig:
+    return IngestionConfig(
+        pdf_parser=PdfParserName.DOCLING, docling_connection_id=connection or uuid.uuid4()
+    )
+
+
+class _RecordingProcessor:
+    """What `build_processor` hands the settings to, since the Docling parser itself
+    is not constructible from this module's tests."""
+
+    def __init__(self, *, settings, image_describer) -> None:
+        self.settings = settings
+
+
+_VISIBLE = "app.services.ingestion_config.service_connection_repo.get_visible"
+_VAULT = "app.services.ingestion_config.organization_secret_repo.get"
+
+
+class TestDoclingOptions:
+    def test_stored_config_without_docling_fields_loads(self) -> None:
+        """A collection stored before Docling existed keeps loading and keeps its parser."""
+        config = IngestionConfig.model_validate({"pdf_parser": "pymupdf"})
+
+        assert config.pdf_parser is PdfParserName.PYMUPDF
+        assert config.docling_connection_id is None
+        assert config.docling_ocr_languages == []
+        assert config.docling_ocr_preset == "auto"
+        assert config.docling_table_mode.value == "accurate"
+
+    @pytest.mark.parametrize("languages", [["de-DE"], ["deu"], ["DE"], ["a"] * 9])
+    def test_docling_languages_must_be_two_letters(self, languages: list[str]) -> None:
+        with pytest.raises(ValueError):
+            IngestionConfig(docling_ocr_languages=languages)
+
+    def test_two_letter_languages_are_accepted(self) -> None:
+        assert IngestionConfig(docling_ocr_languages=["de", "en"]).docling_ocr_languages == [
+            "de",
+            "en",
+        ]
+
+    @pytest.mark.parametrize("preset", ["", "Auto", "a b", "x" * 65])
+    def test_the_ocr_preset_is_a_plain_slug(self, preset: str) -> None:
+        with pytest.raises(ValueError):
+            IngestionConfig(docling_ocr_preset=preset)
+
+    def test_override_can_change_docling_options_not_connection(self) -> None:
+        base = _docling_config()
+        merged = IngestionOverride(
+            docling_ocr_languages=["pl"], docling_ocr_preset="rapid", docling_table_mode="fast"
+        ).applied_to(base)
+
+        assert merged.docling_ocr_languages == ["pl"]
+        assert merged.docling_ocr_preset == "rapid"
+        assert merged.docling_table_mode.value == "fast"
+        assert merged.docling_connection_id == base.docling_connection_id
+        with pytest.raises(ValueError):
+            IngestionOverride.model_validate({"docling_connection_id": str(uuid.uuid4())})
+
+    def test_the_options_reach_the_parser_settings(self) -> None:
+        target = DoclingTarget(
+            connection_id=uuid.uuid4(), base_url=_DOCLING_URL, api_key="dl-secret-value"
+        )
+        config = IngestionConfig(
+            pdf_parser=PdfParserName.DOCLING,
+            docling_ocr_languages=["de"],
+            docling_ocr_preset="rapid",
+            docling_table_mode="fast",
+            max_pages=12,
+            parse_timeout_seconds=90.0,
+        )
+
+        pdf = rag_settings_for(config, docling=target).pdf_parser
+
+        assert pdf.method == "docling"
+        assert pdf.docling_connection_id == target.connection_id
+        assert pdf.docling_base_url == _DOCLING_URL
+        assert pdf.docling_api_key == "dl-secret-value"
+        assert (pdf.docling_ocr_languages, pdf.docling_ocr_preset, pdf.docling_table_mode) == (
+            ["de"],
+            "rapid",
+            "fast",
+        )
+        assert (pdf.liteparse_max_pages, pdf.liteparse_timeout_seconds) == (12, 90.0)
+        assert "dl-secret-value" not in repr(pdf)
+
+    def test_without_a_target_the_docling_settings_are_empty(self) -> None:
+        pdf = rag_settings_for(IngestionConfig()).pdf_parser
+
+        assert (pdf.docling_connection_id, pdf.docling_base_url, pdf.docling_api_key) == (
+            None,
+            None,
+            "",
+        )
+
+
+class TestTheDoclingConnection:
+    async def test_docling_needs_a_connection(self) -> None:
+        with pytest.raises(BadRequestError) as refusal:
+            await IngestionConfigService(_db()).check_docling_connection(
+                ORG, IngestionConfig(pdf_parser=PdfParserName.DOCLING)
+            )
+
+        assert refusal.value.details["fields"][0]["field"] == "docling_connection_id"
+
+    async def test_without_a_field_the_refusal_names_none(self) -> None:
+        with pytest.raises(BadRequestError) as refusal:
+            await IngestionConfigService(_db()).check_docling_connection(
+                ORG, IngestionConfig(pdf_parser=PdfParserName.DOCLING), name_field=False
+            )
+
+        assert "fields" not in (refusal.value.details or {})
+        assert "no Docling connection" in refusal.value.message
+
+    async def test_another_parser_needs_no_connection(self) -> None:
+        with patch(_VISIBLE, new=AsyncMock()) as lookup:
+            await IngestionConfigService(_db()).check_docling_connection(ORG, IngestionConfig())
+            await IngestionConfigService(_db()).check_docling_connection(
+                ORG, IngestionConfig(docling_connection_id=uuid.uuid4())
+            )
+
+        lookup.assert_not_called()
+
+    async def test_a_visible_connection_passes(self) -> None:
+        with patch(_VISIBLE, new=AsyncMock(return_value=_docling_service())):
+            await IngestionConfigService(_db()).check_docling_connection(ORG, _docling_config())
+
+    @pytest.mark.parametrize(
+        ("row", "reason"),
+        [
+            (None, "not one this collection may name"),
+            (_docling_service(kind="ocr"), "not a document parser"),
+            (_docling_service(provider="liteparse"), "not a document parser"),
+            (_docling_service(is_active=False), "turned off"),
+        ],
+        ids=["invisible", "wrong-kind", "wrong-provider", "paused"],
+    )
+    async def test_a_connection_it_may_not_use_is_refused_on_the_field(self, row, reason) -> None:
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=row)),
+            pytest.raises(BadRequestError, match=reason) as refusal,
+        ):
+            await IngestionConfigService(_db()).check_docling_connection(ORG, _docling_config())
+
+        assert refusal.value.details["fields"][0]["field"] == "docling_connection_id"
+
+    async def test_docling_connection_must_be_document_parser(self) -> None:
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=_docling_service(kind="ocr"))),
+            pytest.raises(BadRequestError, match="not a document parser"),
+        ):
+            await IngestionConfigService(_db()).check_docling_connection(ORG, _docling_config())
+
+    async def test_docling_connection_inactive_refused(self) -> None:
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=_docling_service(is_active=False))),
+            pytest.raises(BadRequestError, match="turned off"),
+        ):
+            await IngestionConfigService(_db()).check_docling_connection(ORG, _docling_config())
+
+    @pytest.mark.security
+    async def test_other_org_docling_connection_refused(self) -> None:
+        """The lookup is scoped to the organization; another tenant's row is not found."""
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=None)) as lookup,
+            pytest.raises(BadRequestError, match="not one this collection may name"),
+        ):
+            await IngestionConfigService(_db()).check_docling_connection(ORG, _docling_config())
+
+        assert lookup.await_args.kwargs["organization_id"] == ORG
+
+    @pytest.mark.parametrize(
+        "row",
+        [None, _docling_service(kind="ocr"), _docling_service(is_active=False)],
+        ids=["gone", "wrong-kind", "paused"],
+    )
+    async def test_an_upload_refusal_names_no_field(self, row) -> None:
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=row)),
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await IngestionConfigService(_db()).check_docling_connection(
+                ORG, _docling_config(), name_field=False
+            )
+
+        assert "fields" not in (refusal.value.details or {})
+        assert "Docling" in refusal.value.message or "connection" in refusal.value.message
+
+    async def test_a_stored_docling_config_with_no_connection_refuses_the_parse(self) -> None:
+        with pytest.raises(BadRequestError, match="names no Docling connection"):
+            await IngestionConfigService(_db())._docling_target(
+                ORG, IngestionConfig(pdf_parser=PdfParserName.DOCLING)
+            )
+
+    async def test_document_parser_service_missing_row_refused(self) -> None:
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=None)),
+            pytest.raises(BadRequestError, match="not one this collection may name"),
+        ):
+            await IngestionConfigService(_db())._document_parser_service(ORG, uuid.uuid4())
+
+
+class TestResolvingTheDoclingTarget:
+    @staticmethod
+    def _sealed_row(plaintext: str) -> MagicMock:
+        sealed = seal_secret(ApiKeySecret(api_key=plaintext), scope=VaultScope.organization(ORG))
+        return MagicMock(
+            sealed_secret=sealed.ciphertext,
+            kind=SecretKind.API_KEY.value,
+            key_version=sealed.key_version,
+            purpose="docling",
+        )
+
+    async def _build(self, service: MagicMock):
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=service)),
+            patch("app.services.ingestion_config.DocumentProcessor", _RecordingProcessor),
+        ):
+            return await IngestionConfigService(_db()).build_processor(
+                ORG, _docling_config(service.id)
+            )
+
+    async def test_build_processor_resolves_docling_target_and_key(self) -> None:
+        service = _docling_service(secret_id=uuid.uuid4(), requires_key=True)
+        with patch(_VAULT, new=AsyncMock(return_value=self._sealed_row("dl-secret-key"))):
+            processor = await self._build(service)
+
+        pdf = processor.settings.pdf_parser
+        assert pdf.docling_api_key == "dl-secret-key"
+        assert pdf.docling_base_url == _DOCLING_URL
+        assert pdf.docling_connection_id == service.id
+
+    async def test_a_keyless_connection_resolves_without_touching_the_vault(self) -> None:
+        with patch(_VAULT, new=AsyncMock()) as vault:
+            processor = await self._build(_docling_service())
+
+        assert processor.settings.pdf_parser.docling_api_key == ""
+        vault.assert_not_called()
+
+    async def test_another_parser_resolves_no_docling_target(self) -> None:
+        with patch(_VISIBLE, new=AsyncMock()) as lookup:
+            processor = await IngestionConfigService(_db()).build_processor(ORG, IngestionConfig())
+
+        assert processor.settings.pdf_parser.docling_base_url is None
+        lookup.assert_not_called()
+
+    async def test_build_processor_keyed_row_with_key_gone_refused(self) -> None:
+        """`secret_id` went to NULL when the key was deleted; `requires_key` outlives it."""
+        service = _docling_service(secret_id=None, requires_key=True)
+        with pytest.raises(BadRequestError, match="no longer holds"):
+            await self._build(service)
+
+    async def test_a_keyed_row_whose_vault_entry_is_missing_is_refused(self) -> None:
+        service = _docling_service(secret_id=uuid.uuid4(), requires_key=True)
+        with (
+            patch(_VAULT, new=AsyncMock(return_value=None)),
+            pytest.raises(BadRequestError, match="no longer holds"),
+        ):
+            await self._build(service)
+
+    @pytest.mark.security
+    async def test_build_processor_unseal_failure_refused(self) -> None:
+        service = _docling_service(secret_id=uuid.uuid4(), requires_key=True)
+        broken = MagicMock(
+            sealed_secret="not-a-ciphertext", kind=SecretKind.API_KEY.value, key_version=1
+        )
+        with (
+            patch(_VAULT, new=AsyncMock(return_value=broken)),
+            pytest.raises(BadRequestError, match="could not be unsealed") as refusal,
+        ):
+            await self._build(service)
+
+        assert "not-a-ciphertext" not in str(refusal.value.details) + refusal.value.message
+
+    @pytest.mark.security
+    async def test_build_processor_non_api_key_secret_refused(self) -> None:
+        service = _docling_service(secret_id=uuid.uuid4(), requires_key=True)
+        with (
+            patch(_VAULT, new=AsyncMock(return_value=self._sealed_row("dl-secret-key"))),
+            patch("app.services.ingestion_config.unseal_secret", return_value=MagicMock(spec=[])),
+            pytest.raises(BadRequestError, match="does not hold an API key"),
+        ):
+            await self._build(service)
+
+    async def test_an_app_scoped_collection_resolves_a_deployment_connection(self) -> None:
+        service = _docling_service(organization_id=None)
+        with (
+            patch(_VISIBLE, new=AsyncMock(return_value=service)),
+            patch("app.services.ingestion_config.DocumentProcessor", _RecordingProcessor),
+        ):
+            processor = await IngestionConfigService(_db()).build_processor(
+                None, _docling_config(service.id)
+            )
+
+        assert processor.settings.pdf_parser.docling_api_key == ""
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(("app_scoped", "checked_as"), [(True, None), (False, ORG)])
+async def test_a_collection_is_checked_as_its_own_scope(
+    app_scoped: bool, checked_as: uuid.UUID | None
+) -> None:
+    """An app-scoped base names only connections a caller with no organization can reach.
+
+    Its syncs resolve the parser connection, the OCR server and the LlamaParse key
+    with no organization, so checking them as the creator's organization accepted
+    a connection every sync then failed to find. The image model stays the
+    caller's: those syncs skip image description.
+    """
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner")
+    seen: dict[str, uuid.UUID | None] = {}
+
+    def record(name: str) -> AsyncMock:
+        async def check(organization_id: uuid.UUID | None, config: IngestionConfig) -> None:
+            seen[name] = organization_id
+
+        return AsyncMock(side_effect=check)
+
+    with (
+        patch.object(IngestionConfigService, "resolved_image_model", record("image")),
+        patch.object(IngestionConfigService, "check_llamaparse_secret", record("llamaparse")),
+        patch.object(IngestionConfigService, "check_ocr_endpoint", record("ocr")),
+        patch.object(IngestionConfigService, "check_docling_connection", record("docling")),
+    ):
+        await KnowledgeBaseService(_db())._usable_config(ctx, None, app_scoped=app_scoped)
+
+    assert seen == {"image": ORG, **dict.fromkeys(("llamaparse", "ocr", "docling"), checked_as)}

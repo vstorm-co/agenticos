@@ -358,6 +358,10 @@ class RAGDocumentService:
         config = IngestionConfig.model_validate(collection.ingestion_config)
         if override is not None:
             config = override.applied_to(config)
+        # Every upload, not only an overridden one: an override can switch a
+        # collection to Docling, and a stored Docling collection's connection can
+        # have been paused since. Refused here rather than in a worker.
+        await ingestion.check_docling_connection(ctx.organization_id, config, name_field=False)
 
         allowed = get_supported_formats(config.pdf_parser.value)
         max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024

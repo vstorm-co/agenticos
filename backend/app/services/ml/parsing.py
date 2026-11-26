@@ -50,12 +50,13 @@ from app.services.rag.models import Document
 logger = logging.getLogger(__name__)
 
 ANALYSIS_PARSERS: tuple[str, ...] = ("liteparse", "pymupdf")
-"""The parsers this service offers, and why the third one is not here.
+"""The parsers this service offers, and why LlamaParse and Docling are not here.
 
 LlamaParse is a vendor that bills against a key sealed for a *collection*; a
 call that names no collection has no key to reach, and inventing a
-deployment-wide one is the thing `app/core/vault.py` exists to prevent. So the
-two local engines are the offering, which is also what makes this service one
+deployment-wide one is the thing `app/core/vault.py` exists to prevent. Docling
+is reached through a connection a *collection* names, and a call that names no
+collection has none. So the two local engines are the offering, which is also what makes this service one
 that runs entirely on the operator's own machines.
 """
 
@@ -68,13 +69,11 @@ OCR_PARSER = "liteparse"
 RECOGNISABLE_FORMATS: frozenset[str] = frozenset(LITEPARSE_PDF_FORMATS - NATIVE_FORMATS)
 """What the OCR service accepts: pages that can be rendered as images.
 
-Narrower than what the parser reads, and the subtraction is the load-bearing
-part. `DocumentProcessor.process_file` routes `.txt`, `.md` and `.docx` to the
-native parsers *before* it consults the configured LiteParse one, so a `.docx`
-accepted here would have its existing paragraphs extracted and its scanned pages
-silently dropped - an answer that looks like recognition, is not one, and says
-nothing about what it left out. A caller with a scanned `.docx` converts it to
-PDF, which the refusal says.
+Narrower than what the parser reads: `DocumentProcessor.process_file` routes
+`.txt` and `.md` to the built-in text reader *before* it consults the configured
+LiteParse one, so one accepted here would be read as text and no page would be
+recognised. `.docx` is not subtracted: it goes to the chosen parser like any
+other format, so a scanned `.docx` is recognised through LibreOffice.
 """
 
 MAX_OCR_PAGES = 200
@@ -253,7 +252,7 @@ def _parse(settings: RAGSettings, path: Path) -> Document:
     """Run the pipeline's parsing stage on a worker thread.
 
     `DocumentProcessor.process_file` is a coroutine that does synchronous work:
-    PyMuPDF's parse, `python-docx`'s read, the file hash and the splitter all
+    PyMuPDF's parse, the file hash and the splitter all
     block, and only LiteParse moves its own parse off the loop. Awaiting it
     directly from a request handler therefore stops this worker answering
     anything - health, sign-in, every other tenant - for the length of a large
@@ -311,9 +310,9 @@ async def _run(
                     details={"filename": filename, "parser": parser, "stage": "parse"},
                 ) from exc
             except Exception as exc:
-                # Anything else is the bytes. `python-docx` raises
-                # `PackageNotFoundError` on a file that is not a zip, PyMuPDF its
-                # own on a truncated PDF, and neither is a `ValueError` or a
+                # Anything else is the bytes. `safe_unzip` raises `BadZipFile` on
+                # an Office file that is not a zip, PyMuPDF its own on a
+                # truncated PDF, and neither is a `ValueError` or a
                 # `RuntimeError` - so without this a malformed upload answered 500
                 # and the usage log skipped it, because the facade records an
                 # `AppException` and nothing else. A parser handed arbitrary bytes

@@ -825,3 +825,316 @@ class TestMovingAnEmbeddingConnection:
             )
 
         written.assert_not_awaited()
+
+
+_DOCLING_URL = "http://docling.internal:5001"
+_UNSEAL = "app.services.service_connection.unseal_secret"
+_PROBE = "app.services.service_connection.docling.probe"
+
+
+def _docling_create(**overrides: object) -> ServiceConnectionCreate:
+    return _embedding(
+        **{
+            "kind": "document_parser",
+            "provider": "docling",
+            "base_url": _DOCLING_URL,
+            "secret_id": None,
+            **overrides,
+        }
+    )
+
+
+def _docling_secret(**overrides: object) -> MagicMock:
+    return MagicMock(**{"purpose": "docling", "kind": "api_key", "key_version": 1, **overrides})
+
+
+def _api_key(value: str = "docling-key") -> object:
+    from app.core.secret_kinds import ApiKeySecret
+
+    return ApiKeySecret(api_key=value)
+
+
+class TestDoclingConnections:
+    async def test_create_document_parser_with_docling_key(self):
+        keyed = _row(
+            kind="document_parser", provider="docling", secret_id=_SECRET_ID, requires_key=True
+        )
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(f"{_REPO}.get_by_name", new=AsyncMock(return_value=None)),
+            patch(f"{_REPO}.create", new=AsyncMock(return_value=keyed)) as create,
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            await _service().create(_ctx(), _docling_create(secret_id=_SECRET_ID))
+
+        assert create.call_args.kwargs["requires_key"] is True
+        assert create.call_args.kwargs["kind"] == "document_parser"
+
+    @pytest.mark.security
+    async def test_docling_key_with_wrong_purpose_refused(self):
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_secret(purpose="openai_compatible"))),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(f"{_REPO}.create", new=AsyncMock()) as create,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().create(_ctx(), _docling_create(secret_id=_SECRET_ID))
+
+        assert refusal.value.details["fields"][0]["field"] == "secret_id"
+        assert "docling" in refusal.value.message
+        create.assert_not_called()
+
+    @pytest.mark.security
+    async def test_deployment_docling_connection_keyless(self):
+        with (
+            patch(f"{_REPO}.create", new=AsyncMock()) as create,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().create(
+                _ctx(app_admin=True), _docling_create(secret_id=_SECRET_ID, deployment_wide=True)
+            )
+
+        assert refusal.value.details["fields"][0]["field"] == "secret_id"
+        create.assert_not_called()
+
+    async def test_document_parser_rejects_other_provider(self):
+        with pytest.raises(BadRequestError) as refusal:
+            await _service().create(_ctx(), _docling_create(provider="liteparse"))
+
+        assert refusal.value.details["fields"][0]["field"] == "provider"
+
+    async def test_liteparse_takes_no_key(self):
+        with pytest.raises(BadRequestError) as refusal:
+            await _service().create(
+                _ctx(),
+                _embedding(
+                    kind="ocr",
+                    provider="liteparse",
+                    base_url="http://ocr:8000",
+                    secret_id=_SECRET_ID,
+                ),
+            )
+
+        assert "takes no key" in refusal.value.message
+
+    async def test_openai_compatible_key_rules_unchanged(self):
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_secret(purpose="docling"))),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().create(_ctx(), _custom())
+
+        assert refusal.value.details["purpose"] == "docling"
+        assert "openai_compatible" in refusal.value.message
+
+    def test_embedding_probe_still_uses_openai_purpose(self):
+        from app.services.service_connection import KEY_PURPOSES
+
+        assert KEY_PURPOSES["openai_compatible"] == "openai_compatible"
+        assert KEY_PURPOSES["docling"] == "docling"
+
+
+def _test_body(**overrides: object):
+    from app.schemas.service_connection import ServiceConnectionTest
+
+    return ServiceConnectionTest(
+        **{"kind": "document_parser", "provider": "docling", "base_url": _DOCLING_URL, **overrides}
+    )
+
+
+def _probe_ok() -> AsyncMock:
+    from app.services.rag.docling import DoclingProbe
+
+    return AsyncMock(return_value=DoclingProbe(outcome="ok", version="1.39.0"))
+
+
+class TestTestingADoclingConnection:
+    async def test_connection_test_keyless(self):
+        with patch(_PROBE, new=_probe_ok()) as probe:
+            result = await _service().test(_ctx(), _test_body())
+
+        assert (result.outcome, result.version) == ("ok", "1.39.0")
+        target = probe.call_args.args[0]
+        assert target.api_key is None
+        assert target.connection_id is None
+        assert target.base_url == _DOCLING_URL
+
+    async def test_the_trailing_slash_is_dropped_from_the_address(self):
+        with patch(_PROBE, new=_probe_ok()) as probe:
+            await _service().test(_ctx(), _test_body(base_url=f"{_DOCLING_URL}/"))
+
+        assert probe.call_args.args[0].base_url == _DOCLING_URL
+
+    @pytest.mark.security
+    async def test_connection_test_with_secret_id(self):
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(_UNSEAL, return_value=_api_key("typed-key")),
+            patch(_PROBE, new=_probe_ok()) as probe,
+        ):
+            await _service().test(_ctx(), _test_body(secret_id=_SECRET_ID))
+
+        assert probe.call_args.args[0].api_key == "typed-key"
+
+    @pytest.mark.security
+    async def test_connection_test_with_secret_id_of_another_purpose_is_refused(self):
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret(purpose="openai"))),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().test(_ctx(), _test_body(secret_id=_SECRET_ID))
+
+        assert refusal.value.details["fields"][0]["field"] == "secret_id"
+        probe.assert_not_called()
+
+    async def test_connection_test_with_stored_key(self):
+        stored = _row(
+            kind="document_parser",
+            provider="docling",
+            base_url=_DOCLING_URL,
+            secret_id=_SECRET_ID,
+            requires_key=True,
+        )
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret())),
+            patch(_UNSEAL, return_value=_api_key("stored-key")),
+            patch(_ACCESS, new=AsyncMock(return_value=False)) as access,
+            patch(_PROBE, new=_probe_ok()) as probe,
+        ):
+            await _service().test(_ctx(), _test_body(service_id=stored.id))
+
+        # The address is the stored one, so the key goes where it already went.
+        access.assert_not_called()
+        target = probe.call_args.args[0]
+        assert (target.api_key, target.connection_id) == ("stored-key", stored.id)
+
+    async def test_a_stored_row_without_a_key_tests_keyless(self):
+        stored = _row(kind="document_parser", provider="docling", base_url=_DOCLING_URL)
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_PROBE, new=_probe_ok()) as probe,
+        ):
+            await _service().test(_ctx(), _test_body(service_id=stored.id))
+
+        assert probe.call_args.args[0].api_key is None
+
+    @pytest.mark.security
+    async def test_a_stored_key_at_a_new_address_needs_the_right_to_view_it(self):
+        stored = _row(
+            kind="document_parser",
+            provider="docling",
+            base_url=_DOCLING_URL,
+            secret_id=_SECRET_ID,
+            requires_key=True,
+        )
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=False)),
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().test(
+                _ctx(), _test_body(service_id=stored.id, base_url="http://attacker.example:5001")
+            )
+
+        assert refusal.value.details == {"secret_id": str(_SECRET_ID)}
+        probe.assert_not_called()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("kind", "provider"), [("embedding", "openai_compatible"), ("ocr", "liteparse")]
+    )
+    async def test_connection_test_refuses_non_docling_row(self, kind, provider):
+        stored = _row(kind=kind, provider=provider, secret_id=_SECRET_ID, requires_key=True)
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_UNSEAL, return_value=_api_key()) as unseal,
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().test(_ctx(), _test_body(service_id=stored.id))
+
+        assert refusal.value.details["fields"][0]["field"] == "service_id"
+        unseal.assert_not_called()
+        probe.assert_not_called()
+
+    async def test_connection_test_refuses_a_deployment_row_to_an_operator(self):
+        stored = _row(
+            kind="document_parser", provider="docling", organization_id=None, base_url=_DOCLING_URL
+        )
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(AuthorizationError),
+        ):
+            await _service().test(_ctx(), _test_body(service_id=stored.id))
+
+        probe.assert_not_called()
+
+    async def test_connection_test_refuses_the_embedding_kind(self):
+        with pytest.raises(BadRequestError) as refusal:
+            await _service().test(_ctx(), _test_body(kind="embedding", provider="ollama"))
+
+        assert refusal.value.details["fields"][0]["field"] == "kind"
+
+    async def test_connection_test_refuses_another_provider(self):
+        with pytest.raises(BadRequestError) as refusal:
+            await _service().test(_ctx(), _test_body(provider="liteparse"))
+
+        assert refusal.value.details["fields"][0]["field"] == "provider"
+
+    async def test_a_stored_key_that_left_the_vault_is_refused_on_the_connection(self):
+        stored = _row(
+            kind="document_parser",
+            provider="docling",
+            base_url=_DOCLING_URL,
+            secret_id=_SECRET_ID,
+            requires_key=True,
+        )
+        with (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+            patch(_KEY, new=AsyncMock(return_value=None)),
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().test(_ctx(), _test_body(service_id=stored.id))
+
+        assert refusal.value.details["fields"][0]["field"] == "service_id"
+        probe.assert_not_called()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("secret", ["unseal-fails", "not-an-api-key"])
+    async def test_a_key_that_cannot_be_read_is_refused_without_its_reason(self, secret):
+        from app.core.secret_kinds import AwsCredentialsSecret
+
+        unseal = (
+            patch(_UNSEAL, side_effect=RuntimeError("tag mismatch for sealed bytes abc"))
+            if secret == "unseal-fails"
+            else patch(
+                _UNSEAL,
+                return_value=AwsCredentialsSecret(
+                    aws_access_key_id="a",
+                    aws_secret_access_key="bbbbbbbbbb",
+                    region_name="eu-west-1",
+                ),
+            )
+        )
+        with (
+            patch(_KEY, new=AsyncMock(return_value=_docling_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            unseal,
+            patch(_PROBE, new=_probe_ok()) as probe,
+            pytest.raises(BadRequestError) as refusal,
+        ):
+            await _service().test(_ctx(), _test_body(secret_id=_SECRET_ID))
+
+        assert refusal.value.details["fields"][0]["field"] == "secret_id"
+        assert "tag mismatch" not in str(refusal.value.details) + refusal.value.message
+        probe.assert_not_called()

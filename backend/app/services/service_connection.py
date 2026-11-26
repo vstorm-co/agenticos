@@ -11,7 +11,7 @@ What a row is for is checked when it is written, not when it is used. An
 `embedding` connection names a provider from the embedding catalog that is reached
 through a connection - `ollama`, whose catalog says which models it serves and at
 what width, or `openai_compatible`, which serves any; an `ocr` one names the one
-parser that sends pages out. Refused here, on the field, rather than discovered when
+parser that sends pages out; a `document_parser` one names `docling`. Refused here, on the field, rather than discovered when
 a collection's first document fails to index.
 
 A connection may carry a key, and the rule is the one a collection's key follows:
@@ -21,6 +21,7 @@ vault, so it is keyless, and clearing a key from a keyed row is refused: the end
 would otherwise be called bare by every collection naming it.
 """
 
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -35,22 +36,41 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
+from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.service_connection import ServiceConnection, ServiceConnectionKind
 from app.db.updates import writable
 from app.repositories import knowledge_base_repo, organization_secret_repo, service_connection_repo
-from app.schemas.service_connection import ServiceConnectionCreate, ServiceConnectionUpdate
+from app.schemas.service_connection import (
+    ServiceConnectionCreate,
+    ServiceConnectionTest,
+    ServiceConnectionTestResult,
+    ServiceConnectionUpdate,
+)
 from app.services.access import SECRET, resolve_access
 from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, read_probe_token
 from app.services.embedding_resolution import identify_connection, public_address
-from app.services.rag import embedding_providers
+from app.services.rag import docling, embedding_providers
+from app.services.rag.docling import DoclingTarget
+
+logger = logging.getLogger(__name__)
 
 OCR_PROVIDER = "liteparse"
 """The one parser that sends pages to an OCR server, and so the one `ocr` provider."""
 
-CONNECTION_KEY_PURPOSE = "openai_compatible"
-"""The purpose of the vault key a connection carries, and the only API style that takes one."""
+DOCLING_PROVIDER = "docling"
+"""The one provider a `document_parser` connection names."""
+
+KEY_PURPOSES: dict[str, str] = {"openai_compatible": "openai_compatible", "docling": "docling"}
+"""The vault purpose of the key a connection carries, by provider. A provider with no
+entry takes no key."""
+
+_PURPOSE_LABELS: dict[str, str] = {
+    "openai_compatible": "an OpenAI-compatible endpoint",
+    "docling": "a Docling Serve",
+}
 
 
 class ServiceConnectionService:
@@ -287,19 +307,94 @@ class ServiceConnectionService:
                 "A deployment-wide connection cannot carry a key: the vault belongs to an "
                 "organization. Register the connection inside an organization to give it one.",
             )
-        if provider != CONNECTION_KEY_PURPOSE:
-            raise refused_field(
-                "secret_id",
-                f"A {provider} connection takes no key; only an OpenAI-compatible one does.",
-            )
+        purpose = KEY_PURPOSES.get(provider)
+        if purpose is None:
+            raise refused_field("secret_id", f"A {provider} connection takes no key.")
         row = await self._viewable_key(ctx, secret_id, owner=owner)
-        if row.purpose != CONNECTION_KEY_PURPOSE:
+        if row.purpose != purpose:
             raise refused_field(
                 "secret_id",
-                f"That key is for {row.purpose}, and a connection sends its key to an "
-                "OpenAI-compatible endpoint. Create a key with the openai_compatible purpose.",
+                f"That key is for {row.purpose}, and a {provider} connection sends its key to "
+                f"{_PURPOSE_LABELS[provider]}. Create a key with the {purpose} purpose.",
                 purpose=row.purpose,
             )
+
+    async def test(
+        self, ctx: AuthContext, data: ServiceConnectionTest
+    ) -> ServiceConnectionTestResult:
+        """Ask a Docling Serve whether it is one and accepts the key, storing nothing.
+
+        The key is named by id: a vault key of the organization the caller may view, or
+        the one a connection of theirs already holds. A stored key sent to an address
+        other than the stored one is being lent to that host, so choosing it takes the
+        right to view it, as it does on an edit.
+
+        Raises:
+            BadRequestError: On `kind` or `provider` when this is not a Docling
+                connection, on `service_id` for a row that is not one, and on `secret_id`
+                for a key the caller may not use.
+            AuthorizationError: If `service_id` is a deployment-wide row and the caller
+                is not the deployment's administrator.
+        """
+        if data.kind != ServiceConnectionKind.DOCUMENT_PARSER.value:
+            raise refused_field("kind", "Only a document parser connection can be tested here.")
+        if data.provider != DOCLING_PROVIDER:
+            raise refused_field(
+                "provider",
+                f"A document parser is reached by {DOCLING_PROVIDER}, its only provider.",
+            )
+        base_url = data.base_url.rstrip("/")
+        api_key: str | None = None
+        if data.secret_id is not None:
+            owner = ctx.organization_id
+            await self._check_key(ctx, data.secret_id, owner=owner, provider=data.provider)
+            api_key = await self._unseal_key(ctx, data.secret_id, owner=owner)
+        elif data.service_id is not None:
+            row = await self._editable(ctx, data.service_id)
+            if (
+                row.kind != ServiceConnectionKind.DOCUMENT_PARSER.value
+                or row.provider != DOCLING_PROVIDER
+            ):
+                raise refused_field("service_id", "That connection is not a Docling Serve.")
+            if row.secret_id is not None and row.organization_id is not None:
+                if base_url != row.base_url.rstrip("/"):
+                    await self._viewable_key(ctx, row.secret_id, owner=row.organization_id)
+                api_key = await self._unseal_key(
+                    ctx, row.secret_id, owner=row.organization_id, field="service_id"
+                )
+        result = await docling.probe(
+            DoclingTarget(connection_id=data.service_id, base_url=base_url, api_key=api_key)
+        )
+        return ServiceConnectionTestResult(outcome=result.outcome, version=result.version)
+
+    async def _unseal_key(
+        self, ctx: AuthContext, secret_id: UUID, *, owner: UUID | None, field: str = "secret_id"
+    ) -> str:
+        """The value of an API key in an organization's vault, for one outbound call.
+
+        Raises:
+            BadRequestError: If the key is gone, cannot be unsealed or is not an API key.
+                What went wrong inside the vault goes to the log, not the message.
+        """
+        assert owner is not None  # `_check_key` refuses a deployment-owned row first
+        row = await organization_secret_repo.get(self.db, secret_id, organization_id=owner)
+        if row is None:
+            raise refused_field(field, "That key is not in this organization's vault.")
+        try:
+            secret = unseal_secret(
+                row.sealed_secret,
+                kind=SecretKind(row.kind),
+                scope=VaultScope.organization(owner),
+                key_version=row.key_version,
+            )
+        except Exception as exc:
+            logger.warning("docling_test_key_unusable", extra={"error_type": type(exc).__name__})
+            raise refused_field(
+                field, "That key could not be unsealed. Store it again, or choose another."
+            ) from exc
+        if not isinstance(secret, ApiKeySecret):
+            raise refused_field(field, "That vault entry does not hold an API key.")
+        return secret.api_key.get_secret_value()
 
     async def delete(self, ctx: AuthContext, service_id: UUID) -> None:
         """Remove a service.
@@ -373,7 +468,14 @@ def _check_provider_fits(*, kind: str, provider: str) -> None:
                 f"one; choose one of: {reached}. A vendor with its own address is chosen on "
                 "the collection, with the key that pays.",
             )
-    elif provider != OCR_PROVIDER:
+    elif kind == ServiceConnectionKind.OCR.value:
+        if provider != OCR_PROVIDER:
+            raise refused_field(
+                "provider",
+                f"An OCR server is reached by {OCR_PROVIDER}; that is the only provider.",
+            )
+    elif provider != DOCLING_PROVIDER:
         raise refused_field(
-            "provider", f"An OCR server is reached by {OCR_PROVIDER}; that is the only provider."
+            "provider",
+            f"A document parser is reached by {DOCLING_PROVIDER}; that is the only provider.",
         )

@@ -280,6 +280,8 @@ async def test_an_uploaded_document_is_queued_for_parsing_on_the_session_that_wr
     collection = SimpleNamespace(
         collection_name="handbooks",
         embedding_model="text-embedding-3-small",
+        embedding_provider="openai",
+        embedding_dim=1536,
         ingestion_config=IngestionConfig().model_dump(mode="json"),
     )
 
@@ -324,6 +326,8 @@ async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch)
     collection = SimpleNamespace(
         collection_name="handbooks",
         embedding_model="text-embedding-3-small",
+        embedding_provider="openai",
+        embedding_dim=1536,
         ingestion_config=IngestionConfig().model_dump(mode="json"),
     )
     monkeypatch.setattr(

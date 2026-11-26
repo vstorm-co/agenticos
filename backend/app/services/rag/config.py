@@ -1,6 +1,7 @@
 """RAG configuration."""
 
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -14,12 +15,12 @@ class DocumentExtensions(StrEnum):
     TXT = ".txt"
 
 
-# Extensions read by the built-in Python parsers, whichever PDF parser is
-# configured: `TextDocumentParser` and `DocxDocumentParser` handle these and
-# the parser choice never enters into it.
-NATIVE_FORMATS: set[str] = {".txt", ".md", ".docx"}
+# Extensions read by the built-in text reader, whichever parser is configured:
+# `TextDocumentParser` handles these and the parser choice never enters into it.
+# Every other format goes to the chosen parser, `.docx` included.
+NATIVE_FORMATS: set[str] = {".txt", ".md"}
 
-# Extensions each PDF parser is routed for, *in addition* to the native ones.
+# Extensions each parser is routed for, *in addition* to the native ones.
 #
 # These sets are a promise, not a wish list: `/rag/supported-formats`
 # advertises them, `RAGDocumentService.upload` accepts on them, and
@@ -34,7 +35,8 @@ NATIVE_FORMATS: set[str] = {".txt", ".md", ".docx"}
 # `tests/services/test_supported_formats.py` pins each set against what the
 # pipeline actually routes, so widening one here without teaching the parser
 # fails the suite rather than the user's upload.
-PYMUPDF_PDF_FORMATS: set[str] = {".pdf"}
+# PyMuPDF opens `.docx` itself and lays it out into pages, tables included.
+PYMUPDF_PDF_FORMATS: set[str] = {".pdf", ".docx"}
 
 # LiteParse reads PDFs directly through PDFium and converts everything else to
 # PDF first. The two conversion paths differ in what they need installed, which
@@ -62,8 +64,7 @@ LITEPARSE_IMAGE_FORMATS: set[str] = {
 # Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS, then SPREADSHEET_EXTENSIONS,
 # in liteparse's `conversion.rs`. Kept in that order so the two can be diffed.
 # Split in two because the first set is paginated when a PDF parser reads it
-# and the second is not, which is what a citation's page rests on (#2489);
-# `.docx` is in the first but always reaches the native parser instead.
+# and the second is not, which is what a citation's page rests on (#2489).
 LITEPARSE_PAGED_OFFICE_FORMATS: set[str] = {
     ".doc",
     ".docx",
@@ -109,6 +110,7 @@ LITEPARSE_PDF_FORMATS: set[str] = {".pdf"} | LITEPARSE_IMAGE_FORMATS | LITEPARSE
 LLAMAPARSE_PDF_FORMATS: set[str] = {
     ".pdf",
     ".doc",
+    ".docx",
     ".pptx",
     ".ppt",
     ".rtf",
@@ -123,9 +125,30 @@ LLAMAPARSE_PDF_FORMATS: set[str] = {
     ".csv",
 }
 
+# Docling Serve converts these. The extensions are the ones its documented
+# input formats cover that this pipeline stores; `.md` and `.txt` stay with the
+# built-in reader.
+DOCLING_PDF_FORMATS: set[str] = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".bmp",
+    ".webp",
+    ".docx",
+    ".pptx",
+    ".xlsx",
+    ".html",
+    ".htm",
+    ".csv",
+}
+
 PYMUPDF_FORMATS: set[str] = NATIVE_FORMATS | PYMUPDF_PDF_FORMATS
 LITEPARSE_FORMATS: set[str] = NATIVE_FORMATS | LITEPARSE_PDF_FORMATS
 LLAMAPARSE_FORMATS: set[str] = NATIVE_FORMATS | LLAMAPARSE_PDF_FORMATS
+DOCLING_FORMATS: set[str] = NATIVE_FORMATS | DOCLING_PDF_FORMATS
 
 PARSER_FORMATS: dict[str, set[str]] = {
     "pymupdf": PYMUPDF_FORMATS,
@@ -133,16 +156,14 @@ PARSER_FORMATS: dict[str, set[str]] = {
     "llamaparse": LLAMAPARSE_FORMATS,
 }
 
-PARSER_PDF_FORMATS: dict[str, set[str]] = {
-    "pymupdf": PYMUPDF_PDF_FORMATS,
-    "liteparse": LITEPARSE_PDF_FORMATS,
-    "llamaparse": LLAMAPARSE_PDF_FORMATS,
-}
-
 
 def get_supported_formats(parser_name: str = "pymupdf") -> set[str]:
-    """Get supported file formats for a given parser."""
-    return PARSER_FORMATS.get(parser_name, PYMUPDF_FORMATS)
+    """The formats a parser is routed for; an unknown name is an error, never PyMuPDF's set.
+
+    Raises:
+        KeyError: If `parser_name` names no parser.
+    """
+    return PARSER_FORMATS[parser_name]
 
 
 EMBEDDING_DIMENSIONS: dict[str, int] = {
@@ -197,7 +218,7 @@ class DocumentParser(BaseModel):
 class PdfParser(BaseModel):
     """PDF parsing settings."""
 
-    method: str = "pymupdf"  # Runtime: pymupdf, llamaparse, liteparse
+    method: str = "pymupdf"  # Runtime: pymupdf, llamaparse, liteparse, docling
     api_key: str = ""
     tier: str = "agentic"
     # LiteParse-specific. ocr_server_url=None falls back to bundled Tesseract.
@@ -210,6 +231,14 @@ class PdfParser(BaseModel):
     liteparse_output_format: str = "markdown"
     liteparse_dpi: float = 150.0
     liteparse_max_pages: int = 1000
+    # Docling Serve. Its page limit and deadline are the two `liteparse_*` values
+    # above; renaming them would touch every stored caller for no gain.
+    docling_connection_id: UUID | None = None
+    docling_base_url: str | None = None
+    docling_api_key: str = Field(default="", repr=False)
+    docling_ocr_languages: list[str] = Field(default_factory=list)
+    docling_ocr_preset: str = "auto"
+    docling_table_mode: str = "accurate"
 
 
 # The collection a caller gets when they name none: the `--collection` default on

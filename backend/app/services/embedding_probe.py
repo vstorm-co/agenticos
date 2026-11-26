@@ -57,7 +57,7 @@ from app.services.rag import embedding_providers
 from app.services.rag.embeddings import EmbeddingProbeError, embed_for_probe
 from app.services.rag.models import StoredChunk
 from app.services.rag.vectorstore import BaseVectorStore
-from app.services.service_connection import CONNECTION_KEY_PURPOSE, ServiceConnectionService
+from app.services.service_connection import KEY_PURPOSES, ServiceConnectionService
 from app.services.spend import assert_organization_within_budget
 
 PROBE_MIN_COSINE = 0.995
@@ -387,7 +387,7 @@ def _custom_provider() -> embedding_providers.EmbeddingProviderEntry:
     return next(
         entry
         for entry in embedding_providers.providers()
-        if entry.provider == CONNECTION_KEY_PURPOSE
+        if entry.provider == KEY_PURPOSES["openai_compatible"]
     )
 
 

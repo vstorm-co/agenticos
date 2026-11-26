@@ -681,6 +681,17 @@ CALLS: tuple[Call, ...] = (
     # because it sends a base's text to the address under test.
     Call("GET", "/service-connections/{service_id}/probe/estimate", Perm.CONNECTIONS_MANAGE),
     Call("POST", "/service-connections/{service_id}/probe", Perm.CONNECTIONS_MANAGE, body={}),
+    # A Docling test sends a stored key to the address under test and stores nothing.
+    Call(
+        "POST",
+        "/service-connections/test",
+        Perm.CONNECTIONS_MANAGE,
+        body={
+            "kind": "document_parser",
+            "provider": "docling",
+            "base_url": "http://docling.internal:5001",
+        },
+    ),
     # The standalone ML services, all on one permission. `ml:invoke` is separate
     # from `agents:run` so that an integration which parses documents cannot also
     # spend the organization's model budget.
@@ -761,6 +772,7 @@ _READ_ONLY_POSTS = frozenset(
         # An embedding test sends a few stored chunks out and stores nothing.
         "/kb/embedding-probe",
         "/service-connections/{service_id}/probe",
+        "/service-connections/test",
     }
 )
 WRITE_CALLS: tuple[Call, ...] = tuple(

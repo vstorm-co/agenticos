@@ -1,9 +1,10 @@
 """Endpoints a collection may be pointed at, and the key that opens one when it has one.
 
-Two kinds today. `embedding`: an OpenAI-compatible embeddings endpoint a knowledge
+Three kinds today. `embedding`: an OpenAI-compatible embeddings endpoint a knowledge
 base embeds through - an Ollama on the deployment's network, or any gateway the
 organization registers. `ocr`: the LiteParse OCR sidecar a parse may send its pages
-to. Both began as environment variables (`EMBEDDING_OLLAMA_BASE_URL`,
+to. `document_parser`: a Docling Serve a collection's documents are parsed by, with an
+optional key. The first two began as environment variables (`EMBEDDING_OLLAMA_BASE_URL`,
 `LITEPARSE_OCR_SERVER_URL`): one address per deployment was wrong for the same reason
 `SANDBOXD_URL` was, since a deployment can run more than one, an organization may run
 its own, and there was nowhere in the product to see or change either.
@@ -12,7 +13,7 @@ So: a row, named and pointed at an endpoint, owned by an organization or - with 
 organization - by the deployment itself, which is how a collection that belongs to no
 organization (`scope: app`) reaches one at all. A knowledge base names an `embedding`
 connection by id where it would otherwise name a vault key; a collection's ingestion
-configuration names an `ocr` one the same way. `sandbox_connections`, `model_profiles`
+configuration names an `ocr` or a `document_parser` one the same way. `sandbox_connections`, `model_profiles`
 and `mcp_connections` are the same shape.
 
 A connection may carry one credential, and only an organization's may: the vault is
@@ -38,6 +39,7 @@ class ServiceConnectionKind(StrEnum):
 
     EMBEDDING = "embedding"
     OCR = "ocr"
+    DOCUMENT_PARSER = "document_parser"
 
 
 class ServiceConnection(Base, TimestampMixin):
@@ -45,7 +47,9 @@ class ServiceConnection(Base, TimestampMixin):
 
     __tablename__ = "service_connections"
     __table_args__ = (
-        CheckConstraint("kind IN ('embedding', 'ocr')", name="ck_service_connections_kind"),
+        CheckConstraint(
+            "kind IN ('embedding', 'ocr', 'document_parser')", name="ck_service_connections_kind"
+        ),
         CheckConstraint(
             "organization_id IS NOT NULL OR secret_id IS NULL",
             name="ck_service_connections_deployment_keyless",
