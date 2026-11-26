@@ -1504,6 +1504,7 @@
         "project": "Werkruimte van project",
         "hint": "Geldt voor het volgende bericht. Projectcontext of bestanden kiezen verandert de uitvoerlocatie niet.",
         "filesOnly": "Deze agent kan projectbestanden en context gebruiken, maar geen opdrachten uitvoeren.",
+        "projectFilesOnly": "Dit project slaat alleen bestanden op. Kies de agentwerkruimte om opdrachten uit te voeren; projectbestanden blijven gescheiden.",
         "noProject": "Start een chat in een project om de werkruimte te kiezen. Vraag de agent in andere chats een project voor deze uitvoering te kiezen.",
         "local": "Opdrachten gebruiken de toegestane map op deze computer. Ga terug naar de cloud om dit te wijzigen.",
         "loading": "Het project van deze chat controleren…",

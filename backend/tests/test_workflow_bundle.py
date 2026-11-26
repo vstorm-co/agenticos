@@ -433,7 +433,18 @@ def test_column_scoped_action_tables_cannot_leak_source_column_ids(nested: bool)
         workflow_pins(content)
 
 
-@pytest.mark.parametrize("version", [0, -1, False, "1", str(uuid4()), [1], {"value": 1}])
+@pytest.mark.parametrize(
+    "version",
+    [
+        0,
+        -1,
+        False,
+        "1",
+        pytest.param("45b22e47-349b-4b80-91ab-1da221a73dd1", id="uuid-string"),
+        [1],
+        {"value": 1},
+    ],
+)
 def test_bound_table_schema_versions_are_positive_numbers_not_guessed_resource_ids(
     version: object,
 ) -> None:

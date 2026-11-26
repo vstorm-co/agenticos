@@ -507,6 +507,7 @@
         "project": "Workspace projektu",
         "hint": "Dotyczy następnej wiadomości. Wybór kontekstu lub plików projektu nie przełącza wykonywania poleceń.",
         "filesOnly": "Ten agent może korzystać z plików i kontekstu projektu, ale nie ma możliwości wykonywania poleceń.",
+        "projectFilesOnly": "Ten projekt przechowuje tylko pliki. Wybierz środowisko agenta do wykonywania poleceń; pliki projektu pozostają osobno.",
         "noProject": "Rozpocznij chat w projekcie, aby wybrać jego workspace. W innych chatach poproś agenta o wybranie projektu na czas danego uruchomienia.",
         "local": "Polecenia korzystają z folderu udostępnionego na tym komputerze. Wróć do chmury, aby zmienić ten wybór.",
         "loading": "Sprawdzanie projektu tego chatu…",
@@ -8073,7 +8074,7 @@
       },
       "organization-chat-costs": {
         "title": "Koszty w chacie",
-        "body": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Activity i dashboardu pozostają bez zmian."
+        "body": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Aktywność i dashboardu pozostają bez zmian."
       },
       "personal-chat-costs": {
         "title": "Koszty w chacie",
@@ -21900,7 +21901,7 @@
       "everyone": "Wszyscy",
       "spend_privileged": "Osoby z dostępem do wydatków",
       "nobody": "Nikt w chacie",
-      "organizationHint": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Activity i dashboardu pozostają bez zmian.",
+      "organizationHint": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Aktywność i dashboardu pozostają bez zmian.",
       "personalLabel": "Pokazuj koszty w moich chatach",
       "personalHint": "Możesz ukryć koszty we własnych chatach. Nie możesz obejść ograniczeń organizacji ani deploymentu.",
       "restricted": "Organizacja lub deployment ukrywa koszty w chacie dla tego konta.",

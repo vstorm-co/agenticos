@@ -115,17 +115,18 @@ export function ToolApprovalDialog({
 
   return (
     // Keep batch decisions below the scrollable requests. A single request has
-    // room for decisions beside it whenever the card itself is wide enough.
+    // room for decisions beside it only when both regions retain readable width.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
       <div
         className={cn(
           "border-border bg-card flex flex-col gap-2 rounded-xl border px-3 py-2 shadow-sm",
-          !batch && "@md:flex-row @md:items-start",
+          !batch && "@md:flex-row @md:flex-wrap @md:items-start",
         )}
       >
         <ul
           className={cn(
             "min-w-0 flex-1 space-y-4",
+            !batch && "@md:flex-[1_1_18rem]",
             batch &&
               "-mr-1 max-h-[min(36dvh,20rem)] scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain pr-2",
           )}
@@ -202,7 +203,7 @@ export function ToolApprovalDialog({
             {feedback("retryResume")}
           </Button>
         ) : mayDecide ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          <div className="ms-auto flex max-w-full shrink-0 flex-wrap justify-end gap-1.5">
             {partial && (
               <p className="text-muted-foreground w-full text-right text-xs">
                 {t("approvalOthersWait")}

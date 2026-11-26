@@ -9394,6 +9394,7 @@
         "project": "Proje çalışma alanı",
         "hint": "Sonraki mesaj için geçerlidir. Proje bağlamını veya dosyalarını seçmek komutların çalıştırıldığı yeri değiştirmez.",
         "filesOnly": "Bu ajan proje dosyalarını ve bağlamını kullanabilir ancak komut çalıştıramaz.",
+        "projectFilesOnly": "Bu proje yalnızca dosyaları saklar. Komut çalıştırmak için ajan çalışma alanını seçin; proje dosyaları ayrı kalır.",
         "noProject": "Çalışma alanını seçmek için projede bir sohbet başlatın. Diğer sohbetlerde ajandan bu çalıştırma için bir proje seçmesini isteyin.",
         "local": "Komutlar bu bilgisayarda izin verilen klasörü kullanır. Bu seçimi değiştirmek için buluta dönün.",
         "loading": "Bu sohbetin projesi kontrol ediliyor…",

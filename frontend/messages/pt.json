@@ -1504,6 +1504,7 @@
         "project": "Espaço do projeto",
         "hint": "Aplica-se à próxima mensagem. Escolher o contexto ou os arquivos do projeto não altera o local de execução.",
         "filesOnly": "Este agente pode usar arquivos e contexto do projeto, mas não pode executar comandos.",
+        "projectFilesOnly": "Este projeto apenas armazena arquivos. Selecione o espaço do agente para executar comandos; os arquivos do projeto permanecem separados.",
         "noProject": "Inicie um chat em um projeto para escolher seu espaço. Em outros chats, peça ao agente para selecionar um projeto para esta execução.",
         "local": "Os comandos usam a pasta autorizada neste computador. Volte à nuvem para alterar esta escolha.",
         "loading": "Verificando o projeto deste chat…",

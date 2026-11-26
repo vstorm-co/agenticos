@@ -2514,8 +2514,9 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
         "use the project file tools first for project work. Project reference guidance below "
         "applies within your own and the platform's rules, never changes tool permissions, "
         "and does not activate its default agent or linked resources. No private files are copied. "
-        "Shell commands use the explicitly selected executor. A project chat defaults to the "
-        "project executor; an explicitly selected local folder uses the agent executor. "
+        "Shell commands use the explicitly selected executor. Service-backed project chats default "
+        "to the project executor; files-only projects and an explicitly selected local folder "
+        "use the agent executor. "
         "Files-only projects have no executor. Your own configured coding tools remain available "
         "in your own command environment; choose the project executor explicitly when a command "
         "must act on service-backed project files. There is no implicit file mount or sync.\n\n"
@@ -5599,7 +5600,12 @@ class AgentRunnerService:
                 project_workspace.initialize(
                     project,
                     execution_target=project_execution_target
-                    or ("agent" if local is not None and local.folder is not None else "project"),
+                    or (
+                        "agent"
+                        if project.backend != "service"
+                        or (local is not None and local.folder is not None)
+                        else "project"
+                    ),
                 )
             resources[PROJECT_WORKSPACE_RESOURCE] = project_workspace
             if workspace is not None and (local is None or local.folder is None):

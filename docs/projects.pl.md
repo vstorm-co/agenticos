@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "506e3fa30055"
+source_sha: "97b2091b7431"
 ---
 
 # Projekty { #projects }
@@ -91,8 +91,8 @@ Pliki projektu i wykonywanie poleceń są rozdzielone:
 | Wybór | Domyślne działanie i skutek |
 |---|---|
 | Kontekst projektu | Pliki i instrukcje referencyjne projektu; nadal obowiązują zasady agenta i platformy |
-| **Pracuj w → Projekt** | Domyślnie w czacie projektu; używa kontenera projektu, jeżeli agent ma narzędzia powłoki Sandbox |
-| **Pracuj w → Agent** | Domyślnie poza projektem; używa skonfigurowanego środowiska agenta bez montowania plików projektu |
+| **Pracuj w → Projekt** | Domyślnie w czacie projektu z kontenerem; używa kontenera projektu, jeżeli agent ma narzędzia powłoki Sandbox |
+| **Pracuj w → Agent** | Domyślnie poza projektem i dla projektów przechowujących tylko pliki; używa skonfigurowanego środowiska agenta bez montowania plików projektu |
 | Tylko przechowywanie plików | Działają tekstowe narzędzia projektu; projekt nie wykonuje poleceń |
 | Lokalny folder roboczy | Pozostaje środowisko wybrane przez użytkownika; kontekst projektu go nie zastępuje |
 
@@ -132,7 +132,7 @@ Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
 połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
 zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
 Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
-organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Czaty projektu korzystają z jego plików i domyślnie z jego środowiska wykonawczego, gdy agent ma narzędzia poleceń. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Czaty projektu korzystają z jego plików, a dla kontenerów obsługujących polecenia domyślnie z jego środowiska wykonawczego, gdy agent ma narzędzia powłoki. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
 
 Transfer jest trwałym zadaniem w tle. Kopiuje pliki i puste foldery do odrębnego
 warsztatu, sprawdza skróty plików i drzewo katalogów, a potem aktywuje cel. Przed

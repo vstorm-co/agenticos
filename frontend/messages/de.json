@@ -1504,6 +1504,7 @@
         "project": "Projekt-Arbeitsbereich",
         "hint": "Gilt für die nächste Nachricht. Projektkontext oder Dateien zu wählen ändert nicht den Ausführungsort.",
         "filesOnly": "Dieser Agent kann Projektdateien und Kontext verwenden, aber keine Befehle ausführen.",
+        "projectFilesOnly": "Dieses Projekt speichert nur Dateien. Wähle den Agent-Workspace für Befehle; Projektdateien bleiben getrennt.",
         "noProject": "Starten Sie einen Chat im Projekt, um dessen Arbeitsbereich zu wählen. Bitten Sie den Agenten in anderen Chats, ein Projekt für den aktuellen Lauf zu wählen.",
         "local": "Befehle verwenden den freigegebenen Ordner auf diesem Computer. Wechseln Sie zur Cloud, um diese Auswahl zu ändern.",
         "loading": "Projekt dieses Chats wird geprüft…",
@@ -6288,7 +6289,7 @@
       },
       "organization-chat-costs": {
         "title": "Chatkosten",
-        "body": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Activity und Dashboard bleiben unverändert."
+        "body": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Aktivität und Dashboard bleiben unverändert."
       },
       "personal-chat-costs": {
         "title": "Chatkosten",
@@ -21813,7 +21814,7 @@
       "everyone": "Alle",
       "spend_privileged": "Personen mit Zugriff auf Ausgaben",
       "nobody": "Niemand im Chat",
-      "organizationHint": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Activity und Dashboard bleiben unverändert.",
+      "organizationHint": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Aktivität und Dashboard bleiben unverändert.",
       "personalLabel": "Kosten in meinen Chats anzeigen",
       "personalHint": "Blende Kosten in deinen Chats aus. Organisations- und Deployment-Beschränkungen gelten weiterhin.",
       "restricted": "Deine Organisation oder dein Deployment blendet Chatkosten für dieses Konto aus.",

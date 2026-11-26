@@ -1096,7 +1096,10 @@ class TestPrepare:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("aside", [False, True])
-    async def test_a_chat_in_a_project_works_in_the_projects_container(self, aside: bool):
+    @pytest.mark.parametrize("project_backend", ["state", "service"])
+    async def test_a_chat_in_a_project_works_in_the_projects_container(
+        self, aside: bool, project_backend: str
+    ):
         """Whichever agent answers, and whatever scope its own binding asks for:
         the project's files are what the person put there for any agent to use."""
         ctx = _ctx()
@@ -1108,7 +1111,7 @@ class TestPrepare:
             id=uuid.uuid4(),
             description=None,
             instructions="Cite sources.",
-            backend="state",
+            backend=project_backend,
             sandbox_connection_id=None,
             runtime=None,
         )
@@ -1151,10 +1154,15 @@ class TestPrepare:
                 new=AsyncMock(return_value=_sandbox(StateBackend())),
             ) as project_files,
         ):
-            await service.prepare(
+            prepared = await service.prepare(
                 ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard, aside=aside
             )
 
+        if not aside:
+            assert prepared.project_workspace is not None
+            assert prepared.project_workspace.execution_target == (
+                "project" if project_backend == "service" else "agent"
+            )
         assert opened.await_args.kwargs["scope_override"] == "project"
         # Handed to the open itself: preparing already opens the session (#2222).
         assert opened.await_args.kwargs["on_wait"] is heard

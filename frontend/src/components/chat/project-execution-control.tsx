@@ -1,11 +1,14 @@
 "use client";
 
 import { useId } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { FolderOpen } from "lucide-react";
 import { useProjectOfConversation } from "@/hooks/use-projects";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
+import { getProject } from "@/lib/projects-api";
+import { qk } from "@/lib/query-keys";
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores";
@@ -25,18 +28,27 @@ export function ProjectExecutionControl({
   const pendingProjectId = useConversationStore((state) => state.pendingProjectId);
   const project = useProjectOfConversation(conversationId);
   const projectId = conversationId === null ? pendingProjectId : project.data;
+  const details = useQuery({
+    queryKey: qk.projects.detail(projectId ?? ""),
+    queryFn: () => getProject(projectId ?? ""),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
   const selected = useWorkOnStore((state) => state.executionFor(conversationId, pendingProjectId));
   const local = useWorkOnStore((state) => state.targetFor(conversationId));
   const setExecution = useWorkOnStore((state) => state.setExecution);
   const onComputer = isDesktopShell(shell) && local !== null;
   const hasCommands = agentCapabilities?.includes("sandbox") === true;
-  const pending = conversationId !== null && project.isPending;
-  const unavailable = project.isError || pending;
+  const pending =
+    (conversationId !== null && project.isPending) || (Boolean(projectId) && details.isPending);
+  const failed = project.isError || (Boolean(projectId) && details.isError);
+  const unavailable = failed || pending;
+  const executable = details.data?.backend === "service";
   const active = unavailable
     ? null
     : onComputer
       ? "agent"
-      : (selected ?? (projectId ? "project" : "agent"));
+      : (selected ?? (projectId && executable ? "project" : "agent"));
   return (
     <fieldset className="border-foreground/8 space-y-3 border-b py-3">
       <legend className="flex items-center gap-2 text-[13px] font-medium">
@@ -56,7 +68,9 @@ export function ProjectExecutionControl({
                   name={id}
                   value={target}
                   checked={active === target}
-                  disabled={unavailable || onComputer || !projectId}
+                  disabled={
+                    unavailable || onComputer || !projectId || (target === "project" && !executable)
+                  }
                   onChange={() => {
                     if (projectId) setExecution(conversationId, projectId, target);
                   }}
@@ -66,16 +80,26 @@ export function ProjectExecutionControl({
             ))}
           </div>
           <p id={`${id}-hint`} className="text-muted-foreground text-xs leading-relaxed">
-            {t(onComputer ? "local" : pending ? "loading" : projectId ? "hint" : "noProject")}
+            {t(
+              onComputer
+                ? "local"
+                : pending
+                  ? "loading"
+                  : projectId
+                    ? executable
+                      ? "hint"
+                      : "projectFilesOnly"
+                    : "noProject",
+            )}
           </p>
-          {project.isError && (
+          {failed && (
             <div role="alert" className="space-y-2 text-xs">
               <p>{t("unavailable")}</p>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => void project.refetch()}
+                onClick={() => void (project.isError ? project.refetch() : details.refetch())}
               >
                 {common("retry")}
               </Button>

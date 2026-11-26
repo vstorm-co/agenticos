@@ -89,8 +89,8 @@ Project files and command execution are separate:
 | Choice | Default and effect |
 |---|---|
 | Project context | The project's files and reference instructions; existing agent and platform rules still apply |
-| **Work on → Project** | Default in project chats; uses the project's command-capable container, when Sandbox shell tools are enabled |
-| **Work on → Agent** | Default outside project chats; uses the agent's configured executor, without mounting project files |
+| **Work on → Project** | Default in service-backed project chats; uses the project's command-capable container, when Sandbox shell tools are enabled |
+| **Work on → Agent** | Default outside project chats and for files-only projects; uses the agent's configured executor, without mounting project files |
 | Stored files only | Project text tools work; the project cannot execute commands |
 | Native working folder | Keeps the person's chosen local executor; selecting project context cannot replace it |
 
@@ -131,7 +131,7 @@ connection, automatic selection, or **Stored files only**. Automatic selection p
 the connection chosen at creation; if none is available, it uses stored files.
 Choosing a named connection requires `connections:view` and an active connection
 in your organization. The project's settings show its connection name and runtime;
-project chats use its files and default to its executor when command tools are enabled. Editors can use **Change sandbox** to move an existing project, including its files.
+project chats use its files and, for command-capable containers, default to its executor when shell tools are enabled. Editors can use **Change sandbox** to move an existing project, including its files.
 
 The transfer is a durable background job. It copies files and empty folders into
 an isolated workspace, verifies file hashes and the directory tree, then activates

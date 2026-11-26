@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "506e3fa30055"
+source_sha: "97b2091b7431"
 ---
 
 # Projekte { #projects }
@@ -94,8 +94,8 @@ Projektdateien und Befehlsausführung sind getrennt:
 | Auswahl | Standard und Wirkung |
 |---|---|
 | Projektkontext | Dateien und Referenzanweisungen des Projekts; Agenten- und Plattformregeln gelten weiterhin |
-| **Arbeiten in → Projekt** | Standard in Projektchats; nutzt den ausführbaren Projektcontainer, sofern Sandbox-Shellwerkzeuge aktiviert sind |
-| **Arbeiten in → Agent** | Standard außerhalb von Projektchats; nutzt den konfigurierten Agenten-Executor ohne eingebundene Projektdateien |
+| **Arbeiten in → Projekt** | Standard in Projektchats mit Container; nutzt den ausführbaren Projektcontainer, sofern Sandbox-Shellwerkzeuge aktiviert sind |
+| **Arbeiten in → Agent** | Standard außerhalb von Projektchats und bei reinen Dateiprojekten; nutzt den konfigurierten Agenten-Executor ohne eingebundene Projektdateien |
 | Nur Dateien speichern | Textwerkzeuge funktionieren; das Projekt führt keine Befehle aus |
 | Lokaler Arbeitsordner | Behält den vom Benutzer gewählten lokalen Executor; Projektkontext ersetzt ihn nicht |
 
@@ -137,7 +137,7 @@ die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswah
 behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
 Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
 eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
-Verbindungsnamen und Laufzeitumgebung. Projektchats nutzen ihre Dateien und standardmäßig ihren Executor, wenn Befehlswerkzeuge aktiviert sind. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+Verbindungsnamen und Laufzeitumgebung. Projektchats nutzen ihre Dateien und bei befehlsfähigen Containern standardmäßig ihren Executor, wenn Shellwerkzeuge aktiviert sind. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
 
 Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
 in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und

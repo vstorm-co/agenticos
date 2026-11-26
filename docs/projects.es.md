@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "506e3fa30055"
+source_sha: "97b2091b7431"
 ---
 
 # Proyectos { #projects }
@@ -93,8 +93,8 @@ Los archivos del proyecto y la ejecución de comandos están separados:
 | Selección | Valor predeterminado y efecto |
 |---|---|
 | Contexto del proyecto | Archivos e instrucciones de referencia; se mantienen las reglas del agente y la plataforma |
-| **Trabajar en → Proyecto** | Por defecto en chats del proyecto; usa su contenedor ejecutable si las herramientas shell de Sandbox están activadas |
-| **Trabajar en → Agente** | Por defecto fuera del proyecto; usa el ejecutor configurado sin montar archivos del proyecto |
+| **Trabajar en → Proyecto** | Por defecto en chats del proyecto con contenedor; usa su contenedor ejecutable si las herramientas shell de Sandbox están activadas |
+| **Trabajar en → Agente** | Por defecto fuera del proyecto y en proyectos de solo archivos; usa el ejecutor configurado sin montar archivos del proyecto |
 | Solo almacenar archivos | Funcionan las herramientas de texto; el proyecto no ejecuta comandos |
 | Carpeta de trabajo local | Mantiene el ejecutor local elegido por la persona; el contexto del proyecto no lo sustituye |
 
@@ -136,7 +136,7 @@ registrada, la selección automática o **Solo almacenar archivos**. La selecci�
 automática conserva la conexión elegida al crear el proyecto; si no hay ninguna,
 almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
 activa de tu organización. Los ajustes muestran su nombre y entorno de ejecución.
-Los chats del proyecto usan sus archivos y, por defecto, su ejecutor si hay herramientas de comandos activadas.
+Los chats del proyecto usan sus archivos y, en contenedores que ejecutan comandos, su ejecutor por defecto si las herramientas shell están activadas.
 Los editores pueden usar **Cambiar sandbox** para trasladar un proyecto existente con sus archivos.
 
 Un trabajo duradero en segundo plano copia archivos y carpetas vacías a un espacio
