@@ -1,18 +1,21 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserPanel } from "./browser-panel";
+import { ChatWorkspaceProvider } from "./chat-workspace-context";
+import { ChatWorkspaceFrame } from "./chat-workspace-frame";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 
+const nativeSend = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-native-browser", () => ({
   useNativeBrowser: () => ({
     viewport: { current: null },
     state: null,
     error: null,
-    send: vi.fn(),
+    send: nativeSend,
   }),
 }));
 
@@ -52,6 +55,7 @@ function browse(overrides: Partial<Browse> = {}): Browse {
 }
 
 beforeEach(() => {
+  nativeSend.mockReset().mockResolvedValue(true);
   live.value = { browse: null, task: "", canControl: false, status: "connecting", send: vi.fn() };
   live.calls = [];
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
@@ -242,4 +246,52 @@ it("follows the selected tab into its resumed run without selecting a different 
   );
   expect(screen.getByRole("heading", { name: "Resumed page" })).toBeInTheDocument();
   expect(live.calls.at(-1)).toEqual(["new-run", "resumed", true]);
+});
+
+it("retains a browse when Files is selected and reconnects its feed only when visible", async () => {
+  useBrowserPanelStore.getState().open("c1");
+  render(
+    <ChatWorkspaceProvider shared>
+      <BrowserPanel browses={[browse()]} />
+      <ChatWorkspaceFrame panel="files">{() => <p>File content</p>}</ChatWorkspaceFrame>
+    </ChatWorkspaceProvider>,
+  );
+  const page = screen.getByRole("heading", { name: "Pricing" });
+  expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
+  await userEvent.click(screen.getByRole("tab", { name: "Files" }));
+  expect(page).not.toBeVisible();
+  expect(live.calls.at(-1)).toEqual(["run-1", "c1", false]);
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  await userEvent.click(screen.getByRole("tab", { name: "Browser" }));
+  expect(screen.getByRole("heading", { name: "Pricing" })).toBe(page);
+  expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("tabpanel", { name: "Browser" })).toBeNull();
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  act(() => useBrowserPanelStore.getState().open("c1"));
+  expect(screen.getByRole("heading", { name: "Pricing" })).toBe(page);
+});
+
+it("forgets a native browser selection only when its actual tab closes", async () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  try {
+    useBrowserPanelStore.getState().open("c1");
+    render(
+      <ChatWorkspaceProvider shared>
+        <BrowserPanel browses={[browse({ nativeId: "native-browser-test" })]} />
+      </ChatWorkspaceProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close tab" }));
+    expect(nativeSend).toHaveBeenCalledWith("close");
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(screen.queryByRole("tabpanel", { name: "Browser" })).toBeNull();
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+  }
 });

@@ -2174,7 +2174,9 @@
       "selectingExecutionTarget": "Sélection de la cible des commandes…",
       "selectedExecutionTarget": "Cible des commandes sélectionnée",
       "transferringProjectFile": "Transfert du fichier du projet…",
-      "transferredProjectFile": "Fichier du projet transféré"
+      "transferredProjectFile": "Fichier du projet transféré",
+      "previewingVisual": "Prévisualisation d’un visuel",
+      "previewVisual": "Prévisualiser un visuel"
     },
     "turnWasStopped": "arrêté",
     "unfavourite": "Retirer des favoris",
@@ -2354,7 +2356,19 @@
       "followUpAsks": "Le dessin demande d’envoyer ceci comme votre message :",
       "followUpSend": "Envoyer",
       "followUpEdit": "Modifier",
-      "followUpDismiss": "Ignorer"
+      "followUpDismiss": "Ignorer",
+      "downloadSvg": "SVG — fichier vectoriel",
+      "downloadPng": "PNG — image pour les présentations",
+      "preparingPng": "Préparation du PNG…",
+      "pngDownloadFailed": "Impossible de télécharger le PNG. Réessayez.",
+      "openWorkspace": "Ouvrir le panneau latéral",
+      "dockWorkspace": "Revenir au panneau latéral",
+      "closeWorkspace": "Fermer le visuel",
+      "workspaceTitle": "Visuel : {title}",
+      "workspaceViews": "Vues du visuel",
+      "resizeWorkspace": "Redimensionner le panneau du visuel",
+      "previewTab": "Aperçu",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Annuler la dictée",
@@ -2740,7 +2754,17 @@
     },
     "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
     "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
-    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
+    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser.",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuels",
+      "browser": "Navigateur",
+      "files": "Fichiers",
+      "resize": "Redimensionner le workspace",
+      "expand": "Agrandir le workspace",
+      "dock": "Ancrer le workspace",
+      "allFiles": "Retour à tous les fichiers"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archiver {name} ?",
@@ -6296,6 +6320,14 @@
       "project-resources": {
         "title": "Regrouper les ressources liées",
         "body": "Liez des agents, workflows, Apps et tables existants sans modifier leurs autorisations. Ouvrez-les ici ou choisissez un workflow lié comme point d'entrée du projet."
+      },
+      "chat-workspace-tabs": {
+        "title": "Un workspace à côté du chat",
+        "body": "Basculez ici entre Visuels, Navigateur et Fichiers. La page et le fichier sélectionnés restent ouverts lorsque vous changez d’onglet. Agrandissez le workspace pour avoir plus de place ou fermez-le pour revenir à la conversation."
+      },
+      "chat-visual-workspace": {
+        "title": "Une page à côté du chat",
+        "body": "Ouvrez un visuel dans le panneau latéral redimensionnable pour continuer à discuter pendant que vous l’utilisez. Basculez entre Aperçu et Code, agrandissez ou fermez le panneau sans réinitialiser ses commandes."
       }
     },
     "chooseLanguage": "Langue",
@@ -14567,6 +14599,12 @@
       "tools": {
         "title": "Actions de messagerie autorisées",
         "description": "Actions explicitement accordées sur les bots connectés de l’agent."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Afficher l’image d’un visuel au modèle",
+        "description": "Renvoie une capture d’écran lorsque l’agent prévisualise un visuel. Désactivez cette option pour un modèle qui ne lit pas les images ; le diagnostic de rendu reste disponible."
       }
     }
   },

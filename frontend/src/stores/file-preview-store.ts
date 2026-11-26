@@ -21,6 +21,7 @@ export interface FilePreviewState {
   available: ChatMessageFile[];
   /** The file being read, or `null` when the dialog is closed. */
   openId: string | null;
+  openRequest: number;
   setAvailable: (files: ChatMessageFile[]) => void;
   /**
    * Open one file.
@@ -37,17 +38,18 @@ export interface FilePreviewState {
 const filePreviewState: StateCreator<FilePreviewState> = (set) => ({
   available: [],
   openId: null,
+  openRequest: 0,
   setAvailable: (files) => set({ available: files }),
   open: (file) =>
     set((state) =>
       state.available.some((one) => one.id === file.id)
-        ? { openId: file.id }
-        : { available: [file], openId: file.id },
+        ? { openId: file.id, openRequest: state.openRequest + 1 }
+        : { available: [file], openId: file.id, openRequest: state.openRequest + 1 },
     ),
   select: (index) =>
     set((state) => {
       const file = state.available[index];
-      return file === undefined ? {} : { openId: file.id };
+      return file === undefined ? {} : { openId: file.id, openRequest: state.openRequest + 1 };
     }),
   close: () => set({ openId: null }),
 });

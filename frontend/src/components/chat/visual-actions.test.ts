@@ -1,8 +1,44 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { copySvgImage, downloadVisual, inertSvg, sealedPage } from "./visual-actions";
+import {
+  copySvgImage,
+  downloadSvgPng,
+  downloadVisual,
+  inertSvg,
+  sealedPage,
+  visualToastOptions,
+} from "./visual-actions";
 
 const BASE = "https://content.example.com/api/v1/artifact-content/";
+
+it("routes completed actions only to their own workspace and falls back after it closes", () => {
+  expect(visualToastOptions()).toEqual({});
+  const other = document.createElement("div");
+  other.dataset.visualWorkspace = "docked";
+  other.id = "other-chat";
+  other.setAttribute("popover", "manual");
+  const layer = document.createElement("div");
+  layer.dataset.visualWorkspace = "docked";
+  layer.id = "first";
+  layer.setAttribute("popover", "manual");
+  document.body.append(other, layer);
+  try {
+    expect(visualToastOptions(layer)).toEqual({ toasterId: "first" });
+    layer.id = "second";
+    expect(visualToastOptions(layer)).toEqual({ toasterId: "second" });
+    layer.removeAttribute("popover");
+    expect(visualToastOptions(layer)).toEqual({});
+    layer.setAttribute("popover", "manual");
+    layer.id = "";
+    expect(visualToastOptions(layer)).toEqual({});
+    layer.id = "second";
+    layer.remove();
+    expect(visualToastOptions(layer)).toEqual({});
+  } finally {
+    other.remove();
+    layer.remove();
+  }
+});
 
 /** Download one visual and hand back the file the browser was given. */
 async function downloaded(kind: "svg" | "html" | "mermaid", content: string) {
@@ -28,6 +64,70 @@ describe("downloadVisual", () => {
     expect(file.blob.type).toBe("text/plain;charset=utf-8");
     expect(file.name).toBe("order-flow.mmd");
     expect(file.text).toBe("graph TD");
+  });
+});
+
+describe("downloadSvgPng", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("downloads a sharp PNG with the original proportions and a safe filename", async () => {
+    vi.useFakeTimers();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const created = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:svg")
+      .mockReturnValueOnce("blob:png");
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage,
+    } as unknown as CanvasRenderingContext2D);
+    const png = new Blob(["PNG bytes"], { type: "image/png" });
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((done) => done(png));
+
+    await downloadSvgPng(
+      "Report / Q4",
+      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 100 50"><rect/></svg>',
+    );
+
+    const svg = new DOMParser().parseFromString(
+      await (created.mock.calls[0]![0] as Blob).text(),
+      "image/svg+xml",
+    );
+    expect(svg.getElementsByTagName("parsererror")).toHaveLength(0);
+    expect(svg.documentElement.getAttribute("width")).toBe("2000");
+    expect(svg.documentElement.getAttribute("height")).toBe("1000");
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 2000, 1000);
+    expect(created.mock.calls[1]![0]).toBe(png);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.contexts[0]).toHaveProperty("download", "report-q4.png");
+    expect(revoked).toHaveBeenCalledWith("blob:svg");
+    expect(revoked).not.toHaveBeenCalledWith("blob:png");
+    vi.runAllTimers();
+    expect(revoked).toHaveBeenCalledWith("blob:png");
+  });
+
+  it.each(["<svg><unclosed></svg>", "<html/>"])(
+    "refuses an invalid drawing without starting a download: %s",
+    async (svg) => {
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      await expect(downloadSvgPng("Broken", svg)).rejects.toThrow();
+      expect(click).not.toHaveBeenCalled();
+    },
+  );
+
+  it("releases the SVG and downloads nothing when image decoding fails", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:svg");
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(HTMLImageElement.prototype, "decode").mockRejectedValue(new Error("decode failed"));
+
+    await expect(downloadSvgPng("Broken", "<svg/>")).rejects.toThrow();
+    expect(click).not.toHaveBeenCalled();
+    expect(revoked).toHaveBeenCalledWith("blob:svg");
   });
 });
 
@@ -81,6 +181,17 @@ describe("a downloaded SVG", () => {
 
   it("saves nothing for an SVG the browser could not parse", () => {
     expect(inertSvg("<svg><unclosed></svg>")).toBe("");
+  });
+
+  it("keeps harmless animation but removes a set that rewrites a link", () => {
+    const source = inertSvg(
+      '<svg><animate attributeName="opacity" from="0" to="1"/><set/>' +
+        '<set attributeName="href" to="javascript:steal()"/></svg>',
+    );
+    expect(source).toContain('attributeName="opacity"');
+    expect(source).toContain("<set/>");
+    expect(source).not.toContain("javascript:");
+    expect(source).not.toContain('attributeName="href"');
   });
 });
 

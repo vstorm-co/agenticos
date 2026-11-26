@@ -272,6 +272,35 @@ describe("VisualFrame", () => {
     visibility.mockRestore();
   });
 
+  it("preserves a hidden preview and gives its heartbeat a fresh window when shown again", () => {
+    vi.useFakeTimers();
+    const onStall = vi.fn();
+    const props = {
+      kind: "html" as const,
+      title: "T",
+      content: "<p/>",
+      done: true,
+      height: 300,
+      onStall,
+    };
+    const view = render(<VisualFrame {...props} />);
+    const frame = frameOf();
+    act(() => vi.advanceTimersByTime(6000));
+    view.rerender(<VisualFrame {...props} watchdogPaused />);
+    act(() => vi.advanceTimersByTime(360_000));
+    expect(onStall).not.toHaveBeenCalled();
+    expect(frameOf()).toBe(frame);
+
+    view.rerender(<VisualFrame {...props} />);
+    act(() => vi.advanceTimersByTime(8000));
+    expect(onStall).not.toHaveBeenCalled();
+    say({ type: "agenticos:visual-alive" });
+    act(() => vi.advanceTimersByTime(8000));
+    expect(onStall).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(2000));
+    expect(onStall).toHaveBeenCalledOnce();
+  });
+
   it("asks before opening a link the drawing asks for", () => {
     render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} />);
     const opened = vi.spyOn(window, "open").mockReturnValue(null);

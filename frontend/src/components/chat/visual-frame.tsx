@@ -79,6 +79,8 @@ export interface VisualFrameProps {
   aspect?: number | null;
   /** Fill the parent rather than fit the drawing - full screen. */
   fill?: boolean;
+  /** Keep a hidden preview's throttled heartbeat from being treated as a stall. */
+  watchdogPaused?: boolean;
   /** How far the person zoomed in, 1 being the drawing fitted to its box. */
   zoom?: number;
   onError?: (message: string) => void;
@@ -113,6 +115,7 @@ export function VisualFrame({
   height,
   aspect = null,
   fill = false,
+  watchdogPaused = false,
   zoom = 1,
   onError,
   onRendered,
@@ -224,7 +227,7 @@ export function VisualFrame({
   // than left to hold the tab. Only while the tab is visible - a hidden one has
   // its timers throttled, and that is not a stall.
   useEffect(() => {
-    if (!done) return;
+    if (!done || watchdogPaused) return;
     alive.current = Date.now();
     const check = setInterval(() => {
       if (document.visibilityState !== "visible") {
@@ -237,7 +240,7 @@ export function VisualFrame({
       }
     }, 2000);
     return () => clearInterval(check);
-  }, [done]);
+  }, [done, watchdogPaused]);
 
   // An SVG redraws itself at any size, so it is zoomed by laying it out larger;
   // a page would only reflow wider, so it is laid out once and scaled.
@@ -286,41 +289,25 @@ export function VisualFrame({
   // it is drawn would otherwise give the box empty space to scroll into.
   return (
     <>
-      {fill ? (
+      {/* The iframe stays under these same two elements when the layout changes.
+          A different branch here would recreate its browsing context. */}
+      <div
+        ref={box}
+        className={cn(
+          "relative w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
+          fill && "h-full",
+          zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
+        )}
+        style={fill ? undefined : { height: Math.round(boxHeight) }}
+      >
         <div
-          className={cn(
-            "h-full w-full",
-            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
-          )}
+          className={cn("relative overflow-hidden", fill && "mx-auto")}
+          style={fill ? { width: `${zoom * 100}%`, height: `${zoom * 100}%` } : footprint}
         >
-          <div
-            className="relative mx-auto overflow-hidden"
-            style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
-          >
-            {iframe}
-            {loading && <PreviewSkeleton />}
-          </div>
+          {iframe}
         </div>
-      ) : (
-        <div
-          ref={box}
-          className={cn(
-            "relative w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
-            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
-          )}
-          style={{ height: Math.round(boxHeight) }}
-        >
-          <div
-            className="relative overflow-hidden"
-            // From the left edge, where the message's text starts: the drawing is
-            // part of the answer, not a picture centred in a box of its own.
-            style={footprint}
-          >
-            {iframe}
-          </div>
-          {loading && <PreviewSkeleton />}
-        </div>
-      )}
+        {loading && <PreviewSkeleton />}
+      </div>
       <LinkRequestDialog pending={pending} onDone={closeLink} />
     </>
   );

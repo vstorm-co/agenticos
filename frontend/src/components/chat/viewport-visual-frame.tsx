@@ -11,9 +11,9 @@ function subscribeToCapabilities(): () => void {
 
 /** Defer initial loading, then retain the drawing and its state while scrolling. */
 export function ViewportVisualFrame({
-  suspended = false,
+  active = false,
   ...props
-}: VisualFrameProps & { suspended?: boolean }) {
+}: VisualFrameProps & { active?: boolean }) {
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [seen, setSeen] = useState(!props.done);
   const [height, setHeight] = useState(() => clampHeight(props.height));
@@ -22,7 +22,9 @@ export function ViewportVisualFrame({
     () => typeof IntersectionObserver === "undefined",
     () => false,
   );
-  const live = !suspended && (!props.done || seen || unsupported);
+  const live = active || !props.done || seen || unsupported;
+
+  if (active && !seen) setSeen(true);
 
   useEffect(() => {
     const target = box;
@@ -55,7 +57,11 @@ export function ViewportVisualFrame({
   }, [box, live]);
 
   return (
-    <div ref={setBox} style={live ? undefined : { height }}>
+    <div
+      ref={setBox}
+      className={props.fill ? "h-full" : undefined}
+      style={live ? undefined : { height }}
+    >
       {live && <VisualFrame {...props} />}
     </div>
   );

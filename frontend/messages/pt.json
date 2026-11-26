@@ -2207,7 +2207,9 @@
       "selectingExecutionTarget": "Selecionando destino dos comandos…",
       "selectedExecutionTarget": "Destino dos comandos selecionado",
       "transferringProjectFile": "A transferir ficheiro do projeto…",
-      "transferredProjectFile": "Ficheiro do projeto transferido"
+      "transferredProjectFile": "Ficheiro do projeto transferido",
+      "previewingVisual": "Visualizando um visual",
+      "previewVisual": "Visualizar um visual"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -2387,7 +2389,19 @@
       "followUpAsks": "O desenho pede para enviar isto como sua mensagem:",
       "followUpSend": "Enviar",
       "followUpEdit": "Editar",
-      "followUpDismiss": "Dispensar"
+      "followUpDismiss": "Dispensar",
+      "downloadSvg": "SVG — arquivo vetorial",
+      "downloadPng": "PNG — imagem para apresentações",
+      "preparingPng": "Preparando PNG…",
+      "pngDownloadFailed": "Não foi possível baixar o PNG. Tente novamente.",
+      "openWorkspace": "Abrir painel lateral",
+      "dockWorkspace": "Voltar ao painel lateral",
+      "closeWorkspace": "Fechar visual",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Modos de exibição do visual",
+      "resizeWorkspace": "Redimensionar painel do visual",
+      "previewTab": "Prévia",
+      "codeTab": "Código"
     },
     "dictation": {
       "cancel": "Cancelar ditado",
@@ -2777,7 +2791,17 @@
     "routineContinueChat": "Continuar em um novo chat",
     "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
     "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
-    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar.",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuais",
+      "browser": "Navegador",
+      "files": "Arquivos",
+      "resize": "Redimensionar workspace",
+      "expand": "Expandir workspace",
+      "dock": "Acoplar workspace",
+      "allFiles": "Voltar para todos os arquivos"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -6412,6 +6436,14 @@
       "project-resources": {
         "title": "Reunir recursos relacionados",
         "body": "Associe agentes, workflows, Apps e tabelas existentes sem alterar as permissões. Abra-os aqui ou escolha um workflow associado como ponto de entrada do projeto."
+      },
+      "chat-workspace-tabs": {
+        "title": "Um workspace ao lado do seu chat",
+        "body": "Alterne entre Visuais, Navegador e Arquivos aqui. A página e o arquivo selecionados permanecem abertos quando você troca de aba. Expanda o workspace para ter mais espaço ou feche-o para voltar à conversa."
+      },
+      "chat-visual-workspace": {
+        "title": "Uma página ao lado do seu chat",
+        "body": "Abra um visual no painel lateral redimensionável para continuar conversando enquanto o utiliza. Alterne entre Prévia e Código, expanda ou feche o painel sem redefinir os controles."
       }
     },
     "chooseLanguage": "Idioma",
@@ -14842,6 +14874,12 @@
       "platform_tools": {
         "title": "Encaminhar ferramentas da plataforma",
         "description": "Permite que este runtime nativo chame as ferramentas já admitidas nesta execução do AgenticOS. Permissões da plataforma, orçamentos, aprovações e a triagem de resultados continuam valendo. Exige o computador privado e aprovado do membro que inicia a tarefa."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Mostrar ao modelo uma imagem do visual",
+        "description": "Retorne uma captura de tela quando o agent visualizar um visual. Desative para modelos que não leem imagens; os diagnósticos de renderização continuam disponíveis."
       }
     }
   },

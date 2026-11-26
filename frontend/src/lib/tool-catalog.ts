@@ -253,6 +253,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "readingVisual",
     displayNameKey: "readVisual",
   },
+  preview_visual: {
+    kind: "read",
+    render: "generic",
+    captionKey: "previewingVisual",
+    displayNameKey: "previewVisual",
+  },
 
   // browser_use - a whole browse. The step card stays generic because the live view
   // is its own panel beside the transcript: a frame per step folded into the message

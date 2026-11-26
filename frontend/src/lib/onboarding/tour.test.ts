@@ -290,6 +290,8 @@ describe("stepsForPage", () => {
       "chat-coding-revert",
       "chat-plan",
       "chat-visual",
+      "chat-workspace-tabs",
+      "chat-visual-workspace",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",

@@ -1,19 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 import { useSavedVisualsStore } from "@/stores/visual-stream-store";
 import { VisualSaveDialog } from "./visual-save-dialog";
 
-const { mutateAsync, push, toast, pending } = vi.hoisted(() => ({
+const { mutateAsync, push, toast, publication } = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
-  pending: { value: false },
   push: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
+  publication: { pending: false },
 }));
 vi.mock("@/hooks/use-publish-visual", () => ({
-  usePublishVisual: () => ({ mutateAsync, isPending: pending.value }),
+  usePublishVisual: () => ({ mutateAsync, isPending: publication.pending }),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("sonner", () => ({ toast }));
@@ -46,9 +47,55 @@ const APP = {
 describe("VisualSaveDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    pending.value = false;
+    publication.pending = false;
     useSavedVisualsStore.setState({ saved: {} });
   });
+
+  it.each(["success", "error", "closed"] as const)(
+    "routes a delayed %s to the initiating workspace rather than a different chat",
+    async (outcome) => {
+      const pending = Promise.withResolvers<typeof APP>();
+      mutateAsync.mockReturnValueOnce(pending.promise);
+      const workspaceRef = createRef<HTMLDivElement>();
+      const dialog = () => (
+        <>
+          <div id="other-chat" data-visual-workspace="fullscreen" popover="manual" />
+          <div ref={workspaceRef} id="own-chat" data-visual-workspace="docked" popover="manual">
+            <VisualSaveDialog
+              open
+              onOpenChange={vi.fn()}
+              conversationId="c1"
+              visualId="v1"
+              title="Flow"
+              updates={null}
+              workspaceRef={workspaceRef}
+            />
+          </div>
+        </>
+      );
+      const view = render(dialog());
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      publication.pending = true;
+      view.rerender(dialog());
+      expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+      if (outcome === "closed") workspaceRef.current!.removeAttribute("popover");
+      await act(async () => {
+        if (outcome === "success") pending.resolve(APP);
+        else pending.reject(new ApiError(500, "Server fell over"));
+      });
+      if (outcome === "success") {
+        expect(toast.success).toHaveBeenCalledWith(
+          "Saved as an app, version 1",
+          expect.objectContaining({ toasterId: "own-chat" }),
+        );
+      } else {
+        expect(toast.error).toHaveBeenCalledWith(
+          "Server fell over",
+          outcome === "closed" ? {} : { toasterId: "own-chat" },
+        );
+      }
+    },
+  );
 
   it("fills in the title and a name made from it, and saves on Enter", async () => {
     mutateAsync.mockResolvedValue(APP);
@@ -113,7 +160,7 @@ describe("VisualSaveDialog", () => {
     mutateAsync.mockRejectedValue(new ApiError(500, "Server fell over"));
     open();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Server fell over"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Server fell over", {}));
   });
 
   it("marks a refused title", async () => {
@@ -141,7 +188,7 @@ describe("VisualSaveDialog", () => {
 });
 
 it("keeps a pending save stable and prevents duplicate submissions", () => {
-  pending.value = true;
+  publication.pending = true;
   const close = open();
   expect(screen.getByLabelText("Name")).toBeDisabled();
   expect(screen.getByLabelText("Title")).toBeDisabled();
@@ -152,7 +199,7 @@ it("keeps a pending save stable and prevents duplicate submissions", () => {
 });
 
 it("closes an idle dialog through its standard Escape action", async () => {
-  pending.value = false;
+  publication.pending = false;
   const close = open();
   await userEvent.keyboard("{Escape}");
   expect(close).toHaveBeenCalledWith(false);

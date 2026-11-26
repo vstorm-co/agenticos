@@ -2207,7 +2207,9 @@
       "selectingExecutionTarget": "Uitvoerdoel kiezen…",
       "selectedExecutionTarget": "Uitvoerdoel gekozen",
       "transferringProjectFile": "Projectbestand overdragen…",
-      "transferredProjectFile": "Projectbestand overgedragen"
+      "transferredProjectFile": "Projectbestand overgedragen",
+      "previewingVisual": "Een visual bekijken",
+      "previewVisual": "Een visual bekijken"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",
@@ -2387,7 +2389,19 @@
       "followUpAsks": "De tekening vraagt om dit als jouw bericht te versturen:",
       "followUpSend": "Versturen",
       "followUpEdit": "Bewerken",
-      "followUpDismiss": "Sluiten"
+      "followUpDismiss": "Sluiten",
+      "downloadSvg": "SVG — vectorbestand",
+      "downloadPng": "PNG — afbeelding voor presentaties",
+      "preparingPng": "PNG voorbereiden…",
+      "pngDownloadFailed": "De PNG kon niet worden gedownload. Probeer het opnieuw.",
+      "openWorkspace": "Zijpaneel openen",
+      "dockWorkspace": "Terug naar zijpaneel",
+      "closeWorkspace": "Visual sluiten",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Weergaven van de visual",
+      "resizeWorkspace": "Grootte van visualpaneel wijzigen",
+      "previewTab": "Voorbeeld",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Dicteren annuleren",
@@ -2777,7 +2791,17 @@
     "routineContinueChat": "Verder in een nieuwe chat",
     "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
     "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
-    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen.",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Bestanden",
+      "resize": "Grootte van workspace wijzigen",
+      "expand": "Workspace vergroten",
+      "dock": "Workspace vastzetten",
+      "allFiles": "Terug naar alle bestanden"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -6412,6 +6436,14 @@
       "project-resources": {
         "title": "Houd gerelateerde bronnen bij elkaar",
         "body": "Koppel bestaande agents, workflows, Apps en tabellen zonder hun rechten te wijzigen. Open ze hier of kies een gekoppelde workflow als ingang van het project."
+      },
+      "chat-workspace-tabs": {
+        "title": "Eén workspace naast je chat",
+        "body": "Wissel hier tussen Visuals, Browser en Bestanden. Je geselecteerde pagina en bestand blijven open wanneer je van tabblad wisselt. Vergroot de workspace voor meer ruimte of sluit deze om terug te keren naar het gesprek."
+      },
+      "chat-visual-workspace": {
+        "title": "Een pagina naast je chat",
+        "body": "Open een visual in het zijpaneel met aanpasbare grootte om verder te chatten terwijl je de visual gebruikt. Wissel tussen Voorbeeld en Code, vergroot het paneel of sluit het zonder de bedieningselementen opnieuw in te stellen."
       }
     },
     "chooseLanguage": "Taal",
@@ -14842,6 +14874,12 @@
       "platform_tools": {
         "title": "Platformtools doorgeven",
         "description": "Sta deze native runtime toe de tools aan te roepen die al tot deze AgenticOS-run zijn toegelaten. Rechten, budgetten, goedkeuringen en het screenen van resultaten van het platform blijven gelden. Vereist de goedgekeurde privécomputer van het lid dat de taak start."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Het model een afbeelding van de visual tonen",
+        "description": "Geef een schermafbeelding terug wanneer de agent een visual bekijkt. Schakel dit uit voor een model dat geen afbeeldingen kan lezen; de renderdiagnostiek blijft beschikbaar."
       }
     }
   },
