@@ -8600,20 +8600,6 @@ describe("useChat - receipt-backed queue actions", () => {
     let acceptancePayload: Record<string, unknown> | undefined;
     let resolveAcceptance!: (receipt: unknown) => void;
     let resolveCancel!: (receipt: unknown) => void;
-    let previousRowId: string | undefined;
-    const nextConversationRow = () => ({
-      id: previousRowId!,
-      clientQueueId: "123e4567-e89b-42d3-a456-426614174071",
-      receiptConversationId: "c-2",
-      agentId: "agent-1",
-      content: nextConversationContent,
-      queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
-      receiptErrorAction: "accept" as const,
-      receiptError: "this conversation's earlier acceptance was not confirmed",
-    });
-    keptOutbox.mockImplementation((conversationId: string | null) =>
-      Promise.resolve(conversationId === "c-2" && previousRowId ? [nextConversationRow()] : []),
-    );
     post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
       url === "/conversations/c-1/queued-messages"
         ? new Promise((resolve) => {
@@ -8642,7 +8628,20 @@ describe("useChat - receipt-backed queue actions", () => {
     const previousRow = result.current.queuedMessages[0]!;
     expect(acceptancePayload?.client_queue_id).toEqual(expect.any(String));
     expect(acceptancePayload?.client_queue_id).toBe(previousRow.clientQueueId);
-    previousRowId = previousRow.id;
+    const previousRowId = previousRow.id;
+    const nextConversationRow = () => ({
+      id: previousRowId,
+      clientQueueId: "123e4567-e89b-42d3-a456-426614174071",
+      receiptConversationId: "c-2",
+      agentId: "agent-1",
+      content: nextConversationContent,
+      queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+      receiptErrorAction: "accept" as const,
+      receiptError: "this conversation's earlier acceptance was not confirmed",
+    });
+    keptOutbox.mockImplementation((conversationId: string | null) =>
+      Promise.resolve(conversationId === "c-2" ? [nextConversationRow()] : []),
+    );
     await act(async () => result.current.cancelQueued(previousRow.id));
     expect(result.current.queuedMessages[0]).toMatchObject({
       id: previousRow.id,
