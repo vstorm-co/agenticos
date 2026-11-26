@@ -66,6 +66,7 @@ from app.schemas.rag import (
     RAGFilterValues,
     RAGIngestResponse,
     RAGMessageResponse,
+    RAGRetryRequest,
     RAGRetryResponse,
     RAGSearchRequest,
     RAGSearchResponse,
@@ -84,7 +85,7 @@ from app.schemas.sync_source import (
     SyncSourceRead,
     SyncSourceUpdate,
 )
-from app.services.ingestion_config import PdfParserName, parse_override
+from app.services.ingestion_config import IngestionOverride, PdfParserName, parse_override
 from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
@@ -535,10 +536,19 @@ async def retry_ingestion(
     rag_doc_svc: RAGDocumentSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
+    body: RAGRetryRequest | None = None,
 ) -> Any:
-    """Retry a failed document ingestion."""
+    """Retry a failed document ingestion.
+
+    It parses with the collection's settings as they are now. A body replaces
+    the departures the file was uploaded with by its `ingestion_override` -
+    the console sends the ones pending for the next uploads, and an empty or
+    absent one means the collection's settings alone. No body keeps the file's
+    own.
+    """
     tracked = await access.writable_document(ctx, doc_id)
-    doc = await rag_doc_svc.retry_ingestion(str(tracked.id))
+    override = None if body is None else (body.ingestion_override or IngestionOverride())
+    doc = await rag_doc_svc.retry_ingestion(str(tracked.id), override=override)
     return RAGRetryResponse(id=str(doc.id), status="processing", message="Retry queued")
 
 

@@ -135,6 +135,7 @@ class IngestionService:
         source_path: str = "",
         *,
         still_wanted: Callable[[], Awaitable[bool]] | None = None,
+        may_replace: Callable[[str], Awaitable[bool]] | None = None,
         rag_document_id: UUID | None = None,
         source: str | None = None,
         organizational_unit: str | None = None,
@@ -224,6 +225,10 @@ class IngestionService:
                         content_hash=document.metadata.content_hash or "",
                     )
                 ).document_id
+                # A retry replaces what its own failed attempt left, never a copy
+                # another row tracks - that is a document somebody uploaded.
+                if existing_id and may_replace is not None and not await may_replace(existing_id):
+                    existing_id = None
 
             # Inserted before the old one is removed, not after. `insert_document`
             # is where the embeddings are computed, so a provider that refuses

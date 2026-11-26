@@ -1,5 +1,5 @@
 ---
-source_sha: "088356a42466"
+source_sha: "ca66bcb14182"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -545,11 +545,14 @@ i niczego nie limituje, podczas gdy pula kolejkuje przy
 ### Obsługiwane formaty { #supported-formats }
 
 `.txt` i `.md` czyta wbudowany czytnik tekstu niezależnie od tego, jaki parser
-ma kolekcja. Każdy inny format trafia do parsera kolekcji, a zestaw idzie za nim:
+ma kolekcja. Każdy inny format trafia do parsera kolekcji, a zestaw idzie za nim.
+`.docx` trafia do parsera, gdy ten czyta Worda, a w przeciwnym razie do
+wbudowanego czytnika Worda, który zachowuje nagłówki i tabele (jako tabele
+markdown) w kolejności dokumentu:
 
 | Parser | Czyta dodatkowo | Wymaga |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf`, `.docx` | niczego |
+| PyMuPDF | `.pdf`; `.docx` przez wbudowany czytnik Worda | niczego |
 | LiteParse | `.pdf`, `.docx`; obrazy (`.png`, `.jpg`, `.tiff`, `.svg`, …); formaty biurowe (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **dla `.docx` i pozostałych formatów biurowych** — obrazy są konwertowane natywnie |
 | LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, obrazy | Klucz LlamaParse w vaulcie organizacji, wskazany przez kolekcję (`llamaparse_secret_id`). Nie ma klucza na poziomie wdrożenia |
 | Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; obrazy (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Docling Serve zarejestrowany jako połączenie usługi, wskazany przez kolekcję (`docling_connection_id`) |
@@ -1490,6 +1493,31 @@ pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnię
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Własne ustawienia kolekcji są pod **Settings** w nagłówku jej strony (także
+**Edit** na karcie **How documents are read**). **Upload with different
+settings…** w menu przycisku **Upload** ustawia zmiany tylko dla kolejnych
+uploadów i zostawia kolekcję bez zmian. Administrator wdrożenia, tworząc
+kolekcję, widzi też **Every organization (deployment-wide)**: kolekcję app-scoped,
+która może wskazywać tylko połączenia całego wdrożenia i providerów bez klucza.
+
+W konsoli nieudany dokument ma ikonę ponowienia obok **Failed** dla każdego, kto
+może edytować kolekcję. Ponowienie parsuje z ustawieniami kolekcji takimi, jakie
+są w chwili kliknięcia, i zapisuje je na dokumencie. Skan, który zawiódł przy
+wyłączonym OCR, ponawia się więc po włączeniu OCR, bez ponownego uploadu.
+Ponowienie jest odrzucane, gdy obecny parser nie czyta już formatu pliku, a
+dokument zachowuje swoje ustawienia. Ponowienie zastępuje tylko to, co zostawiła
+jego własna nieudana próba; inny upload tego samego pliku zostaje na liście.
+
+Zmiany oczekujące dla kolejnych uploadów (**Upload with different settings…** w menu przycisku **Upload**, potem **Apply**)
+dotyczą też ponowienia, zamiast tych, z którymi plik został przesłany. Gdy żadne
+nie czekają - po **Revert** - ponowienie czyta z samymi ustawieniami kolekcji.
+
+Przez API `POST /rag/documents/{id}/retry` bez treści zachowuje zmiany, z
+którymi plik został przesłany; `ingestion_override` w treści je zastępuje, a
+pusty oznacza same ustawienia kolekcji. Ponowienie nigdy nie zastępuje innego
+uploadu tego samego pliku, nawet gdy pierwotny upload prosił o zastąpienie: do
+tego prześlij plik ponownie z `replace=true`. **Revert** w banerze usuwa oczekujące zmiany.
 
 Ponowienie odrzuca też dokument organizacji nieprzypisany do żadnej bazy wiedzy: jego
 chunki zostałyby zapisane dla całego wdrożenia, gdzie baza organizacji, która go

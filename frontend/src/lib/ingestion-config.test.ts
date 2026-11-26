@@ -347,3 +347,23 @@ describe("Docling options", () => {
     expect(ingestionOverride(a, config({ docling_ocr_languages: ["de", "en"] }))).toEqual({});
   });
 });
+
+describe("the OCR switch under a parser that ignores it", () => {
+  it("is turned off when LlamaParse is chosen", () => {
+    const settled = settleHiddenFields(
+      { ...DEFAULT_INGESTION_CONFIG, pdf_parser: "llamaparse", ocr: true },
+      t,
+    );
+    expect(settled.ocr).toBe(false);
+  });
+
+  it("is kept where the parser reads it", () => {
+    for (const parser of ["pymupdf", "liteparse", "docling"] as const) {
+      const settled = settleHiddenFields(
+        { ...DEFAULT_INGESTION_CONFIG, pdf_parser: parser, ocr: true },
+        t,
+      );
+      expect(settled.ocr).toBe(true);
+    }
+  });
+});

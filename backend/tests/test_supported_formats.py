@@ -22,6 +22,7 @@ so nothing else here would have caught it.
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import docx
 import pytest
 
 from app.services.rag.config import (
@@ -32,6 +33,7 @@ from app.services.rag.config import (
     NATIVE_FORMATS,
     PARSER_FORMATS,
     PYMUPDF_FORMATS,
+    TEXT_FORMATS,
     PdfParser,
     RAGSettings,
     get_supported_formats,
@@ -39,6 +41,7 @@ from app.services.rag.config import (
 from app.services.rag.docling import DoclingParser
 from app.services.rag.documents import (
     DocumentProcessor,
+    DocxDocumentParser,
     LiteParseParser,
     LlamaParseParser,
     PdfParserFactory,
@@ -93,13 +96,14 @@ def test_nothing_readable_is_refused_at_the_door(parser_name: str) -> None:
 
 
 def test_native_formats_are_offered_by_every_parser() -> None:
-    """Choosing a PDF parser must never cost you plain text.
+    """Choosing a parser must never cost you text, Markdown or Word.
 
-    Text and Markdown are read by the built-in reader whatever the parser is set
-    to, so every parser's set contains them. Every other format goes to the
-    chosen parser, `.docx` included.
+    Text and Markdown always go to the built-in text reader; `.docx` goes to the
+    chosen parser when it claims it and to the built-in Word reader otherwise, so
+    every parser's set contains all three.
     """
-    assert {".txt", ".md"} == NATIVE_FORMATS
+    assert {".txt", ".md"} == TEXT_FORMATS
+    assert TEXT_FORMATS | {".docx"} == NATIVE_FORMATS
     for parser_name, formats in PARSER_FORMATS.items():
         assert formats >= NATIVE_FORMATS, f"{parser_name} drops a natively-read format"
 
@@ -208,9 +212,9 @@ def _docx_with_table(path: Path) -> Path:
     return path
 
 
-@pytest.mark.parametrize("parser_name", ["pymupdf", "liteparse", "llamaparse"])
+@pytest.mark.parametrize("parser_name", ["liteparse", "llamaparse"])
 async def test_docx_goes_to_the_chosen_parser(parser_name: str, tmp_path: Path) -> None:
-    """The chosen parser reads every format it claims, `.docx` among them."""
+    """A parser that claims `.docx` reads it itself."""
     settings = RAGSettings(pdf_parser=PdfParser(method=parser_name, api_key="k"))
     processor = DocumentProcessor(settings)
     assert ".docx" in processor.pdf_parser.allowed
@@ -228,11 +232,48 @@ async def test_docx_goes_to_the_chosen_parser(parser_name: str, tmp_path: Path) 
     parse.assert_awaited_once_with(path)
 
 
-async def test_pymupdf_reads_docx_tables(tmp_path: Path) -> None:
-    document = await PyMuPDFParser().parse(_docx_with_table(tmp_path / "memo.docx"))
+async def test_docx_under_pymupdf_keeps_its_table_as_a_table(tmp_path: Path) -> None:
+    """A free PyMuPDF flattens a Word table into loose cells; the built-in reader
+    keeps it, in place, as a markdown table."""
+    processor = DocumentProcessor(RAGSettings(pdf_parser=PdfParser(method="pymupdf")))
+    assert ".docx" not in processor.pdf_parser.allowed
 
-    assert len(document.pages) > 1
-    assert "R1C1" in "\n".join(page.content for page in document.pages)
+    document = await processor.process_file(_docx_with_table(tmp_path / "memo.docx"))
+
+    text = document.pages[0].content
+    assert "| R1C1 | R1C2 | R1C3 |\n|---|---|---|\n| R2C1 | R2C2 | R2C3 |" in text
+    assert text.index("Paragraph 119") < text.index("| R1C1") < text.index("After the break")
+
+
+async def test_word_headings_become_markdown_headings(tmp_path: Path) -> None:
+    word = docx.Document()
+    word.add_heading("The report", 0)
+    word.add_heading("Section", 2)
+    word.add_paragraph("Body")
+    path = tmp_path / "headings.docx"
+    word.save(path)
+
+    document = await DocxDocumentParser().parse(path)
+
+    assert document.pages[0].content == "# The report\n\n## Section\n\nBody"
+
+
+async def test_a_table_cell_cannot_break_its_row(tmp_path: Path) -> None:
+    word = docx.Document()
+    table = word.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "a | b"
+    table.cell(0, 1).text = "two\nlines"
+    path = tmp_path / "cells.docx"
+    word.save(path)
+
+    document = await DocxDocumentParser().parse(path)
+
+    assert document.pages[0].content.splitlines()[0] == "| a \\| b | two lines |"
+
+
+async def test_the_word_reader_refuses_other_files(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not supported by DocxDocumentParser"):
+        await DocxDocumentParser().parse(tmp_path / "x.pdf")
 
 
 async def test_ooxml_bound_applies_before_any_parser(

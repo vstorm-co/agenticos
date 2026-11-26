@@ -24,13 +24,14 @@ import { ProviderRow } from "@/components/vault/provider-row";
 import { useServiceConnections, useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
+  DEFAULT_IMAGE_PROMPT,
   DOCLING_LANGUAGE_PATTERN,
   DOCLING_TABLE_MODES,
   hintOf,
-  DEFAULT_IMAGE_PROMPT,
   INGESTION_LIMITS,
   LITEPARSE_OUTPUT_FORMATS,
   LLAMAPARSE_TIERS,
+  OCR_APPLIES,
   PDF_PARSERS,
   settleHiddenFields,
   THINKING_EFFORTS,
@@ -103,6 +104,15 @@ export interface IngestionSettingsProps {
  */
 /** What a key here is for, which is also the id its mark is drawn from. */
 const LLAMAPARSE = "llamaparse";
+
+// What the OCR switch does under the parser that is chosen - one parser's
+// behaviour, not a list of all four.
+const SCANNED_PAGES_HINT = {
+  pymupdf: "scannedPagesPymupdf",
+  liteparse: "scannedPagesLiteparse",
+  llamaparse: "scannedPagesLlamaparse",
+  docling: "scannedPagesDocling",
+} as const satisfies Record<PdfParser, string>;
 
 /** Sentinel for the Tesseract bundled with the worker - a Select item may not be empty. */
 const BUILT_IN_OCR = "__built_in__";
@@ -395,9 +405,9 @@ export function IngestionSettings({
         <Toggle
           htmlFor={id("ocr")}
           label={t("readScannedPages")}
-          description={t("pagePictureTextCarries")}
-          checked={value.ocr}
-          disabled={disabled}
+          description={t(SCANNED_PAGES_HINT[value.pdf_parser])}
+          checked={value.ocr && OCR_APPLIES[value.pdf_parser]}
+          disabled={disabled || !OCR_APPLIES[value.pdf_parser]}
           onChange={(next) => set("ocr", next)}
         />
 

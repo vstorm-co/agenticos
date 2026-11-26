@@ -24,6 +24,7 @@ from app.services.rag.config import (
     LITEPARSE_PDF_FORMATS,
     LLAMAPARSE_PDF_FORMATS,
     PYMUPDF_PDF_FORMATS,
+    TEXT_FORMATS,
     DocumentExtensions,
     PdfParser,
     RAGSettings,
@@ -132,6 +133,89 @@ class TextDocumentParser(BaseDocumentParser):
             raise ValueError(f"Extension {filepath.suffix} not supported by TextDocumentParser")
 
         return self._parse_text_file(filepath)
+
+
+def _markdown_cell(text: str) -> str:
+    """One table cell's text, safe inside a markdown row."""
+    return " ".join(text.split()).replace("|", "\\|")
+
+
+def _markdown_table(table: Any) -> str:
+    """A Word table as a markdown table, its first row as the header.
+
+    Merged cells repeat their text in every grid position they span - that is
+    how python-docx reports them, and it keeps every row the same width.
+    """
+    rows = [[_markdown_cell(cell.text) for cell in row.cells] for row in table.rows]
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * width]
+    lines += ["| " + " | ".join(row) + " |" for row in rows[1:]]
+    return "\n".join(lines)
+
+
+def _markdown_heading(paragraph: Any) -> str:
+    """A paragraph's text, as a markdown heading when its style is one."""
+    text = paragraph.text.strip()
+    if not text:
+        return ""
+    style = (paragraph.style.name if paragraph.style is not None else "") or ""
+    if style == "Title":
+        return f"# {text}"
+    if style.startswith("Heading "):
+        level = style.removeprefix("Heading ")
+        if level.isdigit():
+            return f"{'#' * min(int(level), 6)} {text}"
+    return text
+
+
+class DocxDocumentParser(BaseDocumentParser):
+    """Reads a Word document when the collection's parser does not.
+
+    PyMuPDF opens a `.docx` but lays it out without its tables - a free MuPDF
+    renders a Word table as a column of cells with no borders and no structure
+    (`find_tables` finds nothing), and only the commercial PyMuPDF Pro reads
+    Office layout faithfully. So a `.docx` under PyMuPDF comes here instead, and
+    the body is read in document order: headings as markdown headings, tables
+    as markdown tables, every other paragraph as text. One page: Word has no
+    pages until something lays it out, and citations treat `.docx` as unpaged.
+    """
+
+    allowed = [".docx"]
+
+    async def parse(self, filepath: Path) -> Document:
+        """Read a `.docx` into one page of markdown.
+
+        Raises:
+            ValueError: If the file is not a `.docx`, or unpacks past the
+                archive bounds.
+        """
+        if not self.is_extension_allowed(filepath):
+            raise ValueError(f"Extension {filepath.suffix} not supported by DocxDocumentParser")
+        # Unzipping and parsing a large document is CPU work; off the event loop.
+        return await asyncio.to_thread(self._read, filepath)
+
+    def _read(self, filepath: Path) -> Document:
+        # Imported where a .docx is read: every worker loads this module, and most
+        # never read one (#2225).
+        from docx import Document as WordDocument
+        from docx.table import Table
+
+        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
+        # and a few megabytes can inflate to gigabytes (#2248). Over a bound is a
+        # `ValueError`, the document's own failure.
+        word: Any = WordDocument(safe_unzip(filepath.read_bytes()))
+        blocks = [
+            _markdown_table(block) if isinstance(block, Table) else _markdown_heading(block)
+            for block in word.iter_inner_content()
+        ]
+        content = "\n\n".join(block for block in blocks if block)
+        return Document(
+            pages=[DocumentPage(page_num=1, content=content)],
+            metadata=self.get_document_metadata(filepath),
+        )
 
 
 class PyMuPDFParser(BaseDocumentParser):
@@ -705,6 +789,7 @@ class DocumentProcessor:
         self.splitter = self._create_splitter(settings)
 
         self.text_parser = TextDocumentParser()
+        self.docx_parser = DocxDocumentParser()
         self.image_describer = image_describer
         self.pdf_parser = PdfParserFactory.create(
             parser_name=settings.pdf_parser.method,
@@ -767,7 +852,7 @@ class DocumentProcessor:
             ValueError: If the configured parser cannot read the file type.
         """
         suffix = filepath.suffix.lower()
-        if suffix in (".txt", ".md"):
+        if suffix in TEXT_FORMATS:
             document = await self.text_parser.parse(filepath)
         elif suffix in self.pdf_parser.allowed:
             # Not only `.pdf`: LlamaParse is routed the spreadsheets, decks and
@@ -784,6 +869,9 @@ class DocumentProcessor:
                 # reads it.
                 safe_unzip(filepath.read_bytes())
             document = await self.pdf_parser.parse(filepath)
+        elif suffix in self.docx_parser.allowed:
+            # The chosen parser does not read Word; the built-in reader does.
+            document = await self.docx_parser.parse(filepath)
         else:
             raise ValueError(
                 f"Unsupported file type: {suffix}. "

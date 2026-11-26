@@ -523,11 +523,13 @@ connection per checkout and caps nothing, where the pool queues at
 
 `.txt` and `.md` are read by the built-in text reader whatever the collection's
 parser is. Every other format goes to the collection's parser, and the set
-follows it:
+follows it. A `.docx` goes to the parser when it reads Word, and to the built-in
+Word reader otherwise, which keeps headings and tables (as markdown tables) in
+document order:
 
 | Parser | Also reads | Needs |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf`, `.docx` | nothing |
+| PyMuPDF | `.pdf`; `.docx` through the built-in Word reader | nothing |
 | LiteParse | `.pdf`, `.docx`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for `.docx` and the other office formats** — images are converted natively |
 | LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
 | Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; images (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | A Docling Serve registered as a service connection, named by the collection (`docling_connection_id`) |
@@ -1406,6 +1408,32 @@ document that did not fail, or that has no stored file — one that predates
 uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
 than moved to `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+A collection's own settings are under **Settings** in its page header (also
+**Edit** on the **How documents are read** tab). **Upload with different
+settings…**, on the **Upload** button's menu, sets changes for the next uploads
+only and leaves the collection as it is. A deployment admin creating a collection
+also sees **Every organization (deployment-wide)**: an app-scoped collection,
+which may name only deployment-wide connections and keyless providers.
+
+In the console, a failed document has a retry icon beside **Failed** for anyone
+who may edit the collection. A retry parses with the collection's settings as
+they are when you click it, and records them on the document. So a scan that failed
+with OCR off is retried after turning OCR on, without uploading it again. A retry
+is refused when the current parser no longer reads the file's format, and the
+document keeps its settings. A retry replaces only what its own failed attempt
+left; another upload of the same file stays in the list.
+
+The changes pending for the next uploads (**Upload with different settings…** on the **Upload** button's menu, then **Apply**) apply
+to a retry too, in place of the ones the file was uploaded with. With none
+pending - after **Revert** - a retry reads with the collection's settings alone.
+
+Through the API, `POST /rag/documents/{id}/retry` with no body keeps the
+changes the file was uploaded with; a body's `ingestion_override` replaces them,
+and an empty one means the collection's settings alone. A retry never replaces
+another upload of the same file, even when the original upload asked to replace:
+upload the file again with `replace=true` for that. **Revert** in the banner drops the pending
+changes.
 
 The retry also refuses an organization's document filed under no knowledge base: its
 chunks would be written deployment-wide, where the organization's base that lists it

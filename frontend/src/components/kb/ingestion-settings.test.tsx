@@ -77,11 +77,38 @@ describe("IngestionSettings", () => {
     show();
 
     expect(screen.getByLabelText("PDF parser")).toBeInTheDocument();
-    expect(screen.getByLabelText("Read scanned pages")).toBeInTheDocument();
+    expect(screen.getByLabelText("Read scanned pages (OCR)")).toBeInTheDocument();
     expect(screen.getByLabelText("Chunk size")).toBeInTheDocument();
     expect(screen.getByLabelText("Overlap")).toBeInTheDocument();
     expect(screen.getByLabelText("Strategy")).toBeInTheDocument();
     expect(screen.getByLabelText("Describe images")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["pymupdf", "PyMuPDF hands such a page to the image model."],
+    ["liteparse", "LiteParse reads it with its own OCR."],
+    ["llamaparse", "LlamaParse reads scanned pages itself, whatever this is set to."],
+    ["docling", "Docling reads it with its own OCR"],
+  ] as const)("says what the OCR switch does under %s alone", (parser, says) => {
+    show({ pdf_parser: parser });
+
+    expect(screen.getByText(new RegExp(says.replace(/[.()]/g, "\\$&")))).toBeInTheDocument();
+    for (const other of [
+      "PyMuPDF hands",
+      "LiteParse reads it",
+      "LlamaParse reads",
+      "Docling reads",
+    ]) {
+      if (!says.startsWith(other)) expect(screen.queryByText(new RegExp(other))).toBeNull();
+    }
+  });
+
+  it("shows the OCR switch off and locked where the parser ignores it", () => {
+    show({ pdf_parser: "llamaparse", ocr: true });
+
+    const ocr = screen.getByLabelText("Read scanned pages (OCR)");
+    expect(ocr).not.toBeChecked();
+    expect(ocr).toBeDisabled();
   });
 
   it("hides the settings a parser ignores", () => {

@@ -368,6 +368,18 @@ function resetToDefault<K extends keyof IngestionConfig>(config: IngestionConfig
 }
 
 /**
+ * Whether the collection's OCR switch reaches the parser. LlamaParse reads
+ * scanned pages itself and is never handed the setting, so under it the switch
+ * is shown off and locked rather than offered as a choice that changes nothing.
+ */
+export const OCR_APPLIES = {
+  pymupdf: true,
+  liteparse: true,
+  llamaparse: false,
+  docling: true,
+} as const satisfies Record<PdfParser, boolean>;
+
+/**
  * Put a hidden field holding a refused value back to its default.
  *
  * A field the form stops showing keeps its value, so switching back finds what
@@ -376,6 +388,9 @@ function resetToDefault<K extends keyof IngestionConfig>(config: IngestionConfig
  * invalid one goes back to the default.
  */
 export function settleHiddenFields(config: IngestionConfig, t: Translate): IngestionConfig {
+  if (config.ocr && !OCR_APPLIES[config.pdf_parser]) {
+    config = { ...config, ocr: false };
+  }
   const problems = ingestionProblems(config, t);
   const stale = hiddenFields(config).filter((field) => field in problems);
   if (stale.length === 0) {

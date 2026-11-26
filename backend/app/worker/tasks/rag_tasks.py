@@ -226,6 +226,31 @@ async def _source_knowledge_base(db: AsyncSession, source: SyncSource) -> Knowle
     return kb
 
 
+async def _untracked_by_others(
+    vector_document_id: str, document_id: str, collection_name: str
+) -> bool:
+    """Whether a retry may replace this stored document: no *other* row tracks it.
+
+    What a failed attempt of this same row left behind is fair game; a document
+    another upload of the same file indexed is a row somebody can see, and a
+    retry deleting it was a row vanishing from the list. Fail-safe the other way
+    from `_still_ingestable`: an error answers no, because a duplicate is visible
+    and removable while a deleted document is gone.
+    """
+    try:
+        async with get_worker_db_context() as db:
+            others = await rag_document_repo.get_superseded(
+                db,
+                collection_name=collection_name,
+                vector_document_id=vector_document_id,
+                keep_id=UUID(document_id),
+            )
+            return not others
+    except Exception:
+        logger.warning("Could not check who tracks %s; keeping it", vector_document_id)
+        return False
+
+
 async def _still_ingestable(document_id: str, collection_name: str) -> bool:
     """Whether a parsed file may still be indexed: its tracking row exists and its
     collection is not mid-teardown.
@@ -306,6 +331,7 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             job.source_path,
             job.replace,
             job.attempt,
+            replace_own_only=job.replace_own_only,
         )
         ended = True
         return outcome
@@ -465,6 +491,8 @@ async def _run_ingestion(
     source_path: str,
     replace: bool,
     attempt: int,
+    *,
+    replace_own_only: bool = False,
 ) -> dict[str, Any]:
     """Parse and index one uploaded document, exactly as its record says to.
 
@@ -533,6 +561,15 @@ async def _run_ingestion(
                     replace=replace,
                     source_path=source_path,
                     still_wanted=lambda: _still_ingestable(rag_document_id, collection_name),
+                    may_replace=(
+                        (
+                            lambda found: _untracked_by_others(
+                                found, rag_document_id, collection_name
+                            )
+                        )
+                        if replace_own_only
+                        else None
+                    ),
                     source=Source.UPLOAD,
                     doc_date=iso_doc_date(upload_mtime),
                     organizational_unit=organizational_unit,

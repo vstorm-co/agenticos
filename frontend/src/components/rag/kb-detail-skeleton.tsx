@@ -61,6 +61,7 @@ export function KBDetailSkeleton({
           isLoading
           isLoadingMoreDocs={false}
           mayEdit={false}
+          onRetry={async () => {}}
           onLoadMore={pending}
           onPreview={pending}
           onRemove={pending}

@@ -17,8 +17,13 @@ class DocumentExtensions(StrEnum):
 
 # Extensions read by the built-in text reader, whichever parser is configured:
 # `TextDocumentParser` handles these and the parser choice never enters into it.
-# Every other format goes to the chosen parser, `.docx` included.
-NATIVE_FORMATS: set[str] = {".txt", ".md"}
+TEXT_FORMATS: set[str] = {".txt", ".md"}
+
+# Everything a built-in reader can take, so every parser accepts it: the text
+# formats always, and `.docx` when the chosen parser does not claim it -
+# `DocxDocumentParser` reads it then, tables as markdown. A parser that claims
+# `.docx` (LiteParse, LlamaParse, Docling) reads it itself.
+NATIVE_FORMATS: set[str] = TEXT_FORMATS | {".docx"}
 
 # Extensions each parser is routed for, *in addition* to the native ones.
 #
@@ -35,8 +40,9 @@ NATIVE_FORMATS: set[str] = {".txt", ".md"}
 # `tests/services/test_supported_formats.py` pins each set against what the
 # pipeline actually routes, so widening one here without teaching the parser
 # fails the suite rather than the user's upload.
-# PyMuPDF opens `.docx` itself and lays it out into pages, tables included.
-PYMUPDF_PDF_FORMATS: set[str] = {".pdf", ".docx"}
+# Not `.docx`: a free PyMuPDF lays a Word table out as a column of loose cells,
+# so the built-in reader takes `.docx` under PyMuPDF (see `DocxDocumentParser`).
+PYMUPDF_PDF_FORMATS: set[str] = {".pdf"}
 
 # LiteParse reads PDFs directly through PDFium and converts everything else to
 # PDF first. The two conversion paths differ in what they need installed, which

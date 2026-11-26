@@ -158,7 +158,8 @@ test.describe("Ingestion settings", () => {
     await openCollection(page, SEEDED_KB_NAME);
     const before = await (await howItReads(page)).innerText();
 
-    await page.getByRole("button", { name: "Parse options" }).click();
+    await page.getByRole("button", { name: "Upload options" }).click();
+    await page.getByRole("menuitem", { name: "Upload with different settings…" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Chunk size").fill("2048");
     await dialog.getByRole("button", { name: "Apply 1 change" }).click();
@@ -171,7 +172,7 @@ test.describe("Ingestion settings", () => {
 
     // And it can be put back, which is what stops it applying to whatever is
     // dropped on this page twenty minutes from now.
-    await page.getByRole("button", { name: "Clear" }).click();
+    await page.getByRole("button", { name: "Revert" }).click();
     await expect(page.getByText("The collection itself is unchanged.")).toBeHidden();
   });
 
@@ -198,7 +199,8 @@ test.describe("Ingestion settings", () => {
   test.skip("a document records what parsed it", async ({ page }) => {
     await openCollection(page, SEEDED_KB_NAME);
 
-    await page.getByRole("button", { name: "Parse options" }).click();
+    await page.getByRole("button", { name: "Upload options" }).click();
+    await page.getByRole("menuitem", { name: "Upload with different settings…" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Chunk size").fill("2048");
     await dialog.getByRole("button", { name: "Apply 1 change" }).click();

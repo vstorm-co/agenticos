@@ -23,15 +23,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
 - Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
+- Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
+- A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
 - Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
 
 ### Changed
 
-- A `.docx` is now read by the collection's chosen parser, so PyMuPDF and LiteParse keep its tables and pages; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
+- `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
+- The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
+- A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
 
+- Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading

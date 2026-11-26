@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, Loader2, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTranslations } from "next-intl";
@@ -43,6 +43,7 @@ export function DocumentsTable({
   onLoadMore,
   onPreview,
   onRemove,
+  onRetry,
   onChooseFiles,
 }: {
   kbId: string;
@@ -56,11 +57,26 @@ export function DocumentsTable({
   onLoadMore: () => void;
   onPreview: (doc: KBDocument) => void;
   onRemove: (doc: KBDocument) => void;
+  /** Parses a failed document again; the page decides with what, and refreshes. */
+  onRetry: (doc: KBDocument) => Promise<void>;
   onChooseFiles: () => void;
 }) {
   const t = useTranslations("pages.kb");
   const tErrors = useTranslations("errors");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const handleRetry = async (doc: KBDocument) => {
+    if (retryingId) return;
+    setRetryingId(doc.id);
+    try {
+      await onRetry(doc);
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   const handleDownload = async (doc: KBDocument) => {
     if (downloadingId) return;
@@ -116,7 +132,28 @@ export function DocumentsTable({
         key: "status",
         header: t("status2"),
         className: "@max-md/table:flex-1 @max-md/table:pl-5 @max-md/table:pt-1",
-        cell: (doc) => <RagStatusBadge status={doc.status} message={doc.error_message} />,
+        cell: (doc) => (
+          <div className="flex items-center gap-1">
+            <RagStatusBadge status={doc.status} message={doc.error_message} />
+            {mayEdit && doc.status === "error" && doc.has_file && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground h-6 w-6 p-0"
+                onClick={() => handleRetry(doc)}
+                disabled={!!retryingId}
+                title={t("retryDocument")}
+                aria-label={t("retryDocumentNamed", { name: doc.filename })}
+              >
+                {retryingId === doc.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
+          </div>
+        ),
       },
       {
         key: "actions",
@@ -173,7 +210,7 @@ export function DocumentsTable({
         },
       },
     ],
-    [downloadingId, handleDownload, onPreview, onRemove, mayEdit],
+    [downloadingId, handleDownload, retryingId, handleRetry, onPreview, onRemove, mayEdit],
   );
 
   return (

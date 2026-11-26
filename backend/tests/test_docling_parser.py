@@ -9,7 +9,9 @@ from uuid import uuid4
 import httpx
 import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB, asyncpg
 
+from app.db.models.rag_document import RAGDocument
 from app.repositories import rag_document as rag_document_repo
 from app.services.rag.config import PdfParser, RAGSettings
 from app.services.rag.docling import (
@@ -488,3 +490,35 @@ async def test_the_deadline_only_offers_a_retry_when_a_task_is_kept(tmp_path: Pa
 
     assert "Retry the document" in kept.value.message
     assert "Retry the document" not in lost.value.message
+
+
+async def test_a_cleared_task_is_stored_as_sql_null() -> None:
+    """Cleared means no row value at all, not the JSON document `null`.
+
+    `parser_task IS NULL` is how a person (or a report) asks which documents still
+    wait on a conversion; a JSON `null` answers that question wrong.
+    """
+    dialect = asyncpg.dialect()  # the driver the application runs on
+    stored = RAGDocument.__table__.c.parser_task.type.bind_processor(dialect)
+    plain = JSONB().bind_processor(dialect)
+
+    # What the UPDATE sends for a cleared task: SQL NULL, where a plain JSONB
+    # column sends the JSON text `null` - the defect this pins.
+    assert stored(None) is None
+    assert plain(None) == "null"
+
+
+async def test_a_heading_with_no_text_adds_no_stray_marker(tmp_path: Path) -> None:
+    import docx
+
+    from app.services.rag.documents import DocxDocumentParser
+
+    word = docx.Document()
+    word.add_heading("", 1)
+    word.add_paragraph("Body")
+    path = tmp_path / "empty-heading.docx"
+    word.save(path)
+
+    document = await DocxDocumentParser().parse(path)
+
+    assert document.pages[0].content == "Body"

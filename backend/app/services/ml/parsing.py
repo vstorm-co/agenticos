@@ -38,8 +38,8 @@ from app.core.exceptions import BadRequestError, ExternalServiceError, RateLimit
 from app.core.field_errors import refused_field
 from app.services.rag.config import (
     LITEPARSE_PDF_FORMATS,
-    NATIVE_FORMATS,
     PARSER_FORMATS,
+    TEXT_FORMATS,
     DocumentParser,
     PdfParser,
     RAGSettings,
@@ -66,7 +66,7 @@ DEFAULT_PARSER = "liteparse"
 OCR_PARSER = "liteparse"
 """The one parser that recognises text on a page rather than reading a text layer."""
 
-RECOGNISABLE_FORMATS: frozenset[str] = frozenset(LITEPARSE_PDF_FORMATS - NATIVE_FORMATS)
+RECOGNISABLE_FORMATS: frozenset[str] = frozenset(LITEPARSE_PDF_FORMATS - TEXT_FORMATS)
 """What the OCR service accepts: pages that can be rendered as images.
 
 Narrower than what the parser reads: `DocumentProcessor.process_file` routes

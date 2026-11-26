@@ -26,7 +26,7 @@ from app.core.permissions import AuthContext
 from app.repositories import rag_document_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
-from app.services.ingestion_config import IngestionConfig, IngestionConfigService
+from app.services.ingestion_config import IngestionConfig, IngestionConfigService, IngestionOverride
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
@@ -46,6 +46,12 @@ def session(monkeypatch):
     )
     monkeypatch.setattr(
         "app.services.rag_sync.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=None),
+    )
+    # A retry reads its base's current settings; a base that is gone keeps the
+    # document's own, which is what the retry tests below assume unless they set one.
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id",
         AsyncMock(return_value=None),
     )
     return AsyncSession()
@@ -362,7 +368,152 @@ def _failed_document() -> SimpleNamespace:
         ingestion_attempt=1,
         organization_id=uuid4(),
         knowledge_base_id=uuid4(),
+        filetype="txt",
+        ingestion_config={"pdf_parser": "pymupdf", "ocr": False},
+        ingestion_override={"chunk_size": 1000},
+        image_description_model=None,
     )
+
+
+async def test_a_retry_parses_with_the_collections_settings_as_they_are_now(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    """A file that failed because OCR was off is retried after turning OCR on.
+
+    The base's current settings apply, with the file's own upload override still
+    on top - not the settings frozen at upload, which would fail the same way.
+    """
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    base = SimpleNamespace(ingestion_config={"pdf_parser": "liteparse", "ocr": True})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id", AsyncMock(return_value=base)
+    )
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    stored = IngestionConfig.model_validate(document.ingestion_config)
+    assert (stored.pdf_parser.value, stored.ocr, stored.chunk_size) == ("liteparse", True, 1000)
+    assert len(queued) == 1
+
+
+async def test_a_retry_with_pending_upload_settings_uses_them_instead_of_the_files_own(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    """Retrying is adding the file again, so the departures pending for the next
+    uploads apply - and replace the ones the file was uploaded with."""
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    base = SimpleNamespace(ingestion_config={"pdf_parser": "liteparse", "ocr": False})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id", AsyncMock(return_value=base)
+    )
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(
+        str(document.id), override=IngestionOverride(ocr=True)
+    )
+
+    stored = IngestionConfig.model_validate(document.ingestion_config)
+    assert (stored.ocr, stored.chunk_size) == (True, IngestionConfig().chunk_size)
+    assert document.ingestion_override == {"ocr": True}
+
+
+async def test_a_retry_with_nothing_pending_uses_the_collections_settings_alone(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    """What a Revert leaves: no pending departures, so none of the file's old ones."""
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+    )
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(
+        str(document.id), override=IngestionOverride()
+    )
+
+    # The file was uploaded with chunk_size 1000; a Revert in the console leaves
+    # nothing pending, and the retry then reads the collection as it is.
+    assert IngestionConfig.model_validate(document.ingestion_config).chunk_size == (
+        IngestionConfig().chunk_size
+    )
+    assert document.ingestion_override is None
+
+
+async def test_a_retry_of_a_document_whose_base_is_gone_lays_the_override_on_its_last_settings(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(
+        str(document.id), override=IngestionOverride(ocr=True)
+    )
+
+    assert IngestionConfig.model_validate(document.ingestion_config).ocr is True
+
+
+async def test_a_retry_the_current_parser_cannot_read_is_refused_and_changes_nothing(
+    session, queued, monkeypatch
+) -> None:
+    document = _failed_document()
+    document.filetype = "pptx"
+    update = AsyncMock()
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+    )
+
+    with pytest.raises(BadRequestError, match=r"no longer reads '\.pptx'"):
+        await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    update.assert_not_awaited()
+    assert queued == []
+    assert document.ingestion_config == {"pdf_parser": "pymupdf", "ocr": False}
+
+
+async def test_a_retry_through_the_api_without_a_body_keeps_the_files_own(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    monkeypatch.setattr(
+        "app.services.rag_document.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+    )
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    assert IngestionConfig.model_validate(document.ingestion_config).chunk_size == 1000
+    assert document.ingestion_override == {"chunk_size": 1000}
 
 
 async def test_retrying_a_failed_document_parses_it_again(
@@ -392,6 +543,7 @@ async def test_retrying_a_failed_document_parses_it_again(
         "a retry must replace what the first attempt indexed, or a document "
         "that half-succeeded is represented twice in the collection"
     )
+    assert payload.replace_own_only, "and only that - never another upload's copy of the file"
     storage.load.assert_awaited_once_with("rag/handbooks/policy.txt")
     assert Path(payload.filepath) == tmp_path / "_rag_tmp" / f"{document.id}-2.txt"
 

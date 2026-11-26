@@ -1,5 +1,5 @@
 ---
-source_sha: "088356a42466"
+source_sha: "ca66bcb14182"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -584,11 +584,13 @@ Entnahme und deckelt nichts, während der Pool bei
 
 `.txt` und `.md` liest der eingebaute Textleser, gleich welchen Parser die
 Collection hat. Jedes andere Format geht an den Parser der Collection, und die
-Menge folgt ihm:
+Menge folgt ihm. Ein `.docx` geht an den Parser, wenn er Word liest, sonst an den
+eingebauten Word-Leser, der Überschriften und Tabellen (als Markdown-Tabellen) in
+Dokumentreihenfolge behält:
 
 | Parser | Liest außerdem | Braucht |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf`, `.docx` | nichts |
+| PyMuPDF | `.pdf`; `.docx` über den eingebauten Word-Leser | nichts |
 | LiteParse | `.pdf`, `.docx`; Bilder (`.png`, `.jpg`, `.tiff`, `.svg`, …); Office-Formate (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **für `.docx` und die übrigen Office-Formate** — Bilder werden nativ konvertiert |
 | LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, Bilder | Ein LlamaParse-Schlüssel im Vault der Organisation, von der Collection benannt (`llamaparse_secret_id`). Einen Deployment-Schlüssel gibt es nicht |
 | Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; Bilder (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Ein als Dienstverbindung registrierter Docling Serve, von der Collection benannt (`docling_connection_id`) |
@@ -1594,6 +1596,36 @@ das keine gespeicherte Datei hat — eines, das älter ist als das Aufbewahren d
 Uploads, oder eines, das ein Sync eingelesen hat — wird mit einer 400 abgelehnt,
 statt nach `processing` versetzt zu werden
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Die eigenen Einstellungen einer Collection liegen unter **Settings** im Kopf
+ihrer Seite (auch **Edit** auf dem Tab **How documents are read**). **Upload
+with different settings…** im Menü der Schaltfläche **Upload** setzt Änderungen
+nur für die nächsten Uploads und lässt die Collection unverändert. Ein
+Deployment-Administrator sieht beim Anlegen außerdem **Every organization
+(deployment-wide)**: eine app-scoped Collection, die nur deploymentweite
+Verbindungen und Provider ohne Schlüssel nennen darf.
+
+In der Konsole hat ein gescheitertes Dokument neben **Failed** ein Symbol zum
+erneuten Versuch, für alle, die die Collection bearbeiten dürfen. Ein erneuter
+Versuch parst mit den Einstellungen der Collection, wie sie beim Klick
+sind, und hält sie am Dokument fest. Ein Scan, der bei ausgeschalteter OCR
+gescheitert ist, wird also nach dem Einschalten der OCR erneut versucht, ohne ihn
+neu hochzuladen. Liest der aktuelle Parser das Format der Datei nicht mehr, wird
+der Versuch abgelehnt, und das Dokument behält seine Einstellungen. Ein erneuter
+Versuch ersetzt nur, was sein eigener gescheiterter Versuch hinterlassen hat; ein
+anderer Upload derselben Datei bleibt in der Liste.
+
+Die für die nächsten Uploads vorgemerkten Änderungen (**Upload with different settings…** im Menü der
+Schaltfläche **Upload**, dann **Apply**) gelten auch für einen erneuten Versuch, anstelle derer, mit
+denen die Datei hochgeladen wurde. Ist nichts vorgemerkt - nach **Revert** -,
+liest ein erneuter Versuch nur mit den Einstellungen der Collection.
+
+Über die API behält `POST /rag/documents/{id}/retry` ohne Body die Änderungen,
+mit denen die Datei hochgeladen wurde; ein `ingestion_override` im Body ersetzt
+sie, und ein leerer bedeutet nur die Einstellungen der Collection. Ein erneuter
+Versuch ersetzt nie einen anderen Upload derselben Datei, auch wenn der
+ursprüngliche Upload ersetzen wollte: Laden Sie die Datei dafür mit
+`replace=true` erneut hoch. **Revert** im Banner verwirft die vorgemerkten Änderungen.
 
 Der Retry lehnt auch ein Dokument einer Organisation ab, das keiner Wissensbasis
 zugeordnet ist: Seine Chunks würden deploymentweit geschrieben, wo die Basis der

@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoreOptions } from "@/components/ui/more-options";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -38,9 +39,10 @@ import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settin
 import { ProviderRow } from "@/components/vault/provider-row";
 import { ProbeResult } from "@/components/kb/probe-result";
 import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
+import { useChanged } from "@/hooks/use-changed";
 import { useProbeGate } from "@/hooks/use-probe-gate";
 import { probeNewEmbedding } from "@/lib/embedding-probe-api";
-import { useKnowledgeBases } from "@/hooks";
+import { useKnowledgeBases, usePermissions } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import {
   DEFAULT_INGESTION_CONFIG,
@@ -71,6 +73,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // The organization by default (#2072). "Only me" is a personal collection; the
   // other two are an organization one, open or shared with chosen groups.
   const [audience, setAudience] = useState<Audience>(EVERYONE);
+  // Deployment-wide: every organization reads it, and it belongs to none. Offered
+  // to a deployment admin only, the one caller the API lets create one.
+  const [deploymentWide, setDeploymentWide] = useState(false);
+  const { isAppAdmin } = usePermissions();
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
@@ -109,7 +115,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     : offered.some((entry) => entry.model === embeddingModel)
       ? (embeddingModel ?? firstOffered)
       : firstOffered;
-  const scope = audience.mode === "private" ? "personal" : "org";
+  const scope = deploymentWide ? "app" : audience.mode === "private" ? "personal" : "org";
   const gate = useProbeGate({ endpoint: embeddingEndpointId, model: typedModel, scope });
 
   // Nobody has chosen an ingestion configuration until it differs from what is
@@ -144,17 +150,28 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     : custom && gate.token === null
       ? t("blockedRunTest")
       : null;
-  // The parsing details open themselves when they hold something required -
-  // LlamaParse's key - or something refused, and never close themselves: a
-  // fold shutting the moment its last problem is fixed takes the field being
-  // typed into with it.
+  // The parsing details open themselves when something in them becomes owed -
+  // LlamaParse's key or Docling's connection still unchosen - or refused. They
+  // open on that change only, so a person can fold them away again, and never
+  // close themselves: a fold shutting the moment its last problem is fixed
+  // takes the field being typed into with it.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const parsingNeedsAttention =
-    ingestion.pdf_parser === "llamaparse" ||
-    ingestion.pdf_parser === "docling" ||
+    (ingestion.pdf_parser === "llamaparse" && !ingestion.llamaparse_secret_id) ||
+    (ingestion.pdf_parser === "docling" && !ingestion.docling_connection_id) ||
     Object.keys(localProblems).length > 0 ||
     INGESTION_FORM_FIELDS.some((field) => field !== "pdf_parser" && field in errors);
-  if (parsingNeedsAttention && !detailsOpen) setDetailsOpen(true);
+  const [attentionShown, setAttentionShown] = useState(false);
+  if (parsingNeedsAttention !== attentionShown) {
+    setAttentionShown(parsingNeedsAttention);
+    if (parsingNeedsAttention) setDetailsOpen(true);
+  }
+  // A fresh refusal from the server is news even when attention was already owed:
+  // the field it names may be behind a fold the person closed (#1930).
+  const refusalSeen = useChanged(errors);
+  if (refusalSeen && INGESTION_FORM_FIELDS.some((f) => f !== "pdf_parser" && f in errors)) {
+    if (!detailsOpen) setDetailsOpen(true);
+  }
 
   const reset = () => {
     setName("");
@@ -168,6 +185,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingBaseUrl("");
     setCustomModel("");
     setDetailsOpen(false);
+    setAttentionShown(false);
+    setDeploymentWide(false);
     setErrors({});
   };
 
@@ -201,9 +220,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const input: CreateKnowledgeBaseInput = {
         name: name.trim(),
         description: description.trim() || undefined,
-        scope: audience.mode === "private" ? "personal" : "org",
-        group_ids: audiencePayload(audience).group_ids,
-        user_ids: audiencePayload(audience).user_ids,
+        scope,
+        group_ids: deploymentWide ? [] : audiencePayload(audience).group_ids,
+        user_ids: deploymentWide ? [] : audiencePayload(audience).user_ids,
       };
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
@@ -289,7 +308,25 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               </div>
               <div className="space-y-1.5" data-tour="kb-dialog-scope">
                 <Label>{t("whoCanSearchIt")}</Label>
-                <AudiencePicker value={audience} onChange={setAudience} />
+                {!deploymentWide && <AudiencePicker value={audience} onChange={setAudience} />}
+                {isAppAdmin && (
+                  <div className="flex items-start gap-2 pt-1 text-sm">
+                    <Checkbox
+                      id="kb-deployment-wide"
+                      checked={deploymentWide}
+                      onCheckedChange={(next) => setDeploymentWide(next === true)}
+                      aria-describedby="kb-deployment-wide-hint"
+                    />
+                    <div className="space-y-0.5">
+                      <label htmlFor="kb-deployment-wide" className="block">
+                        {t("deploymentWideCollection")}
+                      </label>
+                      <p id="kb-deployment-wide-hint" className="text-muted-foreground text-xs">
+                        {t("deploymentWideCollectionHint")}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/*

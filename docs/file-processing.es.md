@@ -1,5 +1,5 @@
 ---
-source_sha: "088356a42466"
+source_sha: "ca66bcb14182"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -561,11 +561,13 @@ checkout y no limita nada, mientras que el pool hace cola en
 
 `.txt` y `.md` los lee el lector de texto integrado sea cual sea el parser de la
 colección. Cualquier otro formato va al parser de la colección, y el conjunto lo
-sigue:
+sigue. Un `.docx` va al parser cuando lee Word y, si no, al lector de Word
+integrado, que conserva títulos y tablas (como tablas markdown) en el orden del
+documento:
 
 | Parser | Lee además | Necesita |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf`, `.docx` | nada |
+| PyMuPDF | `.pdf`; `.docx` mediante el lector de Word integrado | nada |
 | LiteParse | `.pdf`, `.docx`; imágenes (`.png`, `.jpg`, `.tiff`, `.svg`, …); formatos ofimáticos (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **para `.docx` y el resto de formatos ofimáticos** — las imágenes se convierten de forma nativa |
 | LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, imágenes | Una clave de LlamaParse en el vault de la organización, nombrada por la colección (`llamaparse_secret_id`). No hay clave de deployment |
 | Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; imágenes (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Un Docling Serve registrado como conexión de servicio, nombrado por la colección (`docling_connection_id`) |
@@ -1524,6 +1526,35 @@ Un documento que no falló, o que no tiene archivo guardado — uno anterior a q
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Los ajustes propios de una colección están en **Settings**, en la cabecera de su
+página (también **Edit** en la pestaña **How documents are read**). **Upload
+with different settings…**, en el menú del botón **Upload**, fija cambios solo
+para las próximas subidas y deja la colección como está. Un administrador del
+deployment que crea una colección ve también **Every organization
+(deployment-wide)**: una colección app-scoped, que solo puede nombrar conexiones
+de todo el deployment y providers sin clave.
+
+En la consola, un documento fallido tiene un icono de reintento junto a **Failed**
+para quien puede editar la colección. Un reintento parsea con los ajustes de la
+colección tal como están al pulsarlo, y los registra en el documento. Así, un
+escaneo que falló con el OCR apagado se reintenta tras activar el OCR, sin volver
+a subirlo. Se rechaza el reintento cuando el parser actual ya no lee el formato
+del archivo, y el documento conserva sus ajustes. Un reintento sustituye solo lo
+que dejó su propio intento fallido; otra subida del mismo archivo sigue en la
+lista.
+
+Los cambios pendientes para las próximas subidas (**Upload with different settings…** en el menú del
+botón **Upload**, luego **Apply**) se aplican también al reintento, en lugar de los que tenía el archivo al
+subirse. Sin ninguno pendiente - tras **Revert** - el reintento lee solo con los
+ajustes de la colección.
+
+Por la API, `POST /rag/documents/{id}/retry` sin cuerpo conserva los cambios con
+los que se subió el archivo; un `ingestion_override` en el cuerpo los sustituye,
+y uno vacío significa solo los ajustes de la colección. Un reintento nunca
+sustituye otra subida del mismo archivo, aunque la subida original pidiera
+sustituir: para eso, vuelve a subir el archivo con `replace=true`. **Revert** en el
+aviso descarta los cambios pendientes.
 
 El reintento también rechaza un documento de una organización sin asignar a ninguna
 base de conocimiento: sus fragmentos se escribirían para todo el deployment, donde la

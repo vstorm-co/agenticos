@@ -186,7 +186,9 @@ const SCREENS = [
     path: "/rag",
     then: async (page) => {
       await first("/rag/")(page);
-      await button("Parse options")(page);
+      // The per-upload dialog sits behind the Upload button's menu.
+      await button("Upload options")(page);
+      await page.getByRole("menuitem", { name: "Upload with different settings…" }).click();
     },
   },
   { name: "datasets", path: "/datasets" },

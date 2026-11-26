@@ -304,9 +304,10 @@ export interface KBDocument {
    * What actually read this document, rather than what the collection is
    * configured with today.
    *
-   * Recorded at upload and never revised, which is the point: the collection's
-   * configuration moves on, and comparing the two later would start calling
-   * ordinary uploads departures. `null` on documents ingested before any of this
+   * Recorded at upload, and again when a retry parses the document with the
+   * collection's settings as they are then - it always names what last read it.
+   * The collection's configuration moves on, and comparing the two later would
+   * start calling ordinary uploads departures. `null` on documents ingested before any of this
    * was recorded.
    */
   parser: string | null;

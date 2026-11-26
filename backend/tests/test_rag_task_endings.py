@@ -254,3 +254,70 @@ async def test_the_run_binds_the_parser_task_store_and_ends_a_docling_refusal() 
     fail.assert_awaited_once()
     assert fail.await_args.kwargs["final"] is True
     assert fail.await_args.kwargs["error_message"] == refusal
+
+
+@pytest.mark.parametrize("own_only", [True, False])
+async def test_a_retry_hands_the_ingester_its_replace_guard(own_only: bool) -> None:
+    """Only a retry narrows the replace: the guard reaches `ingest_file` bound to
+    this document and collection, and an ordinary ingest gets none."""
+    from collections.abc import AsyncIterator
+    from pathlib import Path
+
+    from app.db.models.rag_document import DocumentStatus
+    from app.services.rag.models import IngestionResult, IngestionStatus
+
+    job = _document()
+    seen: dict[str, Any] = {}
+
+    class Ingester:
+        async def ingest_file(self, **kwargs: Any) -> IngestionResult:
+            seen.update(kwargs)
+            return IngestionResult(
+                status=IngestionStatus.ERROR, error_message="stop here", refused=True
+            )
+
+    @asynccontextmanager
+    async def ingestion_service(**_: Any) -> AsyncIterator[Ingester]:
+        yield Ingester()
+
+    @asynccontextmanager
+    async def parse_source(path: Path, **_: Any) -> AsyncIterator[Path]:
+        yield path
+
+    documents = MagicMock(
+        get_document=AsyncMock(
+            return_value=MagicMock(
+                organization_id=None,
+                ingestion_config={},
+                knowledge_base_id=None,
+                status=DocumentStatus.PROCESSING,
+            )
+        )
+    )
+    untracked = AsyncMock(return_value=True)
+    with (
+        patch.object(rag_tasks, "get_worker_db_context", new=_db),
+        patch.object(rag_tasks, "_ingestion_service", new=ingestion_service),
+        patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
+        patch.object(rag_tasks, "IngestionConfigService") as config_service,
+        patch.object(rag_tasks, "_fail_document", new=AsyncMock()),
+        patch.object(rag_tasks, "_untracked_by_others", new=untracked),
+        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+        patch.object(rag_tasks.rag_scratch, "parse_source", side_effect=parse_source),
+    ):
+        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+        await rag_tasks._run_ingestion(
+            str(job.rag_document_id),
+            "docs",
+            "media/a.pdf",
+            "a.pdf",
+            True,
+            2,
+            replace_own_only=own_only,
+        )
+        guard = seen["may_replace"]
+        if own_only:
+            assert await guard("vec-1") is True
+            untracked.assert_awaited_once_with("vec-1", str(job.rag_document_id), "docs")
+        else:
+            assert guard is None

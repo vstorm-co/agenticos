@@ -187,6 +187,19 @@ describe("CreateKBDialog", () => {
     );
   });
 
+  it.each([/LlamaParse/, /Docling/])(
+    "lets the details be folded away again under %s",
+    async (parser) => {
+      await userEvent.click(screen.getByRole("radio", { name: parser }));
+      const fold = screen.getByRole("button", { name: "Chunking, OCR and images" });
+      expect(fold).toHaveAttribute("aria-expanded", "true");
+
+      await userEvent.click(fold);
+
+      expect(fold).toHaveAttribute("aria-expanded", "false");
+    },
+  );
+
   it("keeps the description folded under More options, and sends it", async () => {
     expect(screen.queryByLabelText("Description (optional)")).toBeNull();
 
@@ -291,5 +304,59 @@ describe("CreateKBDialog", () => {
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(screen.getByLabelText("Name")).toHaveValue("Handbook");
     expect(screen.getByLabelText("Chunk size")).toHaveValue(1024);
+  });
+});
+
+describe("a deployment-wide collection", () => {
+  function serve(isAppAdmin: boolean) {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/rag/embedding-models") return { providers: [] };
+      if (path === "/me/permissions")
+        return {
+          organization_id: "org-1",
+          role: "owner",
+          is_app_admin: isAppAdmin,
+          permissions: [],
+        };
+      return { items: [], total: 0 };
+    });
+    render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+  }
+
+  it("is offered to a deployment admin, and replaces the audience choice", async () => {
+    serve(true);
+    const choice = await screen.findByRole("checkbox", {
+      name: /Every organization \(deployment-wide\)/,
+    });
+    expect(screen.getByRole("radio", { name: /Everyone/i })).toBeInTheDocument();
+
+    await userEvent.click(choice);
+
+    expect(choice).toBeChecked();
+    expect(screen.queryByRole("radio", { name: /Everyone/i })).toBeNull();
+  });
+
+  it("creates an app-scoped collection with no audience, then starts the next one afresh", async () => {
+    serve(true);
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-9", name: "App docs" });
+    const choice = await screen.findByRole("checkbox", { name: /Every organization/ });
+    await userEvent.click(choice);
+    await userEvent.type(screen.getByLabelText("Name"), "App docs");
+
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted()).toMatchObject({ scope: "app", group_ids: [], user_ids: [] });
+    // The next collection is not deployment-wide just because the last one was.
+    await waitFor(() => expect(choice).not.toBeChecked());
+  });
+
+  it("is not offered to anyone else", async () => {
+    serve(false);
+    await screen.findByLabelText("Name");
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
+
+    expect(screen.queryByRole("checkbox", { name: /Every organization/ })).toBeNull();
   });
 });
