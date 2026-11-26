@@ -6932,49 +6932,23 @@
         "shareFailure": "Dit item kon niet worden gedeeld.",
         "published": "Gedeeld",
         "close": "Sluiten",
-        "sourceSettings": "Gmail-onderhoud",
-        "sourceRevoked": "Postvaktoegang is gewijzigd",
-        "sourceReviewed": "Bron goedgekeurd",
-        "sourceSender": "Geverifieerde afzender",
-        "sourceSubject": "Exact e-mailonderwerp",
-        "sourceCommitment": "Naam van de toezegging",
-        "sourceObjectKey": "Sleutel bedrijfsobject (optioneel)",
-        "sourceObjectKeyHint": "Gebruik in Gmail en in het goedgekeurde chatgeheugen dezelfde externe sleutel om de bronnen te koppelen.",
         "conflictsOnly": "Alleen conflicten",
         "conflictPending": "Wacht op beoordeling",
         "conflictPick": "Welke waarde moet het bedrijfsgeheugen gebruiken?",
         "conflictConfirm": "Waarde bevestigen",
         "conflictResolved": "Geheugenconflict opgelost",
         "conflictChanged": "Dit conflict is gewijzigd. Controleer de bijgewerkte waarden.",
-        "sourceMode": "Modus",
-        "shadow": "Alleen voorbeeld",
-        "active": "Opslaan in organisatiegeheugen",
-        "notify": "Meld wijzigingen aan de deadline in mijn inbox",
-        "approveSource": "Bron goedkeuren",
-        "disableSource": "Bron en gegevens verwijderen",
-        "deadlineChanged": "Deadline van toezegging gewijzigd",
         "gmailSource": "Gmail",
+        "webhookSource": "Ondertekende webhook",
         "previous": "Vorige: {statement}",
         "validity": "Van {start} tot {end}",
         "shareHint": "Controleer de ontvangers. Je deelt een kopie van dit item.",
-        "sourceHint": "Gebruik een gekoppeld Gmail-postvak van het bedrijf. Kies een geverifieerde afzender en een exact onderwerp. De e-mail moet één regel bevatten: Deadline: YYYY-MM-DD of Deadline: cancelled.",
-        "disableSourceHint": "De regel, het opgeslagen geheugen en de bijbehorende inboxkaarten worden verwijderd.",
-        "deadlineChange": "Eerst: {before}. Nu: {after}.",
         "kind": {
           "all": "Alle",
           "person": "Personen",
           "company": "Bedrijven en klanten",
           "project": "Projecten",
           "commitment": "Toezeggingen"
-        },
-        "outcome": {
-          "daily_limit": "Daglimiet bereikt",
-          "withheld": "Tegengehouden",
-          "shadow": "Voorbeeld komt overeen",
-          "late": "Ouder bericht",
-          "unchanged": "Geen wijziging",
-          "disputed": "Conflict wacht op beoordeling",
-          "applied": "Opgeslagen"
         }
       },
       "showing": "{from}–{to} van {total} getoond",
@@ -19035,6 +19009,10 @@
         "name": "Een afbeelding bewerken",
         "description": "Bijsnijden, schalen, draaien of omzetten van een PNG-, JPEG-, WebP- of GIF-afbeelding, met de metadata verwijderd en de grootte begrensd voordat ze wordt gedecodeerd."
       },
+      "memory_observe": {
+        "name": "Waarneming opslaan",
+        "description": "Sla een geverifieerde levering met datum en bewijs op in het organisatiegeheugen."
+      },
       "knowledge_add": {
         "name": "Aan kennis toevoegen",
         "description": "Zet een tekst of een bestand in kenniscollecties, zodat agents het vinden."
@@ -20408,6 +20386,23 @@
           },
           "file__byte_size": {
             "title": "Grootte in bytes"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Objecttype"
+          },
+          "object_name": {
+            "title": "Objectnaam"
+          },
+          "object_key": {
+            "title": "Sleutel bedrijfsobject"
+          },
+          "subject": {
+            "title": "Eigenschap",
+            "description": "Gebruik deadline voor Gmail."
           }
         }
       },

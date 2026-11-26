@@ -1,5 +1,5 @@
 ---
-source_sha: "9adb8c26e7ba"
+source_sha: "90ec5bd904a8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -501,35 +501,32 @@ fecha final. Los registros sin fecha inicial siguen en la búsqueda actual. Una
 consulta histórica requiere una observación fechada. Corrige un intervalo cerrado desde el historial personal para conservar el estado de conocimiento anterior. Los cambios de estado se
 registran desde el nuevo esquema. Los registros existentes conservan sus IDs.
 
-### Mantenimiento de Gmail { #memory-gmail }
+### Observaciones desde workflows { #memory-gmail }
 
-Conecta un portal Gmail de empresa. Un operador con `connections:manage` y
-`context:edit` para toda la organización puede revisar una regla en **Settings →
-Memory → Organization → Gmail maintenance**. Indica un remitente autenticado,
-un asunto exacto y un compromiso. El correo debe contener una sola línea
-`Deadline: YYYY-MM-DD` o `Deadline: cancelled`.
+Un workflow publicado puede guardar entregas verificadas en la memoria
+de la organización. Usa el trigger existente **Gmail** o **Webhook** y añade
+[Registrar observación](workflow-nodes.md#memory-observe). Configura la clave
+del objeto y la propiedad en el editor. Para Gmail indica la dirección
+completa de un remitente verificado y elige `deadline`. Se acepta una línea
+`Deadline: YYYY-MM-DD` o `Deadline: cancelled`. Un borrador no escribe memoria.
 
-La vista previa recoge las coincidencias y su estado. El modo activo guarda el
-plazo y su evidencia en el historial compartido. Si las notificaciones están
-activas, el revisor recibe un aviso en Inbox cuando cambia un plazo existente.
-La regla funciona sin un modelo. Antes de guardar, el worker vuelve a comprobar
-la autorización del buzón y del revisor. El límite diario conserva el cursor
-para poder reintentar los eventos pendientes. Eliminar la regla borra sus
-eventos, registros sustentados solo por Gmail y avisos.
+Un webhook firmado puede recibir observaciones tipadas de una integración
+con CRM. La persona que ejecuta el workflow necesita `context:edit` para
+toda la organización al publicar y ejecutar. Usa los pasos de aprobación
+y notificación existentes. `changed` identifica una revisión de la misma
+fuente. Las repeticiones, disputas y observaciones tardías tienen resultados
+propios que el grafo puede utilizar.
 
-Para combinar evidencia de Gmail y de una afirmación revisada del chat, usa la
-misma clave del objeto de negocio en la regla de Gmail y en
-`object_ref.external_key` de la afirmación. Publica la afirmación a la
-organización. Los valores tipados de la misma propiedad con periodos de vigencia
-coincidentes comparten un registro. Cada fuente puede eliminarse por separado.
-Una regla de Gmail sin clave conserva la identidad de su objeto.
+Para combinar evidencia del workflow y del chat, usa la misma clave del
+objeto, propiedad y valor tipado, y publica la afirmación revisada a la
+organización. Las observaciones coincidentes con vigencia solapada pasan
+a un registro con evidencia independiente. Revocar el acceso a Gmail
+oculta esa evidencia y los registros que dependen solo de ella.
 
-En **Organización → Memories → Solo conflictos** puedes ver los valores en
-disputa. Un miembro con `context:edit` para toda la organización puede elegir y
-confirmar un valor. Las alternativas permanecen en la cronología y la decisión
-queda en la auditoría. Si llega otro candidato, revisa la lista actualizada.
-Inbox avisa de cambios de la misma fuente autorizada. Los conflictos quedan
-pendientes de revisión en Memory.
+En **Organización → Memories → Solo conflictos**, una persona con
+`context:edit` para toda la organización confirma un valor. Las alternativas
+siguen en la cronología y la decisión queda registrada. Si cambia la lista
+de candidatos, se revisa de nuevo.
 
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats

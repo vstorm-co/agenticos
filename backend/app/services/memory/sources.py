@@ -53,7 +53,7 @@ async def apply_observation(
     """Apply one admitted record under the organization ledger's write lock.
 
     Adapters must carry durable evidence when access depends on a revocable grant.
-    Gmail passes the locked event the worker independently reauthorized.
+    The caller passes the durable evidence it independently authorized.
     """
     if mail_event is not None and (
         mail_event.organization_id != organization_id
@@ -61,7 +61,7 @@ async def apply_observation(
         or mail_event.quote != observation.quote
         or mail_event.received_at != observation.effective_at
     ):
-        raise BadRequestError(message="The observation does not match its admitted Gmail evidence")
+        raise BadRequestError(message="The observation does not match its admitted source evidence")
 
     scope_key = organization_owner_key(organization_id)
     await _claims._hold_scope(db, organization_id=organization_id, scope_key=scope_key)

@@ -6816,49 +6816,23 @@
         "shareFailure": "Impossible de partager cet élément.",
         "published": "Partagé",
         "close": "Fermer",
-        "sourceSettings": "Maintenance Gmail",
-        "sourceRevoked": "L’autorisation de la boîte a changé",
-        "sourceReviewed": "Source vérifiée",
-        "sourceSender": "Expéditeur authentifié",
-        "sourceSubject": "Objet exact du courriel",
-        "sourceCommitment": "Nom de l’engagement",
-        "sourceObjectKey": "Clé de l’objet métier (facultative)",
-        "sourceObjectKeyHint": "Utilisez la même clé externe dans Gmail et dans le souvenir validé issu du chat pour relier leurs preuves.",
         "conflictsOnly": "Conflits uniquement",
         "conflictPending": "En attente de vérification",
         "conflictPick": "Quelle valeur la mémoire de l’entreprise doit-elle utiliser ?",
         "conflictConfirm": "Confirmer la valeur",
         "conflictResolved": "Conflit de mémoire résolu",
         "conflictChanged": "Ce conflit a changé. Vérifiez les valeurs actualisées.",
-        "sourceMode": "Mode",
-        "shadow": "Aperçu uniquement",
-        "active": "Enregistrer dans la mémoire de l’organisation",
-        "notify": "Me prévenir dans la boîte de réception si l’échéance change",
-        "approveSource": "Approuver la source",
-        "disableSource": "Supprimer la source et les données",
-        "deadlineChanged": "Échéance de l’engagement modifiée",
         "gmailSource": "Gmail",
+        "webhookSource": "Webhook signé",
         "previous": "Précédemment : {statement}",
         "validity": "Du {start} au {end}",
         "shareHint": "Vérifiez les destinataires. Une copie sera publiée.",
-        "sourceHint": "Connectez une boîte Gmail d’entreprise. Indiquez un expéditeur authentifié et un objet exact. Le courriel doit contenir une ligne : Deadline: YYYY-MM-DD ou Deadline: cancelled.",
-        "disableSourceHint": "La règle, ses données et les cartes associées seront supprimées.",
-        "deadlineChange": "Avant : {before}. Maintenant : {after}.",
         "kind": {
           "all": "Tous",
           "person": "Personnes",
           "company": "Entreprises et clients",
           "project": "Projets",
           "commitment": "Engagements"
-        },
-        "outcome": {
-          "daily_limit": "Limite quotidienne atteinte",
-          "withheld": "Retenu",
-          "shadow": "Correspondance en aperçu",
-          "late": "Courriel ancien",
-          "unchanged": "Aucun changement",
-          "disputed": "Conflit en attente de vérification",
-          "applied": "Enregistré"
         }
       },
       "showing": "Affichage de {from}–{to} sur {total}",
@@ -18457,6 +18431,10 @@
         "name": "Transformer une image",
         "description": "Recadre, redimensionne, pivote ou convertit une image PNG, JPEG, WebP ou GIF, métadonnées supprimées et taille bornée avant le décodage."
       },
+      "memory_observe": {
+        "name": "Enregistrer une observation",
+        "description": "Enregistrez un événement vérifié avec sa date et sa preuve dans la mémoire de l’organisation."
+      },
       "knowledge_add": {
         "name": "Ajouter aux connaissances",
         "description": "Place un texte ou un fichier dans des collections de connaissances, pour que les agents les trouvent."
@@ -19830,6 +19808,23 @@
           },
           "file__byte_size": {
             "title": "Taille en octets"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Type d’objet"
+          },
+          "object_name": {
+            "title": "Nom de l’objet"
+          },
+          "object_key": {
+            "title": "Clé de l’objet métier"
+          },
+          "subject": {
+            "title": "Propriété",
+            "description": "Utilisez deadline pour Gmail."
           }
         }
       },

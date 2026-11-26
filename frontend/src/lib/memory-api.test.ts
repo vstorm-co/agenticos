@@ -1,8 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  amendHistoricalClaim,
   correctClaim,
+  getMemoryClaimDetail,
+  getMemoryObjects,
+  getMemoryTimeline,
+  getSharedClaims,
+  getSharedNotes,
+  resolveSharedMemoryConflict,
+  reviewDecisionCase,
+  shareMemoryClaim,
+  shareMemoryNote,
+  type MemoryNote,
   deleteNote,
+  editNoteContent,
   getMyClaims,
   getMyMemory,
   getPersonMemory,
@@ -107,4 +119,83 @@ it("encodes whole-store searches and narrows claims before pagination", async ()
   expect(apiClient.get).toHaveBeenCalledWith(
     "/memory/mine?skip=50&limit=50&q=50%25%20%26%20invoices",
   );
+});
+
+it("partitions object browsing and passes both historical cutoffs and cursors", () => {
+  void getMemoryObjects("personal", "", "all", null);
+  void getMemoryObjects("organization", "Atlas & Co", "company", "page-b");
+  void getMemoryTimeline("organization", "project", "", "2026-11-26", null);
+  void getMemoryTimeline("organization", "project", "2020-01-01", "2026-11-26", "page-b");
+  void getMemoryClaimDetail("organization", "c-1");
+  expect(apiClient.get).toHaveBeenNthCalledWith(1, "/memory/objects?library=personal&q=");
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    2,
+    "/memory/objects?library=organization&q=Atlas+%26+Co&kind=company&cursor=page-b",
+  );
+  expect(apiClient.get).toHaveBeenNthCalledWith(3, "/memory/objects/project?library=organization");
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    4,
+    "/memory/objects/project?library=organization&as_of=2020-01-01T00%3A00%3A00Z&known_at=2026-11-26T23%3A59%3A59.999999Z&cursor=page-b",
+  );
+  expect(apiClient.get).toHaveBeenNthCalledWith(5, "/memory/claims/shared/c-1");
+});
+
+it("reads shared pages and sends only explicitly reviewed publication and decision fields", () => {
+  const note: MemoryNote = {
+    id: "n-1",
+    agent_id: "a",
+    agent_name: null,
+    name: "notes.md",
+    content: "private",
+    description: null,
+    format: "markdown",
+    kind: "note",
+    created_at: null,
+    updated_at: "2026-11-26T00:00:00Z",
+    written_at: null,
+    deactivated_at: null,
+  };
+  void getSharedClaims("", 0);
+  void getSharedClaims("Deadline", 30, true);
+  void getSharedNotes(null);
+  void getSharedNotes("page-b");
+  void shareMemoryClaim("c-1", "group-1");
+  void shareMemoryNote(note, null);
+  void editNoteContent(note, "Edited note");
+  void resolveSharedMemoryConflict("c-1", ["c-1", "c-2"]);
+  void amendHistoricalClaim("c-1", "Revised");
+  void reviewDecisionCase("c-1", "dataset-1", "Question", "Answer");
+  expect(apiClient.get).toHaveBeenNthCalledWith(1, "/memory/claims/shared?q=&skip=0");
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    2,
+    "/memory/claims/shared?q=Deadline&skip=30&disputed=true",
+  );
+  expect(apiClient.get).toHaveBeenNthCalledWith(3, "/memory/notes/shared?");
+  expect(apiClient.get).toHaveBeenNthCalledWith(4, "/memory/notes/shared?cursor=page-b");
+  expect(apiClient.post).toHaveBeenNthCalledWith(1, "/memory/claims/mine/c-1/share", {
+    confirmed: true,
+    group_id: "group-1",
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(2, "/memory/mine/n-1/share", {
+    confirmed: true,
+    group_id: null,
+    expected_updated_at: note.updated_at,
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(3, "/memory/claims/shared/c-1/resolve", {
+    candidate_ids: ["c-1", "c-2"],
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(4, "/memory/claims/mine/c-1/correct", {
+    statement: "Revised",
+    historical: true,
+  });
+  expect(apiClient.patch).toHaveBeenCalledWith("/memory/mine/n-1/content", {
+    content: "Edited note",
+    expected_updated_at: note.updated_at,
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(5, "/memory/claims/mine/c-1/improve-case", {
+    confirmed: true,
+    dataset_id: "dataset-1",
+    input: "Question",
+    reference_answer: "Answer",
+  });
 });

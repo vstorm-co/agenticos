@@ -33,7 +33,7 @@ from app.db.models.memory_claim import (
     MemoryScopeState,
     SharedMemoryNote,
 )
-from app.db.models.suggestion import Suggestion
+from app.db.models.workflow_exposure import WorkflowWebhookDelivery
 
 
 @dataclass(frozen=True)
@@ -83,20 +83,40 @@ def _in_scopes(scopes: Sequence[ClaimScope]) -> Any:
 
 
 def _authorized_mail_events() -> Select[MemoryMailEvent]:
+    grant_generation = case(
+        (MemoryMailEvent.workflow_delivery_id.is_not(None), MemoryMailEvent.generation),
+        else_=MemoryMailSource.authorization_generation,
+    )
+    portal = and_(
+        MemoryMailEvent.provider == "gmail",
+        McpConnection.organization_id == MemoryMailEvent.organization_id,
+        grant_generation == McpConnection.authorization_generation,
+        McpConnection.purpose == "portal",
+        McpConnection.portal_key == "google",
+        McpConnection.oauth_payload.is_not(None),
+        McpConnection.is_enabled.is_(True),
+        McpConnection.last_error.is_distinct_from(AUTHORIZATION_EXPIRED),
+        or_(
+            MemoryMailEvent.workflow_delivery_id.is_not(None),
+            MemoryMailSource.grant_id == MemoryMailEvent.grant_id,
+        ),
+    )
+    webhook = and_(
+        MemoryMailEvent.provider == "webhook",
+        WorkflowWebhookDelivery.organization_id == MemoryMailEvent.organization_id,
+        WorkflowWebhookDelivery.signed_digest.is_not(None),
+    )
     return (
         select(MemoryMailEvent)
-        .join(MemoryMailSource, MemoryMailSource.organization_id == MemoryMailEvent.organization_id)
-        .join(McpConnection, McpConnection.id == MemoryMailSource.grant_id)
-        .where(
-            MemoryMailEvent.grant_id == McpConnection.id,
-            McpConnection.organization_id == MemoryMailEvent.organization_id,
-            MemoryMailSource.authorization_generation == McpConnection.authorization_generation,
-            McpConnection.purpose == "portal",
-            McpConnection.portal_key == "google",
-            McpConnection.oauth_payload.is_not(None),
-            McpConnection.is_enabled.is_(True),
-            McpConnection.last_error.is_distinct_from(AUTHORIZATION_EXPIRED),
+        .outerjoin(
+            MemoryMailSource, MemoryMailSource.organization_id == MemoryMailEvent.organization_id
         )
+        .outerjoin(McpConnection, McpConnection.id == MemoryMailEvent.grant_id)
+        .outerjoin(
+            WorkflowWebhookDelivery,
+            WorkflowWebhookDelivery.id == MemoryMailEvent.workflow_delivery_id,
+        )
+        .where(or_(portal, webhook))
     )
 
 
@@ -859,15 +879,6 @@ async def shared_notes(
     return list(result)
 
 
-async def mail_source(
-    db: AsyncSession, organization_id: UUID, *, lock: bool = False
-) -> MemoryMailSource | None:
-    query = select(MemoryMailSource).where(MemoryMailSource.organization_id == organization_id)
-    if lock:
-        query = query.with_for_update().execution_options(populate_existing=True)
-    return await db.scalar(query)
-
-
 async def mail_event(
     db: AsyncSession, *, organization_id: UUID, event_id: UUID
 ) -> MemoryMailEvent | None:
@@ -934,77 +945,16 @@ async def _retain_mail_observation(db: AsyncSession, claim: MemoryClaim) -> bool
     return True
 
 
-async def admit_mail(
-    db: AsyncSession,
-    *,
-    source: MemoryMailSource,
-    grant_id: UUID,
-    delivery_id: str,
-    received_at: datetime,
-    deadline: datetime | None,
-    quote: str,
-) -> UUID | None:
+async def workflow_evidence(
+    db: AsyncSession, *, organization_id: UUID, grant_id: UUID, event_key: str
+) -> MemoryMailEvent | None:
     return await db.scalar(
-        pg_insert(MemoryMailEvent)
-        .values(
-            organization_id=source.organization_id,
-            grant_id=grant_id,
-            generation=source.generation,
-            delivery_id=delivery_id,
-            received_at=received_at,
-            deadline=deadline,
-            quote=quote,
-            state="queued",
-        )
-        .on_conflict_do_nothing(constraint="uq_memory_mail_events_delivery")
-        .returning(MemoryMailEvent.id)
-    )
-
-
-async def mail_seen(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    grant_id: UUID,
-    delivery_id: str,
-) -> bool:
-    return (
-        await db.scalar(
-            select(MemoryMailEvent.id).where(
-                MemoryMailEvent.organization_id == organization_id,
-                MemoryMailEvent.grant_id == grant_id,
-                MemoryMailEvent.delivery_id == delivery_id,
-            )
-        )
-        is not None
-    )
-
-
-async def mail_events_since(db: AsyncSession, *, organization_id: UUID, since: datetime) -> int:
-    return (
-        await db.scalar(
-            select(func.count())
-            .select_from(MemoryMailEvent)
-            .where(
-                MemoryMailEvent.organization_id == organization_id,
-                MemoryMailEvent.admitted_at >= since,
-            )
-        )
-        or 0
-    )
-
-
-async def remove_mail_source(db: AsyncSession, source: MemoryMailSource) -> None:
-    """Remove derived mail records and their non-delivered or decided Inbox entries."""
-    await db.execute(
-        sa_delete(Suggestion).where(
-            Suggestion.organization_id == source.organization_id,
-            Suggestion.payload["memory_mail"].as_boolean().is_(True),
+        select(MemoryMailEvent).where(
+            MemoryMailEvent.organization_id == organization_id,
+            MemoryMailEvent.grant_id == grant_id,
+            MemoryMailEvent.delivery_id == event_key,
         )
     )
-    await db.delete(source)
-    await db.flush()
-    await prune_empty_objects(db, organization_id=source.organization_id)
 
 
 async def prune_empty_objects(

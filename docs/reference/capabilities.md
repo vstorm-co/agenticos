@@ -467,34 +467,33 @@ are half-open. A claim with no start date remains available in current search.
 Historical queries need a dated observation. Open a completed interval in a personal object's timeline and use **Correct** to revise that interval while preserving the earlier knowledge snapshot. History of status changes starts
 with the new schema. Existing claims and their IDs remain available.
 
-### Gmail maintenance { #memory-gmail }
+### Workflow observations { #memory-gmail }
 
-Connect a company Gmail portal first. An operator with `connections:manage` and
-organization-wide `context:edit` can review a rule under **Settings → Memory →
-Organization → Gmail maintenance**. Set an authenticated sender, an exact
-subject and a commitment name. One message must have a single line in the form
-`Deadline: YYYY-MM-DD` or `Deadline: cancelled`.
+A published workflow can record a verified delivery in organization memory.
+Use the existing **Gmail** or **Webhook** trigger and add
+[Record memory observation](workflow-nodes.md#memory-observe). Configure
+the business object key and property in the workflow editor. For Gmail,
+set a full verified sender address in the trigger and choose the `deadline`
+property. The accepted email line is `Deadline: YYYY-MM-DD` or
+`Deadline: cancelled`. A draft run leaves memory unchanged.
 
-Preview mode records a matching event and its status. Active mode records the
-deadline and its evidence in the shared commitment timeline. **Notify me** sends
-one Inbox finding to the reviewer for a change to an existing deadline. No model
-is called for this rule. The worker rechecks the portal's authorization
-generation and the reviewer's current authority before writing. The daily
-admission limit holds the mailbox cursor so unread events can be retried. Remove
-the rule to discard its queued events, Gmail-only claims and Inbox findings.
+A signed Webhook trigger can receive a typed observation from a CRM relay.
+The workflow principal needs organization-wide `context:edit` at publish
+and run time. Use existing approval and notification steps where the
+workflow calls for them. The action returns `changed` for a revision of
+an existing value from the same source. Replays, disputes and late
+observations can be routed separately through their status.
 
-To combine evidence from Gmail and a reviewed chat claim, use the same business
-object key in the Gmail rule and in the chat claim's `object_ref.external_key`.
-Publish the chat claim to the organization. Matching typed values for the same
-property and overlapping validity share one entry. Either source can be removed
-independently. An unbound Gmail rule keeps its existing object identity.
+To combine evidence from a workflow and chat, use the same business object
+key, property and typed value. Publish the chat claim to the organization
+after review. Agreement for overlapping validity keeps one entry with
+independent support. Revoking a Gmail grant hides Gmail evidence and any
+claim that depends on it alone.
 
-Open **Organization → Memories → Conflicts only** to find disputed values.
-A member with organization-wide `context:edit` can open a dispute, choose a value
-and confirm it. The alternatives stay in the timeline and the resolution is
-audited. If a new candidate arrives during the review, review the updated set.
-Inbox notifications cover revisions from the same authorized source. A dispute
-appears in Memory for review.
+Open **Organization → Memories → Conflicts only** to review contradictory
+values. An editor with organization-wide `context:edit` confirms the value.
+The alternatives stay on the timeline, and the decision is audited. If the
+set of candidates changes, the editor reviews the updated list.
 
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.

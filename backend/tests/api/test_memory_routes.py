@@ -372,41 +372,6 @@ async def test_shared_claim_and_note_routes_require_confirmation_on_writes() -> 
     share_note.assert_awaited_once()
 
 
-async def test_memory_mail_rule_lifecycle() -> None:
-    from app.schemas.memory import MemoryMailSourceRead
-
-    state = MemoryMailSourceRead(
-        sender="desk@example.org",
-        subject="XYZ",
-        commitment="Handoff",
-        mode="shadow",
-        notify=False,
-        authorized=True,
-    )
-    with (
-        patch("app.services.memory.MemoryService.memory_mail", new=AsyncMock(return_value=state)),
-        patch(
-            "app.services.memory.MemoryService.configure_memory_mail",
-            new=AsyncMock(return_value=state),
-        ) as configure,
-        patch("app.services.memory.MemoryService.disable_memory_mail", new=AsyncMock()) as disable,
-    ):
-        async with _client() as client:
-            url = f"{ROOT}/sources/gmail"
-            assert (await client.get(url)).json()["mode"] == "shadow"
-            invalid = {
-                "sender": state.sender,
-                "subject": state.subject,
-                "commitment": state.commitment,
-                "mode": state.mode,
-            }
-            assert (await client.put(url, json=invalid)).status_code == 422
-            assert (await client.put(url, json={**invalid, "confirmed": True})).status_code == 200
-            assert (await client.delete(url)).status_code == 204
-    configure.assert_awaited_once()
-    disable.assert_awaited_once()
-
-
 async def test_shared_memory_conflict_route_forwards_reviewed_ids() -> None:
     claim = MemoryClaimRead(**_CLAIM)
     with patch(

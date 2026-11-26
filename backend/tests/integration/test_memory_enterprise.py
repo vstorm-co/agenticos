@@ -1,5 +1,6 @@
 """Company/personal memory replay on the real ledger and queue."""
 
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -20,22 +21,25 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim, MemoryMailEvent
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories import memory_claim, suggestion_repo
+from app.db.models.workflow_exposure import WorkflowWebhookDelivery
+from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode
+from app.repositories import memory_claim
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimShare,
     MemoryConflictResolve,
-    MemoryMailConfig,
     MemoryNoteShare,
     MemoryObjectRef,
 )
 from app.services.memory import MemoryService, claims, runtime
-from app.services.memory.mail import MemoryMailService
 from app.services.memory.sources import SourceObservation, apply_observation
+from app.services.memory.workflow import MemoryObservationConfig, record_observation
 from app.services.portals.base import PolledEvent
-from app.worker.jobs import ApplyMemoryMail
+from app.services.workflow_exposure import WorkflowExposureService
+from app.workflows.graph.model import Edge, WorkflowGraph
+from tests.integration.test_workflow_exposures import _publish, _signed, _step, _webhook, _workflow
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -222,7 +226,33 @@ async def test_project_no_workspace_and_group_revocation(db: AsyncSession) -> No
         await store.shared_claim_detail(viewer, published.id)
 
 
-async def _mail(db: AsyncSession, mode: str = "active", *, object_key: str | None = None):
+_HANDOFF_KEY = "business:atlas-handoff"
+_CONFIG = MemoryObservationConfig(
+    object_kind="commitment", object_name="XYZ handoff", object_key=_HANDOFF_KEY, subject="deadline"
+)
+
+
+def _observation_graph(entry: str, settings: dict[str, object] | None = None) -> WorkflowGraph:
+    trigger = _step(entry, settings)
+    observe = _step("memory.observe", _CONFIG.model_dump())
+    return WorkflowGraph(
+        entry_node_id=trigger.id,
+        nodes=(trigger, observe),
+        edges=(
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=trigger.id,
+                source_port="out",
+                target_node_id=observe.id,
+                target_port="in",
+            ),
+        ),
+    )
+
+
+async def _mail(
+    db: AsyncSession, *, sender: str | None = "desk@example.org"
+) -> tuple[Organization, User, User, AuthContext, McpConnection]:
     org, owner, reader = await _org(db)
     ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
     grant = McpConnection(
@@ -237,21 +267,17 @@ async def _mail(db: AsyncSession, mode: str = "active", *, object_key: str | Non
     )
     db.add(grant)
     await db.flush()
-    service = MemoryMailService(db)
-    result = await MemoryService(db).configure_memory_mail(
+    workflow = await _workflow(db, org=org, owner=owner)
+    await _publish(
+        db,
         ctx,
-        MemoryMailConfig(
-            sender="desk@example.org",
-            subject="XYZ delivery deadline",
-            commitment="XYZ handoff",
-            object_key=object_key,
-            mode=mode,
-            notify=True,
-            confirmed=True,
+        workflow,
+        _observation_graph(
+            "trigger.gmail",
+            {"sender_contains": sender, "subject_contains": "XYZ delivery deadline"},
         ),
     )
-    assert result.authorized
-    return org, owner, reader, ctx, grant, service
+    return org, owner, reader, ctx, grant
 
 
 def _delivery(
@@ -269,70 +295,90 @@ def _delivery(
     )
 
 
-async def _event(db: AsyncSession, org: Organization, key: str) -> ApplyMemoryMail:
-    id_ = await db.scalar(
-        select(MemoryMailEvent.id).where(
-            MemoryMailEvent.organization_id == org.id,
-            MemoryMailEvent.delivery_id == f"gmail:{key}",
+async def _admit(db: AsyncSession, grant: McpConnection, *events: PolledEvent) -> None:
+    assert grant.organization_id is not None
+    assert await WorkflowExposureService(db).receive_polled_email(
+        organization_id=grant.organization_id,
+        source="gmail",
+        events=events,
+        connection=grant,
+    )
+
+
+async def _receipt(db: AsyncSession, org: Organization, key: str) -> WorkflowWebhookDelivery | None:
+    return await db.scalar(
+        select(WorkflowWebhookDelivery).where(
+            WorkflowWebhookDelivery.organization_id == org.id,
+            WorkflowWebhookDelivery.delivery_id == f"gmail:{key}",
         )
     )
-    assert id_ is not None
-    return ApplyMemoryMail(organization_id=org.id, event_id=id_)
+
+
+async def _mail_run(db: AsyncSession, org: Organization, key: str) -> uuid.UUID:
+    receipt = await _receipt(db, org, key)
+    assert receipt is not None
+    return receipt.workflow_run_id
+
+
+async def _apply(db: AsyncSession, org: Organization, ctx: AuthContext, key: str):
+    return await record_observation(
+        db, auth=ctx, run_id=await _mail_run(db, org, key), config=_CONFIG
+    )
 
 
 async def test_gmail_deadline_change_is_single_and_revocable(db: AsyncSession) -> None:
-    org, owner, _, ctx, grant, service = await _mail(db)
+    org, _, _, ctx, grant = await _mail(db)
     first = _delivery("a", "Deadline: 2026-12-01")
     second = _delivery("b", "Deadline: 2026-12-03")
     malformed = _delivery("malformed", "Deadline: 2026-02-31")
     forged = _delivery("forged", "Deadline: 2026-12-10", authenticated=False)
-    assert await service.subscribed(grant, "gmail")
-    assert not await service.subscribed(grant, "outlook")
-    assert (await service.admit(grant, (first, first, second, malformed, forged))).queued == 2
-    await service.apply(await _event(db, org, "a"))
-    later = await _event(db, org, "b")
-    await service.apply(later)
-    await service.apply(later)
-    items = await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
-    assert len(items) == 1
-    assert items[0].payload["deadline_before"] == "XYZ handoff deadline: 2026-12-01"
-    assert items[0].payload["deadline_after"] == "XYZ handoff deadline: 2026-12-03"
+    await _admit(db, grant, first, first, second, malformed, forged)
+    assert await _receipt(db, org, "forged") is None
+    assert (await _apply(db, org, ctx, "a")).status == "applied"
+    change = await _apply(db, org, ctx, "b")
+    assert change.status == "changed" and change.changed
+    assert await _apply(db, org, ctx, "b") == change
+    with pytest.raises(BadRequestError, match="invalid memory observation"):
+        await _apply(db, org, ctx, "malformed")
 
-    share = ClaimScope(organization_owner_key(org.id))
-    assert [
-        row.statement
-        for row in await claims.recall(
-            db,
-            organization_id=org.id,
-            scopes=[share],
-            query="XYZ deadline",
-        )
-    ] == ["XYZ handoff deadline: 2026-12-03"]
-
+    store = MemoryService(db)
+    items = (await store.shared_claims(ctx, q="", limit=10, skip=0)).items
+    assert [row.statement for row in items] == ["XYZ handoff deadline: 2026-12-03"]
+    detail = await store.shared_claim_detail(ctx, items[0].id)
+    assert [item.quote for item in detail.evidence] == ["Deadline: 2026-12-03"]
     grant.authorization_generation = uuid.uuid4()
     await db.flush()
-    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id) == []
+    assert (await store.shared_claims(ctx, q="", limit=10, skip=0)).total == 0
+    with pytest.raises(AuthorizationError, match="no longer authorized"):
+        await _apply(db, org, ctx, "b")
+
+
+async def test_gmail_draft_and_revoked_dispatch_do_not_write(db: AsyncSession) -> None:
+    org, _, reader, ctx, grant = await _mail(db)
+    await _admit(db, grant, _delivery("before", "Deadline: cancelled"))
+    run_id = await _mail_run(db, org, "before")
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    with pytest.raises(AuthorizationError, match="context:edit"):
+        await record_observation(db, auth=viewer, run_id=run_id, config=_CONFIG)
+    run = await db.get(WorkflowRun, run_id)
+    assert run is not None
+    # Drafts are admitted without a published run version.
+    version = run.workflow_version_id
+    run.mode = WorkflowRunMode.TEST
+    run.workflow_version_id = None
+    run.draft_graph_snapshot = _observation_graph("trigger.gmail").model_dump(mode="json")
+    await db.flush()
     assert (
-        await claims.recall(db, organization_id=org.id, scopes=[share], query="XYZ deadline") == []
-    )
-    await MemoryService(db).disable_memory_mail(ctx)
-    assert await MemoryService(db).memory_mail(ctx) is None
-    await service.apply(later)
-
-
-async def test_gmail_shadow_and_revoked_while_queued(db: AsyncSession) -> None:
-    org, _, _, ctx, grant, service = await _mail(db, "shadow")
-    assert (await service.admit(grant, (_delivery("preview", "Deadline: 2026-12-01"),))).queued == 1
-    await service.apply(await _event(db, org, "preview"))
-    preview = await service.configuration(ctx)
-    assert preview is not None and preview.last_outcome == "shadow"
-    assert (await service.admit(grant, (_delivery("revoked", "Deadline: cancelled"),))).queued == 1
-    queued = await _event(db, org, "revoked")
+        await record_observation(db, auth=ctx, run_id=run_id, config=_CONFIG)
+    ).status == "preview"
+    run.mode = WorkflowRunMode.REAL
+    run.workflow_version_id = version
+    run.draft_graph_snapshot = None
     grant.is_enabled = False
     await db.flush()
-    await service.apply(queued)
-    revoked = await service.configuration(ctx)
-    assert revoked is not None and not revoked.authorized and revoked.last_outcome == "withheld"
+    with pytest.raises(AuthorizationError, match="no longer authorized"):
+        await _apply(db, org, ctx, "before")
+    assert await db.scalar(select(MemoryMailEvent.id)) is None
 
 
 async def test_same_named_people_require_separate_external_identity(db: AsyncSession) -> None:
@@ -361,14 +407,9 @@ async def test_same_named_people_require_separate_external_identity(db: AsyncSes
     assert later.items[0].id != page.items[0].id and later.next_cursor is None
 
 
-async def test_erasure_removes_shared_copy_and_old_job_cannot_restore_it(db: AsyncSession) -> None:
-    org, owner, _, ctx, grant, service = await _mail(db)
-    event = _delivery("old", "Deadline: 2026-12-01")
-    assert (await service.admit(grant, (event,))).queued == 1
-    queued = await _event(db, org, "old")
-    await service.disable(ctx)
-    await service.apply(queued)
-    assert (await service.admit(grant, (event,))).queued == 0
+async def test_erasure_removes_shared_copy(db: AsyncSession) -> None:
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
 
     source = await claims.remember(
         db,
@@ -396,14 +437,16 @@ async def test_erasure_removes_shared_copy_and_old_job_cannot_restore_it(db: Asy
 
 
 async def test_late_email_fills_its_interval_without_another_alert(db: AsyncSession) -> None:
-    org, owner, _, _, grant, service = await _mail(db)
-    received = datetime.now(UTC)
+    org, _, _, ctx, grant = await _mail(db)
+    received = datetime.now(UTC) - timedelta(seconds=5)
     first = _delivery("a", "Deadline: 2026-12-01", received=received)
     late = _delivery("b", "Deadline: 2026-12-02", received=received + timedelta(seconds=1))
     latest = _delivery("c", "Deadline: 2026-12-03", received=received + timedelta(seconds=2))
-    assert (await service.admit(grant, (first, latest, late))).queued == 3
-    for key in ("a", "c", "b"):
-        await service.apply(await _event(db, org, key))
+    await _admit(db, grant, first, latest, late)
+    assert (await _apply(db, org, ctx, "a")).status == "applied"
+    assert (await _apply(db, org, ctx, "c")).changed
+    outcome = await _apply(db, org, ctx, "b")
+    assert outcome.status == "late" and not outcome.changed
     share = ClaimScope(organization_owner_key(org.id))
     for offset, end in ((0, "01"), (1, "02"), (2, "03")):
         matches = await claims.recall(
@@ -414,7 +457,6 @@ async def test_late_email_fills_its_interval_without_another_alert(db: AsyncSess
             as_of=received + timedelta(seconds=offset),
         )
         assert [item.value for item in matches] == [f"2026-12-{end}"]
-    assert len(await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)) == 1
 
 
 async def test_shared_note_is_a_reviewed_snapshot_and_erasure_cascades(db: AsyncSession) -> None:
@@ -451,57 +493,6 @@ async def test_shared_note_is_a_reviewed_snapshot_and_erasure_cascades(db: Async
     assert [(item.id, item.content) for item in result.items] == [(shared.id, "Reviewed content")]
     await memory.forget_person(editor, owner.id)
     assert (await memory.shared_notes(member, cursor=None, limit=10)).items == []
-
-
-async def test_gmail_backpressure_preserves_unadmitted_events(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from app.services.memory import mail
-
-    org, _, _, ctx, grant, service = await _mail(db)
-    monkeypatch.setattr(mail, "MAX_DAILY_EVENTS", 1)
-    assert (await service.admit(grant, ())).complete
-    first = _delivery("a", "Deadline: 2026-12-01")
-    second = _delivery("b", "Deadline: 2026-12-02")
-    offered = await service.admit(grant, (first, first, second))
-    assert offered.queued == 1 and not offered.complete
-    capped = await service.configuration(ctx)
-    assert capped is not None and capped.last_outcome == "daily_limit"
-    assert (await service.admit(grant, (first,))).complete
-    assert not (await service.admit(grant, (second,))).complete
-    monkeypatch.setattr(mail, "MAX_DAILY_EVENTS", 2)
-    assert (await service.admit(grant, (first, second))).queued == 1
-
-    await service.apply(await _event(db, org, "a"))
-    await service.apply(await _event(db, org, "b"))
-    shared = await MemoryService(db).shared_claims(ctx, q="XYZ", skip=0, limit=10)
-    assert [item.value for item in shared.items] == ["2026-12-02"]
-    detail = await MemoryService(db).shared_claim_detail(ctx, shared.items[0].id)
-    assert [item.quote for item in detail.evidence] == ["Deadline: 2026-12-02"]
-
-
-async def test_reviewers_losing_edit_scope_stop_polling_admission_and_apply(
-    db: AsyncSession,
-) -> None:
-    org, owner, _, _, grant, service = await _mail(db)
-    event = _delivery("a", "Deadline: 2026-12-01")
-    assert (await service.admit(grant, (event,))).queued == 1
-
-    membership = await db.scalar(
-        select(OrganizationMember).where(
-            OrganizationMember.organization_id == org.id, OrganizationMember.user_id == owner.id
-        )
-    )
-    assert membership is not None
-    membership.role = "viewer"
-    await db.flush()
-
-    assert not await service.subscribed(grant, "gmail")
-    assert (await service.admit(grant, (_delivery("b", "Deadline: 2026-12-02"),))).queued == 0
-    queued = await _event(db, org, "a")
-    await service.apply(queued)
-    stored = await db.get(MemoryMailEvent, queued.event_id)
-    assert stored is not None and stored.state == "withheld"
 
 
 async def test_object_versions_use_stable_cursors_and_amend_legacy_rows(db: AsyncSession) -> None:
@@ -704,118 +695,6 @@ async def test_group_claim_recall_keeps_private_audience_boundaries(
     )
 
 
-async def test_mail_rule_reconnect_removes_old_history_and_proofs(
-    db: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.worker.tasks import memory_tasks
-
-    org, owner, reader, ctx, grant, service = await _mail(db)
-    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
-    data = MemoryMailConfig(
-        sender="desk@example.org",
-        subject="XYZ delivery deadline",
-        commitment="XYZ handoff",
-        mode="active",
-        notify=True,
-        confirmed=True,
-    )
-    with pytest.raises(AuthorizationError):
-        await service.configure(viewer, data)
-    with pytest.raises(BadRequestError):
-        await service.configure(
-            AuthContext(user_id=owner.id, organization_id=uuid.uuid4(), role="owner"), data
-        )
-
-    no_date = _delivery("no-date", "Deadline ASAP")
-    before = _delivery(
-        "before",
-        "Deadline: 2026-10-01",
-        received=datetime.now(UTC) - timedelta(days=1),
-    )
-    assert (await service.admit(grant, (no_date, before))).queued == 0
-    candidates = (
-        _delivery("a", "Deadline: 2026-12-01"),
-        _delivery("b", "Deadline: 2026-12-01"),
-        _delivery("c", "Deadline: cancelled"),
-    )
-    assert (await service.admit(grant, candidates)).queued == 3
-
-    @asynccontextmanager
-    async def current_db():
-        yield db
-
-    monkeypatch.setattr(memory_tasks, "get_db_context", current_db)
-    for key in ("a", "b", "c"):
-        await memory_tasks.apply_memory_mail(await _event(db, org, key))
-    found = await MemoryService(db).shared_claims(ctx, q="XYZ", limit=5, skip=0)
-    assert [item.statement for item in found.items] == ["XYZ handoff deadline cancelled"]
-    assert len(await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)) == 1
-
-    grant.authorization_generation = uuid.uuid4()
-    await db.flush()
-    replacement = await service.configure(ctx, data)
-    assert replacement.authorized and replacement.last_outcome is None
-    assert (
-        await db.scalar(select(MemoryMailEvent.id).where(MemoryMailEvent.organization_id == org.id))
-        is None
-    )
-    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=5, skip=0)).total == 0
-    assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
-
-
-async def test_mail_rule_reconfiguration_fences_queued_items_and_ties(db: AsyncSession) -> None:
-    org, owner, _, ctx, grant, service = await _mail(db)
-    stamp = datetime.now(UTC)
-    events = (
-        _delivery("a", "Deadline: 2026-12-01", received=stamp),
-        _delivery("tie", "Deadline: 2026-12-02", received=stamp),
-        _delivery("pending", "Deadline: 2026-12-03"),
-    )
-    assert (await service.admit(grant, events)).queued == 3
-    for key in ("a", "tie"):
-        await service.apply(await _event(db, org, key))
-    data = MemoryMailConfig(
-        sender="desk@example.org",
-        subject="XYZ delivery deadline",
-        commitment="XYZ handoff",
-        mode="shadow",
-        notify=False,
-        confirmed=True,
-    )
-    await service.configure(ctx, data)
-    await service.apply(await _event(db, org, "pending"))
-    config = await service.configuration(ctx)
-    assert config is not None and config.last_outcome == "withheld"
-    assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
-    conflicts = await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0, disputed=True)
-    assert {row.value for row in conflicts.items} == {"2026-12-01", "2026-12-02"}
-    await service.disable(ctx)
-    await service.disable(ctx)
-
-
-async def test_queued_mail_disappearing_during_recheck_has_no_side_effects(
-    db: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    org, _, _, ctx, grant, service = await _mail(db)
-    await service.admit(grant, (_delivery("a", "Deadline: 2026-12-01"),))
-    payload = await _event(db, org, "a")
-    real = memory_claim.mail_source
-
-    async def remove_before_lock(session, organization_id, *, lock=False):
-        if lock:
-            source = await real(session, organization_id, lock=True)
-            assert source is not None
-            await memory_claim.remove_mail_source(session, source)
-        return await real(session, organization_id, lock=lock)
-
-    monkeypatch.setattr(memory_claim, "mail_source", remove_before_lock)
-    await service.apply(payload)
-    assert await service.configuration(ctx) is None
-    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0)).total == 0
-
-
 async def test_share_cannot_copy_an_object_from_a_different_scope(db: AsyncSession) -> None:
     org, owner, reader = await _org(db)
     object_row = await memory_claim.put_object(
@@ -841,9 +720,6 @@ async def test_share_cannot_copy_an_object_from_a_different_scope(db: AsyncSessi
     with pytest.raises(ConflictError):
         await store.publish_claim(actor, claim.id, MemoryClaimShare(confirmed=True))
     assert (await store.shared_claims(actor, q="", limit=10, skip=0)).total == 0
-
-
-_HANDOFF_KEY = "business:atlas-handoff"
 
 
 async def _chat_deadline(
@@ -881,7 +757,7 @@ async def _chat_deadline(
 async def test_chat_gmail_agreement_keeps_both_sources(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, chat_first: bool
 ) -> None:
-    org, owner, reader, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    org, owner, reader, ctx, grant = await _mail(db)
     store = MemoryService(db)
     private = await _chat_deadline(db, org, owner, "2026-12-01", monkeypatch)
     share = MemoryClaimShare(confirmed=True)
@@ -891,9 +767,9 @@ async def test_chat_gmail_agreement_keeps_both_sources(
         _delivery("first", "Deadline: 2026-12-01"),
         _delivery("second", "Deadline: 2026-12-01"),
     )
-    assert (await mail.admit(grant, events)).queued == 2
+    await _admit(db, grant, *events)
     for key in ("first", "second"):
-        await mail.apply(await _event(db, org, key))
+        await _apply(db, org, ctx, key)
     before_publication = (await store.shared_claims(ctx, q="", skip=0, limit=10)).items
     assert len(before_publication) == 1
     if not chat_first:
@@ -905,14 +781,16 @@ async def test_chat_gmail_agreement_keeps_both_sources(
     detail = await store.shared_claim_detail(viewer, published.id)
     assert detail.derived_from_count == 0  # The organization API does not expose private ancestry.
     assert detail.sources == []
-    assert {item.source_id for item in detail.evidence} == {"gmail:first", "gmail:second"}
+    assert len({item.source_id for item in detail.evidence}) == 2
+    assert {item.quote for item in detail.evidence} == {"Deadline: 2026-12-01"}
     assert len((await store.shared_claims(viewer, q="", skip=0, limit=10)).items) == 1
     if chat_first:
         await store.forget_person(ctx, owner.id)
         detail = await store.shared_claim_detail(viewer, published.id)
         assert detail.statement == "XYZ handoff deadline: 2026-12-01"
         assert len(detail.evidence) == 2
-        await mail.disable(ctx)
+        grant.is_enabled = False
+        await db.flush()
         with pytest.raises(NotFoundError):
             await store.shared_claim_detail(viewer, published.id)
     else:
@@ -921,7 +799,6 @@ async def test_chat_gmail_agreement_keeps_both_sources(
         detail = await store.shared_claim_detail(viewer, published.id)
         assert detail.evidence == []
         assert detail.statement == "XYZ handoff deadline: 2026-12-01"
-        await mail.disable(ctx)
         assert (await store.shared_claim_detail(viewer, published.id)).evidence == []
         await store.forget_person(ctx, owner.id)
         with pytest.raises(NotFoundError):
@@ -932,14 +809,14 @@ async def test_chat_gmail_agreement_keeps_both_sources(
 async def test_conflicting_chat_and_gmail_need_a_member_decision(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, chat_first: bool, keep_chat: bool
 ) -> None:
-    org, owner, reader, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    org, owner, reader, ctx, grant = await _mail(db)
     store = MemoryService(db)
     private = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
     if chat_first:
         published = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
     event = _delivery("email", "Deadline: 2026-12-01")
-    assert (await mail.admit(grant, (event,))).queued == 1
-    await mail.apply(await _event(db, org, "email"))
+    await _admit(db, grant, event)
+    assert not (await _apply(db, org, ctx, "email")).changed
     if not chat_first:
         published = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
     contested = (
@@ -948,7 +825,6 @@ async def test_conflicting_chat_and_gmail_need_a_member_decision(
     assert contested
     stored = await store.shared_claim_detail(ctx, published.id)
     assert {row.value for row in stored.conflicts} == {"2026-12-01", "2026-12-02"}
-    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id) == []
     data = MemoryConflictResolve(candidate_ids=[row.id for row in stored.conflicts])
     viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
     with pytest.raises(AuthorizationError):
@@ -1043,11 +919,12 @@ async def test_crm_fixture_through_shared_memory_contract(db: AsyncSession) -> N
 
 
 async def test_source_contract_refuses_a_mismatched_admitted_proof(db: AsyncSession) -> None:
-    org, _, _, _, grant, mail = await _mail(db)
-    delivery = _delivery("original", "Deadline: 2026-12-01")
-    assert (await mail.admit(grant, (delivery,))).queued == 1
-    job = await _event(db, org, "original")
-    event = await memory_claim.mail_event(db, organization_id=org.id, event_id=job.event_id)
+    org, _, _, ctx, grant = await _mail(db)
+    await _admit(db, grant, _delivery("original", "Deadline: 2026-12-01"))
+    stored = await _apply(db, org, ctx, "original")
+    event = await db.scalar(
+        select(MemoryMailEvent).where(MemoryMailEvent.supported_claim_id == stored.claim_id)
+    )
     assert event is not None
     observation = SourceObservation(
         source_key="gmail:rule",
@@ -1059,7 +936,7 @@ async def test_source_contract_refuses_a_mismatched_admitted_proof(db: AsyncSess
         value="2026-12-01",
         effective_at=event.received_at,
     )
-    with pytest.raises(BadRequestError, match="admitted Gmail evidence"):
+    with pytest.raises(BadRequestError, match="admitted source evidence"):
         await apply_observation(
             db, organization_id=org.id, observation=observation, mail_event=event
         )
@@ -1069,33 +946,16 @@ async def test_source_contract_refuses_a_mismatched_admitted_proof(db: AsyncSess
         )
 
 
-async def test_mail_rule_without_its_reviewer_withholds_queued_evidence(db: AsyncSession) -> None:
-    org, _, _, ctx, grant, mail = await _mail(db)
-    delivery = _delivery("original", "Deadline: 2026-12-01")
-    assert (await mail.admit(grant, (delivery,))).queued == 1
-    source = await memory_claim.mail_source(db, org.id)
-    assert source is not None
-    source.reviewer_id = None
-    await db.flush()
-    assert not await mail.subscribed(grant, "gmail")
-    await mail.apply(await _event(db, org, "original"))
-    config = await mail.configuration(ctx)
-    assert config is not None and config.last_outcome == "withheld"
-    assert (await MemoryService(db).shared_claims(ctx, q="", skip=0, limit=5)).total == 0
-
-
 async def test_retaining_mail_after_erasing_a_closed_chat_publication(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    org, owner, _, ctx, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    org, owner, _, ctx, grant = await _mail(db)
     store = MemoryService(db)
     first = await _chat_deadline(db, org, owner, "2026-12-01", monkeypatch)
     published = await store.publish_claim(ctx, first, MemoryClaimShare(confirmed=True))
     received = datetime.now(UTC)
-    assert (
-        await mail.admit(grant, (_delivery("agree", "Deadline: 2026-12-01", received=received),))
-    ).queued == 1
-    await mail.apply(await _event(db, org, "agree"))
+    await _admit(db, grant, _delivery("agree", "Deadline: 2026-12-01", received=received))
+    await _apply(db, org, ctx, "agree")
     revised = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
     other = await store.publish_claim(ctx, revised, MemoryClaimShare(confirmed=True))
     assert other.status == "disputed"
@@ -1113,7 +973,7 @@ async def test_retaining_mail_after_erasing_a_closed_chat_publication(
 async def test_an_observation_before_a_scheduled_revision_cannot_overwrite_reviewed_memory(
     db: AsyncSession,
 ) -> None:
-    org, _, _, _, grant, mail = await _mail(db, object_key=_HANDOFF_KEY)
+    org, _, _, ctx, grant = await _mail(db)
     scope = ClaimScope(organization_owner_key(org.id))
     ref = MemoryObjectRef(kind="commitment", name="XYZ handoff", external_key=_HANDOFF_KEY)
     now = datetime.now(UTC)
@@ -1139,9 +999,193 @@ async def test_an_observation_before_a_scheduled_revision_cannot_overwrite_revie
         value="2026-12-02",
         effective_from=now + timedelta(days=1),
     )
-    assert (await mail.admit(grant, (_delivery("contradict", "Deadline: 2026-12-03"),))).queued == 1
-    await mail.apply(await _event(db, org, "contradict"))
+    await _admit(db, grant, _delivery("contradict", "Deadline: 2026-12-03"))
+    assert (await _apply(db, org, ctx, "contradict")).status == "disputed"
     recalled = await claims.recall(db, organization_id=org.id, scopes=[scope], query="XYZ deadline")
     assert [item.id for item in recalled if item.status == "current"] == [first.claim.id]
     assert [item.value for item in recalled if item.status == "disputed"] == ["2026-12-03"]
     assert first.claim.effective_to == now + timedelta(days=1)
+
+
+async def test_signed_crm_delivery_runs_the_workflow_action(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.workflow_execution import context
+    from app.workflows.contracts.results import Completed, Failed
+    from app.workflows.nodes.memory_observe import _handler
+
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    workflow = await _workflow(db, org=org, owner=owner)
+    graph = _observation_graph("trigger.webhook")
+    exposure_id, secret = await _webhook(db, ctx, workflow, graph)
+    body = {
+        "record_key": "hubspot:deal/41",
+        "object_key": _HANDOFF_KEY,
+        "subject": "deadline",
+        "value": "2026-12-01",
+        "quote": "target_date=2026-12-01",
+        "effective_at": "2026-10-04T09:00:00Z",
+    }
+
+    async def admit(delivery_id: str, fields: dict[str, str]) -> uuid.UUID:
+        encoded = json.dumps(fields).encode()
+        admitted = await WorkflowExposureService(db).receive_webhook(
+            exposure_id, body=encoded, headers=_signed(secret, encoded, delivery_id)
+        )
+        return admitted.run_id
+
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    monkeypatch.setattr(_handler, "get_worker_db_context", session)
+    run_id = await admit("crm-1", body)
+
+    def dispatch(id_: uuid.UUID):
+        return context.dispatching_as(
+            context.DispatchContext(
+                organization_id=org.id,
+                workflow_run_id=id_,
+                node_run_id=uuid.uuid4(),
+                node_instance_id=graph.nodes[-1].id,
+                attempt_no=1,
+                auth=ctx,
+                resumed_agent_run_id=None,
+            )
+        )
+
+    with dispatch(run_id):
+        result = await _handler.handle(_CONFIG, None)
+        assert isinstance(result, Completed)
+        claim = result.output.claim_id
+        assert result.output.status == "applied" and claim is not None
+        assert await _handler.handle(_CONFIG, None) == result
+    detail = await MemoryService(db).shared_claim_detail(ctx, claim)
+    assert [(entry.kind, entry.quote) for entry in detail.evidence] == [
+        ("webhook", body["quote"]),
+    ]
+
+    bad = await admit("crm-2", {**body, "object_key": "business:other-company"})
+    with dispatch(bad):
+        failed = await _handler.handle(_CONFIG, None)
+        assert isinstance(failed, Failed) and failed.error.code == "MEMORY_OBSERVATION_REFUSED"
+
+
+async def test_unfiltered_gmail_run_cannot_claim_source_authority(db: AsyncSession) -> None:
+    org, _, _, ctx, grant = await _mail(db, sender=None)
+    await _admit(db, grant, _delivery("unfiltered", "Deadline: 2026-12-01"))
+    receipt = await _receipt(db, org, "unfiltered")
+    assert receipt is not None and receipt.portal_grant_id is None
+    with pytest.raises(AuthorizationError, match="full authenticated sender"):
+        await _apply(db, org, ctx, "unfiltered")
+
+
+async def test_workflow_memory_does_not_trust_missing_wrong_or_paused_admissions(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.workflow_exposure import WorkflowExposure
+
+    org, _, _, ctx, grant = await _mail(db)
+    await _admit(
+        db,
+        grant,
+        _delivery("valid", "Deadline: cancelled"),
+        _delivery("not-an-observation", "Please send through the period"),
+        _delivery("future", "Deadline: cancelled", received=datetime.now(UTC) + timedelta(days=2)),
+    )
+    with pytest.raises(AuthorizationError, match="authorized workflow run"):
+        await record_observation(db, auth=ctx, run_id=uuid.uuid4(), config=_CONFIG)
+    with pytest.raises(BadRequestError, match="one dated Deadline line"):
+        await _apply(db, org, ctx, "not-an-observation")
+    with pytest.raises(BadRequestError, match="future"):
+        await _apply(db, org, ctx, "future")
+    receipt = await _receipt(db, org, "valid")
+    assert receipt is not None
+    exposure = await db.get(WorkflowExposure, receipt.exposure_id)
+    assert exposure is not None
+    run = await db.get(WorkflowRun, receipt.workflow_run_id)
+    assert run is not None
+    original = run.triggered_by
+    run.triggered_by = "github"
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="entry cannot write"):
+        await _apply(db, org, ctx, "valid")
+    run.triggered_by = original
+    exposure.is_active = False
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="approved trigger is no longer active"):
+        await _apply(db, org, ctx, "valid")
+    assert await db.scalar(select(MemoryMailEvent.id)) is None
+
+
+async def test_two_workflows_aggregate_one_gmail_delivery_and_retry_preserves_status(
+    db: AsyncSession,
+) -> None:
+    from app.services.workflow_execution.facade import WorkflowExecutionService
+
+    org, owner, _, ctx, grant = await _mail(db)
+    first_delivery = _delivery("first", "Deadline: 2026-12-01")
+    await _admit(db, grant, first_delivery)
+    assert (await _apply(db, org, ctx, "first")).status == "applied"
+    another = await _workflow(db, org=org, owner=owner)
+    await _publish(
+        db,
+        ctx,
+        another,
+        _observation_graph("trigger.gmail", {"sender_contains": "desk@example.org"}),
+    )
+
+    change = _delivery("next", "Deadline: cancelled")
+    await _admit(db, grant, change)
+    receipts = list(
+        await db.scalars(
+            select(WorkflowWebhookDelivery)
+            .where(
+                WorkflowWebhookDelivery.organization_id == org.id,
+                WorkflowWebhookDelivery.delivery_id == "gmail:next",
+            )
+            .order_by(WorkflowWebhookDelivery.id)
+        )
+    )
+    assert len(receipts) == 2
+    original = await record_observation(
+        db, auth=ctx, run_id=receipts[0].workflow_run_id, config=_CONFIG
+    )
+    assert original.status == "changed"
+    other = await record_observation(
+        db, auth=ctx, run_id=receipts[1].workflow_run_id, config=_CONFIG
+    )
+    assert other.status == "duplicate" and other.claim_id == original.claim_id and not other.changed
+    run = await db.get(WorkflowRun, receipts[0].workflow_run_id)
+    assert run is not None
+    run.status = "failed"
+    await db.flush()
+    retried = await WorkflowExecutionService(db).retry(ctx, run.id)
+    assert await record_observation(db, auth=ctx, run_id=retried.id, config=_CONFIG) == original
+    clone = await db.get(WorkflowRun, retried.id)
+    assert clone is not None
+    clone.retry_of_run_id = receipts[1].workflow_run_id
+    await db.flush()
+    with pytest.raises(BadRequestError, match="original delivery is unavailable"):
+        await record_observation(db, auth=ctx, run_id=clone.id, config=_CONFIG)
+    clone.retry_of_run_id = None
+    await db.flush()
+    with pytest.raises(BadRequestError, match="admitted Gmail or signed webhook"):
+        await record_observation(db, auth=ctx, run_id=clone.id, config=_CONFIG)
+
+
+async def test_memory_workflow_validate_publish_permissions_and_properties(
+    db: AsyncSession,
+) -> None:
+    from app.workflows.contracts.results import Failed
+    from app.workflows.nodes.memory_observe import _handler
+
+    org, owner, reader = await _org(db)
+    editor = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    assert await _handler.check_resources(db, editor, _CONFIG) == []
+    assert (await _handler.check_resources(db, viewer, _CONFIG))[0][0] == "object_key"
+    with pytest.raises(ValueError, match="Choose a valid business property"):
+        MemoryObservationConfig.model_validate({**_CONFIG.model_dump(), "subject": "."})
+    assert isinstance(await _handler.handle(None, None), Failed)

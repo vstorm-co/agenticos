@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "29b9a9b00323"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -834,6 +834,28 @@ Schritt mit `CHANNEL_TARGET_INVALID` scheitern, bevor etwas gesendet wird.
 ::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
 
 ::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
+## memory.observe { #memory-observe }
+
+Speichert eine verifizierte Gmail- oder signierte Webhook-Zustellung im
+Organisationsgedächtnis. Erfordert einen veröffentlichten Workflow und
+organisationsweites `context:edit` bei Veröffentlichung und Ausführung.
+Die Konfiguration umfasst Objekttyp, Name, externe Kennung und Eigenschaft.
+Ein Entwurf liefert `preview`.
+
+Bei [Gmail](#trigger-gmail) nutze die vollständige Absenderadresse und wähle
+`deadline`. Die Nachricht muss `Deadline: YYYY-MM-DD` oder
+`Deadline: cancelled` enthalten. Die Autorisierung des Postfachs wird geprüft.
+
+Der signierte [Webhook](#trigger-webhook)-JSON-Text enthält `record_key`,
+`object_key`, `subject`, `value`, `quote` und `effective_at`. Kennung
+und Eigenschaft müssen zur Konfiguration passen. Werte sind Text, Ganzzahl,
+Boolesch oder null. Der Zeitstempel enthält einen Offset.
+
+Die Ausgabe enthält `claim_id`, `status` und `changed`. Verwende `changed`
+mit [Mitglieder benachrichtigen](#notification-send). Wiederholungen,
+Konflikte und verspätete Beobachtungen haben eigene Statuswerte. Die
+vorhandenen Zustell- und Wiederholungsregeln des Workflows gelten.
 
 ## agent.run { #agent-run }
 

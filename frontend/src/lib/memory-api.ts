@@ -188,7 +188,7 @@ export interface MemoryTimeline extends MemoryCursorPage<MemoryClaim> {
 
 export interface MemoryClaimDetail extends MemoryClaim {
   evidence: Array<{
-    kind: "message" | "gmail";
+    kind: "message" | "gmail" | "webhook";
     source_id: string;
     quote: string;
     occurred_at: string;
@@ -266,33 +266,6 @@ export function shareMemoryNote(note: MemoryNote, groupId: string | null) {
     group_id: groupId,
     expected_updated_at: note.updated_at,
   });
-}
-
-export interface MemoryMailRule {
-  sender: string;
-  subject: string;
-  commitment: string;
-  object_key?: string | null;
-  mode: "shadow" | "active";
-  notify: boolean;
-}
-
-export interface MemoryMailState extends MemoryMailRule {
-  authorized: boolean;
-  last_outcome:
-    "daily_limit" | "withheld" | "shadow" | "late" | "unchanged" | "applied" | "disputed" | null;
-}
-
-export function getMemoryMailRule() {
-  return apiClient.get<MemoryMailState | null>(`${ROOT}/sources/gmail`);
-}
-
-export function saveMemoryMailRule(rule: MemoryMailRule) {
-  return apiClient.put<MemoryMailState>(`${ROOT}/sources/gmail`, { ...rule, confirmed: true });
-}
-
-export function removeMemoryMailRule() {
-  return apiClient.delete(`${ROOT}/sources/gmail`);
 }
 
 export function amendHistoricalClaim(id: string, statement: string, episode?: DecisionEpisode) {

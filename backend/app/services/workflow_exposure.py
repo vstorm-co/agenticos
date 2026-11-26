@@ -21,6 +21,7 @@ import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from email.utils import parseaddr
 from typing import Any, Literal, cast
 from uuid import UUID
 
@@ -41,6 +42,7 @@ from app.core.field_errors import field_details
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import (
     ExposureAdapter,
@@ -958,6 +960,7 @@ class WorkflowExposureService:
         organization_id: UUID,
         source: Literal["gmail", "outlook"],
         events: Sequence[portals.PolledEvent],
+        connection: McpConnection | None = None,
     ) -> bool:
         """Start the runs one poll of the organization's mailbox starts, and say
         whether every one that should start was admitted.
@@ -1001,7 +1004,27 @@ class WorkflowExposureService:
                     config=config.model_dump(exclude_none=True),
                 ):
                     continue
-                if not await self._admit_email(ctx, workflow, version, exposure, event, source):
+                # A complete sender address reviewed in the published trigger is an
+                # allowlist. An unfiltered or substring match remains an ordinary run.
+                sender = event.payload.get("from")
+                approved_sender = (
+                    config.sender_contains if isinstance(config, GmailTriggerConfig) else None
+                )
+                authority = (
+                    (connection.id, connection.authorization_generation)
+                    if connection is not None
+                    and connection.organization_id == organization_id
+                    and connection.portal_key == "google"
+                    and event.payload.get("authenticated") is True
+                    and isinstance(sender, str)
+                    and approved_sender
+                    and "@" in approved_sender
+                    and parseaddr(sender)[1].casefold() == approved_sender.strip().casefold()
+                    else None
+                )
+                if not await self._admit_email(
+                    ctx, workflow, version, exposure, event, source, portal_authority=authority
+                ):
                     admitted_all = False
         return admitted_all
 
@@ -1118,6 +1141,8 @@ class WorkflowExposureService:
         exposure: WorkflowExposure,
         event: portals.PolledEvent,
         source: Literal["gmail", "outlook"],
+        *,
+        portal_authority: tuple[UUID, UUID] | None = None,
     ) -> bool:
         """Admit one message's run, unless it already has one; `False` when refused."""
         await workflow_exposure_repo.lock_delivery(
@@ -1251,6 +1276,7 @@ class WorkflowExposureService:
             exposure_id=exposure.id,
             delivery_id=event.delivery_id,
             workflow_run_id=run.id,
+            portal_authority=portal_authority,
         )
         await workflow_exposure_repo.update(
             self.db,

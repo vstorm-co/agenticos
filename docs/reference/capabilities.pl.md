@@ -1,5 +1,5 @@
 ---
-source_sha: "9adb8c26e7ba"
+source_sha: "90ec5bd904a8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -490,34 +490,32 @@ są półotwarte. Wpis bez daty początku można znaleźć w aktualnym wyszukiwa
 Odczyt historyczny wymaga daty obserwacji. Otwórz zamknięty przedział na osi czasu osobistego obiektu i wybierz korektę, aby poprawić wpis z zachowaniem wcześniejszego stanu wiedzy. Historia zmian stanu zaczyna się
 w nowym schemacie. Istniejące wpisy i ich identyfikatory pozostają dostępne.
 
-### Pamięć z Gmaila { #memory-gmail }
+### Obserwacje z workflow { #memory-gmail }
 
-Podłącz firmowy portal Gmail. Operator z `connections:manage` i uprawnieniem
-`context:edit` dla całej organizacji zatwierdza regułę w **Settings → Memory →
-Organizacyjna → Pamięć z Gmaila**. Podaje uwierzytelnionego nadawcę, dokładny
-temat i nazwę zobowiązania. Wiadomość zawiera jeden wiersz
-`Deadline: YYYY-MM-DD` albo `Deadline: cancelled`.
+Opublikowany workflow może zapisać zweryfikowane zdarzenie w pamięci
+organizacji. Użyj istniejącego triggera **Gmail** lub **Webhook** i dodaj krok
+[Zapisz obserwację w pamięci](workflow-nodes.md#memory-observe). Ustaw klucz
+obiektu biznesowego i właściwość w edytorze workflow. W triggerze Gmaila
+podaj pełny zweryfikowany adres nadawcy. W kroku zapisu wybierz właściwość
+`deadline`. Przyjmowany wiersz ma postać `Deadline: YYYY-MM-DD` albo
+`Deadline: cancelled`. Uruchomienie wersji roboczej nie zapisuje pamięci.
 
-Podgląd rejestruje dopasowane zdarzenie i jego stan. Tryb aktywny zapisuje
-termin i dowód na wspólnej osi czasu zobowiązania. Opcja informowania w Inbox
-wysyła zatwierdzającemu jedną kartę, gdy zmieni się dotychczasowy termin.
-Reguła działa bez wywołania modelu. Worker przed zapisem ponownie sprawdza
-autoryzację skrzynki i prawa zatwierdzającego. Dzienny limit zatrzymuje kursor,
-aby ponowić odczyt oczekujących zdarzeń. Usunięcie reguły usuwa wpisy oparte
-wyłącznie na Gmailu, zdarzenia w kolejce i karty Inbox.
+Podpisany Webhook może przyjąć typowaną obserwację z integracji pośredniczącej
+z CRM. Osoba, w imieniu której działa workflow, potrzebuje organizacyjnego
+`context:edit` przy publikacji i wykonaniu. Użyj istniejących kroków
+akceptacji i powiadomień według potrzeb. Krok zwraca `changed` przy
+zmianie aktualnej wartości z tego samego źródła. Ponowienia, spory
+i opóźnione obserwacje mają własne wyniki do użycia w grafie.
 
-Aby połączyć dowody z Gmaila i zatwierdzonego wpisu z czatu, użyj tego samego
-klucza biznesowego w regule Gmaila i w polu `object_ref.external_key` wpisu.
-Opublikuj wpis z czatu do organizacji. Zgodne wartości tego samego typu,
-właściwości i okresu trafiają do jednego wpisu. Każde źródło można usunąć
-niezależnie. Reguła Gmaila bez wspólnego klucza zachowuje dotychczasowy obiekt.
+Aby połączyć dowody z workflow i czatu, użyj tego samego klucza obiektu,
+właściwości i typowanej wartości. Udostępnij sprawdzony wpis z czatu
+organizacji. Zgodność w pokrywającym się okresie daje jeden wpis
+z niezależnymi dowodami. Cofnięcie dostępu do Gmaila ukrywa dowody i wpisy
+oparte wyłącznie na tym źródle.
 
-W **Organizacyjna → Memories → Tylko konflikty** znajdziesz sporne wartości.
-Osoba z uprawnieniem `context:edit` dla całej organizacji może otworzyć konflikt,
-wybrać wartość i ją zatwierdzić. Alternatywy zostają na osi czasu, a decyzja
-trafia do audytu. Jeśli pojawi się kolejna wartość, sprawdź aktualny zestaw.
-Inbox informuje o zmianach z tego samego autoryzowanego źródła. Sporne wpisy
-pozostają w pamięci do sprawdzenia.
+W **Organizacyjna → Memories → Tylko konflikty** osoba z organizacyjnym
+`context:edit` może zatwierdzić wartość. Alternatywy pozostają na osi czasu,
+a decyzja trafia do audytu. Zmiana kandydatów wymaga ponownego przeglądu.
 
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych

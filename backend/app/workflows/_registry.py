@@ -148,6 +148,7 @@ def load_builtins() -> None:
         loop_item,
         loop_yield,
         mcp_call,
+        memory_observe,
         notification_send,
         table_create,
         table_describe,

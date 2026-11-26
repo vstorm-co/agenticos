@@ -6320,49 +6320,23 @@
         "shareFailure": "Dieser Eintrag konnte nicht geteilt werden.",
         "published": "Geteilt",
         "close": "Schließen",
-        "sourceSettings": "Gmail-Pflege",
-        "sourceRevoked": "Die Postfachberechtigung wurde geändert",
-        "sourceReviewed": "Quelle geprüft",
-        "sourceSender": "Authentifizierter Absender",
-        "sourceSubject": "Exakter E-Mail-Betreff",
-        "sourceCommitment": "Name der Zusage",
-        "sourceObjectKey": "Geschäftsobjektschlüssel (optional)",
-        "sourceObjectKeyHint": "Verwende in Gmail und der freigegebenen Chat-Erinnerung denselben externen Schlüssel, um die Belege zu verknüpfen.",
         "conflictsOnly": "Nur Konflikte",
         "conflictPending": "Prüfung ausstehend",
         "conflictPick": "Welchen Wert soll das Unternehmensgedächtnis verwenden?",
         "conflictConfirm": "Wert bestätigen",
         "conflictResolved": "Konflikt im Gedächtnis gelöst",
         "conflictChanged": "Dieser Konflikt hat sich geändert. Prüfe die aktuellen Werte.",
-        "sourceMode": "Modus",
-        "shadow": "Nur Vorschau",
-        "active": "Im Firmengedächtnis speichern",
-        "notify": "Bei Terminänderungen im Posteingang benachrichtigen",
-        "approveSource": "Quelle genehmigen",
-        "disableSource": "Quelle und Daten entfernen",
-        "deadlineChanged": "Termin der Zusage geändert",
         "gmailSource": "Gmail",
+        "webhookSource": "Signierter Webhook",
         "previous": "Zuvor: {statement}",
         "validity": "Von {start} bis {end}",
         "shareHint": "Prüfe die Empfänger. Eine Kopie des Eintrags wird geteilt.",
-        "sourceHint": "Nutze ein verbundenes Gmail-Firmenpostfach. Wähle einen bestätigten Absender und einen exakten Betreff. Die E-Mail muss eine Zeile enthalten: Deadline: YYYY-MM-DD oder Deadline: cancelled.",
-        "disableSourceHint": "Die Regel, die gespeicherten Einträge und die Posteingangskarten werden entfernt.",
-        "deadlineChange": "Zuvor: {before}. Jetzt: {after}.",
         "kind": {
           "all": "Alle",
           "person": "Personen",
           "company": "Firmen und Kunden",
           "project": "Projekte",
           "commitment": "Zusagen"
-        },
-        "outcome": {
-          "daily_limit": "Tageslimit erreicht",
-          "withheld": "Zurückgehalten",
-          "shadow": "Vorschau passt",
-          "late": "Ältere Nachricht",
-          "unchanged": "Keine Änderung",
-          "disputed": "Konfliktprüfung ausstehend",
-          "applied": "Gespeichert"
         }
       },
       "showing": "{from}–{to} von {total} werden angezeigt",
@@ -18837,6 +18811,10 @@
         "name": "Bild umwandeln",
         "description": "Ein PNG-, JPEG-, WebP- oder GIF-Bild zuschneiden, skalieren, drehen oder konvertieren; Metadaten werden entfernt und die Größe wird vor dem Dekodieren begrenzt."
       },
+      "memory_observe": {
+        "name": "Beobachtung speichern",
+        "description": "Speichere eine verifizierte Zustellung mit Datum und Beleg im Organisationsgedächtnis."
+      },
       "knowledge_add": {
         "name": "Zum Wissen hinzufügen",
         "description": "Einen Text oder eine Datei in Wissens-Collections ablegen, damit Agents sie finden."
@@ -20210,6 +20188,23 @@
           },
           "file__byte_size": {
             "title": "Größe in Bytes"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Objekttyp"
+          },
+          "object_name": {
+            "title": "Objektname"
+          },
+          "object_key": {
+            "title": "Geschäftsobjektschlüssel"
+          },
+          "subject": {
+            "title": "Eigenschaft",
+            "description": "Verwende für Gmail deadline."
           }
         }
       },

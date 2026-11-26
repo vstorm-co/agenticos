@@ -38,8 +38,6 @@ from app.schemas.memory import (
     MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
-    MemoryMailConfig,
-    MemoryMailSourceRead,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
@@ -53,28 +51,6 @@ from app.schemas.memory import (
 )
 
 router = APIRouter()
-
-
-@router.get("/sources/gmail", response_model=MemoryMailSourceRead | None)
-async def memory_mail_source(service: MemorySvc, ctx: Auth) -> Any:
-    """Show the operator's reviewed Gmail admission rule."""
-    return await service.memory_mail(ctx)
-
-
-@router.put("/sources/gmail", response_model=MemoryMailSourceRead)
-async def configure_memory_mail(
-    data: MemoryMailConfig,
-    service: MemorySvc,
-    ctx: Auth,
-) -> Any:
-    """Authorize a narrow Gmail deadline rule for this organization."""
-    return await service.configure_memory_mail(ctx, data)
-
-
-@router.delete("/sources/gmail", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-async def disable_memory_mail(service: MemorySvc, ctx: Auth) -> None:
-    """Remove the Gmail rule, queued evidence, derived claims and Inbox items."""
-    await service.disable_memory_mail(ctx)
 
 
 @router.get("/objects", response_model=MemoryObjectPage)

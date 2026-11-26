@@ -7048,49 +7048,23 @@
         "shareFailure": "Could not share this item.",
         "published": "Shared",
         "close": "Close",
-        "sourceSettings": "Gmail maintenance",
-        "sourceRevoked": "Mailbox authorization changed",
-        "sourceReviewed": "Source reviewed",
-        "sourceSender": "Authenticated sender",
-        "sourceSubject": "Exact email subject",
-        "sourceCommitment": "Commitment name",
-        "sourceObjectKey": "Business object key (optional)",
-        "sourceObjectKeyHint": "Use the same external key in Gmail and the reviewed chat memory to link their evidence.",
         "conflictsOnly": "Conflicts only",
         "conflictPending": "Awaiting review",
         "conflictPick": "Which value should company memory use?",
         "conflictConfirm": "Confirm value",
         "conflictResolved": "Memory conflict resolved",
         "conflictChanged": "This conflict changed. Review the updated values.",
-        "sourceMode": "Mode",
-        "shadow": "Preview only",
-        "active": "Save to company memory",
-        "notify": "Notify me in Inbox when the deadline changes",
-        "approveSource": "Approve source",
-        "disableSource": "Remove source and data",
-        "deadlineChanged": "Commitment deadline changed",
         "gmailSource": "Gmail",
+        "webhookSource": "Signed webhook",
         "previous": "Previous: {statement}",
         "validity": "From {start} until {end}",
         "shareHint": "Review the audience. This publishes a copy of this item.",
-        "sourceHint": "Use a connected company Gmail mailbox. Match a verified sender and an exact subject. An email must contain one line: Deadline: YYYY-MM-DD or Deadline: cancelled.",
-        "disableSourceHint": "Remove the rule, its saved memory and Inbox entries.",
-        "deadlineChange": "Before: {before}. Now: {after}.",
         "kind": {
           "all": "All",
           "person": "People",
           "company": "Companies / Clients",
           "project": "Projects",
           "commitment": "Commitments"
-        },
-        "outcome": {
-          "daily_limit": "Daily limit reached",
-          "withheld": "Withheld",
-          "shadow": "Preview matched",
-          "late": "Older message",
-          "unchanged": "No change",
-          "disputed": "Awaiting conflict review",
-          "applied": "Saved"
         }
       },
       "showing": "Showing {from}–{to} of {total}",
@@ -19151,6 +19125,10 @@
         "name": "Transform an image",
         "description": "Crop, resize, rotate or convert a PNG, JPEG, WebP or GIF image, with its metadata removed and its size bounded before it is decoded."
       },
+      "memory_observe": {
+        "name": "Record memory observation",
+        "description": "Record a verified delivery in organization memory, with its date and evidence."
+      },
       "knowledge_add": {
         "name": "Add to knowledge",
         "description": "Put a text or a file into knowledge collections, for agents to find."
@@ -20524,6 +20502,23 @@
           },
           "file__byte_size": {
             "title": "Byte Size"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Object type"
+          },
+          "object_name": {
+            "title": "Object name"
+          },
+          "object_key": {
+            "title": "Business object key"
+          },
+          "subject": {
+            "title": "Property",
+            "description": "Use deadline for Gmail."
           }
         }
       },

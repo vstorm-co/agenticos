@@ -86,7 +86,7 @@ MemoryValue = StrictStr | StrictInt | StrictBool
 
 
 class MemoryClaimEvidenceRead(BaseSchema):
-    kind: Literal["message", "gmail"]
+    kind: Literal["message", "gmail", "webhook"]
     source_id: str
     quote: str
     occurred_at: datetime
@@ -206,34 +206,3 @@ class SharedMemoryNoteRead(BaseSchema):
 class SharedMemoryNotePage(BaseSchema):
     items: list[SharedMemoryNoteRead]
     next_cursor: UUID | None = None
-
-
-class MemoryMailConfig(BaseSchema):
-    """Gmail admission and Inbox controls reviewed by an organization operator."""
-
-    model_config = ConfigDict(extra="forbid")
-    sender: Annotated[
-        str, StringConstraints(strip_whitespace=True, pattern=r"^[^\s@]+@[^\s@]+$", max_length=254)
-    ]
-    subject: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-    commitment: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)
-    ]
-    object_key: (
-        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=260)]
-        | None
-    ) = None
-    mode: Literal["shadow", "active"]
-    notify: bool = False
-    confirmed: Literal[True]
-
-
-class MemoryMailSourceRead(BaseSchema):
-    sender: str
-    subject: str
-    commitment: str
-    object_key: str | None = None
-    mode: str
-    notify: bool
-    last_outcome: str | None = None
-    authorized: bool

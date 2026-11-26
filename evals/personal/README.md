@@ -247,12 +247,12 @@ uv run python ../evals/personal/memory_replay.py --list
 With the test PostgreSQL instance running, use the same command without `--list`.
 Set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` to
 the test connection. For one slice add `--case memory-headcount-as-of`. The
-runner creates and drops a separate database. It uses synthetic portal deliveries
+runner creates and drops a separate database. It uses synthetic Gmail workflow deliveries and signed webhook requests
 and does not invoke models. It checks stored values and intervals, exact-shape
 input, visibility, replay and Inbox delivery in the same production data path.
 
 The synthetic CRM fixture goes through the same typed observation contract as
-Gmail. Its replay covers A → B → A and a contradictory second record. Additional
+Gmail. Its replay covers A → B → A and a contradictory second record. A signed workflow test also exercises the CRM relay contract through the existing Webhook trigger. Additional
 cases cover reviewed chat/Gmail agreement in both arrival orders, removal of either
 proof, and stale or unauthorized conflict decisions. The fixture needs no CRM grant.
 

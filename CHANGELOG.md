@@ -22,7 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Browse personal and organization memory, publish a reviewed claim or note to a group or organization, and inspect typed business objects with evidence and date-aware recall.
-- Opt in to Gmail maintenance for authenticated deadline updates, with preview and one Inbox finding per change.
+- Record verified Gmail or signed webhook observations in organization memory through published Workflows. Compose approvals and notifications using the existing steps.
 - Link matching Gmail and reviewed chat evidence on a shared business object, and resolve conflicting values in the organization memory library.
 
 ### Fixed

@@ -57,7 +57,6 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     """
     from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService, RevokedGrant
-    from app.services.memory.mail import MemoryMailService
     from app.services.workflow_exposure import WorkflowExposureService
 
     assert grant.organization_id is not None, "a portal grant is always created org-scoped"
@@ -78,17 +77,9 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         watched_by_workflows = await workflows.polled_places(organization_id=grant.organization_id)
         for place, since in watched_by_workflows.items():
             places[place] = min(places.get(place, since), since)
-    mail_memory = MemoryMailService(db)
-    memory_subscribed = await mail_memory.subscribed(grant, source)
-    if (
-        not source_admissions
-        and not memory_subscribed
-        and not (
-            source in {"gmail", "outlook"}
-            and await workflows.has_polled_email(
-                organization_id=grant.organization_id, source=source
-            )
-        )
+    if not source_admissions and not (
+        source in {"gmail", "outlook"}
+        and await workflows.has_polled_email(organization_id=grant.organization_id, source=source)
     ):
         return 0
     # Only a workflow reads a message's HTML, so only its places pay for the request.
@@ -106,9 +97,6 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         return 0
     if read is None:
         return 0
-    memory_admitted = (
-        not memory_subscribed or (await mail_memory.admit(grant, read.events)).complete
-    )
     if read.unreadable:
         await triggers.disable_polled(
             organization_id=grant.organization_id,
@@ -153,14 +141,14 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     # Only the mailboxes': workflows have a Gmail and an Outlook trigger, not one for
     # the other polled sources.
     admitted_every_run = source not in ("gmail", "outlook") or await workflows.receive_polled_email(
-        organization_id=grant.organization_id, source=source, events=read.events
+        organization_id=grant.organization_id, source=source, events=read.events, connection=grant
     )
     # In the fires' own transaction: the cursor moves exactly when the fires for
     # what it read are queued, so a crash re-reads the window - which the
     # delivery-id claim then dedups - rather than dropping a polled message that,
     # unlike a webhook, no provider will ever resend. A poll some workflow had no
     # room to admit a run for keeps its place and reads the same window again.
-    if admitted_every_run and memory_admitted:
+    if admitted_every_run:
         await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
     else:
         logger.warning("portal_poll_cursor_retained", extra={"grant_id": str(grant.id)})

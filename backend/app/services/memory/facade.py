@@ -68,8 +68,6 @@ from app.schemas.memory import (
     MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
-    MemoryMailConfig,
-    MemoryMailSourceRead,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
@@ -84,7 +82,6 @@ from app.schemas.memory import (
 from app.services.access import AGENT, resolve_access
 from app.services.dataset import DatasetService
 from app.services.memory import _claims
-from app.services.memory.mail import MemoryMailService
 
 logger = logging.getLogger(__name__)
 
@@ -172,17 +169,6 @@ class MemoryService:
         )
         names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
         return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)
-
-    async def memory_mail(self, ctx: AuthContext) -> MemoryMailSourceRead | None:
-        return await MemoryMailService(self.db).configuration(ctx)
-
-    async def configure_memory_mail(
-        self, ctx: AuthContext, data: MemoryMailConfig
-    ) -> MemoryMailSourceRead:
-        return await MemoryMailService(self.db).configure(ctx, data)
-
-    async def disable_memory_mail(self, ctx: AuthContext) -> None:
-        await MemoryMailService(self.db).disable(ctx)
 
     async def _library_keys(self, ctx: AuthContext, library: MemoryLibrary) -> list[str]:
         if ctx.subject_is_publisher_fallback or ctx.key_scopes is not None:
@@ -450,8 +436,10 @@ class MemoryService:
             **_claim_read(claim, {}).model_dump(),
             evidence=[
                 MemoryClaimEvidenceRead(
-                    kind="gmail",
-                    source_id=event.delivery_id,
+                    kind="webhook" if event.provider == "webhook" else "gmail",
+                    source_id=str(event.id)
+                    if event.workflow_delivery_id is not None
+                    else event.delivery_id,
                     quote=event.quote,
                     occurred_at=event.received_at,
                 )

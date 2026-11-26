@@ -56,7 +56,9 @@ export function ClaimSources({
         <blockquote className="border-s-2 ps-2 text-sm wrap-anywhere" key={source.source_id}>
           {source.quote}
           <footer className="text-muted-foreground text-xs">
-            {source.kind === "gmail" ? t("gmailSource") : source.source_id}
+            {source.kind === "message"
+              ? source.source_id
+              : t(source.kind === "gmail" ? "gmailSource" : "webhookSource")}
           </footer>
         </blockquote>
       ))}

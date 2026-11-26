@@ -248,11 +248,15 @@ class WorkflowWebhookDelivery(Base):
     # SHA-256 of the signature the delivery carried, so the same signed request under
     # another id is answered as a copy. Null on deliveries admitted before it was kept.
     signed_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Populated by the mailbox admission path, outside the workflow's untrusted input.
+    portal_grant_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    portal_authorization_generation: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     __table_args__ = (
+        Index("ix_workflow_webhook_delivery_workflow_run", "workflow_run_id"),
         UniqueConstraint(
             "exposure_id", "delivery_id", name="uq_workflow_webhook_delivery_exposure_delivery"
         ),

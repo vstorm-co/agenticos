@@ -1,5 +1,5 @@
 ---
-source_sha: "9adb8c26e7ba"
+source_sha: "90ec5bd904a8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -513,36 +513,34 @@ bleiben in der aktuellen Suche sichtbar. Der historische Abruf benötigt eine
 datierte Beobachtung. Eine Korrektur auf der persönlichen Zeitachse ändert das abgeschlossene Intervall und erhält den früheren Wissensstand. Zustandsänderungen werden ab dem neuen Schema erfasst.
 Bestehende Einträge behalten ihre IDs.
 
-### Gmail-Pflege { #memory-gmail }
+### Beobachtungen aus Workflows { #memory-gmail }
 
-Verbinde ein Gmail-Portal des Unternehmens. Berechtigte mit
-`connections:manage` und organisationsweitem `context:edit` prüfen die Regel
-unter **Settings → Memory → Organisation → Gmail-Pflege**. Sie wählen einen
-authentifizierten Absender, einen exakten Betreff und den Namen der Zusage. Die
-E-Mail enthält genau eine Zeile `Deadline: YYYY-MM-DD` oder
-`Deadline: cancelled`.
+Ein veröffentlichter Workflow kann verifizierte Zustellungen im
+Organisationsgedächtnis speichern. Verwende den vorhandenen Trigger
+**Gmail** oder **Webhook** und [Beobachtung speichern](workflow-nodes.md#memory-observe).
+Konfiguriere Geschäftsschlüssel und Eigenschaft im Editor. Für Gmail gib
+die vollständige verifizierte Absenderadresse an und wähle `deadline`.
+Die Nachricht enthält `Deadline: YYYY-MM-DD` oder `Deadline: cancelled`.
+Ein Testlauf des Entwurfs speichert nichts.
 
-Die Vorschau erfasst passende Ereignisse. Im aktiven Modus erscheinen Termin
-und Beleg auf der gemeinsamen Zeitachse. Bei aktivierter Benachrichtigung
-erhält die prüfende Person bei einer Terminänderung einen Posteingangseintrag.
-Die Regel ruft kein Modell auf. Der Worker prüft vor dem Speichern erneut die
-Postfachautorisierung und die Befugnisse der prüfenden Person. Wird das
-Tageslimit erreicht, bleibt der Postfachcursor stehen. Das Entfernen der Regel
-löscht die nur durch Gmail belegten Einträge, wartende Ereignisse und Posteingangseinträge.
+Ein signierter Webhook kann typisierte Beobachtungen aus einer CRM-Anbindung
+annehmen. Die ausführende Person braucht bei Veröffentlichung und Ausführung
+organisationsweites `context:edit`. Verwende die bestehenden Genehmigungs-
+und Benachrichtigungsschritte. `changed` bezeichnet eine Aktualisierung
+derselben Quelle. Wiederholungen, Konflikte und verspätete Beobachtungen
+haben eigene Ergebnisse.
 
-Um Belege aus Gmail und einer geprüften Chat-Aussage zu verbinden, verwende
-denselben Geschäftsschlüssel in der Gmail-Regel und in
-`object_ref.external_key` der Chat-Aussage. Gib die Chat-Aussage für die
-Organisation frei. Übereinstimmende typisierte Werte zur gleichen Eigenschaft
-mit überlappender Gültigkeit teilen sich einen Eintrag. Jede Quelle kann
-einzeln entfernt werden. Eine Gmail-Regel ohne Schlüssel behält ihre Identität.
+Verwende zum Zusammenführen derselben Beobachtung aus Workflow und Chat
+denselben Geschäftsschlüssel, dieselbe Eigenschaft und denselben typisierten
+Wert. Gib die geprüfte Chat-Aussage für die Organisation frei. Überlappende
+Gültigkeit mit übereinstimmendem Wert ergibt einen Eintrag mit unabhängigen
+Belegen. Ein widerrufener Gmail-Zugang verbirgt seine Belege und ausschließlich
+von ihm abhängige Einträge.
 
-Unter **Organisation → Memories → Nur Konflikte** findest du strittige Werte.
-Mit organisationsweitem `context:edit` kannst du einen Wert auswählen und
-bestätigen. Die Alternativen bleiben auf der Zeitachse und die Entscheidung
-wird protokolliert. Kommt ein neuer Wert hinzu, prüfe die aktuelle Auswahl.
-Inbox meldet Änderungen derselben autorisierten Quelle. Konflikte stehen zur
-Prüfung im Gedächtnis.
+Unter **Organisation → Memories → Nur Konflikte** bestätigt ein Mitglied mit
+organisationsweitem `context:edit` einen Wert. Die Alternativen bleiben
+auf der Zeitachse und die Entscheidung wird protokolliert. Ändert sich
+die Auswahl, wird sie erneut geprüft.
 
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats

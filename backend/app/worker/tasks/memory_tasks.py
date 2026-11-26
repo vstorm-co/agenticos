@@ -13,7 +13,7 @@ from app.agents.audience import RunAudience
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
 from app.services.memory import claims, extraction
-from app.worker.jobs import ApplyMemoryMail, ExtractMemory
+from app.worker.jobs import ExtractMemory
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +65,3 @@ async def consolidate_memory() -> int:
     if done:
         logger.info("Memory sweep: %d scope(s) consolidated", done)
     return done
-
-
-async def apply_memory_mail(payload: ApplyMemoryMail) -> None:
-    from app.services.memory.mail import MemoryMailService
-
-    async with get_db_context() as db:
-        await MemoryMailService(db).apply(payload)

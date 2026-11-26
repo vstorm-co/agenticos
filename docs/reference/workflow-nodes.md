@@ -773,6 +773,28 @@ not a number, fails with `CHANNEL_TARGET_INVALID` before anything is sent.
 
 ::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
 
+## memory.observe { #memory-observe }
+
+Record a verified Gmail or signed webhook delivery in organization memory.
+This write step needs a published workflow and organization-wide `context:edit`
+at publish and run time. Its configuration sets the object type, display name,
+external business key and property. Draft runs return `preview`.
+
+For [Gmail](#trigger-gmail), use the full sender address in the trigger and
+configure `deadline`. The handler reads one exact `Deadline: YYYY-MM-DD` or
+`Deadline: cancelled` line from the admitted message. It checks the original
+mailbox authorization before writing.
+
+For [Webhook](#trigger-webhook), the signed JSON body has `record_key`,
+`object_key`, `subject`, `value`, `quote` and `effective_at`. The object
+key and subject must match the step configuration. Use a string, integer,
+boolean or null for the value and an ISO timestamp with an offset.
+
+The output provides `claim_id`, `status` and `changed`. Branch on
+`changed` and use [Notify members](#notification-send) when you want to
+announce a revision. Duplicate, disputed and late observations report
+their own status. The existing workflow delivery and node retry rules apply.
+
 ## agent.run { #agent-run }
 
 Asks a published agent, at the exact version the step pins, through the same

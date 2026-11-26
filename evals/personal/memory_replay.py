@@ -22,17 +22,18 @@ CASES = {
     "enterprise-group-and-tenant-isolation": "test_project_no_workspace_and_group_revocation",
     "enterprise-room-isolation": "test_group_claim_recall_keeps_private_audience_boundaries",
     "enterprise-history-pagination": "test_object_versions_use_stable_cursors_and_amend_legacy_rows",
-    "enterprise-source-reconnect": "test_mail_rule_reconnect_removes_old_history_and_proofs",
-    "enterprise-reviewer-revocation": "test_reviewers_losing_edit_scope_stop_polling_admission_and_apply",
+    "enterprise-source-reconnect": "test_gmail_deadline_change_is_single_and_revocable",
+    "enterprise-reviewer-revocation": "test_gmail_draft_and_revoked_dispatch_do_not_write",
     "briefing-deadline-changed": "test_gmail_deadline_change_is_single_and_revocable",
     "briefing-late-correction": "test_late_email_fills_its_interval_without_another_alert",
+    "enterprise-signed-workflow-crm": "test_signed_crm_delivery_runs_the_workflow_action",
     "enterprise-crm-source-contract": "test_crm_fixture_through_shared_memory_contract",
     "enterprise-cross-source-agreement": "test_chat_gmail_agreement_keeps_both_sources",
     "enterprise-reviewed-conflict": "test_conflicting_chat_and_gmail_need_a_member_decision",
     "enterprise-duplicate-delivery": "test_gmail_deadline_change_is_single_and_revocable",
-    "enterprise-revoked-in-queue": "test_gmail_shadow_and_revoked_while_queued",
-    "enterprise-shadow-is-silent": "test_gmail_shadow_and_revoked_while_queued",
-    "enterprise-erase-and-replay": "test_erasure_removes_shared_copy_and_old_job_cannot_restore_it",
+    "enterprise-revoked-in-queue": "test_gmail_draft_and_revoked_dispatch_do_not_write",
+    "enterprise-workflow-preview-is-silent": "test_gmail_draft_and_revoked_dispatch_do_not_write",
+    "enterprise-erase-and-replay": "test_erasure_removes_shared_copy",
 }
 
 

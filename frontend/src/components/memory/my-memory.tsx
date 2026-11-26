@@ -9,7 +9,6 @@ import { useAgents } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOrgStore } from "@/stores";
 import { MyClaims } from "./my-claims";
-import { MemorySourceSettings } from "./memory-source-settings";
 import { MyNotes } from "./my-notes";
 import {
   MemoryObjectLibrary,
@@ -51,7 +50,7 @@ function MemoryWorkspace({
   const permissions = usePermissions();
   const canViewShared = permissions.can("context:view");
   const canShare = permissions.scopeOf?.("context:edit") === "all";
-  const canManageSource = canShare && permissions.can("connections:manage");
+
   const activeLibrary = canViewShared ? library : "personal";
   const can = permissions.can;
   const canViewAgents = can("agents:view");
@@ -96,7 +95,6 @@ function MemoryWorkspace({
             {t("notes")}
           </TabsTrigger>
         </TabsList>
-        {canManageSource && activeLibrary === "organization" && <MemorySourceSettings />}
       </div>
       <TabsContent value="memories" className="mt-0 flex min-h-0 flex-1 flex-col">
         <div className="mb-2 flex gap-2" role="group" aria-label={libraryText("memoriesView")}>

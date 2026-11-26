@@ -221,7 +221,7 @@ class MemoryScopeState(Base):
 
 
 class MemoryMailSource(Base, TimestampMixin):
-    """A reviewed, narrow rule on the organization's Gmail portal."""
+    """Authorization retained for Gmail evidence recorded before workflow admission."""
 
     __tablename__ = "memory_mail_sources"
 
@@ -247,7 +247,7 @@ class MemoryMailSource(Base, TimestampMixin):
 
 
 class MemoryMailEvent(Base):
-    """The minimum evidence extracted from one authenticated matched message."""
+    """The minimal evidence for an admitted source delivery."""
 
     __tablename__ = "memory_mail_events"
     __table_args__ = (
@@ -261,7 +261,7 @@ class MemoryMailEvent(Base):
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("memory_mail_sources.organization_id", ondelete="CASCADE")
+        ForeignKey("organizations.id", ondelete="CASCADE")
     )
     grant_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
     generation: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
@@ -270,7 +270,11 @@ class MemoryMailEvent(Base):
     admitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
-    quote: Mapped[str] = mapped_column(String(64))
+    quote: Mapped[str] = mapped_column(String(300))
+    workflow_delivery_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("workflow_webhook_deliveries.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(16), server_default="gmail")
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     state: Mapped[str] = mapped_column(String(20))
     supported_claim_id: Mapped[uuid.UUID | None] = mapped_column(

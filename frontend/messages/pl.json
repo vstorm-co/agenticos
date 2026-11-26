@@ -2240,49 +2240,23 @@
         "shareFailure": "Nie udało się udostępnić wpisu.",
         "published": "Udostępniono",
         "close": "Zamknij",
-        "sourceSettings": "Pamięć z Gmaila",
-        "sourceRevoked": "Zmieniono autoryzację skrzynki",
-        "sourceReviewed": "Źródło zatwierdzone",
-        "sourceSender": "Uwierzytelniony nadawca",
-        "sourceSubject": "Dokładny temat wiadomości",
-        "sourceCommitment": "Nazwa zobowiązania",
-        "sourceObjectKey": "Klucz obiektu biznesowego (opcjonalny)",
-        "sourceObjectKeyHint": "Użyj tego samego klucza zewnętrznego w Gmailu i zatwierdzonej pamięci z czatu, aby połączyć dowody.",
         "conflictsOnly": "Tylko konflikty",
         "conflictPending": "Oczekuje na sprawdzenie",
         "conflictPick": "Której wartości ma używać pamięć firmowa?",
         "conflictConfirm": "Zatwierdź wartość",
         "conflictResolved": "Konflikt pamięci rozstrzygnięty",
         "conflictChanged": "Ten konflikt się zmienił. Sprawdź aktualne wartości.",
-        "sourceMode": "Tryb",
-        "shadow": "Tylko podgląd",
-        "active": "Zapisuj w pamięci firmowej",
-        "notify": "Informuj mnie w Inbox o zmianie terminu",
-        "approveSource": "Zatwierdź źródło",
-        "disableSource": "Usuń źródło i dane",
-        "deadlineChanged": "Zmieniono termin zobowiązania",
         "gmailSource": "Gmail",
+        "webhookSource": "Podpisany webhook",
         "previous": "Poprzednio: {statement}",
         "validity": "Od {start} do {end}",
         "shareHint": "Sprawdź odbiorców. Udostępniasz kopię tego wpisu.",
-        "sourceHint": "Podłącz firmową skrzynkę Gmail. Wskaż zweryfikowanego nadawcę i dokładny temat. Wiadomość musi zawierać jeden wiersz: Deadline: YYYY-MM-DD albo Deadline: cancelled.",
-        "disableSourceHint": "Usuniesz regułę, zapisaną pamięć i związane z nią wpisy w Inbox.",
-        "deadlineChange": "Poprzednio: {before}. Teraz: {after}.",
         "kind": {
           "all": "Wszystkie",
           "person": "Osoby",
           "company": "Firmy i klienci",
           "project": "Projekty",
           "commitment": "Zobowiązania"
-        },
-        "outcome": {
-          "daily_limit": "Osiągnięto limit dzienny",
-          "withheld": "Wstrzymano",
-          "shadow": "Pasuje w podglądzie",
-          "late": "Starsza wiadomość",
-          "unchanged": "Bez zmian",
-          "disputed": "Konflikt oczekuje na sprawdzenie",
-          "applied": "Zapisano"
         }
       },
       "showing": "Pokazane {from}–{to} z {total}",
@@ -18924,6 +18898,10 @@
         "name": "Przekształć obraz",
         "description": "Przytnij, zmień rozmiar, obróć lub przekonwertuj obraz PNG, JPEG, WebP lub GIF, z usuniętymi metadanymi i rozmiarem ograniczonym przed dekodowaniem."
       },
+      "memory_observe": {
+        "name": "Zapisz obserwację w pamięci",
+        "description": "Zapisz zweryfikowane zdarzenie z datą i dowodem w pamięci organizacji."
+      },
       "knowledge_add": {
         "name": "Dodaj do wiedzy",
         "description": "Dodaj tekst lub plik do kolekcji wiedzy, żeby agenci mogli go znaleźć."
@@ -20297,6 +20275,23 @@
           },
           "file__byte_size": {
             "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Typ obiektu"
+          },
+          "object_name": {
+            "title": "Nazwa obiektu"
+          },
+          "object_key": {
+            "title": "Klucz obiektu biznesowego"
+          },
+          "subject": {
+            "title": "Właściwość",
+            "description": "Dla Gmaila użyj deadline."
           }
         }
       },

@@ -44,7 +44,6 @@ export function SuggestionRows({
 }) {
   const t = useTranslations("chat.suggestions");
   const tInbox = useTranslations("inbox");
-  const tMemory = useTranslations("pages.memory.library");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { sourceOf, isLoading: sourceLoading } = useSuggestionSource();
@@ -59,24 +58,8 @@ export function SuggestionRows({
             typeof tableId === "string" && /^[0-9a-f-]{36}$/i.test(tableId)
               ? `/tables/${tableId}`
               : null;
-          const memoryId = suggestion.payload.memory_object_id;
-          const memoryUrl =
-            suggestion.payload.memory_mail === true &&
-            typeof memoryId === "string" &&
-            /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(memoryId)
-              ? `/settings/memory?library=organization&object=${memoryId}`
-              : null;
-          const before = suggestion.payload.deadline_before;
-          const after = suggestion.payload.deadline_after;
-          const title = memoryUrl ? tMemory("deadlineChanged") : suggestion.title;
-          const detail =
-            memoryUrl && typeof before === "string" && typeof after === "string"
-              ? tMemory("deadlineChange", { before, after })
-              : suggestion.detail;
           const url =
-            memoryUrl ??
-            tableUrl ??
-            (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
+            tableUrl ?? (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
           const workingChat = suggestion.payload.conversation_id;
           const workingChatUrl =
             suggestion.kind === "finding" &&
@@ -85,9 +68,7 @@ export function SuggestionRows({
               ? `/chat?id=${encodeURIComponent(workingChat)}`
               : null;
           const server = sourceOf(suggestion);
-          const source = memoryUrl
-            ? tMemory("gmailSource")
-            : (server?.name ?? tInbox(`source.${suggestion.kind}`));
+          const source = server?.name ?? tInbox(`source.${suggestion.kind}`);
           const waitingSource =
             !server &&
             sourceLoading &&
@@ -97,7 +78,7 @@ export function SuggestionRows({
             <li
               key={suggestion.id}
               id={`suggestion-${suggestion.id}`}
-              aria-label={title}
+              aria-label={suggestion.title}
               className={cn(
                 dense
                   ? "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-1 py-2.5 transition-colors @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
@@ -120,11 +101,11 @@ export function SuggestionRows({
                     {url ? (
                       <Link
                         href={url}
-                        target={tableUrl || memoryUrl ? undefined : "_blank"}
-                        rel={tableUrl || memoryUrl ? undefined : "noopener noreferrer"}
+                        target={tableUrl ? undefined : "_blank"}
+                        rel={tableUrl ? undefined : "noopener noreferrer"}
                         className="underline-offset-4 hover:underline"
                       >
-                        {title}
+                        {suggestion.title}
                         <ExternalLink
                           className="text-muted-foreground ml-1.5 inline size-3"
                           aria-hidden
@@ -153,7 +134,7 @@ export function SuggestionRows({
                     })
                   )}
                 </span>
-                {showDetails && detail && (
+                {showDetails && suggestion.detail && (
                   <p
                     className={cn(
                       dense
@@ -164,7 +145,7 @@ export function SuggestionRows({
                         : !expandedDetails && "line-clamp-2",
                     )}
                   >
-                    {detail}
+                    {suggestion.detail}
                   </p>
                 )}
               </div>

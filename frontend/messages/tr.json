@@ -2558,49 +2558,23 @@
         "shareFailure": "Bu kayıt paylaşılamadı.",
         "published": "Paylaşıldı",
         "close": "Kapat",
-        "sourceSettings": "Gmail bakımı",
-        "sourceRevoked": "Posta kutusu yetkisi değişti",
-        "sourceReviewed": "Kaynak onaylandı",
-        "sourceSender": "Kimliği doğrulanmış gönderen",
-        "sourceSubject": "E-postanın tam konusu",
-        "sourceCommitment": "Taahhüt adı",
-        "sourceObjectKey": "İş nesnesi anahtarı (isteğe bağlı)",
-        "sourceObjectKeyHint": "Kanıtları bağlamak için Gmail’de ve incelenmiş sohbet belleğinde aynı harici anahtarı kullanın.",
         "conflictsOnly": "Yalnızca çakışmalar",
         "conflictPending": "İnceleme bekliyor",
         "conflictPick": "Şirket belleği hangi değeri kullanmalı?",
         "conflictConfirm": "Değeri onayla",
         "conflictResolved": "Bellek çakışması çözüldü",
         "conflictChanged": "Bu çakışma değişti. Güncel değerleri inceleyin.",
-        "sourceMode": "Mod",
-        "shadow": "Yalnızca önizleme",
-        "active": "Kuruluş belleğine kaydet",
-        "notify": "Son tarih değişirse Gelen Kutusunda bildir",
-        "approveSource": "Kaynağı onayla",
-        "disableSource": "Kaynağı ve verileri kaldır",
-        "deadlineChanged": "Taahhüdün son tarihi değişti",
         "gmailSource": "Gmail",
+        "webhookSource": "İmzalı webhook",
         "previous": "Önceki: {statement}",
         "validity": "{start} ile {end} arası",
         "shareHint": "Alıcıları kontrol edin. Bu kaydın bir kopyası paylaşılır.",
-        "sourceHint": "Bağlı bir şirket Gmail posta kutusu kullanın. Doğrulanmış gönderen ve tam konu belirtin. E-posta şu satırlardan birini içermeli: Deadline: YYYY-MM-DD veya Deadline: cancelled.",
-        "disableSourceHint": "Kural, kayıtlı bellek ve ilişkili Gelen Kutusu kartları kaldırılır.",
-        "deadlineChange": "Önce: {before}. Şimdi: {after}.",
         "kind": {
           "all": "Tümü",
           "person": "Kişiler",
           "company": "Şirketler ve müşteriler",
           "project": "Projeler",
           "commitment": "Taahhütler"
-        },
-        "outcome": {
-          "daily_limit": "Günlük limite ulaşıldı",
-          "withheld": "Bekletildi",
-          "shadow": "Önizleme eşleşti",
-          "late": "Eski mesaj",
-          "unchanged": "Değişiklik yok",
-          "disputed": "Çakışma inceleme bekliyor",
-          "applied": "Kaydedildi"
         }
       },
       "showing": "{total} kayıttan {from}–{to} arası gösteriliyor",
@@ -14507,6 +14481,10 @@
         "name": "Görseli dönüştür",
         "description": "PNG, JPEG, WebP veya GIF görselini kırpın, yeniden boyutlandırın, döndürün ya da dönüştürün; meta verileri kaldırılır ve çözülmeden önce boyutu sınırlanır."
       },
+      "memory_observe": {
+        "name": "Belleğe gözlem kaydet",
+        "description": "Doğrulanmış bir olayı tarihi ve kanıtıyla kuruluş belleğine kaydedin."
+      },
       "knowledge_add": {
         "name": "Bilgi tabanına ekle",
         "description": "Agent’ların bulabilmesi için bir metni veya dosyayı bilgi tabanlarına ekleyin."
@@ -15880,6 +15858,23 @@
           },
           "file__byte_size": {
             "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Nesne türü"
+          },
+          "object_name": {
+            "title": "Nesne adı"
+          },
+          "object_key": {
+            "title": "İş nesnesi anahtarı"
+          },
+          "subject": {
+            "title": "Özellik",
+            "description": "Gmail için deadline kullanın."
           }
         }
       },
