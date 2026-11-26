@@ -327,7 +327,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Price a dataset eval without running a model. Needs agent and dataset access.
 
         Use the same request for start_eval_run after agreeing the cost, with the
-        estimate's `dataset_version` pinned and its `total_usd` as `quoted_usd`. Prefer
+        estimate's `dataset_version` pinned and its `at_most_usd` as `quoted_usd`. Prefer
         a named test environment and recorded calls; testing can otherwise reach live systems.
         """
         return await call(
@@ -340,7 +340,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Start an estimated eval as a background job. Needs dataset run and agent access.
 
         Pin `run.dataset_version` to the estimate's `dataset_version` and pass its
-        `total_usd` as `quoted_usd`: a run that now costs more is refused, so
+        `at_most_usd` as `quoted_usd`: a run that could now cost more is refused, so
         estimate again. Budget admission is rechecked by the eval service. Poll
         get_eval_run; admission does not mean the test passed. Requires OAuth, not
         an organization API key.

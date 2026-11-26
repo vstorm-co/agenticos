@@ -17629,6 +17629,12 @@
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
     "analysisEstimate": "Custo estimado da análise",
     "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização.",
+    "guidance": {
+      "title": "Orientações do dataset para o assistente",
+      "hint": "O assistente as lê abaixo das regras da plataforma, que sempre se aplicam. Quem edita este dataset as escreveu.",
+      "changed": "{who, select, named {Última alteração por {name}.} former {Última alteração por um ex-membro.} other {}}",
+      "changedOn": "{who, select, named {Última alteração por {name} em {date}.} former {Última alteração por um ex-membro em {date}.} other {Última alteração em {date}.}}"
+    },
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {

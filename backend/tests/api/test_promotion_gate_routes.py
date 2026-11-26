@@ -8,6 +8,7 @@ answers with, whose `details.gate` is the contract the promotion dialog renders.
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,6 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.eval_suite import EvalSuiteResultRead, EvalSuiteThreshold
 from app.schemas.promotion_gate import (
+    PromotionGateEstimate,
     PromotionGateRead,
     PromotionGateRunRead,
     PromotionGuardRead,
@@ -72,6 +74,9 @@ def gate() -> MagicMock:
     stub = MagicMock()
     stub.read = AsyncMock(return_value=_GATE)
     stub.run = AsyncMock(return_value=PromotionGateRunRead(started=[_SUITE], gate=_GATE))
+    stub.estimate = AsyncMock(
+        return_value=PromotionGateEstimate(total_usd=Decimal("0.40"), suite_ids=[_SUITE])
+    )
     return stub
 
 
@@ -118,6 +123,19 @@ async def test_the_gate_is_read_for_a_version_and_its_guards_run(
     assert read.json()["guards"][0]["state"] == "failed"
     assert gate.read.await_args.args[1:] == (_AGENT, _ENV, _VERSION)
     assert (ran.status_code, ran.json()["started"]) == (200, [str(_SUITE)])
+    assert missing.status_code == 422
+
+
+async def test_the_gate_is_priced_for_a_version_before_it_runs(
+    client: AsyncClient, gate: MagicMock
+) -> None:
+    async with client as http:
+        priced = await http.get(_url("/gate/estimate"), params={"version_id": str(_VERSION)})
+        missing = await http.get(_url("/gate/estimate"))
+
+    assert priced.status_code == 200
+    assert priced.json() == {"total_usd": "0.40", "suite_ids": [str(_SUITE)]}
+    assert gate.estimate.await_args.args[1:] == (_AGENT, _ENV, _VERSION)
     assert missing.status_code == 422
 
 

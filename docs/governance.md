@@ -2024,10 +2024,11 @@ sentence.
 
 So the audience is split by the permission rather than trimmed to it:
 
-| Recipient holds    | Gets                                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `approvals:decide` | the request, with the link to the queue                                                                                   |
-| anything less      | the _fact_: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+| Recipient holds | Gets |
+| --- | --- |
+| `approvals:decide` | the request, with the link to the queue |
+| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, while that call waits |
+| anything less | the _fact_: the run is held not failed, somebody who may decide approvals has to answer it, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.

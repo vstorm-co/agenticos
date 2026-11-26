@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import OrgRoleName
+from app.db.models.dataset import Dataset
 from app.repositories import case_generation_repo
 from app.schemas.dataset import DatasetUpdate
-from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers, DatasetHelpersRead
 from app.services.case_generation import worker
 from app.services.case_generation.worker import CaseGenerationWorker
 from app.services.dataset import DatasetService
@@ -61,9 +62,8 @@ async def test_generation_uses_the_admitted_model_and_instructions_after_setting
     task = CaseGenerationWorker(started.id, org.id, vector_store=_service(db).sources.vector_store)
     await task._run(db)
     assert execute.await_count == 1
-    assert execute.call_args.kwargs["helper_settings"] == DatasetHelper(
-        model_profile_id=first.id, instructions="Use policy examples."
-    )
+    admitted = execute.call_args.kwargs["helper_settings"]
+    assert (admitted.model_profile_id, admitted.instructions) == (first.id, "Use policy examples.")
     row = await case_generation_repo.get_generation(db, started.id, organization_id=org.id)
     assert row is not None and row.helper_settings["model_profile_id"] == str(first.id)
 
@@ -174,11 +174,10 @@ async def test_helper_instruction_patch_keeps_its_model_and_null_resets_settings
             helper_settings=DatasetHelpers(generator=DatasetHelper(instructions="Updated."))
         ),
     )
-    assert read.helper_settings.generator == DatasetHelper(
-        model_profile_id=model.id, instructions="Updated."
-    )
+    generator = read.helper_settings.generator
+    assert (generator.model_profile_id, generator.instructions) == (model.id, "Updated.")
     reset = await service.update(owner, dataset.id, DatasetUpdate(helper_settings=None))
-    assert reset.helper_settings == DatasetHelpers()
+    assert reset.helper_settings == DatasetHelpersRead()
 
 
 async def test_generation_estimate_reports_unknown_price_after_its_model_is_deleted(
@@ -260,3 +259,39 @@ async def test_a_generation_stores_no_guidance_rather_than_a_copy_of_the_rules(
 
     row = await case_generation_repo.get_generation(db, started.id, organization_id=org.id)
     assert row is not None and row.helper_settings.get("instructions") is None
+
+
+async def test_changing_the_guidance_records_who_and_when_and_nothing_else_does(
+    db: AsyncSession,
+) -> None:
+    owner, org, _agent, dataset, _ = await _setup(db)
+    datasets = DatasetService(db)
+    forged = uuid4()
+
+    read = await datasets.update(
+        owner,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(instructions="Be brief.", instructions_updated_by=forged)
+            )
+        ),
+    )
+    recorded = read.helper_settings.improver
+    assert recorded.instructions_updated_at is not None
+    assert "instructions_updated_by" not in read.model_dump()["helper_settings"]["improver"]
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    assert stored.helper_settings["improver"]["instructions_updated_by"] == str(owner.user_id)
+
+    profile = await _profile(db, org)
+    read = await datasets.update(
+        owner,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(model_profile_id=profile.id, instructions="Be brief.")
+            )
+        ),
+    )
+    assert read.helper_settings.improver.instructions_updated_at == recorded.instructions_updated_at

@@ -15,6 +15,7 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID, uuid5
 
@@ -351,6 +352,8 @@ class DraftTopic(Payload):
     topic_id: UUID
     user_id: UUID | None
     api_key_id: UUID | None = None
+    quoted_usd: Decimal | None = None
+    """The price the person agreed to, rechecked before the drafter runs."""
 
 
 class DispatchWorkflowNode(Payload):

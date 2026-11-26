@@ -1857,11 +1857,11 @@ class EvalRunService:
             proposal_check,
         )
         proposal_check = self._priced_check(proposal_check, estimate)
-        if request.quoted_usd is not None and estimate.total_usd > request.quoted_usd:
+        if request.quoted_usd is not None and estimate.at_most_usd > request.quoted_usd:
             raise ConcurrentChangeError(
                 message="This eval now costs more than was quoted; estimate it again",
                 details={
-                    "estimate_usd": str(estimate.total_usd),
+                    "estimate_usd": str(estimate.at_most_usd),
                     "quoted_usd": str(request.quoted_usd),
                 },
             )

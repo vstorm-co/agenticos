@@ -1,5 +1,5 @@
 ---
-source_sha: "5e192996a20f"
+source_sha: "1a533c27efa2"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -169,11 +169,12 @@ baseline, también cuando se reutiliza. El coste real puede variar. Cada petici�
 al modelo sigue sujeta a los presupuestos mensuales; agotarlos termina el run
 como `budget_exceeded`.
 
-Un inicio puede devolver el `total_usd` de la estimación como `quoted_usd`, y con
+Un inicio puede devolver el `at_most_usd` de la estimación (primeras respuestas,
+calificación y todas las repeticiones) como `quoted_usd`, y con
 él el `dataset_version` de la estimación. El inicio se rechaza entonces con `409`
 en cuanto el run costaría más, así que un precio acordado antes nunca se supera
-sin verlo. El Architect pasa siempre ambos, y su tarjeta de aprobación muestra ese
-precio. Las comprobaciones de actualización de skills, los borradores de
+sin verlo. El diálogo de inicio de la consola y el Architect pasan siempre ambos, y la
+tarjeta de aprobación del Architect muestra ese precio. Las comprobaciones de actualización de skills, los borradores de
 conocimiento y los guardias de una puerta de promoción aceptan `quoted_usd` igual,
 y `GET .../gate/estimate` pone precio a los guardias que iniciaría la puerta.
 
