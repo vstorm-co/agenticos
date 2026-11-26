@@ -212,7 +212,7 @@ export function KnowledgeDocuments({
           <Skeleton className="h-12 w-full" />
         </div>
       ) : !accept && shown.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
+        !unlisted && <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
       ) : (
         !accept && <p className="text-muted-foreground text-xs">{t("knowledgeDraftCost")}</p>
       )}
