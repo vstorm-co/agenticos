@@ -1,15 +1,101 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useChatPrompt } from "./use-chat-prompt";
 import { useOrgStore } from "@/stores/org-store";
+import type { Organization } from "@/types";
+
+import { useChatPrompt } from "./use-chat-prompt";
 
 const params = vi.hoisted(() => ({ value: new URLSearchParams() }));
+const organizations = vi.hoisted(() => ({
+  isSuccess: true,
+  isError: false,
+  data: [] as Organization[] | undefined,
+}));
 vi.mock("next/navigation", () => ({ useSearchParams: () => params.value }));
+vi.mock("./use-organizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-organizations")>()),
+  useOrganizationList: () => organizations,
+}));
+
+const defaultOrg = {
+  id: "org-1",
+  name: "Default",
+  is_default: true,
+  is_personal: false,
+} as Organization;
+
+beforeEach(() => {
+  params.value = new URLSearchParams();
+  window.history.replaceState({}, "", "/chat");
+  organizations.isSuccess = true;
+  organizations.isError = false;
+  organizations.data = [];
+  useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
+});
 
 describe("useChatPrompt", () => {
-  beforeEach(() => {
-    useOrgStore.setState({ activeOrgId: "org-1" });
+  it("keeps a cold-load prompt until the initial organization selection settles", () => {
+    useOrgStore.setState({ activeOrgId: null });
+    organizations.isSuccess = false;
+    organizations.data = undefined;
+    window.history.replaceState({}, "", "/chat?prompt=Draft");
+    params.value = new URLSearchParams("prompt=Draft");
+
+    const { result, rerender } = renderHook(() => useChatPrompt());
+    expect(result.current).toBeUndefined();
+    expect(window.location.search).toBe("?prompt=Draft");
+
+    organizations.isSuccess = true;
+    organizations.data = [defaultOrg];
+    rerender();
+    expect(result.current).toBeUndefined();
+    expect(window.location.search).toBe("?prompt=Draft");
+
+    act(() => useOrgStore.getState().setActiveOrgId(defaultOrg.id));
+    expect(result.current?.text).toBe("Draft");
+    result.current?.consume();
+    expect(window.location.search).toBe("");
+
+    params.value = new URLSearchParams(window.location.search);
+    rerender();
+    act(() => useOrgStore.getState().setActiveOrgId("org-2"));
+    expect(result.current).toBeUndefined();
+  });
+
+  it("offers the draft when a successful lookup has no organizations", () => {
+    useOrgStore.setState({ activeOrgId: null });
+    params.value = new URLSearchParams("prompt=Draft");
+
+    expect(renderHook(() => useChatPrompt()).result.current?.text).toBe("Draft");
+  });
+
+  it("offers the draft when every organization has been refused", () => {
+    useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [defaultOrg.id] });
+    organizations.data = [defaultOrg];
+    params.value = new URLSearchParams("prompt=Draft");
+
+    expect(renderHook(() => useChatPrompt()).result.current?.text).toBe("Draft");
+  });
+
+  it("preserves the prompt through a failed organization lookup and retry", () => {
+    useOrgStore.setState({ activeOrgId: null });
+    organizations.isSuccess = false;
+    organizations.isError = true;
+    organizations.data = undefined;
+    window.history.replaceState({}, "", "/chat?prompt=Draft");
+    params.value = new URLSearchParams("prompt=Draft");
+
+    const { result, rerender } = renderHook(() => useChatPrompt());
+    expect(result.current).toBeUndefined();
+    expect(window.location.search).toBe("?prompt=Draft");
+
+    organizations.isSuccess = true;
+    organizations.isError = false;
+    organizations.data = [];
+    rerender();
+    expect(result.current?.text).toBe("Draft");
+    expect(window.location.search).toBe("?prompt=Draft");
   });
 
   it("offers the prompt as a draft and takes it off the address when consumed", () => {
@@ -40,24 +126,6 @@ describe("useChatPrompt", () => {
     params.value = new URLSearchParams("with=agent-1&prompt=Draft");
     const { result } = renderHook(() => useChatPrompt());
     expect(result.current).toBeUndefined();
-  });
-
-  it("retains the prompt until the initial organization selection is ready", () => {
-    window.history.replaceState({}, "", "/chat?prompt=Draft");
-    params.value = new URLSearchParams("prompt=Draft");
-    useOrgStore.setState({ activeOrgId: null });
-
-    const { result } = renderHook(() => useChatPrompt());
-
-    // Selecting the initial organization remounts the composer. Its earlier
-    // instance must not consume the only copy of the prompt from the address.
-    expect(result.current).toBeUndefined();
-    expect(window.location.search).toBe("?prompt=Draft");
-
-    act(() => useOrgStore.getState().setActiveOrgId("org-1"));
-    expect(result.current?.text).toBe("Draft");
-    result.current?.consume();
-    expect(window.location.search).toBe("");
   });
 
   it("offers nothing without a prompt, or with an empty one", () => {
