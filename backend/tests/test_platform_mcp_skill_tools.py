@@ -524,9 +524,9 @@ class TestReadingSessions:
             "at_most_usd": "0.02",
         }
         assert session["found"] == {
-            "problems": ["Order numbers are not taken as receipts"],
             "not_the_skill": 2,
             "not_a_problem": 1,
+            "untrusted": {"problems": ["Order numbers are not taken as receipts"]},
         }
         assert session["waiting_for"] is None
 
@@ -809,7 +809,7 @@ class TestReadingSessions:
 
         read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
 
-        assert read["found"]["problems"] == ["Order numbers are not taken as receipts"]
+        assert read["found"]["untrusted"]["problems"] == ["Order numbers are not taken as receipts"]
 
     async def test_a_waiting_session_whose_step_cannot_be_priced_says_why(
         self, server: FastMCP, api: MagicMock
@@ -848,7 +848,7 @@ class TestReadingSessions:
             (
                 "failed",
                 {"error": "The helper stopped unexpectedly."},
-                "A step failed: The helper stopped unexpectedly.",
+                "A step failed; its error is in `untrusted.error`.",
                 ["Retry this step", "End the session"],
             ),
         ],
@@ -872,6 +872,7 @@ class TestReadingSessions:
         session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
 
         assert sentence in session["summary"]
+        assert session.get("untrusted", {}).get("error") == fields.get("error")
         assert session["next_actions"] == actions
         assert session["closed"] is (status == "accepted")
 
