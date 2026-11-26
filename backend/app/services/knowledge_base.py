@@ -46,6 +46,7 @@ from app.services.ingestion_config import (
 from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.service_connection import DOCLING_PROVIDER, ServiceConnectionService
 from app.services.sharing import SharingService
 from app.worker.jobs import BasePurge
 
@@ -702,8 +703,6 @@ class KnowledgeBaseService:
                 ),
             )
         if embedding_endpoint_id is not None:
-            from app.services.service_connection import ServiceConnectionService
-
             endpoint = await ServiceConnectionService(self.db).get_visible(
                 ctx, embedding_endpoint_id
             )
@@ -712,6 +711,19 @@ class KnowledgeBaseService:
                 or endpoint.provider != embedding_provider
             ):
                 raise BadRequestError(message="Choose an embedding endpoint for this provider")
+            if endpoint.secret_id is not None and not ctx.has(Perm.CONNECTIONS_VIEW):
+                raise BadRequestError(
+                    message="Naming a keyed embedding connection requires connections:view"
+                )
+        if ingestion_config.docling_connection_id is not None:
+            parser = await ServiceConnectionService(self.db).get_visible(
+                ctx, ingestion_config.docling_connection_id
+            )
+            if (
+                parser.kind != ServiceConnectionKind.DOCUMENT_PARSER
+                or parser.provider != DOCLING_PROVIDER
+            ):
+                raise BadRequestError(message="Choose a Docling document parser connection")
         collection = f"portable_{uuid4().hex}"
         await CollectionAccessService(self.db).claim(ctx, collection)
         return await knowledge_base_repo.create(

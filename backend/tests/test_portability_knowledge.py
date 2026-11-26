@@ -117,13 +117,16 @@ async def test_export_streams_originals_and_vectors_without_loading_whole_docume
     kb = _kb(resource, ctx)
     storage = LocalFileStorage(tmp_path / "storage")
     await storage.save_at("original", b"exact original")
+    historical_parser = uuid4()
     doc = RAGDocument(
         id=uuid4(),
         filename="duplicate.txt",
         filesize=14,
         filetype="txt",
         storage_path="original",
-        ingestion_config={},
+        ingestion_config=IngestionConfig(
+            pdf_parser="docling", docling_connection_id=historical_parser
+        ).model_dump(mode="json"),
         status=DocumentStatus.DONE,
         vector_document_id="vector-1",
         chunk_count=1,
@@ -155,6 +158,14 @@ async def test_export_streams_originals_and_vectors_without_loading_whole_docume
     vectors.get_document_chunks.assert_not_called()
     assert "storage_path" not in str(exported.definition)
     assert "vector-1" not in str(exported.definition)
+
+    assert str(historical_parser) not in str(exported.definition)
+    assert (
+        KnowledgeBaseContent.model_validate(exported.definition)
+        .documents[0]
+        .ingestion_config.docling_connection_id
+        is None
+    )
 
 
 async def test_export_refuses_changed_original_and_size_overrun(
@@ -862,3 +873,112 @@ def test_document_snapshot_docling_reference_is_discovered_separately_from_base(
     assert pins[0].kind == BundleResourceKind.LOCAL_SERVICE
     assert pins[0].source_id == connection
     assert pins[0].path == ("documents", 0, "ingestion_config", "docling_connection_id")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("mapping", ["valid", "omitted", "embedding", "wrong_provider", "hidden"])
+async def test_snapshot_docling_mapping_checks_only_visible_connection_identity(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, mapping: str
+) -> None:
+    from app.core.exceptions import NotFoundError
+    from app.db.models.service_connection import ServiceConnection
+    from app.services import knowledge_base as domain
+    from app.services.service_connection import ServiceConnectionService
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    connection = uuid4()
+    config = IngestionConfig(
+        pdf_parser="docling", docling_connection_id=None if mapping == "omitted" else connection
+    )
+    parser = ServiceConnection(
+        id=connection,
+        kind="embedding" if mapping == "embedding" else "document_parser",
+        provider="openai_compatible" if mapping == "wrong_provider" else "docling",
+        name="Destination",
+        requires_key=True,
+        secret_id=uuid4(),
+        is_active=True,
+    )
+    visible = AsyncMock(return_value=parser)
+    if mapping == "hidden":
+        visible.side_effect = NotFoundError(message="Service connection not found")
+    monkeypatch.setattr(ServiceConnectionService, "get_visible", visible)
+    create = AsyncMock(return_value=KnowledgeBase(id=uuid4(), name="Private snapshot"))
+    monkeypatch.setattr(domain.knowledge_base_repo, "create", create)
+    claim = AsyncMock()
+    monkeypatch.setattr(domain.CollectionAccessService, "claim", claim)
+    # This import boundary must not resolve/unseal keys or make a parser/probe call.
+    resolve = AsyncMock(side_effect=AssertionError("Import must not resolve parser credentials"))
+    monkeypatch.setattr(domain.IngestionConfigService, "_docling_key", resolve)
+    monkeypatch.setattr(domain.IngestionConfigService, "build_processor", resolve)
+    service = domain.KnowledgeBaseService(mock_db_session)
+    arguments: _SnapshotArguments = {
+        "name": "Private snapshot",
+        "description": None,
+        "ingestion_config": config,
+        "embedding_model": "historical-model",
+        "embedding_provider": "historical-provider",
+        "embedding_dim": 1536,
+        "embedding_secret_id": None,
+        "embedding_endpoint_id": None,
+    }
+    if mapping in ("valid", "omitted"):
+        await service.create_portable_snapshot(ctx=ctx, **arguments)
+        assert create.await_args is not None
+        assert create.await_args.kwargs["ingestion_config"] == config.model_dump(mode="json")
+        assert create.await_args.kwargs["scope"] == "personal"
+        if mapping == "omitted":
+            visible.assert_not_awaited()
+        else:
+            visible.assert_awaited_once_with(ctx, connection)
+    else:
+        with pytest.raises(NotFoundError if mapping == "hidden" else BadRequestError):
+            await service.create_portable_snapshot(ctx=ctx, **arguments)
+        create.assert_not_awaited()
+        claim.assert_not_awaited()
+    resolve.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("keyed", [True, False])
+async def test_snapshot_member_cannot_name_a_keyed_embedding_connection(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, keyed: bool
+) -> None:
+    from app.db.models.service_connection import ServiceConnection
+    from app.services import knowledge_base as domain
+    from app.services.service_connection import ServiceConnectionService
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+    endpoint = uuid4()
+    connection = ServiceConnection(
+        id=endpoint,
+        kind="embedding",
+        provider="openai_compatible",
+        name="Endpoint",
+        secret_id=uuid4() if keyed else None,
+        requires_key=keyed,
+    )
+    monkeypatch.setattr(ServiceConnectionService, "get_visible", AsyncMock(return_value=connection))
+    create = AsyncMock(return_value=KnowledgeBase(id=uuid4(), name="Imported"))
+    monkeypatch.setattr(domain.knowledge_base_repo, "create", create)
+    claim = AsyncMock()
+    monkeypatch.setattr(domain.CollectionAccessService, "claim", claim)
+    service = domain.KnowledgeBaseService(mock_db_session)
+    arguments: _SnapshotArguments = {
+        "name": "Imported",
+        "description": None,
+        "ingestion_config": IngestionConfig(),
+        "embedding_model": "historical-model",
+        "embedding_provider": "openai_compatible",
+        "embedding_dim": 1536,
+        "embedding_secret_id": None,
+        "embedding_endpoint_id": endpoint,
+    }
+    if keyed:
+        with pytest.raises(BadRequestError, match="connections:view"):
+            await service.create_portable_snapshot(ctx=ctx, **arguments)
+        create.assert_not_awaited()
+        claim.assert_not_awaited()
+    else:
+        await service.create_portable_snapshot(ctx=ctx, **arguments)
+        create.assert_awaited_once()
