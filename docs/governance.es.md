@@ -1,5 +1,5 @@
 ---
-source_sha: "76027ca7ebbd"
+source_sha: "ca0138b9ea83"
 ---
 
 # Governance { #governance }
@@ -2167,7 +2167,8 @@ Así que la audiencia se divide por el permiso en lugar de recortarse a él:
 | Quien recibe tiene | Recibe |
 | --- | --- |
 | `approvals:decide` | la solicitud, con el enlace a la cola |
-| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, aprobarlo corresponde a un owner, admin u operator, y no se le pide nada |
+| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que siempre pregunta | la solicitud, con un enlace a la conversación donde se preguntó, mientras esa llamada espera |
+| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, tiene que responderlo alguien que pueda decidir aprobaciones, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.
