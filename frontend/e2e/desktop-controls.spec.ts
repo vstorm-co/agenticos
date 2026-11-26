@@ -395,10 +395,13 @@ test.describe("desktop pointer controls", () => {
       await expect(resize).toBeHidden();
       const constrained = await dockGeometry();
       expect(constrained.container).toBeLessThan(1000);
-      expect(constrained.rightGap).toBe(0);
-      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
+      await expect
+        .poll(() => panel.boundingBox())
+        .toMatchObject({ x: 0, y: 0, width: 1460, height: 1000 });
       await clickCenter(page, maximize);
-      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
+      await expect
+        .poll(() => panel.boundingBox())
+        .toMatchObject({ x: 0, y: 0, width: 1460, height: 1000 });
       await clickCenter(page, close);
       await expect(panel).toBeHidden();
     } finally {
