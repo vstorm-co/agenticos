@@ -642,11 +642,13 @@ try:
                 if entry['is_dir']!=r['directory']: raise OSError(errno.ENOTDIR if r['directory'] else errno.EISDIR,'Wrong entry type')
                 (os.rmdir if r['directory'] else os.unlink)(n,dir_fd=p)
             elif op=='rename':
-                inspect(path)
+                source=inspect(path)
                 q,m=parent(r['destination'])
                 try:
-                    try: inspect(r['destination'])
-                    except FileNotFoundError: pass
+                    try: destination=inspect(r['destination'])
+                    except FileNotFoundError: destination=None
+                    if destination is not None and source['is_dir']!=destination['is_dir']:
+                        raise OSError(errno.ENOTDIR if source['is_dir'] else errno.EISDIR,'Wrong destination type')
                     os.replace(n,m,src_dir_fd=p,dst_dir_fd=q); os.fsync(q)
                 finally: os.close(q)
             elif op=='setattr':

@@ -2052,6 +2052,10 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Sandbox supervisors use an exact workspace binding token, never session JWTs.
+        # Every file RPC additionally reauthorizes the live run and Project lease.
+        ("GET", f"{V1}/project-filesystem/bindings/{{binding_id}}"),
+        ("POST", f"{V1}/project-filesystem/bindings/{{binding_id}}/fs"),
         # Twilio fetches staged MMS bytes with an expiring, media-bound token.
         ("GET", f"{V1}/sms/media/{{media_id}}"),
         # A BlueBubbles bridge supplies its configured bearer credential, not a user session.
