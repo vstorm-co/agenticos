@@ -71,10 +71,6 @@ SESSION_READ: dict[str, Any] = {
 }
 
 
-def _permissions(*held: str) -> dict[str, Any]:
-    return {"permissions": [{"permission": name, "scope": "all"} for name in held]}
-
-
 def _miss(
     run_id: str, branch: str, topic_id: str | None = None, *, added: bool = False
 ) -> dict[str, Any]:
@@ -139,7 +135,8 @@ class TestReadingSessions:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -165,24 +162,6 @@ class TestReadingSessions:
         assert not session["attempts"][0]["best"]
         assert session["link"] == improvement_link(AGENT, SESSION)
 
-    async def test_knowledge_topics_are_read_only_with_runs_view(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        """The topics quote what people asked: a reader without `runs:view` gets none, and
-        the evidence route is never called on their behalf."""
-        api.request = _responder(
-            {
-                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
-            }
-        )
-
-        session = await _call(server, "get_improvement", session_id=SESSION)
-
-        assert "missing_knowledge" not in session
-        paths = [call.args[1] for call in api.request.await_args_list]
-        assert not any("evidence" in path or "knowledge-gaps" in path for path in paths)
-
     async def test_the_session_s_own_missing_knowledge_topics_are_listed(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -196,7 +175,6 @@ class TestReadingSessions:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
-                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
                     "items": [
                         _miss("r1", "missing_knowledge", TOPIC),
@@ -251,7 +229,8 @@ class TestReadingSessions:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): kept,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -268,7 +247,8 @@ class TestReadingSessions:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -299,7 +279,6 @@ class TestReadingSessions:
                     **SESSION_READ,
                     "deferred_topic_ids": [TOPIC] if deferred else [],
                 },
-                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
                     "items": [_miss("r1", "missing_knowledge", TOPIC)]
                 },
@@ -344,7 +323,8 @@ class TestTheNoise:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): {**SESSION_READ, "measurement_noise": noise},
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -362,7 +342,8 @@ class TestTheNoise:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -432,7 +413,6 @@ class TestStepByStep:
             {
                 ("GET", f"/improvements/{SESSION}"): self.WAITING,
                 ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
-                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
                     "items": [
                         _miss("r1", "agent", TOPIC),
@@ -476,7 +456,8 @@ class TestStepByStep:
             return {
                 **UNPUBLISHED,
                 ("GET", f"/improvements/{SESSION}"): self.WAITING,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }[(method, path)]
 
         api.request = AsyncMock(side_effect=respond)
@@ -582,7 +563,8 @@ class TestAClosedSession:
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): self.PUBLISHED,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -677,7 +659,8 @@ class TestTheNewestSessionAndTheLiveVersion:
             {
                 **_published_as(V8),
                 ("GET", f"/improvements/{SESSION}"): self.NEWEST,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 
@@ -941,7 +924,8 @@ class TestTheSummary:
             {
                 **_published_as(V8),
                 ("GET", f"/improvements/{SESSION}"): self.WORSE_KEPT,
-                ("GET", "/me/permissions"): _permissions("agents:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {"items": []},
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
             }
         )
 

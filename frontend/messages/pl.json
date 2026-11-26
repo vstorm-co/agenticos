@@ -17511,6 +17511,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "analysisEstimate": "Szacowany koszt analizy",
+    "permissionRuns": "Odczyt sesji Improve wymaga runs:view, którego ta rola nie ma. Poproś właściciela organizacji o dostęp.",
     "guidance": {
       "title": "Wskazówki datasetu dla pomocnika",
       "hint": "Pomocnik czyta je pod regułami platformy, które obowiązują zawsze. Napisał je ktoś, kto edytuje ten dataset.",
