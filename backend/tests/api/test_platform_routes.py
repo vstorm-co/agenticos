@@ -467,6 +467,7 @@ CALLS: tuple[Call, ...] = (
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
     Call("GET", "/providers/catalog", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/currencies", Perm.AGENTS_VIEW),
     # Which models a provider offers, for the field where one is typed. Gated
     # on seeing agents like the catalog beside it: the answer is a public list
     # for OpenRouter and a list of model names for everyone else.
