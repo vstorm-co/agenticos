@@ -586,117 +586,114 @@ export function ChatModelPicker({
   const Library = providerView?.component ?? ChatModelLibrary;
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
-      <div className="space-y-4">
-        <Library
-          pane={
-            subscription ? (
-              <SubscriptionModelForm
-                key={providerId}
-                provider={subscription}
-                initialModel={currentSource === providerId ? current?.model : undefined}
-                disabled={connectionUnavailable}
-                onCreated={(profile) => onChange(profile.id)}
-                libraryPane={ChatModelPane}
-              />
-            ) : undefined
-          }
-          providers={modelSourceOptions(
-            providers,
-            catalog.some((entry) => entry.personal_gateway),
-            tRoot,
-          ).map((entry) => ({
-            ...entry,
-            connected:
-              entry.group === "subscriptions"
-                ? personalAccounts.accounts.data
-                  ? personalAccounts.accounts.data.items.some((account) => {
-                      const provider = subscriptionFromChoice(entry.id);
-                      return (
-                        provider !== undefined &&
-                        subscriptionBelongsTo(account, provider) &&
-                        !account.disabled &&
-                        !account.unavailable
-                      );
-                    })
-                  : null
-                : secretReadError || loadingSecrets
-                ? null
-                : secrets.some((secret) => secret.purpose === entry.id) ||
-                  profiles.some(
-                    (profile) => profile.provider === entry.id && usableForAgents(profile),
-                  ),
-        }))}
-        providerId={providerId}
-        connectionLabel={providerView ? effectiveKey?.name : undefined}
-        catalogConnection={catalogConnection}
-        catalogSource={source}
-        catalogError={!!catalogError}
-        onRefresh={
-          canRefresh && !personalSource && !requiresEndpoint
-            ? () => void refetchModels()
-            : undefined
+      <Library
+        pane={
+          subscription ? (
+            <SubscriptionModelForm
+              key={providerId}
+              provider={subscription}
+              initialModel={currentSource === providerId ? current?.model : undefined}
+              disabled={connectionUnavailable}
+              onCreated={(profile) => onChange(profile.id)}
+              libraryPane={ChatModelPane}
+            />
+          ) : undefined
         }
-        loadingProviders={loadingPurposes}
-        configurationForm={endpointForm}
-        needsCredential={
-          !requiresEndpoint &&
-          !!credentialForm &&
-          providerKeys.length === 0 &&
-          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
-        }
-        credentialPicker={credentialPicker}
-        model={
-          current?.provider === providerId &&
-          currentEndpointMatches &&
-          (!currentProfile || matchesKey(currentProfile))
-            ? current.model
-            : ""
-        }
-        models={suggestions}
-        profiles={sourceProfiles}
-        catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
-        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
-        catalogRefreshing={loadingModels}
-        applying={createProfile.isPending}
-        disabled={connectionUnavailable}
-        onProviderChange={(id) => {
-          setProviderId(id);
-          setPickedKey(null);
-          setFailure(null);
-        }}
-        onModelChange={(id) => void apply(id)}
-        credentialForm={
-          requiresEndpoint ? null : providerView ? (
-            credentialForm
-          ) : credentialForm && provider ? (
-            <ModelConnectionIntro provider={provider.id} name={provider.label}>
-              {credentialForm}
-            </ModelConnectionIntro>
-          ) : null
-        }
-        failure={
-          profilesStatus === "failed" || (!personalSource && secretReadError) ? (
-            <p role="alert" className="text-destructive text-xs">
-              {t("profilesUnavailable")}{" "}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void refetchProfiles();
-                  void refetchSecrets();
-                }}
-              >
-                {tRoot("common.retry")}
-              </Button>
-            </p>
-          ) : failure ? (
-            <p role="alert" className="text-destructive text-xs">
-              {failure}
-            </p>
-          ) : null
-        }
-      />
-      </div>
+        providers={modelSourceOptions(
+          providers,
+          catalog.some((entry) => entry.personal_gateway),
+          tRoot,
+        ).map((entry) => ({
+          ...entry,
+          connected:
+            entry.group === "subscriptions"
+              ? personalAccounts.accounts.data
+                ? personalAccounts.accounts.data.items.some((account) => {
+                    const provider = subscriptionFromChoice(entry.id);
+                    return (
+                      provider !== undefined &&
+                      subscriptionBelongsTo(account, provider) &&
+                      !account.disabled &&
+                      !account.unavailable
+                    );
+                  })
+                : null
+              : secretReadError || loadingSecrets
+              ? null
+              : secrets.some((secret) => secret.purpose === entry.id) ||
+                profiles.some(
+                  (profile) => profile.provider === entry.id && usableForAgents(profile),
+                ),
+      }))}
+      providerId={providerId}
+      connectionLabel={providerView ? effectiveKey?.name : undefined}
+      catalogConnection={catalogConnection}
+      catalogSource={source}
+      catalogError={!!catalogError}
+      onRefresh={
+        canRefresh && !personalSource && !requiresEndpoint
+          ? () => void refetchModels()
+          : undefined
+      }
+      loadingProviders={loadingPurposes}
+      configurationForm={endpointForm}
+      needsCredential={
+        !requiresEndpoint &&
+        !!credentialForm &&
+        providerKeys.length === 0 &&
+        !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+      }
+      credentialPicker={credentialPicker}
+      model={
+        current?.provider === providerId &&
+        currentEndpointMatches &&
+        (!currentProfile || matchesKey(currentProfile))
+          ? current.model
+          : ""
+      }
+      models={suggestions}
+      profiles={sourceProfiles}
+      catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
+      loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+      catalogRefreshing={loadingModels}
+      applying={createProfile.isPending}
+      disabled={connectionUnavailable}
+      onProviderChange={(id) => {
+        setProviderId(id);
+        setFailure(null);
+      }}
+      onModelChange={(id) => void apply(id)}
+      credentialForm={
+        requiresEndpoint ? null : providerView ? (
+          credentialForm
+        ) : credentialForm && provider ? (
+          <ModelConnectionIntro provider={provider.id} name={provider.label}>
+            {credentialForm}
+          </ModelConnectionIntro>
+        ) : null
+      }
+      failure={
+        profilesStatus === "failed" || (!personalSource && secretReadError) ? (
+          <p role="alert" className="text-destructive text-xs">
+            {t("profilesUnavailable")}{" "}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void refetchProfiles();
+                void refetchSecrets();
+              }}
+            >
+              {tRoot("common.retry")}
+            </Button>
+          </p>
+        ) : failure ? (
+          <p role="alert" className="text-destructive text-xs">
+            {failure}
+          </p>
+        ) : null
+      }
+    />
     );
 
   return (
