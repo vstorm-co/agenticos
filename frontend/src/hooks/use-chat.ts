@@ -3040,13 +3040,13 @@ export function useChat(options: UseChatOptions = {}) {
             ?.agentId ??
           null;
         const receiptId = queued?.acceptedQueueId;
-        const lock = receiptId ? `steer:${receiptId}` : null;
+        if (!receiptId) return;
+        const lock = `steer:${receiptId}`;
         if (
-          !receiptId ||
           !queueMaySteer(queued, liveAgentId, true) ||
           !isProcessing ||
           !isConnected ||
-          (lock !== null && queueOperationsRef.current.has(lock))
+          queueOperationsRef.current.has(lock)
         )
           return;
         const text = queued.content.trim();
@@ -3157,28 +3157,28 @@ export function useChat(options: UseChatOptions = {}) {
       const outcome = await cancelAcceptedQueueItem(scope.conversationId, queued.acceptedQueueId);
       queueOperationsRef.current.delete(lock);
       if (!queueReceiptScopeIsCurrent(scope)) return;
-      if (["task", "sent", "steered", "cancelled"].includes(outcome.kind)) {
-        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+      if ("error" in outcome) {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
+                  transferring: false,
+                  transferError: getErrorMessage(
+                    outcome.error,
+                    tErrors,
+                    t("queuedCancelUnconfirmed"),
+                  ),
+                  transferErrorAction: "cancel",
+                  receiptErrorAction: outcome.kind === "unknown" ? "cancel" : undefined,
+                }
+              : item,
+          ),
+        );
         return;
       }
-      setQueue(
-        messageQueueRef.current.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
-                transferring: false,
-                transferError: getErrorMessage(
-                  outcome.error,
-                  tErrors,
-                  t("queuedCancelUnconfirmed"),
-                ),
-                transferErrorAction: "cancel",
-                receiptErrorAction: outcome.kind === "unknown" ? "cancel" : undefined,
-              }
-            : item,
-        ),
-      );
+      setQueue(messageQueueRef.current.filter((item) => item.id !== id));
     },
     [
       queueReceiptsEnabled,
@@ -3232,27 +3232,27 @@ export function useChat(options: UseChatOptions = {}) {
         setQueue(messageQueueRef.current.filter((item) => item.id !== id));
         return outcome.task.conversation_id || null;
       }
-      if (["sent", "steered", "cancelled"].includes(outcome.kind)) {
-        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+      if ("error" in outcome) {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
+                  transferring: false,
+                  transferError: getErrorMessage(
+                    outcome.error,
+                    tErrors,
+                    t("queuedTransferUnconfirmed"),
+                  ),
+                  transferErrorAction: "task",
+                }
+              : item,
+          ),
+        );
         return null;
       }
-      setQueue(
-        messageQueueRef.current.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
-                transferring: false,
-                transferError: getErrorMessage(
-                  outcome.error,
-                  tErrors,
-                  t("queuedTransferUnconfirmed"),
-                ),
-                transferErrorAction: "task",
-              }
-            : item,
-        ),
-      );
+      setQueue(messageQueueRef.current.filter((item) => item.id !== id));
       return null;
     },
     [
