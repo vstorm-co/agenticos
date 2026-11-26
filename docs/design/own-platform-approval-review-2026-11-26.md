@@ -42,3 +42,10 @@ refusals, API keys and publisher fallbacks, external and legacy tool names,
 channel continuations, notification delivery, and Improve service guards.
 No model work, production data mutation, publication or deployment is part
 of this review.
+
+Source checks were green for the reviewed #3402 and #3403 heads. The reviewed
+#3442 head failed its fourth backend shard because five budget-notification
+cases still called the private mail renderer without its required `own_call`
+argument. Those budget fixtures now pass `False` explicitly; the production
+renderer retains its required authority argument. Combined release CI remains
+separate from these source checks.
