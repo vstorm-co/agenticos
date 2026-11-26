@@ -326,6 +326,9 @@ async def test_ending_a_membership_wipes_the_persons_accounts() -> None:
             "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
             AsyncMock(),
         ),
+        patch.object(
+            member_module.NetworkConnectionService, "revoke_member", AsyncMock(return_value=0)
+        ),
         patch.multiple(
             member_module,
             group_repo=AsyncMock(),

@@ -94,7 +94,7 @@ class TestLdapLogin:
     ) -> None:
         user = _user()
         user.totp_enabled = True
-        sign_in.sign_in_with_password = AsyncMock(return_value=user)
+        sign_in.sign_in_with_password = AsyncMock(return_value=OAuthAccount(user, False))
 
         resp = await client.post(_LDAP, json={"username": "jane", "password": "pw"})
 
@@ -224,7 +224,9 @@ class TestKerberosLogin:
     ) -> None:
         user = _user()
         user.totp_enabled = True
-        sign_in.sign_in_with_ticket = AsyncMock(return_value=(user, response_token))
+        sign_in.sign_in_with_ticket = AsyncMock(
+            return_value=(OAuthAccount(user, False), response_token)
+        )
 
         resp = await client.get(
             _KERBEROS,
