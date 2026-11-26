@@ -163,6 +163,36 @@ class TestTheCheck:
         await service.start_update(lab.ctx, lab.skill.id, lab.pinned.id, agreed)
         assert {agent_id for agent_id, _ in evals.started} == {lab.pinned.id}
 
+    @pytest.mark.security
+    async def test_the_check_priced_is_the_check_started(self, db, monkeypatch):
+        """Main moving on, or the agent changing, between the price and the start cannot
+        start another or a dearer check: the one plan read is both priced and written."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        quote = await service.estimate_update(lab.ctx, lab.skill.id, lab.pinned.id, QUICK)
+        plans: list[Any] = []
+        planned = SkillCheckService._plan
+
+        async def plan_once(self: SkillCheckService, *args: Any, **kwargs: Any) -> Any:
+            plans.append(await planned(self, *args, **kwargs))
+            return plans[-1]
+
+        monkeypatch.setattr(SkillCheckService, "_plan", plan_once)
+        agreed = QUICK.model_copy(
+            update={"quoted_usd": quote.at_most_usd, "base_version_id": quote.base_version.id}
+        )
+
+        read = await service.start_update(lab.ctx, lab.skill.id, lab.pinned.id, agreed)
+
+        assert len(plans) == 1
+        stored = await skill_check_repo.get(db, read.id, organization_id=lab.ctx.organization_id)
+        assert stored is not None
+        assert (stored.base_version_id, stored.at_most_usd) == (
+            quote.base_version.id,
+            quote.at_most_usd,
+        )
+
     async def test_another_organization_or_no_skill_edit_finds_nothing(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)

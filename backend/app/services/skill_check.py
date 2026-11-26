@@ -788,22 +788,17 @@ class SkillCheckService:
             ConcurrentChangeError: The check would now cost more than `quoted_usd`,
                 or check another version than `base_version_id`.
         """
-        if data.quoted_usd is not None or data.base_version_id is not None:
-            quote = await self.estimate_update(ctx, skill_id, agent_id, data)
-            if (
-                data.base_version_id is not None and quote.base_version.id != data.base_version_id
-            ) or (data.quoted_usd is not None and quote.at_most_usd > data.quoted_usd):
-                raise ConcurrentChangeError(
-                    message="This check now costs more or checks another version than was "
-                    "quoted; estimate it again",
-                    details={
-                        "at_most_usd": str(quote.at_most_usd),
-                        "base_version_id": quote.base_version.id,
-                    },
-                )
-        return await self.start(
-            ctx, skill_id, _update_start(data), source=CheckSource.CATCH_UP, pinned=agent_id
-        )
+        plan = await self._plan(ctx, skill_id, _update_start(data), pinned=agent_id)
+        _, at_most = _priced(plan.agents)
+        if (data.base_version_id is not None and plan.base.id != data.base_version_id) or (
+            data.quoted_usd is not None and at_most > data.quoted_usd
+        ):
+            raise ConcurrentChangeError(
+                message="This check now costs more or checks another version than was "
+                "quoted; estimate it again",
+                details={"at_most_usd": str(at_most), "base_version_id": plan.base.id},
+            )
+        return await self._start(ctx, skill_id, plan, source=CheckSource.CATCH_UP, narrowed=False)
 
     async def start(
         self,
@@ -841,6 +836,21 @@ class SkillCheckService:
             pinned=pinned,
             files=files,
         )
+        return await self._start(
+            ctx, skill_id, plan, source=source, narrowed=only is not None or bool(holdout)
+        )
+
+    async def _start(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        plan: Plan,
+        *,
+        source: CheckSource | None,
+        narrowed: bool,
+    ) -> SkillCheckRead:
+        """Write the check `plan` describes and start it; `narrowed` when it checks part
+        of what a whole check would."""
         expected, at_most = _priced(plan.agents)
         if plan.org_remaining is not None and at_most > plan.org_remaining:
             raise BadRequestError(
@@ -856,8 +866,7 @@ class SkillCheckService:
         )
         if (
             source in (CheckSource.MANUAL, CheckSource.CATCH_UP)
-            and only is None
-            and not holdout
+            and not narrowed
             and not plan.excluded
         ):
             await hold_subject(self.db, LockScope.SKILL_CHECK_STARTS_PER_SKILL, plan.skill.id)
