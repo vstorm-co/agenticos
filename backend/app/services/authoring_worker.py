@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, ToolOverride, load_builtins
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER, with_dataset_guidance
+from app.agents.untrusted_text import fence
 from app.core.exceptions import (
     AppException,
     AuthenticationError,
@@ -175,9 +176,10 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
     lines: list[str] = []
     for digest in digests:
         for finding in digest.findings:
-            lines.append(f"- {finding.observation}")
+            lines.append(f"- Observation:\n{fence(finding.observation)}")
             lines += [
-                f'  - {pack.label_of(quote.run_id)}: "{quote.quote}"' for quote in finding.evidence
+                f"  Quoted from {pack.label_of(quote.run_id)}:\n{fence(quote.quote)}"
+                for quote in finding.evidence
             ]
     return "\n\n".join(
         part
