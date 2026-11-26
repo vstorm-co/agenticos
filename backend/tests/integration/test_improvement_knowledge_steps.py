@@ -537,6 +537,11 @@ async def test_a_draft_dearer_than_its_quote_is_refused_and_one_within_it_is_que
             await service.request_draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
         assert await _draft_jobs(db) == []
         queued = await service.request_draft(ctx, gap.id, quoted_usd=price)
+        [job] = await _draft_jobs(db)
+        # The worker holds the draft to the same price, should the drafter change meanwhile.
+        assert DraftTopic.model_validate(job.payload).quoted_usd == price
+        with pytest.raises(ConcurrentChangeError):
+            await service.draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
     assert queued.drafting
 
 

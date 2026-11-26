@@ -1880,6 +1880,10 @@ class TestDraftingKnowledge:
 
         assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
         assert api.request.await_args.kwargs["json"] == {"quoted_usd": "0.02"}
+
+        await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        # An estimate with no price leaves nothing to agree to, and the draft still runs.
+        assert api.request.await_args.kwargs["json"] is None
         assert topic["drafting"] is True
         assert "questions" not in topic
 
