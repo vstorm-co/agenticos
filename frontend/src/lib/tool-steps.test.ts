@@ -41,6 +41,22 @@ const t = createTranslator({ locale: "en", messages, namespace: "chat.tools" }) 
  */
 describe("the line for one tool call", () => {
   it("distinguishes project reference work from selecting a command executor", () => {
+    expect(
+      toolStep(
+        "transfer_project_file",
+        { direction: "to_agent", project_path: "input.bin" },
+        false,
+        t,
+      ).label,
+    ).toBe("Transferring project file…");
+    expect(
+      toolStep(
+        "transfer_project_file",
+        { direction: "from_agent", project_path: "report.pdf" },
+        true,
+        t,
+      ).label,
+    ).toBe("Project file transferred");
     expect(toolStep("search_projects", { query: "Atlas" }, false, t).label).toBe(
       "Looking for Atlas",
     );

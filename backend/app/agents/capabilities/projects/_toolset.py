@@ -1,7 +1,7 @@
 """Project context and shared files, independent of shell availability."""
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Protocol, runtime_checkable
+from typing import Annotated, Literal, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic import Field
@@ -21,6 +21,13 @@ class ProjectContextPort(Protocol):
     async def files(self, path: str = ".") -> str: ...
     async def read_file(self, path: str) -> str: ...
     async def write_file(self, path: str, content: str) -> str: ...
+    async def transfer_file(
+        self,
+        direction: Literal["to_agent", "from_agent"],
+        project_path: str,
+        agent_path: str,
+        expected_sha256: str | None = None,
+    ) -> str: ...
 
 
 async def _answer(call: Callable[[], Awaitable[str]]) -> str:
@@ -138,9 +145,48 @@ def project_tools(port: ProjectContextPort | None) -> FunctionToolset[AgentDeps]
         """
         return await unavailable_or(lambda selected: selected.write_file(path, content))
 
+    async def transfer_project_file(
+        direction: Literal["to_agent", "from_agent"],
+        project_path: str,
+        agent_path: str,
+        expected_sha256: Annotated[str | None, Field(pattern=r"^[0-9a-f]{64}$")] = None,
+    ) -> str:
+        """Transfer one file as bytes between the selected project and the agent workspace.
+
+        Use to_agent when the agent's own tools need a project file on their disk;
+        use from_agent to save an agreed result back to the shared project. The
+        server moves bytes, including binary files, without putting their content
+        through the model. For work directly in the project sandbox, select its
+        executor instead: no transfer is needed there. The limit is 8 MiB per file.
+
+        This is an explicit copy, not a shared mount or background synchronization.
+        Destinations must be new unless expected_sha256 names their current digest.
+        Conflicts require inspecting the current destination; do not blindly retry
+        with a new digest. Writes to shared project files retain approval rules.
+        Generic file tools and commands refer to the selected executor; project
+        file tools always refer to the project. Paths cannot escape either workspace.
+
+        Args:
+            direction: to_agent for a project input, from_agent for a result.
+            project_path: Relative path in the selected project's shared files.
+            agent_path: Relative path in the agent's own workspace.
+            expected_sha256: Current destination digest when replacing a known file;
+                omit to require a new destination.
+
+        Returns:
+            Source/destination paths, byte count and SHA-256 receipt, or a refusal.
+            No commands are run and no other files are synchronized or deleted.
+        """
+        return await unavailable_or(
+            lambda selected: selected.transfer_file(
+                direction, project_path, agent_path, expected_sha256
+            )
+        )
+
     tools.add_function(search_projects, sequential=True)
     tools.add_function(select_project_context, sequential=True)
     tools.add_function(list_project_files, sequential=True)
     tools.add_function(read_project_file, sequential=True)
     tools.add_function(write_project_file, sequential=True)
+    tools.add_function(transfer_project_file, sequential=True)
     return tools

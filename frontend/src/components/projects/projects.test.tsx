@@ -10,6 +10,9 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { ApiError } from "@/lib/api-error";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import type { Project } from "@/types/projects";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores/org-store";
+import { Perm } from "@/types/permissions";
 import { CreateProjectDialog } from "./create-project-dialog";
 import { ProjectApps } from "./project-apps";
 import { ProjectCard } from "./project-card";
@@ -126,8 +129,21 @@ vi.mock("@/hooks/use-projects", () => ({
   useProjectChats: () => chats(),
 }));
 
-function wrap(node: ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function wrap(node: ReactNode, availableSandbox = false) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, ...(availableSandbox ? { staleTime: Infinity } : {}) },
+    },
+  });
+  if (availableSandbox) {
+    client.setQueryData(
+      qk.organizations.permissions(useOrgStore.getState().activeOrgId ?? "current"),
+      { permissions: [{ permission: Perm.connectionsView, scope: "org" }] },
+    );
+    client.setQueryData(qk.sandboxConnections.list(), [
+      { id: "host", name: "Build host", kind: "docker", is_active: true, is_default: true },
+    ]);
+  }
   return render(node, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -275,6 +291,7 @@ describe("CreateProjectDialog", () => {
       description: "Q3",
       instructions: "Be brief.",
       default_agent_id: "a-1",
+      backend: "state",
       visibility: "private",
       group_ids: [],
       user_ids: [],
@@ -897,12 +914,13 @@ it("offers the project editor and wires a rename to the project's mutation", asy
   );
 });
 
-it("can create a files-only project instead of silently choosing a container", async () => {
+it("defaults new projects to shared stored files without selecting a container", async () => {
   projects.create.mutateAsync.mockResolvedValue(aProject({ backend: "state" }));
-  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />, true);
+  expect(screen.getByRole("combobox", { name: "Project sandbox" })).toHaveTextContent(
+    "Stored files only",
+  );
   await userEvent.type(screen.getByLabelText("Name"), "Notes");
-  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
-  await userEvent.click(screen.getByRole("option", { name: "Stored files only" }));
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(projects.create.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({ backend: "state", name: "Notes" }),
@@ -1006,5 +1024,25 @@ it("creates a project without asking for instructions, while keeping optional se
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(projects.create.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({ name: "A small project", instructions: "", visibility: "private" }),
+  );
+});
+
+it.each(["auto", "service"])("retains an explicit %s project sandbox selection", async (choice) => {
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />, true);
+  await userEvent.type(screen.getByLabelText("Name"), "Build");
+  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+  await userEvent.click(
+    screen.getByRole("option", { name: choice === "auto" ? /Automatic/ : "Build host" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(projects.create.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining(
+      choice === "auto"
+        ? { backend: "auto" }
+        : { backend: "service", sandbox_connection_id: "host" },
+    ),
+  );
+  expect(screen.getByRole("combobox", { name: "Project sandbox" })).toHaveTextContent(
+    "Stored files only",
   );
 });

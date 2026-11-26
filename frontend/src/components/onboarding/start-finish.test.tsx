@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { StartFinish } from "./start-finish";
+vi.mock("./start-configuration-guide", () => ({ StartConfigurationGuide: () => null }));
 const env = vi.hoisted(() => ({
   save: vi.fn(),
   push: vi.fn(),

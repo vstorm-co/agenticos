@@ -12,7 +12,12 @@ const env = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  details: { data: { backend: "service" }, isPending: false, isError: false, refetch: vi.fn() },
+  details: {
+    data: { backend: "service", name: "Release planning" },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
   desktop: false,
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => env.details }));
@@ -25,7 +30,7 @@ beforeEach(() => {
   env.project = { data: "project", isPending: false, isError: false, refetch: vi.fn() };
   env.desktop = false;
   env.details = {
-    data: { backend: "service" },
+    data: { backend: "service", name: "Release planning" },
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -40,43 +45,57 @@ beforeEach(() => {
   });
   useChatControlsStore.setState({ byScope: {} });
 });
-it("defaults a project chat to its project and separately chooses the agent executor", async () => {
+it("keeps project files visible and optional command pins collapsed", async () => {
   render(<ProjectExecutionControl agentCapabilities={["sandbox", "projects"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeChecked();
-  await userEvent.click(screen.getByRole("radio", { name: "Agent workspace" }));
-  expect(useWorkOnStore.getState().executionFor("chat")).toBe("agent");
-  expect(screen.getByText(/Choosing project context or files does not switch/)).toBeVisible();
+  expect(screen.getByRole("region", { name: "Release planning" })).toBeVisible();
+  expect(screen.getByText(/The agent keeps its own tools/)).toBeVisible();
+  expect(screen.getByText("Advanced command target").closest("details")).not.toHaveAttribute(
+    "open",
+  );
+  expect(useWorkOnStore.getState().executionFor("chat")).toBeNull();
+  await userEvent.click(screen.getByText("Advanced command target"));
+  const automatic = screen.getByRole("radio", { name: "Automatic — let the agent choose" });
+  expect(automatic).toBeChecked();
+  for (const [label, target] of [
+    ["Project sandbox only", "project"],
+    ["Agent workspace only", "agent"],
+  ]) {
+    await userEvent.click(screen.getByRole("radio", { name: label }));
+    expect(useWorkOnStore.getState().executionFor("chat")).toBe(target);
+  }
+  await userEvent.click(automatic);
+  expect(useWorkOnStore.getState().executionFor("chat")).toBeNull();
 });
-it("does not infer a project for ordinary chats from old file origins", () => {
+it("explains the configured workspace without project choices outside a project", () => {
   env.project.data = null;
   render(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
-  expect(screen.getByRole("radio", { name: "Agent workspace" })).toBeChecked();
-  expect(screen.getByText(/Start a chat in a project/)).toBeVisible();
+  expect(screen.getByText(/uses its configured workspace/)).toBeVisible();
+  expect(screen.queryByRole("radio")).toBeNull();
 });
-it("uses only the matching project draft and preserves local folder consent", async () => {
+it("ignores another project draft and preserves local folder consent", () => {
   useConversationStore.setState({ currentConversationId: null, pendingProjectId: "new-project" });
-  useWorkOnStore.getState().setExecution(null, "different-project", "agent");
+  useWorkOnStore.getState().setExecution(null, "different-project", "project");
   const view = render(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeChecked();
+  expect(screen.getByText("Advanced command target").closest("details")).not.toHaveAttribute(
+    "open",
+  );
   env.desktop = true;
   act(() => useWorkOnStore.getState().set(null, { folder: "/allowed", mode: "read_only" }));
   view.rerender(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
+  expect(screen.queryByText("Advanced command target")).toBeNull();
   expect(screen.getByText(/folder allowed on this computer/)).toBeVisible();
 });
-it("offers files-only context without pretending commands are available", () => {
+it("offers shared files without implying command capability", () => {
   render(<ProjectExecutionControl agentCapabilities={["projects"]} />);
-  expect(screen.queryByRole("radio")).toBeNull();
-  expect(screen.getByText(/has no command execution capability/)).toBeVisible();
+  expect(screen.queryByText("Advanced command target")).toBeNull();
+  expect(screen.getByText(/available without command execution/)).toBeVisible();
 });
-it("does not offer a project choice while its identity is loading or failed", async () => {
+it("shows loading and retries a failed project lookup", async () => {
   env.project.data = undefined;
   env.project.isPending = true;
   const view = render(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
   expect(screen.getByText(/Checking this chat/)).toBeVisible();
-  expect(screen.getByRole("radio", { name: "Agent workspace" })).not.toBeChecked();
+  expect(screen.queryByText("Advanced command target")).toBeNull();
   env.project.isPending = false;
   env.project.isError = true;
   view.rerender(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
@@ -84,32 +103,23 @@ it("does not offer a project choice while its identity is loading or failed", as
   expect(env.project.refetch).toHaveBeenCalledOnce();
   expect(screen.getByRole("alert")).toBeVisible();
 });
-
-it("defaults files-only projects to Agent and explains the separate files", () => {
-  env.details.data.backend = "state";
-  render(<ProjectExecutionControl agentCapabilities={["sandbox", "projects"]} />);
-  expect(screen.getByRole("radio", { name: "Agent workspace" })).toBeChecked();
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
-  expect(screen.getByText(/This project only stores files/)).toBeVisible();
-  expect(useWorkOnStore.getState().executionFor("chat")).toBeNull();
-});
-
-it("retains an explicit Project choice after the project moves to stored files", async () => {
+it("does not offer an absent project executor but can clear a remembered pin", async () => {
   useWorkOnStore.getState().setExecution("chat", "project", "project");
   env.details.data.backend = "state";
-  render(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeChecked();
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
-  expect(useWorkOnStore.getState().executionFor("chat")).toBe("project");
-  await userEvent.click(screen.getByRole("radio", { name: "Agent workspace" }));
-  expect(useWorkOnStore.getState().executionFor("chat")).toBe("agent");
+  render(<ProjectExecutionControl agentCapabilities={["sandbox", "projects"]} />);
+  expect(screen.getByText(/This project has no command environment/)).toBeVisible();
+  await userEvent.click(screen.getByText("Advanced command target"));
+  const project = screen.getByRole("radio", { name: "Project sandbox only" });
+  expect(project).toBeDisabled();
+  expect(project).toBeChecked();
+  await userEvent.click(screen.getByRole("radio", { name: "Automatic — let the agent choose" }));
+  expect(useWorkOnStore.getState().executionFor("chat")).toBeNull();
 });
-
-it("refuses unknown project execution until metadata is checked", async () => {
+it("waits for project metadata and retries failed details", async () => {
   env.details.isPending = true;
   const view = render(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);
-  expect(screen.getByRole("radio", { name: "Project workspace" })).toBeDisabled();
-  expect(screen.getByRole("radio", { name: "Agent workspace" })).not.toBeChecked();
+  expect(screen.queryByText("Advanced command target")).toBeNull();
+  expect(screen.getByRole("region", { name: "Project files" })).toBeVisible();
   env.details.isPending = false;
   env.details.isError = true;
   view.rerender(<ProjectExecutionControl agentCapabilities={["sandbox"]} />);

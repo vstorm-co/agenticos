@@ -52,7 +52,7 @@ async def test_selected_files_persist_and_revoked_membership_blocks_the_next_ope
         granted_scopes=frozenset({"projects:read", "projects:write"}),
     )
     await selector.select(project.id)
-    await selector.workspace.write_text("report.md", "saved in project")
+    await selector.write_file("report.md", "saved in project")
     assert not await original.exists("report.md")
     # A different run opens the persisted document, rather than a cached handle.
     next_run = RunProjectWorkspace(
@@ -63,12 +63,12 @@ async def test_selected_files_persist_and_revoked_membership_blocks_the_next_ope
     )
     assert next_run.project_id is None
     await next_run.select(project.id)
-    assert await next_run.workspace.read_text("report.md") == "saved in project"
-    assert not await next_run.workspace.exists("private.txt")
+    assert "saved in project" in await next_run.read_file("report.md")
+    assert "private.txt" not in await next_run.files()
     await db.execute(delete(OrganizationMember).where(OrganizationMember.organization_id == org.id))
     await db.commit()
     with pytest.raises(PermissionError, match="membership"):
-        await selector.workspace.write_text("report.md", "must not save")
+        await selector.write_file("report.md", "must not save")
     await selector.select(None)
     assert await selector.workspace.read_text("private.txt") == "keep in conversation"
 
@@ -123,8 +123,64 @@ async def test_selection_cannot_cross_tenants_or_private_project_grants(db: Asyn
     db.add(grant)
     await db.commit()
     await selector.select(projects[0].id)
-    await selector.workspace.write_text("notes.md", "shared by grant")
+    await selector.write_file("notes.md", "shared by grant")
     await db.execute(delete(ResourceGrant).where(ResourceGrant.id == grant.id))
     await db.commit()
     with pytest.raises(PermissionError, match="Project not found"):
-        await selector.workspace.read_text("notes.md")
+        await selector.read_file("notes.md")
+
+
+async def test_project_staged_uploads_are_visible_and_final_close_preserves_later_tool_edits(
+    db: AsyncSession,
+) -> None:
+    from functools import partial
+
+    from app.services.agent_runner import _initialize_project_staging
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    user = User(id=uuid4(), email=f"{uuid4()}@example.com", hashed_password="x", is_active=True)
+    db.add(user)
+    await db.flush()
+    org = Organization(
+        id=uuid4(), name="Staging test", slug=str(uuid4()), created_by_user_id=user.id
+    )
+    db.add(org)
+    await db.flush()
+    db.add(OrganizationMember(id=uuid4(), organization_id=org.id, user_id=user.id, role="owner"))
+    project = Project(
+        id=uuid4(),
+        organization_id=org.id,
+        owner_user_id=user.id,
+        name="Staged work",
+        instructions="",
+        backend="state",
+        visibility="private",
+    )
+    db.add(project)
+    await db.commit()
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
+    service = SandboxWorkspaceService(db)
+    staged = await service.open_project(ctx, project)
+    await staged.workspace.write_text("uploads/input.txt", "staged upload")
+    await staged.workspace.write_text("existing.md", "before tools")
+    await db.commit()
+    selector = RunProjectWorkspace(
+        document_workspace(),
+        ctx,
+        audience=RunAudience(user_id=ctx.user_id),
+        granted_scopes=frozenset({"projects:read", "projects:write"}),
+        conversation_project_id=project.id,
+    )
+    selector.initialize(project, execution_target="agent")
+    selector.initialize_project = partial(_initialize_project_staging, staged)
+    with pytest.raises(FileNotFoundError):
+        await selector.read_file("missing.txt")
+    assert "staged upload" in await selector.read_file("uploads/input.txt")
+    assert "before tools" in await selector.read_file("existing.md")
+    await selector.write_file("existing.md", "edited by project tool")
+    await selector.write_file("later.md", "added by project tool")
+    assert await service.close(staged) is None
+    await db.commit()
+    assert "edited by project tool" in await selector.read_file("existing.md")
+    assert "added by project tool" in await selector.read_file("later.md")
+    assert "staged upload" in await selector.read_file("uploads/input.txt")

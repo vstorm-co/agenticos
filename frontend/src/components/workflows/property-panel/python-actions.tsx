@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Trash2 } from "lucide-react";
+import { ArrowDownRight, Braces, Code2, Trash2 } from "lucide-react";
 
 import { Button, Input, Label } from "@/components/ui";
 import { JsonView } from "@/components/ui/json-view";
@@ -12,6 +12,7 @@ import { useMcpToolSchema } from "@/components/workflows/pickers/mcp-tool-picker
 import { NativeSelect } from "@/components/ui/native-select";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 import { nodeCopyKey } from "@/lib/workflows/node-copy";
+import { NodeTile } from "@/components/workflows/node-tile";
 
 import { isPythonConfigInput, isRecord } from "./schema-model";
 
@@ -103,6 +104,61 @@ export function pythonCallOptions(catalog: NodeCatalog, value: Config) {
 
 export type ActionEditorSelection = readonly [string | null, (alias: string | null) => void];
 
+/** Explain the actual values and bindings beside the script, without running it. */
+export function PythonActionsGuide({
+  catalog,
+  value,
+  argKeys,
+}: {
+  catalog: NodeCatalog;
+  value: Config;
+  argKeys: readonly string[];
+}) {
+  const t = useTranslations("workflows");
+  const functions = boundPythonActions(catalog, value).filter((bound) => bound.action);
+  const firstFunction = functions[0];
+  return (
+    <div className="bg-muted/30 space-y-2 rounded-md border p-3 text-xs">
+      <div className="flex items-start gap-2">
+        <Braces className="text-muted-foreground mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <p className="min-w-0 break-words">
+          {t("pythonInputGuide", {
+            keys: argKeys.length ? argKeys.join(", ") : t("pythonInputUnbound"),
+          })}
+        </p>
+      </div>
+      <div className="flex items-start gap-2">
+        <Code2 className="text-muted-foreground mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <p className="min-w-0 break-words">
+          {functions.length
+            ? t("pythonFunctionsGuide", { names: functions.map((bound) => bound.name).join(", ") })
+            : t("pythonFunctionsEmpty")}
+        </p>
+      </div>
+      <div className="flex items-start gap-2">
+        <ArrowDownRight className="text-muted-foreground mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <p>{t("pythonOutputGuide")}</p>
+      </div>
+      <NativeDisclosure className="border-foreground/8 border-t pt-2">
+        <summary className="text-muted-foreground touch:min-h-11 min-h-6 cursor-pointer">
+          {t("pythonExampleGuide")}
+        </summary>
+        <div className="space-y-2 pt-2">
+          <p className="text-muted-foreground">{t("pythonCallGuide")}</p>
+          <pre className="rounded border p-2 font-mono text-[11px] break-all whitespace-pre-wrap">
+            <code>
+              {firstFunction
+                ? `result = ${firstFunction.signature}\nresult`
+                : "result = args\nresult"}
+            </code>
+          </pre>
+          <p className="text-muted-foreground">{t("pythonExamplePlaceholders")}</p>
+        </div>
+      </NativeDisclosure>
+    </div>
+  );
+}
+
 /** Bind a published action contract once. Its input values belong in Python, not the form. */
 export function PythonActions({
   catalog,
@@ -176,6 +232,20 @@ export function PythonActions({
       </NativeSelect>
       {selected && (
         <div className="space-y-2">
+          <div className="flex items-start gap-2 rounded-md border p-2">
+            <NodeTile
+              definitionId={selected.id}
+              category={selected.category}
+              className="size-7 rounded-md"
+              iconClassName="size-4"
+            />
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs font-medium">{selected.name}</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {selected.description}
+              </p>
+            </div>
+          </div>
           <Label htmlFor="python-action-name">{t("pythonFunctionName")}</Label>
           <Input
             id="python-action-name"
@@ -202,12 +272,25 @@ export function PythonActions({
           </Button>
         </div>
       )}
+      {Object.keys(value).length === 0 && !selected && (
+        <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs leading-relaxed">
+          {t("pythonActionsEmpty")}
+        </p>
+      )}
       {boundPythonActions(catalog, value).map((bound) => {
         const { name, binding, action, signature } = bound;
         const outputKeys = properties(action?.output_schema ?? null);
         return (
           <div key={name} className="space-y-2 rounded-md border p-3">
             <div className="flex items-center gap-2">
+              {action && (
+                <NodeTile
+                  definitionId={action.id}
+                  category={action.category}
+                  className="size-8 rounded-md"
+                  iconClassName="size-4"
+                />
+              )}
               <button
                 type="button"
                 data-action-header={name}
@@ -237,6 +320,9 @@ export function PythonActions({
             </div>
             {editing === name && action && (
               <>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  {action.description}
+                </p>
                 {bound.requiredArgs.length > 0 && (
                   <p className="text-muted-foreground text-xs">
                     {t("pythonRequiredConfigArgs", { fields: bound.requiredArgs.join(", ") })}

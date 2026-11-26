@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "97b2091b7431"
+source_sha: "b4ca951d7c1e"
 ---
 
 # Proyectos { #projects }
@@ -88,39 +88,54 @@ revisadas; las evaluaciones aisladas no seleccionan proyectos activos.
 
 ## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
 
-Los archivos del proyecto y la ejecución de comandos están separados:
+Los archivos del proyecto son compartidos; el agente conserva por defecto su propio
+entorno de ejecución, también en un chat del proyecto. Las herramientas generales de
+archivos y los comandos shell usan el mismo ejecutor elegido. Las herramientas
+explícitas de archivos del proyecto siempre usan el proyecto.
 
-| Selección | Valor predeterminado y efecto |
+| Área | Valor predeterminado y efecto |
 |---|---|
-| Contexto del proyecto | Archivos e instrucciones de referencia; se mantienen las reglas del agente y la plataforma |
-| **Trabajar en → Proyecto** | Por defecto en chats del proyecto con contenedor; usa su contenedor ejecutable si las herramientas shell de Sandbox están activadas |
-| **Trabajar en → Agente** | Por defecto fuera del proyecto y en proyectos de solo archivos; usa el ejecutor configurado sin montar archivos del proyecto |
-| Solo almacenar archivos | Funcionan las herramientas de texto; el proyecto no ejecuta comandos |
-| Carpeta de trabajo local | Mantiene el ejecutor local elegido por la persona; el contexto del proyecto no lo sustituye |
+| Contexto del proyecto | Archivos compartidos e instrucciones de referencia; se mantienen las reglas del agente y la plataforma |
+| Workspace del agente | Predeterminado para archivos generales y comandos; conserva las herramientas configuradas |
+| Ejecutor del proyecto | Destino adicional para trabajar directamente con archivos de proyectos con sandbox |
+| Solo almacenar archivos | Herramientas de archivos sin shell; no hay ejecutor del proyecto |
+| Carpeta local | Mantiene el ejecutor local autorizado; el contexto del proyecto no lo reemplaza |
 
-**Trabajar en** aparece en ajustes del chat web y desktop si el agente puede ejecutar
-comandos. Ejecutar en un proyecto requiere uno adjunto o seleccionado antes del
-mensaje. La elección explícita se conserva por cuenta, organización y chat, sin
-heredarse a chats nuevos. La solicitud explícita fija el ejecutor durante toda la
-ejecución; el agente no puede cambiarlo. Sin esa selección puede usar
-`select_execution_target`; `select_project_context` y el antiguo `select_project_workspace` solo cambian
-archivos. El resultado muestra ambas elecciones y su disponibilidad.
+La tarjeta compacta **Herramientas y archivos** describe el proyecto activo.
+**Destino avanzado de comandos** fija Agente o Proyecto o vuelve a la selección
+automática. La elección explícita se conserva por cuenta, organización y chat y fija
+el ejecutor durante toda la ejecución. Sin fijarlo, el agente puede usar
+`select_execution_target` cuando un build u otro comando necesita el entorno del
+proyecto. No necesitas cambiar opciones para cada tarea. Seleccionar no ejecuta
+comandos ni transfiere archivos.
 
-Los chats del proyecto dan acceso real a archivos sin Sandbox. No activan un Sandbox
-desactivado ni conceden herramientas shell ausentes. Siguen las aprobaciones de cada
-herramienta. Tras observar contexto privado se rechaza un ejecutor de agente/canal
-compartido con una audiencia más amplia; limpiar la selección no lo evita. Usa un
-ejecutor aislado de conversación o el del proyecto.
+Si una herramienta especializada necesita un archivo del proyecto en su disco, usa
+`transfer_project_file` con `direction: to_agent`, la ruta del proyecto y la del agente.
+El servidor transfiere los bytes directamente, incluidos binarios de hasta 8 MiB.
+El modelo recibe rutas, tamaño y un comprobante SHA-256, no contenido para reescribir.
+`direction: from_agent` guarda un resultado acordado en el proyecto. Los comandos
+directos en el ejecutor del proyecto no necesitan transferencia.
+
+Es una copia explícita, no un montaje ni sincronización. Los cambios posteriores no se
+propagan. Un destino existente requiere su `expected_sha256` actual; una diferencia
+rechaza el reemplazo. La transferencia vuelve a verificar acceso, generación del
+workspace, límites de rutas y tamaño. El control del hash no bloquea de forma
+transaccional escrituras shell normales. Usa una ruta nueva si no quieres reemplazar
+un archivo conocido.
+
+Los chats del proyecto dan acceso a archivos sin Sandbox y sus cargas permanecen en
+el proyecto. No activan Sandboxes desactivados ni herramientas shell ausentes.
+Se mantienen las aprobaciones de herramientas. El contexto privado no puede entrar en
+un workspace de agente/canal compartido con una audiencia más amplia. Usa aislamiento
+de conversación o el ejecutor del proyecto. Las credenciales personales de herramientas
+de código siguen sin estar disponibles para fuentes de proyecto o compartidas.
 
 Las herramientas de texto listan hasta 100 entradas y leen o escriben UTF-8 de hasta
-256 KB. Rechazan rutas reservadas, enlaces fuera del proyecto, binarios y tamaños
-desconocidos. No ejecutan OCR. Escribir después de leer rechaza un archivo modificado
-en paralelo. El proyecto mantiene su conexión sandbox hasta que un editor lo traslada
-explícitamente.
-
-Tras continuar una aprobación o pregunta hay que volver a leer cada archivo
-existente del proyecto antes de reemplazarlo o borrarlo. El agente de código requiere
-el mismo workspace para archivos y comandos; los espacios separados se rechazan.
+256 KB. Rechazan rutas reservadas, enlaces fuera del proyecto, texto binario y tamaños
+desconocidos; no ejecutan OCR. Las escrituras después de una lectura detectan cambios.
+Tras continuar una aprobación o pregunta, vuelve a leer cada archivo existente antes
+de reemplazarlo o borrarlo. El proyecto mantiene su conexión sandbox hasta que un
+editor lo traslada explícitamente.
 
 El trabajo delegado recibe un snapshot fijo del proyecto, generación y ejecutor.
 El primer delegado que comparte workspace bloquea estas opciones hasta terminar la
@@ -131,12 +146,15 @@ Tras la limpieza se rechazan nuevas operaciones de archivos y comandos. Las oper
 remotas ya admitidas conservan los plazos de cancelación y vida útil del proveedor;
 la limpieza no garantiza que hayan terminado.
 
-Al crear un proyecto, **Sandbox del proyecto** permite elegir una conexión
-registrada, la selección automática o **Solo almacenar archivos**. La selección
-automática conserva la conexión elegida al crear el proyecto; si no hay ninguna,
-almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
+Los proyectos nuevos usan **Solo almacenar archivos** por defecto: los archivos
+compartidos y las instrucciones no necesitan un contenedor en ejecución, aunque la
+organización tenga un sandbox disponible. Si el proyecto necesita su propio entorno
+de ejecución, elige explícitamente una conexión registrada o la selección automática
+en **Sandbox del proyecto**.
+
+La selección automática conserva la conexión elegida al crear el proyecto; si no hay ninguna, almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
 activa de tu organización. Los ajustes muestran su nombre y entorno de ejecución.
-Los chats del proyecto usan sus archivos y, en contenedores que ejecutan comandos, su ejecutor por defecto si las herramientas shell están activadas.
+Los chats del proyecto usan archivos compartidos y mantienen por defecto el ejecutor del agente. El ejecutor del proyecto es una opción adicional si las herramientas shell están activadas.
 Los editores pueden usar **Cambiar sandbox** para trasladar un proyecto existente con sus archivos.
 
 Un trabajo duradero en segundo plano copia archivos y carpetas vacías a un espacio

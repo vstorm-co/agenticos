@@ -7,7 +7,8 @@ import { Button } from "@/components/ui";
 import { SectionCard } from "./settings-section";
 import { OnboardingReminderControls } from "./onboarding-reminder-controls";
 import { ConsoleCatalogControls } from "./console-catalog-controls";
-import { ConsoleNavigationControls } from "./console-navigation-controls";
+import { ConsoleNavigationDialog } from "./console-navigation-dialog";
+import { PanelLeft, Library, Megaphone, MessageSquare, Coins, BellRing } from "lucide-react";
 import { ConsoleNoticeControls } from "./console-notice-controls";
 import { PersonalChatCostControl } from "./chat-cost-controls";
 import { ChatHomeControls } from "./chat-home-controls";
@@ -25,24 +26,16 @@ export function ChatHomePreferences() {
       {experience.data?.presentation && (
         <SectionCard
           title={t("presentation.personalTitle")}
+          icon={PanelLeft}
           description={t("presentation.personalHint")}
-          tour="personal-console-navigation"
         >
-          <ConsoleNavigationControls
-            key={`${experience.organizationId}-${experience.userId}`}
-            showUnavailable={false}
-            value={experience.data.presentation.preferences.navigation}
-            allowed={experience.data.presentation.organization_navigation}
-            disabled={experience.save.isPending}
-            onSave={(navigation, onSaved) =>
-              experience.save.mutate({ console: { navigation } }, onSaved)
-            }
-          />
+          <ConsoleNavigationDialog key={`${experience.organizationId}-${experience.userId}`} />
         </SectionCard>
       )}
       {experience.data?.presentation && (
         <SectionCard
           title={t("catalogs.personalTitle")}
+          icon={Library}
           description={t("catalogs.personalHint")}
           tour="personal-console-catalogs"
         >
@@ -69,6 +62,7 @@ export function ChatHomePreferences() {
       {experience.data?.presentation && (
         <SectionCard
           title={t("presentation.noticesTitle")}
+          icon={Megaphone}
           description={t("presentation.personalNoticesHint")}
           tour="personal-console-notices"
         >
@@ -88,7 +82,7 @@ export function ChatHomePreferences() {
           />
         </SectionCard>
       )}
-      <SectionCard title={t("title")} description={t("personalHint")}>
+      <SectionCard icon={MessageSquare} title={t("title")} description={t("personalHint")}>
         {experience.isPending ? (
           <LoadingState variant="skeleton-list" rows={4} />
         ) : experience.error || !experience.data ? (
@@ -122,6 +116,7 @@ export function ChatHomePreferences() {
       </SectionCard>
       <SectionCard
         title={t("costs.title")}
+        icon={Coins}
         description={t("costs.personalHint")}
         tour="personal-chat-costs"
       >
@@ -133,7 +128,11 @@ export function ChatHomePreferences() {
           />
         )}
       </SectionCard>
-      <SectionCard title={t("remindersTitle")} description={t("remindersPersonalHint")}>
+      <SectionCard
+        icon={BellRing}
+        title={t("remindersTitle")}
+        description={t("remindersPersonalHint")}
+      >
         {experience.data && (
           <OnboardingReminderControls
             value={experience.data.reminders.preferences}

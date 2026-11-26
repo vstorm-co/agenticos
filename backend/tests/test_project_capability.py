@@ -23,6 +23,7 @@ def port() -> SimpleNamespace:
         files=AsyncMock(return_value="files"),
         read_file=AsyncMock(return_value="text"),
         write_file=AsyncMock(return_value="saved"),
+        transfer_file=AsyncMock(return_value="receipt"),
     )
 
 
@@ -34,6 +35,7 @@ def port() -> SimpleNamespace:
         ("list_project_files", ("notes",), "files"),
         ("read_project_file", ("notes/a.md",), "read_file"),
         ("write_project_file", ("notes/a.md", "agreed"), "write_file"),
+        ("transfer_project_file", ("to_agent", "input.bin", "input.bin", None), "transfer_file"),
     ],
 )
 async def test_tools_keep_the_admitted_port_and_sequential_barrier(
@@ -79,7 +81,10 @@ def test_registry_declares_every_tool_and_write_policy_and_requires_scopes(
     definition = get("projects")
     assert definition is not None
     assert {tool.id for tool in definition.tools} == set(project_tools(port).tools)
-    assert {tool.id for tool in definition.tools if tool.side_effecting} == {"write_project_file"}
+    assert {tool.id for tool in definition.tools if tool.side_effecting} == {
+        "write_project_file",
+        "transfer_project_file",
+    }
     with pytest.raises(BadRequestError):
         build(
             [CapabilityBinding(capability_id="projects")],

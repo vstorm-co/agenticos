@@ -43,7 +43,14 @@ def setup(monkeypatch):
 
 async def test_visible_resources_search_and_apps_without_description(setup, monkeypatch):
     service, ctx, project_id, repo = setup
-    agent = Agent(id=uuid4(), name="Research", description="Market analysis")
+    agent = Agent(
+        id=uuid4(),
+        name="Research",
+        slug="research",
+        description="Market analysis",
+        avatar_color=3,
+        avatar_url="private-picture",
+    )
     app = Artifact(id=uuid4(), name="dashboard", title="Sales dashboard")
     hidden = Agent(id=uuid4(), name="Private", description="Secret")
     links = [(ProjectResource(is_entrypoint=False), row) for row in (agent, hidden)]
@@ -54,11 +61,17 @@ async def test_visible_resources_search_and_apps_without_description(setup, monk
     result = await service.list_resources(ctx, project_id, search="research")
     assert [item.resource_id for item in result.items] == [agent.id]
     assert result.total == 1
+    assert result.items[0].slug == "research"
+    assert result.items[0].has_avatar is True
+    assert result.items[0].avatar_color == 3
+    assert "private-picture" not in result.model_dump_json()
     repo.list_resources.side_effect = [[], [], [(ProjectResource(is_entrypoint=False), app)], []]
     monkeypatch.setattr(module, "accessible_ids", AsyncMock(return_value={app.id}))
     result = await service.list_resources(ctx, project_id)
     assert result.items[0].description is None
     assert result.items[0].name == "Sales dashboard"
+    assert result.items[0].slug is None
+    assert result.items[0].has_avatar is False
 
 
 async def test_project_access_is_checked_before_any_member_query(setup):

@@ -1,23 +1,35 @@
 # Project execution controls — 26 November 2026
 
-The console's Work on settings separate a project's file context from the
-workspace that executes commands. Attached project chats default to the project;
-ordinary chats default to the agent. A files-only agent gets an explanation,
-without controls that pretend to enable a shell.
+## Follow-up after discussion #3272
 
-A choice applies to the next message. Explicit preferences are scoped to account,
-organization and conversation. A draft is tied to its project and moves to the
-created conversation without becoming another new chat's default. Embedded
-Architect and Builder conversations do not inherit the main chat's executor.
-The authenticated server still resolves project access and owns admission.
+This contract supersedes the earlier candidate's Project-default command policy.
+The main Tools & files card describes the active project's shared files rather
+than asking every member to choose a command target. Advanced settings retain
+explicit Agent/Project pins and offer automatic selection without a request pin.
+Generic file tools and commands default to the agent's own executor, including in
+attached project chats. Explicit project tools always address the project store.
+The model may select the additional project executor for direct builds without a
+manual user toggle, subject to enabled shell tools and existing approval rules.
 
-Local folder consent takes precedence over a remembered cloud choice. Switching
-back to cloud makes that explicit cloud choice available again. A missing or
-unreadable project disables Project; pending metadata never flashes a selected
-Agent executor as if the project had already been resolved. Dynamic project
-selection in other chats remains run-scoped and is not inferred from file history.
+`transfer_project_file` sends one bounded file as bytes between the authoritative
+project store and the agent workspace, without model-mediated content copying.
+It accepts `to_agent` or `from_agent`, relative paths and an optional current
+`expected_sha256` for replacement. It refuses unknown/over-limit sizes, escaping
+paths, unconfirmed overwrite, stale destination digests and changed project
+selection. A receipt reports actual paths, bytes and SHA-256. Later edits do not
+synchronize and arbitrary shell writes are not transactionally locked. Direct
+project commands need no transfer. No cross-provider shared mount is promised.
 
-Verification: 42 focused control/layout/store tests, plus five exact outgoing-frame
-regressions (four workspace/default/local cases and one embedded-chat isolation
-case). Type checking and scoped ESLint pass. Commit hooks and aggregate CI are
-recorded separately; these component tests do not claim a live provider run.
+Explicit preferences remain scoped to account, organization and conversation.
+Local folder consent remains authoritative. Ordinary chat/channel selections
+remain run-local; attached project chats always begin with their own project.
+Unknown audiences cannot receive private project context. Personal coding-account
+credentials remain unavailable on project/shared sources.
+
+## Evidence boundary
+
+The earlier 42 control/layout/store tests and five outgoing-frame regressions
+covered the prior candidate, not this follow-up. Focused port, transfer, control,
+layout and outgoing-frame checks for the new behavior are recorded by its change
+and CI. A passing synthetic component test is not a live provider run or a shared
+mount acceptance test.

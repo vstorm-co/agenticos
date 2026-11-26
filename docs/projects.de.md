@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "97b2091b7431"
+source_sha: "b4ca951d7c1e"
 ---
 
 # Projekte { #projects }
@@ -89,39 +89,53 @@ Quellen beschränkt; isolierte Evaluationen wählen keine aktiven Projekte.
 
 ## Was ein Agent im Projekt bekommt { #what-an-agent-gets-in-a-project }
 
-Projektdateien und Befehlsausführung sind getrennt:
+Projektdateien werden gemeinsam genutzt; der Agent behält standardmäßig seine eigene
+Ausführungsumgebung, auch im Projektchat. Allgemeine Dateiwerkzeuge und Shellbefehle
+nutzen denselben gewählten Executor. Explizite Projektdateiwerkzeuge nutzen immer das Projekt.
 
-| Auswahl | Standard und Wirkung |
+| Bereich | Standard und Wirkung |
 |---|---|
-| Projektkontext | Dateien und Referenzanweisungen des Projekts; Agenten- und Plattformregeln gelten weiterhin |
-| **Arbeiten in → Projekt** | Standard in Projektchats mit Container; nutzt den ausführbaren Projektcontainer, sofern Sandbox-Shellwerkzeuge aktiviert sind |
-| **Arbeiten in → Agent** | Standard außerhalb von Projektchats und bei reinen Dateiprojekten; nutzt den konfigurierten Agenten-Executor ohne eingebundene Projektdateien |
-| Nur Dateien speichern | Textwerkzeuge funktionieren; das Projekt führt keine Befehle aus |
-| Lokaler Arbeitsordner | Behält den vom Benutzer gewählten lokalen Executor; Projektkontext ersetzt ihn nicht |
+| Projektkontext | Gemeinsame Dateien und Referenzanweisungen; Agenten- und Plattformregeln gelten weiter |
+| Agenten-Workspace | Standard für allgemeine Dateiwerkzeuge und Befehle; behält die konfigurierte Werkzeugumgebung |
+| Projekt-Executor | Zusätzliches Befehlsziel für direkte Arbeit an Dateien eines servicegestützten Projekts |
+| Nur Dateien speichern | Dateiwerkzeuge ohne Shell; kein Projekt-Executor verfügbar |
+| Lokaler Arbeitsordner | Behält den genehmigten lokalen Executor; Projektkontext ersetzt ihn nicht |
 
-**Arbeiten in** steht in Chat-Einstellungen auf Web und Desktop bei aktivierter
-Befehlsausführung. Projektausführung benötigt ein angehängtes oder vorab gewähltes
-Projekt. Eine explizite Auswahl gilt für Konto, Organisation und Chat, nicht für neue
-Chats. Die explizite Anfrage bindet den Executor für den ganzen Lauf; der Agent
-kann ihn nicht ändern. Ohne diese Auswahl darf er `select_execution_target` verwenden;
-`select_project_context` und das ältere `select_project_workspace` ändern nur Dateien.
-Das Werkzeug meldet beide Auswahlen und ihre Verfügbarkeit.
+Die kompakte Karte **Werkzeuge und Dateien** beschreibt das aktive Projekt.
+**Erweitertes Befehlsziel** fixiert Agent oder Projekt oder kehrt zur automatischen
+Auswahl zurück. Eine explizite Wahl gilt für Konto, Organisation und Chat und bindet
+den Executor für den ganzen Lauf. Ohne Fixierung kann der Agent mit
+`select_execution_target` für Builds oder andere Befehle die Projektumgebung wählen.
+Du musst nicht für jede Aufgabe umschalten. Die Auswahl führt keinen Befehl aus und
+überträgt keine Datei.
 
-Projektchats geben echten Dateizugriff auch ohne Sandbox. Sie aktivieren keine
-deaktivierte Sandbox und gewähren keine fehlenden Shellwerkzeuge. Werkzeugfreigaben
-gelten weiterhin. Nach Einsicht in privaten Projektkontext wird ein mit größerem
-Publikum geteilter Agenten-/Kanal-Executor abgelehnt; Löschen der Auswahl umgeht dies
-nicht. Stattdessen einen isolierten Gesprächs- oder Projekt-Executor verwenden.
+Benötigt ein Spezialwerkzeug eine Projektdatei auf der eigenen Festplatte, verwende
+`transfer_project_file` mit `direction: to_agent`, Projektpfad und Agentenpfad.
+Der Server überträgt Bytes direkt, auch Binärdateien bis 8 MiB. Das Modell erhält
+Pfade, Größe und einen SHA-256-Beleg statt umzuschreibender Inhalte.
+`direction: from_agent` speichert ein vereinbartes Ergebnis im Projekt.
+Direkte Befehle im Projekt-Executor benötigen keine Übertragung.
+
+Dies ist eine explizite Kopie, kein Mount und keine Synchronisierung. Spätere Änderungen
+werden nicht weitergegeben. Ein vorhandenes Ziel benötigt seinen aktuellen
+`expected_sha256`; Abweichungen verhindern das Ersetzen. Die Übertragung prüft Zugriff,
+Workspace-Generation, Pfadgrenzen und Größe erneut. Diese Hash-Prüfung sperrt gewöhnliche
+Shellschreibvorgänge nicht transaktional. Wähle einen neuen Ergebnispfad, wenn keine
+bekannte Datei ersetzt werden soll.
+
+Projektchats bieten Dateizugriff ohne Sandbox; ihre Uploads bleiben im Projekt.
+Sie aktivieren weder deaktivierte Sandboxes noch fehlende Shellwerkzeuge.
+Werkzeugfreigaben gelten weiter. Privater Projektkontext darf nicht in einen
+Agenten-/Kanal-Workspace mit größerem Publikum gelangen. Nutze Gesprächsisolation oder
+den Projekt-Executor. Persönliche Coding-Zugangsdaten bleiben für Projekt- und
+geteilte Quellen gesperrt.
 
 Projekt-Textwerkzeuge listen bis zu 100 Einträge und lesen oder schreiben UTF-8 bis
-256 KB. Reservierte Pfade, ausbrechende Symlinks, Binärdateien und unbekannte Größen
-werden abgelehnt; OCR startet nicht. Schreiben nach dem Lesen lehnt eine inzwischen
-geänderte Datei ab. Das Projekt behält seine Sandbox-Verbindung bis zu einer
-expliziten Übertragung durch einen Editor.
-
+256 KB. Reservierte Pfade, ausbrechende Symlinks, Binärtext und unbekannte Größen
+werden abgelehnt; OCR startet nicht. Schreiben nach dem Lesen erkennt Änderungen.
 Nach Fortsetzung einer Freigabe oder Frage muss eine bestehende Projektdatei vor
-Ersetzen oder Löschen erneut gelesen werden. Coding-Werkzeuge benötigen denselben
-Workspace für Dateien und Befehle; getrennte Namensräume werden abgelehnt.
+Ersetzen oder Löschen erneut gelesen werden. Eine Sandbox-Verbindung bleibt bis zur
+expliziten Übertragung durch einen Editor bestehen.
 
 Delegierte Arbeit erhält einen festen Projekt-, Generations- und Executor-Snapshot.
 Der erste Delegate mit geteiltem Workspace sperrt diese Auswahl bis zum Laufende,
@@ -132,12 +146,16 @@ Aufräumen werden neue Datei- und Befehlsoperationen abgelehnt. Bereits zugelass
 Remote-Operationen behalten bisherige Abbruchfristen und Anbieter-Lebenszeiten;
 Aufräumen garantiert nicht, dass sie bereits beendet sind.
 
-Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
-die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl
-behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
-Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
+Neue Projekte verwenden standardmäßig **Nur Dateien speichern**: gemeinsame Dateien
+und Anweisungen benötigen keinen laufenden Container, auch wenn die Organisation eine
+verfügbare Sandbox hat. Wenn das Projekt eine eigene Ausführungsumgebung benötigt,
+wähle unter **Projekt-Sandbox** ausdrücklich eine registrierte Verbindung oder die
+automatische Auswahl.
+
+Diese behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung
+werden Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
 eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
-Verbindungsnamen und Laufzeitumgebung. Projektchats nutzen ihre Dateien und bei befehlsfähigen Containern standardmäßig ihren Executor, wenn Shellwerkzeuge aktiviert sind. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+Verbindungsnamen und Laufzeitumgebung. Projektchats nutzen gemeinsame Dateien und behalten standardmäßig den Agenten-Executor. Bei aktivierten Shellwerkzeugen ist der Projekt-Executor zusätzlich wählbar. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
 
 Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
 in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und

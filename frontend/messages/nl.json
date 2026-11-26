@@ -1499,16 +1499,21 @@
       },
       "afterFirstMessage": "Beschikbaar na het eerste bericht.",
       "projectExecution": {
-        "title": "Opdrachten uitvoeren in",
-        "agent": "Werkruimte van agent",
-        "project": "Werkruimte van project",
-        "hint": "Geldt voor het volgende bericht. Projectcontext of bestanden kiezen verandert de uitvoerlocatie niet.",
-        "filesOnly": "Deze agent kan projectbestanden en context gebruiken, maar geen opdrachten uitvoeren.",
-        "projectFilesOnly": "Dit project slaat alleen bestanden op. Kies de agentwerkruimte om opdrachten uit te voeren; projectbestanden blijven gescheiden.",
-        "noProject": "Start een chat in een project om de werkruimte te kiezen. Vraag de agent in andere chats een project voor deze uitvoering te kiezen.",
-        "local": "Opdrachten gebruiken de toegestane map op deze computer. Ga terug naar de cloud om dit te wijzigen.",
-        "loading": "Het project van deze chat controleren…",
-        "unavailable": "Het project kon niet worden gecontroleerd. Probeer opnieuw voordat je de werkruimte kiest."
+        "title": "Projectbestanden",
+        "hint": "Gedeelde bestanden blijven in het project. De agent behoudt zijn tools en kan zo nodig de projectsandbox gebruiken.",
+        "filesOnly": "Gedeelde projectbestanden zijn beschikbaar zonder opdrachten uit te voeren.",
+        "projectFilesOnly": "Gedeelde bestanden blijven in het project. Dit project heeft geen opdrachtomgeving; de agent behoudt zijn tools.",
+        "local": "Projectbestanden blijven gedeeld. Opdrachten gebruiken nog steeds de toegestane map op deze computer.",
+        "loading": "Project van deze chat controleren…",
+        "unavailable": "Het project kon niet worden gecontroleerd. Probeer opnieuw om de huidige workspace te zien.",
+        "advanced": "Geavanceerd opdrachtdoel",
+        "commandTarget": "Opdrachtdoel",
+        "automatic": "Automatisch — de agent kiest",
+        "agent": "Alleen agentworkspace",
+        "project": "Alleen projectsandbox",
+        "overrideHint": "Optioneel: stel het opdrachtdoel voor deze chat vast. Automatisch begint in de eigen omgeving van de agent.",
+        "noProject": "De agent gebruikt zijn ingestelde workspace. Vraag hem zo nodig een project te gebruiken.",
+        "workspace": "Agentworkspace"
       }
     },
     "conversationArchived": "Dit gesprek is gearchiveerd",
@@ -2199,7 +2204,9 @@
       "selectingProjectContext": "Projectcontext kiezen…",
       "selectedProjectContext": "Projectcontext gekozen",
       "selectingExecutionTarget": "Uitvoerdoel kiezen…",
-      "selectedExecutionTarget": "Uitvoerdoel gekozen"
+      "selectedExecutionTarget": "Uitvoerdoel gekozen",
+      "transferringProjectFile": "Projectbestand overdragen…",
+      "transferredProjectFile": "Projectbestand overgedragen"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",
@@ -6327,6 +6334,10 @@
       "workflow-python-actions": {
         "title": "Tools aanroepen vanuit Python",
         "body": "Kies Python met acties om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam en voeg de aanroep toe via het menu onder de editor. Elke aanroep heeft eigen goedkeuringen en een eigen uitvoeringsrecord."
+      },
+      "project-resources": {
+        "title": "Houd gerelateerde bronnen bij elkaar",
+        "body": "Koppel bestaande agents, workflows, Apps en tabellen zonder hun rechten te wijzigen. Open ze hier of kies een gekoppelde workflow als ingang van het project."
       }
     },
     "chooseLanguage": "Taal",
@@ -12514,6 +12525,15 @@
     "webhookSourceAudience": "Wie de runs van deze workflow kan bekijken, kan de gegevens zien die de gebeurtenisbron heeft geleverd. Als je de workflow later deelt, geldt dat ook voor eerdere runs. Een run bekijken geeft geen toegang tot de bron.",
     "pythonActions": "Beschikbare functies",
     "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonInputGuide": "Invoer · Lees gekoppelde waarden uit args: {keys}",
+    "pythonInputUnbound": "nog geen invoervelden gekoppeld",
+    "pythonFunctionsGuide": "Functies · Roep {names} aan met benoemde argumenten.",
+    "pythonFunctionsEmpty": "Functies · Voeg hieronder een actie toe om de functie in je script te gebruiken.",
+    "pythonOutputGuide": "Uitvoer · De laatste expressie wordt het resultaat van deze stap.",
+    "pythonExampleGuide": "Deze stap schrijven",
+    "pythonCallGuide": "Gebruik args voor invoerwaarden en roep gekoppelde functies op naam aan. Een functie geeft het resultaat van de actie terug; eindig met de waarde voor de volgende stap.",
+    "pythonExamplePlaceholders": "Vervang elke ... door een invoerwaarde of letterlijke waarde. Een functie toevoegen of het script bewerken voert geen actie uit.",
+    "pythonActionsEmpty": "Nog geen acties gekoppeld. Kies een actie, geef deze een Python-naam en voeg de aanroep in het script in. Je kunt ook met args rekenen zonder een actie aan te roepen.",
     "pythonActionsDiscover": "Voeg een stap Python met acties toe om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam.",
     "pythonSelectAction": "Selecteer een actie",
     "pythonInsertCall": "Functieaanroep invoegen",
@@ -15074,7 +15094,8 @@
       "remove": "{name} uit project verwijderen",
       "kind": "Brontype",
       "addSelected": "Selectie toevoegen ({count})",
-      "filterHint": "Kies een project om deze catalogus te filteren."
+      "filterHint": "Kies een project om deze catalogus te filteren.",
+      "noMatches": "Geen overeenkomende resources."
     }
   },
   "voiceGlow": {
@@ -18693,6 +18714,20 @@
       "position": "{current} van {total}",
       "continue": "Doorgaan",
       "finish": "Doorgaan met instellen"
+    },
+    "configurationGuide": {
+      "title": "Optionele instellingen ontdekken",
+      "hint": "Je kunt de installatie nu afronden en later naar deze opties terugkeren. Een link openen verandert geen instellingen.",
+      "preferencesTitle": "Maak de console persoonlijk",
+      "preferencesBody": "Kies zijbalkitems, catalogusontdekking, zichtbare chatkosten en producttips binnen de grenzen van je organisatie.",
+      "projectsTitle": "Houd werk samen in projecten",
+      "projectsBody": "Deel bestanden, instructies en gekoppelde bronnen tussen chats. Agents behouden hun eigen tools; een optionele projectsandbox voert gedeelde builds uit.",
+      "transferTitle": "Agents exporteren en importeren",
+      "transferBody": "Kies welke Skills, Context en kennisinhoud meegaan. Controleer afhankelijkheden voor het importeren; accountgeheimen en zoekindexen worden niet overgedragen.",
+      "workflowTitle": "Workflows met Python-acties bouwen",
+      "workflowBody": "Koppel tools aan benoemde functies en roep ze aan vanuit Python. Elke actie behoudt de eigen rechten, goedkeuringen en het uitvoeringslogboek.",
+      "organizationTitle": "Organisatiestandaarden instellen",
+      "organizationBody": "Configureer navigatie, catalogi, dashboard en meldingen per rol en bepaal de zichtbaarheid van kosten. Leden kunnen toegestane opties persoonlijk aanpassen."
     }
   },
   "skillImprovement": {
@@ -21969,7 +22004,8 @@
         "member": "Lid",
         "viewer": "Lezer"
       },
-      "loadError": "Consolevoorkeuren konden niet worden geladen."
+      "loadError": "Consolevoorkeuren konden niet worden geladen.",
+      "customizeNavigation": "Zijbalk aanpassen"
     },
     "catalogs": {
       "personalTitle": "Catalogi",
@@ -22125,7 +22161,19 @@
     "importLegacy": "Ouder workflowbestand importeren",
     "exportLegacy": "Ouder workflowbestand exporteren",
     "startNewTransfer": "Nieuwe overdracht starten",
-    "unsupportedMapping": "Deze bron heeft geen importadapter. Sla de koppeling over en stel deze in de doeleditor in."
+    "unsupportedMapping": "Deze bron heeft geen importadapter. Sla de koppeling over en stel deze in de doeleditor in.",
+    "searchResources": "Inbegrepen resources zoeken",
+    "noResources": "Geen overeenkomende resources.",
+    "groups": {
+      "root": "Vereiste definitie",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Kennisbanken",
+      "connections": "Modellen en verbindingen",
+      "other": "Overige resources"
+    }
   },
   "stepFailure": {
     "technicalDetails": "Technische details",

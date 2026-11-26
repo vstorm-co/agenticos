@@ -1196,7 +1196,7 @@ class TestPrepare:
         if not aside:
             assert prepared.project_workspace is not None
             assert prepared.project_workspace.execution_target == (
-                "project" if project_backend == "service" else "agent"
+                "project" if explicit_project_executor and project_backend == "service" else "agent"
             )
         assert opened.await_args.kwargs["scope_override"] == "project"
         # Handed to the open itself: preparing already opens the session (#2222).
@@ -2454,9 +2454,18 @@ class TestFilesAcrossOneTurn:
         prepared = _prepared()
         prepared.workspace = _sandbox(StateBackend())
         executor = MagicMock()
-        prepared.project_workspace = SimpleNamespace(
-            agent_workspace=executor, agent_workspace_at_start={"existing.txt"}
+        from app.services.run_project_workspace import RunProjectWorkspace
+
+        actor = _ctx()
+        selector = RunProjectWorkspace(
+            prepared.workspace.workspace,
+            actor,
+            audience=RunAudience(user_id=actor.user_id),
+            granted_scopes=frozenset(),
         )
+        selector.agent_workspace = executor
+        selector.agent_workspace_at_start = {"existing.txt"}
+        prepared.project_workspace = selector
         with patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written:
             written.return_value = SimpleNamespace(attachments=["report.txt"], refused=[])
             await AgentRunnerService._collect_outbound(prepared)
@@ -12261,3 +12270,62 @@ async def test_project_run_origin_keeps_native_files_in_the_agent_namespace(
     if local_folder is None:
         expected.update(kind="project", project_id=str(project_id))
     origins.assert_awaited_once_with(db, run=prepared.run, origins=[expected])
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("recorded_project", [True, False])
+async def test_preparation_briefs_and_materialises_agent_skills_in_its_own_executor(
+    recorded_project: bool,
+) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from tests.workspaces import document_workspace
+
+    project_document, agent_document = StateBackend(), StateBackend()
+    staged, agent = _sandbox(project_document), _sandbox(agent_document)
+    staged.briefing = "PROJECT_ONLY_TOOLCHAIN_SENTINEL"
+    if not recorded_project:
+        staged.workspace = document_workspace(project_document)
+    project = MagicMock(
+        id=uuid4(),
+        description=None,
+        instructions="Reference only.",
+        backend="state",
+        sandbox_connection_id=None,
+        runtime=None,
+        workspace_generation=uuid4(),
+    )
+    project.name = "Reference project"
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Worker",
+            "capabilities": [{"id": "sandbox", "config": {"backend": "service"}}],
+        }
+    )
+    with patch(
+        "app.services.agent_runner.ProjectService.for_run", new=AsyncMock(return_value=project)
+    ):
+        prepared, instructions, *_ = await TestAThreadsEarlierAttachmentsAreBroughtBack._prepare(
+            staged,
+            None,
+            spec=spec,
+            use_workspace=not recorded_project,
+            resolve_skills=AsyncMock(return_value=[_skill()]),
+        )
+    assert "PROJECT_ONLY_TOOLCHAIN_SENTINEL" not in instructions
+    assert "Bound skill files are prepared only in your agent workspace" in instructions
+    assert project_document.files == {}
+    factory = prepared.project_workspace.open_agent_executor
+    with patch(
+        "app.services.agent_runner.SandboxWorkspaceService",
+        return_value=SimpleNamespace(open=AsyncMock(return_value=agent)),
+    ):
+        assert await factory(_db(), _ctx()) is agent
+    assert agent_document.files == {}
+    await agent.workspace.exists("first-use")
+    assert agent_document.read_bytes(f"{SKILLS_ROOT}/reconcile/reconcile.py") == b"print('ok')"
+    assert project_document.files == {}
+    assert prepared.materialised_skills is not None

@@ -96,7 +96,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
-from pydantic_ai.workspaces import Workspace
+from pydantic_ai.workspaces import Workspace, WorkspaceUnavailableError
 from pydantic_ai_harness.ask_user import DECLINED, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.guardrails import GuardrailResult
@@ -2514,12 +2514,14 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
         "use the project file tools first for project work. Project reference guidance below "
         "applies within your own and the platform's rules, never changes tool permissions, "
         "and does not activate its default agent or linked resources. No private files are copied. "
-        "Shell commands use the explicitly selected executor. Service-backed project chats default "
-        "to the project executor; files-only projects and an explicitly selected local folder "
-        "use the agent executor. "
+        "Generic file tools and shell commands use your own workspace by default. "
+        "The explicit project file tools always use the shared project. "
         "Files-only projects have no executor. Your own configured coding tools remain available "
         "in your own command environment; choose the project executor explicitly when a command "
-        "must act on service-backed project files. There is no implicit file mount or sync.\n\n"
+        "must act directly on service-backed project files. Use transfer_project_file for bounded "
+        "binary transfers when your own tools need a project input, or to save an agreed result "
+        "back to the project. Returned paths belong to the named workspace, not both. "
+        "There is no implicit file mount or sync.\n\n"
         "Several project members may speak here; address the person whose message you answer.\n\n"
         f"<project_reference>\n{reference}\n</project_reference>"
     )
@@ -2659,6 +2661,7 @@ def _start_turn_on_first_use(
     earlier: EarlierAttachments | None = None,
     can_parse: bool = False,
     checked_earlier: bool = False,
+    include_skills: bool = True,
 ) -> None:
     """Write the run's skills, put back the thread's attachments and take the
     run's snapshot when the sandbox is first used.
@@ -2671,13 +2674,53 @@ def _start_turn_on_first_use(
     """
 
     async def start() -> None:
-        prepared.materialised_skills = await materialise_skills(workspace, skills, bodies)
+        if include_skills:
+            prepared.materialised_skills = await materialise_skills(workspace, skills, bodies)
         if earlier is not None:
             await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
         prepared.earlier_attachments_checked = checked_earlier
         prepared.workspace_at_start = await workspace_snapshot(workspace)
 
     workspace.prepare_on_first_use(start)
+
+
+async def _start_agent_skills_on_first_use(
+    opened: OpenWorkspace,
+    prepared: PreparedRun,
+    skills: list[Skill],
+    bodies: Mapping[UUID, SkillBody],
+) -> None:
+    """Keep bound scripts and their proposal baseline in the agent's executor."""
+
+    async def start() -> None:
+        prepared.materialised_skills = await materialise_skills(opened.workspace, skills, bodies)
+
+    if isinstance(opened.workspace, RecordingWorkspace):
+        opened.workspace.prepare_on_first_use(start)
+    else:
+        await start()
+
+
+async def _initialize_project_staging(
+    workspace: OpenWorkspace, db: AsyncSession
+) -> Callable[[], None] | None:
+    """Restore uploads; acknowledge their baseline only after this transaction commits."""
+    await workspace.workspace.working_dir()
+    if workspace.kind != "state":
+        return None
+    document = workspace.document
+    if document is None:
+        raise WorkspaceUnavailableError("The project's stored file document is unavailable.")
+    failure = await SandboxWorkspaceService(db).close(workspace, keep_spills=True)
+    if failure is not None:
+        raise WorkspaceUnavailableError(failure.error.message)
+    files, directories = dict(document.files), tuple(document.directories)
+
+    def settled() -> None:
+        workspace.opened_files = files
+        workspace.opened_directories = directories
+
+    return settled
 
 
 def _untouched(workspace: OpenWorkspace) -> bool:
@@ -2705,11 +2748,19 @@ the writes can have happened - on a sandbox they wait for its first use - so it
 does not claim they succeeded: a write can still be refused, and is only logged."""
 
 
-def _with_earlier_attachments_briefing(spec: AgentSpec) -> AgentSpec:
+def _with_earlier_attachments_briefing(
+    spec: AgentSpec, *, project_files: bool = False
+) -> AgentSpec:
     """The spec told that the thread's attachments are put back - see `_EARLIER_ATTACHMENTS_BRIEFING`."""
-    return spec.model_copy(
-        update={"instructions": f"{spec.instructions}\n\n{_EARLIER_ATTACHMENTS_BRIEFING}"}
+    briefing = (
+        "Missing attachments from an earlier turn are restored in the project's "
+        f"`{UPLOAD_DIR}/` directory on first project-file use. Inspect them with "
+        "explicit project file tools; they are not copied into the agent's command "
+        "workspace. Transfer a selected file explicitly if a command needs it."
+        if project_files
+        else _EARLIER_ATTACHMENTS_BRIEFING
     )
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
 
 
 def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
@@ -5092,6 +5143,9 @@ class AgentRunnerService:
         # Capture the agent executor before the project supplies its staging/file workspace.
         execution_spec = spec
         execution_config = sandbox_config(execution_spec)
+        independent_agent_workspace = project is not None and (
+            local is None or local.folder is None
+        )
         if project is not None:
             spec = _in_project(spec, project)
         if (
@@ -5254,7 +5308,21 @@ class AgentRunnerService:
                 ctx, workspace.scope, conversation_id
             )
             resources[SPILL_LOG_RESOURCE] = workspace.spills
-            spec = _with_workspace_briefing(spec, workspace)
+            if independent_agent_workspace:
+                spec = spec.model_copy(
+                    update={
+                        "instructions": f"{spec.instructions}\n\n"
+                        "Project file tools access the shared project namespace. Generic file tools "
+                        "and default commands use your own configured workspace, whose runtime may "
+                        "differ from the project's. Bound skill files are prepared only in your "
+                        "agent workspace on first use; do not assume they exist in the project "
+                        "executor. Project uploads remain project files until explicitly transferred."
+                    }
+                )
+                if resources["skills"] and execution_config is not None:
+                    spec = _with_skills_briefing(spec, deferred=True)
+            else:
+                spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
             # resource is a script is otherwise text the model can quote and not
             # execute, while the same agent has `execute` one tool call away - and
@@ -5309,16 +5377,19 @@ class AgentRunnerService:
                 )
                 checked_earlier = True
             if earlier is not None:
-                spec = _with_earlier_attachments_briefing(spec)
+                spec = _with_earlier_attachments_briefing(
+                    spec, project_files=independent_agent_workspace
+                )
             if isinstance(workspace.workspace, RecordingWorkspace):
-                if resources["skills"]:
+                if resources["skills"] and not independent_agent_workspace:
                     spec = _with_skills_briefing(spec, deferred=True)
             else:
-                materialised = await materialise_skills(
-                    workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
-                )
-                if materialised.written:
-                    spec = _with_skills_briefing(spec)
+                if not independent_agent_workspace:
+                    materialised = await materialise_skills(
+                        workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                    )
+                    if materialised.written:
+                        spec = _with_skills_briefing(spec)
                 if earlier is not None:
                     await restore_earlier_attachments(
                         workspace.workspace, earlier, can_parse=workspace.parses_documents
@@ -5528,7 +5599,7 @@ class AgentRunnerService:
         )
 
         async def open_agent_executor(db: AsyncSession, actor: AuthContext) -> OpenWorkspace | None:
-            return await SandboxWorkspaceService(db, operation_db=self.db).open(
+            opened = await SandboxWorkspaceService(db, operation_db=self.db).open(
                 execution_spec,
                 ctx=actor,
                 identity=replace(
@@ -5546,6 +5617,12 @@ class AgentRunnerService:
                 local=None,
                 defer_local=False,
             )
+
+            if opened is not None:
+                await _start_agent_skills_on_first_use(
+                    opened, prepared, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                )
+            return opened
 
         project_workspace = None
         project_capable = (
@@ -5599,13 +5676,7 @@ class AgentRunnerService:
             if project is not None:
                 project_workspace.initialize(
                     project,
-                    execution_target=project_execution_target
-                    or (
-                        "agent"
-                        if project.backend != "service"
-                        or (local is not None and local.folder is not None)
-                        else "project"
-                    ),
+                    execution_target=project_execution_target or "agent",
                 )
             resources[PROJECT_WORKSPACE_RESOURCE] = project_workspace
             if workspace is not None and (local is None or local.folder is None):
@@ -5836,6 +5907,8 @@ class AgentRunnerService:
                 channel_directory,
                 prepared.channel_file_budget,
             )
+        if project_workspace is not None and independent_agent_workspace and workspace is not None:
+            project_workspace.initialize_project = partial(_initialize_project_staging, workspace)
         if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
             _start_turn_on_first_use(
                 workspace.workspace,
@@ -5845,6 +5918,7 @@ class AgentRunnerService:
                 earlier=earlier,
                 can_parse=workspace.parses_documents,
                 checked_earlier=checked_earlier,
+                include_skills=not independent_agent_workspace,
             )
         return prepared
 
@@ -7265,16 +7339,20 @@ class AgentRunnerService:
         """Collect files for surfaces with automatic delivery; channels use an explicit action."""
         if not prepared.automatic_outbound:
             return
+        selector = prepared.project_workspace
         if prepared.workspace is not None and not _untouched(prepared.workspace):
-            delivered = await files_written(
-                prepared.workspace.workspace, prepared.workspace_at_start
-            )
+            baseline = prepared.workspace_at_start
+            if selector is not None:
+                baseline = selector.outbound_baseline(
+                    "project" if prepared.workspace.scope == "project" else "agent", baseline
+                )
+            delivered = await files_written(prepared.workspace.workspace, baseline)
             prepared.outbound.extend(delivered.attachments)
             prepared.outbound_refused.extend(delivered.refused)
-        selector = prepared.project_workspace
         if selector is not None and selector.agent_workspace is not None:
             agent_files = await files_written(
-                selector.agent_workspace.workspace, selector.agent_workspace_at_start
+                selector.agent_workspace.workspace,
+                selector.outbound_baseline("agent", selector.agent_workspace_at_start),
             )
             prepared.outbound.extend(agent_files.attachments)
             prepared.outbound_refused.extend(agent_files.refused)
@@ -7292,7 +7370,12 @@ class AgentRunnerService:
         reviewing. `app/db/models/skill_proposal.py` has the rest of the
         reasoning.
         """
-        workspace = prepared.workspace
+        selector = prepared.project_workspace
+        workspace = (
+            selector.agent_workspace
+            if selector is not None and selector.agent_workspace is not None
+            else prepared.workspace
+        )
         state = prepared.materialised_skills
         if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return

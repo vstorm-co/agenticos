@@ -31,9 +31,6 @@ class ProjectExecutionState(Protocol):
     @property
     def project_context_observed(self) -> bool: ...
 
-    @property
-    def split_execution_namespace(self) -> bool: ...
-
 
 @runtime_checkable
 class ProjectWorkspaceSnapshot(Protocol):

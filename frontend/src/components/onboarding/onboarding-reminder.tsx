@@ -44,27 +44,23 @@ export function OnboardingReminder({
     state.error ||
     !state.data ||
     state.data.organization_id !== orgId ||
-    state.data.completed
+    state.data.completed ||
+    state.data.dismissed
   )
     return null;
 
-  if (collapsed || state.data.dismissed)
+  if (collapsed)
     return (
       <Link
         href={href}
         onClick={onNavigate}
-        title={collapsed ? t("title") : undefined}
-        aria-label={collapsed ? t("title") : undefined}
-        className={
-          collapsed
-            ? "text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 mx-auto mb-1 grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2"
-            : "text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 mx-3 mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs outline-none focus-visible:ring-2"
-        }
+        title={t("title")}
+        aria-label={t("title")}
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 mx-auto mb-1 grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2"
       >
-        <span className={cn(styles.railMark, !state.data.dismissed && styles.unfinished)}>
+        <span className={cn(styles.railMark, styles.unfinished)}>
           <Compass className="size-4 shrink-0" aria-hidden />
         </span>
-        {!collapsed && t("title")}
       </Link>
     );
 

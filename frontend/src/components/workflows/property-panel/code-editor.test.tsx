@@ -12,12 +12,14 @@ function Harness({
   language = "python",
   argKeys = [],
   withActionCalls = false,
+  compact = false,
   onChange = vi.fn(),
 }: {
   initial?: string;
   language?: CodeLanguage;
   argKeys?: string[];
   withActionCalls?: boolean;
+  compact?: boolean;
   onChange?: (next: string) => void;
 }) {
   const [value, setValue] = useState(initial);
@@ -29,6 +31,7 @@ function Harness({
         label="Code"
         value={value}
         argKeys={argKeys}
+        compact={compact}
         actionCalls={
           withActionCalls
             ? [
@@ -54,6 +57,24 @@ function Harness({
 const editor = () => screen.getByRole("textbox", { name: "Code" }) as HTMLTextAreaElement;
 
 describe("CodeEditor", () => {
+  it("keeps short action scripts compact while bounding long scripts without losing text", () => {
+    const { rerender } = render(<Harness compact initial="args" />);
+    expect(editor().parentElement).toHaveStyle({ height: "144px" });
+    rerender(
+      <CodeEditor
+        id="code"
+        language="python"
+        label="Code"
+        compact
+        value={"args\n".repeat(40)}
+        argKeys={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(editor().parentElement).toHaveStyle({ height: "344px" });
+    expect(editor()).toHaveValue("args\n".repeat(40));
+  });
+
   it("inserts action calls at the selection and selects the argument placeholder", async () => {
     render(<Harness initial="row = old" withActionCalls />);
     editor().focus();

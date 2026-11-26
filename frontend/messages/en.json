@@ -1499,16 +1499,21 @@
       },
       "afterFirstMessage": "Available after the first message.",
       "projectExecution": {
-        "title": "Run commands in",
-        "agent": "Agent workspace",
-        "project": "Project workspace",
-        "hint": "Applies to the next message. Choosing project context or files does not switch command execution.",
-        "filesOnly": "This agent can use project files and context, but has no command execution capability.",
-        "projectFilesOnly": "This project only stores files. Select Agent workspace to run commands; project files remain separate.",
-        "noProject": "Start a chat in a project to choose its workspace. In other chats, ask the agent to select a project for the current run.",
-        "local": "Commands use the folder allowed on this computer. Return to the cloud to change this choice.",
+        "title": "Project files",
+        "hint": "Shared files stay in this project. The agent keeps its own tools and can use the project sandbox when needed.",
+        "filesOnly": "Shared project files are available without command execution.",
+        "projectFilesOnly": "Shared files stay in this project. This project has no command environment; the agent keeps its own tools.",
+        "local": "Project files remain shared. Commands keep using the folder allowed on this computer.",
         "loading": "Checking this chat’s project…",
-        "unavailable": "The project could not be checked. Retry before choosing its workspace."
+        "unavailable": "The project could not be checked. Retry to see its current workspace.",
+        "advanced": "Advanced command target",
+        "commandTarget": "Command target",
+        "automatic": "Automatic — let the agent choose",
+        "agent": "Agent workspace only",
+        "project": "Project sandbox only",
+        "overrideHint": "Optional: pin the command target for this chat. Automatic starts with the agent’s own environment.",
+        "noProject": "The agent uses its configured workspace. Ask it to use a project when needed.",
+        "workspace": "Agent workspace"
       }
     },
     "conversationArchived": "This conversation is archived",
@@ -2199,7 +2204,9 @@
       "selectingProjectContext": "Selecting project context…",
       "selectedProjectContext": "Project context selected",
       "selectingExecutionTarget": "Selecting command target…",
-      "selectedExecutionTarget": "Command target selected"
+      "selectedExecutionTarget": "Command target selected",
+      "transferringProjectFile": "Transferring project file…",
+      "transferredProjectFile": "Project file transferred"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6443,6 +6450,10 @@
       "personal-console-catalogs": {
         "title": "Catalogs",
         "body": "Choose the galleries you want to browse. Organization and deployment limits still apply."
+      },
+      "project-resources": {
+        "title": "Keep related resources together",
+        "body": "Link existing agents, workflows, Apps and tables without changing their permissions. Open them from here, or choose a linked workflow as the project's entrypoint."
       }
     },
     "chooseLanguage": "Language",
@@ -12336,6 +12347,15 @@
     },
     "pythonActions": "Available functions",
     "pythonActionsHint": "Bind an action once, then call its function in your script with keyword arguments.",
+    "pythonInputGuide": "Input · Read mapped values from args: {keys}",
+    "pythonInputUnbound": "no input fields mapped yet",
+    "pythonFunctionsGuide": "Functions · Call {names} with named arguments.",
+    "pythonFunctionsEmpty": "Functions · Add an action below to make its function available here.",
+    "pythonOutputGuide": "Output · The last expression becomes this step’s result.",
+    "pythonExampleGuide": "How to write this step",
+    "pythonCallGuide": "Use args for incoming values and call bound functions by name. A function returns its action’s result; finish with the value you want the next step to receive.",
+    "pythonExamplePlaceholders": "Replace each ... with an input value or a literal. Adding a function or editing this script does not run an action.",
+    "pythonActionsEmpty": "No actions bound yet. Choose an action, give it a Python name, then insert its call into the script. You can also compute from args without calling an action.",
     "pythonActionsDiscover": "To call MCP tools, use tables or search knowledge, add a Python with actions step and bind each action under a function name.",
     "pythonSelectAction": "Select an action",
     "pythonInsertCall": "Insert function call",
@@ -15190,7 +15210,8 @@
       "remove": "Remove {name} from project",
       "kind": "Resource type",
       "addSelected": "Add selected ({count})",
-      "filterHint": "Choose a project to filter this catalog."
+      "filterHint": "Choose a project to filter this catalog.",
+      "noMatches": "No matching resources."
     }
   },
   "voiceGlow": {
@@ -18809,6 +18830,20 @@
       "position": "{current} of {total}",
       "continue": "Continue",
       "finish": "Continue to setup"
+    },
+    "configurationGuide": {
+      "title": "Explore optional settings",
+      "hint": "You can finish setup now and return to these options whenever you need them. Opening a link does not change your settings.",
+      "preferencesTitle": "Make the console yours",
+      "preferencesBody": "Choose sidebar items, catalog discovery, chat cost visibility and product tips within your organization's limits.",
+      "projectsTitle": "Keep work together in projects",
+      "projectsBody": "Share files, instructions and linked resources across chats. Agents keep their own tools; an optional project sandbox handles shared builds.",
+      "transferTitle": "Export and import agents",
+      "transferBody": "Choose which Skills, Context and knowledge content to include. Review dependencies before importing; account secrets and search indexes are excluded.",
+      "workflowTitle": "Build workflows with Python actions",
+      "workflowBody": "Bind tools to named functions and call them from Python. Each action keeps its permissions, approvals and execution record.",
+      "organizationTitle": "Set organization defaults",
+      "organizationBody": "Configure navigation, catalogs, dashboard and notices for each role, and control cost visibility. Members can personalize what your policy allows."
     }
   },
   "skillImprovement": {
@@ -22179,7 +22214,8 @@
         "member": "Member",
         "viewer": "Viewer"
       },
-      "loadError": "Console preferences could not be loaded."
+      "loadError": "Console preferences could not be loaded.",
+      "customizeNavigation": "Customize sidebar"
     },
     "catalogs": {
       "personalTitle": "Catalogs",
@@ -22335,7 +22371,19 @@
     "importLegacy": "Import an older workflow file",
     "exportLegacy": "Export an older workflow file",
     "startNewTransfer": "Start a new transfer",
-    "unsupportedMapping": "This resource has no import adapter. Skip its binding and configure it in the destination editor."
+    "unsupportedMapping": "This resource has no import adapter. Skip its binding and configure it in the destination editor.",
+    "searchResources": "Search included resources",
+    "noResources": "No matching resources.",
+    "groups": {
+      "root": "Required definition",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Knowledge bases",
+      "connections": "Models & connections",
+      "other": "Other resources"
+    }
   },
   "stepFailure": {
     "technicalDetails": "Technical details",

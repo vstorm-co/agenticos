@@ -31,7 +31,7 @@ export function ExportLayers({
   const extra = layers.filter((layer) => layer !== "definition");
   if (!extra.length && !knowledgeBase) return null;
   return (
-    <div className="ml-7 space-y-3 border-t pt-3">
+    <div className="mt-2 ml-7 space-y-2 border-t pt-2">
       {extra.map((layer, index) => {
         const known = Object.prototype.hasOwnProperty.call(LABELS, layer);
         const label =

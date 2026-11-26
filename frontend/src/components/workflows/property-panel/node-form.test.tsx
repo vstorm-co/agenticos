@@ -2047,3 +2047,57 @@ it.each([
     }
   },
 );
+
+it("replaces legacy decision credentials with the selected decision model profile", async () => {
+  const { updateNodeConfig } = renderForm({
+    definition: makeDefinition({
+      id: "decide.yes_no",
+      config_schema: {
+        type: "object",
+        properties: {
+          model_profile_id: {
+            type: "string",
+            "x-resource": "model_profile",
+            "x-model-purpose": "decision",
+            title: "Model",
+          },
+          secret_id: { type: "string", "x-resource": "secret", title: "Legacy key" },
+          model: { type: "string", title: "Legacy model" },
+        },
+      },
+    }),
+    config: { secret_id: "old-key", model: "old-model" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "pick-model" }));
+  expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { model_profile_id: "m1" });
+});
+
+it("opens a saved condition and retains it when switching to its expression with help", async () => {
+  renderForm({
+    definition: makeDefinition({
+      id: "data.filter",
+      config_schema: {
+        type: "object",
+        properties: {
+          condition: {
+            type: "string",
+            title: "Condition",
+            "x-condition": "item",
+            description: "Keep only active rows.",
+          },
+        },
+        required: ["condition"],
+      },
+    }),
+    config: { condition: "item.active" },
+  });
+  expect(screen.getByLabelText("Field of condition 1")).toHaveValue("active");
+  await userEvent.click(screen.getByRole("button", { name: "Write it as an expression" }));
+  expect(screen.getByRole("textbox", { name: /^Condition/ })).toHaveValue("item.active");
+  expect(screen.getByText("Keep only active rows.")).toBeVisible();
+});
+
+it("explains the input contract of a workflow called by another workflow", () => {
+  renderForm({ definition: makeDefinition({ id: "trigger.workflow_call" }) });
+  expect(screen.getByText(/Another workflow's Run a workflow step starts this one/)).toBeVisible();
+});

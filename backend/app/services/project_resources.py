@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.project_resource import ProjectResourceKind
 from app.repositories import project_resource as resource_repo
@@ -76,6 +77,9 @@ class ProjectResourceService:
                         name=name,
                         description=description,
                         is_entrypoint=link.is_entrypoint,
+                        slug=resource.slug if isinstance(resource, Agent) else None,
+                        has_avatar=resource.has_avatar if isinstance(resource, Agent) else False,
+                        avatar_color=resource.avatar_color if isinstance(resource, Agent) else None,
                     )
                 )
         return ProjectResourceList(items=items, total=len(items))

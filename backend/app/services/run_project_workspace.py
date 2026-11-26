@@ -50,6 +50,8 @@ from app.services.sandbox_workspace import (
     browsable,
 )
 
+MAX_TRANSFER_BYTES = 8 * 1024 * 1024
+
 
 class RunProjectWorkspace(Workspace):
     """One selector per top-level run; approval resumes restore only the project id."""
@@ -98,6 +100,15 @@ class RunProjectWorkspace(Workspace):
         self.agent_workspace: OpenWorkspace | None = None
         self.agent_workspace_at_start: set[str] | None = None
         self._agent_initialization = asyncio.Lock()
+        self.initialize_project: (
+            Callable[[AsyncSession], Awaitable[Callable[[], None] | None]] | None
+        ) = None
+        self._project_initialization = asyncio.Lock()
+        self._project_initialized = False
+        self.imported_paths: dict[Literal["agent", "project"], set[str]] = {
+            "agent": set(),
+            "project": set(),
+        }
         self.origins: dict[UUID, dict[str, str]] = {}
         self.execution_target: Literal["agent", "project"] = "agent"
         self.project_generation: UUID | None = None
@@ -146,10 +157,6 @@ class RunProjectWorkspace(Workspace):
         return selected.workspace
 
     @property
-    def split_execution_namespace(self) -> bool:
-        return self.project_id is not None and self.execution_target == "agent"
-
-    @property
     def backend(self) -> WorkspaceBackend:
         # Native computer tools must still see their provider before selection.
         return (
@@ -167,7 +174,7 @@ class RunProjectWorkspace(Workspace):
     def platform(self) -> Literal["posix", "windows"]:
         return (
             "posix"
-            if self.project_id is not None or self.original is None
+            if self.execution_target == "project" or self.original is None
             else self.original.platform
         )
 
@@ -229,11 +236,28 @@ class RunProjectWorkspace(Workspace):
     @asynccontextmanager
     async def _open(self) -> AsyncGenerator[Workspace]:
         self._require_open()
-        project_id = self.project_id
-        if project_id is None:
-            async with self._open_agent() as workspace:
-                yield workspace
-            return
+        project_id = self._require_selection()
+        owner = self._lifecycle_owner
+        if owner.initialize_project is not None and project_id == self.conversation_project_id:
+            async with owner._project_initialization:
+                self._require_open()
+                if not owner._project_initialized:
+                    async with get_db_context() as setup_db:
+                        try:
+                            _, project = await self._project(setup_db, project_id)
+                            if self.project_generation != project.workspace_generation:
+                                raise ConcurrentChangeError(
+                                    message="This project workspace changed. Select the project again before using its files or commands.",
+                                    details={"project_id": project_id},
+                                )
+                            self._require_open()
+                            settled = await owner.initialize_project(setup_db)
+                        except AppException as error:
+                            raise PermissionError(error.message) from error
+                    if settled is not None:
+                        settled()
+                    owner._project_initialized = True
+                    self._require_open()
         async with get_db_context() as db:
             try:
                 ctx, project = await self._project(db, project_id)
@@ -327,7 +351,7 @@ class RunProjectWorkspace(Workspace):
                 and not (
                     self.project_context_observed and self.original_scope in ("agent", "channel")
                 ),
-                "message": "File tools use this project. Command execution has not changed. No files were copied or mounted; project paths are not present in the agent workspace.",
+                "message": "Explicit project file tools use this project. Generic file tools and commands keep the selected executor. No files were copied or mounted; transfer selected files explicitly when another executor needs them.",
             }
         )
 
@@ -412,6 +436,7 @@ class RunProjectWorkspace(Workspace):
         from app.services.project import project_path
 
         relative = project_path(path)
+        paths = workspace.paths
         candidate = await workspace.resolve(relative)
         suffix: list[str] = []
         while True:
@@ -421,13 +446,21 @@ class RunProjectWorkspace(Workspace):
             except FileNotFoundError:
                 if not create:
                     raise
-                parent, leaf = posixpath.split(candidate)
+                parent, leaf = paths.dirname(candidate), paths.basename(candidate)
                 if parent == candidate:
                     raise
                 suffix.insert(0, leaf)
                 candidate = parent
-        canonical = posixpath.join(resolved, *suffix)
-        project_path(posixpath.relpath(canonical, await workspace.working_dir()))
+        canonical = paths.join(resolved, *suffix)
+        try:
+            normalized = paths.relpath(canonical, await workspace.working_dir())
+        except ValueError as error:
+            raise BadRequestError(
+                message="Choose a path inside the workspace.", details={}
+            ) from error
+        project_path(
+            normalized.replace("\\", "/") if workspace.platform == "windows" else normalized
+        )
         return relative
 
     async def files(self, path: str = ".") -> str:
@@ -486,7 +519,15 @@ class RunProjectWorkspace(Workspace):
             self._read_versions[(project_id, await self._version_path(workspace, relative))] = (
                 sha256(data).digest()
             )
-        return json.dumps({"path": relative, "namespace": "project", "content": text})
+        return json.dumps(
+            {
+                "path": relative,
+                "namespace": "project",
+                "content": text,
+                "bytes": len(data),
+                "sha256": sha256(data).hexdigest(),
+            }
+        )
 
     async def write_file(self, path: str, content: str) -> str:
         project_id = self._require_selection()
@@ -554,18 +595,223 @@ class RunProjectWorkspace(Workspace):
         return json.dumps(
             {
                 "execution_target": target,
-                "message": "Commands use this target; files were not copied or mounted. Outputs remain in this executor. To read or explicitly send an Agent output through generic file tools, clear project context first; reselect it when project reference is needed again.",
+                "message": "Commands and generic file tools use this executor. Explicit project tools still use the project. No files were copied or mounted.",
             }
         )
 
+    @asynccontextmanager
+    async def _open_files(self) -> AsyncGenerator[Workspace]:
+        """Generic files and commands share one executor; project tools stay explicit."""
+        self._require_open()
+        if self.execution_target == "project":
+            async with self._open() as workspace:
+                yield workspace
+            return
+        async with self._open_agent_files() as workspace:
+            yield workspace
+
+    @asynccontextmanager
+    async def _open_agent_files(self) -> AsyncGenerator[Workspace]:
+        """Agent files retain current selected-project authority without changing targets."""
+        self._require_open()
+        if self.project_id is not None:
+            async with get_db_context() as db:
+                try:
+                    _, project = await self._project(db, self.project_id)
+                    if project.workspace_generation != self.project_generation:
+                        raise ConcurrentChangeError(
+                            message="Select this project again after its workspace changed.",
+                            details={},
+                        )
+                except AppException as error:
+                    raise PermissionError(error.message) from error
+        async with self._open_agent() as workspace:
+            yield workspace
+
+    @staticmethod
+    async def _overflow_path(workspace: Workspace, path: str, *, create: bool = False) -> str:
+        """Only the reserved spill tree, including canonical parents of new files."""
+        from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
+
+        paths = workspace.paths
+        root = await workspace.working_dir()
+        candidate = await workspace.resolve(path)
+        current = candidate
+        suffix: list[str] = []
+        while True:
+            try:
+                canonical = paths.join(await workspace.realpath(current), *suffix)
+                break
+            except FileNotFoundError:
+                if not create:
+                    raise
+                parent, leaf = paths.dirname(current), paths.basename(current)
+                if parent == current:
+                    raise
+                suffix.insert(0, leaf)
+                current = parent
+        for absolute in (candidate, canonical):
+            try:
+                relative = paths.relpath(absolute, root).replace("\\", "/")
+            except ValueError as error:
+                raise FileNotFoundError("Unknown tool output handle") from error
+            if not relative.startswith(f"{OVERFLOW_PREFIX}/"):
+                raise FileNotFoundError("Unknown tool output handle")
+        return candidate
+
+    async def write_overflow(self, path: str, data: bytes, *, spill_log: list[str] | None) -> str:
+        """Spill to Agent regardless of the currently selected command target."""
+        async with self._open_agent_files() as workspace:
+            handle = await self._overflow_path(workspace, path, create=True)
+            self._require_open()
+            await workspace.write_bytes(handle, data)
+            opened = self._lifecycle_owner.agent_workspace
+            journal = spill_log if opened is None else opened.spills
+            if journal is not None:
+                journal.append(handle)
+            return handle
+
+    async def read_overflow(self, handle: str) -> bytes:
+        """Read a spill from its stable Agent origin, never the current Project target."""
+        async with self._open_agent_files() as workspace:
+            selected = await self._overflow_path(workspace, handle)
+            self._require_open()
+            return await workspace.read_bytes(selected)
+
+    @staticmethod
+    async def _transfer_bytes(workspace: Workspace, path: str) -> bytes:
+        metadata = await workspace.stat(path)
+        if metadata.is_dir or metadata.size is None or not 0 <= metadata.size <= MAX_TRANSFER_BYTES:
+            raise BadRequestError(
+                message="Transfer one file of known size, at most 8 MiB.", details={}
+            )
+        data = await workspace.read_bytes(path)
+        if len(data) > MAX_TRANSFER_BYTES:
+            raise BadRequestError(
+                message="The file grew beyond the 8 MiB transfer limit.", details={}
+            )
+        return data
+
+    async def transfer_file(
+        self,
+        direction: Literal["to_agent", "from_agent"],
+        project_path: str,
+        agent_path: str,
+        expected_sha256: str | None = None,
+    ) -> str:
+        """Transfer selected bytes directly, without model text or implicit writeback.
+
+        An existing destination requires its current digest. This detects an
+        observed conflict; arbitrary shell writes are not transactionally locked.
+        Paths are relative to their workspace roots and confined after resolving
+        existing symlinks. The executor choice is unchanged.
+        """
+        selected = self._require_selection()
+        generation = self.project_generation
+        if expected_sha256 is not None and (
+            len(expected_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in expected_sha256)
+        ):
+            raise BadRequestError(
+                message="The destination digest must be a SHA-256 hex digest.", details={}
+            )
+        if direction == "from_agent" and "projects:write" not in self.granted_scopes:
+            raise AuthorizationError(
+                message="Project writes are disabled for this run.", details={}
+            )
+        async with self._open() as project, self._open_agent() as agent:
+            project_file = await self._file_path(
+                project, project_path, create=direction == "from_agent"
+            )
+            if posixpath.isabs(agent_path) or "\\" in agent_path or ":" in agent_path:
+                raise BadRequestError(
+                    message="Choose a relative agent path inside its workspace.", details={}
+                )
+            agent_file = await self._file_path(agent, agent_path, create=direction == "to_agent")
+            source, source_path, destination, destination_path = (
+                (project, project_file, agent, agent_file)
+                if direction == "to_agent"
+                else (agent, agent_file, project, project_file)
+            )
+            data = await self._transfer_bytes(source, source_path)
+            present = await destination.exists(destination_path)
+            if present:
+                if expected_sha256 is None:
+                    raise ConcurrentChangeError(
+                        message="The destination exists. Read its current SHA-256 before replacing it.",
+                        details={},
+                    )
+                current = await self._transfer_bytes(destination, destination_path)
+                if sha256(current).hexdigest() != expected_sha256:
+                    raise ConcurrentChangeError(
+                        message="The destination changed; no file was replaced.", details={}
+                    )
+            elif expected_sha256 is not None:
+                raise ConcurrentChangeError(
+                    message="The expected destination no longer exists.", details={}
+                )
+            if direction == "from_agent":
+                await self._refuse_changed(project, project_file)
+            imported = await self._imported_path_spellings(destination, destination_path)
+            self._require_open()
+            if self.project_id != selected or self.project_generation != generation:
+                raise ConcurrentChangeError(
+                    message="Project selection changed during transfer. Retry with the current project.",
+                    details={},
+                )
+            self._lifecycle_owner.imported_paths[
+                "agent" if direction == "to_agent" else "project"
+            ].update(imported)
+            await destination.write_bytes(destination_path, data)
+            digest = sha256(data).hexdigest()
+            if (
+                sha256(await self._transfer_bytes(destination, destination_path)).hexdigest()
+                != digest
+            ):
+                raise ConcurrentChangeError(
+                    message="The destination changed while verifying the transfer.", details={}
+                )
+            if direction == "from_agent":
+                self._read_versions[(selected, await self._version_path(project, project_file))] = (
+                    sha256(data).digest()
+                )
+            actual_agent_path = await agent.resolve(agent_file)
+        return json.dumps(
+            {
+                "direction": direction,
+                "project_id": str(selected),
+                "project_path": project_file,
+                "agent_path": agent_file,
+                "agent_absolute_path": actual_agent_path,
+                "bytes": len(data),
+                "sha256": digest,
+                "message": "Transferred the selected file bytes. This is not a shared mount; later edits are not synchronized.",
+            }
+        )
+
+    @staticmethod
+    async def _imported_path_spellings(workspace: Workspace, path: str) -> set[str]:
+        absolute = await workspace.resolve(path)
+        canonical = await RunProjectWorkspace._version_path(workspace, path)
+        root = await workspace.working_dir()
+        paths = workspace.paths
+        relative = paths.relpath(canonical, root)
+        return {path, absolute, canonical, relative, paths.join(".", relative)}
+
+    def outbound_baseline(
+        self, kind: Literal["agent", "project"], before: set[str] | None
+    ) -> set[str] | None:
+        """Imports are inputs, not newly authored automatic attachments."""
+        return None if before is None else before | self._lifecycle_owner.imported_paths[kind]
+
     async def working_dir(self) -> str:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             return await workspace.working_dir()
 
     async def read_bytes(self, path: str) -> bytes:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             data = await workspace.read_bytes(path)
-            if self.project_id is not None:
+            if self.project_id is not None and self.execution_target == "project":
                 self._read_versions[
                     (self.project_id, await self._version_path(workspace, path))
                 ] = sha256(data).digest()
@@ -579,9 +825,7 @@ class RunProjectWorkspace(Workspace):
             return await workspace.resolve(path)
 
     async def _refuse_changed(self, workspace: Workspace, path: str) -> None:
-        project_id = self.project_id
-        if project_id is None:
-            return
+        project_id = self._require_selection()
         previous = self._read_versions.get((project_id, await self._version_path(workspace, path)))
         if previous is None:
             if self._require_continuation_reads and await workspace.exists(path):
@@ -599,46 +843,48 @@ class RunProjectWorkspace(Workspace):
             )
 
     async def write_bytes(self, path: str, data: bytes) -> None:
-        if self.project_id is not None and "projects:write" not in self.granted_scopes:
+        if self.execution_target == "project" and "projects:write" not in self.granted_scopes:
             raise PermissionError("Project writes are disabled for this run.")
-        async with self._open() as workspace:
-            await self._refuse_changed(workspace, path)
+        async with self._open_files() as workspace:
+            if self.execution_target == "project":
+                await self._refuse_changed(workspace, path)
             await workspace.write_bytes(path, data)
-            if self.project_id is not None:
+            if self.project_id is not None and self.execution_target == "project":
                 self._read_versions[
                     (self.project_id, await self._version_path(workspace, path))
                 ] = sha256(data).digest()
 
     async def stat(self, path: str) -> FileEntry:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             return await workspace.stat(path)
 
     async def list_dir(self, path: str) -> Sequence[FileEntry]:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             return await workspace.list_dir(path)
 
     async def make_dir(self, path: str) -> None:
-        if self.project_id is not None and "projects:write" not in self.granted_scopes:
+        if self.execution_target == "project" and "projects:write" not in self.granted_scopes:
             raise PermissionError("Project writes are disabled for this run.")
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             await workspace.make_dir(path)
 
     async def remove(self, path: str) -> None:
-        if self.project_id is not None and "projects:write" not in self.granted_scopes:
+        if self.execution_target == "project" and "projects:write" not in self.granted_scopes:
             raise PermissionError("Project writes are disabled for this run.")
-        async with self._open() as workspace:
-            await self._refuse_changed(workspace, path)
+        async with self._open_files() as workspace:
+            if self.execution_target == "project":
+                await self._refuse_changed(workspace, path)
             version_path = await self._version_path(workspace, path)
             await workspace.remove(path)
-            if self.project_id is not None:
+            if self.project_id is not None and self.execution_target == "project":
                 self._read_versions.pop((self.project_id, version_path), None)
 
     async def exists(self, path: str) -> bool:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             return await workspace.exists(path)
 
     async def realpath(self, path: str) -> str:
-        async with self._open() as workspace:
+        async with self._open_files() as workspace:
             return await workspace.realpath(path)
 
     @asynccontextmanager

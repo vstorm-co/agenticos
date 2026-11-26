@@ -17,6 +17,9 @@ class ProjectResourceRead(ProjectResourceRef):
     name: str
     description: str | None = None
     is_entrypoint: bool = False
+    slug: str | None = None
+    has_avatar: bool = False
+    avatar_color: int | None = None
 
 
 class ProjectResourceList(BaseSchema):

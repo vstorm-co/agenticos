@@ -808,3 +808,19 @@ it("gives subscription settings their own help instead of hunting for the old pr
     "personal-subscription-accounts",
   ]);
 });
+
+it("opens configuration panels for optional help without expanding the required first-run tour", () => {
+  expect(TOUR_STEPS.find((step) => step.id === "personal-console-navigation")).toMatchObject({
+    activate: "personal-console-navigation-open",
+    optional: true,
+  });
+  expect(stepsForPage("/projects/project-1", () => true)).toContainEqual(
+    expect.objectContaining({
+      id: "project-resources",
+      activate: "project-tab-resources",
+      target: "project-resources",
+      optional: true,
+    }),
+  );
+  expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain("project-resources");
+});

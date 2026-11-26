@@ -117,13 +117,20 @@ export function ConsoleNavigationSelection({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {(showUnavailable ? GROUPS : presentedNavigation(GROUPS, allowed)).map((group) => (
-        <fieldset key={group.labelKey ?? "main"} disabled={disabled}>
-          <legend className="text-muted-foreground mb-1 text-xs font-medium">
+        <fieldset
+          key={group.labelKey ?? "main"}
+          disabled={disabled}
+          className="min-w-0 rounded-xl border px-3 pb-2"
+        >
+          <legend className="text-muted-foreground px-1 text-xs font-medium">
             {nav(group.labelKey ?? "navigate")}
           </legend>
           <div>
             {group.items.map((item) => (
-              <div key={item.labelKey} className="flex min-h-11 items-center gap-3">
+              <div
+                key={item.labelKey}
+                className="hover:bg-muted/40 flex min-h-11 items-center gap-3 rounded-lg px-2"
+              >
                 <Checkbox
                   id={`${id}-${item.labelKey}`}
                   checked={selection.includes(item.labelKey)}

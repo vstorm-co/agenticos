@@ -9,6 +9,9 @@ export interface ProjectResource extends ProjectResourceRef {
   name: string;
   description: string | null;
   is_entrypoint: boolean;
+  slug?: string | null;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
 }
 export interface ProjectResources {
   items: ProjectResource[];
@@ -18,6 +21,10 @@ export interface ResourceCandidate {
   id: string;
   name: string;
   title?: string;
+  description?: string | null;
+  slug?: string | null;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
 }
 const paths: Record<ProjectResourceKind, string> = {
   agent: "/agents",

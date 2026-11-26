@@ -3,18 +3,19 @@
 import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { FolderOpen } from "lucide-react";
+import { ChevronDown, FolderOpen } from "lucide-react";
 import { useProjectOfConversation } from "@/hooks/use-projects";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { getProject } from "@/lib/projects-api";
 import { qk } from "@/lib/query-keys";
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores";
-import { useWorkOnStore, type ProjectExecutionTarget } from "@/stores/work-on-store";
+import { useWorkOnStore } from "@/stores/work-on-store";
 
-/** A project supplies files; command execution is a separate, explicit turn choice. */
+/** Project files stay shared while the agent retains its configured tools. */
 export function ProjectExecutionControl({
   agentCapabilities,
 }: {
@@ -42,71 +43,78 @@ export function ProjectExecutionControl({
   const pending =
     (conversationId !== null && project.isPending) || (Boolean(projectId) && details.isPending);
   const failed = project.isError || (Boolean(projectId) && details.isError);
-  const unavailable = failed || pending;
   const executable = details.data?.backend === "service";
-  const active = unavailable
-    ? null
-    : onComputer
-      ? "agent"
-      : (selected ?? (projectId && executable ? "project" : "agent"));
   return (
-    <fieldset className="border-foreground/8 space-y-3 border-b py-3">
-      <legend className="flex items-center gap-2 text-[13px] font-medium">
-        <FolderOpen className="text-muted-foreground size-4" aria-hidden />
-        {t("title")}
-      </legend>
-      {!hasCommands ? (
-        <p className="text-muted-foreground text-xs leading-relaxed">{t("filesOnly")}</p>
-      ) : (
-        <>
-          <div className="space-y-1" aria-describedby={`${id}-hint`}>
-            {(["agent", "project"] as const).map((target: ProjectExecutionTarget) => (
-              <label key={target} className="flex min-h-11 items-center gap-3 text-xs">
+    <section aria-labelledby={`${id}-title`} className="space-y-2 py-1">
+      <div className="flex items-center gap-2 text-xs font-medium" id={`${id}-title`}>
+        <FolderOpen className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 break-words">
+          {projectId && details.data && !pending && !failed
+            ? details.data.name
+            : t(projectId || pending || failed ? "title" : "workspace")}
+        </span>
+      </div>
+      {!failed && (
+        <p className="text-muted-foreground text-xs leading-5">
+          {t(
+            pending
+              ? "loading"
+              : !projectId && !failed
+                ? "noProject"
+                : onComputer
+                  ? "local"
+                  : !hasCommands
+                    ? "filesOnly"
+                    : executable
+                      ? "hint"
+                      : "projectFilesOnly",
+          )}
+        </p>
+      )}
+      {failed ? (
+        <div role="alert" className="space-y-2 text-xs">
+          <p>{t("unavailable")}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void (project.isError ? project.refetch() : details.refetch())}
+          >
+            {common("retry")}
+          </Button>
+        </div>
+      ) : hasCommands && !onComputer && !pending && projectId ? (
+        <NativeDisclosure className="group">
+          <summary className="text-muted-foreground flex min-h-9 cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
+            <ChevronDown
+              className="size-3.5 -rotate-90 transition-transform group-open:rotate-0"
+              aria-hidden
+            />
+            {t("advanced")}
+            {selected !== null && <span className="text-foreground ml-auto">{t(selected)}</span>}
+          </summary>
+          <fieldset className="space-y-1 pt-1">
+            <legend className="sr-only">{t("commandTarget")}</legend>
+            {(["automatic", "agent", "project"] as const).map((target) => (
+              <label key={target} className="flex min-h-10 items-center gap-3 text-xs">
                 <input
                   className={NATIVE_CHOICE}
                   type="radio"
                   name={id}
                   value={target}
-                  checked={active === target}
-                  disabled={
-                    unavailable || onComputer || !projectId || (target === "project" && !executable)
+                  checked={target === "automatic" ? selected === null : selected === target}
+                  disabled={target === "project" && !executable}
+                  onChange={() =>
+                    setExecution(conversationId, projectId, target === "automatic" ? null : target)
                   }
-                  onChange={() => {
-                    if (projectId) setExecution(conversationId, projectId, target);
-                  }}
                 />
                 {t(target)}
               </label>
             ))}
-          </div>
-          <p id={`${id}-hint`} className="text-muted-foreground text-xs leading-relaxed">
-            {t(
-              onComputer
-                ? "local"
-                : pending
-                  ? "loading"
-                  : projectId
-                    ? executable
-                      ? "hint"
-                      : "projectFilesOnly"
-                    : "noProject",
-            )}
-          </p>
-          {failed && (
-            <div role="alert" className="space-y-2 text-xs">
-              <p>{t("unavailable")}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void (project.isError ? project.refetch() : details.refetch())}
-              >
-                {common("retry")}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-    </fieldset>
+            <p className="text-muted-foreground pt-1 text-xs leading-5">{t("overrideHint")}</p>
+          </fieldset>
+        </NativeDisclosure>
+      ) : null}
+    </section>
   );
 }

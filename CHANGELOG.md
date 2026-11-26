@@ -34,7 +34,7 @@ Two things are versioned separately from this file and worth knowing about:
   Projects capability searches accessible projects and reads/writes bounded text
   from web chat and linked private channels without granting a shell. Chat Files
   exposes authorized project and agent workspace origins separately.
-- Choose the agent or project workspace for commands in chat settings, separately from project file context. Per-chat choices stay within the current account and organization and preserve local folder consent.
+- Keep the agent's own file tools and command environment by default in project chats. The compact project card keeps explicit executor pins under advanced settings. Agents can use the project executor for direct project work, or transfer selected binary files between project and agent storage without rewriting contents through the model. Transfers verify size and hashes and refuse unconfirmed destination replacement; they do not mount or synchronize workspaces.
 - Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
@@ -107,7 +107,16 @@ Two things are versioned separately from this file and worth knowing about:
   Keep Daytona on its supported 0.x API until the workspace adapter supports the
   SDK 2.x namespace migration.
 
+### Changed
+
+- Refine project resource and export dialogs with real resource identities and expandable views, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
+
 ### Upgrading
+
+- New projects default to stored files, even when a sandbox connection is available.
+  API clients that want automatic sandbox selection must send `backend: auto`;
+  selecting a specific sandbox still uses `backend: service`. Existing projects
+  keep their configured storage and sandbox connection.
 
 - Apply `0369_run_error_code.py` to retain optional failure codes and numeric parameters for Improve sessions and assistant requests. Historical free-text failures remain readable when no exact code can be backfilled.
 
@@ -124,8 +133,11 @@ Two things are versioned separately from this file and worth knowing about:
   through the normal template refresh, preserving local model choices.
 - `select_project_workspace` now selects file context only. Use
   `select_execution_target` to change command execution explicitly; no files are
-  mounted or copied between targets. Existing project chats still default to the
-  project executor when available. Older dynamically selected approval checkpoints
+  mounted or synchronized between targets. New turns in existing project chats now
+  default to the agent executor; deliberately saved Project pins remain in force.
+  Use advanced settings to pin Project when the previous default is required.
+  `transfer_project_file` explicitly copies one file of up to 8 MiB between the
+  agent and project; an existing destination needs its current SHA-256 digest. Older dynamically selected approval checkpoints
   without a workspace generation must select the project again or start a new turn.
   Disabled Sandbox stays disabled, and run-scoped executor outputs remain temporary.
   Shared-workspace delegation pins the project and executor until the run ends.

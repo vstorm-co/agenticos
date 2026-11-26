@@ -218,6 +218,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "personal-console-navigation",
     page: SETTINGS_DETAIL,
     target: "personal-console-navigation",
+    activate: "personal-console-navigation-open",
     optional: true,
   },
   {
@@ -1612,6 +1613,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "project-tracking", page: PROJECT_DETAIL, target: "project-tracking", optional: true },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  {
+    id: "project-resources",
+    page: PROJECT_DETAIL,
+    target: "project-resources",
+    activate: "project-tab-resources",
+    optional: true,
+  },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
   { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
 

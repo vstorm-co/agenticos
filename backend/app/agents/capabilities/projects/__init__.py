@@ -47,6 +47,12 @@ PROJECTS_CAPABILITY_ID = "projects"
             side_effecting=True,
             read_only=False,
         ),
+        CapabilityToolInfo(
+            id="transfer_project_file",
+            description="Transfer a bounded file between project storage and the agent workspace without passing its contents through the model.",
+            side_effecting=True,
+            read_only=False,
+        ),
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> Toolset[AgentDeps]:

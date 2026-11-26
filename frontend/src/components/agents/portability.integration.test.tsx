@@ -20,6 +20,17 @@ import {
 import { ExportAgentDialog } from "./export-dialog";
 import { ImportAgentDialog } from "./import-dialog";
 
+const presentation = vi.hoisted(() => ({ loaded: false }));
+vi.mock("@/hooks/use-agents", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-agents")>()),
+  useAgent: (id: string | null) => ({
+    agent:
+      id && presentation.loaded
+        ? { id, slug: "stable-researcher", has_avatar: false, avatar_color: 2 }
+        : undefined,
+  }),
+}));
+
 vi.mock("@/lib/portability-api", () => ({
   downloadResourceExport: vi.fn(),
   downloadBundleTransfer: vi.fn(),
@@ -94,6 +105,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  presentation.loaded = false;
   vi.mocked(listImportDestinations).mockResolvedValue({
     items: [
       { id: "destination-policy", name: "Existing policy" },
@@ -501,4 +513,25 @@ it("closes export with Escape when no operation is running", async () => {
   await screen.findByText("Researcher");
   await userEvent.keyboard("{Escape}");
   expect(close).toHaveBeenCalledWith(false);
+});
+
+it("expands export without losing reviewed choices and uses the source agent identity", async () => {
+  presentation.loaded = true;
+  const { container } = render(<ExportAgentDialog agentId="source" open onOpenChange={vi.fn()} />, {
+    wrapper: Wrapper,
+  });
+  const policy = await screen.findByRole("checkbox", { name: /Policy/ });
+  expect(container.ownerDocument.querySelector('[data-agent-avatar="source"]')).toBeInTheDocument();
+  await userEvent.click(policy);
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(screen.getByRole("checkbox", { name: /Policy/ })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+  await userEvent.click(screen.getByRole("button", { name: "Download" }));
+  await waitFor(() =>
+    expect(downloadResourceExport).toHaveBeenCalledWith("agent", "source", "yaml", {
+      "agent/root": ["definition"],
+      "context/policy": [],
+      "secret/key": [],
+    }),
+  );
 });

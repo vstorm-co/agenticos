@@ -635,6 +635,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     verbs: { now: "writing", done: "wrote" },
   },
+  transfer_project_file: {
+    kind: "write",
+    render: "generic",
+    captionKey: "transferringProjectFile",
+    displayNameKey: "transferredProjectFile",
+  },
   select_execution_target: {
     kind: "shell",
     render: "generic",

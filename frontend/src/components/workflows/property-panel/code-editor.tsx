@@ -58,6 +58,7 @@ export function CodeEditor({
   disabled,
   argKeys,
   actionCalls,
+  compact = false,
 }: {
   id: string;
   language: CodeLanguage;
@@ -67,6 +68,8 @@ export function CodeEditor({
   placeholder?: string;
   disabled?: boolean;
   actionCalls?: readonly ReactElement[];
+  /** Keep the actions step's setup and bindings visible beside a short script. */
+  compact?: boolean;
   /** The keys of the bound `args`, offered as a key is typed. */
   argKeys: readonly string[];
 }) {
@@ -95,7 +98,10 @@ export function CodeEditor({
           .filter((key) => key.startsWith(typing.prefix) && key !== typing.prefix)
           .map((key) => ({ key, edit: completeArg(value, caret, typing, key) }));
   const open = offered.length > 0;
-  const rows = Math.min(MAX_ROWS, Math.max(MIN_ROWS, value.split("\n").length + 1));
+  const rows = Math.min(
+    compact ? 16 : MAX_ROWS,
+    Math.max(compact ? 6 : MIN_ROWS, value.split("\n").length + 1),
+  );
 
   useLayoutEffect(() => {
     const target = pending.current;

@@ -1251,6 +1251,15 @@
     },
     "pythonActions": "Kullanılabilir işlevler",
     "pythonActionsHint": "Bir eylemi bir kez bağlayın, ardından işlevini betiğinizde adlandırılmış argümanlarla çağırın.",
+    "pythonInputGuide": "Girdi · Eşlenen değerleri args içinden okuyun: {keys}",
+    "pythonInputUnbound": "henüz girdi alanı eşlenmedi",
+    "pythonFunctionsGuide": "Fonksiyonlar · {names} fonksiyonlarını adlandırılmış argümanlarla çağırın.",
+    "pythonFunctionsEmpty": "Fonksiyonlar · Fonksiyonunu betikte kullanmak için aşağıdan bir eylem ekleyin.",
+    "pythonOutputGuide": "Çıktı · Son ifade bu adımın sonucu olur.",
+    "pythonExampleGuide": "Bu adımı yazma",
+    "pythonCallGuide": "Girdi değerleri için args kullanın ve bağlanan fonksiyonları adlarıyla çağırın. Fonksiyon eylemin sonucunu döndürür; sonraki adıma iletilecek değerle bitirin.",
+    "pythonExamplePlaceholders": "Her ... yerine bir girdi veya sabit değer yazın. Fonksiyon eklemek ya da betiği düzenlemek eylem çalıştırmaz.",
+    "pythonActionsEmpty": "Henüz eylem bağlanmadı. Bir eylem seçin, Python adı verin ve çağrısını betiğe ekleyin. Eylem çağırmadan args ile de hesaplama yapabilirsiniz.",
     "pythonActionsDiscover": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python adımı ekleyin ve her eyleme bir işlev adı verin.",
     "pythonSelectAction": "Bir eylem seçin",
     "pythonInsertCall": "İşlev çağrısı ekle",
@@ -9186,6 +9195,10 @@
       "personal-console-catalogs": {
         "title": "Kataloglar",
         "body": "Göz atmak istediğiniz galerileri seçin. Kuruluş ve dağıtım sınırları geçerliliğini korur."
+      },
+      "project-resources": {
+        "title": "İlgili kaynakları bir arada tutun",
+        "body": "Mevcut ajanları, iş akışlarını, Apps ve tabloları izinlerini değiştirmeden bağlayın. Buradan açın veya bağlı bir iş akışını projenin giriş noktası olarak seçin."
       }
     }
   },
@@ -9397,16 +9410,21 @@
       },
       "afterFirstMessage": "İlk mesajdan sonra kullanılabilir.",
       "projectExecution": {
-        "title": "Komutların çalıştırılacağı yer",
-        "agent": "Ajan çalışma alanı",
-        "project": "Proje çalışma alanı",
-        "hint": "Sonraki mesaj için geçerlidir. Proje bağlamını veya dosyalarını seçmek komutların çalıştırıldığı yeri değiştirmez.",
-        "filesOnly": "Bu ajan proje dosyalarını ve bağlamını kullanabilir ancak komut çalıştıramaz.",
-        "projectFilesOnly": "Bu proje yalnızca dosyaları saklar. Komut çalıştırmak için ajan çalışma alanını seçin; proje dosyaları ayrı kalır.",
-        "noProject": "Çalışma alanını seçmek için projede bir sohbet başlatın. Diğer sohbetlerde ajandan bu çalıştırma için bir proje seçmesini isteyin.",
-        "local": "Komutlar bu bilgisayarda izin verilen klasörü kullanır. Bu seçimi değiştirmek için buluta dönün.",
-        "loading": "Bu sohbetin projesi kontrol ediliyor…",
-        "unavailable": "Proje kontrol edilemedi. Çalışma alanını seçmeden önce yeniden deneyin."
+        "title": "Proje dosyaları",
+        "hint": "Paylaşılan dosyalar projede kalır. Agent kendi araçlarını korur ve gerektiğinde proje sandbox’ını kullanabilir.",
+        "filesOnly": "Paylaşılan proje dosyaları komut çalıştırmadan kullanılabilir.",
+        "projectFilesOnly": "Paylaşılan dosyalar projede kalır. Bu projenin komut ortamı yoktur; agent kendi araçlarını korur.",
+        "local": "Proje dosyaları paylaşılmaya devam eder. Komutlar bu bilgisayarda izin verilen klasörü kullanmaya devam eder.",
+        "loading": "Bu chat’in projesi denetleniyor…",
+        "unavailable": "Proje denetlenemedi. Güncel workspace’i görmek için yeniden deneyin.",
+        "advanced": "Gelişmiş komut hedefi",
+        "commandTarget": "Komut hedefi",
+        "automatic": "Otomatik — agent seçer",
+        "agent": "Yalnızca agent workspace’i",
+        "project": "Yalnızca proje sandbox’ı",
+        "overrideHint": "İsteğe bağlı: bu chat için komut hedefini sabitleyin. Otomatik mod agent’ın kendi ortamında başlar.",
+        "noProject": "Agent yapılandırılmış workspace’ini kullanır. Gerektiğinde bir proje kullanmasını isteyin.",
+        "workspace": "Agent workspace’i"
       }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
@@ -10061,7 +10079,9 @@
       "selectingProjectContext": "Proje bağlamı seçiliyor…",
       "selectedProjectContext": "Proje bağlamı seçildi",
       "selectingExecutionTarget": "Komut hedefi seçiliyor…",
-      "selectedExecutionTarget": "Komut hedefi seçildi"
+      "selectedExecutionTarget": "Komut hedefi seçildi",
+      "transferringProjectFile": "Proje dosyası aktarılıyor…",
+      "transferredProjectFile": "Proje dosyası aktarıldı"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -12806,7 +12826,8 @@
       "remove": "{name} kaynağını projeden kaldır",
       "kind": "Kaynak türü",
       "addSelected": "Seçilenleri ekle ({count})",
-      "filterHint": "Bu kataloğu filtrelemek için bir proje seçin."
+      "filterHint": "Bu kataloğu filtrelemek için bir proje seçin.",
+      "noMatches": "Eşleşen kaynak yok."
     }
   },
   "vault": {
@@ -14417,6 +14438,20 @@
       "noProviders": "Bu kurulumda kullanılabilir model sağlayıcısı yok.",
       "existingModels": "Çalışma alanınıza zaten bağlı bir model seçin.",
       "noExistingModels": "Henüz kullanıma hazır çalışma alanı modeli yok. Bir yöneticiden model bağlamasını isteyin veya önceki adımda kendi aboneliğinizi kullanın."
+    },
+    "configurationGuide": {
+      "title": "İsteğe bağlı ayarları keşfedin",
+      "hint": "Kurulumu şimdi bitirip bu seçeneklere daha sonra dönebilirsiniz. Bir bağlantıyı açmak ayarlarınızı değiştirmez.",
+      "preferencesTitle": "Konsolu kişiselleştirin",
+      "preferencesBody": "Kuruluşunuzun izin verdiği ölçüde kenar çubuğunu, katalog keşfini, sohbet maliyetlerinin görünürlüğünü ve ürün ipuçlarını seçin.",
+      "projectsTitle": "Çalışmaları projelerde bir arada tutun",
+      "projectsBody": "Dosyaları, talimatları ve bağlı kaynakları sohbetler arasında paylaşın. Ajanlar kendi araçlarını korur; isteğe bağlı proje sandbox'ı ortak derlemeleri çalıştırır.",
+      "transferTitle": "Ajanları dışa ve içe aktarın",
+      "transferBody": "Dahil edilecek Skills, Context ve bilgi içeriklerini seçin. İçe aktarmadan önce bağımlılıkları inceleyin; hesap sırları ve arama dizinleri aktarılmaz.",
+      "workflowTitle": "Python eylemleriyle iş akışları oluşturun",
+      "workflowBody": "Araçları adlandırılmış işlevlere bağlayıp Python'dan çağırın. Her eylem kendi izinlerini, onaylarını ve yürütme kaydını korur.",
+      "organizationTitle": "Kuruluş varsayılanlarını belirleyin",
+      "organizationBody": "Her rol için gezinmeyi, katalogları, panoyu ve bildirimleri, ayrıca maliyet görünürlüğünü yapılandırın. Üyeler politikanızın izin verdiği seçenekleri kişiselleştirebilir."
     }
   },
   "notificationRoutes": {
@@ -18507,7 +18542,8 @@
         "member": "Üye",
         "viewer": "İzleyici"
       },
-      "loadError": "Konsol tercihleri yüklenemedi."
+      "loadError": "Konsol tercihleri yüklenemedi.",
+      "customizeNavigation": "Kenar çubuğunu özelleştir"
     },
     "catalogs": {
       "personalTitle": "Kataloglar",
@@ -19581,7 +19617,19 @@
     "importLegacy": "Eski iş akışı dosyasını içe aktar",
     "exportLegacy": "Eski iş akışı dosyasını dışa aktar",
     "startNewTransfer": "Yeni aktarım başlat",
-    "unsupportedMapping": "Bu kaynak için içe aktarma bağdaştırıcısı yok. Bağlantıyı atlayın ve hedef düzenleyicide yapılandırın."
+    "unsupportedMapping": "Bu kaynak için içe aktarma bağdaştırıcısı yok. Bağlantıyı atlayın ve hedef düzenleyicide yapılandırın.",
+    "searchResources": "Dahil edilen kaynakları ara",
+    "noResources": "Eşleşen kaynak yok.",
+    "groups": {
+      "root": "Gerekli tanım",
+      "agents": "Agent’lar",
+      "workflows": "Workflow’lar",
+      "skills": "Skill’ler",
+      "context": "Context",
+      "knowledge": "Bilgi tabanları",
+      "connections": "Modeller ve bağlantılar",
+      "other": "Diğer kaynaklar"
+    }
   },
   "datasets": {
     "helpers": {

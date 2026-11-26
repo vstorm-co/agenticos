@@ -36,3 +36,15 @@ it("adopts an explicit choice for the created chat without inheriting it into a 
   useOrgStore.setState({ activeOrgId: "org-b" });
   expect(store.executionFor("chat")).toBeNull();
 });
+
+it("clears only the current command override when returning to automatic", () => {
+  const store = useWorkOnStore.getState();
+  store.setExecution("chat", "project", "project");
+  store.setExecution("other", "project", "agent");
+  store.setExecution("chat", "project", null);
+  expect(store.executionFor("chat")).toBeNull();
+  expect(store.executionFor("other")).toBe("agent");
+  store.setExecution(null, "project", "project");
+  store.setExecution(null, "project", null);
+  expect(store.executionFor(null, "project")).toBeNull();
+});

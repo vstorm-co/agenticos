@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "97b2091b7431"
+source_sha: "b4ca951d7c1e"
 ---
 
 # Projekty { #projects }
@@ -86,39 +86,50 @@ ewaluacje nie mogą wybierać aktywnych projektów.
 
 ## Co agent dostaje w projekcie { #what-an-agent-gets-in-a-project }
 
-Pliki projektu i wykonywanie poleceń są rozdzielone:
+Pliki projektu są wspólne; agent domyślnie zachowuje własne środowisko wykonawcze,
+także w czacie projektu. Ogólne narzędzia plikowe i polecenia powłoki używają tego
+samego wybranego wykonawcy. Jawne narzędzia plikowe projektu zawsze używają projektu.
 
-| Wybór | Domyślne działanie i skutek |
+| Obszar | Domyślne działanie i skutek |
 |---|---|
-| Kontekst projektu | Pliki i instrukcje referencyjne projektu; nadal obowiązują zasady agenta i platformy |
-| **Pracuj w → Projekt** | Domyślnie w czacie projektu z kontenerem; używa kontenera projektu, jeżeli agent ma narzędzia powłoki Sandbox |
-| **Pracuj w → Agent** | Domyślnie poza projektem i dla projektów przechowujących tylko pliki; używa skonfigurowanego środowiska agenta bez montowania plików projektu |
-| Tylko przechowywanie plików | Działają tekstowe narzędzia projektu; projekt nie wykonuje poleceń |
-| Lokalny folder roboczy | Pozostaje środowisko wybrane przez użytkownika; kontekst projektu go nie zastępuje |
+| Kontekst projektu | Wspólne pliki i instrukcje referencyjne; nadal obowiązują zasady agenta i platformy |
+| Workspace agenta | Domyślny dla ogólnych narzędzi plikowych i poleceń; zachowuje narzędzia agenta |
+| Wykonawca projektu | Dodatkowy cel poleceń działających bezpośrednio na plikach projektu z sandboxem |
+| Tylko przechowywanie plików | Narzędzia plikowe działają bez powłoki; brak wykonawcy projektu |
+| Lokalny folder roboczy | Zachowuje lokalnego wykonawcę zaakceptowanego przez użytkownika; kontekst projektu go nie zastępuje |
 
-**Pracuj w** jest w ustawieniach czatu web i desktop, gdy agent może wykonywać
-polecenia. Wykonanie w projekcie wymaga przypiętego lub wybranego przed wysłaniem
-projektu. Jawny wybór jest zachowywany dla konta, organizacji i czatu, ale nie
-przechodzi do nowego czatu. Jawny wybór blokuje wykonawcę na cały run; agent nie
-może go zmienić. Jeśli żądanie pomija wybór, agent może użyć `select_execution_target`;
-`select_project_context` i starsze `select_project_workspace` zmieniają tylko pliki.
-Wynik narzędzia pokazuje oba wybory i dostępność.
+Zwarta karta **Narzędzia i pliki** opisuje aktywny projekt. **Zaawansowany cel poleceń**
+pozwala przypiąć agenta lub projekt albo wrócić do automatycznego wyboru. Jawny wybór
+obowiązuje dla konta, organizacji i czatu oraz blokuje wykonawcę przez cały run.
+Bez przypięcia agent może użyć `select_execution_target`, gdy build lub inne polecenie
+potrzebuje środowiska projektu. Nie musisz przełączać opcji przy każdym zadaniu.
+Sam wybór nie uruchamia polecenia ani nie przenosi pliku.
 
-Czat projektu daje rzeczywisty dostęp do plików także bez Sandbox. Nie włącza
-wyłączonego Sandbox i nie daje powłoki agentowi bez takich narzędzi. Zatwierdzanie
-konkretnych narzędzi nadal obowiązuje. Po odczycie prywatnego kontekstu projektu
-odmawiamy użycia środowiska agenta/kanału współdzielonego z szerszą publicznością;
-wyczyszczenie wyboru tego nie obchodzi. Użyj izolacji rozmowy lub środowiska projektu.
+Gdy specjalistyczne narzędzie agenta potrzebuje pliku projektu na swoim dysku, użyj
+`transfer_project_file` z `direction: to_agent`, ścieżką projektu i ścieżką agenta.
+Serwer przesyła bajty bezpośrednio, także pliki binarne do 8 MiB; model otrzymuje
+ścieżki, rozmiar i potwierdzenie SHA-256 zamiast treści do przepisywania.
+`direction: from_agent` zapisuje uzgodniony wynik w projekcie. Polecenia wykonywane
+bezpośrednio w sandboxie projektu nie potrzebują takiego transferu.
+
+To jawna kopia, nie montowanie ani synchronizacja. Późniejsze zmiany nie są przenoszone.
+Istniejący plik docelowy wymaga aktualnego `expected_sha256`; różnica odmawia nadpisania.
+Transfer ponownie sprawdza dostęp, generację workspace, granice ścieżek i rozmiar.
+Kontrola skrótu nie blokuje transakcyjnie zwykłych zapisów z powłoki. Wybierz nową
+ścieżkę wyniku, jeżeli nie zamierzasz zastępować znanego pliku.
+
+Czaty projektu dają dostęp do plików także bez Sandbox, a przesłane w nich pliki trafiają
+do projektu. Nie włączają wyłączonego Sandbox ani brakujących narzędzi powłoki.
+Zgody na narzędzia nadal obowiązują. Prywatny kontekst projektu nie może trafić do
+workspace agenta/kanału współdzielonego z szerszą publicznością. Użyj izolacji rozmowy
+lub wykonawcy projektu. Osobiste dane logowania do narzędzi kodujących pozostają
+niedostępne dla źródeł projektowych i współdzielonych.
 
 Tekstowe narzędzia projektu pokazują do 100 wpisów i czytają lub zapisują UTF-8 do
-256 KB. Odrzucają ścieżki zastrzeżone, dowiązania poza projektem, pliki binarne i
-nieznany rozmiar. Nie uruchamiają OCR. Zapis po odczycie odmawia nadpisania pliku
-zmienionego równolegle. Projekt pozostaje na wybranym połączeniu sandboxa, dopóki
-edytor jawnie go nie przeniesie.
-
-Po wznowieniu po zatwierdzeniu lub pytaniu trzeba ponownie odczytać istniejący plik
-projektu przed zastąpieniem lub usunięciem. Narzędzie kodujące wymaga wspólnego
-środowiska dla plików i poleceń; rozdzielone przestrzenie są odrzucane.
+256 KB. Odrzucają ścieżki zastrzeżone, dowiązania poza projektem, tekst binarny i
+nieznany rozmiar; nie uruchamiają OCR. Zapis po odczycie wykrywa zmienione pliki.
+Po wznowieniu po zatwierdzeniu lub pytaniu ponownie przeczytaj istniejący plik przed
+zastąpieniem lub usunięciem. Projekt zachowuje połączenie sandboxa do jawnego przeniesienia.
 
 Delegowana praca dostaje przypięty projekt, generację i środowisko wykonawcze.
 Pierwszy subagent współdzielący workspace blokuje te wybory do końca runu, także
@@ -128,11 +139,14 @@ mutowalnego portu wyboru. Każde ma własną ochronę konfliktów odczytu, a roo
 są odmawiane. Wcześniej dopuszczone operacje zdalne zachowują dotychczasowy okres
 oczekiwania na anulowanie i czas życia dostawcy; sprzątanie nie gwarantuje ich końca.
 
-Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
-połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
-zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
+Nowe projekty domyślnie używają **Tylko przechowywanie plików**: wspólne pliki
+i instrukcje nie wymagają uruchomionego kontenera, nawet gdy organizacja ma dostępny
+sandbox. Gdy projekt potrzebuje własnego środowiska wykonawczego, w polu
+**Sandbox projektu** wybierz konkretne połączenie lub tryb automatyczny.
+
+Tryb ten zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
 Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
-organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Czaty projektu korzystają z jego plików, a dla kontenerów obsługujących polecenia domyślnie z jego środowiska wykonawczego, gdy agent ma narzędzia powłoki. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Czaty projektu korzystają ze wspólnych plików, zachowując domyślnie wykonawcę agenta. Wykonawca projektu jest dodatkowym wyborem, gdy agent ma narzędzia powłoki. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
 
 Transfer jest trwałym zadaniem w tle. Kopiuje pliki i puste foldery do odrębnego
 warsztatu, sprawdza skróty plików i drzewo katalogów, a potem aktywuje cel. Przed

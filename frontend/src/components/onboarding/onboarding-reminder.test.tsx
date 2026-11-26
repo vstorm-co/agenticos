@@ -57,15 +57,18 @@ it("offers setup to an unfinished membership and asks the server to snooze it", 
   expect(env.state.save.mutate).toHaveBeenCalledExactlyOnceWith({ dismissed: true });
   expect(screen.getByRole("region", { name: "Finish setup" })).toBeVisible();
 });
-it("keeps a quiet return link during the server snooze, and restores the card afterwards", () => {
-  env.state.data.dismissed = true;
-  const view = render(<OnboardingReminder />);
-  expect(screen.getByRole("link", { name: "Finish setup" })).toHaveAttribute("href", "/onboarding");
-  expect(screen.queryByRole("region")).toBeNull();
-  env.state.data.dismissed = false;
-  view.rerender(<OnboardingReminder />);
-  expect(screen.getByRole("region", { name: "Finish setup" })).toBeVisible();
-});
+it.each([false, true])(
+  "hides the reminder during the server snooze, including collapsed=%s",
+  (collapsed) => {
+    env.state.data.dismissed = true;
+    const view = render(<OnboardingReminder collapsed={collapsed} />);
+    expect(screen.queryByRole("link", { name: "Finish setup" })).toBeNull();
+    expect(screen.queryByRole("region")).toBeNull();
+    env.state.data.dismissed = false;
+    view.rerender(<OnboardingReminder />);
+    expect(screen.getByRole("region", { name: "Finish setup" })).toBeVisible();
+  },
+);
 it.each([
   "user loading",
   "query loading",
@@ -191,5 +194,23 @@ it("manual setup resumes this account's sanitized location even when the reminde
   expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute(
     "href",
     "/onboarding?start-step=admin.deployment&workspace=org&question=announcement",
+  );
+});
+
+it("preserves the manual resume location when a server snooze hides the sidebar", () => {
+  useOnboardingLocationStore
+    .getState()
+    .rememberStartLocation("user", "org", "/onboarding?start-step=member.context&workspace=org");
+  env.state.data.dismissed = true;
+  render(
+    <>
+      <OnboardingReminder />
+      <OnboardingResumeLink />
+    </>,
+  );
+  expect(screen.queryByRole("link", { name: "Finish setup" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute(
+    "href",
+    "/onboarding?start-step=member.context&workspace=org",
   );
 });

@@ -4,7 +4,7 @@ import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import { use } from "react";
 import Link from "next/link";
-import { Plus, AppWindow, FileText } from "lucide-react";
+import { Plus, AppWindow, FileText, Layers } from "lucide-react";
 import { DocumentIcon as Files, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
@@ -133,7 +133,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <MessageSquare className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("chats")}
           </TabsTrigger>
-          <TabsTrigger disabled={isLoading} value="resources">
+          <TabsTrigger disabled={isLoading} value="resources" data-tour="project-tab-resources">
+            <Layers className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("resources.title")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="files">
@@ -149,7 +150,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             {t("instructions")}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="resources" className="min-h-0 flex-1 overflow-auto">
+        <TabsContent value="resources" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {project && <ProjectResources project={project} />}
         </TabsContent>
         <TabsContent value="files" className="flex min-h-0 flex-1 flex-col overflow-hidden">

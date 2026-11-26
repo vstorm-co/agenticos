@@ -1499,16 +1499,21 @@
       },
       "afterFirstMessage": "Disponível após a primeira mensagem.",
       "projectExecution": {
-        "title": "Executar comandos em",
-        "agent": "Espaço do agente",
-        "project": "Espaço do projeto",
-        "hint": "Aplica-se à próxima mensagem. Escolher o contexto ou os arquivos do projeto não altera o local de execução.",
-        "filesOnly": "Este agente pode usar arquivos e contexto do projeto, mas não pode executar comandos.",
-        "projectFilesOnly": "Este projeto apenas armazena arquivos. Selecione o espaço do agente para executar comandos; os arquivos do projeto permanecem separados.",
-        "noProject": "Inicie um chat em um projeto para escolher seu espaço. Em outros chats, peça ao agente para selecionar um projeto para esta execução.",
-        "local": "Os comandos usam a pasta autorizada neste computador. Volte à nuvem para alterar esta escolha.",
-        "loading": "Verificando o projeto deste chat…",
-        "unavailable": "Não foi possível verificar o projeto. Tente novamente antes de escolher seu espaço."
+        "title": "Ficheiros do projeto",
+        "hint": "Os ficheiros partilhados ficam no projeto. O agente mantém as suas ferramentas e pode usar o sandbox do projeto quando necessário.",
+        "filesOnly": "Os ficheiros partilhados do projeto estão disponíveis sem executar comandos.",
+        "projectFilesOnly": "Os ficheiros partilhados ficam no projeto. Este projeto não tem ambiente de comandos; o agente mantém as suas ferramentas.",
+        "local": "Os ficheiros do projeto continuam partilhados. Os comandos continuam a usar a pasta autorizada neste computador.",
+        "loading": "A verificar o projeto deste chat…",
+        "unavailable": "Não foi possível verificar o projeto. Tente novamente para ver o workspace atual.",
+        "advanced": "Destino avançado de comandos",
+        "commandTarget": "Destino de comandos",
+        "automatic": "Automático — o agente escolhe",
+        "agent": "Apenas workspace do agente",
+        "project": "Apenas sandbox do projeto",
+        "overrideHint": "Opcional: fixe o destino de comandos deste chat. O modo automático começa no ambiente próprio do agente.",
+        "noProject": "O agente usa o workspace configurado. Peça-lhe para usar um projeto quando necessário.",
+        "workspace": "Workspace do agente"
       }
     },
     "conversationArchived": "Esta conversa está arquivada",
@@ -2199,7 +2204,9 @@
       "selectingProjectContext": "Selecionando contexto do projeto…",
       "selectedProjectContext": "Contexto do projeto selecionado",
       "selectingExecutionTarget": "Selecionando destino dos comandos…",
-      "selectedExecutionTarget": "Destino dos comandos selecionado"
+      "selectedExecutionTarget": "Destino dos comandos selecionado",
+      "transferringProjectFile": "A transferir ficheiro do projeto…",
+      "transferredProjectFile": "Ficheiro do projeto transferido"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -6327,6 +6334,10 @@
       "workflow-python-actions": {
         "title": "Chamar ferramentas a partir do Python",
         "body": "Escolha Python com ações para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento. Atribua um nome de função a cada ação e insira a chamada no script pelo menu abaixo do editor. Cada chamada tem suas próprias aprovações e seu próprio registro de execução."
+      },
+      "project-resources": {
+        "title": "Reunir recursos relacionados",
+        "body": "Associe agentes, workflows, Apps e tabelas existentes sem alterar as permissões. Abra-os aqui ou escolha um workflow associado como ponto de entrada do projeto."
       }
     },
     "chooseLanguage": "Idioma",
@@ -12514,6 +12525,15 @@
     "webhookSourceAudience": "Quem pode ver as execuções deste workflow também pode ver os dados entregues pela fonte de eventos. Isso inclui execuções anteriores, mesmo que você compartilhe o workflow só depois. Ver uma execução não concede acesso à fonte.",
     "pythonActions": "Funções disponíveis",
     "pythonActionsHint": "Associe uma ação uma vez e chame a função no script com argumentos nomeados.",
+    "pythonInputGuide": "Entrada · Leia os valores associados em args: {keys}",
+    "pythonInputUnbound": "nenhum campo de entrada associado",
+    "pythonFunctionsGuide": "Funções · Chame {names} com argumentos nomeados.",
+    "pythonFunctionsEmpty": "Funções · Adicione uma ação abaixo para disponibilizar a sua função no script.",
+    "pythonOutputGuide": "Saída · A última expressão torna-se o resultado deste passo.",
+    "pythonExampleGuide": "Como escrever este passo",
+    "pythonCallGuide": "Use args para os dados de entrada e chame as funções associadas pelo nome. Cada função devolve o resultado da ação; termine com o valor que o próximo passo deve receber.",
+    "pythonExamplePlaceholders": "Substitua cada ... por uma entrada ou um valor literal. Adicionar uma função ou editar o script não executa nenhuma ação.",
+    "pythonActionsEmpty": "Nenhuma ação associada. Escolha uma ação, atribua um nome Python e insira a chamada no script. Também pode calcular a partir de args sem chamar ações.",
     "pythonActionsDiscover": "Para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento, adicione uma etapa Python com ações e atribua um nome de função a cada ação.",
     "pythonSelectAction": "Selecione uma ação",
     "pythonInsertCall": "Inserir chamada de função",
@@ -15074,7 +15094,8 @@
       "remove": "Remover {name} do projeto",
       "kind": "Tipo de recurso",
       "addSelected": "Adicionar seleção ({count})",
-      "filterHint": "Escolha um projeto para filtrar este catálogo."
+      "filterHint": "Escolha um projeto para filtrar este catálogo.",
+      "noMatches": "Nenhum recurso correspondente."
     }
   },
   "voiceGlow": {
@@ -18693,6 +18714,20 @@
       "position": "{current} de {total}",
       "continue": "Continuar",
       "finish": "Continuar para a configuração"
+    },
+    "configurationGuide": {
+      "title": "Explorar definições opcionais",
+      "hint": "Pode terminar a configuração agora e voltar a estas opções mais tarde. Abrir uma ligação não altera as definições.",
+      "preferencesTitle": "Personalizar a consola",
+      "preferencesBody": "Escolha a navegação, a descoberta de catálogos, a visibilidade dos custos do chat e as sugestões dentro dos limites da organização.",
+      "projectsTitle": "Reunir o trabalho em projetos",
+      "projectsBody": "Partilhe ficheiros, instruções e recursos associados entre chats. Os agentes mantêm as suas ferramentas; um sandbox de projeto opcional executa builds partilhados.",
+      "transferTitle": "Exportar e importar agentes",
+      "transferBody": "Escolha os Skills, Context e conteúdos de conhecimento incluídos. Reveja as dependências antes de importar; segredos de contas e índices de pesquisa ficam excluídos.",
+      "workflowTitle": "Criar workflows com ações Python",
+      "workflowBody": "Associe ferramentas a funções com nome e invoque-as em Python. Cada ação mantém as suas permissões, aprovações e registo de execução.",
+      "organizationTitle": "Definir padrões da organização",
+      "organizationBody": "Configure navegação, catálogos, dashboard e avisos por função, além da visibilidade dos custos. Os membros podem personalizar as opções permitidas."
     }
   },
   "skillImprovement": {
@@ -21969,7 +22004,8 @@
         "member": "Membro",
         "viewer": "Leitor"
       },
-      "loadError": "Não foi possível carregar as preferências da consola."
+      "loadError": "Não foi possível carregar as preferências da consola.",
+      "customizeNavigation": "Personalizar barra lateral"
     },
     "catalogs": {
       "personalTitle": "Catálogos",
@@ -22125,7 +22161,19 @@
     "importLegacy": "Importar arquivo antigo de workflow",
     "exportLegacy": "Exportar arquivo antigo de workflow",
     "startNewTransfer": "Iniciar nova transferência",
-    "unsupportedMapping": "Este recurso não tem adaptador de importação. Ignore o vínculo e configure-o no editor de destino."
+    "unsupportedMapping": "Este recurso não tem adaptador de importação. Ignore o vínculo e configure-o no editor de destino.",
+    "searchResources": "Pesquisar recursos incluídos",
+    "noResources": "Nenhum recurso correspondente.",
+    "groups": {
+      "root": "Definição obrigatória",
+      "agents": "Agentes",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Bases de conhecimento",
+      "connections": "Modelos e ligações",
+      "other": "Outros recursos"
+    }
   },
   "stepFailure": {
     "technicalDetails": "Detalhes técnicos",

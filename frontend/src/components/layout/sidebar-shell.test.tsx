@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
 import { version } from "../../../package.json";
+vi.mock("@/components/settings/console-navigation-dialog", () => ({
+  ConsoleNavigationDialog: () => <button type="button">Customize sidebar</button>,
+}));
 
 /**
  * The blocks are stubbed because this is a test about arrangement, not about

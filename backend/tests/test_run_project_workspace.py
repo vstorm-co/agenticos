@@ -1,5 +1,6 @@
 """Selecting a project changes files, never the caller's identity or conversation."""
 
+import posixpath
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -80,6 +81,8 @@ async def test_select_files_and_reset_without_copying_private_content(
     await setup.project.write_text("index.md", "project index")
     project_id = uuid4()
     assert "HN Wiki" in await setup.selector.select(project_id)
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     assert setup.service.open_project.await_count == 0
     assert await setup.selector.workspace.read_text("index.md") == "project index"
     assert not await setup.selector.workspace.exists("private.txt")
@@ -159,6 +162,8 @@ async def test_project_failure_closes_and_flush_failure_is_not_success(
     setup: SimpleNamespace,
 ) -> None:
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     with pytest.raises(FileNotFoundError):
         await setup.selector.workspace.read_text("missing.md")
     assert setup.service.close.await_count > 0
@@ -211,6 +216,8 @@ async def test_cancellation_closes_the_project_transport(setup: SimpleNamespace)
         read_bytes=wait_for_cancel, working_dir=AsyncMock(return_value="/")
     )
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     task = asyncio.create_task(setup.selector.read_bytes("/index.md"))
     await asyncio.wait_for(entered.wait(), timeout=5)
     task.cancel()
@@ -246,6 +253,8 @@ async def test_unavailable_project_provider_is_a_controlled_tool_failure(
     setup: SimpleNamespace,
 ) -> None:
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     setup.service.open_project.side_effect = NotFoundError(message="Sandbox connection not found")
     with pytest.raises(PermissionError, match="Sandbox connection not found"):
         await setup.selector.workspace.list_dir(".")
@@ -256,6 +265,8 @@ async def test_a_stale_read_cannot_overwrite_or_delete_another_project_edit(
     setup: SimpleNamespace,
 ) -> None:
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     await setup.project.write_text("report.md", "original")
     await setup.selector.workspace.read_text("report.md")
     await setup.project.write_text("report.md", "another writer")
@@ -290,7 +301,8 @@ async def test_selecting_files_does_not_move_the_agent_command_target(
     setup.guard.return_value.backend = "service"
     selection = await setup.selector.select(uuid4())
     assert '"execution_target": "agent"' in selection
-    assert await setup.selector.workspace.read_text("reference.txt") == "project reference"
+    assert "project reference" in await setup.selector.read_file("reference.txt")
+    assert await setup.selector.workspace.read_text("private.txt") == "private agent file"
     first = await setup.selector.workspace.run(["/bin/pwd"], timeout=5)
     assert first.stdout.strip() == str(agent_root.resolve())
     assert not (agent_root / "reference.txt").exists()
@@ -381,6 +393,8 @@ async def test_project_scopes_cannot_be_bypassed_by_the_legacy_workspace_proxy(
         await setup.selector.select(uuid4())
     setup.selector.granted_scopes = frozenset({"projects:read"})
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     with pytest.raises(PermissionError, match="writes are disabled"):
         await setup.selector.workspace.write_text("private.txt", "refused")
     with pytest.raises(AuthorizationError, match="writes are disabled"):
@@ -671,6 +685,8 @@ async def test_missing_paths_walk_only_inside_the_project_for_creation(
     setup: SimpleNamespace,
 ) -> None:
     workspace = SimpleNamespace(
+        paths=posixpath,
+        platform="posix",
         resolve=AsyncMock(return_value="/project/new/deeper.txt"),
         realpath=AsyncMock(side_effect=FileNotFoundError()),
         working_dir=AsyncMock(return_value="/project"),
@@ -691,6 +707,8 @@ async def test_missing_paths_walk_only_inside_the_project_for_creation(
 
 async def test_write_scope_refuses_directory_creation_and_removal(setup: SimpleNamespace) -> None:
     await setup.selector.select(uuid4())
+    setup.guard.return_value.backend = "service"
+    await setup.selector.select_execution("project")
     setup.selector.granted_scopes = frozenset({"projects:read"})
     for operation in (setup.selector.make_dir, setup.selector.remove):
         with pytest.raises(PermissionError, match="writes are disabled"):
@@ -1019,7 +1037,7 @@ async def test_continued_project_mutations_require_fresh_reads(setup: SimpleName
     restored.restore(
         setup.selector.project_id,
         setup.selector.project_generation,
-        "agent",
+        "project",
         require_fresh_reads=True,
     )
     child = restored.snapshot_for_delegate()

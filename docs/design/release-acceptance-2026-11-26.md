@@ -44,6 +44,15 @@ The practical result is a more configurable console, portable agents/workflows w
 
 ## Acceptance evidence and limits
 
+The maintainer's subsequent acceptance feedback separates Project files from the
+agent's own execution environment according to discussion #3272. Agent execution
+is now the default in attached Project chats. Explicit binary file transfers,
+executor-aligned generic tools, compact chat controls, resource/export identities,
+Python Actions guidance, sidebar customization and non-flickering settings are
+described in [the follow-up contract](project-workspaces-3272.md). Earlier screen
+captures below document the previous candidate; fresh captures and exact-head CI
+are required for this follow-up.
+
 The definitive full-CI evidence is the latest source SHA's checks on PR #3455.
 A passing source PR, focused local test or combined report does not replace that
 check. Earlier aggregate runs exposed stale asynchronous fixtures, incomplete

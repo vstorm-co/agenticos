@@ -4,12 +4,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useBundleTransfer } from "@/hooks/use-bundle-transfer";
 import { downloadBundleTransfer, type BundleRootKind } from "@/lib/portability-api";
-import { Download, FileText, Link2, ShieldCheck } from "lucide-react";
+import { Download, ShieldCheck, Maximize2, Minimize2 } from "lucide-react";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useTranslations } from "next-intl";
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,9 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useResourceExport } from "@/hooks/use-portability";
-import { ExportLayers } from "./export-layers";
+import { ExportResourceList } from "./export-resource-list";
+import { useAgent } from "@/hooks/use-agents";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 
 function ExportResourceContent({
   resourceId,
@@ -41,8 +41,11 @@ function ExportResourceContent({
 }) {
   const t = useTranslations("portability");
   const tErrors = useTranslations("errors");
+  const common = useTranslations("common");
+  const [expanded, setExpanded] = useState(false);
   const id = useId();
   const { preview, download } = useResourceExport(rootKind, resourceId, open);
+  const { agent } = useAgent(rootKind === "agent" && open ? resourceId : null);
   const [layersByKey, setLayersByKey] = useState<Record<string, string[]>>({});
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [format, setFormat] = useState<"yaml" | "json" | "zip">("yaml");
@@ -96,11 +99,26 @@ function ExportResourceContent({
         if (!busy) onOpenChange(value);
       }}
     >
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
+      <DialogContent className={expanded ? DIALOG_WINDOW : `${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
         <DialogHeader>
-          <DialogTitle>
-            {t(rootKind === "workflow" ? "exportWorkflowTitle" : "exportTitle")}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-7">
+            <DialogTitle>
+              {t(rootKind === "workflow" ? "exportWorkflowTitle" : "exportTitle")}
+            </DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={common(expanded ? "workspaceCollapse" : "workspaceExpand")}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <Minimize2 className="size-4" aria-hidden />
+              ) : (
+                <Maximize2 className="size-4" aria-hidden />
+              )}
+            </Button>
+          </div>
           <DialogDescription>
             {t(rootKind === "workflow" ? "exportWorkflowDescription" : "exportDescription")}
           </DialogDescription>
@@ -132,81 +150,36 @@ function ExportResourceContent({
             </Select>
           </div>
           {data && (
-            <fieldset className="space-y-2">
-              <legend className="mb-2 text-sm font-medium">{t("includedContent")}</legend>
-              {data.bundle.resources.map((item, index) => {
-                const root = data.bundle.roots.includes(item.key);
-                const layers =
-                  data.options.find((option) => option.key === item.key)?.layers ?? item.included;
-                const included = layers.length > 0;
-                return (
-                  <div
-                    key={item.key}
-                    className="border-border min-w-0 space-y-3 rounded-xl border px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {included ? (
-                        <Checkbox
-                          id={`${id}-${index}`}
-                          checked={!excluded.has(item.key)}
-                          disabled={root || busy}
-                          onCheckedChange={(checked) => {
-                            resetZip();
-                            setExcluded((previous) => {
-                              const next = new Set(previous);
-                              if (checked) next.delete(item.key);
-                              else next.add(item.key);
-                              return next;
-                            });
-                          }}
-                        />
-                      ) : (
-                        <Link2
-                          className="text-muted-foreground size-4 shrink-0"
-                          aria-hidden="true"
-                        />
-                      )}
-                      <Label
-                        htmlFor={included ? `${id}-${index}` : undefined}
-                        className="flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center gap-1"
-                      >
-                        <span className="font-medium break-words">{item.name}</span>
-                        <span className="text-muted-foreground text-xs font-normal">
-                          {root
-                            ? t(
-                                rootKind === "workflow"
-                                  ? "workflowRootDefinition"
-                                  : "rootDefinition",
-                              )
-                            : included
-                              ? t("layerDefinition")
-                              : t("referenceOnly")}
-                        </span>
-                      </Label>
-                      {root && (
-                        <FileText
-                          className="text-muted-foreground size-4 shrink-0"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </div>
-                    {included && !excluded.has(item.key) && (
-                      <ExportLayers
-                        layers={layers}
-                        selected={layersByKey[item.key] ?? ["definition"]}
-                        format={format}
-                        disabled={busy}
-                        knowledgeBase={item.kind === "knowledge_base"}
-                        onChange={(selected) => {
-                          resetZip();
-                          setLayersByKey((previous) => ({ ...previous, [item.key]: selected }));
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </fieldset>
+            <ExportResourceList
+              data={data}
+              format={format}
+              busy={busy}
+              excluded={excluded}
+              layersByKey={layersByKey}
+              rootIdentity={
+                agent
+                  ? {
+                      agentId: agent.id,
+                      slug: agent.slug,
+                      hasAvatar: agent.has_avatar,
+                      colorSlot: agent.avatar_color,
+                    }
+                  : undefined
+              }
+              onInclude={(key, included) => {
+                resetZip();
+                setExcluded((previous) => {
+                  const next = new Set(previous);
+                  if (included) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+              }}
+              onLayers={(key, selected) => {
+                resetZip();
+                setLayersByKey((previous) => ({ ...previous, [key]: selected }));
+              }}
+            />
           )}
           {zip.busy && (
             <p role="status" className="text-muted-foreground text-sm">

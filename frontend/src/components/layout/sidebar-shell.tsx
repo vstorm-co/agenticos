@@ -17,6 +17,7 @@ import { SidebarUser } from "@/components/layout/sidebar-user";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ConsoleNavigationDialog } from "@/components/settings/console-navigation-dialog";
 
 export function SidebarShell({
   children,
@@ -53,6 +54,7 @@ export function SidebarShell({
         {children}
       </div>
 
+      <ConsoleNavigationDialog compact={collapsed} sidebar />
       <OnboardingReminder collapsed={collapsed} onNavigate={onNavigate} />
       {!collapsed && <DesktopInstallPrompt />}
       <div

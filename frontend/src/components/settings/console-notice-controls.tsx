@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { useTranslations } from "next-intl";
+import { MonitorDown, Megaphone } from "lucide-react";
 import {
   Label,
   Select,
@@ -34,13 +35,17 @@ export function ConsoleNoticeControls({
     <div className="space-y-4">
       {FIELDS.map((field) => {
         const available = ceiling?.[field] !== false;
+        const Icon = field === "desktop_install_prompt" ? MonitorDown : Megaphone;
         return (
           <div
             key={field}
             className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0 space-y-1">
-              <Label htmlFor={`${id}-${field}`}>{t(`presentation.${field}`)}</Label>
+              <Label htmlFor={`${id}-${field}`} className="flex items-center gap-2">
+                <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+                {t(`presentation.${field}`)}
+              </Label>
               <p id={`${id}-${field}-hint`} className="text-muted-foreground text-xs leading-5">
                 {t(`presentation.${field}Hint`)}
               </p>

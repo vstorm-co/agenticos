@@ -99,6 +99,7 @@ async def test_a_project_is_listed_created_read_changed_and_deleted(
     assert listed.json()["items"][0]["name"] == "Launch"
     assert service.list_projects.await_args.kwargs["search"] == "lau"
     assert created.status_code == 201 and created.json()["can_edit"] is True
+    assert service.create.await_args.args[1].backend == "state"
     assert read.json()["id"] == str(PROJECT_ID)
     assert service.update.await_args.args[2].instructions == "x"
     assert changed.status_code == 200
@@ -377,3 +378,13 @@ async def test_registry_http_filters_forward_the_selected_project(client: OpenCl
     assert agent_response.status_code == workflow_response.status_code == 200
     assert agents.list_agents.await_args.kwargs["project_id"] == PROJECT_ID
     assert workflows.list.await_args.kwargs["project_id"] == PROJECT_ID
+
+
+@pytest.mark.parametrize("backend", ["auto", "service", "state"])
+async def test_explicit_project_backend_is_preserved_at_the_api_boundary(
+    client: OpenClient, service: MagicMock, backend: str
+) -> None:
+    async with client() as http:
+        response = await http.post("/api/v1/projects", json={"name": "Launch", "backend": backend})
+    assert response.status_code == 201
+    assert service.create.await_args.args[1].backend == backend

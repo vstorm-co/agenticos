@@ -4,14 +4,26 @@ This completes the runtime part of the project work in #3299. It uses the existi
 project workspace and persistence services; it does not introduce a second file
 store, synchronization, revision checkout/publish flow or automatic mounts.
 
-## Contract
+## Follow-up to discussion #3272
+
+The follow-up keeps generic file tools and commands in the agent executor by
+default, including project chats; explicit project tools remain in the shared
+project namespace. It adds a bounded binary transfer tool with destination digest
+checks instead of pretending another executor shares the same paths. The compact
+card puts optional explicit executor pins under advanced settings. These terms
+supersede the prior default and namespace statements below. The historical test
+counts below describe the earlier candidate and do not establish this follow-up.
+See [the updated controls contract](project-execution-controls-2026-11-26.md).
+
+## Prior candidate contract
 
 - Projects capability offers discovery, scoped selection and bounded UTF-8 file
   operations without granting Sandbox commands. Built-in AgenticOS and Architect
   receive it through their normal template-content refresh.
 - Project chat uploads and materialized resources stay in the project file
-  namespace. Command execution separately selects Agent or Project; ordinary chats
-  default to Agent, attached project chats to Project. Explicit native folder
+  namespace. Command execution separately selects Agent or Project; ordinary and attached
+  project chats now default to Agent. Generic file tools use that same executor,
+  while explicit project tools use shared project files. Explicit native folder
   consent remains authoritative. Disabled author capabilities stay disabled.
 - Dynamic selections in private web/channel runs are run-local. Approval/Q&A
   checkpoints retain selection, executor, generation and the fact that private
@@ -43,8 +55,8 @@ Legacy delegated parks without the pin marker fail closed before tool replay.
 Read hashes are deliberately not checkpointed: after continuation an existing
 Project file must be read again before replacement/deletion. New files remain
 allowed. An explicit request executor pins the entire run; an omitted selection
-retains model-controlled selection. Coding harnesses refuse split Project file and
-Agent command namespaces instead of reporting a misleading empty change set.
+retains model-controlled selection. Generic coding file operations and commands use the same selected executor.
+Shared project files remain available through explicit project tools and transfer.
 
 Root cleanup closes admission on all pinned views, including their raw backend.
 Closure is rechecked after authorization and provider attachment; a late attachment
@@ -62,8 +74,8 @@ and explicit authorized API project admission remain supported.
 
 `select_project_workspace` now selects files only. Command target changes are
 explicit through `select_execution_target`; old dynamically selected checkpoints
-without a generation must reselect or restart. Existing project chats retain their
-Project default. Request fields omitted by old clients retain their previous API
+without a generation must reselect or restart. Existing project chats now default to Agent unless a deliberate executor pin
+selects Project. Request fields omitted by old clients retain their previous API
 idempotency fingerprint. Steering cannot switch the executor of an active attempt.
 
 Projects text operations list at most 100 entries and accept 256 KB UTF-8 files.

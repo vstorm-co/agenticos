@@ -2,8 +2,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectResources } from "./project-resources";
+import type { ProjectResources as Resources, ResourceCandidate } from "@/lib/project-resources-api";
 import type { Project } from "@/types/projects";
 
+const access = vi.hoisted(() => ({ allowed: true, requested: vi.fn() }));
 const state = vi.hoisted(() => ({
   data: {
     items: [
@@ -16,7 +18,7 @@ const state = vi.hoisted(() => ({
       },
     ],
     total: 1,
-  },
+  } as Resources,
   isLoading: false,
   error: null as Error | null,
   add: { mutate: vi.fn(), error: null, isPending: false },
@@ -25,23 +27,33 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-project-resources", () => ({
   useProjectResources: () => state,
-  useProjectResourceCandidates: () => candidates,
+  useProjectResourceCandidates: (kind: string, enabled: boolean) => {
+    access.requested(kind, enabled);
+    return candidates;
+  },
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => access.allowed }),
+}));
 const candidates = vi.hoisted(() => ({
   data: [
     { id: "w1", name: "Main flow" },
     { id: "w2", name: "Another flow" },
-  ],
+  ] as ResourceCandidate[] | undefined,
   isLoading: false,
   error: null as Error | null,
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  access.allowed = true;
   state.isLoading = false;
   state.error = null;
   candidates.error = null;
   candidates.isLoading = false;
+  candidates.data = [
+    { id: "w1", name: "Main flow" },
+    { id: "w2", name: "Another flow" },
+  ];
   state.data = {
     items: [
       {
@@ -132,4 +144,54 @@ it("renders candidate loading and errors inside the dialog", async () => {
   candidates.error = new Error("Unavailable");
   rerender(<ProjectResources project={project} />);
   expect(screen.getByRole("alert")).toBeVisible();
+});
+
+it("shows authorized agent avatars and descriptions without using a name as an avatar seed", () => {
+  state.data = {
+    items: [
+      {
+        kind: "agent",
+        resource_id: "a",
+        name: "Research",
+        description: "Market evidence",
+        is_entrypoint: false,
+        slug: "stable-research",
+        has_avatar: false,
+        avatar_color: 2,
+      },
+    ],
+    total: 1,
+  };
+  const { container } = render(<ProjectResources project={project} />);
+  expect(container.querySelector('[data-agent-avatar="a"]')).toBeInTheDocument();
+  expect(screen.getByText("Market evidence")).toBeVisible();
+});
+it("expands the resource selector without losing selection and searches descriptions", async () => {
+  candidates.data = [
+    { id: "a", name: "Research", description: "Quarterly evidence", slug: "research" },
+  ];
+  render(<ProjectResources project={project} />);
+  await userEvent.click(screen.getByRole("button", { name: "Add existing resources" }));
+  const dialog = screen.getByRole("dialog");
+  await userEvent.click(screen.getByRole("checkbox", { name: "Research" }));
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(screen.getByRole("checkbox", { name: "Research" })).toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+  await userEvent.type(within(dialog).getByPlaceholderText("Search resources"), "Quarterly");
+  expect(screen.getByText("Quarterly evidence")).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "Research" })).toBeChecked();
+  await userEvent.type(within(dialog).getByPlaceholderText("Search resources"), " absent");
+  expect(screen.getByText("No matching resources.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Add selected (1)" })).toBeEnabled();
+});
+
+it("does not load an unauthorized catalog or enable linking while candidate data is absent", async () => {
+  access.allowed = false;
+  candidates.data = undefined;
+  render(<ProjectResources project={project} />);
+  await userEvent.click(screen.getByRole("button", { name: "Add existing resources" }));
+  expect(access.requested).toHaveBeenLastCalledWith("agent", false);
+  expect(screen.getByText("No matching resources.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Add selected (0)" })).toBeDisabled();
+  expect(screen.queryByRole("checkbox")).toBeNull();
 });

@@ -55,6 +55,15 @@ vi.mock("./chat-model-picker", () => ({
   ),
 }));
 vi.mock("@/components/icons/model-icon", () => ({ ModelIcon: () => null }));
+vi.mock("./work-on", () => ({
+  WorkOn: () => <p>Project workspace summary</p>,
+  ConversationNotifications: () => null,
+}));
+vi.mock("./your-connections", () => ({ YourConnections: () => null }));
+vi.mock("./remembered-approvals", () => ({ RememberedApprovals: () => null }));
+vi.mock("@/components/settings/coding-accounts", () => ({
+  PersonalCodingAccount: ({ harness }: { harness: string }) => <p>{harness}</p>,
+}));
 beforeEach(() => {
   state.override = "chosen";
   state.hasDefault = true;
@@ -146,4 +155,25 @@ it("uses a readable subscription description while account details are unavailab
   expect(screen.getByRole("button", { name: "Model" })).toHaveAccessibleDescription(
     "gpt-test Your subscriptions",
   );
+});
+
+it("separates optional coding accounts from the open tools and files section", async () => {
+  render(
+    <ChatComposerControls
+      settingsOnly
+      desktop={false}
+      harnesses={["claude_code", "codex"]}
+      agentCapabilities={["sandbox", "projects"]}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+  const files = screen.getByText("Project workspace summary").closest("details");
+  const accounts = screen.getByText("claude_code").closest("details");
+  expect(files).toHaveAttribute("open");
+  expect(accounts).not.toHaveAttribute("open");
+  expect(accounts).not.toBe(files);
+  const summary = accounts?.querySelector("summary");
+  expect(summary).toBeTruthy();
+  if (summary) await userEvent.click(summary);
+  expect(accounts).toHaveAttribute("open");
 });

@@ -283,15 +283,6 @@ def build_coding_toolset(
             )
         chosen = harness or configured
         project_state = _project_state(ctx.workspace)
-        if (
-            runs_on == "sandbox"
-            and project_state is not None
-            and project_state.split_execution_namespace
-        ):
-            return steer(
-                ctx,
-                "The coding harness needs its files and commands in the same workspace. Project files are selected while commands target Agent. Choose the Project executor, or clear project file context before coding in Agent. If the user explicitly selected the executor, keep that choice and ask for a new turn rather than switching it automatically.",
-            )
         if runs_on != "this_computer":
             if runs_on == "sandbox" and chosen != configured:
                 return steer(

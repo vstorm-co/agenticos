@@ -47,7 +47,7 @@ interface WorkOnState {
   setExecution: (
     conversationId: string | null,
     projectId: string,
-    target: ProjectExecutionTarget,
+    target: ProjectExecutionTarget | null,
   ) => void;
   /** Private folder mappings never leave this browser's account/organization scope. */
   fileRoots: Record<string, string>;
@@ -124,7 +124,8 @@ export const useWorkOnStore = create<WorkOnState>()(
       setExecution: (conversationId, projectId, target) => {
         const field = conversationId === null ? "draftExecutionByScope" : "executionByConversation";
         const key = browserKey(conversationId ?? "execution:draft");
-        set({ [field]: { ...get()[field], [key]: { projectId, target } } });
+        const { [key]: _previous, ...rest } = get()[field];
+        set({ [field]: target === null ? rest : { ...rest, [key]: { projectId, target } } });
       },
       fileRoots: {},
       rememberFileRoot: (id, root) =>

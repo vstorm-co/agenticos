@@ -84,38 +84,49 @@ to reviewed sources; isolated evaluations cannot select live projects.
 
 ## What an agent gets in a project
 
-Project files and command execution are separate:
+Project files are shared; the agent keeps its own execution environment by default,
+including in a project chat. Generic file tools and shell commands use the same
+selected executor. Explicit project file tools always use the shared project.
 
-| Choice | Default and effect |
+| Area | Default and effect |
 |---|---|
-| Project context | The project's files and reference instructions; existing agent and platform rules still apply |
-| **Work on → Project** | Default in service-backed project chats; uses the project's command-capable container, when Sandbox shell tools are enabled |
-| **Work on → Agent** | Default outside project chats and for files-only projects; uses the agent's configured executor, without mounting project files |
-| Stored files only | Project text tools work; the project cannot execute commands |
-| Native working folder | Keeps the person's chosen local executor; selecting project context cannot replace it |
+| Project context | Shared project files and reference instructions; existing agent and platform rules still apply |
+| Agent workspace | Default for generic file tools and commands; keeps the agent's configured toolchain |
+| Project executor | An additional command target for work directly on service-backed project files |
+| Stored files only | Project file tools work without a shell; no project executor is available |
+| Native working folder | Keeps the person's approved local executor; project context cannot replace it |
 
-**Work on** is available in chat settings on web and desktop when the agent has
-command execution. Project execution needs an attached or pending project. An explicit
-choice is retained for that account, organization and chat, not inherited by a new
-chat. An explicit request pins the executor for the whole run; the agent cannot
-change it. When the request omits that choice, the agent may use
-`select_execution_target` explicitly within a run. Selecting
-files with `select_project_context` or legacy `select_project_workspace` alone never
-changes the command target. The tool result reports both choices and availability.
+The compact **Tools & files** card describes the active project. **Advanced command
+target** lets you pin Agent or Project, or return to automatic selection. An explicit
+choice stays within the account, organization and chat and pins the executor for the
+whole run. Without a pin, the agent can choose `select_execution_target` when a build
+or other command needs the project's environment. You do not need to change a radio
+button for each task. Selection alone neither runs a command nor transfers a file.
 
-Project chats supply real project file access even without Sandbox. They do not enable
-a disabled Sandbox or grant shell tools to an agent without them. Existing per-tool
-approvals remain in force. A shared agent/channel executor is refused after private
-project context has been observed; clearing the selection cannot bypass that barrier.
-Use a conversation-isolated executor or the project's executor instead.
+For a specialized agent tool that needs a physical project file, use
+`transfer_project_file` with `direction: to_agent`, a project path and an agent path.
+The server transfers the bytes directly, including binary files up to 8 MiB; the
+model receives paths, size and a SHA-256 receipt rather than contents to rewrite.
+Use `direction: from_agent` to save an agreed result back into the shared project.
+Direct commands in the project executor need no transfer.
+
+This is an explicit copy, not a mount or synchronization. Later edits do not propagate.
+An existing destination requires its current `expected_sha256`; a mismatch refuses
+replacement. Transfers recheck access, workspace generation, path containment and
+size. Ordinary shell writes are not transactionally locked by this digest check.
+Prefer a new result path when you do not intend to replace a known file.
+
+Project chats supply file access even without Sandbox, and their uploads stay in the
+project. They do not enable a disabled Sandbox or grant missing shell tools. Per-tool
+approvals still apply. Private project context cannot enter an agent/channel workspace
+shared with a wider audience. Use conversation isolation or the project's executor.
+Personal coding-account credentials remain unavailable for project/shared sources.
 
 Project text tools list up to 100 entries and read or write UTF-8 text up to 256 KB.
-They refuse reserved paths, escaping symlinks, binary files and unknown sizes. They do
-not run OCR. A write after a read refuses a changed file rather than overwriting a
-concurrent edit. A project remains on its chosen sandbox connection until an editor
-moves it explicitly. After an approval or question continuation, read an existing
-project file again before replacing or deleting it. A coding harness requires project
-files and commands to use the same workspace; split namespaces are refused.
+They refuse reserved paths, escaping symlinks, binary text and unknown sizes; no OCR
+starts. Writes after a read detect changed files. After approval or question
+continuation, read an existing project file again before replacing or deleting it.
+A project keeps its sandbox connection until an editor explicitly moves it.
 
 Delegated work receives a pinned snapshot of the selected project, generation and
 executor. Starting the first shared-workspace delegate locks these choices for the
@@ -126,12 +137,15 @@ records file origins. New file/command operations are refused after root cleanup
 Already admitted remote operations retain the existing cancellation-grace and
 provider lifetime limits; cleanup does not promise they have stopped.
 
-When creating a project, **Project sandbox** lets you choose a registered sandbox
-connection, automatic selection, or **Stored files only**. Automatic selection pins
-the connection chosen at creation; if none is available, it uses stored files.
+New projects default to **Stored files only**: shared files and instructions need
+no running container, even when the organization has an available sandbox. Under
+**Project sandbox**, explicitly choose a registered connection or automatic selection
+when the project needs its own execution environment.
+
+Automatic selection pins the connection chosen at creation; if none is available, it uses stored files.
 Choosing a named connection requires `connections:view` and an active connection
 in your organization. The project's settings show its connection name and runtime;
-project chats use its files and, for command-capable containers, default to its executor when shell tools are enabled. Editors can use **Change sandbox** to move an existing project, including its files.
+project chats use its shared files while keeping the agent executor by default. The project executor is an additional choice when shell tools are enabled. Editors can use **Change sandbox** to move an existing project, including its files.
 
 The transfer is a durable background job. It copies files and empty folders into
 an isolated workspace, verifies file hashes and the directory tree, then activates

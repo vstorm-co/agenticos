@@ -1499,16 +1499,21 @@
       },
       "afterFirstMessage": "Nach der ersten Nachricht verfügbar.",
       "projectExecution": {
-        "title": "Befehle ausführen in",
-        "agent": "Agenten-Arbeitsbereich",
-        "project": "Projekt-Arbeitsbereich",
-        "hint": "Gilt für die nächste Nachricht. Projektkontext oder Dateien zu wählen ändert nicht den Ausführungsort.",
-        "filesOnly": "Dieser Agent kann Projektdateien und Kontext verwenden, aber keine Befehle ausführen.",
-        "projectFilesOnly": "Dieses Projekt speichert nur Dateien. Wähle den Agent-Workspace für Befehle; Projektdateien bleiben getrennt.",
-        "noProject": "Starten Sie einen Chat im Projekt, um dessen Arbeitsbereich zu wählen. Bitten Sie den Agenten in anderen Chats, ein Projekt für den aktuellen Lauf zu wählen.",
-        "local": "Befehle verwenden den freigegebenen Ordner auf diesem Computer. Wechseln Sie zur Cloud, um diese Auswahl zu ändern.",
+        "title": "Projektdateien",
+        "hint": "Gemeinsame Dateien bleiben im Projekt. Der Agent behält seine Werkzeuge und kann bei Bedarf die Projekt-Sandbox nutzen.",
+        "filesOnly": "Gemeinsame Projektdateien sind ohne Befehlsausführung verfügbar.",
+        "projectFilesOnly": "Gemeinsame Dateien bleiben im Projekt. Das Projekt hat keine Befehlsumgebung; der Agent behält seine Werkzeuge.",
+        "local": "Projektdateien bleiben gemeinsam nutzbar. Befehle verwenden weiterhin den auf diesem Computer erlaubten Ordner.",
         "loading": "Projekt dieses Chats wird geprüft…",
-        "unavailable": "Das Projekt konnte nicht geprüft werden. Versuchen Sie es vor der Auswahl erneut."
+        "unavailable": "Das Projekt konnte nicht geprüft werden. Erneut versuchen, um seinen Workspace anzuzeigen.",
+        "advanced": "Erweiterte Befehlsausführung",
+        "commandTarget": "Befehlsziel",
+        "automatic": "Automatisch — der Agent wählt",
+        "agent": "Nur Agent-Workspace",
+        "project": "Nur Projekt-Sandbox",
+        "overrideHint": "Optional: Befehlsziel für diesen Chat festlegen. Automatisch beginnt in der eigenen Umgebung des Agenten.",
+        "noProject": "Der Agent verwendet seinen konfigurierten Workspace. Bitte ihn bei Bedarf, ein Projekt zu verwenden.",
+        "workspace": "Agent-Workspace"
       }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
@@ -2199,7 +2204,9 @@
       "selectingProjectContext": "Projektkontext auswählen…",
       "selectedProjectContext": "Projektkontext ausgewählt",
       "selectingExecutionTarget": "Ausführungsziel auswählen…",
-      "selectedExecutionTarget": "Ausführungsziel ausgewählt"
+      "selectedExecutionTarget": "Ausführungsziel ausgewählt",
+      "transferringProjectFile": "Projektdatei wird übertragen…",
+      "transferredProjectFile": "Projektdatei übertragen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6322,6 +6329,10 @@
       "personal-console-catalogs": {
         "title": "Kataloge",
         "body": "Wähle die Galerien zum Durchsuchen. Die Grenzen der Organisation und Bereitstellung gelten weiterhin."
+      },
+      "project-resources": {
+        "title": "Zusammengehörige Ressourcen bündeln",
+        "body": "Verknüpfe vorhandene Agenten, Workflows, Apps und Tabellen, ohne ihre Berechtigungen zu ändern. Öffne sie hier oder wähle einen verknüpften Workflow als Einstiegspunkt des Projekts."
       }
     },
     "chooseLanguage": "Sprache",
@@ -12022,6 +12033,15 @@
     },
     "pythonActions": "Verfügbare Funktionen",
     "pythonActionsHint": "Binde eine Aktion einmal und rufe ihre Funktion dann im Skript mit Schlüsselwortargumenten auf.",
+    "pythonInputGuide": "Eingabe · Lies zugeordnete Werte aus args: {keys}",
+    "pythonInputUnbound": "noch keine Eingabefelder zugeordnet",
+    "pythonFunctionsGuide": "Funktionen · Rufe {names} mit benannten Argumenten auf.",
+    "pythonFunctionsEmpty": "Funktionen · Füge unten eine Aktion hinzu, um ihre Funktion im Skript zu nutzen.",
+    "pythonOutputGuide": "Ausgabe · Der letzte Ausdruck wird zum Ergebnis dieses Schritts.",
+    "pythonExampleGuide": "Diesen Schritt schreiben",
+    "pythonCallGuide": "Nutze args für Eingabewerte und rufe gebundene Funktionen beim Namen auf. Eine Funktion liefert das Aktionsergebnis; beende das Skript mit dem Wert für den nächsten Schritt.",
+    "pythonExamplePlaceholders": "Ersetze jedes ... durch einen Eingabewert oder ein Literal. Das Hinzufügen einer Funktion oder Bearbeiten des Skripts führt keine Aktion aus.",
+    "pythonActionsEmpty": "Noch keine Aktionen gebunden. Wähle eine Aktion, gib ihr einen Python-Namen und füge ihren Aufruf ins Skript ein. Du kannst auch ohne Aktionsaufruf mit args rechnen.",
     "pythonActionsDiscover": "Um MCP-Tools aufzurufen, Tabellen zu verwenden oder Wissen zu durchsuchen, füge einen Schritt Python mit Aktionen hinzu und gib jeder Aktion einen Funktionsnamen.",
     "pythonSelectAction": "Aktion auswählen",
     "pythonInsertCall": "Funktionsaufruf einfügen",
@@ -14876,7 +14896,8 @@
       "remove": "{name} aus dem Projekt entfernen",
       "kind": "Ressourcentyp",
       "addSelected": "Auswahl hinzufügen ({count})",
-      "filterHint": "Wähle ein Projekt, um diesen Katalog zu filtern."
+      "filterHint": "Wähle ein Projekt, um diesen Katalog zu filtern.",
+      "noMatches": "Keine passenden Ressourcen."
     }
   },
   "voiceGlow": {
@@ -18495,6 +18516,20 @@
       "position": "{current} von {total}",
       "continue": "Weiter",
       "finish": "Weiter zur Einrichtung"
+    },
+    "configurationGuide": {
+      "title": "Optionale Einstellungen entdecken",
+      "hint": "Du kannst die Einrichtung jetzt abschließen und später zu diesen Optionen zurückkehren. Ein Link ändert keine Einstellungen.",
+      "preferencesTitle": "Konsole persönlich einrichten",
+      "preferencesBody": "Wähle Seitenleisteneinträge, Katalogsuche, sichtbare Chatkosten und Produkttipps im Rahmen der Vorgaben deiner Organisation.",
+      "projectsTitle": "Arbeit in Projekten bündeln",
+      "projectsBody": "Teile Dateien, Anweisungen und verknüpfte Ressourcen über Chats hinweg. Agenten behalten ihre Werkzeuge; eine optionale Projekt-Sandbox übernimmt gemeinsame Builds.",
+      "transferTitle": "Agenten exportieren und importieren",
+      "transferBody": "Wähle enthaltene Skills, Context und Wissensinhalte. Prüfe Abhängigkeiten vor dem Import; Kontogeheimnisse und Suchindizes werden nicht übertragen.",
+      "workflowTitle": "Workflows mit Python-Aktionen erstellen",
+      "workflowBody": "Verknüpfe Werkzeuge mit benannten Funktionen und rufe sie aus Python auf. Jede Aktion behält ihre Berechtigungen, Freigaben und Ausführungsprotokolle.",
+      "organizationTitle": "Organisationsvorgaben festlegen",
+      "organizationBody": "Konfiguriere Navigation, Kataloge, Dashboard und Hinweise je Rolle sowie die Kostensichtbarkeit. Mitglieder können erlaubte Optionen persönlich anpassen."
     }
   },
   "skillImprovement": {
@@ -21865,7 +21900,8 @@
         "member": "Mitglied",
         "viewer": "Betrachter"
       },
-      "loadError": "Konsoleneinstellungen konnten nicht geladen werden."
+      "loadError": "Konsoleneinstellungen konnten nicht geladen werden.",
+      "customizeNavigation": "Seitenleiste anpassen"
     },
     "catalogs": {
       "personalTitle": "Kataloge",
@@ -22021,7 +22057,19 @@
     "importLegacy": "Ältere Workflow-Datei importieren",
     "exportLegacy": "Ältere Workflow-Datei exportieren",
     "startNewTransfer": "Neue Übertragung starten",
-    "unsupportedMapping": "Für diese Ressource gibt es keinen Importadapter. Die Bindung auslassen und im Zieleditor konfigurieren."
+    "unsupportedMapping": "Für diese Ressource gibt es keinen Importadapter. Die Bindung auslassen und im Zieleditor konfigurieren.",
+    "searchResources": "Enthaltene Ressourcen suchen",
+    "noResources": "Keine passenden Ressourcen.",
+    "groups": {
+      "root": "Erforderliche Definition",
+      "agents": "Agenten",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Wissensdatenbanken",
+      "connections": "Modelle und Verbindungen",
+      "other": "Weitere Ressourcen"
+    }
   },
   "stepFailure": {
     "technicalDetails": "Technische Details",

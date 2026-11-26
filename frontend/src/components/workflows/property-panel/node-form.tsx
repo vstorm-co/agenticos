@@ -20,7 +20,12 @@ import {
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
 import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
-import { type ActionEditorSelection, PythonActions, pythonCallOptions } from "./python-actions";
+import {
+  type ActionEditorSelection,
+  PythonActions,
+  PythonActionsGuide,
+  pythonCallOptions,
+} from "./python-actions";
 import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import type { CodeLanguage } from "@/lib/workflows/code-editing";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -670,11 +675,20 @@ function ConfigCode({
   // A description that only says the label again is its hover hint instead.
   const hinted = typeof description === "string" && repeatsLabel(label, description);
   const placeholder = schema["x-placeholder"];
+  const pythonActions = ctx.node.definition_id === "code.python.actions";
+  const argKeys = ctx.actionAlias ? [] : argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id);
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} title={hinted ? description : undefined}>
         {label}
       </Label>
+      {pythonActions && (
+        <PythonActionsGuide
+          catalog={ctx.catalog}
+          value={record(ctx.node.config.actions)}
+          argKeys={argKeys}
+        />
+      )}
       <CodeEditor
         id={id}
         language={language}
@@ -683,12 +697,13 @@ function ConfigCode({
         onChange={(next) => onChange(next === "" ? undefined : next)}
         placeholder={typeof placeholder === "string" ? placeholder : undefined}
         disabled={ctx.disabled}
+        compact={pythonActions}
         actionCalls={
           ctx.node.definition_id === "code.python.actions"
             ? pythonCallOptions(ctx.catalog, record(ctx.node.config.actions))
             : undefined
         }
-        argKeys={ctx.actionAlias ? [] : argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
+        argKeys={argKeys}
       />
       {typeof description === "string" && !hinted && (
         <p className="text-muted-foreground text-xs">{description}</p>
