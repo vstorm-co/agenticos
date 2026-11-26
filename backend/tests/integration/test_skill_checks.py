@@ -39,6 +39,7 @@ from app.db.models.skill_check import (
     CheckSource,
     CheckStatus,
     CheckVerdict,
+    SkillCheck,
     SkillCheckAgent,
     UnknownReason,
 )
@@ -50,6 +51,7 @@ from app.repositories import (
     skill_proposal_repo,
     skill_usage_repo,
 )
+from app.schemas.dataset import DatasetCreate
 from app.schemas.eval_run import CriterionMoveRead, FamilyMoveRead
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -62,6 +64,7 @@ from app.schemas.skill_check import (
 from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillForkCreate
 from app.services import skill_check as skill_check_module
+from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
 from app.services.skill_agents import SkillAgentService
@@ -789,6 +792,185 @@ async def _stage_runs(db: AsyncSession, lab: Lab, check_id: uuid.UUID, agent: Ag
     return [run_id for run_id in (row.skill_set_run_id, row.dataset_run_id) if run_id]
 
 
+class TestAStageThatDoesNotFinish:
+    """A regression the skill's own questions confirmed is a verdict, whatever becomes of
+    the agent's own questions after it; nothing short of that passes on them alone."""
+
+    async def _at_own_questions(self, db, monkeypatch, *, broken: bool = True):
+        """A thorough check whose agents finished the skill's questions - B breaking one,
+        A fixing one - and are now asking their own."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        evals.outcomes = {
+            lab.b.id: Outcome(broken=1) if broken else Outcome(fixed=1),
+            lab.a.id: Outcome(fixed=1),
+        }
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+        return lab, evals, service, check
+
+    async def _row(self, db, lab, check_id, agent):
+        rows = await skill_check_repo.list_agents(
+            db, [check_id], organization_id=lab.ctx.organization_id
+        )
+        return next(row for row in rows if row.agent_id == agent.id)
+
+    @pytest.mark.parametrize("ended", [EvalRunStatus.FAILED, EvalRunStatus.CANCELLED])
+    async def test_a_regression_stays_when_the_own_questions_run_ends_unfinished(
+        self, db, monkeypatch, ended: EvalRunStatus
+    ):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch)
+        _, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = ended.value
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason) == ("worse", None)
+        assert [(stage["kind"], stage["broken"]) for stage in b.stages] == [("skill_set", 1)]
+        assert read.verdict is CheckVerdict.BLOCKED
+
+    async def test_a_regression_stays_when_the_own_questions_are_refused(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        evals.outcomes = {lab.b.id: Outcome(broken=1), lab.a.id: Outcome(fixed=1)}
+        evals.refuse_start = {lab.b.id}
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.dataset_run_id) == ("worse", None)
+        assert read.verdict is CheckVerdict.BLOCKED
+
+    async def test_a_regression_stays_when_the_check_expires(self, db, monkeypatch):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch)
+        stored = await db.get(SkillCheck, check.id)
+        assert stored is not None
+        stored.created_at -= skill_check_module.STALE_AFTER
+        await db.flush()
+
+        async def cancel_live(_db, run_id, *, organization_id, now):
+            run = evals.runs[run_id]
+            if run.status == EvalRunStatus.RUNNING.value:
+                run.status = EvalRunStatus.CANCELLED.value
+            return False
+
+        monkeypatch.setattr(eval_run_repo, "cancel_live", cancel_live)
+
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        a = await self._row(db, lab, check.id, lab.a)
+        assert b.state == "worse"
+        assert (a.state, a.unknown_reason, len(a.stages)) == ("unknown", "failed", 1)
+        assert (await service.read(lab.ctx, lab.skill.id, check.id)).verdict is (
+            CheckVerdict.BLOCKED
+        )
+
+    async def test_a_review_that_confirms_a_regression_makes_an_unfinished_agent_worse(
+        self, db, monkeypatch
+    ):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch, broken=False)
+        first, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = EvalRunStatus.FAILED.value
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes[lab.b.id] = Outcome(broken=1)
+
+        await service.recompute_after_review(lab.ctx.organization_id, [first])
+
+        assert (await self._row(db, lab, check.id, lab.b)).state == "worse"
+
+    async def test_judging_it_again_keeps_why_its_own_questions_never_started(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        evals.outcomes = {lab.b.id: Outcome(fixed=1), lab.a.id: Outcome(fixed=1)}
+        evals.refuse_start = {lab.b.id}
+        evals.start_refusal = {"reason": "all_evidence"}
+        await _run_to_end(service, evals, lab, check.id)
+        [first] = await _stage_runs(db, lab, check.id, lab.b)
+
+        await service.recompute_after_review(lab.ctx.organization_id, [first])
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason, len(b.stages)) == ("unknown", "all_evidence", 1)
+
+    async def test_an_expired_check_whose_starter_may_no_longer_act_leaves_agents_unknown(
+        self, db, monkeypatch
+    ):
+        lab, _, service, check = await self._at_own_questions(db, monkeypatch)
+        stored = await db.get(SkillCheck, check.id)
+        assert stored is not None
+        stored.created_at -= skill_check_module.STALE_AFTER
+        await db.flush()
+
+        async def revoked(*_: Any, **__: Any) -> AuthContext:
+            raise AuthenticationError(message="Key gone")
+
+        async def ended(_db, run_id, *, organization_id, now):
+            return False
+
+        monkeypatch.setattr(skill_check_module, "job_context", revoked)
+        monkeypatch.setattr(eval_run_repo, "cancel_live", ended)
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason) == ("unknown", "failed")
+
+    async def test_a_starter_who_may_not_read_the_finished_stage_leaves_it_unknown(
+        self, db, monkeypatch
+    ):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch)
+        _, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = EvalRunStatus.FAILED.value
+
+        async def unreadable(*_: Any, **__: Any) -> None:
+            raise AuthorizationError(message="Runs are out of sight")
+
+        monkeypatch.setattr(EvalRunService, "compare", unreadable)
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason) == ("unknown", "no_access")
+
+    async def test_no_regression_on_the_skills_questions_is_unknown_with_what_it_counted(
+        self, db, monkeypatch
+    ):
+        """Better on the skill's questions alone is not a pass for a thorough check: the
+        agent is unknown, and its row keeps what the skill's questions came to."""
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch, broken=False)
+        _, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = EvalRunStatus.FAILED.value
+
+        await _run_to_end(service, evals, lab, check.id)
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason) == ("unknown", "failed")
+        assert [(stage["kind"], stage["fixed"]) for stage in b.stages] == [("skill_set", 1)]
+
+    async def test_judging_it_again_reads_only_the_stage_that_finished(self, db, monkeypatch):
+        lab, evals, service, check = await self._at_own_questions(db, monkeypatch)
+        first, own = await _stage_runs(db, lab, check.id, lab.b)
+        evals.runs[own].status = EvalRunStatus.FAILED.value
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes[lab.b.id] = Outcome(fixed=1)
+
+        await service.recompute_after_review(lab.ctx.organization_id, [first])
+
+        b = await self._row(db, lab, check.id, lab.b)
+        assert (b.state, b.unknown_reason, len(b.stages)) == ("unknown", "failed", 1)
+
+
 class TestAPersonsVerdict:
     """A person's verdict on an answer a stage graded changes what the check says."""
 
@@ -1258,6 +1440,36 @@ class TestNothingToRun:
         assert applied.version.content == NEW.content
 
 
+class TestWhatAReaderMayNotSee:
+    @pytest.mark.security
+    async def test_no_id_of_an_agent_or_dataset_the_reader_may_not_see(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        await _run_to_end(service, evals, lab, check.id)
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+        await skill_check_repo.update(db, row=row, values={"agent_id": lab.pinned.id})
+        no_agents = replace(lab.ctx, key_scopes=frozenset({Perm.RUNS_VIEW, Perm.SKILLS_VIEW}))
+        no_datasets = replace(no_agents, key_scopes=no_agents.key_scopes | {Perm.AGENTS_VIEW})
+
+        full = await service.read(lab.ctx, lab.skill.id, check.id)
+        blind = await service.read(no_agents, lab.skill.id, check.id)
+        unread = await service.read(no_datasets, lab.skill.id, check.id)
+
+        assert (full.agent_id, blind.agent_id) == (lab.pinned.id, None)
+        assert blind.agents == [] and blind.hidden == len(full.agents)
+        shown = [stage for agent in full.agents for stage in agent.stages]
+        assert shown and all(stage.dataset_id and stage.eval_run_id for stage in shown)
+        hidden = [stage for agent in unread.agents for stage in agent.stages]
+        assert len(hidden) == len(shown)
+        assert {(stage.dataset_id, stage.dataset_name, stage.eval_run_id) for stage in hidden} == {
+            (None, None, None)
+        }
+
+
 class TestStartingAndStopping:
     async def test_the_same_check_started_again_while_it_runs_is_that_check(self, db, monkeypatch):
         lab = await _lab(db)
@@ -1723,6 +1935,31 @@ class TestTestSet:
         assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+    async def test_a_name_another_dataset_holds_is_numbered_for_the_skills_set(self, db):
+        """A deleted skill's set keeps its name, and so may a private dataset its reader
+        cannot see; the new skill's set takes the next number instead of a 409."""
+        ctx = await _owner(db)
+        member = await _member(db, ctx, OrgRoleName.BUILDER)
+        skill = await _skill(db, ctx, name="tests-taken")
+        await DatasetService(db).create(
+            member, DatasetCreate(name="tests-taken · test questions", visibility="private")
+        )
+
+        created = await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
+
+        assert (created.name, created.skill_id) == ("tests-taken · test questions (2)", skill.id)
+
+    async def test_a_skill_whose_every_set_name_is_taken_is_told_to_rename_one(
+        self, db, monkeypatch
+    ):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx, name="tests-full")
+        await DatasetService(db).create(ctx, DatasetCreate(name="tests-full · test questions"))
+        monkeypatch.setattr(skill_check_module, "_NAME_TRIES", 1)
+
+        with pytest.raises(BadRequestError, match="Rename one"):
+            await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
 
     async def test_a_set_the_reader_may_not_open_is_said_apart_from_none(self, db):
         ctx = await _owner(db)

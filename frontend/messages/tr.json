@@ -345,6 +345,7 @@
       "outboxWaiting": "{count, plural, =1 {Gönderilmeyi bekleyen 1 mesaj} other {Gönderilmeyi bekleyen # mesaj}}",
       "unreachable": "Sunucuya ulaşılamıyor. Bu cihazda {time} tarihinde kaydedilen içerik gösteriliyor."
     },
+    "staleRead": "Bu sayfanın bir bölümü güncellenmeyi durdurdu ve güncel olmayabilir. {reason}",
     "install": {
       "offer": "AgenticOS'u uygulama olarak yükleyin: kendine ait pencere, bildirimler ve ana ekran simgesi.",
       "iosHint": "AgenticOS'u yüklemek için Paylaş'a ve ardından Ana Ekrana Ekle'ye dokunun.",
@@ -851,7 +852,11 @@
     "check": {
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
       "proposalGoneDescription": "Başka bir oturumda uygulandı, reddedildi veya değiştirildi. Liste yenilendi.",
-      "backToChanges": "Güncellemelere dön"
+      "backToChanges": "Güncellemelere dön",
+      "stoppedUpdating": "Bu kontrol güncellenmeyi durdurdu ve güncel olmayabilir. {reason}",
+      "reason": {
+        "too_few_questions": "Kontrol edilmedi: değişikliği doğrulamak için çok az test sorusu var."
+      }
     }
   },
   "workflows": {
@@ -7252,7 +7257,8 @@
     "observationSave": "Katılım ayarlarını kaydet",
     "subscriptionAccountsNote": "Herkes bu modelleri kendi hesaplarıyla çalıştırır. Kendinizinkileri <link>Ayarlar → Profil</link> bölümünde bağlayın.",
     "connectionSettings": "Bağlantı ayarları · {provider} · {endpoint}",
-    "customEndpoint": "Özel uç nokta"
+    "customEndpoint": "Özel uç nokta",
+    "testedSpecUnread": "Bu run'ın test ettiği sürüm okunamadı. {reason}"
   },
   "dashboard": {
     "edit": {
@@ -17512,6 +17518,7 @@
     "causedBreak": "Bu değişiklikle yeni bozulan: {question}",
     "causedFix": "Bu değişiklikle düzeltilen: {question}",
     "openCheck": "Kontrolün tamamını aç",
+    "changedMore": "{count, plural, =1 {Değişen 1 yanıt daha kontrolde.} other {Değişen # yanıt daha kontrolde.}}",
     "permission": "Bu agent'ı iyileştirmek için onu düzenleme ve run'ları görüntüleme izni gerekir.",
     "retryRead": "Yeniden okumayı dene",
     "stepsLabel": "İyileştirme adımları",
@@ -17535,6 +17542,7 @@
       "noneBetter": "{count, plural, =0 {Hiçbir deneme ölçülmedi; bu yüzden {agent} için bir iyileşme olup olmadığını gösteren bir şey yok.} one {Deneme, {agent} için bir iyileşme sağlamadı.} other {# denemenin hiçbiri {agent} için bir iyileşme sağlamadı.}}",
       "worse": "{number}. deneme durumu kötüleştirdi: {broken, plural, one {# soru bozuldu} other {# soru bozuldu}}.",
       "topics": "{count, plural, one {# konu} other {# konu}} bilgi tabanında eksik.",
+      "topicsUnread": "Bu oturumun bulduğu konuların hepsi okunamadı. Aşağıdaki liste hangilerinin ve nedenini gösteriyor.",
       "limit": "{max, plural, one {Bu, oturumun izin verdiği tek denemeydi.} other {Oturumun izin verdiği # denemenin tamamı kullanıldı.}}",
       "hint": {
         "no_change": "Art arda iki deneme hiçbir şeyi değiştirmedi; bir deneme daha muhtemelen işe yaramaz.",
@@ -17767,8 +17775,11 @@
     "resultAgent": "Agent'ta: {fixed, plural, one {# soru yeni düzeltildi} other {# soru yeni düzeltildi}}, {broken} tanesi yeni bozuldu.",
     "resultAgentUnknown": "Agent'ta: henüz ölçülmüş bir sonuç yok.",
     "resultKnowledge": "Bilgi tabanında: {count, plural, =0 {eksik bir şey yok} one {# konu eksik} other {# konu eksik}}{added, plural, =0 {} one {, # tanesi sonradan eklendi} other {, # tanesi sonradan eklendi}}.",
+    "resultKnowledgeUnread": "Bilgi tabanında: eksik olanlar okunamadı.",
     "acceptKnowledge": "{missing, plural, =0 {Bilgi tabanında: eklenecek bir şey yok} one {# konu hâlâ bilgi tabanında eksik} other {# konu hâlâ bilgi tabanında eksik}}{missing, plural, =0 {} other {{ready, plural, =0 {: istediklerinizin taslağını hazırlayın} other {: # tanesinin taslağı hazır, eklenebilir}}{stale, plural, =0 {} other {, # tanesinin taslağı güncel değil}}}}",
     "noKnowledgeDocuments": "Bilgi tabanında eksik bir şey yok.",
+    "topicsSkipped": "{count, plural, =1 {Bu oturumun bulduğu 1 konu okunamadı: kaldırıldı ya da onu göremiyorsunuz.} other {Bu oturumun bulduğu # konu okunamadı: kaldırıldılar ya da onları göremiyorsunuz.}}",
+    "topicsMore": "{count, plural, =1 {Bu oturumun bulduğu 1 konu daha <link>agent'ın bilgi boşluklarında</link> listeleniyor.} other {Bu oturumun bulduğu # konu daha <link>agent'ın bilgi boşluklarında</link> listeleniyor.}}",
     "reviewAndAdd": "İncele ve ekle",
     "notNow": "Şimdi değil",
     "acceptAgent": "Agent'ta: {version, plural, =0 {yeni sürüm} other {v# sürümü}} {fixed, plural, one {# soruyu} other {# soruyu}} düzeltecek, {broken} tanesini bozacak{costKnown, select, yes {, yanıt başına maliyet {cost}} other {}}. {total, plural, one {# soru} other {# soru}} üzerinde test edildi; bunlardan {heldOut} tanesi değişiklikleri yazmak için kullanılmadı.",
@@ -18033,6 +18044,8 @@
     "startDescription": "İyileştirme önermek için geri bildirimleri ve test vakalarını kullanın. Değişiklikleri uygulamadan önce her adımı inceleyin.",
     "startDataset": "Dataset",
     "startDatasetHint": "Bu agent'ın yanıtlarını kontrol etmek için kullanılacak vakaları seçin.",
+    "linkedDatasetUnusable": "Bağlantıdaki dataset kullanılamıyor: kaldırıldı ya da onu çalıştıramazsınız. {usual, select, yes {Bunun yerine her zamanki kullanılıyor.} other {Aşağıdan başka birini seçin.}}",
+    "linkedDatasetUnread": "Bağlantıdaki dataset okunamadı, bu yüzden henüz hiçbir şey fiyatlandırılmadı. {reason}",
     "analysisEstimate": "Tahmini analiz maliyeti",
     "guidance": {
       "title": "Yardımcı için dataset rehberi",
@@ -18041,6 +18054,7 @@
       "changedOn": "{who, select, named {Son değiştiren: {name}, {date}.} former {Son değiştiren: eski bir üye, {date}.} other {Son değişiklik: {date}.}}"
     },
     "startCostHint": "Önce analiz yapılır. Sonraki her deneme, oturum limiti içinde ve yaklaşık {cost} olarak ayrıca tahmin edilir.",
+    "measuredOn": "{name} üzerinde ölçülür.",
     "comparisonInvalid": "Bu sonuçlar karşılaştırılamaz. Farkları düzeltme veya gerileme olarak görmeden yanıtları tek tek inceleyin.",
     "skills": {
       "title": "Bir skill'e ait",
@@ -18223,6 +18237,7 @@
     "evidence": {
       "none": "Kontrol edilebilecek kanıt yok.",
       "dropped": "{count, plural, =1 {Alıntılanan 1 öğe} other {Alıntılanan # öğe}} run'larda bulunamadı ve {count, plural, =1 {dışarıda bırakıldı} other {dışarıda bırakıldı}}.",
+      "hidden": "{count, plural, =1 {Alıntılanan 1 öğe göremediğiniz bir agent'tan geliyor ve gösterilmiyor.} other {Alıntılanan # öğe göremediğiniz agent'lardan geliyor ve gösterilmiyor.}}",
       "conversation": "konuşma {number}",
       "testQuestion": "test sorusu {number}",
       "aConversation": "bir konuşma"
@@ -19298,7 +19313,8 @@
         "all_evidence": "Kontrol edilmedi: tüm sorular, değişikliğin öğrenildiği konuşmalardan geldi.",
         "cancelled": "Kontrol edilmedi: kontrol, run'ları bitmeden durduruldu.",
         "own_not_asked": "Kontrol edilmedi: kendi soruları sorulmadan bırakıldı ve artık sonucu onlar belirliyor.",
-        "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}."
+        "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}.",
+        "unfinished": "Kendi soruları tamamlanmadı. Skill'in soruları bir gerilemeyi doğrulamadı; bu tek başına değişikliğin onun için güvenli olduğunu göstermez."
       },
       "skillSetOnly": "Yalnızca skill'in kendi sorularıyla kontrol edildi: skill'i yüklediği yerlerde kendine ait sorusu yoktu.",
       "stage": {
@@ -19405,7 +19421,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Bu sürüm hattındaki hiçbir agent kontrol edilemez.} =1 {1 agent üzerinde kontrol edilecek: {names}.} other {# agent üzerinde kontrol edilecek: {names}.}}",
-      "unchecked": "{name} kontrol edilemiyor: {reason, select, no_questions {skill'i yüklediği yerlerde test sorusu yok} no_access {onu çalıştırma izniniz yok} no_budget {budget'ı tükendi} no_published_version {yayınlanmış bir sürümü yok} inconclusive {run'ı her yanıtı puanlayamadı} other {kontrolü başarısız oldu}}.",
+      "unchecked": "{name} kontrol edilemiyor: {reason, select, no_questions {skill'i yüklediği yerlerde test sorusu yok} no_access {onu çalıştırma izniniz yok} no_budget {budget'ı tükendi} no_published_version {yayınlanmış bir sürümü yok} inconclusive {run'ı her yanıtı puanlayamadı} failed {kontrolü başarısız oldu} unscorable {sorularını puanlayabilecek hiçbir şey yok} all_evidence {tüm sorular bu değişikliğin öğrenildiği konuşmalardan geldi} cancelled {kontrol bitmeden durduruldu} own_not_asked {kendi soruları sorulmadı} too_few_questions {değişikliği doğrulamak için çok az test sorusu var} other {kontrol bunu ölçemedi}}.",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını kullanıyor.} other {Göremediğiniz # agent daha bu sürüm hattını kullanıyor.}}",
       "thorough": "Agent'ların skill'i ne zaman açacağını belirleyen açıklama değişti, bu yüzden her agent'ın kendi soruları da sorulur."
     },
@@ -19438,6 +19454,17 @@
       "part": "Bölüm {number}",
       "unchangedLines": "{count, plural, =1 {Hiçbir tarafın değiştirmediği 1 satır} other {Hiçbir tarafın değiştirmediği # satır}}",
       "files": "Dosyalar",
+      "file": {
+        "side": "{side, select, base {Ortak başlangıç} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Ortak başlangıç} fork {Fork} other {Main}}: böyle bir dosya yok",
+        "show": "Neyin değiştiğini göster",
+        "hide": "Neyin değiştiğini gizle",
+        "compare": "{side, select, fork {Fork'un değiştirdikleri} other {Main'in değiştirdikleri}}",
+        "tooLarge": "Burada karşılaştırılamayacak kadar büyük. Okumak için her tarafı indirin.",
+        "notText": "Metin değil, bu yüzden burada karşılaştırılamaz. Okumak için her tarafı indirin.",
+        "download": "{side, select, base {Ortak başlangıcı indir} fork {Fork sürümünü indir} other {Main sürümünü indir}}",
+        "readFailed": "Dosya okunamadı. {reason}"
+      },
       "state": {
         "same": "Değişmedi",
         "fork": "Fork'tan",
@@ -19641,10 +19668,15 @@
     }
   },
   "datasets": {
+    "linkedCaseUnread": "Bu bağlantının belirttiği vaka okunamadı. {reason}",
     "helpers": {
       "guidance": "Veri kümesine özgü yönlendirme",
       "guidanceHint": "Bu yardımcı için platform kurallarının altına eklenir. Kurallar her zaman geçerlidir; yönlendirme bunları değiştiremez veya kaldıramaz.",
       "platformRules": "Platform kuralları (salt okunur)"
+    },
+    "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
+    "scoring": {
+      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış"
     }
   },
   "stepFailure": {

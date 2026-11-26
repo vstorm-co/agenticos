@@ -1,5 +1,5 @@
 ---
-source_sha: "533d5ff4641d"
+source_sha: "a4c2f48f28ee"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -148,13 +148,22 @@ hinzufügen**, um beide zu behalten. Geprüft wird mit
 `POST /datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
 Zugriffsprotokollen landet.
 
+Beim Upgrade erhalten vorhandene generierte Revisionen ohne erhaltenen Dokumentverweis denselben Datenschutz. Ein gelöschter anonymer Chat lässt sich nicht von einem ohne Quellenmaterial generierten Fall unterscheiden. Historische und spätere reine Metadatenrevisionen bleiben geschützt. Leser mit `runs:view` behalten den vollständigen gespeicherten Inhalt; kein Fall wird gelöscht.
+
+Nachweislich reine Dokumentfälle, manuelle Fälle und Importe bleiben unverändert. Neue Fälle aus Agentenwerkzeugen ohne Chatmaterial werden nicht automatisch verborgen. Maskierte Zeilen nennen nicht verfügbares oder ungeprüftes Quellenmaterial, statt eine Gesprächsherkunft zu behaupten.
+
+Stoppen Sie alte API- und Worker-Prozesse vor Migration `0374_case_from_conversation` und starten Sie danach ausschließlich aktualisierten Code. Ältere Writer erhalten das Datenschutzkennzeichen nicht. Schreibzugriffe gemischter Versionen während dieses Upgrades werden nicht unterstützt; der verwaltete Deployer stoppt diese Prozesse vor der Migration.
+
 ### Aus einer Datei { #import-and-export }
 
 **Importieren** liest eine `.csv`- oder `.jsonl`-Datei und fügt alle Fälle darin
 als eine neue Version hinzu. Der Import gilt ganz oder gar nicht: Ist eine Zeile
 ungültig, wird keine hinzugefügt, und die Ablehnung nennt jede ungültige Zeile,
 damit Sie die Datei korrigieren und es erneut versuchen können. Eine Datei ist
-höchstens 10 MB groß, und ein Dataset enthält höchstens 10.000 Fälle. In der
+höchstens 10 MB groß und hat höchstens 10.000 Zeilen
+(`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), und ein Dataset enthält
+höchstens 10.000 Fälle. Ein Wert, der zu tief verschachtelt ist, um ihn zu lesen,
+lehnt seine Zeile ab. In der
 Konsole listet **Importieren** zuerst die Spalten auf und bietet **Vorlage
 herunterladen** an, eine CSV-Datei mit jeder Spalte und einem Fall, der sich
 unverändert importieren lässt; **Datei wählen** öffnet die Dateiauswahl.
@@ -346,6 +355,15 @@ erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
 Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
 Werte selbst.
 
+Erkannt werden die API-Schlüssel und Tokens der Anbieter und Dienste, mit denen
+die Plattform arbeitet, JWTs und private Schlüssel, ein in eine Adresse
+geschriebenes Passwort (`postgres://user:password@host`), ein Schlüssel oder
+Passwort in einem Query-String oder Formularinhalt (`?api_key=`, `token=`,
+`password=`) und ein `Authorization`-Header vom Typ Basic oder Bearer. Derselbe
+Detektor bereinigt, was der Helfer einer Verbesserung liest, was der
+Klassifikator für Wissenslücken liest, und die Nachrichten eines Agents, wenn
+sein Guardrail Geheimnisse schwärzt.
+
 Eine Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem
 Generator übergibt, bevor sie an das Modell gehen, und nimmt aus den Fragen und
 Kommentaren von Menschen die personenbezogenen Daten, die die Detektoren finden
@@ -535,6 +553,12 @@ früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird, das
 Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob ein
 isolierter Run ihn blockiert hat - und die Antwort.
 
+Jeder dieser Teile steht im Prompt des Bewerters in einem eigenen Zaun, sodass
+sein Text den eigenen Abschnitt nicht schließen und sich als Worte des Prompts
+ausgeben kann. Der Prompt endet mit der Regel, dass eingezäunter Text bewertet
+und nie befolgt wird, und die eigenen Anweisungen des Datasets können diese
+Regel nicht ersetzen.
+
 Ein Fall mit Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
 nicht wiederholen, und der Bewerter soll zitieren, was die Antwort von ihr
@@ -587,6 +611,10 @@ dieselbe Antwort neu, mit der Konfiguration, mit der sie zuerst bewertet wurde
 Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
 Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
+
+Eine neue Bewertung der Antwort eines Eval-Runs entscheidet den Vergleich dieses
+Runs und die darauf aufbauenden Suites, Verbesserungssitzungen und
+Skill-Prüfungen neu, wie es die Entscheidung einer Person tut.
 
 Eine Ursache, die noch besteht - Bewerter nicht
 veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
@@ -710,8 +738,10 @@ danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 | Zu ändern, wie ein Dataset bewertet wird | `datasets:edit` darauf |
 | Einen Bewerter dafür anzulegen | `datasets:edit` darauf und `agents:edit` |
 | Einen Run dagegen zu bewerten | `datasets:run` darauf und `runs:view` |
+| Eine Antwort erneut zu bewerten | `datasets:run` darauf und `runs:view`; bei der Antwort eines Eval-Runs außerdem Zugriff auf den antwortenden Agent |
 | Seine Scores zu lesen | `datasets:view` darauf |
-| Scores zur Prüfung zu schicken, eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
+| Scores zur Prüfung zu schicken | `datasets:edit` darauf |
+| Eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf; bei der Antwort eines Eval-Runs außerdem `runs:view` und Zugriff auf den antwortenden Agent |
 
 Eine Begründung, die der Bewerter geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
@@ -760,9 +790,15 @@ existiert, ist selbst etwas, das es nicht erfahren darf. Ein Grant erweitert den
 Zugriff auf ein Dataset und ändert nie eine Rolle. Wie Scopes und Grants
 zusammenwirken, steht unter [Berechtigungen](permissions.md).
 
-Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
+Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei, auch bei einem aus einem Chat generierten Fall. Die Prüfung auf doppelte Fragen (`cases/twins`) findet nie einen verborgenen Fall, und die **Schlüsselabdeckung** lässt Schlüsselbezeichnungen aus, die nur verborgene Fälle enthalten. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
+
+Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Bewerters.
+
+Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 
 Datasets werden nicht nach Abteilung gruppiert - die Liste hat keinen
 Gruppenfilter und keine Abteilungsplaketten -, daher erreicht eine Abteilung ein

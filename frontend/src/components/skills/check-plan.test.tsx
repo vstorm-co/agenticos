@@ -39,6 +39,20 @@ describe("CheckPlan", () => {
     expect(screen.getByText("Not checked: the check could not measure it.")).toBeInTheDocument();
   });
 
+  it("says an agent has too few test questions rather than that it was not measured", () => {
+    render(
+      <CheckPlan
+        agents={[
+          checkAgent({ name: "Retail", state: "unknown", unknown_reason: "too_few_questions" }),
+        ]}
+        hidden={0}
+      />,
+    );
+    expect(
+      screen.getByText("Not checked: it has too few test questions to verify the change."),
+    ).toBeVisible();
+  });
+
   it("counts the agents the reader may not see, and never names them", () => {
     render(<CheckPlan hidden={2} agents={[]} />);
 

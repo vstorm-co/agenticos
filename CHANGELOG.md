@@ -21,19 +21,60 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
+
+- Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
+
+- Remove an agent’s own environment guards before its suites, so deleting a guarded agent does not depend on PostgreSQL cascade ordering. Other agents’ guards and suite deletion protections stay in place.
+
+- A failed background job keeps only messages AgenticOS wrote as its last error. Another exception names its type, and its message stays in the worker log.
+- A manual eval checks before every case that its starter may still run the agent and the dataset.
+- Keep an Improve variant search going when a round of proposals is refused or unanswered: it is asked again up to three times, and a scoring answer the provider could not give counts as ungraded instead of failing the search.
+- Fail a skill Improve session's step that is refused, with its reason and a Retry, instead of leaving the session stuck; a step past the spending limit stops on its budget.
+- Parse dataset imports off the event loop, a row at a time, so a large or deeply nested file cannot stall the API.
+- Keep a regression a finished skill check stage confirmed when another stage of the agent could not finish, and say so on the agent's row.
+- Keep an Improve search's units in step with their job and budget: the Try again note reaches the helper, an answer's cap covers longer instructions and agents whose answers cost nothing, and a unit that runs out of time keeps its answers.
+- Name a skill's test set apart from a dataset that already holds its name, discard a check and its proposal without deadlocking, and move a skill check on when its stage run is cancelled, reaped or lost.
+- Admit a later Improve attempt on its own training questions, list every open session and every knowledge topic a session found to the Architect, and learn only from answers the agent itself gave.
+- Correct the eval write-tool table, the authoring assistant's access and tools, and what a skill session's readers see in the documentation.
+- Keep Improve session pages loading while permissions are read, with a retry when they cannot be, instead of saying access is missing. Stop polling live pages after a failed read, say which part stopped updating with a Retry, and keep a loaded eval result on screen when a refresh fails. A link to a dataset case says the case is gone only when it is.
+- Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
+- Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
+- Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
 - Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
 - Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
 - Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
 - Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
 - Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
+### Changed
+
+- The judge prompt fences the case and the answer and ends on the rule that they are data; its version moves to 5. Scores graded with the earlier prompt are no longer reused as cached baselines or compared with new ones, so the first eval run or Improve session after the upgrade grades its answers from scratch, and grading an older eval score again asks to run the eval again.
+- Secret redaction recognises more shapes: passwords in URLs, keys in query strings and form bodies, Basic and opaque Bearer authorization, and more provider key prefixes. Live chats with `redact_secrets_*` on may mask more than before.
+- A person's read of an eval run compares it again under the organization's comparison limit. A single run read returns 429 while another comparison runs; run lists and the Builder's model gate show the verdict they have.
+- Bound a dataset import by its size and its rows. `DATASET_IMPORT_MAX_BYTES` (default 10485760, 10 MB) and `DATASET_IMPORT_MAX_ROWS` (default 10000) set the limits, the request body limit follows the larger of them, and the import dialog states the size it accepts. A file past either limit is refused at the first row over it.
+- Let whoever may start an Improve session confirm its paid checks - of chosen changes, of a knowledge draft and of what each change did - and run them, and the session's later steps, as that person. A session the Architect started can now be checked from the console.
+
 ### Security
 
+- Redact credentials from Improve search retry notes before sending them to the helper model.
+
+- Deciding or rescoring an eval score needs access to the answer it scores, and the judge's knowledge passages are shown only to readers of their knowledge base.
+- Credentials in conversations no longer reach the Improve helper's model, its kept quotes or the knowledge gaps classifier. A suggestion or a proposed skill or context file change that would write one reads redacted, and accepting, applying or checking it is refused until it is edited.
+- Text written from a dataset's cases needs access to that dataset: an Improve session's changes, a skill session's quotes from eval answers, and the run records of eval answers and of platform agents such as the judge.
+- A case generated from a chat stays masked once the chat is deleted, and masked cases no longer show through the duplicate-question check or key coverage. The source-privacy check refuses a message outside the caller's reach as it refuses an unknown id.
+- Skill check reads no longer return ids of agents, datasets or eval runs the reader may not see.
+- Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
+- Recheck the acting person's access to the agent, `runs:view` and the dataset before each unit of an Improve search reads questions or pays for a model call, and stop the session when it is gone.
+- Fence every quoted question, answer, failed check and earlier version in the Improve search's proposal prompt, so a dataset's text cannot read as the platform's own instructions.
 - Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
 - Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
 
 ### Upgrading
 
+- Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
+- Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
+- Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
 - **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
   - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
   - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.

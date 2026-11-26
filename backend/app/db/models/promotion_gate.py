@@ -30,8 +30,8 @@ class EnvironmentGuard(Base):
         primary_key=True,
     )
     # No cascade: deleting a suite that guards an environment would unguard it
-    # without anybody deciding to. NO ACTION rather than RESTRICT, so removing an
-    # agent - its suites and its environments in one statement - still goes through.
+    # without anybody deciding to. Agent deletion explicitly removes only guards
+    # of that agent's environments before the sibling suite cascade runs.
     suite_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("eval_suites.id"),

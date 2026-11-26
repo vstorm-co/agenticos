@@ -299,6 +299,33 @@ async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):
 
 
 @pytest.mark.security
+async def test_a_context_change_quoting_a_credential_is_never_checked(db):
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days. Use postgres://app:Kanar3kContext@db/app."
+    await db.flush()
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="returns-cases"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    service = AuthoringService(db)
+    body = ProposalCheck(dataset_id=dataset.id, agent_id=agent.id, proposal_id=proposal.id)
+
+    for attempt in (service.estimate_context_check, service.check_context):
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await attempt(ctx, file.id, body)
+
+    runs = await db.scalar(
+        select(func.count()).select_from(EvalRun).where(EvalRun.agent_id == agent.id)
+    )
+    assert runs == 0
+
+
+@pytest.mark.security
 async def test_checking_a_context_change_needs_runs_view(db):
     ctx, agent, file, run_id = await _bound(db)
     await _improve_context(db, ctx, file, _proposes(db, run_id))

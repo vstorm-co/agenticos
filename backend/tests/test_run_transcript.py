@@ -10,6 +10,7 @@ which would confirm the id to a stranger. Only once the run is known to be the
 caller's organization's does a missing `runs:view` become a 403.
 """
 
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -17,6 +18,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.run_manifest import RunManifest
 from app.services import agent_runner
 from app.services.agent_runner import AgentRunnerService
 
@@ -211,6 +213,71 @@ class TestReadingWhatTheRunHandedItsModel:
         )
 
         assert got is recorded
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("surface", "kind", "hidden"),
+        [
+            ("eval", "agent", {"messages"}),
+            ("eval", "judge", {"messages", "prompt"}),
+            ("web", "agent", set()),
+        ],
+    )
+    async def test_what_a_run_was_sent_from_datasets_needs_every_dataset(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_db_session: AsyncMock,
+        surface: str,
+        kind: str,
+        hidden: set[str],
+    ) -> None:
+        run = MagicMock(id=uuid4(), agent_id=uuid4(), surface=surface)
+        sent = [{"parts": [{"content": "What is the refund window?"}]}]
+        recorded = RunManifest(
+            id=uuid4(),
+            run_id=run.id,
+            organization_id=_ORG,
+            payload={
+                "instructions": "What you must know to grade: refunds take 30 days.",
+                "system_prompts": ["Dataset: Refunds"],
+                "messages": sent,
+                "transcript": [{"answer": "30 days"}],
+                "code_runs": [{"code": "lookup('refund window')"}],
+                "reviews": [{"reviewer": "Checker", "after_request": 1, "steer": "30 days"}],
+                "tools": [],
+            },
+            truncated=False,
+        )
+        monkeypatch.setattr(agent_runner.agent_run_repo, "get_run", AsyncMock(return_value=run))
+        monkeypatch.setattr(
+            agent_runner.run_manifest_repo, "get_by_run", AsyncMock(return_value=recorded)
+        )
+        monkeypatch.setattr(
+            agent_runner.agent_repo, "get", AsyncMock(return_value=MagicMock(kind=kind))
+        )
+        owner = _ctx(role=OrgRoleName.OWNER.value)
+        narrow = replace(
+            owner, key_scopes=frozenset(p for p in Perm if not p.value.startswith("datasets:"))
+        )
+        service = AgentRunnerService(mock_db_session)
+
+        got = await service.get_run_manifest(narrow, run.id)
+        full = await service.get_run_manifest(owner, run.id)
+
+        assert full is recorded
+        assert recorded.payload["messages"] == sent
+        if not hidden:
+            assert got is recorded
+            return
+        assert got is not recorded
+        assert (got.run_id, got.payload["tools"]) == (run.id, [])
+        sent_parts = ("messages", "transcript", "code_runs", "reviews")
+        assert [got.payload[part] for part in sent_parts] == [[], [], [], []]
+        prompt = (got.payload["instructions"], got.payload["system_prompts"])
+        if "prompt" in hidden:
+            assert prompt == (None, [])
+        else:
+            assert prompt == (recorded.payload["instructions"], recorded.payload["system_prompts"])
 
 
 class TestOpeningAnAttachmentOnSomebodyElsesRun:

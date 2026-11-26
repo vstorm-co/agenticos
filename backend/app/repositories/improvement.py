@@ -99,6 +99,21 @@ async def get_run(
     return result.scalar_one_or_none()
 
 
+async def datasets_of(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """The datasets these sessions ran on; a session that no longer exists names none."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(ImprovementRun.dataset_id).where(
+            ImprovementRun.id.in_(list(run_ids)),
+            ImprovementRun.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def get_active(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID
 ) -> ImprovementRun | None:
@@ -200,9 +215,13 @@ async def list_deciding(
 
 
 async def list_for_person(
-    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str]
 ) -> list[ImprovementRun]:
-    """The organization's sessions in these statuses, newest first."""
+    """The organization's sessions in these open statuses, newest first.
+
+    All of them: an agent holds at most one open session, so there are never more
+    than the organization has agents.
+    """
     result = await db.execute(
         select(ImprovementRun)
         .where(
@@ -210,7 +229,6 @@ async def list_for_person(
             ImprovementRun.status.in_(statuses),
         )
         .order_by(ImprovementRun.created_at.desc(), ImprovementRun.id.desc())
-        .limit(limit)
     )
     return list(result.scalars().all())
 

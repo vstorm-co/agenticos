@@ -31,7 +31,7 @@ In Agent Builder, **Build** contains the configuration and **Test** opens the in
 
 ## What it reads { #what-it-reads }
 
-The assistant has no tools. What it reads is gathered for it, from the last 30
+What the assistant reads is gathered for it, from the last 30
 days of the agent's runs:
 
 - answers people rated down, with their comments first;
@@ -40,6 +40,13 @@ days of the agent's runs:
 
 An unrated run that succeeded says nothing either way and is not read. Neither is
 a test from the Builder's test panel, nor a delegate's run.
+
+The built-in assistant has no tools. A helper agent picked in its place may bind
+`thinking`, `knowledge`, `context` or `skills` and nothing that reaches further, and one that
+searches is given the knowledge bases of the agent it improves. Improving an
+agent, its instructions are the dataset's improvement instructions, or the
+built-in ones - never those of its own published version. A skill's Improve
+session runs it as published, with its own instructions.
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
@@ -168,7 +175,7 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from a version that was only proposed, which the draft does not hold: an earlier attempt's, the one a knowledge check measures, or one serving a skill or context file change. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
@@ -329,7 +336,7 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
 | Apply or discard a skill change | `skills:edit` on the skill and `runs:view` |
 | Apply or discard a context file change | `context:edit` on the file and `runs:view` |
-| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
+| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent; for a skill or context file change, edit access to the skill or file and run access to the agent it is checked on |
 
 Grants count: a member with an edit grant on one agent may improve that agent,
 when their role also holds `runs:view` - an Owner, Admin, Builder or Operator.
@@ -386,8 +393,8 @@ within its budget. Two unchanged results in a row, or an inconclusive one and it
 repeat, show on the result as a hint that another attempt is unlikely to help, not
 as a stop.
 
-Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
-and the steps after it run with that person's current permissions and credential,
+Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step, try again, or confirm one of its paid checks: of chosen changes, of a knowledge draft, or of what each change did. The session records who did,
+and the steps after it run with that person's current permissions and credential and are logged under them,
 so a session the Architect started can be taken further in the console.
 
 The worker
@@ -504,7 +511,7 @@ A finished session - kept as a draft, published, discarded, cancelled, or closed
 
 A session waiting for you, at its result, stopped or failed is still open: **Improve** and its entry in the history take you back to it, to take its next step, raise its limit and continue, choose an attempt, retry the failed step or discard it.
 
-The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent.
+The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent. Its changes, and the suggestions it leaves in the Builder, are written from the dataset's questions, so reading them also needs read access to the dataset.
 
 #### Asking the Architect { #asking-the-architect }
 
@@ -552,16 +559,36 @@ stops with `no_variant`.
 
 The search has its own budget, `search.budget_usd`, inside the session's limit,
 and the start estimate adds it and the check of the variant it finds to the
-total. A variant starts only while its estimate fits what is left. Each answer
+total. A variant starts only while its estimate, with what its longer
+instructions cost to read, fits what is left. Each answer
 is capped at twice its share of that estimate, so the search can go over its
 budget by at most the one variant it was scoring. The session shows what the
 search spent apart from the rest.
 
+An answer's cap also covers what the variant's longer instructions cost to read,
+and an agent whose past answers cost nothing is capped at the price of an
+unpriced case. An answer stopped at its own cap counts as not answered for that
+variant; only a spent search, session or monthly budget ends the search.
+
+A scoring unit stops starting answers before its job's time runs out, cuts an
+answer still going just before the job would end, and keeps what it answered; the
+next unit asks the rest, so each question is paid for once. A kept answer to a
+question erased since is dropped with it.
+Before each unit the search checks that whoever is acting still has edit access
+to the agent, `runs:view` and the right to run the dataset, and otherwise the
+session stops as its next step would. A note given with **Try again** reaches the
+helper that writes the variants too.
+
 Only someone who could start the session - with edit access to the agent,
 `runs:view` and the right to run the dataset - reads the variants' text, which
 is written from the dataset's questions; anyone else sees the counts. A question
-a variant could not answer or have graded counts as failed. A search with no
-progress for an hour fails as stalled and can be retried.
+a variant could not answer or have graded counts as failed.
+
+A round of proposals the model does not answer - the provider refused, timed out
+or was unreachable - is asked again, up to three times; then the search ends
+because the helper could not write more variants, with what the failed rounds
+cost counted in its spend. A search with no progress for an hour fails as
+stalled and can be retried.
 
 By default the dataset's judge grades the variants on its own model;
 `grading_model_profile_id` grades them on a cheaper or local model instead. The
@@ -623,6 +650,10 @@ A new fix counts as demonstrated only if the draft reached every confirming cand
 Manual tests and test-question generation notify their requester when they finish, including failures. Repeated job deliveries do not duplicate the notice. Suite and improvement child tests use their parent notification instead. Preferences for these events live under **Settings → Notifications**. Open test and dataset pages refresh through the live change feed after the outcome commits.
 
 The wizard’s Understand step shows the bounded source sample, recorded cause, answer, reader comments and a conversation link. Unknown causes stay explicitly unclassified. The Test set step reads the session’s pinned question version, with training and held-out questions identified. Today shows the baseline only after a successful completed check; partial or failed checks never appear as a measured baseline. Source previews require `runs:view`, recheck current knowledge-base visibility and redact credentials in every text field.
+
+The evidence the helper's model is sent - questions, answers, reader comments, tool-call arguments and errors - is redacted the same way before it leaves, so the quotes a change keeps are redacted too. Quotes and summaries kept before this redaction are redacted again whenever they are read.
+
+Anything a suggestion would write that quotes a credential - instruction or skill text, a tool's name or description, a field's value, a new skill, a proposed context file or skill body - is shown redacted and marked `contains_credential`, and Accept, Apply or a check of it is refused. A suggested passage can be edited and accepted without the credential; a proposed file or skill body is discarded and the change made by hand.
 
 
 The Accept screen names the next version and repeats the selected round’s measured result. The automatic-check offer appears only when the agent has no suite. Publishing records the version identity and number on the session, so reopening Done links to that publication even after a later publish. Old sessions without this pin show their stored state without guessing a version. A failed suggestions read offers a retry; replaced suggestions are unavailable rather than indefinitely loading. Guarded followers wait for their checks and pinned environments stay on their current version.
