@@ -900,6 +900,7 @@ class TestDecidingTwiceIsRefused:
         from sqlalchemy import func, select
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
+        from app.core.background import discard_deferred
         from app.core.exceptions import BadRequestError
         from app.db.models.audit_log import AppAdminAuditLog
 
@@ -952,6 +953,9 @@ class TestDecidingTwiceIsRefused:
                 b_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await b_task
+            # This test owns a raw session rather than the request lifecycle that
+            # normally starts or discards its deferred work after the transaction.
+            discard_deferred(session_a)
             await session_a.close()
 
         async with factory() as session:
