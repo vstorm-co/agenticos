@@ -262,6 +262,70 @@ for (const platform of ["ios", "android"] as const) {
       }
     });
 
+    test("uses the full service header and contains collapsed settings and bottom menus", async ({
+      page,
+    }) => {
+      await page.goto("/orgs");
+      const open = page.getByRole("link", { name: /^Open / }).first();
+      await expect(open).toBeVisible();
+      const href = await open.getAttribute("href");
+      if (!href) throw new Error("Expected the seeded organization's member link");
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(`${href}?tab=assistant`);
+        const heading = page.getByRole("button", { name: "Console for each role", exact: true });
+        await expect(heading).toBeVisible();
+        const card = page.locator('section[data-slot="service-card"]').filter({ has: heading });
+        const header = card.locator("header");
+        await header.click({ position: { x: 6, y: 6 } });
+        await expect(heading).toHaveAttribute("aria-expanded", "true");
+        await heading.press("Tab");
+        await page.keyboard.press("Shift+Tab");
+        await expect(heading).toBeFocused();
+        await expect(heading).toHaveCSS("user-select", "none");
+        expect(
+          await heading.evaluate((element) => getComputedStyle(element, "::after").outlineStyle),
+        ).toBe("solid");
+        await heading.press("Space");
+        await expect(heading).toHaveAttribute("aria-expanded", "false");
+        await expect
+          .poll(() =>
+            card
+              .locator(":scope > .disclosure-content")
+              .evaluate((element) => element.getBoundingClientRect().height),
+          )
+          .toBe(0);
+        const main = page.getByRole("main");
+        await main.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        const reminders = page
+          .locator('section[data-slot="service-card"]')
+          .filter({ has: page.getByRole("heading", { name: "Setup reminders", exact: true }) });
+        await expect
+          .poll(async () => {
+            const bottom = await reminders.evaluate(
+              (element) => element.getBoundingClientRect().bottom,
+            );
+            return main.evaluate((element, bottom) => {
+              const gap = element.getBoundingClientRect().bottom - bottom;
+              return gap >= 0 && gap <= 64;
+            }, bottom);
+          })
+          .toBe(true);
+        await expect(reminders).toBeInViewport();
+        const frequency = page.getByRole("combobox", {
+          name: "Remind again after dismissing",
+          exact: true,
+        });
+        await frequency.tap();
+        await expect(page.getByRole("listbox")).toBeInViewport();
+        await expect(page.getByRole("listbox")).toHaveAttribute("data-side", "top");
+        await page.keyboard.press("Escape");
+        await expectContained(page);
+      }
+    });
+
     test("keeps the project phone actions on one row with secondary actions in More", async ({
       page,
     }) => {

@@ -52,7 +52,9 @@ export function DisclosureContent({
           onReveal();
         }
       }}
-      className={cn("disclosure-content", className)}
+      // Keep absolutely positioned hidden labels/inputs inside this clipped
+      // boundary rather than contributing phantom overflow to the page.
+      className={cn("disclosure-content relative", className)}
       style={{ ...style, visibility: open ? "visible" : "hidden" }}
       data-open={open}
       aria-hidden={!open}

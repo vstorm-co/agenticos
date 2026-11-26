@@ -55,7 +55,7 @@ export function ServiceCard({
       data-testid={testId}
       className="bg-card min-w-0 overflow-hidden rounded-xl border"
     >
-      <header className="flex items-start gap-3 p-4 sm:p-5">
+      <header className="has-[[data-slot=service-trigger]:hover]:bg-control-hover relative isolate flex items-start gap-3 p-4 transition-colors sm:p-5">
         <span
           data-slot="service-icon"
           className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg"
@@ -68,13 +68,16 @@ export function ServiceCard({
               <button
                 id={`${panelId}-toggle`}
                 data-tour={toggleTour}
+                data-slot="service-trigger"
                 type="button"
                 aria-label={title}
                 aria-describedby={`${panelId}-description`}
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={() => changeOpen(!open)}
-                className="focus-visible:ring-ring flex min-h-9 w-full items-start gap-2 rounded-md text-left outline-none focus-visible:ring-2"
+                // The native button's hit area and focus boundary cover the header;
+                // independent status/actions remain above it as sibling controls.
+                className="focus-visible:after:outline-ring flex min-h-9 w-full items-start gap-2 text-left outline-none select-none after:absolute after:inset-0 after:cursor-pointer focus-visible:after:outline-2 focus-visible:after:-outline-offset-2"
               >
                 <ChevronDown
                   aria-hidden
@@ -102,9 +105,9 @@ export function ServiceCard({
               </span>
             )}
           </h2>
-          {status}
+          {status && <div className="relative z-10 empty:hidden">{status}</div>}
         </div>
-        <div className="shrink-0">{action}</div>
+        <div className="relative z-10 shrink-0">{action}</div>
       </header>
       {children && (
         <DisclosureContent

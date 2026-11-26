@@ -2,6 +2,7 @@
 
 import { useId, useState, useEffect, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { RotateCcw } from "lucide-react";
 import { Button, Checkbox, Label } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { cn } from "@/lib/utils";
@@ -52,8 +53,8 @@ export function ConsoleNavigationControls({
           scrollable && "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1",
         )}
       >
-        <div className="flex flex-wrap gap-2">
-          {simple && (
+        {simple && (
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -63,17 +64,8 @@ export function ConsoleNavigationControls({
             >
               {t("simple")}
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => setDraft(null)}
-          >
-            {t("inheritNavigation")}
-          </Button>
-        </div>
+          </div>
+        )}
         <p className="text-muted-foreground text-xs leading-5">{t("navigationHint")}</p>
         <div className={cn("grid gap-6", preview && "lg:grid-cols-2")}>
           <ConsoleNavigationSelection
@@ -88,27 +80,40 @@ export function ConsoleNavigationControls({
       </div>
       <div
         className={cn(
-          "flex flex-wrap justify-end gap-2 border-t pt-4",
+          "flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between",
           scrollable && "mt-4 shrink-0",
         )}
       >
         <Button
           type="button"
-          variant="ghost"
-          disabled={disabled || !dirty}
-          onClick={() => setDraft(undefined)}
+          variant="outline"
+          size="sm"
+          className="h-auto min-h-11 max-w-full self-start whitespace-normal sm:min-h-9"
+          disabled={disabled}
+          onClick={() => setDraft(null)}
         >
-          {t("discard")}
+          <RotateCcw className="size-4 shrink-0" aria-hidden />
+          {t("inheritNavigation")}
         </Button>
-        <Button
-          type="button"
-          disabled={disabled || !dirty}
-          onClick={() => {
-            if (draft !== undefined) onSave(draft, () => setDraft(undefined));
-          }}
-        >
-          {common("save")}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2 self-end">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={disabled || !dirty}
+            onClick={() => setDraft(undefined)}
+          >
+            {t("discard")}
+          </Button>
+          <Button
+            type="button"
+            disabled={disabled || !dirty}
+            onClick={() => {
+              if (draft !== undefined) onSave(draft, () => setDraft(undefined));
+            }}
+          >
+            {common("save")}
+          </Button>
+        </div>
       </div>
     </div>
   );
