@@ -42,6 +42,7 @@ from typing import Any, Literal, cast
 from uuid import UUID, uuid4, uuid5
 
 from fastapi.encoders import jsonable_encoder
+from pydantic import JsonValue
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -372,6 +373,7 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
 
 _WHAT_IT_DOES = (
     "prompt",
+    "source_id",
     "environment_id",
     "pinned_version_id",
     "event_config",
@@ -593,15 +595,26 @@ class AgentTriggerService:
         )
 
     async def _record_filtered_event(
-        self, trigger: AgentTrigger, headers: Mapping[str, str], payload: Mapping[str, Any]
+        self,
+        trigger: AgentTrigger,
+        headers: Mapping[str, str],
+        payload: Mapping[str, Any],
+        *,
+        received_at: datetime | None = None,
+        source_policy_id: UUID | None = None,
     ) -> None:
         if trigger.event_source != EventSource.GITHUB.value:
             return
         reason = trigger_events.github_filter_reason(headers, payload, trigger.event_config)
         if reason is None:
             return
+        if trigger.source_id is not None and (
+            source_policy_id is None
+            or await self.source_admission_policy(trigger) != source_policy_id
+        ):
+            return
         diagnostic = GithubFilteredEvent(
-            received_at=datetime.now(UTC),
+            received_at=received_at or datetime.now(UTC),
             reason=reason,
             authors=GithubTriggerConfig.model_validate(trigger.event_config).authors,
         )
@@ -1037,7 +1050,20 @@ class AgentTriggerService:
         time_zone = data.time_zone
 
         if data.trigger_type == TriggerType.EVENT.value:
-            if data.portal_key is not None:
+            if data.source_id is not None:
+                from app.services.event_sources import EventSourceService
+
+                source = await EventSourceService(self.db).require_use(
+                    ctx, data.source_id, lock=True
+                )
+                event_source = source.provider
+                if data.event_source is not None and data.event_source != event_source:
+                    raise refused_field(
+                        "event_source", "The provider is defined by the selected event source"
+                    )
+                event_config = self._merged_source_config(event_source, data.event_config or {})
+                polled = False
+            elif data.portal_key is not None:
                 # A preset: the source comes from the catalog and the secret is
                 # minted here, so the caller handles neither. The filter is the
                 # preset's defaults with the caller's optional `event_config`
@@ -1087,7 +1113,9 @@ class AgentTriggerService:
                 event_config = data.event_config or {}
                 plaintext_secret = cast(str, data.event_secret)
                 polled = False
-            if polled:
+            if data.source_id is not None:
+                delivery_mode = "manual"
+            elif polled:
                 # A polled source has nothing to authenticate: nobody POSTs to it,
                 # so a secret would be a credential nobody can spend and the URL
                 # built from it an instruction to configure a relay the door
@@ -1098,6 +1126,7 @@ class AgentTriggerService:
                 plaintext_secret = None
                 delivery_mode = "polling"
             else:
+                assert plaintext_secret is not None
                 sealed = seal(plaintext_secret, scope=VaultScope.organization(ctx.organization_id))
                 event_secret_encrypted = sealed.ciphertext
                 secret_key_version = sealed.key_version
@@ -1127,6 +1156,7 @@ class AgentTriggerService:
             project_id=data.project_id,
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
+            source_id=data.source_id,
             name=data.name,
             trigger_type=data.trigger_type,
             schedule_kind=data.schedule_kind,
@@ -1160,6 +1190,10 @@ class AgentTriggerService:
             notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
+        if data.source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            await EventSourceService(self.db).bind_routine(ctx, data.source_id, trigger.id)
         try:
             policy = await self.sources.initial(ctx, trigger, mode=data.source_mode)
         except RoutineSourcesRequired as refusal:
@@ -1423,8 +1457,8 @@ class AgentTriggerService:
         An event trigger's *filter* is editable in place too: changing which issue
         actions fire is a filter edit, not a different trigger, so `event_config`
         is re-validated against the source's typed model and written - while the
-        source and the secret stay immutable (repointing an event is a different
-        trigger, made by deleting this one and creating that).
+        dedicated source and secret stay immutable. Selecting another reusable
+        source pauses the routine until its creator reviews the new source.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
@@ -1456,12 +1490,38 @@ class AgentTriggerService:
 
         self._guard_acting_as_creator(ctx, trigger, changes)
         self._guard_local_target(ctx, trigger, changes, data.local_target)
+        if "source_id" in changes:
+            if trigger.trigger_type != TriggerType.EVENT.value or changes["source_id"] is None:
+                raise refused_field("source_id", "Select an event source for this event trigger")
+            if trigger.source_id is None:
+                raise refused_field(
+                    "source_id",
+                    "Create a new routine to move a dedicated webhook to a reusable source",
+                )
+            from app.services.event_sources import EventSourceService
+
+            source = await EventSourceService(self.db).require_use(
+                ctx, changes["source_id"], lock=True
+            )
+            if source.id != trigger.source_id:
+                # Moving back to a former source must not revive its earlier consent.
+                changes["is_active"] = False
+                if not trigger.setup_required:
+                    changes["approved_sources"] = {
+                        "pending_review": True,
+                        "mode": (trigger.approved_sources or {}).get("mode", "restricted"),
+                        "unavailable_sources": [],
+                    }
+            changes["event_source"] = source.provider
+            changes["event_config"] = self._merged_source_config(
+                source.provider, changes.get("event_config", trigger.event_config)
+            )
 
         # A filter edit, the event mirror of a cadence edit: an event trigger's
         # `event_config` is re-normalised against its source, and one sent for a
         # schedule (which has no filter) is refused rather than stored to mean
         # nothing - the same shape the cadence-on-event refusal below has.
-        if "event_config" in changes:
+        if "event_config" in changes and "source_id" not in changes:
             changes["event_config"] = self._validated_event_config(trigger, changes["event_config"])
             _guard_shared_mailbox(
                 ctx, trigger.event_source, changes["event_config"], before=trigger.event_config
@@ -1538,6 +1598,11 @@ class AgentTriggerService:
                 },
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        if "source_id" in changes:
+            from app.services.event_sources import EventSourceService
+
+            assert updated.source_id is not None
+            await EventSourceService(self.db).bind_routine(ctx, updated.source_id, updated.id)
         if (
             "name" in changes
             and updated.chat_mode == "shared"
@@ -1801,6 +1866,20 @@ class AgentTriggerService:
                 details={"errors": exc.errors(include_url=False, include_input=False)},
             ) from exc
 
+    @staticmethod
+    def _merged_source_config(source: str, config: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return (
+                _EVENT_CONFIG_MODELS[source]
+                .model_validate(config)
+                .model_dump(exclude_defaults=source == EventSource.WEBHOOK.value)
+            )
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                message="event_config is not valid for this source",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
+
     def _validated_event_config(
         self, trigger: AgentTrigger, config: dict[str, Any]
     ) -> dict[str, Any]:
@@ -1830,7 +1909,7 @@ class AgentTriggerService:
         # Which GitHub event fires is fixed, like the source: a registered hook
         # listens for the event it was made for, so a trigger moved to another
         # would wait for deliveries the repository never sends.
-        if trigger.event_source == EventSource.GITHUB.value:
+        if trigger.event_source == EventSource.GITHUB.value and trigger.source_id is None:
             kept = GithubTriggerConfig.model_validate(trigger.event_config).event
             if validated["event"] != kept:
                 raise refused_field(
@@ -1875,6 +1954,11 @@ class AgentTriggerService:
             raise BadRequestError(
                 message="only an event trigger has a secret to rotate",
                 details={"trigger_id": str(trigger.id)},
+            )
+        if trigger.source_id is not None:
+            raise BadRequestError(
+                message="Manage credentials on the event source instead",
+                details={"source_id": trigger.source_id},
             )
         # A polled source has none. Rotating one would write a credential the
         # shape constraint forbids on such a row, and hand somebody a secret with
@@ -2120,6 +2204,7 @@ class AgentTriggerService:
             trigger is None
             or trigger.trigger_type != TriggerType.EVENT.value
             or trigger.event_source != source
+            or trigger.source_id is not None
             or not trigger.is_active
         ):
             return None
@@ -2328,17 +2413,35 @@ class AgentTriggerService:
     async def _polled_source_current(
         self, trigger: AgentTrigger, connection: McpConnection | None = None
     ) -> bool:
+        return (
+            await self.source_admission_policy(trigger, connection, persist_refresh=True)
+            is not None
+        )
+
+    async def source_admission_policy(
+        self,
+        trigger: AgentTrigger,
+        connection: McpConnection | None = None,
+        *,
+        persist_refresh: bool = False,
+    ) -> UUID | None:
+        """Snapshot the review usable by the current creator for this event origin."""
         ctx = await self._creator_context(trigger)
         if ctx is None:
-            return False
+            return None
         try:
             policy = read_policy(trigger.approved_sources)
             if connection is not None and policy.input_connection_id != connection.id:
-                return False
-            await self.sources.require_current(ctx, trigger, expected_id=policy.id)
+                return None
+            if persist_refresh:
+                await self.sources.require_current(ctx, trigger, expected_id=policy.id)
+            else:
+                # A source receipt holds the source lock, not the routine lock.
+                # Only read the review; a concurrent consent change must win.
+                await self.sources.current(ctx, trigger, expected_id=policy.id)
         except AuthorizationError, NotFoundError, BadRequestError:
-            return False
-        return True
+            return None
+        return policy.id
 
     async def polled_source_admissions(
         self, *, organization_id: UUID, event_source: str, connection: McpConnection
@@ -2613,6 +2716,7 @@ class AgentTriggerService:
         *,
         organization_id: UUID | None,
         event_context: str | None = None,
+        event_source_id: UUID | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
         source_policy_id: UUID | None = None,
@@ -2700,11 +2804,13 @@ class AgentTriggerService:
                     device_id=native.device_id,
                     intent_hash=activation_intent(trigger),
                     event_context=event_context,
+                    event_source_id=event_source_id,
                 )
                 if not inserted:
                     return None  # One offline scheduled/manual activation is already waiting.
             dedupe_key = f"routine-device:{activation_id}"
             event_context = None  # The owner-bound wait, not a second job copy, holds it.
+            event_source_id = None
         job_id = await enqueue(
             self.db,
             FIRE_TRIGGER,
@@ -2713,6 +2819,7 @@ class AgentTriggerService:
                 source_policy_id=source_policy.id,
                 activation_id=activation_id,
                 event_context=event_context,
+                event_source_id=event_source_id,
                 claimed_at=claimed_at,
             ),
             organization_id=organization_id,
@@ -2747,6 +2854,66 @@ class AgentTriggerService:
             source_policy_id=decision.source_policy_id,
         )
         return True
+
+    async def fire_source_delivery(
+        self,
+        trigger_id: UUID,
+        *,
+        source_id: UUID,
+        source_policy_id: UUID | None,
+        body: dict[str, JsonValue],
+        delivery_id: UUID,
+        organization_id: UUID,
+        received_at: datetime | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> UUID | None:
+        """Match one already-authenticated durable source delivery and queue its routine.
+
+        Source admission owns authentication and duplicate detection. A stable
+        activation ID ties queued work and pre-run failures to this subscriber,
+        independently of other routines or workflows using the same source.
+        """
+        trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id, fresh=True)
+        if (
+            trigger is None
+            or trigger.organization_id != organization_id
+            or trigger.source_id != source_id
+            or trigger.trigger_type != TriggerType.EVENT.value
+            or not trigger.is_active
+        ):
+            return None
+        assert trigger.event_source is not None
+        if not trigger_events.event_matches(
+            trigger.event_source, headers=headers or {}, payload=body, config=trigger.event_config
+        ):
+            await self._record_filtered_event(
+                trigger,
+                headers or {},
+                body,
+                received_at=received_at,
+                source_policy_id=source_policy_id,
+            )
+            return None
+        activation_id = uuid5(delivery_id, str(trigger.id))
+        if source_policy_id is None:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
+            return None
+        allowance = await rate_limit.trigger_delivery_allowed(trigger.id)
+        if not allowance.allowed:
+            raise RateLimitError(
+                message="This trigger has fired too often this minute",
+                details={"retry_after_seconds": allowance.retry_after_seconds},
+            )
+        return await self.queue_fire(
+            trigger.id,
+            organization_id=organization_id,
+            event_context=trigger_events.render_context(trigger.event_source, payload=body),
+            event_source_id=source_id,
+            activation_id=activation_id,
+            source_policy_id=source_policy_id,
+        )
 
     async def queue_app_fires(self, *, body: bytes, headers: Mapping[str, str]) -> int:
         """Authenticate a GitHub App delivery and queue a fire for every trigger it matches."""
@@ -2867,6 +3034,7 @@ class AgentTriggerService:
         await self.fire(
             payload.trigger_id,
             event_context=payload.event_context,
+            event_source_id=payload.event_source_id,
             claimed_at=payload.claimed_at,
             activation_id=activation_id,
             source_policy_id=payload.source_policy_id,
@@ -2888,6 +3056,7 @@ class AgentTriggerService:
         trigger_id: UUID,
         *,
         event_context: str | None = None,
+        event_source_id: UUID | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
         source_policy_id: UUID | None = None,
@@ -2969,6 +3138,7 @@ class AgentTriggerService:
             await self._fire_loaded(
                 trigger,
                 event_context=event_context,
+                event_source_id=event_source_id,
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
             )
@@ -2985,6 +3155,7 @@ class AgentTriggerService:
             await self._fire_loaded(
                 trigger,
                 event_context=event_context,
+                event_source_id=event_source_id,
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
             )
@@ -3067,6 +3238,7 @@ class AgentTriggerService:
         *,
         activation_id: UUID,
         event_context: str | None = None,
+        event_source_id: UUID | None = None,
         source_policy_id: UUID | None = None,
     ) -> None:
         """The fire itself, once the row is loaded - split out so `fire` can clear the
@@ -3095,6 +3267,15 @@ class AgentTriggerService:
         try:
             await self.sources.require_current(ctx, trigger, expected_id=source_policy_id)
         except (AuthorizationError, NotFoundError, BadRequestError) as refusal:
+            if trigger.local_target is not None:
+                # A blocked activation is terminal; the device sweep must not requeue it.
+                await device_wait_repo.settle(
+                    self.db,
+                    activation_id=activation_id,
+                    trigger_id=trigger.id,
+                    status="cancelled",
+                    reason="routine_changed",
+                )
             await self._record_attempt(
                 trigger,
                 activation_id,
@@ -3152,6 +3333,7 @@ class AgentTriggerService:
                 )
                 return
             event_context = waiting.event_context
+            event_source_id = waiting.event_source_id
         if unconfirmed_local_access:
             await NotificationService(self.db).routine_blocked(
                 organization_id=trigger.organization_id,
@@ -3173,6 +3355,7 @@ class AgentTriggerService:
                         trigger.id,
                         organization_id=trigger.organization_id,
                         event_context=event_context,
+                        event_source_id=event_source_id,
                     )
                     return
                 await local_device_ready(self.db, ctx, local)
@@ -3208,6 +3391,32 @@ class AgentTriggerService:
             )
             return
 
+        if trigger.source_id is not None or event_source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            source_changed = trigger.source_id is None or (
+                event_source_id is not None and event_source_id != trigger.source_id
+            )
+            try:
+                if not source_changed:
+                    assert trigger.source_id is not None
+                    source = await EventSourceService(self.db).require_use(ctx, trigger.source_id)
+                    if event_source_id is not None and not source.is_active:
+                        source_changed = True
+            except AuthorizationError, NotFoundError:
+                source_changed = True
+            if source_changed:
+                await self._record_attempt(
+                    trigger, activation_id, stage="source_review", reason="source_review_required"
+                )
+                if waiting is not None:
+                    await device_wait_repo.settle(
+                        self.db,
+                        activation_id=activation_id,
+                        status="cancelled",
+                        reason="routine_changed",
+                    )
+                return
         ctx = replace(ctx, routine_dispatch_id=activation_id)
         conversation_id = (
             await self._run_chat(trigger, agent_name=agent.name)

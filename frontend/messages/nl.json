@@ -3698,6 +3698,13 @@
       "background-tasks": {
         "title": "Achtergrondonderwerpen",
         "description": "Je gedelegeerde werk en de resultaten ervan"
+      },
+      "event-sources": {
+        "title": "Gebeurtenisbronnen",
+        "description": "Bekijk hoeveel webhookbronnen actief of gepauzeerd zijn.",
+        "empty": "Nog geen gebeurtenisbronnen",
+        "active": "Actief",
+        "paused": "Gepauzeerd"
       }
     },
     "edit": {
@@ -4886,7 +4893,8 @@
     "monitoring": "Monitoring",
     "backgroundWork": "Achtergrondwerk",
     "developerAccess": "API en MCP",
-    "subscriptions": "Abonnementen"
+    "subscriptions": "Abonnementen",
+    "eventSources": "Gebeurtenisbronnen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4971,6 +4979,10 @@
       "skill-improvement-session": {
         "title": "Deze sessie doorlopen",
         "body": "Bekijk de stappen, het resultaat van elke agent, en wat je met de wijziging mag doen."
+      },
+      "create-event-source": {
+        "title": "Nieuwe bron maken",
+        "body": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows."
       }
     },
     "steps": {
@@ -6294,6 +6306,18 @@
       "personal-console-catalogs": {
         "title": "Catalogi",
         "body": "Kies welke galerijen je wilt bekijken. De grenzen van de organisatie en installatie blijven gelden."
+      },
+      "event-sources-header": {
+        "title": "Gebeurtenisbronnen",
+        "body": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows."
+      },
+      "event-sources-create": {
+        "title": "Nieuwe bron maken",
+        "body": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt."
+      },
+      "flow-event-source-create": {
+        "title": "Nieuwe bron maken",
+        "body": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt."
       }
     },
     "chooseLanguage": "Taal",
@@ -6549,7 +6573,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Een ondertekende HTTP-levering vanuit een ander systeem start een run."
+          "description": "Een geauthenticeerde gebeurtenis start een run. Kies of maak een gebeurtenisbron in de editor."
         },
         "schedule": {
           "name": "Planning",
@@ -6938,7 +6962,8 @@
       "runQuestionsFailed": "De vragen konden niet worden geladen.",
       "runQuestionsRetry": "Opnieuw proberen",
       "startRunSchema": "Verwacht invoerschema",
-      "nameRequired": "Vul een naam in voor deze workflow."
+      "nameRequired": "Vul een naam in voor deze workflow.",
+      "triggerSourceCredentials": "Inloggegevens beheren bij Gebeurtenisbronnen"
     },
     "retention": {
       "title": "Bewaring van gegevens",
@@ -9354,14 +9379,14 @@
     "share": "Delen",
     "sharingUpdated": "Delen bijgewerkt",
     "visibilityOrg": "Iedereen in de organisatie",
-    "visibilityOrgReaches": "Iedereen in de organisatie die überhaupt {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} other {geheimen}} kan bekijken.",
+    "visibilityOrgReaches": "Iedereen in de organisatie die überhaupt {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} event_source {gebeurtenisbronnen} other {geheimen}} kan bekijken.",
     "visibilityPrivate": "Alleen mensen met toegang",
-    "visibilityPrivateReaches": "Alleen de personen hierboven. Niemand anders ziet {resource, select, agent {deze agent} skill {deze skill} collection {deze collectie} artifact {deze app} dataset {deze dataset} context {dit contextbestand} mcp_connection {deze MCP-server} project {dit project} other {dit geheim}} in het overzicht. Als er nog geen eigenaar is, word jij de eigenaar.",
+    "visibilityPrivateReaches": "Alleen de personen hierboven. Niemand anders ziet {resource, select, agent {deze agent} skill {deze skill} collection {deze collectie} artifact {deze app} dataset {deze dataset} context {dit contextbestand} mcp_connection {deze MCP-server} project {dit project} event_source {deze gebeurtenisbron} other {dit geheim}} in het overzicht. Als er nog geen eigenaar is, word jij de eigenaar.",
     "visibilityTeam": "Team (niet meer aangeboden)",
     "visibilityTeamReaches": "Iedereen wiens rol tot {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} other {geheimen}} van het team reikt. Deze organisatie heeft geen teams - kies een van de twee hierboven.",
     "visibilityUpdated": "Zichtbaarheid bijgewerkt",
     "workflowPrivateReaches": "De eigenaar, de personen en groepen hierboven, en rollen die toegang hebben tot alle workflows. Rollen die beperkt zijn tot gedeelde workflows, kunnen toegang verliezen als je hem privé maakt.",
-    "workflowRuntimeNote": "Delen bepaalt ook de toegang tot eerdere runs. Het pauzeert geen planningen en schakelt geen webhooks uit.",
+    "workflowRuntimeNote": "Wie van jou toegang krijgt tot de runs van de workflow, kan de geleverde gebeurtenisgegevens zien, ook in eerdere runs. Door de workflow te delen geef je geen toegang tot de gebeurtenisbron, pauzeer je geen planningen en schakel je geen webhooks uit.",
     "groupsHeading": "Groepen",
     "membersHeading": "Leden",
     "groupSubject": "Groep",
@@ -9370,7 +9395,8 @@
     "owner": "Eigenaar",
     "shareNamed": "{name} delen",
     "requestSent": "Verzoek verstuurd naar {name}",
-    "requestSentNobody": "Verzoek verstuurd. Niemand kan het nog goedkeuren."
+    "requestSentNobody": "Verzoek verstuurd. Niemand kan het nog goedkeuren.",
+    "eventSourceRuntimeNote": "Met ‘Kan gebruiken’ kun je ook de ongefilterde gegevens van de bron ontvangen."
   },
   "skills": {
     "addFile": "Bestand toevoegen",
@@ -10734,7 +10760,8 @@
       "unavailableSettings": "Beperkingen voor niet-beschikbare tools",
       "unavailableSettingsBody": "Deze opgeslagen beperkingen blijven behouden, ook als een tool momenteel niet beschikbaar is. Verwijder een beperking expliciet om deze op te heffen.",
       "removeRestriction": "Beperking voor {name} verwijderen"
-    }
+    },
+    "createdDescriptionShared": "Deze routine gebruikt de bestaande URL en inloggegevens van de gebeurtenisbron. Je hoeft bij de provider geen extra webhook te registreren."
   },
   "portals": {
     "backToServices": "Terug naar services",
@@ -12473,7 +12500,8 @@
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
     "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
-    "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt."
+    "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt.",
+    "webhookSourceAudience": "Wie de runs van deze workflow kan bekijken, kan de gegevens zien die de gebeurtenisbron heeft geleverd. Als je de workflow later deelt, geldt dat ook voor eerdere runs. Een run bekijken geeft geen toegang tot de bron."
   },
   "artifacts": {
     "title": "Apps",
@@ -19312,7 +19340,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Een ondertekende HTTP-levering komt aan op het eigen adres van deze workflow."
+        "description": "Een geauthenticeerde JSON-gebeurtenis komt binnen bij een herbruikbare bron of op het adres van deze workflow."
       },
       "trigger_workflow_call": {
         "name": "Aangeroepen door een workflow",
@@ -21750,6 +21778,18 @@
             "title": "Invoer"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Bron verplicht stellen",
+            "description": "Kies voor een nieuw concept in de editor een herbruikbare bron voordat je het publiceert"
+          },
+          "source_id": {
+            "title": "Bron-ID",
+            "description": "De herbruikbare gebeurtenisbron waarop deze workflow zich bij publicatie abonneert"
+          }
+        }
       }
     }
   },
@@ -22077,5 +22117,99 @@
       "stalled": "De assistent is gestopt zonder af te ronden. Probeer het opnieuw.",
       "withdrawn": "Het verzoek is geannuleerd voordat het begon. Probeer het opnieuw."
     }
+  },
+  "eventSources": {
+    "title": "Gebeurtenisbronnen",
+    "description": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows.",
+    "name": "Naam",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Aangepaste webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authenticatie",
+    "auth": {
+      "hmac": "Aangepaste HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API-sleutel",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Gebruikersnaam",
+    "password": "Wachtwoord",
+    "secret": "Geheim",
+    "secretHelp": "Laat dit leeg om een geheim te genereren of voer het bestaande geheim van de afzender in. De inloggegevens worden in de vault opgeslagen en bij het opvragen nooit teruggegeven.",
+    "manualSetup": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt.",
+    "visibility": "Zichtbaarheid",
+    "private": "Privé",
+    "organization": "Organisatie",
+    "deliveryHeader": "Header voor de afleverings-ID (optioneel)",
+    "deliveryHelp": "Gebeurtenis-ID’s van de provider worden automatisch herkend. Zonder gebeurtenis-ID kunnen herhaalde pogingen extra runs starten.",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "create": "Bron maken",
+    "header": "Headernaam",
+    "prefix": "Voorvoegsel voor de handtekening of sleutel (optioneel)",
+    "encoding": "Codering van de handtekening",
+    "legacy": "Oud formaat voor ondertekening met tijdstempel gebruiken",
+    "standardHelp": "Symmetrische v1-handtekeningen over de ID, het tijdstempel en de berichtinhoud. Het tijdstempel mag maximaal vijf minuten afwijken.",
+    "selectSource": "Gebeurtenisbron",
+    "dedicated": "Eigen endpoint (synchroon antwoord)",
+    "chooseSource": "Selecteer een bestaande bron",
+    "paused": "Gepauzeerd",
+    "active": "Actief",
+    "liveUrl": "URL van het live-endpoint",
+    "revealOnce": "Kopieer dit geheim nu. Het wordt niet opnieuw getoond.",
+    "createNew": "Nieuwe bron maken",
+    "loadError": "De gebeurtenisbronnen konden niet worden geladen.",
+    "retry": "Opnieuw proberen",
+    "liveWarning": "Luister twee minuten op deze live-URL. Actieve abonnees blijven normaal werken. Voorbeelden zijn tijdelijk en vervallen na tien minuten. Een voorbeeld is niet verplicht.",
+    "noUse": "Je hebt toestemming nodig om de bron te gebruiken om gebeurtenissen te kunnen vastleggen.",
+    "captureError": "Het gebeurtenisvoorbeeld kon niet worden vastgelegd. Liveleveringen worden nog steeds verwerkt.",
+    "expired": "De luistertijd is verstreken. Begin opnieuw met luisteren zodra de afzender klaar is.",
+    "caught": "Gebeurtenis vastgelegd. Het voorbeeld is klaar voor gebruik.",
+    "listen": "Naar gebeurtenis luisteren",
+    "listenTo": "Luisteren naar {name}",
+    "sourceUnavailable": "Huidige bron (niet beschikbaar)",
+    "listening": "Wachten op een geauthenticeerde gebeurtenis…",
+    "pasteExample": "Of plak een JSON-voorbeeld",
+    "exampleJson": "Voorbeeld van een JSON-object",
+    "invalidJson": "Voer een geldig JSON-object in.",
+    "sampleTooLarge": "Dit voorbeeld overschrijdt de limiet van {limit} bytes voor de editor.",
+    "useExample": "Voorbeeld gebruiken",
+    "noView": "Je hebt geen toestemming om gebeurtenisbronnen te bekijken.",
+    "empty": "Nog geen gebeurtenisbronnen. Maak een bron om gebeurtenissen te ontvangen voor routines en workflows.",
+    "edit": "Bewerken",
+    "done": "Klaar",
+    "pause": "Bron pauzeren",
+    "resume": "Bron hervatten",
+    "pauseHelp": "Als je deze bron pauzeert, stopt de levering van nieuwe gebeurtenissen. Je kunt ook elke abonnee afzonderlijk pauzeren.",
+    "replaceCredentials": "Inloggegevens vervangen",
+    "status": "Status",
+    "subscribers": "Abonnees",
+    "actions": "Acties",
+    "usageError": "De abonnees konden niet worden geladen.",
+    "usage": "{count, plural, =0 {Geen abonnees} =1 {1 abonnee} other {# abonnees}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Bron verwijderen",
+    "confirmDelete": "Verwijdering bevestigen",
+    "deleteBlocked": "Koppel de abonnees los voordat je deze bron verwijdert.",
+    "sourceRoutine": "Routine maken vanuit een gebeurtenisbron",
+    "privateRoutine": "Privéroutine",
+    "privateWorkflow": "Privéworkflow",
+    "credentialHelp": "Voer het geheim van de afzender in. Bestaande inloggegevens worden nooit getoond.",
+    "filters": {
+      "event_types": "Gebeurtenistypen",
+      "actions": "Acties",
+      "subscription_types": "Abonnementstypen",
+      "property_names": "Namen van eigenschappen",
+      "help": "Scheid waarden met komma’s. Laat een filter leeg om alle waarden toe te staan."
+    },
+    "eventPreset": "Gebeurtenissen voor deze routine",
+    "currentFilters": "Huidige of standaardfilters",
+    "presetError": "De voorinstellingen voor gebeurtenissen konden niet worden geladen."
   }
 }

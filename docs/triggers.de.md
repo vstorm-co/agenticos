@@ -1,5 +1,5 @@
 ---
-source_sha: "60a9139b3d7e"
+source_sha: "6caba3f57617"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -9,8 +9,8 @@ Ein **Event-Trigger** löst einen Agent aus, wenn woanders etwas passiert.
 Es gibt zwei Wege, auf denen das bei uns ankommt, und welchen eine Quelle nutzt,
 ist die Sache der Quelle und nicht Ihre:
 
-- **Geschoben.** Ein Provider schickt per POST eine signierte Payload: **GitHub**,
-  **HubSpot**, **Zendesk**, oder alles, was signiertes JSON senden kann (die
+- **Geschoben.** Ein Provider schickt per POST eine authentifizierte Payload: **GitHub**,
+  **HubSpot**, **Zendesk**, **Linear** oder alles, was authentifiziertes JSON senden kann (die
   Quelle **API**).
 - **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan: die
   Postfächer (**Gmail**, **Outlook**), die Dateien (**Google Drive**, **OneDrive &
@@ -126,9 +126,40 @@ Standardanordnung unter **Needs attention**. Sie liest dieselbe organisationswei
 Liste, wer also die Agents sehen darf, sieht ihre Routinen; Ausgang und Kosten in
 jeder Zeile brauchen `runs:view` und fehlen ohne es schlicht.
 
+## Wiederverwendbare Ereignisquellen { #reusable-event-sources }
+
+Fügen Sie Ihrem Dashboard das Widget **Ereignisquellen** hinzu. Es zeigt, wie viele der für Sie sichtbaren Quellen aktiv oder pausiert sind.
+
+Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Eine Quelle besitzt ihre Live-URL, Zugangsdaten und Provider-Konfiguration. Mehrere Routinen und veröffentlichte Workflow-Einstiege können dieselbe URL abonnieren; Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
+
+Quellen sind standardmäßig **Privat**. **Organisation** gibt eine Quelle gemäß den Organisationsberechtigungen frei. Mit dem Leserecht sehen Sie die Konfiguration. Mit dem Nutzungsrecht können Sie eingehende Ereignisdaten vor der Filterung durch die Abonnenten einsehen, auch ohne Routine oder Workflow. Nur wer den Empfang gestartet hat und die Quelle weiterhin nutzen darf, kann das Beispiel abrufen. Zum Verknüpfen müssen Sie das Ziel auch bearbeiten und ausführen dürfen. Worker prüfen die Rechte vor der Ausführung erneut.
+
+Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Prüfung, oder **Benutzerdefinierter Webhook** für eine der folgenden Methoden. Die Registrierung bleibt manuell: Kopieren Sie die Quellen-URL in die Provider-Konfiguration.
+
+| Benutzerdefinierte Authentifizierung | Konfiguration |
+| --- | --- |
+| Benutzerdefinierter HMAC | SHA-256, Headername, optionales Signaturpräfix und Hex-, Base64- oder Base64url-Kodierung; die bisherige Zeitstempelsignatur ist ebenfalls verfügbar |
+| Basic Auth | Benutzername und Passwort |
+| API-Schlüssel | Headername, geheimer Schlüssel und optionales Präfix |
+| Standard Webhooks | Symmetrische `v1`-Signaturen über ID, Zeitstempel und Body; Signaturlisten, fünf Minuten Zeitstempeltoleranz und Base64-kodierte Schlüssel mit 24–64 Byte |
+
+Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Ersetzen Sie sie an der Quelle, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
+
+Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Bei vorübergehenden Raten- oder Kapazitätsgrenzen eines Abonnenten versucht der Worker die Zustellung erneut. Für ein eingereihtes Ereignis gilt nur die beim Empfang erteilte Quellenfreigabe der Routine. Ein Quellenwechsel pausiert die Routine. Vor dem Fortsetzen muss die Person, der die Routine gehört, die neue Quelle prüfen.
+
+Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
+
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+
+### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
+
+Wählen Sie an der Quelle oder im Webhook-Editor **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird als Beispiel erfasst, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
+
+Im Workflow-Editor können Sie alternativ Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
+
 ## Die Mechanik, einmal { #the-mechanism-once }
 
-Ein Event-Trigger verwendet zwei Dinge: eine **Webhook-URL** und ein
+Ein dedizierter Event-Trigger verwendet zwei Dinge: eine **Webhook-URL** und ein
 **Signatur-Secret**. Ein Provider schickt seine Payload per POST an die URL und
 signiert die Anfrage; die Plattform berechnet die Signatur neu und löst den Agent
 nur aus, wenn beide übereinstimmen.

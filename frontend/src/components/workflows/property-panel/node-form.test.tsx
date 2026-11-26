@@ -494,8 +494,8 @@ describe("NodeForm sections", () => {
   });
 
   it("says how a trigger with nothing to set starts a run, in place of the empty message", () => {
-    renderForm({ definition: makeDefinition({ id: "trigger.webhook", category: "triggers" }) });
-    expect(screen.getByText(/its own address and signing secret/)).toBeVisible();
+    renderForm({ definition: makeDefinition({ id: "trigger.manual", category: "triggers" }) });
+    expect(screen.getByText(/Start it with Run/)).toBeVisible();
   });
 
   it("edits an agent step's answer shape as the Builder edits an agent's own", async () => {

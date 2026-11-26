@@ -820,6 +820,8 @@ export interface WorkflowExposureRead {
   adapter: ExposureAdapter;
   is_active: boolean;
   execution_principal_user_id: Uuid | null;
+  /** The reusable source whose credentials authenticate this webhook. */
+  source_id: Uuid | null;
   run_input: Record<string, unknown>;
   schedule_kind: ExposureScheduleKind | null;
   interval_seconds: number | null;

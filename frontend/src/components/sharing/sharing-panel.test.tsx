@@ -133,6 +133,30 @@ beforeEach(() => {
 });
 
 describe("SharingPanel", () => {
+  it("explains who can read historical event payloads before changing workflow access", () => {
+    sharing = { ...SHARING, resource_type: "workflow" };
+    render(<SharingPanel resourceType="workflow" resourceId="w1" canManage />);
+    const notice = screen.getByText(/may see delivered event data/);
+    expect(notice).toHaveTextContent("including in past runs");
+    expect(notice).toHaveTextContent("does not grant access to the event source");
+    expect(notice.compareDocumentPosition(screen.getByLabelText(ADD))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it.each(["private", "org"] as const)(
+    "explains unfiltered source use and %s visibility",
+    (visibility) => {
+      sharing = { ...SHARING, resource_type: "event_source", visibility };
+      render(<SharingPanel resourceType="event_source" resourceId="s1" canManage />);
+      expect(screen.getByText(/listening to the source’s unfiltered payloads/)).toBeVisible();
+      expect(
+        screen.getByText(
+          visibility === "org" ? /can view event sources/ : /finds this event source/,
+        ),
+      ).toBeVisible();
+    },
+  );
   it("keeps the add-recipient and access choices stable while sharing is pending", () => {
     share.isPending = true;
     try {

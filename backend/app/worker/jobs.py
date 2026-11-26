@@ -236,11 +236,20 @@ class DialPhone(Payload):
     call_id: UUID
 
 
+class DispatchSourceEvent(Payload):
+    organization_id: UUID
+    dispatch_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
+    # Older workers reject unknown keys, even JSON null.
+    event_source_id: UUID | None = Field(
+        default=None, exclude_if=lambda source_id: source_id is None
+    )
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
@@ -604,6 +613,14 @@ WAKE_TASK = Task(
     timeout=timedelta(seconds=60),
     priority=Priority.SCHEDULED,
 )
+DISPATCH_SOURCE_EVENT = Task(
+    kind="dispatch-source-event",
+    payload_type=DispatchSourceEvent,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
@@ -929,6 +946,7 @@ WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minu
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
+SOURCE_DELIVERY_RETENTION = _sweep("source-delivery-retention", timeout=timedelta(minutes=10))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
@@ -1078,6 +1096,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        DISPATCH_SOURCE_EVENT,
         WAKE_TASK,
         DIAL_PHONE,
         END_PHONE,
@@ -1136,6 +1155,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_SCHEDULES_CHECK,
         WORKFLOW_TABLE_TRIGGERS,
         WORKFLOW_RUN_RETENTION,
+        SOURCE_DELIVERY_RETENTION,
         WORKFLOW_LOG_ALERTS,
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,

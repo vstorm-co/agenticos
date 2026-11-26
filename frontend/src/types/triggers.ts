@@ -114,6 +114,7 @@ export interface Trigger {
   event_source: EventSource | null;
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
+  source_id?: string | null;
   prompt: string;
   /** Null on an event trigger, which has no scheduled next fire. */
   next_fire_at: string | null;
@@ -171,6 +172,7 @@ export interface TriggerCreate {
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
+  source_id?: string | null;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
   name?: string | null;
@@ -236,6 +238,7 @@ export interface TriggerCreated extends Trigger {
 export interface TriggerUpdate {
   max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
+  source_id?: string | null;
   prompt?: string;
   name?: string | null;
   schedule_kind?: ScheduleKind;

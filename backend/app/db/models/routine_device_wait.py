@@ -38,6 +38,7 @@ class RoutineDeviceWait(Base, TimestampMixin):
     intent_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     is_event: Mapped[bool] = mapped_column(Boolean, nullable=False)
     event_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_source_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="waiting", server_default="waiting"
     )

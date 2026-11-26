@@ -3316,6 +3316,13 @@
         "title": "Version gegen Version",
         "description": "Ob sich eine neue Agent-Version besser verhält als die letzte."
       },
+      "event-sources": {
+        "title": "Ereignisquellen",
+        "description": "Sehen Sie, wie viele Webhook-Quellen aktiv oder pausiert sind.",
+        "empty": "Noch keine Ereignisquellen",
+        "active": "Aktiv",
+        "paused": "Pausiert"
+      },
       "routines": {
         "title": "Routinen",
         "description": "Was läuft, ohne dass jemand an der Tastatur sitzt, das Nächste zuerst, und wie das letzte Mal lief.",
@@ -4881,7 +4888,8 @@
     "backgroundWork": "Arbeit im Hintergrund",
     "desktopApp": "Desktop-App",
     "developerAccess": "API & MCP",
-    "subscriptions": "Abonnements"
+    "subscriptions": "Abonnements",
+    "eventSources": "Ereignisquellen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4966,6 +4974,10 @@
       "skill-improvement-session": {
         "title": "Durch diese Sitzung gehen",
         "body": "Sieh die Schritte, das Ergebnis jedes Agents und was du mit der Änderung tun kannst."
+      },
+      "create-event-source": {
+        "title": "Neue Quelle erstellen",
+        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
       }
     },
     "steps": {
@@ -6229,6 +6241,18 @@
       "channels-diagnostics": {
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
+      },
+      "event-sources-header": {
+        "title": "Ereignisquellen",
+        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
+      },
+      "event-sources-create": {
+        "title": "Neue Quelle erstellen",
+        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
+      },
+      "flow-event-source-create": {
+        "title": "Neue Quelle erstellen",
+        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
       },
       "channels-binding": {
         "title": "Festlegen, wer antwortet",
@@ -8428,6 +8452,7 @@
       "triggerTableLive": "Jeder zur Tabelle hinzugefügte Datensatz, der zu den Filtern des Auslösers passt, startet einen Run mit diesem Datensatz. Pausieren Sie ihn oder lesen Sie seine Entscheidungen unter den Auslösern der Tabelle.",
       "triggerOpenTable": "Tabelle öffnen",
       "triggerOn": "Ein",
+      "triggerSourceCredentials": "Zugangsdaten unter Ereignisquellen verwalten",
       "triggerRotate": "Neues Secret",
       "triggerPause": "Pausieren",
       "triggerResume": "Fortsetzen",
@@ -8443,7 +8468,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Eine signierte HTTP-Zustellung aus einem anderen System startet einen Run."
+          "description": "Ein authentifiziertes Ereignis startet einen Lauf. Wählen Sie im Editor eine Ereignisquelle aus oder erstellen Sie eine."
         },
         "schedule": {
           "name": "Zeitplan",
@@ -9349,14 +9374,15 @@
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibilityOrg": "Alle in der Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} project {Projekte} workflow {Workflows} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} project {Projekte} workflow {Workflows} event_source {Ereignisquellen} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Nur Personen mit Zugriff",
-    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} project {Projekt} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} project {Projekt} event_source {diese Ereignisquelle} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
     "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} project {Projekte} workflow {Team-Workflows} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "workflowPrivateReaches": "Der Eigentümer, die oben aufgeführten Personen und Gruppen sowie Rollen mit Zugriff auf alle Workflows. Rollen, die nur geteilte Workflows erreichen, können beim Wechsel zu privat den Zugriff verlieren.",
-    "workflowRuntimeNote": "Die Freigabe gilt auch für bisherige Runs. Sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.",
+    "eventSourceRuntimeNote": "Mit dem Recht zur Nutzung lassen sich auch die ungefilterten Ereignisdaten der Quelle einsehen.",
+    "workflowRuntimeNote": "Wer Zugriff auf Workflow-Runs erhält, kann zugestellte Ereignisdaten auch in früheren Runs sehen. Die Workflow-Freigabe gewährt keinen Zugriff auf die Ereignisquelle. Sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
     "groupSubject": "Gruppe",
@@ -10501,6 +10527,7 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "createdTitle": "Noch ein Schritt",
+    "createdDescriptionShared": "Diese Routine verwendet die vorhandene URL und die Zugangsdaten der Ereignisquelle. Sie müssen beim Anbieter keinen weiteren Webhook registrieren.",
     "createdDescription": "Tragen Sie diese Webhook-URL bei Ihrem Provider ein, signiert mit dem Secret, das Sie gesetzt haben. Nichts wird ausgelöst, bis er zustellt.",
     "createdDescriptionLinear": "Verwenden Sie diese URL und dasselbe Signing Secret, um einen Webhook in Linear zu erstellen. Die Linear-API nimmt beim Erstellen beides entgegen.",
     "createdSecretNote": "Kopieren Sie es jetzt – danach wird es nicht mehr angezeigt. Der Provider signiert jede Zustellung damit.",
@@ -11952,6 +11979,7 @@
     "branchKey": "Zweigname",
     "nodeSummarySplitBranches": "{count, plural, one {# Zweig} other {# Zweige}}",
     "webhookTestListen": "Auf Testaufruf warten",
+    "webhookSourceAudience": "Wer die Runs dieses Workflows einsehen kann, kann auch die von der Ereignisquelle zugestellten Daten sehen. Bei einer späteren Freigabe gilt das auch für frühere Runs. Das Einsehen eines Runs gewährt keinen Zugriff auf die Quelle.",
     "webhookTestWaiting": "Warte auf einen Aufruf",
     "webhookTestUrl": "Test-URL",
     "webhookTestHint": "Sende innerhalb von zwei Minuten einen POST mit einem JSON-Objekt als Body. Er wird hier behalten und als Ausgabe dieses Triggers angeheftet, und kein Run startet.",
@@ -19114,7 +19142,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Eine signierte HTTP-Zustellung kommt unter der eigenen Adresse dieses Workflows an."
+        "description": "Ein authentifiziertes JSON-Ereignis erreicht eine wiederverwendbare Ereignisquelle oder die Adresse dieses Workflows."
       },
       "trigger_workflow_call": {
         "name": "Von einem Workflow aufgerufen",
@@ -21489,6 +21517,18 @@
           }
         }
       },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Quelle erforderlich",
+            "description": "Vor der Veröffentlichung muss für den neuen Entwurf im Editor eine wiederverwendbare Quelle ausgewählt werden"
+          },
+          "source_id": {
+            "title": "Quellen-ID",
+            "description": "Eine wiederverwendbare Ereignisquelle, die dieser Workflow bei der Veröffentlichung abonniert"
+          }
+        }
+      },
       "trigger_workflow_call": {
         "config": {
           "fields": {
@@ -21554,6 +21594,100 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Ereignisquellen",
+    "description": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen.",
+    "name": "Name",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Eigener Webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authentifizierung",
+    "auth": {
+      "hmac": "Eigener HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Benutzername",
+    "password": "Passwort",
+    "secret": "Geheimnis",
+    "secretHelp": "Leer lassen, um ein Geheimnis zu erzeugen, oder das vorhandene Geheimnis des Absenders eingeben. Zugangsdaten werden im Vault gespeichert und bei Lesezugriffen nie zurückgegeben.",
+    "manualSetup": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet.",
+    "visibility": "Sichtbarkeit",
+    "private": "Privat",
+    "organization": "Organisation",
+    "deliveryHeader": "Header für Zustellungs-ID (optional)",
+    "deliveryHelp": "Ereignis-IDs des Providers werden automatisch erkannt. Ohne Ereignis-ID können Wiederholungen weitere Runs erzeugen.",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "create": "Quelle erstellen",
+    "header": "Header-Name",
+    "prefix": "Signatur- oder Schlüsselpräfix (optional)",
+    "encoding": "Signaturkodierung",
+    "legacy": "Älteres Signaturformat mit Zeitstempel verwenden",
+    "standardHelp": "Symmetrische v1-Signaturen über ID, Zeitstempel und Inhalt mit fünf Minuten Zeitstempeltoleranz.",
+    "selectSource": "Ereignisquelle",
+    "dedicated": "Eigener Endpunkt (synchrone Antwort)",
+    "chooseSource": "Vorhandene Quelle auswählen",
+    "paused": "Pausiert",
+    "active": "Aktiv",
+    "liveUrl": "Live-Endpoint-URL",
+    "revealOnce": "Kopiere dieses Geheimnis jetzt. Es wird nicht erneut angezeigt.",
+    "createNew": "Neue Quelle erstellen",
+    "loadError": "Ereignisquellen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "liveWarning": "Zwei Minuten auf dieser Live-URL auf ein Ereignis warten. Aktive Abonnenten laufen normal weiter. Beispiele sind temporär und verfallen nach zehn Minuten. Ein Beispiel ist optional.",
+    "noUse": "Zum Erfassen von Ereignissen ist die Berechtigung zur Quellennutzung erforderlich.",
+    "captureError": "Das Ereignisbeispiel konnte nicht erfasst werden. Die Verarbeitung laufender Zustellungen bleibt unverändert.",
+    "expired": "Die Wartezeit ist abgelaufen. Starte erneut, wenn der Absender bereit ist.",
+    "caught": "Ereignis erfasst. Das Beispiel kann verwendet werden.",
+    "listen": "Auf Ereignis warten",
+    "listenTo": "Auf Ereignisse von {name} warten",
+    "sourceUnavailable": "Aktuelle Quelle (nicht verfügbar)",
+    "listening": "Warten auf ein authentifiziertes Ereignis…",
+    "pasteExample": "Oder JSON-Beispiel einfügen",
+    "exampleJson": "JSON-Beispielobjekt",
+    "invalidJson": "Gib ein gültiges JSON-Objekt ein.",
+    "sampleTooLarge": "Dieses Beispiel überschreitet das Editorlimit von {limit} Bytes.",
+    "useExample": "Beispiel verwenden",
+    "noView": "Du hast keine Berechtigung, Ereignisquellen anzusehen.",
+    "empty": "Noch keine Ereignisquellen. Erstelle eine Quelle für Routinen und Workflows.",
+    "edit": "Bearbeiten",
+    "done": "Fertig",
+    "pause": "Quelle pausieren",
+    "resume": "Quelle fortsetzen",
+    "pauseHelp": "Eine pausierte Quelle nimmt keine neuen Zustellungen an. Jeder Abonnent kann auch unabhängig pausiert werden.",
+    "replaceCredentials": "Zugangsdaten ersetzen",
+    "status": "Status",
+    "subscribers": "Abonnenten",
+    "actions": "Aktionen",
+    "usageError": "Abonnenten konnten nicht geladen werden.",
+    "usage": "{count, plural, =0 {Keine Abonnenten} =1 {1 Abonnent} other {# Abonnenten}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Quelle löschen",
+    "confirmDelete": "Löschen bestätigen",
+    "deleteBlocked": "Entfernen Sie die Abonnements, bevor Sie diese Quelle löschen.",
+    "sourceRoutine": "Routine aus einer Ereignisquelle erstellen",
+    "privateRoutine": "Private Routine",
+    "privateWorkflow": "Privater Workflow",
+    "credentialHelp": "Gib das Geheimnis des Absenders ein. Vorhandene Zugangsdaten werden nie angezeigt.",
+    "filters": {
+      "event_types": "Ereignistypen",
+      "actions": "Aktionen",
+      "subscription_types": "Abonnementtypen",
+      "property_names": "Eigenschaftsnamen",
+      "help": "Werte durch Kommas trennen. Ein leeres Filterfeld lässt alle Werte zu."
+    },
+    "eventPreset": "Ereignisse für diese Routine",
+    "currentFilters": "Aktuelle oder Standardfilter",
+    "presetError": "Ereignisvorlagen konnten nicht geladen werden."
   },
   "personalModelKeys": {
     "title": "Deine Modellverbindung",

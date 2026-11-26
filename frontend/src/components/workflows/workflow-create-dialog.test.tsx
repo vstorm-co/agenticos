@@ -37,7 +37,11 @@ describe("workflow creation", () => {
       user_ids: [],
     });
     expect(choice.graph.nodes).toEqual([
-      expect.objectContaining({ definition_id: "trigger.webhook", id: choice.graph.entry_node_id }),
+      expect.objectContaining({
+        definition_id: "trigger.webhook",
+        id: choice.graph.entry_node_id,
+        config: { require_source: true },
+      }),
     ]);
   });
 

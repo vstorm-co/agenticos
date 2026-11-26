@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import * as api from "@/lib/workflows/exposures-api";
+import { qk } from "@/lib/query-keys";
 import type { WorkflowExposureRead, WorkflowExposureWithSecret } from "@/lib/workflows/types";
 
 import { useWorkflowExposure } from "./use-workflow-exposure";
@@ -18,14 +19,17 @@ vi.mock("@/lib/workflows/exposures-api", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
 const exposure = { id: "e1", is_active: true } as WorkflowExposureRead;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+});
 
 describe("useWorkflowExposure", () => {
   it("keeps independent form links attached to their own trigger", async () => {
@@ -37,6 +41,43 @@ describe("useWorkflowExposure", () => {
       wrapper,
     });
     await waitFor(() => expect(result.current.exposure?.id).toBe("form-b"));
+  });
+
+  it("reads distinct shared and dedicated registrations for repeated webhook cards", async () => {
+    vi.mocked(api.listWorkflowExposures).mockResolvedValue([
+      { ...exposure, id: "other", adapter: "form" },
+      { ...exposure, id: "dedicated", adapter: "webhook", source_id: null },
+      { ...exposure, id: "shared", adapter: "webhook", source_id: "source" },
+    ]);
+    const { result } = renderHook(
+      () => [
+        useWorkflowExposure("wf", "trigger.webhook", 0),
+        useWorkflowExposure("wf", "trigger.webhook", 1),
+        useWorkflowExposure("wf", "trigger.webhook", 2),
+      ],
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.map(({ exposure }) => exposure && exposure.id)).toEqual([
+        "dedicated",
+        "shared",
+        null,
+      ]),
+    );
+  });
+
+  it("pausing a subscribed webhook refreshes the source's usage", async () => {
+    const usage = qk.eventSources.usage("source");
+    client.setQueryData(usage, []);
+    vi.mocked(api.getWorkflowExposure).mockResolvedValue({ ...exposure, source_id: "source" });
+    vi.mocked(api.updateWorkflowExposure).mockResolvedValue({
+      ...exposure,
+      source_id: "source",
+      is_active: false,
+    });
+    const { result } = renderHook(() => useWorkflowExposure("wf"), { wrapper });
+    await act(() => result.current.setActive.mutateAsync({ id: "e1", active: false }));
+    expect(client.getQueryState(usage)?.isInvalidated).toBe(true);
   });
 
   it("reads the exposure, pauses and resumes it, and rotates its secret", async () => {

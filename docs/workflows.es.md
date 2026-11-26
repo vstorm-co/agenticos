@@ -1,5 +1,5 @@
 ---
-source_sha: "6bad529c4682"
+source_sha: "2a33d37bc63b"
 ---
 
 # Workflows { #workflows }
@@ -1078,6 +1078,24 @@ está en marcha. Un cliente que perdió la conexión se reconecta con el cursor 
 antes de enviarse, así que nada se pierde y nada se ejecuta dos veces. El socket
 vuelve a comprobar la sesión y el acceso del miembro antes de cada frame y de cada
 lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-over-a-websocket).
+
+### Fuentes de webhooks reutilizables { #reusable-webhook-sources }
+
+Los pasos **Webhook** nuevos en el editor de workflows empiezan pidiéndote que elijas o crees una fuente de eventos. Puedes guardar el borrador y probarlo con JSON pegado antes de elegir una fuente, pero para publicar debes seleccionar una fuente o elegir expresamente un **endpoint dedicado**. Elige un endpoint dedicado cuando el remitente necesite una respuesta síncrona. Los pasos dedicados existentes conservan su configuración y sus URL.
+
+En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica proveedores, autenticación, permisos, pausas y retención.
+
+Puedes sustituir una fuente que ya no tienes permiso para usar por otra que sí puedas usar. La suscripción activa cambia al publicar. Fijar una muestra modifica el borrador del workflow y requiere permiso de edición.
+
+Quien pueda consultar las ejecuciones del workflow puede ver en el historial los datos entregados, aunque la fuente sea privada. Compartir el workflow más adelante puede dar acceso a datos de ejecuciones anteriores, pero no permite escuchar la fuente en vivo.
+
+**Escuchar evento** captura el siguiente evento autenticado en la URL activa configurada. La ventana dura dos minutos; las muestras temporales duran diez minutos y respetan el límite de 64 KB para datos fijados. **Los suscriptores activos siguen ejecutándose.** La captura no crea otra ejecución ni cambia las entregas. Pegar JSON de ejemplo es una alternativa; guardar y publicar nunca requieren una muestra.
+
+La muestra del disparador seleccionado sigue siendo `{body, delivery_id}`. Fíjala y usa las vinculaciones de campos y las pruebas de pasos existentes; los nodos siguientes consumen JSON directamente. Con varias entradas, selecciona explícitamente el nodo Webhook adecuado para capturar y fijar.
+
+Probar una rama manual o usar un ejemplo JSON ya fijado no requiere permiso de uso sobre la fuente del webhook. Publicar un flujo que se suscribe a esa fuente y escuchar eventos en directo sí requieren ese permiso.
+
+Una fuente compartida confirma la recepción duradera de forma asíncrona. Publicar rechaza una entrada compartida cuya rama alcanzable contiene **Responder al webhook**. Elige un endpoint dedicado cuando el remitente necesite el estado, las cabeceras o el cuerpo síncronos de ese nodo. Las URL, credenciales, detección de duplicados y respuestas de endpoints dedicados no cambian.
 
 ### Un webhook o una programación { #a-webhook-or-a-schedule }
 

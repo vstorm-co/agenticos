@@ -5,8 +5,8 @@ An **event trigger** fires an agent when something happens somewhere else.
 There are two ways that reaches us, and which one a source uses is the source's own
 business rather than yours:
 
-- **Pushed.** A provider POSTs a signed payload: **GitHub**, **HubSpot**,
-  **Zendesk**, **Linear**, or anything that can send signed JSON (the **API** source).
+- **Pushed.** A provider POSTs an authenticated payload: **GitHub**, **HubSpot**,
+  **Zendesk**, **Linear**, or anything that can send authenticated JSON (the **API** source).
 - **Polled.** The platform reads a connected account on a schedule: the mailboxes
   (**Gmail**, **Outlook**), the files (**Google Drive**, **OneDrive & SharePoint**)
   and the calendars (**Google Calendar**, **Outlook Calendar**). Nothing is posted
@@ -112,9 +112,40 @@ under **Needs attention**. It reads the same org-wide list, so a reader who may
 see the agents sees their routines; the outcome and cost on each row need
 `runs:view` and are simply absent without it.
 
+## Reusable event sources { #reusable-event-sources }
+
+Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
+
+Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
+
+Sources default to **Private**. Choose **Organization** to share a source according to organization permissions. **View** shows its configuration. **Use** lets you listen to incoming payloads before subscriber filters are applied, even without a routine or workflow. Only the member who started a listener can read its sample, and they must still have Use access. Attaching the source also requires edit and run access to the target. Workers recheck access before executing queued work.
+
+Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom webhook** for one of these methods. Provider registration remains manual: copy the source URL into the provider's configuration.
+
+| Custom authentication | Configuration |
+| --- | --- |
+| Custom HMAC | SHA-256, a header name, an optional signature prefix and hex, base64 or base64url encoding; legacy timestamp signing is also available |
+| Basic Auth | Username and password |
+| API Key | Header name, secret key and optional prefix |
+| Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists, a five-minute timestamp tolerance and 24–64 byte base64-encoded keys |
+
+Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
+
+An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching sources pauses the routine. Its owner must review the new source before resuming it.
+
+A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
+
+**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+
+### Listen on the live URL { #listen-on-the-live-url }
+
+On the source or in the webhook editor, choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The listener receives the next event without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
+
+In a workflow editor, you can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
+
 ## The mechanism, once
 
-An event trigger uses a **webhook URL** and a **signing secret**. A
+A dedicated event trigger uses a **webhook URL** and a **signing secret**. A
 provider POSTs its payload to the URL and signs the request; the platform recomputes
 the signature and fires the agent only if the two match.
 

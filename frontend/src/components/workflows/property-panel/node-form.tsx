@@ -1,5 +1,6 @@
 "use client";
 
+import { SourceSelector } from "@/components/event-sources/source-selector";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useState } from "react";
@@ -1304,6 +1305,20 @@ function NodeFields({
     removeBinding,
   };
 
+  if (definition.id === WEBHOOK_TRIGGER) {
+    return (
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm">{t("webhookSourceAudience")}</p>
+        <SourceSelector
+          value={typeof node.config.source_id === "string" ? node.config.source_id : null}
+          allowDedicated
+          unconfigured={node.config.require_source === true}
+          disabled={disabled}
+          onChange={(source) => updateNodeConfig(node.id, { source_id: source?.id ?? null })}
+        />
+      </div>
+    );
+  }
   if (definition.id === SCHEDULE_TRIGGER) {
     return (
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />

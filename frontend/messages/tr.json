@@ -316,7 +316,8 @@
     "whatsNewTitle": "{version} sürümündeki yenilikler",
     "whatsNewDescription": "Kullandığınız sürümdeki son değişiklikler.",
     "whatsNewDone": "Anladım",
-    "developerAccess": "API ve MCP"
+    "developerAccess": "API ve MCP",
+    "eventSources": "Olay kaynakları"
   },
   "layout": {
     "breadcrumb": "Gezinme yolu",
@@ -710,14 +711,15 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} workflow {iş akışlarını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} workflow {iş akışlarını} event_source {olay kaynaklarını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
-    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
+    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} event_source {olay kaynağını} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
     "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} workflow {iş akışlarına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
     "workflowPrivateReaches": "İş akışının sahibi, yukarıda listelenen kişiler ve gruplar ve tüm iş akışlarına erişebilen roller. Yalnızca paylaşılan iş akışlarına erişen roller, özel olarak ayarlandığında erişimi kaybedebilir.",
-    "workflowRuntimeNote": "Paylaşım, geçmiş run’lara erişimi de belirler. Zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
+    "eventSourceRuntimeNote": "Kullanma izni, kaynağın filtrelenmemiş olay verilerini dinleme yetkisini de içerir.",
+    "workflowRuntimeNote": "İş akışının çalıştırmalarına erişim verdiğiniz kişiler, geçmiş çalıştırmalar da dahil olmak üzere iletilen olay verilerini görebilir. İş akışını paylaşmak olay kaynağına erişim vermez, zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
     "groupSubject": "Grup",
@@ -1582,6 +1584,7 @@
     "branchKey": "Dal adı",
     "nodeSummarySplitBranches": "{count, plural, one {# dal} other {# dal}}",
     "webhookTestListen": "Test etkinliğini dinle",
+    "webhookSourceAudience": "Bu iş akışının çalıştırmalarını görüntüleyebilen herkes, olay kaynağının ilettiği verileri görebilir. İş akışını daha sonra paylaşırsanız buna geçmiş çalıştırmalar da dahildir. Bir çalıştırmayı görüntülemek kaynağa erişim vermez.",
     "webhookTestWaiting": "Bir çağrı bekleniyor",
     "webhookTestUrl": "Test URL’si",
     "webhookTestHint": "İki dakika içinde gövdesinde JSON nesnesi olan bir POST gönderin. İstek burada saklanır ve bu trigger’ın çıktısı olarak sabitlenir; run başlatılmaz.",
@@ -4196,6 +4199,7 @@
       "triggerTableLive": "Tetikleyici filtreleriyle eşleşen her yeni tablo kaydı, o kayıtla bir run başlatır. Tablodaki Triggers bölümünden duraklatabilir veya kararını inceleyebilirsiniz.",
       "triggerOpenTable": "Tabloyu aç",
       "triggerOn": "Açık",
+      "triggerSourceCredentials": "Kimlik bilgilerini Olay kaynakları sayfasında yönet",
       "triggerRotate": "Yeni gizli anahtar",
       "triggerPause": "Duraklat",
       "triggerResume": "Sürdür",
@@ -4224,7 +4228,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Başka bir sistemden gelen imzalı HTTP isteği run başlatır."
+          "description": "Kimliği doğrulanmış bir olay çalıştırma başlatır. Düzenleyicide bir olay kaynağı seçin veya oluşturun."
         },
         "schedule": {
           "name": "Zamanlama",
@@ -7883,6 +7887,13 @@
         "title": "Sürümleri karşılaştır",
         "description": "Yeni agent sürümünün öncekinden daha iyi çalışıp çalışmadığı."
       },
+      "event-sources": {
+        "title": "Olay kaynakları",
+        "description": "Kaç webhook kaynağının etkin veya duraklatılmış olduğunu görün.",
+        "empty": "Henüz olay kaynağı yok",
+        "active": "Etkin",
+        "paused": "Duraklatıldı"
+      },
       "routines": {
         "title": "Rutinler",
         "description": "Kimse başında değilken çalışan işler, en yakında başlayandan itibaren ve son çalışmanın sonucu.",
@@ -8266,6 +8277,10 @@
       "explore-chat": {
         "title": "Sohbeti kısaca tanıyalım mı?",
         "body": "Nasıl sohbet başlatacağınızı, yanıt veren agent’ı nasıl değiştireceğinizi ve tek bir sohbet için modeli veya düşünme düzeyini nasıl ayarlayacağınızı görün. Hızlı bir rehberli tur ister misiniz?"
+      },
+      "create-event-source": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
       }
     },
     "chooseLanguage": "Dil",
@@ -9088,6 +9103,18 @@
       "channels-diagnostics": {
         "title": "Hazırlığı denetle",
         "body": "Görev başlatmadan bot bağlantısını, ajan yayımını ve kendi bağlı hesaplarınızı denetleyin."
+      },
+      "event-sources-header": {
+        "title": "Olay kaynakları",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
+      },
+      "event-sources-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+      },
+      "flow-event-source-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
       },
       "channels-binding": {
         "title": "Kimin yanıt vereceğini seçin",
@@ -11353,6 +11380,7 @@
     "copy": "Kopyala",
     "copied": "Kopyalandı",
     "createdTitle": "Bir adım daha",
+    "createdDescriptionShared": "Bu rutin, olay kaynağının mevcut URL’sini ve kimlik bilgilerini kullanır. Sağlayıcıya yeni bir webhook kaydetmeniz gerekmez.",
     "createdDescription": "Bu webhook URL’sini belirlediğiniz secret ile imzalayarak provider’a ekleyin. İstek gönderilene kadar trigger çalışmaz.",
     "createdSecretNote": "Şimdi kopyalayın; daha sonra yeniden gösterilmez. Provider her isteği bununla imzalar.",
     "done": "Bitti",
@@ -14753,7 +14781,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "İmzalı bir HTTP teslimatı bu workflow’un kendi adresine ulaşır."
+        "description": "Kimliği doğrulanmış bir JSON olayı, yeniden kullanılabilir bir olay kaynağına veya bu workflow’un adresine ulaşır."
       },
       "trigger_workflow_call": {
         "name": "Workflow’dan çağrıldığında",
@@ -17128,6 +17156,18 @@
           }
         }
       },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Kaynak gerekli",
+            "description": "Yeni bir düzenleyici taslağı yayımlanmadan önce yeniden kullanılabilir bir kaynak seçilmelidir"
+          },
+          "source_id": {
+            "title": "Kaynak kimliği",
+            "description": "Bu workflow yayımlandığında abone olunacak yeniden kullanılabilir olay kaynağı"
+          }
+        }
+      },
       "trigger_workflow_call": {
         "config": {
           "fields": {
@@ -17193,6 +17233,100 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Olay kaynakları",
+    "description": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın.",
+    "name": "Ad",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Özel webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Kimlik doğrulama",
+    "auth": {
+      "hmac": "Özel HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Kullanıcı adı",
+    "password": "Parola",
+    "secret": "Gizli anahtar",
+    "secretHelp": "Bir gizli anahtar oluşturmak için boş bırakın veya gönderenin mevcut anahtarını girin. Kimlik bilgileri vault'ta saklanır ve okumalarda hiçbir zaman döndürülmez.",
+    "manualSetup": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın.",
+    "visibility": "Görünürlük",
+    "private": "Özel",
+    "organization": "Organizasyon",
+    "deliveryHeader": "Teslimat kimliği başlığı (isteğe bağlı)",
+    "deliveryHelp": "Provider olay kimlikleri otomatik olarak algılanır. Olay kimliği yoksa yeniden denemeler ek run'lar oluşturabilir.",
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "create": "Kaynak oluştur",
+    "header": "Başlık adı",
+    "prefix": "İmza veya anahtar öneki (isteğe bağlı)",
+    "encoding": "İmza kodlaması",
+    "legacy": "Eski zaman damgalı imza biçimini kullan",
+    "standardHelp": "Kimlik, zaman damgası ve gövde üzerinde beş dakikalık zaman toleransı ile simetrik v1 imzaları.",
+    "selectSource": "Olay kaynağı",
+    "dedicated": "Ayrı uç nokta (eşzamanlı yanıt)",
+    "chooseSource": "Mevcut bir kaynak seçin",
+    "paused": "Duraklatıldı",
+    "active": "Etkin",
+    "liveUrl": "Canlı endpoint URL'si",
+    "revealOnce": "Bu gizli anahtarı şimdi kopyalayın. Tekrar gösterilmeyecek.",
+    "createNew": "Yeni kaynak oluştur",
+    "loadError": "Olay kaynakları yüklenemedi.",
+    "retry": "Yeniden dene",
+    "liveWarning": "Bu canlı URL'de iki dakika dinleyin. Etkin aboneler normal çalışmaya devam eder. Örnekler geçicidir ve on dakika sonra sona erer. Örnek isteğe bağlıdır.",
+    "noUse": "Olayları yakalamak için kaynak kullanım izni gereklidir.",
+    "captureError": "Olay örneği yakalanamadı. Canlı teslimat işleme etkilenmez.",
+    "expired": "Dinleme süresi doldu. Gönderen hazır olduğunda tekrar başlatın.",
+    "caught": "Olay yakalandı. Örnek kullanıma hazır.",
+    "listen": "Olayı dinle",
+    "listenTo": "{name} kaynağını dinle",
+    "sourceUnavailable": "Geçerli kaynak (kullanılamıyor)",
+    "listening": "Kimliği doğrulanmış bir olay bekleniyor…",
+    "pasteExample": "Veya örnek JSON yapıştırın",
+    "exampleJson": "Örnek JSON nesnesi",
+    "invalidJson": "Geçerli bir JSON nesnesi girin.",
+    "sampleTooLarge": "Bu örnek {limit} baytlık düzenleyici sınırını aşıyor.",
+    "useExample": "Örneği kullan",
+    "noView": "Olay kaynaklarını görüntüleme izniniz yok.",
+    "empty": "Henüz olay kaynağı yok. Rutinler ve workflow'lar için bir kaynak oluşturun.",
+    "edit": "Düzenle",
+    "done": "Tamam",
+    "pause": "Kaynağı duraklat",
+    "resume": "Kaynağı sürdür",
+    "pauseHelp": "Bu kaynağı duraklatmak yeni teslimatları durdurur. Her abone de bağımsız olarak duraklatılabilir.",
+    "replaceCredentials": "Kimlik bilgilerini değiştir",
+    "status": "Durum",
+    "subscribers": "Aboneler",
+    "actions": "İşlemler",
+    "usageError": "Aboneler yüklenemedi.",
+    "usage": "{count, plural, =0 {Abone yok} =1 {1 abone} other {# abone}}",
+    "routine": "Rutin",
+    "workflow": "Workflow",
+    "delete": "Kaynağı sil",
+    "confirmDelete": "Silmeyi onayla",
+    "deleteBlocked": "Bu kaynağı silmeden önce abonelikleri kaldırın.",
+    "sourceRoutine": "Olay kaynağından rutin oluştur",
+    "privateRoutine": "Özel rutin",
+    "privateWorkflow": "Özel workflow",
+    "credentialHelp": "Gönderenin gizli anahtarını girin. Mevcut kimlik bilgileri hiçbir zaman gösterilmez.",
+    "filters": {
+      "event_types": "Olay türleri",
+      "actions": "Eylemler",
+      "subscription_types": "Abonelik türleri",
+      "property_names": "Özellik adları",
+      "help": "Değerleri virgülle ayırın. Tüm değerleri eşleştirmek için filtreyi boş bırakın."
+    },
+    "eventPreset": "Bu rutin için olaylar",
+    "currentFilters": "Mevcut veya varsayılan filtreler",
+    "presetError": "Olay önayarları yüklenemedi."
   },
   "improvement": {
     "attributionUnconfirmed": "Değişiklik {number}: sonuç doğrulanmadı.",

@@ -47,6 +47,7 @@ class RoutineDeviceWaitExport(BaseModel):
     device_id: UUID
     status: Literal["waiting", "started", "cancelled", "expired", "failed"]
     event_context: str | None
+    event_source_id: UUID | None = None
     reason: str | None
     admission_failures: int
     created_at: datetime

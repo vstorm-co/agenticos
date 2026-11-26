@@ -1,8 +1,8 @@
 """`trigger.webhook`: a workflow a signed HTTP delivery starts.
 
-Publishing a version with this trigger gives the workflow its own address and a
-signing secret, shown once. Each delivery that verifies starts one run with its
-JSON body; a retry that repeats the delivery id starts nothing.
+Publishing with `source_id` subscribes this entry to a reusable event source.
+Without it, the workflow keeps its own address and signing secret. Both modes
+hand the authenticated event on unchanged, as `body` and `delivery_id`.
 """
 
 from pydantic import BaseModel

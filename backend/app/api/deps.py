@@ -2584,6 +2584,22 @@ def get_onboarding_service(db: DBSession) -> OnboardingService:
 OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
 
 
+from app.services.event_sources import EventSourceService
+from app.services.event_source_samples import EventSourceSampleService
+
+
+def get_event_source_service(db: DBSession) -> EventSourceService:
+    return EventSourceService(db)
+
+
+def get_event_source_sample_service(db: DBSession, redis: Redis) -> EventSourceSampleService:
+    return EventSourceSampleService(db, redis)
+
+
+EventSourceSvc = Annotated[EventSourceService, Depends(get_event_source_service)]
+EventSourceSampleSvc = Annotated[EventSourceSampleService, Depends(get_event_source_sample_service)]
+
+
 from app.services.personal_model_key import PersonalModelKeyService
 
 

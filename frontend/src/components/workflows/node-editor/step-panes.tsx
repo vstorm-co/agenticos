@@ -5,6 +5,7 @@ import { FlaskConical, Pencil, Pin, PinOff, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { LiveSample, PasteSample } from "@/components/event-sources/live-sample";
 import {
   Badge,
   Button,
@@ -25,6 +26,7 @@ import {
   withTableDrift,
 } from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
+import type { EventSample } from "@/lib/event-sources-api";
 import {
   MAX_PINNED_BYTES,
   earlierSteps,
@@ -326,6 +328,12 @@ export function OutputPane({
     else test(sampleRunInput(branch));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
+  const pinWebhookSample = (delivery: EventSample) => {
+    updateNodeDetails(node.id, {
+      pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },
+    });
+    toast.success(t("webhookTestCaught"));
+  };
 
   const save = () => {
     let parsed: unknown;
@@ -398,15 +406,25 @@ export function OutputPane({
         </div>
       ) : (
         <>
-          {!readOnly && definition.id === WEBHOOK_TRIGGER && (
-            <WebhookListener
-              workflowId={workflowId}
-              onCaught={(delivery) => {
-                updateNodeDetails(node.id, { pinned_output: delivery });
-                toast.success(t("webhookTestCaught"));
-              }}
-            />
-          )}
+          {!readOnly &&
+            definition.id === WEBHOOK_TRIGGER &&
+            (typeof node.config.source_id === "string" ? (
+              <LiveSample
+                key={`${node.id}:${node.config.source_id}`}
+                sourceId={node.config.source_id}
+                onSample={pinWebhookSample}
+              />
+            ) : node.config.require_source === true ? (
+              <PasteSample onSample={pinWebhookSample} />
+            ) : (
+              <WebhookListener
+                workflowId={workflowId}
+                onCaught={(delivery) => {
+                  updateNodeDetails(node.id, { pinned_output: delivery });
+                  toast.success(t("webhookTestCaught"));
+                }}
+              />
+            ))}
           {pinned !== null && (
             <p className="bg-muted text-muted-foreground rounded-md px-2.5 py-1.5 text-xs">
               {t("stepPinnedHint")}

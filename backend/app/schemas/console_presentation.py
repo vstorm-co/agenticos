@@ -17,6 +17,7 @@ NavigationEntry = Literal[
     "agents",
     "workflows",
     "routines",
+    "eventSources",
     "datasets",
     "artifacts",
     "knowledgeBases",

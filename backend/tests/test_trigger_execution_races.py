@@ -323,6 +323,7 @@ async def test_a_native_fire_keeps_its_durable_device_admission(monkeypatch, cha
             status="waiting",
             intent_hash=activation_intent(trigger),
             event_context=None,
+            event_source_id=None,
         )
     monkeypatch.setattr(module.device_wait_repo, "get", AsyncMock(return_value=wait))
     settled = AsyncMock()

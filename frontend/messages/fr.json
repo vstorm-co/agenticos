@@ -3630,6 +3630,13 @@
       "background-tasks": {
         "title": "Sujets d’arrière-plan",
         "description": "Votre travail délégué et ses résultats"
+      },
+      "event-sources": {
+        "title": "Sources d’événements",
+        "description": "Consultez le nombre de sources webhook actives ou en pause.",
+        "empty": "Aucune source d’événements pour le moment",
+        "active": "Active",
+        "paused": "En pause"
       }
     },
     "edit": {
@@ -4786,7 +4793,8 @@
     "whatsNewDone": "Compris",
     "monitoring": "Supervision",
     "backgroundWork": "Travail d’arrière-plan",
-    "developerAccess": "API et MCP"
+    "developerAccess": "API et MCP",
+    "eventSources": "Sources d’événements"
   },
   "navigation": {
     "dashboard": "Tableau de bord",
@@ -4871,6 +4879,10 @@
       "skill-improvement-session": {
         "title": "Parcourir cette session",
         "body": "Voyez les étapes, le résultat de chaque agent, et ce que vous pouvez faire de la modification."
+      },
+      "create-event-source": {
+        "title": "Créer une source",
+        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
       }
     },
     "steps": {
@@ -6178,6 +6190,18 @@
       "personal-console-catalogs": {
         "title": "Catalogues",
         "body": "Choisissez les galeries à parcourir. Les limites de l’organisation et du déploiement restent applicables."
+      },
+      "event-sources-header": {
+        "title": "Sources d’événements",
+        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
+      },
+      "event-sources-create": {
+        "title": "Créer une source",
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+      },
+      "flow-event-source-create": {
+        "title": "Créer une source",
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
       }
     },
     "chooseLanguage": "Langue",
@@ -6433,7 +6457,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Un envoi HTTP signé d’un autre système démarre un run."
+          "description": "Un événement authentifié démarre un run. Sélectionnez ou créez une source d’événements dans l’éditeur."
         },
         "schedule": {
           "name": "Planification",
@@ -6822,7 +6846,8 @@
       "runQuestionsFailed": "Les questions n’ont pas pu être chargées.",
       "runQuestionsRetry": "Réessayer",
       "startRunSchema": "Schéma d’entrée attendu",
-      "nameRequired": "Saisissez un nom pour ce workflow."
+      "nameRequired": "Saisissez un nom pour ce workflow.",
+      "triggerSourceCredentials": "Gérer les identifiants dans Sources d’événements"
     },
     "retention": {
       "title": "Conservation des données",
@@ -9234,14 +9259,14 @@
     "share": "Partager",
     "sharingUpdated": "Partage mis à jour",
     "visibilityOrg": "Toute l’organisation",
-    "visibilityOrgReaches": "Toute personne de l’organisation pouvant voir {resource, select, agent {des agents} skill {des skills} collection {des collections} artifact {des apps} dataset {des datasets} context {des fichiers de contexte} mcp_connection {des serveurs MCP} project {des projets} workflow {des workflows} other {des secrets}}, quels qu’ils soient.",
+    "visibilityOrgReaches": "Toute personne de l’organisation pouvant voir {resource, select, agent {des agents} skill {des skills} collection {des collections} artifact {des apps} dataset {des datasets} context {des fichiers de contexte} mcp_connection {des serveurs MCP} project {des projets} workflow {des workflows} event_source {des sources d’événements} other {des secrets}}, quels qu’ils soient.",
     "visibilityPrivate": "Seulement les personnes ayant accès",
-    "visibilityPrivateReaches": "Seulement les personnes listées ci-dessus. Personne d’autre ne trouve {resource, select, agent {cet agent} skill {cette skill} collection {cette collection} artifact {cette app} dataset {ce dataset} context {ce fichier de contexte} mcp_connection {ce serveur MCP} project {ce projet} other {ce secret}} dans sa liste - et s’il n’a pas encore de propriétaire, il devient le vôtre.",
+    "visibilityPrivateReaches": "Seulement les personnes listées ci-dessus. Personne d’autre ne trouve {resource, select, agent {cet agent} skill {cette skill} collection {cette collection} artifact {cette app} dataset {ce dataset} context {ce fichier de contexte} mcp_connection {ce serveur MCP} project {ce projet} event_source {cette source d’événements} other {ce secret}} dans sa liste - et s’il n’a pas encore de propriétaire, il devient le vôtre.",
     "visibilityTeam": "Équipe (plus proposé)",
     "visibilityTeamReaches": "Toute personne dont le rôle atteint {resource, select, agent {les agents} skill {les skills} collection {les collections} artifact {les apps} dataset {les datasets} context {les fichiers de contexte} mcp_connection {les serveurs MCP} project {les projets} workflow {les workflows} other {les secrets}} d’équipe. Cette organisation n’a pas d’équipes - choisissez l’une des deux options ci-dessus.",
     "visibilityUpdated": "Visibilité mise à jour",
     "workflowPrivateReaches": "Le propriétaire, les personnes et les groupes listés ci-dessus, et les rôles ayant accès à tous les workflows. Les rôles limités aux workflows partagés peuvent perdre l’accès lorsque vous le rendez privé.",
-    "workflowRuntimeNote": "Le partage contrôle aussi l’accès aux runs passés. Il ne met pas en pause les planifications et ne désactive pas les webhooks.",
+    "workflowRuntimeNote": "Les personnes autorisées à consulter les runs du workflow peuvent voir les données des événements reçus, y compris lors des runs passés. Partager le workflow ne donne pas accès à la source d’événements, ne suspend pas les planifications et ne désactive pas les webhooks.",
     "groupsHeading": "Groupes",
     "membersHeading": "Membres",
     "groupSubject": "Groupe",
@@ -9250,7 +9275,8 @@
     "owner": "Propriétaire",
     "shareNamed": "Partager {name}",
     "requestSent": "Demande envoyée à {name}",
-    "requestSentNobody": "Demande envoyée. Personne ne peut encore l’approuver."
+    "requestSentNobody": "Demande envoyée. Personne ne peut encore l’approuver.",
+    "eventSourceRuntimeNote": "Le droit « Peut utiliser » permet aussi d’écouter les données de la source sans filtrage."
   },
   "skills": {
     "addFile": "Ajouter un fichier",
@@ -10577,7 +10603,8 @@
       "unavailableSettings": "Restrictions des outils indisponibles",
       "unavailableSettingsBody": "Ces restrictions sont conservées même lorsqu’un outil n’est pas proposé actuellement. Supprimez explicitement une restriction pour ne plus la conserver.",
       "removeRestriction": "Supprimer la restriction pour {name}"
-    }
+    },
+    "createdDescriptionShared": "Cette routine utilise l’URL et les identifiants de la source d’événements. Vous n’avez pas besoin d’enregistrer un autre webhook auprès du provider."
   },
   "portals": {
     "backToServices": "Retour aux services",
@@ -12236,7 +12263,8 @@
     "stepEditorView": "Vue de l’étape",
     "stepEditorSettings": "Réglages de l’étape",
     "problemTableSchemaChanged": "Cette table a changé depuis la configuration de l’étape : une colonne qu’elle lit a été supprimée ou a changé de type. Mettez-la à jour vers le schéma actuel et vérifiez ce qui lit cette étape.",
-    "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table."
+    "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table.",
+    "webhookSourceAudience": "Toute personne autorisée à consulter les runs de ce workflow peut voir les données reçues de la source d’événements. Cela inclut les runs passés si vous partagez le workflow par la suite. Consulter un run ne donne pas accès à la source."
   },
   "artifacts": {
     "title": "Apps",
@@ -18860,7 +18888,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Un envoi HTTP signé arrive à l’adresse propre de ce workflow."
+        "description": "Un événement JSON authentifié arrive sur une source réutilisable ou à l’adresse de ce workflow."
       },
       "trigger_workflow_call": {
         "name": "Appelé par un workflow",
@@ -21298,6 +21326,18 @@
             "title": "Entrée"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Source obligatoire",
+            "description": "Pour publier un nouveau brouillon, sélectionnez d’abord une source réutilisable dans l’éditeur."
+          },
+          "source_id": {
+            "title": "Identifiant de la source",
+            "description": "Source d’événements réutilisable à laquelle le workflow s’abonne à sa publication."
+          }
+        }
       }
     }
   },
@@ -21561,5 +21601,99 @@
       "stalled": "L’assistant s’est arrêté sans terminer. Réessayez.",
       "withdrawn": "La demande a été annulée avant de commencer. Réessayez."
     }
+  },
+  "eventSources": {
+    "title": "Sources d’événements",
+    "description": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows.",
+    "name": "Nom",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Webhook personnalisé",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authentification",
+    "auth": {
+      "hmac": "HMAC personnalisé (SHA-256)",
+      "basic": "Authentification HTTP Basic",
+      "api_key": "Clé API",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Nom d’utilisateur",
+    "password": "Mot de passe",
+    "secret": "Secret",
+    "secretHelp": "Laissez ce champ vide pour générer un secret, ou saisissez celui de l’expéditeur. Les identifiants sont stockés dans le vault et ne sont jamais renvoyés à la lecture.",
+    "manualSetup": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source.",
+    "visibility": "Visibilité",
+    "private": "Privée",
+    "organization": "Organisation",
+    "deliveryHeader": "En-tête d’identifiant de livraison (facultatif)",
+    "deliveryHelp": "Les identifiants d’événement du provider sont détectés automatiquement. Sans identifiant, les nouvelles tentatives peuvent créer des runs supplémentaires.",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "create": "Créer la source",
+    "header": "Nom de l’en-tête",
+    "prefix": "Préfixe de signature ou de clé (facultatif)",
+    "encoding": "Encodage de la signature",
+    "legacy": "Utiliser l’ancien format de signature de l’horodatage",
+    "standardHelp": "Signatures symétriques v1 portant sur l’identifiant, l’horodatage et le corps de la requête, avec une tolérance de cinq minutes pour l’horodatage.",
+    "selectSource": "Source d’événements",
+    "dedicated": "Point de terminaison dédié (réponse synchrone)",
+    "chooseSource": "Sélectionner une source existante",
+    "paused": "En pause",
+    "active": "Active",
+    "liveUrl": "URL de réception des événements",
+    "revealOnce": "Copiez ce secret maintenant. Il ne sera plus affiché.",
+    "createNew": "Créer une source",
+    "loadError": "Impossible de charger les sources d’événements.",
+    "retry": "Réessayer",
+    "liveWarning": "L’écoute des événements sur cette URL dure deux minutes. Les abonnés actifs continuent de s’exécuter normalement. Les échantillons sont facultatifs et expirent après dix minutes.",
+    "noUse": "Vous devez avoir le droit d’utiliser la source pour capturer des événements.",
+    "captureError": "Impossible de capturer un échantillon de l’événement. Le traitement des livraisons se poursuit normalement.",
+    "expired": "L’écoute a expiré. Relancez-la lorsque l’expéditeur est prêt.",
+    "caught": "Événement capturé. L’échantillon est prêt à être utilisé.",
+    "listen": "Écouter les événements",
+    "listenTo": "Écouter {name}",
+    "sourceUnavailable": "Source actuelle (indisponible)",
+    "listening": "En attente d’un événement authentifié…",
+    "pasteExample": "Ou coller un exemple JSON",
+    "exampleJson": "Objet JSON d’exemple",
+    "invalidJson": "Saisissez un objet JSON valide.",
+    "sampleTooLarge": "Cet échantillon dépasse la limite de {limit} octets de l’éditeur.",
+    "useExample": "Utiliser l’exemple",
+    "noView": "Vous n’avez pas le droit de consulter les sources d’événements.",
+    "empty": "Aucune source d’événements pour le moment. Créez une source pour recevoir des événements destinés aux routines et aux workflows.",
+    "edit": "Modifier",
+    "done": "Terminé",
+    "pause": "Mettre la source en pause",
+    "resume": "Réactiver la source",
+    "pauseHelp": "Mettre cette source en pause interrompt les nouvelles livraisons. Chaque abonné peut aussi être mis en pause séparément.",
+    "replaceCredentials": "Remplacer les identifiants",
+    "status": "État",
+    "subscribers": "Abonnés",
+    "actions": "Actions",
+    "usageError": "Impossible de charger les abonnés.",
+    "usage": "{count, plural, =0 {Aucun abonné} =1 {1 abonné} other {# abonnés}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Supprimer la source",
+    "confirmDelete": "Confirmer la suppression",
+    "deleteBlocked": "Détachez les abonnés avant de supprimer cette source.",
+    "sourceRoutine": "Créer une routine à partir d’une source d’événements",
+    "privateRoutine": "Routine privée",
+    "privateWorkflow": "Workflow privé",
+    "credentialHelp": "Saisissez le secret de l’expéditeur. Les identifiants existants ne sont jamais affichés.",
+    "filters": {
+      "event_types": "Types d’événements",
+      "actions": "Actions",
+      "subscription_types": "Types d’abonnements",
+      "property_names": "Noms des propriétés",
+      "help": "Séparez les valeurs par des virgules. Laissez un filtre vide pour accepter toutes les valeurs."
+    },
+    "eventPreset": "Événements de cette routine",
+    "currentFilters": "Filtres actuels ou par défaut",
+    "presetError": "Impossible de charger les préréglages d’événements."
   }
 }
