@@ -88,7 +88,7 @@ export function ModelCombobox({
   const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const listId = useId();
+  const popupId = useId();
 
   const chosen = options.find((option) => option.id === value);
   const typed = search.trim();
@@ -115,7 +115,7 @@ export function ModelCombobox({
           type="button"
           role="combobox"
           aria-expanded={open}
-          aria-controls={listId}
+          aria-controls={popupId}
           aria-invalid={invalid}
           aria-describedby={describedBy}
           disabled={disabled}
@@ -141,7 +141,7 @@ export function ModelCombobox({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[min(28rem,90vw)] p-0" align="start">
+      <PopoverContent id={popupId} className="w-[min(28rem,90vw)] p-0" align="start">
         <Command shouldFilter>
           <div className="border-border border-b px-3 py-2">
             {/* No `autoFocus`: Radix moves focus into the panel when it opens,
@@ -154,7 +154,7 @@ export function ModelCombobox({
             />
           </div>
 
-          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
+          <Command.List className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
             {/* Not `Command.Empty`: when something has been typed there *is* an
                 option - itself - and an "no matches" line above an offer to use
                 what you typed contradicts it. */}

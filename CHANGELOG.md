@@ -188,6 +188,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Publishing refuses legacy native Claude profiles whose saved owner is missing, including fallback profiles. Gateway subscription profiles retain their caller-bound behavior.
+- The model picker's opener points to its popup and the search field points to the catalog list, restoring valid accessibility relationships while preserving keyboard navigation.
 - Bound S3 and Google Drive sync listings and streamed downloads, including CLI readers. Reject oversized files before transfer and remove partial results on refusal.
 - Bound PyMuPDF pages, extracted content, tables, images and prepared chunks. Run synchronous ML parsing in a killable child with CPU, memory and wall-time limits.
 

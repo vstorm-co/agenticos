@@ -332,6 +332,15 @@ test.describe("desktop pointer controls", () => {
       await page.goto(`/chat?id=${encodeURIComponent(id)}&sidebar=workspace`);
       const composer = page.getByRole("textbox", { name: "Type a message...", exact: true });
       await expect(composer).toBeVisible();
+      // Establish the spacious layout before testing the constrained one below.
+      const collapseChats = page.getByRole("button", {
+        name: "Collapse conversations sidebar",
+        exact: true,
+      });
+      if (await collapseChats.isVisible()) await collapseChats.click();
+      await expect(
+        page.getByRole("button", { name: "Expand conversations sidebar", exact: true }),
+      ).toBeVisible();
       await settleEntrances(page);
       await page.getByRole("button", { name: /^Show the files/ }).click();
       const panel = page

@@ -81,6 +81,7 @@ from app.agents.system_agents import (
 )
 from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.core.audit import current_impersonator, record_audit
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -2830,6 +2831,14 @@ class AgentRegistryService:
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
+        if (
+            profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            and profile.personal_owner_user_id is None
+        ):
+            return [
+                "The native Claude subscription profile has no linked owner. "
+                "Choose a model profile linked to your account."
+            ]
         if (profile.usage_scope == "personal") and (
             ctx.personal_user_id is None or profile.personal_owner_user_id != ctx.personal_user_id
         ):
@@ -2865,12 +2874,23 @@ class AgentRegistryService:
         # In the chain's order. One that no longer exists is skipped at run
         # time, not refused here.
         for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
-            personal_fallback_unavailable = (fallback.usage_scope == "personal") and (
-                ctx.personal_user_id is None
-                or fallback.personal_owner_user_id != ctx.personal_user_id
+            unowned_native_claude_fallback = (
+                fallback.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+                and fallback.personal_owner_user_id is None
+            )
+            personal_fallback_unavailable = unowned_native_claude_fallback or (
+                (fallback.usage_scope == "personal")
+                and (
+                    ctx.personal_user_id is None
+                    or fallback.personal_owner_user_id != ctx.personal_user_id
+                )
             )
             decision_fallback = is_decision_api(fallback.provider, fallback.api)
-            if personal_fallback_unavailable:
+            if unowned_native_claude_fallback:
+                problems.append(
+                    "Remove the native Claude subscription fallback that has no linked owner"
+                )
+            elif personal_fallback_unavailable:
                 problems.append("Remove the personal fallback that this signed-in user cannot use")
             if decision_fallback:
                 problems.append(
@@ -2966,6 +2986,13 @@ class AgentRegistryService:
                 or profile.personal_owner_user_id != ctx.personal_user_id
             )
         }
+        unowned_native_claude = {
+            profile.id
+            for profile in profiles.values()
+            if profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            and profile.personal_owner_user_id is None
+        }
+        personal_out_of_reach.update(unowned_native_claude)
         if not out_of_reach and not personal_out_of_reach:
             return problems
         who = "you" if person is not None else "an API key"
@@ -2975,7 +3002,12 @@ class AgentRegistryService:
             profile = profiles.get(ref.profile_id)
             if profile is None:
                 continue
-            if profile.id in personal_out_of_reach:
+            if profile.id in unowned_native_claude:
+                problems.refuse(
+                    ref.field,
+                    f"{ref.says}This native Claude subscription model has no linked owner and cannot be used",
+                )
+            elif profile.id in personal_out_of_reach:
                 problems.refuse(
                     ref.field,
                     f"{ref.says}This personal model connection can only be chosen by its signed-in owner",
@@ -2989,7 +3021,12 @@ class AgentRegistryService:
                 )
             for fallback_id in chains[profile.id]:
                 fallback = profiles.get(fallback_id)
-                if fallback_id in personal_out_of_reach:
+                if fallback_id in unowned_native_claude:
+                    problems.refuse(
+                        ref.field,
+                        f"{ref.says}Remove the native Claude subscription fallback that has no linked owner",
+                    )
+                elif fallback_id in personal_out_of_reach:
                     problems.refuse(
                         ref.field,
                         f"{ref.says}Remove the personal fallback that this signed-in user cannot use",

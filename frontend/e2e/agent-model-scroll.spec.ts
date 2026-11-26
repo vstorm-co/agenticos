@@ -29,12 +29,13 @@ for (const width of [1280, 390]) {
     const trigger = modelPicker.getByRole("combobox", { name: "Model", exact: true });
     await expect(trigger).toBeVisible();
     await expect.poll(() => catalogRequests).toBeGreaterThan(0);
-    const listId = await trigger.getAttribute("aria-controls");
-    if (!listId) throw new Error("The model picker has no catalog list");
-    const list = page.locator(`[id="${listId}"]`);
     const search = page.getByPlaceholder("Search models…", { exact: true });
     await trigger.click();
     await expect(search).toBeVisible();
+    const listId = await search.getAttribute("aria-controls");
+    if (!listId) throw new Error("The model search has no catalog list");
+    const list = page.locator(`[id="${listId}"]`);
+    await expect(list).toHaveAttribute("role", "listbox");
     await expect(list.getByRole("option")).toHaveCount(480);
     await search.focus();
     for (let index = 0; index < 40; index += 1) await page.keyboard.press("ArrowDown");
