@@ -1,5 +1,5 @@
 ---
-source_sha: "ed2aeb80b694"
+source_sha: "66d0044a81c8"
 ---
 
 # Governance { #governance }
@@ -1149,6 +1149,11 @@ to zapis tego, co zostało rozstrzygnięte, i niesie nazwisko decydenta oraz jeg
 notatkę, bo sam UUID nie jest śladem odpowiedzialności. Na rozstrzygniętym
 wierszu celowo nie ma żadnych kontrolek.
 
+Wywołujący bez `approvals:decide` widzi tylko własne wywołania platformy, które
+pytają za każdym razem i nadal czekają, gdy jest zalogowany jako on sam; `status`
+tego nie poszerza. Tak dociera do swojej osoby wywołanie z rutyny, które nie
+powstało w żadnej rozmowie.
+
 | Parametr |  |
 | --- | --- |
 | `status` | Powtarzalny. Brak oznacza oczekujące — kolejkę |
@@ -2157,7 +2162,7 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| nic, ale jest osobą, dla której działa run, a wśród wywołań jest jej własne wywołanie platformy, które pyta za każdym razem | prośbę, z linkiem do rozmowy, w której o nie poproszono, albo do kolejki, gdy run nie powstał w żadnej rozmowie, dopóki to wywołanie czeka |
+| nic, ale jest osobą, dla której działa run, a wśród wywołań jest jej własne wywołanie platformy, które pyta za każdym razem | prośbę, z linkiem do rozmowy, w której o nie poproszono, albo do jej Inboxa, gdy run nie powstał w żadnej rozmowie, dopóki to wywołanie czeka |
 | cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
@@ -2166,8 +2171,8 @@ zatrzymał.
 
 Osoba, dla której działa run, dostaje prośbę o swoje wywołanie platformy także
 wtedy, gdy alert zatwierdzeń agenta jej nie obejmuje albo jest wyłączony: nikt
-inny nie może go zatwierdzić. Kolejka pokazuje takie wywołanie tylko osobie z
-`approvals:decide`.
+inny nie może go zatwierdzić. Bez `approvals:decide` jej Inbox i `GET /approvals`
+pokazują takie wywołania - jej własne i nic więcej.
 
 Drugi e-mail nie niesie **żadnego linku**, i to jest celowe, a nie
 niedokończone. To, że `agents:view` jest uprawnieniem roli, nie czyni

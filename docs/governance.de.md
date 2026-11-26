@@ -1,5 +1,5 @@
 ---
-source_sha: "ed2aeb80b694"
+source_sha: "66d0044a81c8"
 ---
 
 # Governance { #governance }
@@ -1220,6 +1220,11 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
+Wer `approvals:decide` nicht hat, liest nur die eigenen Plattform-Aufrufe, die
+jedes Mal fragen und noch warten, angemeldet als er selbst; `status` erweitert das
+nicht. So erreicht der Aufruf einer Routine, die in keiner Unterhaltung gestellt
+wurde, ihre Person.
+
 | Parameter |  |
 | --- | --- |
 | `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
@@ -2291,7 +2296,7 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der jedes Mal fragt | die Anfrage, mit einem Link zur Unterhaltung, in der danach gefragt wurde, oder zur Queue für einen Run ohne Unterhaltung, solange dieser Aufruf wartet |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der jedes Mal fragt | die Anfrage, mit einem Link zur Unterhaltung, in der danach gefragt wurde, oder zu ihrem Posteingang für einen Run ohne Unterhaltung, solange dieser Aufruf wartet |
 | irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, antworten muss jemand, der über Freigaben entscheiden darf, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
@@ -2300,8 +2305,8 @@ er gestoppt hat.
 
 Die Person des Runs bekommt die Anfrage zu ihrem eigenen Plattform-Aufruf auch
 dann, wenn der Freigabe-Alarm des Agents sie auslässt oder ausgeschaltet ist:
-Niemand sonst darf ihn freigeben. Die Queue zeigt einen solchen Aufruf nur einer
-Person mit `approvals:decide`.
+Niemand sonst darf ihn freigeben. Ohne `approvals:decide` zeigen ihr Posteingang
+und `GET /approvals` solche Aufrufe - ihre eigenen und sonst nichts.
 
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen

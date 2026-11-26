@@ -308,7 +308,7 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue, or to the Inbox for a person whose only approvals are their own platform calls. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 

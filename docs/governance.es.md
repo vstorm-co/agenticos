@@ -1,5 +1,5 @@
 ---
-source_sha: "ed2aeb80b694"
+source_sha: "66d0044a81c8"
 ---
 
 # Governance { #governance }
@@ -1160,6 +1160,11 @@ es el registro de lo que se decidió, y lleva el nombre y la nota de quien decid
 porque un UUID pelado no es un rastro de responsabilidad. Deliberadamente no hay
 controles en una fila ya resuelta.
 
+Quien no tiene `approvals:decide` solo lee sus propias llamadas de la plataforma
+que preguntan siempre y siguen esperando, con su propia sesión; `status` no lo
+amplía. Así llega a su persona la llamada de una rutina que no se pidió en ninguna
+conversación.
+
 | Parámetro |  |
 | --- | --- |
 | `status` | Se repite. Ausente significa pendientes — la cola |
@@ -2169,7 +2174,7 @@ Así que la audiencia se divide por el permiso en lugar de recortarse a él:
 | Quien recibe tiene | Recibe |
 | --- | --- |
 | `approvals:decide` | la solicitud, con el enlace a la cola |
-| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que pregunta siempre | la solicitud, con un enlace a la conversación en la que se pidió, o a la cola para un run sin conversación, mientras esa llamada espera |
+| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que pregunta siempre | la solicitud, con un enlace a la conversación en la que se pidió, o a su bandeja de entrada para un run sin conversación, mientras esa llamada espera |
 | cualquier cosa menor | el _hecho_: el run está retenido y no fallido, tiene que responderlo alguien que pueda decidir aprobaciones, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
@@ -2177,8 +2182,8 @@ oír nada sobre por qué se detuvo.
 
 La persona del run recibe la solicitud de su propia llamada de la plataforma
 aunque la alerta de aprobaciones del agent no la incluya o esté desactivada: nadie
-más puede aprobarla. La cola muestra esa llamada solo a quien tiene
-`approvals:decide`.
+más puede aprobarla. Sin `approvals:decide`, su bandeja de entrada y
+`GET /approvals` muestran esas llamadas: las suyas y nada más.
 
 El segundo correo **no lleva enlace**, y eso es deliberado, no algo a medias. Que
 `agents:view` sea un permiso de rol no hace alcanzable un agent: el acceso se resuelve

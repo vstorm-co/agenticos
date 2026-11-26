@@ -1083,6 +1083,10 @@ is the queue somebody acts on; `?status=approved&status=rejected` is the record 
 what was decided, and it carries the decider's name and note because a bare UUID is
 not an accountability trail. There are deliberately no controls on a decided row.
 
+A caller without `approvals:decide` reads only their own platform calls that always
+ask and still wait, signed in as themselves; `status` does not widen that. A
+routine's call, asked in no conversation, reaches its person that way.
+
 | Parameter                    |                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status`                     | Repeats. Absent means pending — the queue                                                                                                                                                                                                                                                                            |
@@ -2027,7 +2031,7 @@ So the audience is split by the permission rather than trimmed to it:
 | Recipient holds | Gets |
 | --- | --- |
 | `approvals:decide` | the request, with the link to the queue |
-| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, or to the queue for a run asked in none, while that call waits |
+| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, or to their Inbox for a run asked in none, while that call waits |
 | anything less | the _fact_: the run is held not failed, somebody who may decide approvals has to answer it, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
@@ -2035,7 +2039,8 @@ person who started it - hearing nothing about why it stopped.
 
 The run's own person gets the request for their own platform call even where the
 agent's approval alert leaves them out or is switched off: nobody else may approve
-it. The queue lists such a call only for a person who holds `approvals:decide`.
+it. Without `approvals:decide`, their Inbox and `GET /approvals` list such calls -
+their own, and nothing else.
 
 The second email carries **no link**, and that is deliberate rather than
 unfinished. `agents:view` being a role permission does not make one agent

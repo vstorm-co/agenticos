@@ -32,7 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
-- Let only the person an Architect run acts for, signed in as themselves, approve its platform call that always asks: not another approver, an API key or an impersonated session. They need no `approvals:decide` for it, in the chat, the approvals queue or the channel the run was asked in.
+- Let only the person an Architect run acts for, signed in as themselves, approve its platform call that always asks: not another approver, an API key or an impersonated session. They need no `approvals:decide` for it, in the chat, their Inbox, the approvals queue or the channel the run was asked in; without the permission, `GET /approvals` lists those calls of theirs and nothing else, so a routine's call reaches them too.
 - Show the description of a platform call's card only to the run's person; other approvers read its arguments.
 - Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
 - Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
