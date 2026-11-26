@@ -1,5 +1,5 @@
 ---
-source_sha: "dc9bdc2927bb"
+source_sha: "5e09c7ebe814"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -809,6 +809,18 @@ są sekretne. Nie ma cofnięcia i nic poza wpisem audytu nie jest przechowywane.
 bazy wiedzy po zaliczonym Teście jest dozwolone, nawet gdy jej kolekcja jest współdzielona
 z innymi bazami wiedzy; przeniesienie niesprawdzone jest odrzucane, gdy kolekcja jest
 współdzielona, a jej ustawienia różniłyby się od ustawień pozostałych.
+
+Płatne embeddingi w runie z limitem oraz własne endpointy z kluczem opłacane przez organizację
+z limitem USD wymagają modelu z ceną w katalogu i poprawnego raportowania zużycia. Jeśli endpoint
+później pominie lub uszkodzi zużycie, częściowe rozliczenie zostaje zapisane, a zadanie zatrzymuje
+się przed kolejnym batchem lub plikiem; odmowa zasad nie jest automatycznie ponawiana. Endpointy
+bez limitu lub bez klucza nadal mogą zwrócić poprawne wektory z częściową informacją o kosztach.
+Budżety ingestii i synchronizacji nadal dopuszczają całe zadanie lub okno pracy, więc dopuszczona
+wcześniej praca może przekroczyć limit; częściowe rozliczenie nie ujawnia nieznanych opłat providera.
+
+Odpowiedź embeddingowa z indeksami musi wskazać każde wejście dokładnie raz. Przestawione indeksy
+są porządkowane według wejścia; duplikaty, mieszane, puste lub przekroczone indeksy są odrzucane.
+Zgodne endpointy bez żadnych indeksów zachowują dotychczasowy kontrakt kolejności tablicy.
 
 Ograniczenia:
 

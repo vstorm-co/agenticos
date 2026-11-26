@@ -233,3 +233,53 @@ def test_provider_respects_actual_index_precision(dim, component, allowed):
             with pytest.raises(ExternalServiceError, match="half-precision index"):
                 _provider([[component] * dim]).embed_queries(["query"])
     assert ledger.input_tokens == 7
+
+
+@pytest.mark.parametrize(
+    "indices", [[1, 0], [0, 0], [0, 2], [0, None], [False, 1], ["0", 1], [-1, 1], [None, None]]
+)
+def test_actual_sdk_wire_indices_are_ordered_or_refused_without_losing_usage(indices):
+    def answer(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": indices[0], "embedding": [2.0]},
+                    {"index": indices[1], "embedding": [1.0]},
+                ],
+                "usage": {"prompt_tokens": 7},
+            },
+        )
+
+    ledger = SpendLedger()
+    with (
+        httpx.Client(transport=httpx.MockTransport(answer)) as transport,
+        OpenAI(
+            api_key="fixture",
+            base_url="https://gateway.test/v1",
+            http_client=transport,
+            max_retries=0,
+        ) as client,
+    ):
+        provider = _provider([])
+        provider._client = client
+        with metered_by(ledger):
+            if indices == [1, 0]:
+                assert provider.embed_queries(["first", "second"]) == [[1.0], [2.0]]
+            else:
+                with pytest.raises(ExternalServiceError):
+                    provider.embed_queries(["first", "second"])
+    assert ledger.input_tokens == 7
+
+
+def test_mixed_omitted_and_present_indices_are_ambiguous():
+    provider = _provider([])
+    provider._client.embeddings.with_raw_response.create.return_value = MagicMock(
+        http_response=MagicMock(
+            content=b'{"data":[{"embedding":[1]},{"index":1,"embedding":[2]}],"usage":{"prompt_tokens":7}}'
+        )
+    )
+    ledger = SpendLedger()
+    with metered_by(ledger), pytest.raises(ExternalServiceError, match="invalid vector indices"):
+        provider.embed_queries(["first", "second"])
+    assert ledger.input_tokens == 7

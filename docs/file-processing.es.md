@@ -1,5 +1,5 @@
 ---
-source_sha: "dc9bdc2927bb"
+source_sha: "5e09c7ebe814"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -827,6 +827,18 @@ nada más allá de la entrada de auditoría. Un traslado probado de una base de 
 se permite aunque su colección esté compartida con otras bases de conocimiento; un
 traslado sin verificar se rechaza cuando la colección está compartida y sus ajustes
 diferirían de los de las demás.
+
+Los embeddings de pago bajo un límite de ejecución y los endpoints propios con clave pagados
+por una organización con límite en dólares requieren un modelo con precio de catálogo y un uso
+válido. Si el endpoint omite o corrompe después el uso, se conserva el cargo parcial y el trabajo
+se detiene antes del siguiente lote o archivo; esta negativa de política no se reintenta automáticamente.
+Los endpoints sin límite o sin clave aún pueden devolver vectores válidos con costes parciales.
+La ingesta y sincronización siguen admitiendo un trabajo o ventana completa, por lo que el trabajo
+ya admitido puede superar el límite; los cargos parciales no revelan tarifas desconocidas.
+
+Una respuesta de embeddings con índices debe identificar cada entrada exactamente una vez. Los
+índices desordenados se devuelven al orden de entrada; se rechazan los duplicados, mixtos, nulos o
+fuera de rango. Los endpoints compatibles sin ningún índice conservan el contrato de orden del array.
 
 Limitaciones:
 

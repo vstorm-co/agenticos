@@ -1,5 +1,5 @@
 ---
-source_sha: "dc9bdc2927bb"
+source_sha: "5e09c7ebe814"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -857,6 +857,18 @@ kein Zurücksetzen, und außer dem Audit-Eintrag wird nichts gespeichert. Eine g
 Verschiebung einer Wissensbasis ist auch dann erlaubt, wenn ihre Collection mit anderen
 Wissensbasen geteilt wird; eine ungeprüfte Verschiebung wird abgelehnt, wenn die
 Collection geteilt wird und ihre Einstellungen von denen der anderen abwichen.
+
+Bezahlte Embeddings unter einem Run-Limit sowie eigene Endpunkte mit Schlüssel, deren Organisation
+ein Dollar-Limit hat, benötigen ein Modell mit Katalogpreis und gültige Nutzungsangaben. Fehlen diese
+später oder sind sie ungültig, bleibt die Teilabrechnung erhalten und der Auftrag stoppt vor dem
+nächsten Batch oder der nächsten Datei; diese Richtlinienablehnung wird nicht automatisch wiederholt.
+Unbegrenzte und schlüssellose Endpunkte dürfen weiterhin gültige Vektoren mit unvollständigen Kosten
+zurückgeben. Ingestion und Sync lassen weiterhin einen Auftrag oder ein Arbeitsfenster zu; bereits
+zugelassene Arbeit kann das Limit überschreiten. Teilabrechnungen ermitteln keine unbekannten Gebühren.
+
+Eine Embedding-Antwort mit Indizes muss jede Eingabe genau einmal benennen. Vertauschte Indizes
+werden in Eingabereihenfolge gebracht; doppelte, gemischte, leere oder ungültige Indizes werden abgelehnt.
+Kompatible Endpunkte ohne Indizes behalten ihren bisherigen Vertrag der Array-Reihenfolge.
 
 Einschränkungen:
 

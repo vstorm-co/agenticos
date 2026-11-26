@@ -27,6 +27,7 @@ from typing import IO
 
 from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 
+from app.core.exceptions import EmbeddingBudgetError
 from app.worker.attempt import Attempt, running
 from app.worker.errors import describe
 from app.worker.registry import Handlers
@@ -82,7 +83,7 @@ async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
     try:
         with running(attempt):
             result = await handler.execute(request.payload)
-    except ValidationError as exc:
+    except (ValidationError, EmbeddingBudgetError) as exc:
         return ChildReply(ok=False, error=describe(exc), permanent=True)
     except Exception as exc:
         logger.exception("background_job_failed", extra={"kind": request.kind})

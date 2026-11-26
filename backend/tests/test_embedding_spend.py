@@ -62,7 +62,10 @@ class TestProviderMetering:
             vectors = _provider(usage=None).embed_queries(["query"])
 
         assert vectors == [[0.1, 0.2]]
-        assert ledger.entries == []
+        assert len(ledger.entries) == 1
+        assert ledger.has_unpriced_models
+        assert ledger.total_usd == Decimal(0)
+        assert ledger.input_tokens == 0
 
 
 class TestDescriberMetering:

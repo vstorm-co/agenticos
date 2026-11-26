@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import EmbeddingBudgetError, NotFoundError
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.locks import LockScope, hold_name, try_hold_subject_on_connection
@@ -687,6 +687,7 @@ async def _run_sync(
     allowed = {ext.value for ext in DocumentExtensions}
     files = [f for f in files if f.suffix.lower() in allowed]
     ingested = updated = skipped = failed = 0
+    policy_failure: str | None = None
 
     async with get_worker_db_context() as db:
         # The knowledge base the caller was authorized to write, loaded by the id
@@ -874,6 +875,18 @@ async def _run_sync(
             except Exception as e:
                 logger.warning("Sync file error %s: %s", filepath.name, e)
                 failed += 1
+                if isinstance(e, EmbeddingBudgetError):
+                    policy_failure = failure_summary(e, stage=IngestionStage.INGEST)
+                    await _settle_document_row(
+                        row_id,
+                        IngestionResult(
+                            status=IngestionStatus.ERROR,
+                            error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                        ),
+                        ingester=ingester,
+                        collection_name=collection_name,
+                    )
+                    break
 
         await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 
@@ -886,8 +899,18 @@ async def _run_sync(
                 updated=updated,
                 skipped=skipped,
                 failed=failed,
+                error_message=policy_failure,
             )
 
+        if policy_failure is not None:
+            return {
+                "status": "error",
+                "message": policy_failure,
+                "ingested": ingested,
+                "updated": updated,
+                "skipped": skipped,
+                "failed": failed,
+            }
         return {
             "status": "done",
             "ingested": ingested,
@@ -1852,6 +1875,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 collection_name=collection_name,
                                 inherited=inherited.get(remote_file.source_path, frozenset()),
                             )
+                        if isinstance(e, EmbeddingBudgetError):
+                            raise
 
             if kept:
                 from app.services.rag_document import RAGDocumentService

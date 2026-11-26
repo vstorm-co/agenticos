@@ -629,6 +629,7 @@ def embedder_for(collection_name: str, resolved: ResolvedEmbeddings) -> Embeddin
         key_origin=resolved.describe(collection_name),
         base_url=resolved.base_url,
         keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
+        require_usage=resolved.require_usage,
     )
 
 
@@ -677,7 +678,7 @@ class PgVectorStore(BaseVectorStore):
         # refuses on first use - the resolver answering None rather than nobody
         # asking.
         self._resolver = resolver
-        self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
+        self._services: dict[tuple[str, str, str, str, bool], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     def _table(self, name: str) -> str:
@@ -709,7 +710,7 @@ class PgVectorStore(BaseVectorStore):
     ) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
-        Cached per (collection, model, key): an `EmbeddingService` holds an
+        Cached per collection, target, credential and usage policy: an `EmbeddingService` holds an
         HTTP client, and rebuilding one per chunk would open a connection pool
         per page of a PDF. The collection is in the key because the service
         carries a `key_origin` naming it - two collections on the same key
@@ -727,7 +728,13 @@ class PgVectorStore(BaseVectorStore):
             return self.embedder, self.dim
         # A collection moved to another provider must not be answered by a client
         # built for the old one, so the provider is part of the key.
-        cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
+        cache_key = (
+            name,
+            resolved.model,
+            resolved.api_key,
+            resolved.base_url,
+            resolved.require_usage,
+        )
         service = self._services.get(cache_key)
         if service is None:
             service = embedder_for(name, resolved)

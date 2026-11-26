@@ -183,6 +183,18 @@ class TestTheIngestionServiceMovesItToTheLog:
         assert _VENDOR_TEXT in caplog.text
         assert "Indexing failed for handbook.pdf" in caplog.text
 
+    async def test_a_budget_policy_refusal_escapes_for_permanent_job_settlement(self):
+        from app.core.exceptions import EmbeddingBudgetError
+
+        service = self._service(
+            parse=AsyncMock(return_value=self._document()),
+            insert=AsyncMock(side_effect=EmbeddingBudgetError(message="usage unavailable")),
+        )
+        with pytest.raises(EmbeddingBudgetError):
+            await service.ingest_file(
+                filepath=Path("/srv/uploads/handbook.pdf"), collection_name="kb_ops", replace=False
+            )
+
     async def test_a_parse_failure_says_parse_rather_than_index(
         self, caplog: pytest.LogCaptureFixture
     ):
@@ -342,7 +354,9 @@ class TestAModelTheEndpointDoesNotServe:
             body=None,
         )
         provider = OpenAIEmbeddingProvider(model="text-embedding-3-small", api_key="key")
-        provider._client = MagicMock(embeddings=MagicMock(create=MagicMock(side_effect=refusal)))
+        provider._client = MagicMock(
+            embeddings=MagicMock(with_raw_response=MagicMock(create=MagicMock(side_effect=refusal)))
+        )
         return provider
 
     def test_the_refusal_names_the_model_rather_than_the_key(self):

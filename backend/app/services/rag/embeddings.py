@@ -17,8 +17,14 @@ from openai import (
 from pydantic import BaseModel, Field, FiniteFloat, StrictInt, TypeAdapter, ValidationError
 from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import record_ambient_cost, record_ambient_usage
-from app.core.exceptions import ConfigurationError, ExternalServiceError
+from app.agents.capabilities.budget import (
+    price_request,
+    record_ambient_cost,
+    record_ambient_usage,
+    require_ambient_price,
+)
+from app.core.exceptions import BadRequestError as BudgetPolicyError
+from app.core.exceptions import ConfigurationError, EmbeddingBudgetError, ExternalServiceError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
 from app.services.rag.vector_limits import FLOAT32_MAX, HALFVEC_MAX_COMPONENT, HNSW_MAX_VECTOR_DIM
@@ -63,6 +69,7 @@ _EmbeddingNumber = Annotated[FiniteFloat, Field(ge=-FLOAT32_MAX, le=FLOAT32_MAX)
 
 class _EmbeddingResult(BaseModel):
     embedding: Annotated[list[_EmbeddingNumber], Field(min_length=1)]
+    index: Annotated[StrictInt, Field(ge=0)] | None = None
 
 
 _EMBEDDING_RESULTS = TypeAdapter(list[_EmbeddingResult])
@@ -110,7 +117,20 @@ def _embedding_vectors(data: object, *, expected: int) -> list[list[float]]:
             message="The embedding endpoint returned invalid vectors. Wide vectors must fit the half-precision index.",
             details={},
         )
-    return [result.embedding for result in results]
+    # Some existing compatible endpoints omit indices entirely. Their array order
+    # remains the contract; a partially indexed answer has no unambiguous order.
+    if all("index" not in result.model_fields_set for result in results):
+        return [result.embedding for result in results]
+    indexed: dict[int, list[float]] = {}
+    for result in results:
+        index = result.index
+        if index is None or index >= expected or index in indexed:
+            raise ExternalServiceError(
+                message="The embedding endpoint returned invalid vector indices. Expected exactly one integer index for each input.",
+                details={},
+            )
+        indexed[index] = result.embedding
+    return [indexed[index] for index in range(expected)]
 
 
 PROBE_TIMEOUT_SECONDS = 30.0
@@ -209,6 +229,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         base_url: str | None = None,
         key_origin: str | None = None,
         keyless: bool = False,
+        require_usage: bool = False,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -230,6 +251,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         self._base_url = base_url
         self._key_origin = key_origin
         self._keyless = keyless
+        self._require_usage = require_usage
         self._client: OpenAI | None = None
 
     @property
@@ -300,6 +322,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed one request's worth of `texts` and book its usage."""
+        self._require_price()
         try:
             response = self.client.embeddings.with_raw_response.create(
                 model=self.model, input=texts, encoding_format="float"
@@ -324,7 +347,17 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         # The "openai" hint is what resolves the price - `genai-prices` cannot
         # auto-detect embedding model names - and a model the hint does not
         # match is retried without it rather than mispriced.
-        answer = _embedding_answer(response.http_response.content)
+        try:
+            answer = _embedding_answer(response.http_response.content)
+        except ExternalServiceError:
+            record_ambient_cost(self.model, None)
+            if self._require_usage:
+                raise EmbeddingBudgetError(
+                    message="The embedding endpoint returned usage that cannot be verified against the paying organization's dollar budget. Known spend is partial; fix reporting before retrying.",
+                    details={"model": self.model},
+                ) from None
+            self._require_price()
+            raise
         usage = answer.usage
         if usage is not None:
             record_ambient_usage(
@@ -332,7 +365,31 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                 RequestUsage(input_tokens=usage.prompt_tokens),
                 provider="openai",
             )
+        else:
+            record_ambient_cost(self.model, None)
+            if self._require_usage:
+                raise EmbeddingBudgetError(
+                    message="The embedding endpoint omitted usage required by the paying organization's dollar budget. Known spend is partial; no further batch was sent. Fix usage reporting before retrying.",
+                    details={"model": self.model},
+                )
+        self._require_price()
         return _embedding_vectors(answer.data, expected=len(texts))
+
+    def _require_price(self) -> None:
+        if self._keyless:
+            return
+        if (
+            self._require_usage
+            and price_request(RequestUsage(input_tokens=1), self.model, "openai") is None
+        ):
+            raise EmbeddingBudgetError(
+                message="The custom embedding model has no reviewed price, so the paying organization's dollar budget cannot be enforced. Choose a priced model before indexing or searching.",
+                details={"model": self.model},
+            )
+        try:
+            require_ambient_price("openai", self.model)
+        except BudgetPolicyError as error:
+            raise EmbeddingBudgetError(message=error.message, details=error.details) from None
 
     def embed_document(self, document: Document) -> list[list[float]]:
         return self.embed_queries(_chunk_texts(document))
@@ -350,6 +407,7 @@ class EmbeddingService:
         key_origin: str | None = None,
         base_url: str | None = None,
         keyless: bool = False,
+        require_usage: bool = False,
     ) -> None:
         """One model, one endpoint, one credential, one expected width.
 
@@ -378,6 +436,7 @@ class EmbeddingService:
             base_url=base_url,
             key_origin=key_origin,
             keyless=keyless,
+            require_usage=require_usage,
         )
 
     def embed_query(self, query: str) -> list[float]:
