@@ -44,6 +44,7 @@ from app.db.models.event_source import EventSourceCredential
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.personal_model_key import PersonalModelKey
+from app.db.models.project_filesystem import ProjectFilesystemBinding
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
@@ -56,7 +57,8 @@ def _org_scope(
     | AgentEmbed
     | AgentTrigger
     | WorkflowExposure
-    | EventSourceCredential,
+    | EventSourceCredential
+    | ProjectFilesystemBinding,
 ) -> VaultScope:
     return VaultScope.organization(row.organization_id)
 
@@ -93,6 +95,7 @@ class SealedTable:
         | AgentTrigger
         | WorkflowExposure
         | EventSourceCredential
+        | ProjectFilesystemBinding
         | BrowserSignIn
         | CodingAccount
         | PersonalModelKey
@@ -201,6 +204,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("apns_private_key",),
         version_attr="apns_key_version",
         scope=_deployment_scope,
+    ),
+    SealedTable(
+        label="project_filesystem_bindings",
+        model=ProjectFilesystemBinding,
+        columns=("ciphertext",),
+        version_attr="secret_key_version",
+        scope=_org_scope,
     ),
 )
 

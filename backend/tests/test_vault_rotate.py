@@ -582,3 +582,52 @@ async def test_source_credentials_rotate_with_the_organization_vault(monkeypatch
     assert report.rotated == 1 and not report.failures
     assert row.secret_key_version == 2
     assert unseal(row.sealed_secret, scope=scope, key_version=2) == '{"secret":"source-key"}'
+
+
+@pytest.mark.security
+async def test_project_mount_binding_survives_master_key_rotation_without_changing_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hashlib
+
+    from app.db.models.project_filesystem import ProjectFilesystemBinding
+    from app.repositories import project_filesystem_bindings as bindings
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+    organization_id = uuid.uuid4()
+    scope = VaultScope.organization(organization_id)
+    plaintext = "synthetic-immutable-binding-token"
+    row = ProjectFilesystemBinding(
+        id=uuid.uuid4(),
+        organization_id=organization_id,
+        connection_id=uuid.uuid4(),
+        session_name="rotation-proof",
+        ciphertext=seal(plaintext, scope=scope).ciphertext,
+        secret_key_version=1,
+        token_digest=hashlib.sha256(plaintext.encode()).hexdigest(),
+    )
+    digest = row.token_digest
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+    report = Report()
+    await _rotate_table(
+        _db_returning([row]),
+        _spec("project_filesystem_bindings"),
+        target=2,
+        dry_run=False,
+        report=report,
+    )
+    assert report.rotated == 1 and not report.failures
+    assert row.secret_key_version == 2 and row.token_digest == digest
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: KEY_B})
+    monkeypatch.setattr(bindings, "binding_for_session", AsyncMock(return_value=row))
+    credential = await ProjectFilesystemBindingService(MagicMock()).credential(
+        organization_id=organization_id,
+        connection_id=row.connection_id,
+        session_name=row.session_name,
+        workspace_id=None,
+        conversation_id=None,
+    )
+    assert credential.binding_id == row.id
+    assert credential.token.get_secret_value() == plaintext
+    assert plaintext not in repr(credential)
