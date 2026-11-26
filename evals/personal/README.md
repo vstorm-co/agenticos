@@ -262,3 +262,6 @@ constant for the current and candidate AgenticOS, raw retrieval, Mem0 OSS and
 Hindsight. Include ingest, answering and grading costs alongside latency and
 quality. Keep reviewed regression cases out of the newly sampled holdout and do
 a small accounting pass before running the full LongMemEval-S cohort.
+
+For paired recall and answer benchmarks against other memory systems, plus a
+model-free PostgreSQL scale runner, see [Memory benchmarks](../memory/README.md).
