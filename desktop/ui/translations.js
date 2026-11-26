@@ -707,34 +707,44 @@ export const TRANSLATIONS = {
     nl: "Verder instellen",
   },
   "Retry connection": {
+    pl: "Spróbuj połączyć ponownie",
     nl: "Verbinding opnieuw proberen",
   },
   "Could not check this computer": {
+    pl: "Nie udało się sprawdzić tego komputera",
     nl: "Kon deze computer niet controleren",
   },
   "Preparing this computer": {
+    pl: "Przygotowuję ten komputer",
     nl: "Deze computer wordt voorbereid",
   },
   "Starting your workspace": {
+    pl: "Uruchamiam workspace",
     nl: "Je workspace wordt gestart",
   },
   "Approve any system installation or first-run prompts. AgenticOS will continue automatically.":
     {
+      pl: "Zatwierdź systemowe okna instalacji i pierwszego uruchomienia. AgenticOS przejdzie dalej automatycznie.",
       nl: "Keur de systeemmeldingen voor de installatie of de eerste start goed. AgenticOS gaat daarna automatisch verder.",
     },
   "Complete the runtime installation, then choose Check again to continue.": {
+    pl: "Dokończ instalację środowiska uruchomieniowego, a potem wybierz Sprawdź ponownie, aby kontynuować.",
     nl: "Rond de installatie van de runtime af en kies daarna Opnieuw controleren om door te gaan.",
   },
   "Setup needs your attention": {
+    pl: "Konfiguracja wymaga Twojej uwagi",
     nl: "Het instellen heeft je aandacht nodig",
   },
   "Starting AgenticOS": {
+    pl: "Uruchamiam AgenticOS",
     nl: "AgenticOS wordt gestart",
   },
   "Opening your saved workspace. This may take a few minutes.": {
+    pl: "Otwieram zapisany workspace. To może potrwać kilka minut.",
     nl: "Je opgeslagen workspace wordt geopend. Dit kan enkele minuten duren.",
   },
   "Your workspace could not start": {
+    pl: "Nie udało się uruchomić workspace’u",
     nl: "Je workspace kon niet starten",
   },
 };

@@ -464,9 +464,11 @@ fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
     app.state::<SignInProof>().take(&code)
 }
 
+const ONBOARDING_LANGUAGES: [&str; 6] = ["en", "pl", "de", "tr", "nl", "pt"];
+
 fn connection_setup_path(language: Option<&str>) -> String {
     language
-        .filter(|language| ["en", "pl", "de", "tr", "nl", "pt"].contains(language))
+        .filter(|language| ONBOARDING_LANGUAGES.contains(language))
         .map(|language| format!("{language}/{CONNECTION_SETUP}"))
         .unwrap_or_else(|| CONNECTION_SETUP.to_string())
 }
@@ -546,7 +548,7 @@ mod onboarding_language_tests {
 
 #[tauri::command]
 fn set_onboarding_language(app: AppHandle, language: String) -> Result<(), String> {
-    if !["en", "pl", "de", "tr", "nl", "pt"].contains(&language.as_str()) {
+    if !ONBOARDING_LANGUAGES.contains(&language.as_str()) {
         return Err("Unsupported language".into());
     }
     settings::update(&app, |settings| settings.onboarding_language = Some(language))?;
