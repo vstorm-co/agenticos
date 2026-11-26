@@ -410,8 +410,10 @@ class TestFinishingAcceptedSteers:
         service.finish_steer.assert_not_awaited()
         assert chat.answer.await_count == 1
 
-    async def test_a_receipt_is_written_to_the_transcript_once_after_the_durable_fence(
+    @pytest.mark.parametrize("transcript_first", [False, True])
+    async def test_a_receipt_is_written_to_the_transcript_once_in_either_callback_order(
         self,
+        transcript_first: bool,
     ) -> None:
         session = _session()
         receipt_id = uuid4()
@@ -422,7 +424,10 @@ class TestFinishingAcceptedSteers:
                 OpenedRun(run_id=run_id, model_label="test", agent_version_id=None)
             )
             inbox: SteeringInbox = kwargs["steering"]
-            inbox.add("accepted correction", accepted_queue_id=receipt_id)
+            queued = inbox.add("accepted correction", accepted_queue_id=receipt_id)
+            if transcript_first:
+                assert inbox.on_applied is not None
+                await inbox.on_applied(queued, "accepted correction")
             [(steer, screened)] = await inbox.take_screened()
             assert steer.accepted_queue_id == receipt_id
             assert screened == "accepted correction"
