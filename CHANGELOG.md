@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Improve session pages loading while permissions are read, with a retry when they cannot be, instead of saying access is missing. Stop polling live pages after a failed read, say which part stopped updating with a Retry, and keep a loaded eval result on screen when a refresh fails. A link to a dataset case says the case is gone only when it is.
+- Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
+- Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
+- Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
+
+## [1.94.0] - 2026-11-26
+
 ### Added
 
 - Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
@@ -77,11 +86,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission returns only the session ID and status; cached session details are cleared.
 - Complete French and Turkish Improve/eval/assistant translations. Translate comparison, merge-refusal and stored failure reasons from stable codes while retaining technical details and compatibility with uncoded historical results.
-
-- Keep Improve session pages loading while permissions are read, with a retry when they cannot be, instead of saying access is missing. Stop polling live pages after a failed read, say which part stopped updating with a Retry, and keep a loaded eval result on screen when a refresh fails. A link to a dataset case says the case is gone only when it is.
-- Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
-- Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
-- Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
 - Keep an Improve session's held-out share fixed across attempts, even after
@@ -23005,7 +23009,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
