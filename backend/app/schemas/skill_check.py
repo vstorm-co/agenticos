@@ -75,9 +75,7 @@ class VisibleCandidateText(CandidateText):
     content: Annotated[str, AfterValidator(visible)]
 
 
-def _visible(candidate: CandidateText | None) -> CandidateText | None:
-    if candidate is None:
-        return None
+def _visible(candidate: CandidateText) -> CandidateText:
     return VisibleCandidateText.model_validate(candidate, from_attributes=True)
 
 
@@ -86,7 +84,7 @@ class SkillCheckRequest(SkillCheckStart):
     so a save made meanwhile is refused rather than written over, and holds no character
     a person cannot see."""
 
-    candidate: Annotated[CandidateText | None, AfterValidator(_visible)] = None
+    candidate: Annotated[CandidateText, AfterValidator(_visible)] | None = None
 
     @model_validator(mode="after")
     def _text_names_its_base(self) -> Self:
