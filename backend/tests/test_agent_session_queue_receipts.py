@@ -383,6 +383,7 @@ class TestFinishingAcceptedSteers:
         assert parts.count(MessagePart(type="steer", text="accepted correction")) == 1
         assert not [event for event in _sent_events(session) if event[0] == "steer_applied"]
 
+    @pytest.mark.security
     async def test_a_receipt_cannot_be_fenced_before_the_turn_opens_a_run(self) -> None:
         session = _session()
         receipt_id = uuid4()
@@ -481,6 +482,7 @@ class TestReleasingUnappliedReceipts:
         assert [steer.accepted_queue_id for steer in inbox.unapplied_steers()] == receipt_ids
         service_factory.assert_not_called()
 
+    @pytest.mark.security
     async def test_a_turn_that_no_longer_owns_the_inbox_cannot_release_its_receipt(self) -> None:
         session = _session()
         inbox = SteeringInbox()
