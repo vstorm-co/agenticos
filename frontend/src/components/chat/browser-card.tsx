@@ -25,6 +25,7 @@ import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow, hostOf } from "./browser-window";
 import { BrowserVisit } from "./browser-visit";
+import { useChatWorkspace } from "./chat-workspace-context";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
 const LiveBrowses = createContext<{
@@ -93,8 +94,11 @@ function InlineBrowser({
   onComment?: (comment: PageComment) => void;
 }) {
   const t = useTranslations("chat");
+  const open = useBrowserPanelStore((state) => state.open);
   const toggle = useBrowserPanelStore((state) => state.toggle);
-  const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const selected = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const workspace = useChatWorkspace();
+  const expanded = selected && (!workspace?.shared || workspace.activePanel === "browser");
   const running = isRunning(streamed);
   const live = useLiveBrowse(
     streamed.runId ?? "",
@@ -128,7 +132,7 @@ function InlineBrowser({
               : null
           }
           maximizeLabel={t("browserOpenPanel")}
-          onMaximize={() => toggle(streamed.callId)}
+          onMaximize={() => open(streamed.callId)}
           newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
           onComment={onComment}
         />
@@ -140,14 +144,17 @@ function InlineBrowser({
 /** A compact transcript entry that toggles its browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
   const toggle = useBrowserPanelStore((state) => state.toggle);
-  const expanded = useBrowserPanelStore((state) => state.openCallId === browse.callId);
+  const open = useBrowserPanelStore((state) => state.open);
+  const selected = useBrowserPanelStore((state) => state.openCallId === browse.callId);
+  const workspace = useChatWorkspace();
+  const expanded = selected && (!workspace?.shared || workspace.activePanel === "browser");
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
   return (
     <BrowserVisit
       url={page.url}
       title={browse.title}
       expanded={expanded}
-      onOpen={() => toggle(browse.callId)}
+      onOpen={() => (expanded ? toggle(browse.callId) : open(browse.callId))}
     />
   );
 }
@@ -156,8 +163,7 @@ function BrowserLink({ browse }: { browse: Browse }) {
 export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
   const newest = latestBrowserTabs(browses).at(-1);
   const opened = useRef(new Set<string>());
-  const openCallId = useBrowserPanelStore((state) => state.openCallId);
-  const open = useBrowserPanelStore((state) => state.open);
+  const panel = useBrowserPanelStore.useApi();
   const shell = useShell();
   const callId = newest?.callId;
   const session = newest?.runId ?? callId;
@@ -166,7 +172,7 @@ export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
   useEffect(() => {
     if (!callId || !session || !running || !supported || opened.current.has(session)) return;
     opened.current.add(session);
-    if (openCallId === null) open(callId);
-  }, [callId, session, running, supported, openCallId, open]);
+    if (panel.getState().openCallId === null) panel.getState().open(callId, true);
+  }, [callId, session, running, supported, panel]);
   return null;
 }

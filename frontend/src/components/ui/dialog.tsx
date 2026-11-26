@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { usePortalContainer } from "./portal-container";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -51,8 +52,9 @@ const DialogContent = React.forwardRef<
     ref,
   ) => {
     const t = useTranslations("common");
+    const container = usePortalContainer();
     return (
-      <DialogPortal>
+      <DialogPortal container={container}>
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}

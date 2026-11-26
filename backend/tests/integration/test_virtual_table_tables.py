@@ -399,11 +399,16 @@ async def test_a_type_change_rewrites_every_value_it_survives(db):
 
     assert changed.schema_version == 2
     stage = changed.columns[1]
-    assert [option.label for option in stage.options] == ["Won", "New"]
-    won, new = (str(option.id) for option in stage.options)
+    # Option discovery reads record values without a guaranteed row order.
+    assert sorted(option.label for option in stage.options) == ["New", "Won"]
+    options = {option.label: str(option.id) for option in stage.options}
     records = [await service.get_record(ctx, table.id, w.record.id) for w in written]
     assert [record.values.get(str(score_id)) for record in records] == [90, 7, None]
-    assert [record.values[str(stage_id)] for record in records] == [won, new, won]
+    assert [record.values[str(stage_id)] for record in records] == [
+        options["Won"],
+        options["New"],
+        options["Won"],
+    ]
     # An edit against what a record held before is now a conflict, not a write.
     assert all(record.revision > 1 for record in records)
 

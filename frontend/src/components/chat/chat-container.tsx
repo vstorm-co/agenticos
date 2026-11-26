@@ -43,6 +43,7 @@ import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
+import { ChatWorkspaceProvider, VisualWorkspaceSlot } from "./chat-workspace-context";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
@@ -1075,7 +1076,15 @@ interface ChatUIProps {
   onStartCall: (transport: VoiceTransport) => void;
 }
 
-function ChatUI({
+function ChatUI(props: ChatUIProps) {
+  return (
+    <ChatWorkspaceProvider shared conversationId={props.conversationId}>
+      <ChatUIContent {...props} />
+    </ChatWorkspaceProvider>
+  );
+}
+
+function ChatUIContent({
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1434,20 +1443,12 @@ function ChatUI({
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
-  const workspaceFiles = (
-    <WorkspaceFiles
-      key={conversationId ?? "new"}
-      beforeFirstMessage={mainChat && messages.length === 0}
-      conversationId={conversationId}
-      revision={turns}
-      attachments={attachments}
-      buttonSlot={filesSlot}
-      overlay={compact}
-    />
-  );
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
-      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
+      <div
+        style={{ containerName: "browser-layout visual-layout" }}
+        className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1"
+      >
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -2068,15 +2069,19 @@ function ChatUI({
           onComment={commentOnPage}
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
+        <WorkspaceFiles
+          beforeFirstMessage={mainChat && messages.length === 0}
+          overlay={compact}
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+          buttonSlot={filesSlot}
+        />
+        <VisualWorkspaceSlot />
       </div>
       {/* Docked panels must be direct children of the chat row: both the percentage
           width and pointer resize measure that parent. Embedded Files stays contained. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      {mainChat ? (
-        workspaceFiles
-      ) : (
-        <div className="hidden h-full min-h-0 shrink-0 lg:block">{workspaceFiles}</div>
-      )}
     </div>
   );
 }

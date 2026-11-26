@@ -1,9 +1,11 @@
 # Visuals
 
-Exposes three tools. `draw` puts a drawing in the conversation - an SVG diagram,
+Exposes four tools. `draw` puts a drawing in the conversation - an SVG diagram,
 a Mermaid flow, or a whole HTML document for anything interactive, `<canvas>` and
 three.js included. `revise_visual` changes one by exact replacements, and
-`read_visual` reads one back as it now is.
+`read_visual` reads one back as it now is. `preview_visual` renders a fresh copy
+for the model, with a screenshot and bounded runtime diagnostics, before it is
+saved as an App.
 
 ## Layout
 
@@ -51,3 +53,31 @@ looked up within the run's own conversation and nowhere else.
 A drawing changes nothing outside the conversation and is shown only to whoever
 can read it. Saving one as an app is a person's decision in the console, or the
 agent's through `publish_artifact`, which has its own rules.
+
+## Preview before saving
+
+`preview_visual` resolves the id through the same conversation-scoped lookup as
+`read_visual`, then inlines only that conversation's stored images. It uses the
+Apps renderer (`ARTIFACT_RENDER_CDP_URL` and the `browser` extra), not a browser
+endpoint supplied by an agent. A fresh isolated context, the frame's sandbox,
+and the bundled libraries bound what can run. Preview requests never use the
+external tile proxy: even image-free source can encode private conversation text
+in page-selected coordinates. The renderer serves bundled `AOWorldMap` SVG maps;
+street-tile requests are blocked and reported. There is no tile opt-in or
+background tile-fetch pool in the preview renderer.
+The tool never inspects or resets the person's live page.
+
+Viewport width is bounded to 240-1600 CSS pixels, with light or dark appearance.
+Screenshots stop at 2400 pixels and report clipping. Diagnostics name uncaught
+errors, console warnings/errors, policy refusals, blocked requests and dismissed
+dialogs; each list has at most ten entries. A timeout or missing renderer is
+explicit, and `preview_screenshot: false` keeps diagnostics for text-only models.
+
+The renderer admits at most 2,048 browser events per preview and queues at most
+256. ASCII JSON event payloads are limited to 64 KiB each and 1 MiB cumulatively.
+Admission stops before enqueueing an excess event. Overflow aborts the render,
+cancels its tasks, drops queued payloads and disposes the context; the tool
+returns the limit message without an image. Draining the queue does not reset
+the totals, and later renders have independent counters. The CDP transport caps
+incoming messages at 4 MiB before JSON parsing, including screenshot replies;
+PDFs arrive in 64 KiB chunks. Replies do not consume the event allowance.

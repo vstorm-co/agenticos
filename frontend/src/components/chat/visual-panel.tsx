@@ -8,8 +8,8 @@ import {
   Code2,
   CornerDownRight,
   Copy,
-  Download,
   Maximize2,
+  PanelRightOpen,
   Pencil,
   RotateCw,
   Shapes,
@@ -29,15 +29,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  IconButton,
-} from "@/components/ui";
-import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
+import { Button, IconButton } from "@/components/ui";
 import { partialArgs, type PartialField } from "@/lib/partial-args";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -53,10 +45,8 @@ import {
   streamedDrawing,
   svgAspect,
   type VisualKind,
-  visualContentBase,
 } from "@/lib/visuals";
 import { getVisualImage, putVisualThumbnail } from "@/lib/visuals-api";
-import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import {
   addVisualImages,
   resetVisualState,
@@ -65,11 +55,13 @@ import {
   useVisualStreamStore,
 } from "@/stores/visual-stream-store";
 import type { ChatMessage, ToolCall } from "@/types";
-import { copySvgImage, downloadVisual, svgPng } from "./visual-actions";
-import { VisualFrame } from "./visual-frame";
+import { copySvgImage, svgPng, visualToastOptions } from "./visual-actions";
+import { VisualDownload } from "./visual-download";
 import { ViewportVisualFrame } from "./viewport-visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
 import { VisualZoom } from "./visual-zoom";
+import { VisualWorkspace } from "./visual-workspace";
+import { ChatWorkspaceBoundary, useVisualWorkspace } from "./chat-workspace-context";
 
 type KnownCalls = ReadonlyMap<string, ToolCall>;
 
@@ -131,7 +123,11 @@ export function ConversationVisualsProvider({
     if (shownFor.current !== null && conversationId !== shownFor.current) resetVisualState();
     shownFor.current = conversationId;
   }, [conversationId]);
-  return <ConversationVisuals.Provider value={value}>{children}</ConversationVisuals.Provider>;
+  return (
+    <ConversationVisuals.Provider value={value}>
+      <ChatWorkspaceBoundary conversationId={conversationId}>{children}</ChatWorkspaceBoundary>
+    </ConversationVisuals.Provider>
+  );
 }
 
 /** A turn's drawings, each a panel under the message where the turn made it. */
@@ -140,11 +136,13 @@ export function TurnVisuals({ calls }: { calls: ToolCall[] }) {
   return (
     // More air around a drawing than between two lines of a turn: it is the
     // largest thing in the answer, and text set 8px under it read as its caption.
-    <div className="flex w-full min-w-0 flex-col gap-6 py-2.5">
-      {calls.map((call) => (
-        <VisualPanel key={call.id} call={call} />
-      ))}
-    </div>
+    <ChatWorkspaceBoundary>
+      <div className="flex w-full min-w-0 flex-col gap-6 py-2.5">
+        {calls.map((call) => (
+          <VisualPanel key={call.id} call={call} />
+        ))}
+      </div>
+    </ChatWorkspaceBoundary>
   );
 }
 
@@ -329,7 +327,6 @@ function SaveToApps({ update, onSave }: { update: boolean; onSave: () => void })
 function VisualPanel({ call }: { call: ToolCall }) {
   const t = useTranslations("chat.visuals");
   const { known, conversationId, onReport, onCompose, onSend } = useContext(ConversationVisuals);
-  const { artifactUrl } = usePublicConfig();
   const shown = useShown(call, known);
   const nested = useSyncExternalStore(subscribeToNothing, framedElsewhere, () => false);
   const pictures = useVisualImages(
@@ -339,7 +336,8 @@ function VisualPanel({ call }: { call: ToolCall }) {
   );
   const saved = useSavedVisualsStore((state) => state.saved);
   const [code, setCode] = useState(false);
-  const [full, setFull] = useState(false);
+  const workspace = useVisualWorkspace(call.id);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fullZoom, setFullZoom] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -424,9 +422,9 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const copyImage = async () => {
     try {
       await copySvgImage(content);
-      toast.success(t("imageCopied"));
+      toast.success(t("imageCopied"), visualToastOptions(workspaceRef.current));
     } catch {
-      toast.error(t("copyImageFailed"));
+      toast.error(t("copyImageFailed"), visualToastOptions(workspaceRef.current));
     }
   };
 
@@ -445,28 +443,28 @@ function VisualPanel({ call }: { call: ToolCall }) {
         </IconButton>
       )}
       {done && (
-        <IconButton
-          aria-label={t("download")}
-          title={t("download")}
-          onClick={() =>
-            downloadVisual(
-              shown.title,
-              shown.kind,
-              content,
-              new URL(visualContentBase(artifactUrl), window.location.href).href,
-            )
-          }
-        >
-          <Download className="size-3.5" />
-        </IconButton>
+        <VisualDownload
+          title={shown.title}
+          kind={shown.kind}
+          content={content}
+          workspaceRef={workspaceRef}
+        />
       )}
       {done && conversationId !== null && (
         <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
       )}
       <IconButton
+        data-tour="chat-visual-workspace"
+        aria-label={t("openWorkspace")}
+        title={t("openWorkspace")}
+        onClick={() => workspace.show()}
+      >
+        <PanelRightOpen className="size-3.5" />
+      </IconButton>
+      <IconButton
         aria-label={t("fullScreen")}
         title={t("fullScreen")}
-        onClick={() => setFull(true)}
+        onClick={() => workspace.show(true)}
       >
         <Maximize2 className="size-3.5" />
       </IconButton>
@@ -478,61 +476,105 @@ function VisualPanel({ call }: { call: ToolCall }) {
     // the transcript the way a paragraph does, and what names it - the title,
     // its state, what can be done with it - is a quiet line underneath.
     <div data-tour="chat-visual" className="group/visual w-full min-w-0">
-      {code ? (
-        <pre className="bg-foreground/[0.04] max-h-[32rem] scrollbar-thin overflow-auto rounded-xl p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
-          {shown.content}
-        </pre>
-      ) : stalled ? (
-        <div className="bg-foreground/[0.04] text-muted-foreground flex flex-col items-center gap-2 rounded-xl px-3 py-10 text-sm">
-          {t("stalled")}
-          <button
-            type="button"
-            onClick={reload}
-            className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium"
+      <VisualWorkspace
+        layerRef={workspaceRef}
+        visualId={call.id}
+        title={shown.title}
+        content={shown.content}
+        code={code}
+        onCodeChange={setCode}
+        actions={
+          <>
+            {done && (
+              <VisualDownload
+                title={shown.title}
+                kind={shown.kind}
+                content={content}
+                workspaceRef={workspaceRef}
+              />
+            )}
+            {done && conversationId !== null && (
+              <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
+            )}
+          </>
+        }
+        dialogs={
+          saving &&
+          conversationId !== null && (
+            <VisualSaveDialog
+              open
+              onOpenChange={setSaving}
+              conversationId={conversationId}
+              visualId={call.id}
+              title={shown.title}
+              updates={app?.name ?? null}
+              workspaceRef={workspaceRef}
+            />
+          )
+        }
+      >
+        {stalled ? (
+          <div className="bg-foreground/[0.04] text-muted-foreground flex flex-col items-center gap-2 rounded-xl px-3 py-10 text-sm">
+            {t("stalled")}
+            <button
+              type="button"
+              onClick={reload}
+              className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium"
+            >
+              <RotateCw className="size-3.5" aria-hidden />
+              {t("reload")}
+            </button>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "relative rounded-xl transition-colors",
+              workspace.open && "h-full",
+              !done && "bg-foreground/[0.03]",
+            )}
           >
-            <RotateCw className="size-3.5" aria-hidden />
-            {t("reload")}
-          </button>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "relative rounded-xl transition-colors",
-            // The height the drawing declared, held while it is written - shaded,
-            // so the space reads as something arriving rather than a gap.
-            !done && "bg-foreground/[0.03]",
-          )}
-        >
-          <ViewportVisualFrame
-            suspended={full}
-            key={frameKey}
-            kind={shown.kind}
-            title={shown.title}
-            content={content}
-            done={done}
-            height={shown.height}
-            aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
-            zoom={zoom}
-            onError={onError}
-            onRendered={onRendered}
-            onSvg={onSvg}
-            onStall={() => setStalled(true)}
-            onFollowUp={offerFollowUp}
-          />
-          {/* On a phone the preview is a picture: a drag on a canvas would take
-              the scroll of the conversation with it, so a tap opens it full
-              screen, where it is the whole window. */}
-          <button
-            type="button"
-            aria-label={t("fullScreen")}
-            onClick={() => setFull(true)}
-            className="absolute inset-0 md:hidden"
-          />
-          {/* Not on a phone, where the preview is a picture that opens full
-              screen, and zooming is done there. */}
-          <VisualZoom zoom={zoom} onZoom={setZoom} className={cn(ZOOM_CORNER, "hidden md:flex")} />
-        </div>
-      )}
+            <ViewportVisualFrame
+              active={workspace.open}
+              watchdogPaused={code}
+              key={frameKey}
+              kind={shown.kind}
+              title={shown.title}
+              content={content}
+              done={done}
+              height={shown.height}
+              aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
+              zoom={workspace.open ? fullZoom : zoom}
+              fill={workspace.open}
+              onError={onError}
+              onRendered={onRendered}
+              onSvg={onSvg}
+              onStall={() => setStalled(true)}
+              onFollowUp={
+                offerFollowUp &&
+                ((text) => {
+                  workspace.close();
+                  offerFollowUp(text);
+                })
+              }
+            />
+            {!workspace.open && (
+              <button
+                type="button"
+                aria-label={t("fullScreen")}
+                onClick={() => workspace.show(true)}
+                className="absolute inset-0 md:hidden"
+              />
+            )}
+            {!code && (
+              <VisualZoom
+                zoom={workspace.open ? fullZoom : zoom}
+                onZoom={workspace.open ? setFullZoom : setZoom}
+                className={cn(ZOOM_CORNER, !workspace.open && "hidden md:flex")}
+              />
+            )}
+          </div>
+        )}
+      </VisualWorkspace>
       <div className="text-muted-foreground mt-1.5 flex min-h-8 min-w-0 items-center gap-1.5 text-xs">
         <Shapes className="size-3.5 shrink-0" aria-hidden />
         <span className="text-foreground/80 min-w-0 truncate font-medium">{shown.title}</span>
@@ -551,7 +593,10 @@ function VisualPanel({ call }: { call: ToolCall }) {
         )}
         {/* Shown on hover and focus where there is a pointer to hover with;
             always on a touch screen, where there is not. */}
-        <div className="ml-auto flex shrink-0 items-center transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/visual:opacity-100">
+        <div
+          hidden={workspace.open}
+          className="ml-auto flex shrink-0 items-center transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/visual:opacity-100 md:has-[[data-state=open]]:opacity-100"
+        >
           {actions}
         </div>
       </div>
@@ -598,46 +643,6 @@ function VisualPanel({ call }: { call: ToolCall }) {
               : undefined
           }
           onDismiss={() => setFollowUp(null)}
-        />
-      )}
-      <Dialog open={full} onOpenChange={setFull}>
-        <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
-          <DialogHeader className="gap-0 pr-10">
-            <DialogTitle className="truncate text-base">{shown.title}</DialogTitle>
-          </DialogHeader>
-          <div className="group/visual relative min-h-0 flex-1 overflow-hidden rounded-xl">
-            {full && (
-              <VisualFrame
-                kind={shown.kind}
-                title={shown.title}
-                content={content}
-                done={done}
-                height={shown.height}
-                zoom={fullZoom}
-                fill
-                onFollowUp={
-                  offerFollowUp &&
-                  ((text) => {
-                    // The request is shown under the drawing in the conversation,
-                    // which the full-screen window covers.
-                    setFull(false);
-                    offerFollowUp(text);
-                  })
-                }
-              />
-            )}
-            <VisualZoom zoom={fullZoom} onZoom={setFullZoom} className={ZOOM_CORNER} />
-          </div>
-        </DialogContent>
-      </Dialog>
-      {saving && conversationId !== null && (
-        <VisualSaveDialog
-          open
-          onOpenChange={setSaving}
-          conversationId={conversationId}
-          visualId={call.id}
-          title={shown.title}
-          updates={app?.name ?? null}
         />
       )}
     </div>

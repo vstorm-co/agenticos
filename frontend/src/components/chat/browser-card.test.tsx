@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserPanelAutoOpen, LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import { ChatWorkspaceProvider, useRequiredChatWorkspace } from "./chat-workspace-context";
+import { ChatWorkspaceTabs } from "./chat-workspace-tabs";
+import { ChatScope } from "@/stores/chat-scope";
 import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
@@ -70,6 +73,126 @@ beforeEach(() => {
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
   useBrowserPanelStore.setState({ openCallId: null });
 });
+
+function WorkspaceBrowsers({ navigable }: { navigable: boolean }) {
+  const workspace = useRequiredChatWorkspace();
+  return (
+    <>
+      <button onClick={() => workspace.openPanel("files")}>Show files</button>
+      <output aria-label="Active workspace">{workspace.activePanel}</output>
+      <BrowserCards browses={[browse({ navigable })]} />
+    </>
+  );
+}
+
+function BrowserSelection({ browses }: { browses: Browse[] }) {
+  const workspace = useRequiredChatWorkspace();
+  const open = useBrowserPanelStore((state) => state.open);
+  const selected = useBrowserPanelStore((state) => state.openCallId);
+  return (
+    <>
+      <button onClick={() => open("old")}>Select old browser</button>
+      <button onClick={() => workspace.openPanel("files")}>Show files</button>
+      <output aria-label="Selected browser">{selected}</output>
+      <output aria-label="Active workspace">{workspace.activePanel}</output>
+      <ChatWorkspaceTabs panel="files" />
+      <BrowserPanelAutoOpen browses={browses} />
+    </>
+  );
+}
+
+it.each([false, true])(
+  "clears the old browser and allows new auto-open (scoped: %s)",
+  async (scoped) => {
+    const user = userEvent.setup();
+    if (scoped) useBrowserPanelStore.getState().open("main-chat");
+    const content = (id: string, browses: Browse[] = []) => {
+      const workspace = (
+        <ChatWorkspaceProvider shared conversationId={id}>
+          <BrowserSelection browses={browses} />
+        </ChatWorkspaceProvider>
+      );
+      return scoped ? <ChatScope agentId="assistant">{workspace}</ChatScope> : workspace;
+    };
+    const view = render(content("a"));
+    await user.click(screen.getByRole("button", { name: "Select old browser" }));
+    view.rerender(content("b"));
+    expect(screen.getByLabelText("Selected browser")).toBeEmptyDOMElement();
+    await user.click(screen.getByRole("button", { name: "Show files" }));
+    expect(screen.getByRole("tab", { name: "Browser" })).toBeDisabled();
+    view.rerender(content("b", [browse({ callId: "new", runId: "run-b", navigable: true })]));
+    expect(screen.getByLabelText("Selected browser")).toHaveTextContent("new");
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("files");
+    await user.click(screen.getByRole("tab", { name: "Browser" }));
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+    if (scoped) expect(useBrowserPanelStore.getState().openCallId).toBe("main-chat");
+  },
+);
+
+it("opens the new conversation's running browser in the same update that changes conversation", async () => {
+  const content = (id: string, browses: Browse[]) => (
+    <ChatWorkspaceProvider shared conversationId={id}>
+      <BrowserSelection browses={browses} />
+    </ChatWorkspaceProvider>
+  );
+  const view = render(content("a", []));
+  await userEvent.click(screen.getByRole("button", { name: "Select old browser" }));
+  view.rerender(content("b", [browse({ callId: "new", runId: "run-b", navigable: true })]));
+  expect(screen.getByLabelText("Selected browser")).toHaveTextContent("new");
+  expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+});
+
+it("retains the draft browser when the conversation receives its first id", async () => {
+  const content = (id: string | null) => (
+    <ChatWorkspaceProvider shared conversationId={id}>
+      <BrowserSelection browses={[]} />
+    </ChatWorkspaceProvider>
+  );
+  const view = render(content(null));
+  await userEvent.click(screen.getByRole("button", { name: "Select old browser" }));
+  view.rerender(content("saved"));
+  expect(screen.getByLabelText("Selected browser")).toHaveTextContent("old");
+  expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+});
+
+it.each([true, false])(
+  "reopens the retained browser from Files and toggles it closed (navigable: %s)",
+  async (navigable) => {
+    const user = userEvent.setup();
+    render(
+      <ChatWorkspaceProvider shared>
+        <WorkspaceBrowsers navigable={navigable} />
+      </ChatWorkspaceProvider>,
+    );
+    const open = async () => {
+      if (navigable) await user.click(screen.getByRole("button", { name: "Pricing" }));
+      else {
+        await user.click(screen.getByRole("button", { name: "Browser options" }));
+        await user.click(screen.getByRole("menuitem", { name: "Open beside the chat" }));
+      }
+    };
+    await open();
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+    await user.click(screen.getByRole("button", { name: "Show files" }));
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("files");
+    if (navigable)
+      expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    await open();
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+    await user.click(
+      screen.getByRole("button", {
+        name: navigable ? "Pricing" : /example.test is open in the browser panel/,
+      }),
+    );
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(screen.getByLabelText("Active workspace")).toBeEmptyDOMElement();
+  },
+);
 
 describe("TurnBrowses - a browse as a browser under its message", () => {
   it("draws nothing for a turn that did not browse", () => {

@@ -2165,7 +2165,9 @@
       "runAcpAgent": "Agente ACP externo",
       "runningAcpAgent": "Agente ACP externo",
       "inspectAcpAgent": "Ler opções de modelo ACP",
-      "readingAcpModels": "Lendo opções de modelo ACP"
+      "readingAcpModels": "Lendo opções de modelo ACP",
+      "previewingVisual": "Visualizando um visual",
+      "previewVisual": "Visualizar um visual"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -2345,7 +2347,19 @@
       "followUpAsks": "O desenho pede para enviar isto como sua mensagem:",
       "followUpSend": "Enviar",
       "followUpEdit": "Editar",
-      "followUpDismiss": "Dispensar"
+      "followUpDismiss": "Dispensar",
+      "downloadSvg": "SVG — arquivo vetorial",
+      "downloadPng": "PNG — imagem para apresentações",
+      "preparingPng": "Preparando PNG…",
+      "pngDownloadFailed": "Não foi possível baixar o PNG. Tente novamente.",
+      "openWorkspace": "Abrir painel lateral",
+      "dockWorkspace": "Voltar ao painel lateral",
+      "closeWorkspace": "Fechar visual",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Modos de exibição do visual",
+      "resizeWorkspace": "Redimensionar painel do visual",
+      "previewTab": "Prévia",
+      "codeTab": "Código"
     },
     "dictation": {
       "cancel": "Cancelar ditado",
@@ -2732,7 +2746,17 @@
     "queuedPaused": "Fila pausada",
     "resumeQueue": "Retomar fila",
     "routineHistoryReadOnly": "Este é um histórico de rotina somente leitura. Bifurque uma resposta para continuar em um novo chat.",
-    "routineContinueChat": "Continuar em um novo chat"
+    "routineContinueChat": "Continuar em um novo chat",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuais",
+      "browser": "Navegador",
+      "files": "Arquivos",
+      "resize": "Redimensionar workspace",
+      "expand": "Expandir workspace",
+      "dock": "Acoplar workspace",
+      "allFiles": "Voltar para todos os arquivos"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -6220,6 +6244,14 @@
       "channels-binding": {
         "title": "Escolha quem responde",
         "body": "Vincule um agente a um bot ou remova o vínculo. Um bot responde como um único agente; o ambiente, a pausa e as consultas continuam na aba Disponibilidade do agente."
+      },
+      "chat-workspace-tabs": {
+        "title": "Um workspace ao lado do seu chat",
+        "body": "Alterne entre Visuais, Navegador e Arquivos aqui. A página e o arquivo selecionados permanecem abertos quando você troca de aba. Expanda o workspace para ter mais espaço ou feche-o para voltar à conversa."
+      },
+      "chat-visual-workspace": {
+        "title": "Uma página ao lado do seu chat",
+        "body": "Abra um visual no painel lateral redimensionável para continuar conversando enquanto o utiliza. Alterne entre Prévia e Código, expanda ou feche o painel sem redefinir os controles."
       }
     },
     "chooseLanguage": "Idioma",
@@ -14582,6 +14614,12 @@
       "platform_tools": {
         "title": "Encaminhar ferramentas da plataforma",
         "description": "Permite que este runtime nativo chame as ferramentas já admitidas nesta execução do AgenticOS. Permissões da plataforma, orçamentos, aprovações e a triagem de resultados continuam valendo. Exige o computador privado e aprovado do membro que inicia a tarefa."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Mostrar ao modelo uma imagem do visual",
+        "description": "Retorne uma captura de tela quando o agent visualizar um visual. Desative para modelos que não leem imagens; os diagnósticos de renderização continuam disponíveis."
       }
     }
   },

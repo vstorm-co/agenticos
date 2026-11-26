@@ -14,7 +14,7 @@ import ipaddress
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.repositories.conversation import ToolCallArgs
 from app.services import artifact as artifacts
-from app.services import rate_limit, tile_proxy
+from app.services import artifact_render, rate_limit, tile_proxy
 from app.services import visual as visuals
 from app.services.visual import VISUAL_RUNTIME, VISUAL_TOOLS, VisualKind, visual_document
 
@@ -203,6 +203,68 @@ async def render_png(
             pixel_ratio=2 if channel else 1,
             alternate_document=alternate_document,
         )
+
+
+async def preview(
+    kind: VisualKind,
+    content: str,
+    *,
+    title: str,
+    width: int,
+    appearance: Literal["light", "dark"],
+) -> artifact_render.Rendered:
+    """Inspect a fresh visual with the Apps renderer, without saving or publishing it.
+
+    Uses the same document, libraries and sandbox as the chat frame. The Apps
+    renderer supplies bounded diagnostics and isolation for every subframe;
+    its deployment-owned endpoint is never chosen by the model. Inputs inside
+    the person's already-open visual are not read or changed. Only the page and
+    bundled libraries are served; map tiles cannot carry conversation content
+    to an external provider.
+
+    Raises:
+        ConfigurationError: The deployment has no Apps renderer or browser extra.
+        ExternalServiceError: The renderer is busy or cannot be reached.
+    """
+    return await artifact_render.render(
+        artifact_render.RenderRequest(
+            document=rendered_document(kind, content, title=title).encode("utf-8"),
+            nonce="",
+            bindings=None,
+            injected_lines=(artifacts.platform_script() + VISUAL_RUNTIME).count("\n"),
+            width=width,
+            appearance=appearance,
+        )
+    )
+
+
+def preview_report(drawn: artifact_render.Rendered) -> str:
+    """Bounded rendering diagnostics, including an explicitly incomplete screenshot."""
+    lines: list[str] = []
+    if drawn.timed_out:
+        lines.append(
+            "The preview timed out; no screenshot was taken. Check for a script that never finishes."
+        )
+    elif drawn.shown_height is not None:
+        lines.append(f"Rendered at {drawn.width} x {drawn.shown_height} pixels.")
+        if drawn.height is not None and drawn.height > drawn.shown_height:
+            lines.append(
+                f"The document is {drawn.height} pixels tall; the screenshot shows only its top."
+            )
+    for title, notes in (
+        ("Uncaught errors", drawn.errors),
+        ("Console errors and warnings", drawn.console),
+        ("Security policy refusals", drawn.policy),
+        ("Blocked requests", drawn.blocked),
+        ("Dismissed dialogs", drawn.dialogs),
+    ):
+        if notes:
+            lines.extend([f"{title}:", *(f"- {note}" for note in notes)])
+    if not drawn.timed_out and not any(
+        (drawn.errors, drawn.console, drawn.policy, drawn.blocked, drawn.dialogs)
+    ):
+        lines.append("No rendering errors or warnings were reported.")
+    return "\n".join(lines)
 
 
 async def picture_of_turn(

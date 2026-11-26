@@ -344,6 +344,27 @@ function icuContract(message: string): IcuContract {
   };
 }
 
+it("French covers the visual workspace, preview tool and onboarding messages", () => {
+  const translated = new Map(entries(fr));
+  const prefixes = [
+    "chat.workspace.",
+    "chat.visuals.",
+    "capabilityConfig.visuals.",
+    "onboarding.steps.chat-workspace-tabs.",
+    "onboarding.steps.chat-visual-workspace.",
+  ];
+  const missing = entries(en)
+    .map(([key]) => key)
+    .filter(
+      (key) =>
+        prefixes.some((prefix) => key.startsWith(prefix)) ||
+        key === "chat.tools.previewVisual" ||
+        key === "chat.tools.previewingVisual",
+    )
+    .filter((key) => !translated.has(key));
+  expect(missing).toEqual([]);
+});
+
 it("French preserves the arguments, rich-text links and selector values supplied by callers", () => {
   const translated = new Map(entries(fr));
   const mismatches = entries(en).flatMap(([key, message]) => {
