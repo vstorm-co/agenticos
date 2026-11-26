@@ -112,7 +112,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
-    git ca-certificates ffmpeg \
+    git ca-certificates ffmpeg tini \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # What `gssapi` loads at run time, for an image built with the `kerberos` extra.
@@ -165,4 +165,8 @@ EXPOSE 8000
 # the one thing a health status exists to show. An image cannot know which of the
 # two it was started as; a service definition does. Both probes are in the compose
 # files, one per service.
+# Tini stays in front of every image command so the container gets signal
+# forwarding and child reaping even when the deployment platform does not enable
+# its own init. `-s` also covers platforms that add an outer PID 1 init.
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["python", "-m", "cli.commands", "server", "run", "--host", "0.0.0.0", "--port", "8000"]
