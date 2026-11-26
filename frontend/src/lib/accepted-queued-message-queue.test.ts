@@ -4,9 +4,11 @@ import type { QueuedMessage } from "@/types/chat";
 import type { AcceptedQueuedMessageReceipt } from "./accepted-queued-messages-api";
 import {
   acceptedQueuePayload,
+  ensureQueueClientId,
   queueFromReceipt,
   queueMayDrain,
   queueMaySteer,
+  queueReceiptPayloadUnsupportedReason,
   queueTaskUnavailableReason,
 } from "./accepted-queued-message-queue";
 
@@ -110,6 +112,48 @@ describe("accepted queued message payloads", () => {
     expect(acceptedQueuePayload(queued({ queueSettings: undefined }))).toBeNull();
   });
 
+  it("keeps existing idempotency keys and explains every unsupported frozen payload", () => {
+    const valid = queued();
+    expect(ensureQueueClientId(valid)).toBe(valid);
+
+    const alreadyAccepted = queued({ acceptedQueueId: receiptId, clientQueueId: undefined });
+    expect(ensureQueueClientId(alreadyAccepted)).toBe(alreadyAccepted);
+
+    const legacy = queued({ clientQueueId: "legacy-id", acceptedQueueId: undefined });
+    expect(ensureQueueClientId(legacy).clientQueueId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
+    expect(queueReceiptPayloadUnsupportedReason(queued({ agentId: null }))).toBe("agent");
+    expect(queueReceiptPayloadUnsupportedReason(queued({ clientQueueId: undefined }))).toBe(
+      "client_id",
+    );
+    expect(acceptedQueuePayload(queued({ clientQueueId: "bad-id" }))).toBeNull();
+    expect(
+      queueReceiptPayloadUnsupportedReason(
+        queued({ queueSettings: { modelProfileId: null, approvalMode: "ask_all" } }),
+      ),
+    ).toBe("settings");
+    expect(
+      queueReceiptPayloadUnsupportedReason(
+        queued({
+          submission: {
+            agentId: "agent-1",
+            pageContext: null,
+            local: { payload: { folder: "C:/other" }, fileRoot: "C:/work", projectId: null },
+          },
+        }),
+      ),
+    ).toBe("context");
+
+    const fromSubmission = queued({
+      agentId: undefined,
+      submission: { agentId: "agent-2", pageContext: null },
+    });
+    expect(acceptedQueuePayload(fromSubmission)?.agent_id).toBe("agent-2");
+    expect(acceptedQueuePayload(queued({ agentId: undefined }))).toBeNull();
+  });
+
   it("does not let receipt mode drain rows without a valid pending receipt", () => {
     expect(queueMayDrain(queued(), true)).toBe(true);
     expect(queueMayDrain(queued({ agentId: undefined }), true)).toBe(false);
@@ -119,6 +163,20 @@ describe("accepted queued message payloads", () => {
     expect(queueMayDrain(queued({ receiptState: "steering" }), true)).toBe(false);
     expect(queueMayDrain(queued(), false)).toBe(false);
     expect(queueMayDrain({ id: "legacy", content: "legacy row" }, false)).toBe(true);
+  });
+
+  it("keeps refused, in-flight, and unconfirmed rows out of the drain", () => {
+    const blocked: Array<QueuedMessage | undefined> = [
+      undefined,
+      queued({ refused: "server refused it" }),
+      queued({ receiptReconciliationPending: true }),
+      queued({ accepting: true }),
+      queued({ transferring: true }),
+      queued({ receiptError: "unknown receipt" }),
+      queued({ transferError: "unknown transfer" }),
+    ];
+    for (const message of blocked) expect(queueMayDrain(message, true)).toBe(false);
+    expect(queueMayDrain(queued({ acceptedQueueId: receiptId }), false)).toBe(false);
   });
 
   it("steers only plain text for the live frozen agent", () => {
@@ -148,6 +206,51 @@ describe("accepted queued message payloads", () => {
     ).toBe(false);
   });
 
+  it("rejects steering unless the pending receipt is plain text for the active agent", () => {
+    const submittedAgent = queued({
+      agentId: undefined,
+      submission: { agentId: "agent-1", pageContext: null },
+    });
+    expect(queueMaySteer(submittedAgent, "agent-1", true)).toBe(true);
+
+    const blocked: Array<QueuedMessage | undefined> = [
+      undefined,
+      queued({ acceptedQueueId: "bad-id" }),
+      queued({ refused: "server refused it" }),
+      queued({ receiptReconciliationPending: true }),
+      queued({ accepting: true }),
+      queued({ transferring: true }),
+      queued({ cancelRequested: true }),
+      queued({ receiptError: "unknown receipt" }),
+      queued({ receiptErrorAction: "send" }),
+      queued({ receiptUnsupported: true }),
+      queued({ transferError: "unknown transfer" }),
+      queued({
+        files: [{ id: "file-1", filename: "a.txt", mime_type: "text/plain", file_type: "text" }],
+      }),
+      queued({ mentions: [{ kind: "collection", id: "collection-1", name: "Reports" }] }),
+      queued({ replyTo: { messageId: "m-1", role: "assistant", excerpt: "answer" } }),
+      queued({ submission: { agentId: "agent-1", pageContext: { path: "/" } as never } }),
+      queued({
+        submission: {
+          agentId: "agent-1",
+          pageContext: null,
+          local: { payload: null, fileRoot: "C:/work", projectId: null },
+        },
+      }),
+      queued({
+        submission: {
+          agentId: "agent-1",
+          pageContext: null,
+          local: { payload: null, fileRoot: null, projectId: "project-1" },
+        },
+      }),
+    ];
+    expect(queueMaySteer(queued(), "agent-1", false)).toBe(false);
+    expect(queueMaySteer(queued(), null, true)).toBe(false);
+    for (const message of blocked) expect(queueMaySteer(message, "agent-1", true)).toBe(false);
+  });
+
   it("rebuilds receipt truth without retaining stale files or quoted text", () => {
     const existing = queued({
       files: [{ id: "old-file", filename: "old.txt", mime_type: "text/plain", file_type: "text" }],
@@ -175,6 +278,62 @@ describe("accepted queued message payloads", () => {
     expect(restored.replyTo).toMatchObject({ excerpt: "saved quote", selectedText: undefined });
   });
 
+  it("preserves matching local files and mention labels while rebuilding receipt context", () => {
+    const mention = { kind: "collection" as const, id: "collection-1", name: "Reports" };
+    const file = {
+      id: "file-1",
+      filename: "report.txt",
+      mime_type: "text/plain",
+      file_type: "text",
+    };
+    const existing = queued({
+      fileIds: ["file-1"],
+      files: [file],
+      mentions: [mention],
+      receiptReconciliationPending: true,
+      replyTo: { messageId: "reply-1", role: "assistant", excerpt: "old" },
+    });
+    const restored = queueFromReceipt(
+      receipt({
+        file_ids: ["file-1"],
+        mentions: [{ kind: "collection", id: "collection-1" }],
+        local_target: { folder: "C:/work", project_id: "project-1" },
+        reply_to_message_id: "reply-1",
+        reply_to_role: "assistant",
+        quote_excerpt: "saved excerpt",
+      }),
+      existing,
+    );
+
+    expect(restored.files).toBe(existing.files);
+    expect(restored.receiptReconciliationPending).toBeUndefined();
+    expect(restored.mentions).toEqual([mention]);
+    expect(restored.submission?.local).toMatchObject({
+      fileRoot: "C:/work",
+      projectId: "project-1",
+    });
+    expect(restored.replyTo).toMatchObject({ messageId: "reply-1", excerpt: "saved excerpt" });
+
+    const rebuilt = queueFromReceipt(
+      receipt({
+        mentions: [{ kind: "agent", id: "agent-2" }],
+        local_target: { folder: 42, project_id: 17, computer_grant: "grant-1" },
+        reply_to_message_id: null,
+        reply_to_role: null,
+      }),
+      existing,
+    );
+    expect(rebuilt.files).toBeUndefined();
+    expect(rebuilt.mentions).toEqual([{ kind: "agent", id: "agent-2", name: "agent-2" }]);
+    expect(rebuilt.submission?.local).toMatchObject({ fileRoot: null, projectId: null });
+    expect(rebuilt.replyTo).toBeUndefined();
+
+    const grantedComputer = queueFromReceipt(
+      receipt({ local_target: { folder: "C:/work", computer_grant: "computer-1" } }),
+    );
+    expect(grantedComputer.submission?.local).toMatchObject({ fileRoot: null });
+  });
+
   it("blocks task transfer for unsupported local targets while preserving pending drain", () => {
     const computer = queued({
       submission: {
@@ -193,5 +352,35 @@ describe("accepted queued message payloads", () => {
     expect(queueTaskUnavailableReason(computer)).toBe("computer_grant");
     expect(queueTaskUnavailableReason(noDevice)).toBe("device_id");
     expect(queueMayDrain(computer, true)).toBe(true);
+  });
+
+  it("allows task transfer when local access has a device and no extra grant", () => {
+    expect(queueTaskUnavailableReason(queued())).toBeNull();
+    expect(
+      queueTaskUnavailableReason(
+        queued({
+          submission: {
+            agentId: "agent-1",
+            pageContext: null,
+            local: {
+              payload: { device_id: "device-1", routine_grant: "routine-1" },
+              fileRoot: null,
+              projectId: null,
+            },
+          },
+        }),
+      ),
+    ).toBe("routine_grant");
+    expect(
+      queueTaskUnavailableReason(
+        queued({
+          submission: {
+            agentId: "agent-1",
+            pageContext: null,
+            local: { payload: { device_id: "device-1" }, fileRoot: null, projectId: null },
+          },
+        }),
+      ),
+    ).toBeNull();
   });
 });

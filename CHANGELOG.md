@@ -190,6 +190,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Queued chat recovery waits for the saved outbox and confirmed server receipts before sending. Pauses, cancellations and newly queued messages made during recovery are preserved, and uncertain receipts stay blocked for retry.
 - Files panels hide the resize handle when their capped width leaves no resizing range, including panels docked beside the workspace rail.
 - Publishing refuses legacy native Claude profiles whose saved owner is missing, including fallback profiles. Gateway subscription profiles retain their caller-bound behavior.
 - The model picker's opener points to its popup and the search field points to the catalog list, restoring valid accessibility relationships while preserving keyboard navigation.

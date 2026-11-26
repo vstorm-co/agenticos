@@ -16,10 +16,10 @@ export function ensureQueueClientId(message: QueuedMessage): QueuedMessage {
 
 /** The receipt freezes every supported user-authored part of the queue payload. */
 export function acceptedQueuePayload(message: QueuedMessage): AcceptedQueuedMessagePayload | null {
-  if (queueReceiptPayloadUnsupportedReason(message) !== null) return null;
   const clientQueueId = message.clientQueueId;
   const agentId = message.agentId ?? message.submission?.agentId;
   if (!agentId || !clientQueueId || !isUuid(clientQueueId)) return null;
+  if (queueReceiptPayloadUnsupportedReason(message) !== null) return null;
 
   const local = message.submission?.local;
   const localTarget = local?.payload ?? null;
@@ -112,6 +112,7 @@ export function queueFromReceipt(
     },
     accepting: false,
     receiptAcceptanceAttempted: undefined,
+    receiptReconciliationPending: undefined,
     transferring: false,
     receiptError: undefined,
     receiptErrorAction: undefined,
@@ -128,6 +129,7 @@ export function queueMayDrain(message: QueuedMessage | undefined, receiptMode: b
   if (
     !message ||
     message.refused !== undefined ||
+    message.receiptReconciliationPending ||
     message.accepting ||
     message.transferring ||
     message.receiptError !== undefined ||
@@ -158,6 +160,7 @@ export function queueMaySteer(
     (message.agentId ?? message.submission?.agentId) !== liveAgentId ||
     !isUuid(message.acceptedQueueId ?? "") ||
     message.receiptState !== "pending" ||
+    message.receiptReconciliationPending ||
     message.refused !== undefined ||
     message.accepting ||
     message.transferring ||

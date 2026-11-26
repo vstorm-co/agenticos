@@ -49,6 +49,8 @@ export interface QueuedMessage {
   /** Owner-scoped server receipt; present before a queued row can drain or transfer. */
   acceptedQueueId?: string;
   receiptState?: "pending" | "steering" | "steered" | "sent" | "task" | "cancelled";
+  /** Cached receipt state stays blocked until the current conversation confirms it. */
+  receiptReconciliationPending?: boolean;
   steeringRunId?: string;
   accepting?: boolean;
   /** True only after the initial acceptance request could have reached the server. */

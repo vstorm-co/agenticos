@@ -11,6 +11,7 @@ vi.mock("@/lib/api-client", () => ({ apiClient: { get, post, delete: del } }));
 import {
   acceptedQueuedMessagesApi,
   listAcceptedQueuedMessages,
+  newQueueClientId,
 } from "./accepted-queued-messages-api";
 
 describe("accepted queued message API", () => {
@@ -67,5 +68,17 @@ describe("accepted queued message API", () => {
 
     await expect(listAcceptedQueuedMessages("chat-1")).rejects.toThrow();
     expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates a valid version-four id when the platform has no randomUUID", () => {
+    vi.stubGlobal("crypto", undefined);
+
+    try {
+      expect(newQueueClientId()).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

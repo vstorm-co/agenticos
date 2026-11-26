@@ -54,13 +54,30 @@ describe("accepted queue transfer reconciliation", () => {
     expect(get).toHaveBeenCalledWith("source-chat", "receipt-1");
   });
 
-  it("does not navigate to the source chat when task topic metadata is incomplete", async () => {
+  it.each([
+    ["task id", { task_id: null }],
+    ["task conversation id", { task_conversation_id: null }],
+  ] as const)("does not navigate to the source chat when the %s is missing", async (_, missing) => {
     runAsTask.mockRejectedValueOnce(new Error("network"));
-    get.mockResolvedValueOnce(taskReceipt({ task_conversation_id: null }));
+    get.mockResolvedValueOnce(taskReceipt(missing));
 
     const outcome = await transferAcceptedQueueItem("source-chat", "receipt-1");
 
     expect(outcome.kind).toBe("unknown");
+  });
+
+  it("uses a complete task response without an extra receipt read", async () => {
+    runAsTask.mockResolvedValueOnce({
+      id: "task-2",
+      conversation_id: "task-topic-2",
+      status: "queued",
+    });
+
+    await expect(transferAcceptedQueueItem("source-chat", "receipt-1")).resolves.toEqual({
+      kind: "task",
+      task: { id: "task-2", conversation_id: "task-topic-2", status: "queued" },
+    });
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("recovers task metadata when the action response is incomplete", async () => {
@@ -73,12 +90,74 @@ describe("accepted queue transfer reconciliation", () => {
     });
   });
 
+  it.each(["sent", "steered", "cancelled"] as const)(
+    "uses the receipt's %s disposition after a lost task response",
+    async (state) => {
+      runAsTask.mockRejectedValueOnce(new Error("network"));
+      get.mockResolvedValueOnce(taskReceipt({ state }));
+
+      await expect(transferAcceptedQueueItem("source-chat", "receipt-1")).resolves.toEqual({
+        kind: state,
+      });
+    },
+  );
+
+  it("returns pending receipt state when an incomplete task response did not transfer it", async () => {
+    runAsTask.mockResolvedValueOnce({ id: "task-1", conversation_id: "" });
+    get.mockResolvedValueOnce(taskReceipt({ state: "pending" }));
+
+    await expect(transferAcceptedQueueItem("source-chat", "receipt-1")).resolves.toMatchObject({
+      kind: "pending",
+      error: expect.any(Error),
+    });
+  });
+
+  it("keeps the outcome unknown when both an incomplete response and receipt read fail", async () => {
+    runAsTask.mockResolvedValueOnce({ id: "", conversation_id: "" });
+    get.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(transferAcceptedQueueItem("source-chat", "receipt-1")).resolves.toMatchObject({
+      kind: "unknown",
+      error: expect.any(Error),
+    });
+  });
+
+  it("keeps the original task error when receipt recovery also fails", async () => {
+    const networkError = new Error("network");
+    runAsTask.mockRejectedValueOnce(networkError);
+    get.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(transferAcceptedQueueItem("source-chat", "receipt-1")).resolves.toEqual({
+      kind: "unknown",
+      error: networkError,
+    });
+  });
+
   it("keeps cancellation unresolved when neither response nor receipt can be read", async () => {
     cancel.mockRejectedValueOnce(new Error("network"));
     get.mockRejectedValueOnce(new Error("offline"));
 
     await expect(cancelAcceptedQueueItem("source-chat", "receipt-1")).resolves.toMatchObject({
       kind: "unknown",
+    });
+  });
+
+  it("reconciles a successful cancellation response that is still pending", async () => {
+    cancel.mockResolvedValueOnce(taskReceipt({ state: "steering" }));
+
+    await expect(cancelAcceptedQueueItem("source-chat", "receipt-1")).resolves.toMatchObject({
+      kind: "steering",
+      error: expect.any(Error),
+    });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("uses a terminal receipt after a lost cancellation response", async () => {
+    cancel.mockRejectedValueOnce(new Error("network"));
+    get.mockResolvedValueOnce(taskReceipt({ state: "cancelled" }));
+
+    await expect(cancelAcceptedQueueItem("source-chat", "receipt-1")).resolves.toEqual({
+      kind: "cancelled",
     });
   });
 });
