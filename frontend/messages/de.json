@@ -15585,6 +15585,9 @@
       "number": "Fallnummer"
     },
     "helpers": {
+      "guidance": "Hinweise für dieses Dataset",
+      "guidanceHint": "Werden unter den Plattformregeln für diesen Helfer ergänzt. Die Regeln gelten immer; Hinweise können sie weder ändern noch entfernen.",
+      "platformRules": "Plattformregeln (nur lesbar)",
       "generatorTitle": "Testfälle generieren",
       "generatorDescription": "Wähle das Modell und die Anweisungen für Testfälle dieses Datensatzes. Generierte Fälle warten auf deine Freigabe.",
       "improverTitle": "Agent verbessern",
@@ -17421,6 +17424,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
     "analysisEstimate": "Geschätzte Analysekosten",
+    "guidance": {
+      "title": "Dataset-Hinweise für den Helfer",
+      "hint": "Der Helfer liest sie unter den Plattformregeln, die immer gelten. Geschrieben hat sie, wer dieses Dataset bearbeitet.",
+      "changed": "{who, select, named {Zuletzt geändert von {name}.} former {Zuletzt geändert von einem ehemaligen Mitglied.} other {}}",
+      "changedOn": "{who, select, named {Zuletzt geändert von {name} am {date}.} former {Zuletzt geändert von einem ehemaligen Mitglied am {date}.} other {Zuletzt geändert am {date}.}}"
+    },
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",
     "comparisonInvalid": "Diese Ergebnisse sind nicht vergleichbar. Prüfe die einzelnen Antworten, ohne Unterschiede als Verbesserungen oder Regressionen zu werten.",
     "skills": {

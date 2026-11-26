@@ -60,8 +60,8 @@ class TestPack:
 
         text = run.render()
 
-        assert "rated down" in text and "Reader comment: You said 90 days" in text
-        assert "Called: search_knowledge" in text and "Error: Timed out" in text
+        assert "rated down" in text and "Reader comment:\n```\nYou said 90 days" in text
+        assert "Called:\n```\nsearch_knowledge" in text and "Error:\n```\nTimed out\n```" in text
         assert "rated up" in _packed(rating=1).render()
         assert "not rated" in _packed(rating=0, error=None).render()
 
@@ -128,10 +128,10 @@ class TestPack:
         first, conversation, second = (run.render() for run in pack.runs)
 
         assert first.startswith(f"## Test question 1 (run {question.run_id})")
-        assert "Test question from the dataset: Is delivery free?" in first
+        assert "Test question from the dataset:\n```\nIs delivery free?\n```" in first
         assert "Asked:" not in first
         assert conversation.startswith(f"## Conversation 1 (run {chat.run_id})")
-        assert "Asked: Can I get a refund?" in conversation
+        assert "Asked:\n```\nCan I get a refund?\n```" in conversation
         assert second.startswith("## Test question 2 ")
         assert pack.label_of(chat.run_id) == f"conversation 1 (run {chat.run_id})"
         unknown = uuid.uuid4()
@@ -171,9 +171,11 @@ class TestPrompt:
         assert "refer to an item by exactly its label" in section
         assert "never call a test question a conversation" in section
         assert "## Test question 1 (run" in section
-        assert "Test question from the dataset: Where do I print a return label?" in section
+        assert (
+            "Test question from the dataset:\n```\nWhere do I print a return label?\n```" in section
+        )
         assert "## Conversation 1 (run" in section
-        assert "Asked: My refund never arrived" in section
+        assert "Asked:\n```\nMy refund never arrived" in section
         assert section.index("refer to an item") < section.index("## Test question 1")
         assert _evidence_section(EvidencePack(), None) == ""
 
@@ -457,10 +459,10 @@ class TestTrainingFeedback:
             ("Follows the policy", "fail"),
             ("regex '30'", "fail"),
         ]
-        assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
+        assert "Graded:\n```\njudge/Follows the policy: 1/5: It quotes 90 days\n```" in run.render()
         assert "It quotes 90 days" in run.quotable
         named = replace(run, grades=(run.grades[1].model_copy(update={"family": "total"}),))
-        assert "Graded: check/regex '30' (family: total): " in named.render()
+        assert "Graded:\n```\ncheck/regex '30' (family: total): " in named.render()
 
     @pytest.mark.parametrize(
         ("uncovered", "judged_too", "knowledge_only"),

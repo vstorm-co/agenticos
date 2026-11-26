@@ -15672,6 +15672,9 @@
       "number": "Numer przypadku"
     },
     "helpers": {
+      "guidance": "Wskazówki dla tego datasetu",
+      "guidanceHint": "Dodawane pod regułami platformy dla tego helpera. Reguły obowiązują zawsze; wskazówki nie mogą ich zmienić ani usunąć.",
+      "platformRules": "Reguły platformy (tylko do odczytu)",
       "generatorTitle": "Generowanie przypadków",
       "generatorDescription": "Wybierz model i instrukcje do tworzenia przypadków dla tego datasetu. Wygenerowane przypadki czekają na Twoją akceptację.",
       "improverTitle": "Ulepszanie agenta",
@@ -17508,6 +17511,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "analysisEstimate": "Szacowany koszt analizy",
+    "guidance": {
+      "title": "Wskazówki datasetu dla pomocnika",
+      "hint": "Pomocnik czyta je pod regułami platformy, które obowiązują zawsze. Napisał je ktoś, kto edytuje ten dataset.",
+      "changed": "{who, select, named {Ostatnia zmiana: {name}.} former {Ostatnia zmiana: były członek.} other {}}",
+      "changedOn": "{who, select, named {Ostatnia zmiana: {name}, {date}.} former {Ostatnia zmiana: były członek, {date}.} other {Ostatnia zmiana: {date}.}}"
+    },
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
     "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
     "skills": {

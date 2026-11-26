@@ -90,9 +90,9 @@ beforeEach(() => {
 it("sends only the edited helper so another settings form cannot overwrite it", async () => {
   render(<HelperSettings dataset={configured()} kind="generator" />);
   await userEvent.click(screen.getByRole("button", { name: "old-model" }));
-  await userEvent.clear(screen.getByRole("textbox", { name: "Instructions" }));
+  await userEvent.clear(screen.getByRole("textbox", { name: "Dataset-specific guidance" }));
   await userEvent.type(
-    screen.getByRole("textbox", { name: "Instructions" }),
+    screen.getByRole("textbox", { name: "Dataset-specific guidance" }),
     "Use actual policy examples.",
   );
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -125,12 +125,12 @@ it("shows code defaults on demand to readers without offering edits", async () =
       kind="generator"
     />,
   );
-  expect(screen.queryByRole("textbox", { name: "Instructions" })).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
-  expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-    "Code generator instructions",
-  );
-  expect(screen.getByRole("textbox", { name: "Instructions" })).toBeDisabled();
+  expect(screen.queryByRole("textbox", { name: "Dataset-specific guidance" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Dataset-specific guidance" }));
+  expect(screen.getByRole("textbox", { name: "Dataset-specific guidance" })).toHaveValue("");
+  expect(screen.getByRole("textbox", { name: "Dataset-specific guidance" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Platform rules (read-only)" }));
+  expect(screen.getByText("Code generator instructions")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Choose model" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
 });
@@ -147,7 +147,7 @@ it("refreshes untouched settings and keeps actual unsaved instructions during a 
   };
   rerender(<HelperSettings dataset={updated} kind="generator" />);
   expect(screen.getByRole("button", { name: "server-model" })).toBeInTheDocument();
-  const instructions = screen.getByRole("textbox", { name: "Instructions" });
+  const instructions = screen.getByRole("textbox", { name: "Dataset-specific guidance" });
   expect(instructions).toHaveValue("New server instructions.");
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   await userEvent.clear(instructions);
@@ -175,7 +175,7 @@ it("shows the instructions normalized by the server after saving", async () => {
   };
   state.save.mockResolvedValue(saved);
   const { rerender } = render(<HelperSettings dataset={initial} kind="generator" />);
-  const instructions = screen.getByRole("textbox", { name: "Instructions" });
+  const instructions = screen.getByRole("textbox", { name: "Dataset-specific guidance" });
   await userEvent.clear(instructions);
   await userEvent.type(instructions, "  Normalized instructions.  ");
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -199,4 +199,13 @@ it("keeps the same action footer and help text mounted when the model changes", 
   await userEvent.click(cancel);
   expect(save).toBeDisabled();
   expect(screen.getByRole("button", { name: "Save" })).toBe(save);
+});
+
+it("saves cleared guidance as none, never as an empty text", async () => {
+  render(<HelperSettings dataset={configured()} kind="improver" />);
+  await userEvent.clear(screen.getByRole("textbox", { name: "Dataset-specific guidance" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(state.save).toHaveBeenCalledWith({
+    helper_settings: { improver: { model_profile_id: "improve-model", instructions: null } },
+  });
 });

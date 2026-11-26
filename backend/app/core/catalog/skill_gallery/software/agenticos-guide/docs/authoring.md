@@ -27,7 +27,7 @@ It does three things:
 
 In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
-**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and any dataset-specific guidance, added below the platform's rules for the helper and never in place of them; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
@@ -428,7 +428,7 @@ A session lives at `/agents/<agent>/improve/<session>`; the page can be closed a
 
 A step opens once it has work to show or a decision to ask for; the page follows the step the session is on, and after you open another one, **Go to the current step** brings it back. At a stop the footer holds the next step with its price, for example **Next step: write the changes · about $0.04**; nothing is spent before you press it. When the price moved since it was shown, the footer says so - **The price changed to about $0.05. Press again to go on.** - and when the step costs more than the session has left, it offers to raise the session's limit right there.
 
-**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written.
+**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written. When the dataset has guidance for the improver, the dialog shows it with who last changed it: a member by name, and somebody who has left as a former member.
 
 The analysis cost and whole-session spending limit appear before **Start improving**. Each later step has its own estimate and waits for your decision. **Show details** holds the spending-limit input, question distribution, today's test and a link to the dataset's helper settings. The running session opens its own page after you start. Closing the setup dialog returns to the agent; existing `/improve/new` links open the same dialog.
 

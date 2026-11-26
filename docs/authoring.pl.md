@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "14cefa66f5c8"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -28,7 +28,7 @@ Robi trzy rzeczy:
 
 W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
-**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
+**Improve** otwiera sesję ulepszania. Model ulepszania i ewentualne wskazówki datasetu należą do **Ustawień** wybranego datasetu; wskazówki dochodzą pod regułami platformy dla pomocnika i nigdy ich nie zastępują; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 
@@ -444,7 +444,7 @@ Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i o
 
 Krok otwiera się, gdy ma pracę do pokazania albo decyzję do podjęcia. Strona podąża za krokiem, na którym jest sesja, a po otwarciu innego kroku **Przejdź do bieżącego kroku** wraca do niego. Na postoju stopka zawiera następny krok z ceną, na przykład **Następny krok: napisz zmiany · ok. $0.04**; nic nie jest wydawane, zanim go naciśniesz. Gdy cena zmieniła się od pokazania, stopka to mówi - **Cena zmieniła się na ok. $0.05. Naciśnij jeszcze raz, aby przejść dalej.** - a gdy krok kosztuje więcej, niż zostało sesji, pozwala od razu podnieść jej limit.
 
-**Start.** Improve otwiera okno nad Agent Builderem. Dataset wybierasz w głównym formularzu; własny zestaw testowy agenta jest wybrany, jeśli istnieje. Liczniki feedbacku podsumowują materiał do analizy. Jeśli nie ma odpowiedniego zestawu, **Napisz dla mnie pytania testowe** wycenia utworzenie pytań z ocenionych odpowiedzi i tematów bez przykładów, zanim cokolwiek zostanie napisane.
+**Start.** Improve otwiera okno nad Agent Builderem. Dataset wybierasz w głównym formularzu; własny zestaw testowy agenta jest wybrany, jeśli istnieje. Liczniki feedbacku podsumowują materiał do analizy. Jeśli nie ma odpowiedniego zestawu, **Napisz dla mnie pytania testowe** wycenia utworzenie pytań z ocenionych odpowiedzi i tematów bez przykładów, zanim cokolwiek zostanie napisane. Gdy dataset ma wskazówki dla pomocnika ulepszania, okno pokazuje je razem z tym, kto ostatnio je zmienił: członka z imienia i nazwiska, a osobę, która odeszła, jako byłego członka.
 
 Koszt analizy i limit wydatków całej sesji pojawiają się przed **Zacznij poprawianie**. Każdy kolejny krok ma osobną wycenę i czeka na twoją decyzję. **Pokaż szczegóły** zawiera pole limitu wydatków, podział pytań, dzisiejszy test i link do ustawień pomocnika w datasecie. Uruchomiona sesja otwiera własną stronę. Zamknięcie okna konfiguracji wraca do agenta; istniejące linki `/improve/new` otwierają to samo okno.
 
