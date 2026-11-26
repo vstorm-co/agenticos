@@ -65,6 +65,7 @@ import * as receivedInvitations from "./invitations/received/route";
 import * as acceptReceivedInvitation from "./invitations/received/[id]/accept/route";
 import * as orgs from "./orgs/route";
 import * as org from "./orgs/[id]/route";
+import * as orgCurrency from "./orgs/[id]/currency/route";
 import * as orgInvitations from "./orgs/[id]/invitations/route";
 import * as orgInvitation from "./orgs/[id]/invitations/[invitationId]/route";
 import * as orgMembers from "./orgs/[id]/members/route";
@@ -238,6 +239,15 @@ describe("the proxied route mounts", () => {
     );
     expect(response.status).toBe(401);
   });
+  it("limits organization currency to session-authenticated reads", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(orgCurrency)).toEqual(["GET"]);
+    const response = await orgCurrency.GET(
+      new NextRequest("http://localhost/api/orgs/o1/currency"),
+    );
+    expect(response.status).toBe(401);
+  });
+
   it("limits received invitations to session-authenticated reads and acceptance", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(receivedInvitations)).toEqual(["GET"]);
