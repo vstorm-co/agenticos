@@ -17622,6 +17622,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
     "guidance": {
       "title": "Datasetrichtlijnen voor de helper",
       "hint": "De helper leest ze onder de platformregels, die altijd gelden. Iemand die deze dataset bewerkt, heeft ze geschreven.",

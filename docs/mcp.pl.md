@@ -1,5 +1,5 @@
 ---
-source_sha: "6dfede33ed02"
+source_sha: "2156e3a06edc"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -231,11 +231,7 @@ nie dowodzi niższego kosztu.
 Dla zewnętrznego serwera `approval: none` przepuszcza wywołania, `writes` pyta przed
 narzędziami bez `readOnlyHint: true`, a `all` także przed odczytami. Wskazówkę podaje
 sam serwer; wybierz `all`, jeśli nie ufasz jego klasyfikacji. Zewnętrzny klient MCP,
-np. Claude Code, stosuje własne ustawienia potwierdzania. Serwer samego AgenticOS
-oznacza `destructiveHint: true` każde wywołanie, które w AgenticOS zawsze pyta osobę,
-każdy zapis zadania lub rekordu tabeli, który może uruchomić agenta,
-oraz każde delete, discard, end i publish, a jego instrukcje każą klientowi
-potwierdzić je najpierw z osobą.
+np. Claude Code, stosuje własne ustawienia potwierdzania.
 
 Powiązanie platformy wymusza co najmniej `writes`. Zaufane wartości domyślne pozwalają
 bez potwierdzenia wykonywać autoryzowane odczyty, przygotowywać wersje robocze,
@@ -1303,7 +1299,7 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
-| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view`, podobnie jak lista wszystkich otwartych sesji bez wskazania agenta |
+| `list_improvements`, `get_improvement` | `runs:view` i dostęp do odczytu agenta |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |

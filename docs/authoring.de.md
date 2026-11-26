@@ -1,5 +1,5 @@
 ---
-source_sha: "14cefa66f5c8"
+source_sha: "ce12dc0a5334"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -28,7 +28,7 @@ Er tut drei Dinge:
 
 Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-**Improve** öffnet eine Verbesserungssitzung. Modell und eventuelle Dataset-Hinweise stehen in den **Einstellungen** des gewählten Datasets; die Hinweise kommen unter die Plattformregeln des Helfers und ersetzen sie nie; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
+**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
@@ -326,7 +326,9 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 | Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
-diesen Agent verbessern.
+diesen Agent verbessern, wenn seine Rolle auch `runs:view` hat - Owner, Admin,
+Builder oder Operator. Member und Viewer haben kein `runs:view`, also lässt ein
+Grant allein sie keine Sitzung starten oder lesen.
 
 Wenn eine API-Anfrage einen Hilfsagent auswählt, brauchen Sie sowohl Lese- als
 auch Ausführungsrechte für ihn. Ein fehlender oder nicht zugänglicher Hilfsagent
@@ -471,7 +473,7 @@ Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt s
 
 Ein Schritt öffnet sich, sobald er Arbeit zu zeigen oder eine Entscheidung zu erfragen hat. Die Seite folgt dem Schritt, auf dem die Sitzung steht; nachdem Sie einen anderen geöffnet haben, führt **Zum aktuellen Schritt** dorthin zurück. An einem Halt trägt die Fußzeile den nächsten Schritt mit seinem Preis, zum Beispiel **Nächster Schritt: Änderungen schreiben · ca. $0.04**; nichts wird ausgegeben, bevor Sie ihn drücken. Hat sich der Preis seit der Anzeige bewegt, sagt die Fußzeile das - **Der Preis hat sich auf ca. $0.05 geändert. Drücken Sie erneut, um fortzufahren.** -, und kostet der Schritt mehr, als der Sitzung bleibt, lässt sich ihr Limit gleich dort erhöhen.
 
-**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird. Hat das Dataset Hinweise für den Verbesserungshelfer, zeigt der Dialog sie mit der Person, die sie zuletzt geändert hat: ein Mitglied mit Namen, wer gegangen ist, als ehemaliges Mitglied.
+**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird.
 
 Analysekosten und Ausgabenlimit der gesamten Sitzung erscheinen vor **Verbesserung starten**. Jeder weitere Schritt hat eine eigene Schätzung und wartet auf Ihre Entscheidung. **Details anzeigen** enthält das Ausgabenlimit, die Fragenaufteilung, den heutigen Test und einen Link zu den Helfereinstellungen des Datasets. Nach dem Start öffnet die laufende Sitzung ihre eigene Seite. Das Schließen des Einrichtungsdialogs führt zum Agent zurück; bestehende `/improve/new`-Links öffnen denselben Dialog.
 

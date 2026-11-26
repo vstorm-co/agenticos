@@ -1258,7 +1258,7 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (the caller's own; a key needs `agents:run` for `test_my_connection`) |
-| `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view`, as does listing every open session without naming an agent |
+| `list_improvements`, `get_improvement` | `runs:view`, and read access to the agent |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |

@@ -14,7 +14,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import OrgRoleName
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.improvement import ImprovementRun
@@ -208,7 +213,8 @@ async def test_anyone_who_may_start_takes_the_next_step_and_the_session_runs_as_
     builder = await _member(db, ctx, OrgRoleName.BUILDER)
     viewer = await _member(db, ctx, OrgRoleName.VIEWER)
     assert (await service.read(builder, agent.id, waiting.id)).can_restart
-    assert not (await service.read(viewer, agent.id, waiting.id)).can_restart
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.read(viewer, agent.id, waiting.id)
     with pytest.raises(NotFoundError):
         await service.estimate_continuation(
             viewer, agent.id, waiting.id, ImprovementContinue(budget_usd=waiting.budget_usd)

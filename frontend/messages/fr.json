@@ -17211,6 +17211,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choisissez les cas utilisés pour vérifier les réponses de cet agent.",
     "analysisEstimate": "Coût estimé de l’analyse",
+    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation.",
     "guidance": {
       "title": "Consignes du dataset pour l’assistant",
       "hint": "L’assistant les lit sous les règles de la plateforme, qui s’appliquent toujours. Elles ont été écrites par une personne qui modifie ce dataset.",
