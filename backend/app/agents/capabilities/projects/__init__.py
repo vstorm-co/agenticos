@@ -49,7 +49,7 @@ PROJECTS_CAPABILITY_ID = "projects"
         ),
         CapabilityToolInfo(
             id="transfer_project_file",
-            description="Transfer a bounded file between project storage and the agent workspace without passing its contents through the model.",
+            description="Transfer one file as bytes between the selected project and the agent workspace.",
             side_effecting=True,
             read_only=False,
         ),

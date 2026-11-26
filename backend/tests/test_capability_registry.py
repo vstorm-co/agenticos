@@ -632,6 +632,7 @@ class TestReadOnlyDeclarations:
             ("sandbox", "edit_file"),
             ("sandbox", "execute"),
             ("projects", "write_project_file"),
+            ("projects", "transfer_project_file"),
             ("visuals", "draw"),
             ("visuals", "revise_visual"),
             ("visuals", "read_visual"),
