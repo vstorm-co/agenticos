@@ -86,23 +86,35 @@ def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
 
 
-def described_for(ctx: AuthContext, tool_id: str, person_id: UUID | None) -> bool:
+def _platform_call(tool_id: str, capability_tool_id: str | None) -> bool:
+    """Whether a parked call is one of the platform's own tools.
+
+    A capability's call is parked with its tool's stable id, and a binding may
+    rename that tool to anything, the platform's prefix included; a platform
+    tool has no such id.
+    """
+    return capability_tool_id is None and tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
+
+
+def described_for(
+    ctx: AuthContext, tool_id: str, person_id: UUID | None, *, capability_tool_id: str | None
+) -> bool:
     """Whether `ctx` may read the stored description of a parked call.
 
     A platform call is described with the names its run's person may read - an
     agent, a skill, a dataset - so only that person reads them; everyone else
     decides from its arguments. Any other call's description has its own rule.
     """
-    return not tool_id.startswith(f"{PLATFORM_MCP_NAME}_") or _own_run(ctx, person_id)
+    return not _platform_call(tool_id, capability_tool_id) or _own_run(ctx, person_id)
 
 
-def runs_as_its_person(tool_id: str, *, always_asks: bool) -> bool:
+def runs_as_its_person(tool_id: str, *, always_asks: bool, capability_tool_id: str | None) -> bool:
     """Whether this is a platform call that always asks.
 
     Such a call runs with the platform authority of the person its run acts for,
     so only that person's answer may release it.
     """
-    return always_asks and tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
+    return always_asks and _platform_call(tool_id, capability_tool_id)
 
 
 def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
@@ -119,7 +131,12 @@ def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
 
 
 def may_decide(
-    ctx: AuthContext, *, tool_id: str, always_asks: bool, person_id: UUID | None
+    ctx: AuthContext,
+    *,
+    tool_id: str,
+    always_asks: bool,
+    capability_tool_id: str | None,
+    person_id: UUID | None,
 ) -> bool:
     """Whether `ctx` may answer this parked call at all.
 
@@ -127,7 +144,8 @@ def may_decide(
     that always asks, which needs no permission beyond being that person.
     """
     return ctx.has(Perm.APPROVALS_DECIDE) or (
-        runs_as_its_person(tool_id, always_asks=always_asks) and answers_for(ctx, person_id)
+        runs_as_its_person(tool_id, always_asks=always_asks, capability_tool_id=capability_tool_id)
+        and answers_for(ctx, person_id)
     )
 
 
@@ -136,13 +154,14 @@ def may_approve(
     *,
     tool_id: str,
     always_asks: bool,
+    capability_tool_id: str | None,
     person_id: UUID | None,
     content_hidden: bool,
 ) -> bool:
     """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
     if always_asks and content_hidden:
         return False
-    if runs_as_its_person(tool_id, always_asks=always_asks):
+    if runs_as_its_person(tool_id, always_asks=always_asks, capability_tool_id=capability_tool_id):
         return answers_for(ctx, person_id)
     return ctx.has(Perm.APPROVALS_DECIDE)
 
@@ -161,7 +180,11 @@ async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentR
     )
     return any(
         str(approval.id) in parked
-        and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        and runs_as_its_person(
+            approval.tool_id,
+            always_asks=approval.always_asks,
+            capability_tool_id=approval.capability_tool_id,
+        )
         for approval in approvals
     )
 
@@ -178,7 +201,11 @@ async def holds_approved_own_call(db: AsyncSession, run: AgentRun) -> bool:
     return any(
         str(approval.id) in parked
         and approval.status == ApprovalStatus.APPROVED.value
-        and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        and runs_as_its_person(
+            approval.tool_id,
+            always_asks=approval.always_asks,
+            capability_tool_id=approval.capability_tool_id,
+        )
         for approval in approvals
     )
 
@@ -338,6 +365,7 @@ class ApprovalService:
                     ctx,
                     tool_id=row.tool_id,
                     always_asks=row.always_asks,
+                    capability_tool_id=row.capability_tool_id,
                     person_id=row.acts_for_user_id,
                     content_hidden=row.content_hidden,
                 ),
@@ -356,7 +384,9 @@ class ApprovalService:
         """
         rows = [
             row
-            if described_for(ctx, row.tool_id, row.acts_for_user_id)
+            if described_for(
+                ctx, row.tool_id, row.acts_for_user_id, capability_tool_id=row.capability_tool_id
+            )
             else replace(row, context=None)
             for row in rows
         ]
@@ -474,7 +504,11 @@ class ApprovalService:
         )
         person_id = None if run is None else run.user_id
         if not may_decide(
-            ctx, tool_id=approval.tool_id, always_asks=approval.always_asks, person_id=person_id
+            ctx,
+            tool_id=approval.tool_id,
+            always_asks=approval.always_asks,
+            capability_tool_id=approval.capability_tool_id,
+            person_id=person_id,
         ):
             raise AuthorizationError(
                 message="Deciding this tool call needs approvals:decide",
@@ -488,7 +522,11 @@ class ApprovalService:
             )
         if (
             approved
-            and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            and runs_as_its_person(
+                approval.tool_id,
+                always_asks=approval.always_asks,
+                capability_tool_id=approval.capability_tool_id,
+            )
             and not answers_for(ctx, person_id)
         ):
             raise AuthorizationError(

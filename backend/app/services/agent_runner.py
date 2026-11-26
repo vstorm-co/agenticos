@@ -7984,7 +7984,9 @@ class AgentRunnerService:
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            if not described_for(ctx, approval.tool_id, run.user_id):
+            if not described_for(
+                ctx, approval.tool_id, run.user_id, capability_tool_id=approval.capability_tool_id
+            ):
                 context = None
             parked.append(
                 ParkedCall(
@@ -8005,12 +8007,14 @@ class AgentRunnerService:
                         ctx,
                         tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
+                        capability_tool_id=approval.capability_tool_id,
                         person_id=run.user_id,
                     ),
                     may_approve=may_approve(
                         ctx,
                         tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
+                        capability_tool_id=approval.capability_tool_id,
                         person_id=run.user_id,
                         content_hidden=bool(hidden),
                     ),
@@ -8864,7 +8868,11 @@ class AgentRunnerService:
                 continue
             if (
                 approval.status == ApprovalStatus.APPROVED.value
-                and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+                and runs_as_its_person(
+                    approval.tool_id,
+                    always_asks=approval.always_asks,
+                    capability_tool_id=approval.capability_tool_id,
+                )
                 and not answers_for(ctx, run.user_id)
             ):
                 raise AuthorizationError(

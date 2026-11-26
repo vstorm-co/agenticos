@@ -635,6 +635,7 @@ class ChannelPrompts:
                 ctx,
                 tool_id=approval.tool_id,
                 always_asks=approval.always_asks,
+                capability_tool_id=approval.capability_tool_id,
                 person_id=run.user_id,
             )
         )

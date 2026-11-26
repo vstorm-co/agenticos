@@ -502,7 +502,11 @@ class NotificationService:
         own = [
             str(approval.id)
             for approval in approvals
-            if runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            if runs_as_its_person(
+                approval.tool_id,
+                always_asks=approval.always_asks,
+                capability_tool_id=approval.capability_tool_id,
+            )
         ]
         # Only the run's person may approve their platform call, so they are told of it
         # whatever audience the agent's approval alert names, or none.

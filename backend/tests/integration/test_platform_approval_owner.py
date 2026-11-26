@@ -531,6 +531,34 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
     assert response.json()["status"] == ApprovalStatus.APPROVED.value
 
 
+class TestACapabilityToolRenamedLikeAPlatformTool:
+    """A capability's tool parks with its stable id, whatever a binding renamed it to,
+    so a platform-looking name does not make it the run's person's to approve."""
+
+    async def test_its_person_without_the_permission_may_not_answer_it(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(db, org, builder, tool_id="agenticos_share_memory")
+        approval.capability_tool_id = "share_memory"
+        await db.flush()
+
+        with pytest.raises(AuthorizationError):
+            await ApprovalService(db).decide(builder, approval.id, approved=True)
+        assert await ApprovalService(db).list_approvals(builder) == ([], 0)
+
+    async def test_an_approver_approves_it_as_any_other_call(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        _run, approval = await _parked(db, org, builder, tool_id="agenticos_share_memory")
+        approval.capability_tool_id = "share_memory"
+        await db.flush()
+
+        decided = await ApprovalService(db).decide(operator, approval.id, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+
 class TestTheQueueOfAPersonWithoutApprovalsDecide:
     """A run asked in no conversation - a routine's - shows its person's platform call
     nowhere but the queue, and only that person may approve it."""

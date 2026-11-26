@@ -2807,7 +2807,8 @@ class ApprovalFilters:
         created_to: Inclusive upper bound.
         outside_live_calls: Leave out the calls parked by a run a voice call is
             still on: the call decides those, and the console may not.
-        answerable_by: Only calls that always ask, on runs acting for this person.
+        answerable_by: Only calls that always ask, of no capability, on runs acting for
+            this person.
         tool_prefix: Only calls of tools whose id starts with this.
     """
 
@@ -2880,6 +2881,7 @@ async def list_approvals(
     if narrowing.answerable_by is not None:
         clauses.append(AgentRun.user_id == narrowing.answerable_by)
         clauses.append(ToolApproval.always_asks.is_(True))
+        clauses.append(ToolApproval.capability_tool_id.is_(None))
     if narrowing.tool_prefix is not None:
         clauses.append(ToolApproval.tool_id.startswith(narrowing.tool_prefix, autoescape=True))
 
