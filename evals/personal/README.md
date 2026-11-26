@@ -117,7 +117,7 @@ for suite in memory briefing; do
 done
 ```
 
-Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.
+Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available. With `--max-usd`, the runner stops between cases when observed spend reaches the threshold or when spend is incomplete. A single case can exceed the remaining threshold. See the [memory model matrix](../memory/MODEL-MATRIX.md) for the proposed model IDs, controls and estimates.
 
 Briefing uses the same proposal selection as production for duplicates, connected sources and usable schedules. The JSONL retains the model's proposals for diagnosis. Memory validates quoted evidence against the supplied user turns.
 
@@ -132,11 +132,40 @@ uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
   --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 4 \
   --live-case sandbox-file --live-case report-chart-real \
   --live-case diagram-approval --live-case app-private-preview
-uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
-  --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 3 --live-memory
 ```
 
-These verify actual Sandbox, chart, visual and private App outputs and write, correct and recall a synthetic preference across three conversations. Approval gates are active. Browser use and computer use are outside the suite. App preview uses the headless artifact renderer. Stop the stack with `evals/personal/stack.sh down`.
+These verify Sandbox, chart, visual and private App outputs. Approval gates are active. App preview uses the headless artifact renderer. Stop the stack with `evals/personal/stack.sh down`.
+
+### Memory tools
+
+Use the isolated AgenticOS runner with the same published agent and each test
+`--model-profile`. The authored memory slice checks tool selection, arguments
+and forbidden attempts. Read tools must execute. An isolated write attempt
+records intent while the isolation guard holds the side effect.
+
+```sh
+uv run python ../evals/personal/run.py --suite agenticos \
+  --organization-id "$ORG_ID" --user-id "$USER_ID" --model-profile "$PROFILE_ID" \
+  --case agenticos-remember-client --case agenticos-self-note \
+  --case agenticos-project-no-workspace --case agenticos-as-of-tool \
+  --case agenticos-confirm-share --case explicit-memory-file-read \
+  --case memory-oneoff --case durable-style-implicit --max-usd "$CAP"
+```
+
+Use the same isolated test stack and explicit `AGENTICOS_PERSONAL_EVAL=1` for
+the stateful probe. Disable Memory maintenance in that test organization so
+that only the agent tools can account for changes to the fixture. The probe
+runs through the private member audience, checks the tool receipts and persisted
+preference across three fresh conversations, and verifies the supersession
+chain. It leaves the synthetic preference in the disposable test account.
+
+```sh
+uv run python ../evals/personal/run.py --suite agenticos --live-memory \
+  --organization-id "$ORG_ID" --user-id "$USER_ID" --model-profile "$PROFILE_ID" \
+  --max-usd "$CAP"
+```
+
+Omit `--max-usd` on either AgenticOS command for a free preflight.
 
 ## Optional judge
 
@@ -249,7 +278,7 @@ Set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` to
 the test connection. For one slice add `--case memory-headcount-as-of`. The
 runner creates and drops a separate database. It uses synthetic Gmail workflow deliveries and signed webhook requests
 and does not invoke models. It checks stored values and intervals, exact-shape
-input, visibility, replay and Inbox delivery in the same production data path.
+input, visibility, replay and the change signal used by the workflow notification step.
 
 The synthetic CRM fixture goes through the same typed observation contract as
 Gmail. Its replay covers A → B → A and a contradictory second record. A signed workflow test also exercises the CRM relay contract through the existing Webhook trigger. Additional

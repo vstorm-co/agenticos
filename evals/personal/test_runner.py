@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import sys
 import tempfile
 import unittest
 from argparse import Namespace
@@ -85,6 +86,27 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(
             runner.trace_errors(case, answer="Spent $0.02.", calls=[wrong]),
             ["missing expected call: agenticos_get_spend"],
+        )
+
+    def test_memory_read_requires_execution_but_an_isolated_write_checks_intent(self) -> None:
+        cases = {case.id: case for case in runner.load("agenticos")}
+        recall = EvalCallRead(tool="recall", args={"as_of": "2020-07-01"}, outcome="blocked")
+        self.assertEqual(
+            runner.trace_errors(
+                cases["agenticos-as-of-tool"], answer="No evidence.", calls=[recall]
+            ),
+            ["missing expected call: recall"],
+        )
+        remember = EvalCallRead(
+            tool="remember",
+            args={"object_ref": {"kind": "company", "name": "Atlas"}},
+            outcome="blocked",
+        )
+        self.assertEqual(
+            runner.trace_errors(
+                cases["agenticos-remember-client"], answer="Nothing was saved.", calls=[remember]
+            ),
+            [],
         )
 
     def test_tools_use_normalized_arguments_and_record_blocked_attempts(self):
@@ -606,6 +628,46 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.output_tokens, 20)
         self.assertEqual(requested_caps, [runner.BACKGROUND_RESPONSE_TOKENS] * 2)
 
+    async def test_background_budget_stops_before_second_case(self) -> None:
+        case = next(item for item in runner.load("briefing") if item.id == "no-connector")
+
+        def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, {"repeats": [], "profile": None})],
+                provider_details={"cost": 0.001},
+            )
+
+        with patch.object(runner, "print", create=True) as emit:
+            code = await runner.run_background(
+                FunctionModel(respond), [case, case], budget=Decimal("0.001")
+            )
+        self.assertEqual(code, 1)
+        self.assertEqual(emit.call_count, 1)
+
+
+class CLITests(unittest.TestCase):
+    def test_background_cli_passes_the_spend_threshold(self) -> None:
+        args = [
+            "run.py",
+            "--suite",
+            "memory",
+            "--model",
+            "fixture",
+            "--limit",
+            "1",
+            "--max-usd",
+            "0.25",
+        ]
+        with (
+            patch.object(sys, "argv", args),
+            patch.object(runner, "run_background", AsyncMock(return_value=0)) as execute,
+        ):
+            self.assertEqual(runner.main(), 0)
+        assert execute.await_args is not None
+        self.assertEqual(execute.await_args.args[0], "fixture")
+        self.assertEqual(len(execute.await_args.args[1]), 1)
+        self.assertEqual(execute.await_args.kwargs["budget"], Decimal("0.25"))
+
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_recorded_sandbox_failure_keeps_the_next_case(self) -> None:
@@ -962,3 +1024,113 @@ class NativeCandidateTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(receipt.errors, ["technical: Synthetic provider refusal"])
             self.assertIsNone(receipt.agent_version)
             self.assertEqual(receipt.cost_usd, Decimal("0.001"))
+
+
+class LiveMemoryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tool_probe_uses_separate_member_chats_and_checks_claim_lineage(self) -> None:
+        from datetime import UTC, datetime
+
+        from app.db.models.agent_run import RunSurface
+        from app.schemas.memory import MemoryClaimList, MemoryClaimRead
+
+        organization_id, user_id, agent, version, profile = (uuid4() for _ in range(5))
+        ctx = AuthContext(user_id=user_id, organization_id=organization_id, role=OrgRoleName.OWNER)
+        original = MemoryClaimRead(
+            id=uuid4(),
+            statement="Use Incident window",
+            kind="preference",
+            origin="person",
+            status="current",
+            observed_at=datetime.now(UTC),
+        )
+        corrected = original.model_copy(
+            update={
+                "id": uuid4(),
+                "statement": "Use Decision first",
+                "supersedes_id": original.id,
+            }
+        )
+        history = MemoryClaimList(
+            items=[corrected, original.model_copy(update={"status": "superseded"})], total=2
+        )
+        expectations = [
+            ("remember", {}, f"Recorded (claim {original.id}).", "Saved."),
+            (
+                "correct_memory",
+                {"claim_id": str(original.id)},
+                f"Corrected (claim {corrected.id}).",
+                "Changed.",
+            ),
+            ("recall", {}, f"[{corrected.id}] Decision first", "Decision first"),
+        ]
+        prompts: list[str] = []
+        conversation_ids = [uuid4() for _ in range(3)]
+
+        async def execute(_ctx: AuthContext, _agent: object, prompt: str, **options: object):
+            index = len(prompts)
+            prompts.append(prompt)
+            tool, args, result, answer = expectations[index]
+            calls = options["tool_calls"]
+            assert isinstance(calls, list)
+            calls.append(runner.RecordedToolCall(f"tool-{index}", tool, args, result))
+            self.assertIs(options["acts_for_sender"], True)
+            self.assertIs(options["surface"], RunSurface.WEB)
+            self.assertEqual(options["conversation_id"], conversation_ids[index])
+            self.assertEqual(options["model_profile_id"], profile)
+            self.assertEqual(options["run_limit_usd"], Decimal(1) - Decimal("0.1") * index)
+            self.assertNotIn("isolation", options)
+            return answer, SimpleNamespace(
+                id=uuid4(),
+                status="completed",
+                input_tokens=100,
+                output_tokens=10,
+                cost_usd=Decimal("0.1"),
+                cost_is_partial=False,
+            )
+
+        @asynccontextmanager
+        async def db():
+            yield object()
+
+        my_claims = AsyncMock(
+            side_effect=[
+                MemoryClaimList(items=[original], total=1),
+                MemoryClaimList(items=[corrected], total=1),
+                history,
+                MemoryClaimList(items=[corrected], total=1),
+            ]
+        )
+        with (
+            patch.object(runner, "get_db_context", db),
+            patch.object(runner, "open_eval_conversation", AsyncMock(side_effect=conversation_ids)),
+            patch.object(
+                runner, "AgentRunnerService", return_value=SimpleNamespace(execute=execute)
+            ),
+            patch.object(
+                runner, "MemoryService", return_value=SimpleNamespace(my_claims=my_claims)
+            ),
+            patch.object(runner, "print", create=True) as emit,
+        ):
+            status = await runner.evaluate_live_memory(
+                ctx, agent, version, profile, "fixture", Decimal(1)
+            )
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            [
+                runner.Evidence.model_validate_json(call.args[0]).case
+                for call in emit.call_args_list
+            ],
+            ["live-memory-remember", "live-memory-correct_memory", "live-memory-recall"],
+        )
+
+        self.assertIn(
+            "expected one successful recall call returning the current claim",
+            runner.memory_probe_errors(
+                2,
+                "Decision first",
+                [],
+                history.model_copy(update={"items": [corrected], "total": 1}),
+                None,
+                original.id,
+            ),
+        )

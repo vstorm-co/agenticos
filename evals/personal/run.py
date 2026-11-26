@@ -50,7 +50,13 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message, ToolCall
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_run_repo, credential_repo, intercepted_tool_call_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    credential_repo,
+    intercepted_tool_call_repo,
+    system_agent_repo,
+)
 from app.schemas.agent import AgentRunResult
 from app.schemas.conversation import ConversationCreate, MessageList, ToolCallRead
 from app.schemas.dataset import CaseMessage, DatasetCaseContent
@@ -76,6 +82,7 @@ from app.services.conversation import ConversationService
 from app.services.dataset_files import parse
 from app.services.eval_run_worker import trajectory
 from app.services.memory import extraction
+from app.services.memory.facade import MemoryService
 from app.services.message_history import HistoryMessage, ModelHistory, build_message_history
 from app.services.proactive import _nightly as nightly
 from app.services.role_packs import PACKS
@@ -108,6 +115,11 @@ LIVE_CASES = (
 )
 BACKGROUND_RESPONSE_TOKENS = 3072
 BACKGROUND_REQUEST_LIMIT = 2
+MEMORY_PROBE_TOOLS = ("remember", "correct_memory", "recall")
+MEMORY_READ_TOOLS = frozenset(("list_memory", "read_memory", "recall"))
+MEMORY_WRITE_TOOLS = frozenset(
+    ("remember", "correct_memory", "share_memory", "write_memory", "edit_memory", "delete_memory")
+)
 
 
 class Scenario(NamedTuple):
@@ -135,30 +147,29 @@ def message(role: Literal["user", "assistant"], content: str) -> CaseMessage:
 
 
 def tool_name(name: str) -> str:
-    if name in {
-        "remember",
-        "recall",
-        "correct_memory",
-        "share_memory",
-        "write_memory",
-        "web_search",
-        "search_tools",
-        "web_fetch",
-        "delegate",
-        "task",
-        "read_skill",
-        "read_web_page",
-        "read_memory",
-        "execute",
-        "draw",
-        "create_chart",
-        "publish_artifact",
-        "preview_artifact",
-        "share_artifact",
-        "export_artifact",
-        "read_artifact",
-        "list_artifacts",
-    }:
+    if (
+        name in MEMORY_READ_TOOLS
+        or name in MEMORY_WRITE_TOOLS
+        or name
+        in {
+            "web_search",
+            "search_tools",
+            "web_fetch",
+            "delegate",
+            "task",
+            "read_skill",
+            "read_web_page",
+            "execute",
+            "draw",
+            "create_chart",
+            "publish_artifact",
+            "preview_artifact",
+            "share_artifact",
+            "export_artifact",
+            "read_artifact",
+            "list_artifacts",
+        }
+    ):
         return name
     return "agenticos_" + name.removeprefix("agenticos_")
 
@@ -447,10 +458,12 @@ def trace_errors(
             and sandbox_csv_attempt(calls)
         ):
             continue
-        inbox_read = expected.tool == "agenticos_list_inbox_items"
+        requires_execution = (
+            expected.tool == "agenticos_list_inbox_items" or expected.tool in MEMORY_READ_TOOLS
+        )
         if not any(
             call.tool == expected.tool
-            and (call.outcome == "executed" if inbox_read else call.outcome != "divergent")
+            and (call.outcome == "executed" if requires_execution else call.outcome != "divergent")
             and all(call.args.get(key) == value for key, value in (expected.args or {}).items())
             for call in calls
         ):
@@ -784,7 +797,11 @@ def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[s
 
 
 async def run_background(
-    model: str | Model, scenarios: list[Scenario], *, model_label: str | None = None
+    model: str | Model,
+    scenarios: list[Scenario],
+    *,
+    model_label: str | None = None,
+    budget: Decimal | None = None,
 ) -> int:
     label = scenarios[0].suite if scenarios else "Background replay"
     resolved_label = model_label or (model if isinstance(model, str) else model.model_name)
@@ -819,6 +836,9 @@ async def run_background(
         output_tokens_limit=BACKGROUND_REQUEST_LIMIT * BACKGROUND_RESPONSE_TOKENS,
     )
     for item in scenarios:
+        if budget is not None and progress.cost >= budget:
+            console("Stopped before the next case: background budget exhausted.")
+            break
         started = perf_counter()
         usage = RunUsage()
         output: JsonValue = None
@@ -874,8 +894,18 @@ async def run_background(
             partial=evidence.cost_is_partial,
             detail=" · ".join(errors),
         )
+        if budget is not None and evidence.cost_is_partial:
+            console("Stopped: background spend could not be accounted for in full.")
+            progress.summary()
+            return 1
     progress.summary()
-    return int(bool(progress.failed))
+    return int(
+        bool(
+            progress.failed
+            or progress.passed < len(scenarios)
+            or (budget is not None and progress.cost > budget)
+        )
+    )
 
 
 @asynccontextmanager
@@ -906,6 +936,7 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
             "Run AgenticOS only in an explicitly isolated test database with AGENTICOS_PERSONAL_EVAL=1."
         )
     org = args.organization_id
+    memory_probe = getattr(args, "live_memory", False)
     async with get_db_context() as db:
         ctx = await job_context(db, organization_id=org, user_id=args.user_id, api_key_id=None)
         if ctx is None:
@@ -963,8 +994,17 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         if profile is None:
             raise SystemExit("The selected model profile is unavailable in the eval organization.")
         model = f"{profile.provider}:{profile.model}"
+        if memory_probe:
+            maintenance = await system_agent_repo.get(
+                db, organization_id=org, role=extraction.MEMORY_MAINTENANCE
+            )
+            if maintenance is not None and maintenance.enabled and maintenance.model_profile_id:
+                raise SystemExit(
+                    "Disable Memory maintenance in the eval organization for the tool probe."
+                )
     mode = "preflight, no model calls" if args.max_usd is None else f"${args.max_usd} budget"
-    console(f"AgenticOS · {model} · {len(scenarios)} cases · {mode}")
+    count = len(MEMORY_PROBE_TOOLS) if memory_probe else len(scenarios)
+    console(f"AgenticOS · {model} · {count} cases · {mode}")
     if candidate is None:
         console(f"Published version {version_id}")
     else:
@@ -976,12 +1016,18 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
             f"Candidate spec {digest(candidate.spec.model_dump(mode='json'))} · omitted capabilities: {', '.join(omitted_capabilities) or 'none'}"
         )
     if args.max_usd is None:
-        if len(scenarios) <= 10:
+        if memory_probe:
+            console("Selected tools: " + ", ".join(MEMORY_PROBE_TOOLS))
+        elif len(scenarios) <= 10:
             console("Selected cases: " + ", ".join(item.id for item in scenarios))
         console("Add --max-usd to run the model.")
         return 0
 
     async with serve_eval_mcp():
+        if memory_probe:
+            return await evaluate_live_memory(
+                ctx, agent_id, version_id, profile_id, model, args.max_usd
+            )
         return await evaluate_agenticos(
             ctx,
             agent_id,
@@ -1377,49 +1423,146 @@ def live_report(client: httpx.Client, agent_id: UUID, case_ids: list[str], model
     return int(failed)
 
 
-def live_memory(client: httpx.Client, agent_id: UUID, model: str) -> int:
+def memory_probe_errors(
+    step: int,
+    answer: str,
+    calls: list[RecordedToolCall],
+    current: MemoryClaimList,
+    history: MemoryClaimList | None,
+    original_id: UUID | None,
+) -> list[str]:
+    tool = MEMORY_PROBE_TOOLS[step]
+    expected = "incident window" if step == 0 else "decision first"
+    errors = []
+    claim = current.items[0] if current.total == 1 and len(current.items) == 1 else None
+    if (
+        claim is None
+        or claim.origin != "person"
+        or claim.status != "current"
+        or claim.kind != "preference"
+        or expected not in claim.statement.casefold()
+        or claim.scope not in ("agent", "profile")
+    ):
+        errors.append("expected one current personal claim with the requested heading")
+    matching = [call for call in calls if call.tool_name == tool]
+    receipt = matching[0].result if len(matching) == 1 else None
+    prefix = ("Recorded (claim ", "Corrected (claim ", "")[step]
+    if (
+        claim is None
+        or not receipt
+        or not receipt.startswith(prefix)
+        or str(claim.id) not in receipt
+        or (step == 2 and expected not in receipt.casefold())
+    ):
+        errors.append(f"expected one successful {tool} call returning the current claim")
+    if any(call.tool_name in MEMORY_WRITE_TOOLS - {tool} for call in calls):
+        errors.append("unexpected memory write tool")
+    if step == 1 and (
+        original_id is None
+        or claim is None
+        or claim.supersedes_id != original_id
+        or len(matching) != 1
+        or matching[0].args.get("claim_id") != str(original_id)
+        or history is None
+        or not any(
+            row.id == original_id
+            and row.status == "superseded"
+            and "incident window" in row.statement.casefold()
+            for row in history.items
+        )
+    ):
+        errors.append("the correction did not supersede the original claim")
+    if step == 2 and (expected not in answer.casefold() or "incident window" in answer.casefold()):
+        errors.append("new conversation did not answer with the corrected heading")
+    return errors
+
+
+async def evaluate_live_memory(
+    ctx: AuthContext,
+    agent_id: UUID,
+    version_id: UUID,
+    profile_id: UUID,
+    model: str,
+    budget: Decimal,
+) -> int:
+    """Exercise actual memory tools in separate member chats inside the eval tenant."""
     topic = "report-" + uuid4().hex[:8]
     prompts = (
-        f"From now on, begin every {topic} report with an Incident window heading.",
-        f"Change my standing {topic} report format: begin with a Decision first heading "
-        "instead of Incident window.",
-        f"How do I usually begin a {topic} report? Give only the heading.",
+        f"Remember this standing preference for my {topic} reports: begin with an Incident window heading. Include {topic} in the saved preference.",
+        f"Find and correct my saved {topic} report format. From now on, begin with a Decision first heading instead of Incident window. Keep {topic} in the corrected preference.",
+        f"Use the recall tool to find how I begin a {topic} report. Give only the current heading.",
     )
-    chat_ids = set()
-    failed = False
-    for index, prompt in enumerate(prompts):
-        result, latency, calls = live_turn(client, agent_id, prompt)
-        errors = [] if result.status == "completed" else [f"run {result.status}"]
-        if result.conversation_id in chat_ids:
-            errors.append("conversation was reused")
-        chat_ids.add(result.conversation_id)
-        current = MemoryClaimList.model_validate(
-            client.get("/memory/claims/mine", params={"q": topic}).raise_for_status().json()
-        )
-        expected = "incident window" if index == 0 else "decision first"
-        if current.total != 1 or expected not in current.items[0].statement.casefold():
-            errors.append("expected a single current claim with the updated heading")
-        if index == 1:
-            history = MemoryClaimList.model_validate(
-                client.get("/memory/claims/mine", params={"q": topic, "history": True})
-                .raise_for_status()
-                .json()
+    original_id: UUID | None = None
+    progress = Progress("Live memory tools", len(prompts))
+    for step, prompt in enumerate(prompts):
+        if (remaining := budget - progress.cost) <= 0:
+            console("Stopped before the next conversation: eval budget exhausted.")
+            return 1
+        case_id = f"live-memory-{MEMORY_PROBE_TOOLS[step]}"
+        calls: list[RecordedToolCall] = []
+        started = perf_counter()
+        with progress.case(case_id):
+            conversation_id = await open_eval_conversation(ctx, case_id)
+            async with get_db_context() as db:
+                answer, run = await AgentRunnerService(db).execute(
+                    ctx,
+                    agent_id,
+                    prompt,
+                    surface=RunSurface.WEB,
+                    acts_for_sender=True,
+                    conversation_id=conversation_id,
+                    version_id=version_id,
+                    model_profile_id=profile_id,
+                    tool_calls=calls,
+                    run_limit_usd=remaining,
+                )
+            async with get_db_context() as db:
+                memory = MemoryService(db)
+                current = await memory.my_claims(ctx, skip=0, limit=10, history=False, q=topic)
+                history = (
+                    await memory.my_claims(ctx, skip=0, limit=10, history=True, q=topic)
+                    if step == 1
+                    else None
+                )
+            errors = memory_probe_errors(step, answer, calls, current, history, original_id)
+            if run.status != RunStatus.COMPLETED.value:
+                errors.insert(0, f"technical: run {run.status}")
+            if not errors and step == 0:
+                original_id = current.items[0].id
+            latency_ms = round((perf_counter() - started) * 1000)
+            evidence = Evidence(
+                case=case_id,
+                model=model,
+                agent_version=version_id,
+                attempt=run.id,
+                errors=errors,
+                output=answer,
+                calls=[
+                    {
+                        **trace,
+                        "result": (call.result or "")[:2000],
+                    }
+                    for call, trace in zip(calls, trajectory(calls, []), strict=True)
+                ],
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                latency_ms=latency_ms,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
             )
-            if not any(
-                claim.status == "superseded" and "incident window" in claim.statement.casefold()
-                for claim in history.items
-            ):
-                errors.append("original claim was not superseded")
-        if index == 2 and (
-            "decision first" not in result.output.casefold()
-            or "incident window" in result.output.casefold()
-        ):
-            errors.append("new conversation did not recall the corrected heading")
-        failed |= bool(errors)
-        live_evidence(f"live-memory-{index + 1}", model, result, latency, calls, errors)
-        if errors:
-            break
-    return int(failed)
+        print(evidence.model_dump_json(), flush=True)
+        progress.result(
+            passed=not errors,
+            latency_ms=latency_ms,
+            cost=evidence.cost_usd,
+            partial=evidence.cost_is_partial,
+            detail=" · ".join(errors),
+        )
+        if errors or evidence.cost_is_partial or evidence.cost_usd is None:
+            progress.summary()
+            return 1
+    progress.summary()
+    return 0
 
 
 def run_live(args: argparse.Namespace) -> int:
@@ -1433,8 +1576,6 @@ def run_live(args: argparse.Namespace) -> int:
         timeout=30,
     ) as client:
         model = args.model or str(args.agent_id)
-        if args.live_memory:
-            return live_memory(client, args.agent_id, model)
         return live_report(client, args.agent_id, args.live_case, model)
 
 
@@ -1458,7 +1599,7 @@ def main() -> int:
     parser.add_argument(
         "--limit", type=int, help="Case limit. AgenticOS defaults to the full suite."
     )
-    parser.add_argument("--case", action="append", help="Select case IDs in a background replay.")
+    parser.add_argument("--case", action="append", help="Select specific dataset case IDs.")
     parser.add_argument("--api-url", help="Local API base URL for live probes only.")
     parser.add_argument("--organization-id", type=UUID)
     parser.add_argument(
@@ -1484,7 +1625,7 @@ def main() -> int:
     parser.add_argument(
         "--live-memory",
         action="store_true",
-        help="Write, correct and recall one synthetic preference across three test conversations.",
+        help="Execute remember, correct_memory and recall in three separate member conversations.",
     )
     parser.add_argument(
         "--model-profile", type=UUID, help="Override only the candidate model profile."
@@ -1492,14 +1633,26 @@ def main() -> int:
     parser.add_argument("--judge-model", help="Optionally grade an existing deterministic report.")
     parser.add_argument("--judge-report", type=Path, help="JSONL from a completed candidate run.")
     parser.add_argument(
-        "--max-usd", type=Decimal, help="AgenticOS suite budget. Omit for a free runtime preflight."
+        "--max-usd",
+        type=Decimal,
+        help="AgenticOS spend ceiling or background stop threshold between cases.",
     )
     args = parser.parse_args()
     if args.judge_model or args.judge_report:
         if not args.judge_model or not args.judge_report or not args.limit or args.limit < 1:
             parser.error("judge mode requires --judge-model, --judge-report and positive --limit")
         return asyncio.run(judge_report(args.judge_model, args.judge_report, args.limit))
-    if args.live_case or args.live_memory:
+    if args.live_memory and (
+        args.suite != "agenticos"
+        or not args.organization_id
+        or not args.user_id
+        or args.case
+        or args.limit is not None
+        or args.candidate_agent
+        or args.live_case
+    ):
+        parser.error("--live-memory requires --suite agenticos, --organization-id and --user-id")
+    if args.live_case:
         if args.candidate_agent:
             parser.error("--candidate-agent is only for the isolated AgenticOS runtime")
         if not args.api_url or urlsplit(args.api_url).hostname not in {
@@ -1508,9 +1661,7 @@ def main() -> int:
             "::1",
         }:
             parser.error("live probes require a loopback --api-url")
-        if args.live_case and args.live_memory:
-            parser.error("Select either the live tool probes or the live memory probe")
-        required = 3 if args.live_memory else len(args.live_case)
+        required = len(args.live_case)
         if not args.organization_id or not args.agent_id or not args.limit or args.limit < required:
             parser.error(
                 "Live probes require --organization-id, --agent-id and --limit covering the calls"
@@ -1525,10 +1676,11 @@ def main() -> int:
         )
     if runtime and args.model:
         parser.error("Use --model-profile to override the AgenticOS model")
+    background = args.model is not None and args.suite in ("memory", "briefing")
     if args.max_usd is not None and (
-        not runtime or not args.max_usd.is_finite() or args.max_usd <= 0
+        not (runtime or background) or not args.max_usd.is_finite() or args.max_usd <= 0
     ):
-        parser.error("--max-usd requires the AgenticOS runtime and a finite positive amount")
+        parser.error("--max-usd requires a running suite and a finite positive amount")
     if args.candidate_without_browser and not args.candidate_agent:
         parser.error("--candidate-without-browser requires --candidate-agent")
     if args.candidate_agent and not runtime:
@@ -1568,7 +1720,7 @@ def main() -> int:
     if args.model:
         if args.suite not in ("memory", "briefing") or args.limit is None:
             parser.error("--model requires --suite memory/briefing and a positive --limit")
-        return asyncio.run(run_background(args.model, selected))
+        return asyncio.run(run_background(args.model, selected, budget=args.max_usd))
     return 0
 
 

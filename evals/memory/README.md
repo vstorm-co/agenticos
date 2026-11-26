@@ -1,5 +1,6 @@
 # Memory benchmarks
 
+Choose models using the [memory model matrix](MODEL-MATRIX.md).
 Use the [existing personal-assistant datasets](../personal/README.md) for regression tests,
 LongMemEval for paired retrieval and answer comparisons, and synthetic PostgreSQL claims
 for ledger performance. The three tracks measure different parts of the system.
@@ -28,8 +29,8 @@ synthetic data in a disposable PostgreSQL database and checks persisted outcomes
 
 ```sh
 uv run python ../evals/personal/run.py
-uv run python ../evals/personal/run.py --suite memory --model "$MODEL" --max-usd "$CAP"
-uv run python ../evals/personal/run.py --suite briefing --model "$MODEL" --max-usd "$CAP"
+uv run python ../evals/personal/run.py --suite memory --model "$MODEL" --limit 53 --max-usd "$CAP"
+uv run python ../evals/personal/run.py --suite briefing --model "$MODEL" --limit 53 --max-usd "$CAP"
 uv run python ../evals/personal/context_run.py --model "$MODEL" --max-usd "$CAP" \
   --report ../evals/memory/results/context.jsonl
 uv run python ../evals/personal/memory_replay.py --list
