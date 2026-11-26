@@ -2132,7 +2132,9 @@
         "column": "Colonne",
         "value": "Valeur",
         "recordLabel": "Enregistrement"
-      }
+      },
+      "previewingVisual": "Prévisualisation d’un visuel",
+      "previewVisual": "Prévisualiser un visuel"
     },
     "turnWasStopped": "arrêté",
     "unfavourite": "Retirer des favoris",
@@ -2312,7 +2314,19 @@
       "followUpAsks": "Le dessin demande d’envoyer ceci comme votre message :",
       "followUpSend": "Envoyer",
       "followUpEdit": "Modifier",
-      "followUpDismiss": "Ignorer"
+      "followUpDismiss": "Ignorer",
+      "downloadSvg": "SVG — fichier vectoriel",
+      "downloadPng": "PNG — image pour les présentations",
+      "preparingPng": "Préparation du PNG…",
+      "pngDownloadFailed": "Impossible de télécharger le PNG. Réessayez.",
+      "openWorkspace": "Ouvrir le panneau latéral",
+      "dockWorkspace": "Revenir au panneau latéral",
+      "closeWorkspace": "Fermer le visuel",
+      "workspaceTitle": "Visuel : {title}",
+      "workspaceViews": "Vues du visuel",
+      "resizeWorkspace": "Redimensionner le panneau du visuel",
+      "previewTab": "Aperçu",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Annuler la dictée",
@@ -2695,6 +2709,16 @@
       "empty": "Vous êtes à jour. Les nouveaux constats et les sujets importants apparaîtront ici.",
       "failed": "Impossible de charger votre boîte de réception.",
       "refreshFailed": "Impossible d’actualiser votre boîte de réception. Affichage des derniers éléments chargés."
+    },
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuels",
+      "browser": "Navigateur",
+      "files": "Fichiers",
+      "resize": "Redimensionner le workspace",
+      "expand": "Agrandir le workspace",
+      "dock": "Ancrer le workspace",
+      "allFiles": "Retour à tous les fichiers"
     }
   },
   "common": {
@@ -6104,6 +6128,14 @@
       "channels-binding": {
         "title": "Choisir qui répond",
         "body": "Associez un agent à un bot ou retirez l’association. Un bot répond comme un seul agent ; son environnement, sa pause et ses recherches restent dans l’onglet Disponibilité de l’agent."
+      },
+      "chat-workspace-tabs": {
+        "title": "Un workspace à côté du chat",
+        "body": "Basculez ici entre Visuels, Navigateur et Fichiers. La page et le fichier sélectionnés restent ouverts lorsque vous changez d’onglet. Agrandissez le workspace pour avoir plus de place ou fermez-le pour revenir à la conversation."
+      },
+      "chat-visual-workspace": {
+        "title": "Une page à côté du chat",
+        "body": "Ouvrez un visuel dans le panneau latéral redimensionnable pour continuer à discuter pendant que vous l’utilisez. Basculez entre Aperçu et Code, agrandissez ou fermez le panneau sans réinitialiser ses commandes."
       }
     },
     "chooseLanguage": "Langue",
@@ -14306,6 +14338,12 @@
       "tools": {
         "title": "Actions de messagerie autorisées",
         "description": "Actions explicitement accordées sur les bots connectés de l’agent."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Afficher l’image d’un visuel au modèle",
+        "description": "Renvoie une capture d’écran lorsque l’agent prévisualise un visuel. Désactivez cette option pour un modèle qui ne lit pas les images ; le diagnostic de rendu reste disponible."
       }
     }
   },
