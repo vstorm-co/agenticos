@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
+
 - Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
 
 - Remove an agent’s own environment guards before its suites, so deleting a guarded agent does not depend on PostgreSQL cascade ordering. Other agents’ guards and suite deletion protections stay in place.
@@ -49,6 +51,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Let whoever may start an Improve session confirm its paid checks - of chosen changes, of a knowledge draft and of what each change did - and run them, and the session's later steps, as that person. A session the Architect started can now be checked from the console.
 
 ### Security
+
+- Redact credentials from Improve search retry notes before sending them to the helper model.
 
 - Deciding or rescoring an eval score needs access to the answer it scores, and the judge's knowledge passages are shown only to readers of their knowledge base.
 - Credentials in conversations no longer reach the Improve helper's model, its kept quotes or the knowledge gaps classifier. A suggestion or a proposed skill or context file change that would write one reads redacted, and accepting, applying or checking it is refused until it is edited.

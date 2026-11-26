@@ -51,6 +51,7 @@ from app.agents.untrusted_text import fenced_section
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
 from app.core.permissions import AuthContext
+from app.core.redaction import redact_secrets
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.authoring import HunkKind, HunkOrigin
@@ -1345,7 +1346,7 @@ async def _prompt(
         f"\n\n{chr(10).join(blocks)}"
         + (
             "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
-            f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
+            f"<note>\n{redact_secrets(note).replacement or note}\n</note>\n{_NOTE_RULE}"
             if note
             else ""
         )

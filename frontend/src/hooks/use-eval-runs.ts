@@ -172,6 +172,7 @@ export function useEvalComparison(
         ? Math.max(1_000, (error.retryAt ?? Date.now() + 60_000) - Date.now())
         : 1_000,
     meta: polling.meta,
+    refetchOnWindowFocus: polling.refetchOnWindowFocus,
     refetchInterval: (current) =>
       current.state.fetchFailureReason instanceof ApiError &&
       current.state.fetchFailureReason.status === 429

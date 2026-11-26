@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -475,4 +475,30 @@ describe("a live read that fails", () => {
       stopped: true,
     });
   });
+});
+
+it("recovers a failed comparison on focus when the console disables default focus reads", async () => {
+  client.setDefaultOptions({ queries: { retry: false, refetchOnWindowFocus: false } });
+  vi.mocked(apiClient.get)
+    .mockResolvedValueOnce({ verdict: "no_difference" })
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ verdict: "worse" });
+  const view = renderHook(() => useEvalComparison("run-focus", { live: true }), { wrapper });
+  try {
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: LIVE_POLL_MS,
+      after: false,
+      stopped: true,
+    });
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(view.result.current.comparison?.verdict).toBe("worse"));
+    expect(polling().next()).toBe(LIVE_POLL_MS);
+  } finally {
+    view.unmount();
+    focusManager.setFocused(undefined);
+  }
 });
