@@ -16,6 +16,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
+  ImprovementStopReceipt,
   ImprovementSkills,
   ImprovementAwaiting,
   ImprovementEstimate,
@@ -145,8 +146,15 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
     onSuccess: refresh,
   });
   const cancel = useMutation({
-    mutationFn: () => apiClient.post<Improvement>(`${base}/cancel`, {}),
-    onSuccess: refresh,
+    mutationFn: () => apiClient.post<Improvement | ImprovementStopReceipt>(`${base}/cancel`, {}),
+    onSuccess: async (result) => {
+      if ("agent_id" in result) return refresh();
+      await queryClient.resetQueries({
+        queryKey: qk.improvements.detail(keyOf(subject), runId),
+        exact: true,
+      });
+      await queryClient.invalidateQueries({ queryKey: qk.improvements.all(), refetchType: "none" });
+    },
   });
   const retry = useMutation({
     mutationFn: () => apiClient.post<Improvement>(`${base}/retry`, {}),

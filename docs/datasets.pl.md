@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "533d5ff4641d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -22,6 +22,8 @@ zawiodła.
 **Przypadki**, **Wyniki** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Przypadki zawierają dane wpisane i wygenerowane, Wyniki łączą testy agentów z przeglądem odpowiedzi, a Ustawienia zawierają ocenianie, generowanie i ulepszanie. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
 
 Model i instrukcje oceniającego, generowania i ulepszania wybiera się w **Ustawieniach**. Zapisane modele mają kompaktowy selektor z wyszukiwaniem; **Dodaj model** otwiera formularz providera, modelu i klucza. Instrukcje korzystają z edytora Markdown. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
+
+Do generowania i ulepszania dataset dodaje własne wskazówki pod regułami platformy dla danego pomocnika. Reguły - pytania odłożone nie służą do nauki, tekst z runów to dane, w przypadku testowym nie ma danych osobowych - obowiązują zawsze, a wskazówki nie mogą ich zmienić ani usunąć. Edytor zawiera tylko wskazówki; reguły są obok, tylko do odczytu.
 
 ## Od nowego datasetu do wyników { #dataset-workflow }
 

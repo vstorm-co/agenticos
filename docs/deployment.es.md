@@ -1,5 +1,5 @@
 ---
-source_sha: "fa596edf1ff5"
+source_sha: "9a57eadec91e"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -135,6 +135,32 @@ origen, para el dictado por voz del chat.
     valores. El `nginx/nginx.conf` incluido fija únicamente
     `Strict-Transport-Security`, que pertenece a lo que termine TLS; una
     configuración de proxy ya existente que añada las demás debería quitarlas.
+
+## Acceso solo mediante el proveedor de identidad { #provider-only-sign-in }
+
+En **Admin → Despliegue →
+Acceso y cuentas**, desactive el acceso local después de configurar un proveedor.
+Esto desactiva las contraseñas locales, el registro local, el restablecimiento de
+contraseñas y los enlaces de acceso por correo tanto en las páginas como en la
+API. Las sesiones existentes siguen siendo válidas. LDAP verifica las contraseñas
+del directorio como método independiente. La creación de cuentas por SSO sigue
+sujeta a las reglas de registro e invitaciones del despliegue.
+
+La respuesta pública de marca enumera solo los proveedores configurados. La
+consola los filtra mediante `OAUTH_PROVIDERS`; el valor predeterminado permite
+`google,oidc,ldap,kerberos`. Nunca aparece un botón de Google sin configurar.
+Si establece un filtro explícito, incluya el proveedor deseado antes de desactivar
+el acceso local. La consola impide desactivar el último método visible; la API
+exige al menos un proveedor configurado.
+
+**Recuperación por el operador:** establezca
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` en el entorno de la API y reinicie
+todas sus réplicas. El acceso local vuelve a funcionar, la política guardada no
+cambia y la administración muestra la anulación. Use una contraseña local de
+administrador existente o el formulario habitual para restablecerla tras activar
+la anulación. Repare el
+proveedor, retire la anulación y reinicie las réplicas. La variable por sí sola
+no concede ninguna cuenta, rol ni sesión.
 
 ## Quién puede registrarse { #who-may-register }
 

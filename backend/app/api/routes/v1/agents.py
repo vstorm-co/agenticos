@@ -39,6 +39,7 @@ from app.api.deps import (
     KnowledgeReachSvc,
     MentionSvc,
     MLSvc,
+    PortabilitySvc,
     PrefersAsync,
     SandboxConnectionSvc,
     limit_agent_run,
@@ -99,6 +100,15 @@ from app.schemas.agent import (
 from app.schemas.mention import MentionableList
 from app.schemas.mirage import MirageBackendList, MirageBackendRead
 from app.schemas.ml import DictationRead, DictationStatusRead
+from app.schemas.resource_bundle import (
+    BundleDestinationList,
+    BundleDestinationQuery,
+    BundleDocumentCreate,
+    BundleDownloadCreate,
+    BundleImportCreate,
+    BundleImportRead,
+    BundlePreview,
+)
 from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
@@ -106,6 +116,62 @@ from app.services.platform_mcp import platform_tool_catalog
 from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/import-destinations",
+    response_model=BundleDestinationList,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def list_import_destinations(
+    query: Annotated[BundleDestinationQuery, Query()], service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Browse accessible destination names; import checks access again when applying."""
+    return await service.destinations(ctx, query)
+
+
+@router.post(
+    "/import-preview",
+    response_model=BundlePreview,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def preview_agent_import(
+    data: BundleDocumentCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Review a YAML/JSON configuration and resolve accessible destination candidates."""
+    return await service.preview_document(ctx, data.text)
+
+
+@router.post(
+    "/import",
+    response_model=BundleImportRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def import_agent_bundle(data: BundleImportCreate, service: PortabilitySvc, ctx: Auth) -> Any:
+    """Create the reviewed private drafts; repeat the same operation ID to replay its receipt."""
+    return await service.import_agent(ctx, data)
+
+
+@router.get("/{agent_id}/export-preview", response_model=BundlePreview)
+async def preview_agent_export(agent_id: UUID, service: PortabilitySvc, ctx: Auth) -> Any:
+    """List the draft's accessible dependencies before choosing what to download."""
+    return await service.export_agent(ctx, agent_id, metadata_only=True)
+
+
+@router.post("/{agent_id}/export", response_class=Response)
+async def download_agent_bundle(
+    agent_id: UUID, data: BundleDownloadCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Download selected definitions, excluding keys, OAuth grants and activation."""
+    content = await service.download_agent(ctx, agent_id, data)
+    return Response(
+        content=content,
+        media_type="application/json" if data.file_format == "json" else "application/yaml",
+        headers={
+            "Content-Disposition": f'attachment; filename="agent-{agent_id}.{data.file_format}"'
+        },
+    )
 
 
 @router.get(
@@ -223,8 +289,8 @@ async def install_agent_template(
     response_model=McpCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_mcp_catalog(db: DBSession) -> Any:
-    """The whole curated catalog, unpaged, plus what the mirror reaches.
+async def list_mcp_catalog(db: DBSession, ctx: Auth) -> Any:
+    """The caller's curated catalog and metadata for accessible saved bindings.
 
     Unpaged on purpose and not the browsable list: a caller resolving a
     *connection* to the entry it points at needs every entry to compare against,
@@ -232,13 +298,15 @@ async def list_mcp_catalog(db: DBSession) -> Any:
 
     Hand-curated rather than mirrored: each entry is a small promise that the
     auth flow works and the description is honest. `registry_total` says how many
-    the mirror holds beside them, so a count line can say what searching reaches.
+    the reader's filtered mirror holds beside them. Entries retained only to resolve
+    existing bindings have `gallery_visible=false` and are not offered for discovery.
     """
-    items = [McpCatalogEntry(**vars(server)) for server in await mcp_listing.curated(db)]
+    catalog = await mcp_listing.catalog_for_reader(db, ctx)
+    items = [McpCatalogEntry(**vars(server)) for server in catalog.items]
     return McpCatalog(
         items=items,
         total=len(items),
-        registry_total=await mcp_listing.mirror_size(db),
+        registry_total=catalog.registry_total,
     )
 
 
@@ -344,6 +412,9 @@ async def list_agents(
         list[str], Query(description="Keep agents in any of these categories")
     ] = [],  # noqa: B006
     tag: Annotated[list[str], Query(description="Keep agents carrying any of these tags")] = [],  # noqa: B006
+    project_id: UUID | None = Query(
+        None, description="Only resources linked to this accessible project"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -360,6 +431,7 @@ async def list_agents(
         kind=kind,
         categories=category,
         tags=tag,
+        **({"project_id": project_id} if project_id is not None else {}),
         skip=skip,
         limit=limit,
     )
@@ -990,11 +1062,24 @@ async def run_agent(
     minutes does not hold a connection - or a proxy's read timeout - open. Only
     then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
     rather than letting the caller believe a retry is safe when it is not.
+
+    With `steer: true`, a text follow-up can join the asynchronous run currently
+    working on the same conversation, agent and environment under the same
+    credential. Its poll receipt then reads `steered` and identifies the run.
+    If there is no match or no further model request takes the correction,
+    the worker handles it as a separate turn.
     """
     if respond_async and data.draft:
         raise refused_field(
             "draft", "A draft is tried synchronously - leave out Prefer: respond-async"
         )
+    if data.steer:
+        if not respond_async:
+            raise refused_field("steer", "Steering requires Prefer: respond-async")
+        if data.conversation_id is None:
+            raise refused_field("conversation_id", "Steering requires an existing conversation_id")
+        if data.file_ids:
+            raise refused_field("file_ids", "Steering takes text only; send files in a normal turn")
     if respond_async:
         queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
         return JSONResponse(
@@ -1033,6 +1118,7 @@ async def run_agent(
         conversation_id=conversation_id,
         message_history=history,
         environment_id=data.environment_id,
+        project_execution_target=data.project_execution_target,
         attachments=attachments,
         structured=structured,
         reports_failure=True,

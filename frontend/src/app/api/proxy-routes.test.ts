@@ -36,6 +36,7 @@ import * as datasets from "./datasets/[[...path]]/route";
 import * as authoring from "./authoring/[[...path]]/route";
 import * as evalRuns from "./eval-runs/[[...path]]/route";
 import * as evalSuites from "./eval-suites/[[...path]]/route";
+import * as eventSources from "./event-sources/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
 import * as improvements from "./improvements/[[...path]]/route";
@@ -49,6 +50,7 @@ import * as outcomes from "./outcomes/[[...path]]/route";
 import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
+import * as portability from "./portability/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
@@ -152,6 +154,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["datasets", datasets],
   ["eval-runs", evalRuns],
   ["eval-suites", evalSuites],
+  ["event-sources", eventSources],
   ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
@@ -173,6 +176,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
   ["projects", projects],
+  ["portability", portability],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],

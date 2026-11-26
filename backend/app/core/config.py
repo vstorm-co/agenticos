@@ -524,6 +524,9 @@ class Settings(BaseSettings):
     # redirect into whatever URL handler that machine has registered.
     DESKTOP_DEEP_LINK_SCHEME: str = "agenticos"
 
+    AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED: bool = False
+    """Operator recovery override; restart API replicas after changing it."""
+
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"

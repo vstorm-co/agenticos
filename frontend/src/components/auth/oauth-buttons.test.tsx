@@ -5,6 +5,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { BrandingProvider } from "@/components/branding/branding-provider";
+import { BUILT_IN_BRANDING } from "@/lib/branding";
+
 import { OAuthBlock } from "./oauth-buttons";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { AUTH_GLYPHS } from "@/lib/auth-glyphs.generated";
@@ -36,7 +39,9 @@ function renderWith(
         ...config,
       }}
     >
-      <OAuthBlock label="or" {...props} />
+      <BrandingProvider branding={{ ...BUILT_IN_BRANDING, signInProviders: providers }}>
+        <OAuthBlock label="or" {...props} />
+      </BrandingProvider>
     </PublicConfigProvider>,
   );
 }
@@ -103,31 +108,16 @@ describe("the OAuth buttons", () => {
     expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
   });
 
-  it.each(["signin", "signup"] as const)(
-    "keeps Google visible but disabled without credentials on %s",
-    async (variant) => {
-      window.sessionStorage.setItem("oauthReturnTo", "/agents/existing");
-      renderWith([], { variant, returnTo: "/agents/new" });
+  it.each(["signin", "signup"] as const)("hides unconfigured providers on %s", (variant) => {
+    renderWith([], { variant });
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText("or")).toBeNull();
+  });
 
-      const button = screen.getByRole("button", {
-        name: variant === "signin" ? "continueWithGoogle" : "signUpWithGoogle",
-      });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription("googleNotConfigured");
-      expect(button.querySelector("svg")).toBeInTheDocument();
-      expect(screen.queryByRole("link")).not.toBeInTheDocument();
-      await userEvent.click(button);
-      expect(window.sessionStorage.getItem("oauthReturnTo")).toBe("/agents/existing");
-    },
-  );
-
-  it("offers Google outside a provider, which is the default a deployment ships with", () => {
+  it("offers no provider when deployment configuration is unavailable", () => {
     render(<OAuthBlock label="or" />);
-
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      expect.stringContaining("/oauth/google/login"),
-    );
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("keeps the full brand table off the auth pages (#955)", () => {
@@ -221,15 +211,24 @@ describe("the OAuth buttons", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
 
-  it("keeps disabled Google without offering LDAP registration", () => {
+  it("offers neither unconfigured Google nor directory registration", () => {
     renderWith(["ldap"], { variant: "signup" });
-
-    expect(screen.getByRole("button", { name: "signUpWithGoogle" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /continueWithProvider/ })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("omits the divider on provider-only pages", () => {
+    renderWith(["oidc"], { divider: false });
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(screen.queryByText("or")).toBeNull();
   });
 
   it("ships exactly the three identity-provider marks", () => {
     expect(Object.keys(AUTH_GLYPHS).sort()).toEqual(["github", "google", "microsoft"]);
   });
+});
+
+it("applies an explicit console filter to the configured provider list", () => {
+  renderWith(["oidc"], {}, { oauthProviders: [] });
+  expect(screen.queryByRole("link")).toBeNull();
 });

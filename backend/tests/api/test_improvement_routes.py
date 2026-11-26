@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.improvement import ImprovementStopRead
 from app.services.improvement_pipeline import ImprovementPipelineService
 
 pytestmark = pytest.mark.anyio
@@ -171,3 +172,19 @@ async def test_listing_sessions_that_wait_for_a_person_needs_runs_view(
         app.dependency_overrides[deps.get_auth_context] = lambda: limited
         refused = await client.get(f"{settings.API_V1_STR}/improvements")
         assert refused.status_code == 403
+
+
+@pytest.mark.security
+async def test_stopping_without_read_access_serializes_only_a_stop_receipt(
+    client: AsyncClient, mock_db_session: MagicMock
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    with patch.object(
+        service, "cancel", AsyncMock(return_value=ImprovementStopRead(id=_RUN, status="cancelled"))
+    ):
+        response = await client.post(f"{settings.API_V1_STR}{_ONE}/cancel", json={})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"id": str(_RUN), "status": "cancelled"}

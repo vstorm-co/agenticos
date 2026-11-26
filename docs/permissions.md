@@ -95,6 +95,14 @@ The explicit `mcp:personal:use` scope lets external API or OAuth runs use the cr
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
 
+`approvals:decide` answers the organization's approvals queue. A platform call that
+always asks - the Architect accepting an improvement or publishing an agent - is the
+exception: it runs with the platform authority of the person its run acts for, so
+only that person, signed in as themselves, may approve it, and they need no
+permission to do so. Anybody else holding `approvals:decide` may reject it, and an
+API key or an impersonated session may not approve it. The queue marks such a call
+with who may approve it.
+
 `promotions:override` promotes a version onto an
 [environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
 although they have not passed on it, and changes which suites guard one. Owners

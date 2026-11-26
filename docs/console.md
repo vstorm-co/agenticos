@@ -197,6 +197,32 @@ Deployment settings also offer an optional **Announcement expires** time. The se
 
 Administration is reached from the account menu. Its settings use the shared tabs and preserve drafts when changing sections. Memory and Notes fill their remaining workspace, scroll their own rows and retain a **1 / 1** footer. The ordinary Architect now uses the same generated portrait family as other agents; custom uploads remain intact. Inbox views share their row treatment, and Kanban dragging previews the actual card. Guided setup keeps a consistent heading, form and illustration layout through its later steps; continuing an unchanged profile does not report a save.
 
+### Navigation and product prompts { #console-presentation }
+
+Under **Admin → Deployment → Identity → Console availability**, an operator chooses which navigation entries and optional product prompts organizations may offer. Organizations configure **Console for each role** in **AI & services**: select a built-in role, draft its navigation, review the preview and save. **Simple assistant** selects Chat, Inbox, Projects and Documents; it is an optional preset, not a new default for existing accounts.
+
+Members can narrow that selection under **Settings → Profile → My navigation**. An empty selection intentionally hides every primary entry; an inherited selection follows the organization and deployment. Navigation drafts require **Save** and warn before leaving with unsaved changes. Account settings, organization switching and administrator recovery remain reachable. Hiding a page does not revoke its permission: an authorized person can still open its URL. Normal permission checks run after presentation filtering.
+
+The role preview shows navigation filtered by the selected role and the administrator’s own permissions. It does not impersonate a person or load their private content. **Product prompts** independently controls the desktop invitation and automatic release/mobile-installation suggestions, at deployment, organization and membership levels. A personal preference cannot override an organization or deployment restriction. Maintenance, service-availability and security notices keep their existing behavior; an installed app is not disabled by hiding its invitation.
+
+
+### Catalogs and role dashboards { #console-catalogs }
+
+**Console for each role** also controls the MCP and Skill galleries. Choose all available entries, an explicit allow-list, or only servers connected by the organization / visible installed skills. Organization gallery limits apply to roles without catalog management; managers still obey deployment and personal ceilings. Members can narrow their own galleries under **Settings → Profile → Catalogs**. Empty allow-lists deliberately offer no entries.
+
+Catalog limits change discovery, not tool authority. Existing accessible accounts remain manageable in **Connected**, and published agent bindings keep their existing access checks. Search totals and pagination are filtered at the server. A private skill belonging to somebody else is never advertised as an installed copy to a reader who cannot see it. A refreshed console policy invalidates cached gallery results.
+
+For a role's **Default dashboard**, first arrange and save your own dashboard, then copy that saved arrangement in the role settings. Review the data-free layout preview and save separately. Filters pinned to a person or agent must be removed before sharing a role default. This prevents a personal arrangement from distributing private identifiers through organization settings. Layouts retain supported widths, heights, sections and presentation options; vectors or widget data are not copied.
+
+A configured role default becomes that role's home dashboard. A person's saved arrangement takes precedence, including an intentionally empty layout. Resetting their arrangement inherits the role default again. An absent role default preserves the standard home. Widget permission checks still run last for each reader. A failed layout or policy read shows an error and retry rather than briefly rendering another layout.
+
+### Costs in chat { #chat-cost-visibility }
+
+**Chat costs** follows a stricter hierarchy: deployment availability → organization audience → personal choice. The deployment can hide costs everywhere in chat. In the organization’s **AI & services** settings, choose **Everyone** (the default), **People with access to spend** (`budgets:manage` or `runs:view`), or **Nobody in chat**. In **Settings → Profile**, members may hide costs for themselves, but cannot override a restriction above them.
+
+The rule applies to answer prices, delegation costs, conversation totals and budget percentages, including saved transcripts, live and reconnected streams, shared chats and Q&A continuations. Withheld financial metadata is omitted from the chat response; token and context readings remain available. This does not rewrite agent answers or arbitrary tool content. Accounting and budget enforcement continue unchanged. Activity and dashboard costs keep their existing permissions.
+
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
@@ -285,6 +311,8 @@ snapshot you meant to keep.
 ## Routines and watches
 
 New routines automatically use the agent's available configuration at creation, within an approved access and behavior ceiling. No initial access review is required; missing optional MCP accounts do not block unrelated work. Later source or tool expansions and changes to instructions, skills, context or delegates require the creator's review before running. Model-only updates and safe removals stay within the ceiling. Agent approvals, mandatory platform approvals and native folder consent still apply. The access dialog can instead keep a reviewed snapshot; existing restricted routines retain that policy until the owner changes it.
+
+New routines default to eligible tools running automatically under the agent's approval rules, with runs collected in one read-only chat. Choose a separate chat per run to continue the conversation directly, or fork the shared history. In **Routine tools**, **Follow agent**, **Ask every time** and **Off** retain or tighten the agent's rules; required approvals still apply. Saving restrictions on an older routine explicitly removes its previous standing approvals, as the dialog warns. See [Routine tools](governance.md#routine-action-consent).
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 
@@ -1010,6 +1038,8 @@ or a session to its run lands on a row the list shows.
 
 ## What each area is for
 
+**Event sources** remains available at `/event-sources`, but is not shown in the default sidebar. Open its management page from the source picker in a routine or workflow. You can add it through navigation customization; explicit organization-role and personal choices are retained.
+
 **Overview** (Dashboard), **Chat** and **Inbox** lead the sidebar. **Build & manage**
 keeps Agents, Workflows, Routines and Apps visible; Projects follow.
 
@@ -1269,3 +1299,8 @@ New accounts open `/onboarding` after password registration or their first OAuth
 After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
 
 When an agent asks a question, its card and the normal composer stay visible together. The composer keeps your draft and attachments; new messages wait in the queue while you answer through the card. Stopping a response pauses queued messages until you explicitly resume the queue. Natural completion continues the queue normally.
+
+
+## Flat recent chat list
+
+The Chats header offers **Most recent first (flat list)**. It combines project and ordinary chats in one list ordered by last activity, without project, unread or favourite headings. Favourites keep their stars but are not pinned above newer activity. Pagination uses this order on the server, so old favourites cannot displace recent chats from the first page. Existing agent, archive and API filters still apply. The choice is saved in this browser separately for each signed-in user; **Group chats by project** restores the default grouped view.

@@ -887,7 +887,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
             (entry) =>
               entry.requiresReview &&
               entry.site.nodeId === site.nodeId &&
-              entry.site.binding === site.binding,
+              entry.site.binding === site.binding &&
+              entry.site.action === site.action,
           ),
       );
       if (applicable.length > 0) commit(withRebound(graph, applicable));

@@ -66,7 +66,7 @@ export function CreateProjectDialog({
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
   const [agentId, setAgentId] = useState<string | null>(null);
-  const [sandbox, setSandbox] = useState("auto");
+  const [sandbox, setSandbox] = useState("state");
   const [audience, setAudience] = useState<Audience>(ONLY_ME);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -82,7 +82,7 @@ export function CreateProjectDialog({
     setDescription("");
     setInstructions("");
     setAgentId(null);
-    setSandbox("auto");
+    setSandbox("state");
     setAudience(ONLY_ME);
     setErrors({});
   }
@@ -93,7 +93,7 @@ export function CreateProjectDialog({
         description !== "" ||
         instructions !== "" ||
         agentId !== null ||
-        sandbox !== "auto" ||
+        sandbox !== "state" ||
         localFolder !== null ||
         audience.mode !== "private"),
     save:
@@ -119,9 +119,9 @@ export function CreateProjectDialog({
         description: description.trim() || null,
         instructions,
         default_agent_id: agentId,
-        ...(sandbox === "auto" || sandbox === "computer"
-          ? {}
-          : sandbox === "state"
+        ...(sandbox === "auto"
+          ? { backend: "auto" as const }
+          : sandbox === "state" || sandbox === "computer"
             ? { backend: "state" as const }
             : { backend: "service" as const, sandbox_connection_id: sandbox }),
         ...audiencePayload(audience),

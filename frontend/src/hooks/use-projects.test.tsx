@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
@@ -8,10 +8,13 @@ import {
   uploadPath,
   useProject,
   useProjectChats,
+  useProjectChatCount,
   useProjectFiles,
   useProjects,
 } from "./use-projects";
 import * as api from "@/lib/projects-api";
+import { qk } from "@/lib/query-keys";
+import type { ProjectChatList } from "@/lib/projects-api";
 import type { Project } from "@/types/projects";
 
 vi.mock("@/lib/projects-api", () => ({
@@ -184,7 +187,13 @@ describe("uploadPath", () => {
 });
 
 it("queues a sandbox transfer and reports a refused transfer without dropping the project", async () => {
-  const { result } = renderHook(() => useProject("p-1"), { wrapper });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(() => useProject("p-1"), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
   await waitFor(() => expect(result.current.project).toEqual(PROJECT));
   vi.mocked(api.moveProjectWorkspace).mockResolvedValue({
     job_id: "j",
@@ -196,10 +205,47 @@ it("queues a sandbox transfer and reports a refused transfer without dropping th
   });
   await act(() => result.current.moveWorkspace.mutateAsync("cloud"));
   expect(api.moveProjectWorkspace).toHaveBeenCalledWith("p-1", "cloud");
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversation-workspace"] });
   vi.mocked(api.moveProjectWorkspace).mockRejectedValue(new Error("active run"));
   await act(async () => {
     await result.current.moveWorkspace.mutateAsync("cloud").catch(() => undefined);
   });
   expect(toast.error).toHaveBeenCalled();
   expect(result.current.project?.id).toBe("p-1");
+});
+
+it("observes the chat list cache, including zero, without fetching or polling", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { result, rerender } = renderHook(({ id }) => useProjectChatCount(id), {
+    initialProps: { id: "p-1" },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  expect(result.current).toBeUndefined();
+  const putTotal = (total: number) =>
+    client.setQueryData<InfiniteData<ProjectChatList>>(qk.conversations.inProject("p-1"), {
+      pages: [{ items: [], total }],
+      pageParams: [0],
+    });
+  act(() => {
+    putTotal(4);
+  });
+  await waitFor(() => expect(result.current).toBe(4));
+  act(() => {
+    putTotal(0);
+  });
+  await waitFor(() => expect(result.current).toBe(0));
+  act(() =>
+    client.setQueryData<InfiniteData<ProjectChatList>>(qk.conversations.inProject("p-1"), {
+      pages: [],
+      pageParams: [],
+    }),
+  );
+  await waitFor(() => expect(result.current).toBeUndefined());
+  await act(() => client.invalidateQueries({ queryKey: qk.conversations.inProject("p-1") }));
+  rerender({ id: "p-2" });
+  expect(result.current).toBeUndefined();
+  expect(api.listProjectChats).not.toHaveBeenCalled();
+  client.clear();
 });

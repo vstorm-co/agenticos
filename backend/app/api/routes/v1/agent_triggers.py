@@ -46,6 +46,7 @@ from app.schemas.portal import (
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.schemas.routine_readiness import TriggerReadinessList, TriggerReadinessRequest
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
+from app.schemas.routine_tools import RoutineToolOptions, RoutineToolSettings
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
 
@@ -299,6 +300,35 @@ async def replace_routine_action_consents(
     Agent- and connection-required approvals remain required.
     """
     return await service.set_action_consents(ctx, agent_id, trigger_id, data)
+
+
+@router.get("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
+async def routine_tool_options(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Every tool the routine's agent version gives it, with the agent's and the routine's setting.
+
+    The agent decides which tools run freely and which ask first; the routine's
+    owner can only narrow that, per tool, to `ask` or `off`.
+    """
+    return await service.tool_options(ctx, agent_id, trigger_id)
+
+
+@router.put("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
+async def replace_routine_tool_settings(
+    agent_id: UUID,
+    trigger_id: UUID,
+    data: RoutineToolSettings,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+) -> Any:
+    """Replace the routine's tool narrowing; an empty list follows the agent.
+
+    Console session of the routine's owner only. Saving moves the routine to the
+    agent's own approval settings and clears its standing action consent, which
+    a narrowing makes redundant.
+    """
+    return await service.set_tool_settings(ctx, agent_id, trigger_id, data)
 
 
 @router.get("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)

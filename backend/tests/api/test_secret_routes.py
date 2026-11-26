@@ -115,6 +115,7 @@ class TestListing:
         kinds = {entry["kind"] for entry in response.json()["items"]}
         assert kinds == {
             "api_key",
+            "webhook_credentials",
             "azure_openai",
             "aws_credentials",
             "gcp_service_account",
@@ -125,11 +126,21 @@ class TestListing:
             "entra_app",
             "http_credential",
             "microsoft_oauth_app",
+            "mcp_oauth_client",
             "openai_codex",
             "openai_chatgpt",
             "smtp_account",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
+
+        webhook = next(
+            entry for entry in response.json()["items"] if entry["kind"] == "webhook_credentials"
+        )
+        schema = webhook["json_schema"]
+        assert set(schema["required"]) == {"username", "password"}
+        for field in ("username", "password"):
+            assert schema["properties"][field]["writeOnly"] is True
+            assert schema["properties"][field]["format"] == "password"
 
 
 class TestWriting:
