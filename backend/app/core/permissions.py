@@ -24,6 +24,9 @@ from uuid import UUID
 
 from app.core.exceptions import AuthorizationError
 
+DEPLOYMENT_ADMIN_SCOPE = "deployment:admin"
+"""Explicit OAuth/run authority, never an organization permission or preset."""
+
 
 class Perm(StrEnum):
     """Everything a member can be allowed to do.
@@ -82,6 +85,11 @@ class Perm(StrEnum):
     DATASETS_VIEW = "datasets:view"
     DATASETS_EDIT = "datasets:edit"
     DATASETS_RUN = "datasets:run"
+    # Live ingress and captured events need their own sharing boundary.
+    EVENT_SOURCES_VIEW = "event_sources:view"
+    EVENT_SOURCES_USE = "event_sources:use"
+    EVENT_SOURCES_EDIT = "event_sources:edit"
+
     # A project: shared files in one container, standing instructions, and the
     # chats people have in it. Three levels because they are three acts - seeing
     # a project and reading its files, working in it (chatting, adding files), and
@@ -131,6 +139,8 @@ class Perm(StrEnum):
     API_KEYS_MANAGE = "api_keys:manage"
     PERSONAL_CONSENT = "personal:consent"
     """Let an explicitly authorized key or client consent to the issuer's personal sources."""
+    MCP_PERSONAL_USE = "mcp:personal:use"
+    """Delegate the issuer's own MCP connections to external agent runs."""
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -157,6 +167,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.DATASETS_VIEW,
         Perm.DATASETS_EDIT,
         Perm.DATASETS_RUN,
+        Perm.EVENT_SOURCES_VIEW,
+        Perm.EVENT_SOURCES_USE,
+        Perm.EVENT_SOURCES_EDIT,
         Perm.PROJECTS_VIEW,
         Perm.PROJECTS_USE,
         Perm.PROJECTS_EDIT,
@@ -277,6 +290,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_USE: Scope.ALL,
+        Perm.EVENT_SOURCES_EDIT: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -307,6 +323,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_USE: Scope.ALL,
+        Perm.EVENT_SOURCES_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -353,7 +372,11 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
+        Perm.EVENT_SOURCES_EDIT: Scope.OWN,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -382,7 +405,10 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -416,7 +442,11 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
+        Perm.EVENT_SOURCES_EDIT: Scope.OWN,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -429,6 +459,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
     },
 }
 
@@ -567,6 +598,9 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    source_run_id: UUID | None = None
+    """Internal credential bound to one run; never supplied by the model."""
+
     key_internal: bool = False
     """The key is a run credential the platform minted for an agent, not one the person issued.
 
@@ -662,6 +696,26 @@ class AuthContext:
         It grants nothing by itself: reach comes from `agent_grants`.
         """
         return self.principal_agent_id is not None
+
+    @property
+    def may_delegate_personal_mcp(self) -> bool:
+        """An external credential explicitly delegated its issuer's MCP accounts.
+
+        This opens no other personal state and is never inherited by a platform
+        run credential, publisher fallback, routine or private-chat hint.
+        """
+        return (
+            self.user_id is not None
+            and self.api_key_id is not None
+            and self.key_scopes is not None
+            and not self.key_internal
+            and not self.subject_is_publisher_fallback
+            and self.fired_as_creator is None
+            and self.routine_id is None
+            and self.source_conversation_id is None
+            and self.has(Perm.MCP_PERSONAL_USE)
+            and self.key_allows(Perm.AGENTS_RUN)
+        )
 
     @property
     def is_anonymous(self) -> bool:

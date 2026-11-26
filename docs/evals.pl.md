@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "80da2d54c72a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -26,6 +26,9 @@ run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z in
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
+
+Mniej niż trzy zmierzone runy to jeszcze nie trend: w miejscu wykresu jest ich
+lista, każdy z odsetkiem zaliczeń i odnośnikiem, oraz informacja, ile runów jest na razie.
 
 Oś pokazuje godziny, gdy historia mieści się w jednym dniu, także minionym. Przy historii obejmującej kilka dni pokazuje daty starszych runów i godziny dzisiejszych, bez powtarzania identycznych etykiet. Podpowiedź zachowuje pełną datę i godzinę startu. Powyżej 10 runów przełącznik nad wykresem
 pokazuje ostatnie 10, ostatnie 30 albo wszystkie runy; otwiera się na ostatnich
@@ -72,7 +75,7 @@ ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
 Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i nie liczą się ani
 jako zaliczone, ani jako niezaliczone, a **Oceń ponownie** (Grade again) w
 nagłówku ocenia je ponownie bez pytania agenta, dla każdego, kto może uruchamiać
-dataset.
+dataset i czytać odpowiedzi runu.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
@@ -141,26 +144,48 @@ przypadek, gdy dataset wymaga oceniania modelem.
 
 Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
-Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
-`EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
+Agent bez historii na danym modelu jest szacowany jako typowe żądania - każde
+`EVAL_FALLBACK_INPUT_TOKENS` na wejściu i `EVAL_FALLBACK_OUTPUT_TOKENS` na
 wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
 modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
-(`basis: "fallback"`). Sędzia bez historii jest wyceniany tak samo, na modelu,
-który wskazuje jego opublikowany spec; szacunek ostrzega, gdy to model, który
-jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
+(`basis: "fallback"`). Odpowiedź to jedno żądanie albo
+`1 + EVAL_FALLBACK_TOOL_ROUNDS`, gdy agent ma narzędzie: każde wywołanie
+narzędzia dostaje odpowiedź w kolejnym żądaniu.
+
+Sędzia bez historii jest wyceniany jako jedno żądanie, które czyta też ocenianą
+odpowiedź, na modelu, który wskazuje jego opublikowany spec; szacunek ostrzega,
+gdy to model, który jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
 chyba że użyty zostanie niedawny pasujący baseline - wtedy jego pierwsze
 odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
 Ewaluacja korzysta z istniejących miesięcznych budżetów agenta i organizacji.
-Szacunek pokazuje kwoty pozostające po pełnym przewidywanym wydatku jako
-`agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
+`total_usd` to pierwsze odpowiedzi i ich ocena, a `expected_usd` - ile run
+najpewniej kosztuje: tyle, plus połowa `rerun_ceiling_usd` dla runa
+porównywanego z baseline'em, bo taki run zwykle zadaje ponownie około połowy
+przypadków, które może. Run stabilności zadaje ponownie każdy przypadek, a run
+bez punktu odniesienia żadnego. Okno startu pokazuje `expected_usd`, a pod nim
+najwyższy możliwy koszt, a strona runa - ile wydał wobec obu kwot.
+
+Szacunek pokazuje kwoty pozostające w budżetach po pełnym przewidywanym wydatku
+jako `agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
 wraz z `rerun_ceiling_usd` przekracza którykolwiek budżet. Limit powtórek obejmuje
 zmianę wyniku każdego przypadku, wszystkie próby potwierdzające, sędziego i
 powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się różnić.
 Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
 kończy run jako `budget_exceeded`.
+
+Start może odesłać `total_usd` z wyceny jako `quoted_usd` i wskazać jej
+`dataset_version`. Jeśli aktualny szacunek startu jest wyższy od tej kwoty,
+serwer zwraca `409`. Architekt przekazuje oba pola, a karta zatwierdzenia pokazuje
+wycenę. To porównanie szacunków, a nie twardy limit końcowego rachunku dostawcy.
+Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy promocji też przyjmują
+`quoted_usd`; `GET .../gate/estimate` wycenia strażników oczekujących na start.
+
+Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
+przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo
+nieznanej. Istniejący klienci i zadania bez wyceny zachowują wcześniejsze działanie.
 
 Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
 porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako
@@ -190,11 +215,13 @@ Nieznane środowisko zwraca 404. Równoległe tworzenie lub zmiana nazwy suity n
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
-Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w tej samej proporcji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
+Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%); wszystkie własne pytania testowe skilla są kontrolne, a ich udziału nie można obniżyć. Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w proporcji, jaką dataset miał przy starcie sesji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
 
 Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
-Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
@@ -210,6 +237,11 @@ runów go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt
 pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
 (`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
 uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
+
+Ta rola jest odczytywana ponownie przed każdym przypadkiem. Gdy osoba, która
+uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta albo
+datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
+odpowie na kolejny przypadek.
 
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
@@ -284,6 +316,8 @@ przypadki przed nimi.
 
 ## Wyniki { #results }
 
+Wynik pokazuje najpierw rezultat i odpowiedzi do sprawdzenia. Porównanie podaje liczbę poprawnych odpowiedzi przed i po. Otwórz pytanie, aby przeczytać odpowiedź i ocenę. **Jak przeprowadzono test** zawiera wyniki rodzin kryteriów, koszt i szczegóły wykonania; ich otwarcie nie ukrywa odpowiedzi. Filtr wyniku i wybrane pytanie pozostają w URL-u.
+
 Każda próba zachowuje odpowiedź, wykonane wywołania - każde oznaczone jako
 wykonane, zablokowane, odtworzone albo rozbieżne - werdykt i uzasadnienie
 każdego oceniającego, swój koszt, tokeny i latencję. Odpowiedź i wywołania są
@@ -294,7 +328,7 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego; **Spełnione kryteria** (`partial_credit`), średni udział kryteriów przypadku spełnionych przez jego pierwszą odpowiedź - sześć z siedmiu liczy się jako 6/7, gdy odsetek zaliczonych liczy przypadek jako niezaliczony - wraz z `criteria_passed` i `criteria_graded` |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
 Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
@@ -324,7 +358,7 @@ Odpowiedź, której sędzia nie zdołał ocenić albo którą pominął, jest **
 (`POST /api/v1/datasets/{id}/scores/rescore`) czyta odpowiedź zachowaną w
 próbie, zamiast pytać agenta. Werdykt osoby w
 [kolejce przeglądu](datasets.md#review) zastępuje wynik oceniających dla tego
-przypadku, a liczby runa idą za nim.
+przypadku, a liczby runa idą za nim, tak jak za nową oceną.
 
 Sędzia, który przeszukuje - [Knowledge search](concepts.md#system-agent-spec)
 na jego zakładce Narzędzia - sprawdza fakty w odpowiedzi względem baz wiedzy agenta, który
@@ -333,6 +367,11 @@ dokument i początek fragmentu. Dopóki jego runy nie dadzą historii, wycena li
 każde ocenianie jako tyle żądań, ile kroków ma sędzia. Sędzia startuje z
 temperaturą 0, więc ta sama odpowiedź jest oceniana tak samo dwa razy, a jego
 strona ostrzega, gdy ktoś ją podniesie.
+
+Znaleziony fragment widzi tylko czytający, który może zobaczyć odpowiedź i
+czytać bazę wiedzy, z której pochodzi, a dane uwierzytelniające są w nim
+redagowane, zanim zostanie zapisany. Fragmentu, który nie wskazuje swojej bazy
+wiedzy, nie widzi nikt, bo mógł pochodzić z czyjejś osobistej bazy wiedzy.
 
 Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
 pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego
@@ -361,6 +400,20 @@ mierzone względem samej wersji roboczej nie liczy się w żadnym z nich.
 Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadków z dowolnym wybranym tagiem. W **Ocenianie** (Grading) wybierz tagi i sprawdź liczbę objętych przypadków; przypadek z kilkoma pasującymi tagami liczy się raz. Niepasujące kryteria są całkowicie pomijane, więc nie mogą oblać przypadku ani pozostawić go nierozstrzygniętym. Notatka przeglądu może stać się kryterium dla wybranego tagu przypadku. Zmiana zakresu zmienia odcisk oceniania; strażnicy przyjmują ją dopiero po uprawnionym przesunięciu przypięcia.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
+
+`criterion_change` to liczba potwierdzonych napraw kryteriów pomniejszona o potwierdzone pogorszenia, podzielona przez liczbę wszystkich ocen kryteriów porównanych parami. Jest obliczana przed ograniczeniem szczegółów odpowiedzi. Gdy całe pytania nie zmieniają wyniku, a kilka prób poprawia same kryteria, Improve wybiera większą znormalizowaną poprawę kryteriów; dokładny remis pozostawia wcześniejszą próbę. Nieporównywalne testy nie powodują agregacji ani zwracania zmian kryteriów. Nieporównywalny wynik bazowy nie uruchamia płatnych powtórzeń potwierdzających.
+
+Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymagają `runs:view`, dostępu do datasetu przypisanego do sesji i do każdego wskazanego skilla. Szczegóły sprawdzania skilla wymagają dostępu do wszystkich użytych datasetów. Ukryte lub usunięte źródła powodują ukrycie tych szczegółów bez zmiany zapisanych wyników. Powiadomienia o wynikach sprawdzają aktualny dostęp odbiorcy przed dołączeniem szczegółów kryteriów. Zapisane powiadomienia zawierające kryteria ponownie sprawdzają te źródła przy odczycie skrzynki i przed opóźnioną wysyłką; brak informacji o źródłach lub cofnięty dostęp ukrywa powiadomienie.
+
+Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
+
+Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
+
+Odczyt runu porównuje go ponownie tylko wtedy, gdy ktoś zdecydował o jednej z jego ocen po zapisaniu werdyktu, i to porównanie korzysta z tej samej blokady i budżetu. Gdy blokada jest zajęta, lista runów oraz informacja w Builderze, czy zmianę modelu można zaakceptować, pokazują werdykt każdego runu w zapisanej postaci, a odczyt pojedynczego runu zwraca 429. Sama akceptacja zmiany nadal porównuje. Sprawdzenie na suicie ewaluacji przechowuje werdykt suity razem z werdyktem runu, więc kolejny odczyt niczego nie porównuje.
+
+Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
+
+Odmowy z powodu zajętego porównania nie zużywają minutowych limitów odczytów. Konsola wstrzymuje polling do upływu `Retry-After`.
 
 Porównanie dopasowuje obie strony przypadek po przypadku według stałego id
 przypadku i podaje każdy jako **regresję** (był zaliczony, teraz nie jest),
@@ -400,9 +453,25 @@ może być winą providera, nie agenta.
 Zakończone ramię baseline'u zastępuje uruchomienie nowego tylko wtedy, gdy
 zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, działało
 w tym samym środowisku z tymi samymi `from_recordings` i `live_reads`, a
-skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
+skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Żaden plik kontekstowy, który
+agent wiąże, nie mógł się od tamtego runu zmienić: plik kontekstowy jest czytany
+na żywo przy każdej odpowiedzi. Run mówi, który run
 wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
 się odwraca, jest mu w tym runie zadawany ponownie.
+
+Baseline będący wersją roboczą agenta - tym, z czym sesja Improve porównuje
+każdą próbę - jest dopasowywany po dokładnym odcisku wersji roboczej i tylko
+wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Tym runem może
+być poprzednie sprawdzenie sesji albo run opublikowanej wersji, której spec
+wersja robocza wciąż jest, więc sesja rozpoczęta od nieedytowanej wersji roboczej
+wykorzystuje własną ewaluację tej wersji.
+
+Sesja w każdym sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się
+nie zmienia, baseline odpowiada najwyżej raz na sesję. Run, który zadał więcej
+przypadków, nigdy nie jest przycinany, bo odpowiedzi ponownie użytego ramienia
+są czytane w całości. Ponownie użyty baseline nic nie kosztuje w szacunku.
+Opublikowany baseline z pominiętymi przypadkami nigdy nie jest wykorzystywany
+ponownie.
 
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 
@@ -420,6 +489,46 @@ samym kandydatem we wcześniejszym czasie - ten sam spec na tym samym modelu,
 uruchomiony tak samo, jak ten, z którym porównuje się suita sprawdzająca
 codziennie jedną wersję: jego powtórki byłyby znowu tylko powtórkami kandydata,
 więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
+
+Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
+jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
+ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. `criteria`
+porównania podaje dla każdego kryterium, na ilu przypadkach obie strony je
+oceniły, ile z nich każda strona spełniła w pierwszej odpowiedzi oraz naprawy i
+zepsucia, które powtórzyła każda powtórka po obu stronach. Podaje najwyżej 200
+kryteriów: powyżej tej liczby najpierw każde kryterium, które się zmieniło,
+potem te, które najczęściej nie są spełnione.
+
+Kryteria są też liczone według **rodziny**: checków i kryteriów sędziego, które
+sprawdzają jedną rzecz w całym datasecie, nazwanej przez
+[`family`](datasets.md#checks) checka. Kryterium, którego check nie nazywa
+żadnej, jest osobną rodziną. Rodzina przechodzi w przypadku, gdy spełnione jest
+tam każde jej kryterium, a `families` porównania podaje dla każdej rodziny
+przypadki, które oceniły obie strony, ile z nich każda strona spełniła, i
+przypadki, na których się odwróciła. Podaje najwyżej 200 rodzin: powyżej tej
+liczby najpierw każdą gorszą lub lepszą, potem każdą inną, która się ruszyła,
+a potem te, które najczęściej nie przechodzą.
+
+Rodzina jest **rozstrzygnięta**, gdy jej
+własne odwrócone przypadki wystarczą, by dokładny test McNemara wskazał, w którą
+stronę się przesunęła; wtedy liczy się każde odwrócenie. W rodzinie, która
+przesunęła się na dwóch przypadkach lub więcej, nie będąc rozstrzygniętą, te
+przypadki są powtarzane i liczą się tylko odwrócenia, które powtórzyła każda
+powtórka. Rodzina, która przesunęła się na jednym przypadku, niczego nie
+rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, których
+wynik się odwrócił, tylko te przypadki są powtarzane.
+
+Run, który odkłada pytania dla sesji Improve, jest oceniany tylko na nich, więc
+powtarzane są tylko jego odłożone przypadki, a rodziny rozstrzygają się na nich.
+Jego przypadki treningowe nigdy nie są zadawane ponownie: następna próba czyta
+ich pierwsze odpowiedzi, a powtórek nic nie czyta. Jego limit powtórek liczy
+tylko odłożone przypadki.
+
+Werdykt poniżej dotyczy nadal całych
+przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
+[sprawdzenie skilla](skills.md#the-rule) czytają rodziny, gdy żaden przypadek się
+nie odwrócił.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy
@@ -652,8 +761,9 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Jak stary może być pasujący baseline, żeby nadal go użyć |
 | `EVAL_SIGNIFICANCE` | `0.05` | Poziom, poniżej którego potwierdzone odwrócenia są werdyktem |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Względna zmiana kosztu, tokenów lub latencji liczona jako brak zmiany |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniany jest przypadek na modelu bez historii |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniany jest przypadek na modelu bez historii |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Ile żądań ponad jedno zajmuje odpowiedź agenta z narzędziami na modelu bez historii |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii i bez znanej ceny |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
@@ -678,6 +788,12 @@ dataset - run na datasecie, którego czytający nie może otworzyć, nie jest
 wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
 organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
 tylko agentów, których czytający może widzieć.
+
+Decyzja w sprawie jednej z odpowiedzi runu albo jej ponowna ocena wymaga
+`runs:view` i dostępu do agenta, który odpowiedział, oprócz własnego uprawnienia
+datasetu - `datasets:edit`, by zdecydować, `datasets:run`, by ocenić. Każda z nich
+zmienia werdykt runu i to, co na nim zbudowano: bramkę suity, sesję Improve,
+sprawdzenie skilla. Sam grant na datasecie ich nie otwiera.
 
 Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` i
 `agents:run` na agencie, `datasets:run` na datasecie i `runs:view`, a do tego

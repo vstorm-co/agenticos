@@ -14,6 +14,7 @@ vi.mock("@/hooks/use-desktop", () => ({
           models: [
             { value: "fast", name: "Fast", efforts: [{ value: "low", name: "Low" }] },
             { value: "deep", name: "Deep", efforts: [{ value: "high", name: "High" }] },
+            { value: "inherit", name: "Alias named inherit", efforts: [] },
           ],
         }
       : undefined,
@@ -35,7 +36,8 @@ it("saves actual choices for this topic and clears an effort the next model does
   await user.selectOptions(screen.getByRole("combobox", { name: "Reasoning level" }), "low");
   expect(useWorkOnStore.getState().codingFor("topic")).toBe("codex");
   expect(useWorkOnStore.getState().codingPreferencesFor("topic").effort).toBe("low");
-  await user.selectOptions(screen.getByRole("combobox", { name: "Coding model" }), "deep");
+  await user.click(screen.getByRole("combobox", { name: "Coding model" }));
+  await user.click(screen.getByRole("option", { name: /^Deep$/ }));
   expect(useWorkOnStore.getState().codingPreferencesFor("topic")).toEqual({
     model: "deep",
     effort: null,
@@ -53,7 +55,7 @@ it("saves actual choices for this topic and clears an effort the next model does
 it("keeps an unavailable saved model visible instead of silently substituting one", () => {
   useWorkOnStore.getState().setCodingPreferences("topic", { model: "removed", effort: "max" });
   render(<LocalCodingSettings harness="claude_code" />);
-  expect(screen.getByRole("combobox", { name: "Coding model" })).toHaveValue("removed");
+  expect(screen.getByRole("combobox", { name: "Coding model" })).toHaveTextContent("removed");
   expect(screen.getByRole("combobox", { name: "Reasoning level" })).toHaveValue("max");
   expect(useWorkOnStore.getState().codingPreferencesFor("topic").model).toBe("removed");
 });
@@ -63,4 +65,16 @@ it("offers an explicit retry after a settings failure", async () => {
   render(<LocalCodingSettings harness="claude_code" />);
   await userEvent.click(screen.getByRole("button"));
   expect(env.refetch).toHaveBeenCalledOnce();
+});
+
+it("keeps a model alias distinct from inheriting the coding agent settings", async () => {
+  render(<LocalCodingSettings harness="claude_code" />);
+  const user = userEvent.setup();
+  const field = screen.getByRole("combobox", { name: "Coding model" });
+  await user.click(field);
+  await user.click(screen.getByRole("option", { name: /^Alias named inherit$/ }));
+  expect(useWorkOnStore.getState().codingPreferencesFor("topic").model).toBe("inherit");
+  await user.click(field);
+  await user.click(screen.getByRole("option", { name: /^Use coding agent settings$/ }));
+  expect(useWorkOnStore.getState().codingPreferencesFor("topic").model).toBeNull();
 });

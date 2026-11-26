@@ -17,7 +17,19 @@ import { acceptStagedInvitation } from "@/lib/invitation-staging";
  * opened without a flow or its cookie, is reported as a refused invitation by the
  * accept call, the same as any other.
  */
-export function AcceptStagedInvitation() {
+export function AcceptStagedInvitation({
+  presentation = "page",
+  onAccepted,
+}: {
+  presentation?: "page" | "inline";
+  onAccepted?: (organizationId: string) => void;
+} = {}) {
   const flow = useSearchParams().get(INVITATION_FLOW_PARAM);
-  return <InvitationAcceptCard accept={() => acceptStagedInvitation(flow)} />;
+  return (
+    <InvitationAcceptCard
+      presentation={presentation}
+      onAccepted={onAccepted}
+      accept={() => acceptStagedInvitation(flow)}
+    />
+  );
 }

@@ -222,6 +222,8 @@ function Workspace() {
         <div
           key={tab.key}
           role="tabpanel"
+          className="tab-panel"
+          data-state={active === tab.key ? "active" : "inactive"}
           id={`panel-${tab.key}`}
           aria-labelledby={`tab-${tab.key}`}
           hidden={active !== tab.key}

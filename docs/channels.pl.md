@@ -1,5 +1,5 @@
 ---
-source_sha: "16526de9a1b6"
+source_sha: "d25719663fe9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1254,7 +1254,7 @@ Przychodzące `references` muszą być listą ciągów bez CR i LF; zachowane wp
    commands and messages from the messages tab*. Bez tego Slack ukrywa pole
    wiadomości bota i wiadomość bezpośrednia jest niemożliwa.
 8. Opublikuj agenta, a potem go podepnij: Builder → agent → **Availability** →
-   bot.
+   bot albo **Channels** → wiersz bota → **Bind agent**.
 9. Zaproś bota na kanał — `/invite @your-bot` — i wspomnij o nim.
 
 !!! tip "Albo wklej manifest i pomiń kroki 2, 4, 6 i 7"
@@ -1440,12 +1440,13 @@ wklej i ten, bo inaczej bot zachowa dostęp, który miał.
     connected** wraz z powodem — supervisor wie, a do #1351 wpisywał to do logu
     kontenera i nigdzie indziej.
 
-    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać:
-    brak agenta podpiętego do bota (wiersz to mówi), brakujący scope albo
-    subskrypcja eventu, a potem błędne `BOT_ID` w Request URL. To ostatnie nie
-    może zgłosić się samo: route eventów odpowiada **200 i nic nie robi** na id
-    bota, którego nie potrafi znaleźć, i to celowo, bo sondujący powinien się
-    dowiedzieć jedynie, że endpoint istnieje — co już powiedział mu URL.
+    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać: brak
+    agenta podpiętego do bota albo wstrzymane powiązanie (wiersz mówi które),
+    brakujący scope albo subskrypcja eventu, a potem błędne `BOT_ID` w Request
+    URL. To ostatnie nie może zgłosić się samo: route eventów odpowiada **200 i
+    nic nie robi** na id bota, którego nie potrafi znaleźć, i to celowo, bo
+    sondujący powinien się dowiedzieć jedynie, że endpoint istnieje — co już
+    powiedział mu URL.
 
 Działa na kanałach i w DM-ach. Wiadomość z powiązanego konta wykonuje się jako ta
 osoba — nigdy jako bot; wiadomość z konta, którego nikt nie powiązał, wykonuje
@@ -1527,6 +1528,12 @@ obok `/new`, `/link` i `/help` — pokazuje *pisze…* w trakcie pracy i nazywa 
 na którym jest, wysyła odpowiedzi jako HTML Telegrama przekonwertowany z Markdownu
 agenta, więc bloki kodu i linki przetrwają, a w grupie z tematami odpowiada w tym
 samym temacie.
+
+Odpowiedź przesyłana strumieniowo jest formatowana tak samo, gdy
+się skończy. Punkty listy zaczynają się od `•`, a lista zadań pokazuje ☐ i ☒.
+Odpowiedź dłuższa niż 4096 znaków Telegrama przychodzi jako kilka
+wiadomości, a blok kodu przecięty między dwiema z nich jest zamykany i otwierany
+ponownie.
 
 ## Mattermost { #mattermost }
 
@@ -1861,6 +1868,124 @@ Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
 Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
 cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Bot Matrixa to zwykłe konto na twoim własnym homeserverze, z którym wdrożenie
+rozmawia przez Client-Server API, bez biblioteki pośrodku (#2081). Wszystko
+przychodzi przez long-poll `/sync` bota, więc **wdrożenie nie potrzebuje
+publicznego adresu dla Matrixa**, a bot Matrixa nie ma trybu webhooka. Miejsce,
+w którym bot przestał czytać, jest przechowywane w Redisie wdrożenia, więc po
+restarcie bot wznawia od niego. Przy pierwszym starcie konta bot pomija historię
+pokoju, zamiast na nią odpowiadać.
+
+Luki w ograniczonym batchu `/sync` są odtwarzane chronologicznie stronami po
+50 wiadomości od ostatniego zapisanego kursora, także po restarcie. Każda strona
+trafia do kolejki przed odczytem następnej; kursor zmienia się dopiero po
+pomyślnym przyjęciu całego batcha.
+
+!!! warning "Na razie tylko pokoje nieszyfrowane"
+
+    Bot czyta pokoje bez szyfrowania end-to-end. Zaproszenie do zaszyfrowanego
+    pokoju lub czatu bezpośredniego odrzuca z powodem, który widzi zapraszający,
+    a w pokoju, w którym szyfrowanie włączono później, milczy. Szyfrowanie to
+    drugi etap #2081. Adapter sprawdza aktualny stan szyfrowania przed
+    przyjęciem wiadomości i przed wysłaniem odpowiedzi, edycji lub reakcji.
+    Jeśli nie może odczytać stanu, nie wysyła tekstu jawnego.
+    Jeśli zaproszenie pomija stan szyfrowania, bot sprawdza go po dołączeniu
+    i opuszcza pokój, gdy szyfrowanie jest włączone.
+
+1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
+2. Zdobądź dla niego **token dostępu** (access token):
+    - Na homeserverze za Matrix Authentication Service (MAS) wydaj token
+      zgodności na hoście MAS:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 i nowsze
+      potrafią też utworzyć sesję osobistą w ustawieniach konta.
+    - Na homeserverze bez MAS zaloguj się raz hasłem konta:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      i zachowaj `access_token` z odpowiedzi. Nie wylogowuj tej sesji: jej token
+      należy do bota.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `matrix`, z tokenem i
+   **URL-em klienta** homeservera (`https://matrix.example.org`). Gdy strumień
+   się otwiera, bot pyta homeserver, kim jest. Token, który homeserver odrzuca,
+   zatrzymuje bota, a jego wiersz to mówi.
+4. Zaproś bota do pokoju albo zacznij z nim czat bezpośredni. Bot dołącza, gdy
+   zapraszający jest kimś, kogo dopuszcza jego polityka dostępu, a w przeciwnym
+   razie odmawia.
+
+**Znieś limit szybkości dla bota.** Odpowiedź to jedna wiadomość edytowana raz na
+sekundę, póki spływa, a domyślny limit wiadomości w Synapse dławi to po kilku
+sekundach. Bot czeka, gdy homeserver mówi, jak długo, więc nic nie przepada, ale
+długa odpowiedź pojawia się wtedy skokami. W Synapse administrator zwalnia bota
+z limitu przez
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` z
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat bezpośredni (pokój bota i jednej osoby) | Na każdą wiadomość |
+| Pokój | Gdy wiadomość wspomina bota. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek, w którym zapytano bota | Na każdą wiadomość w nim |
+
+Wzmianka to bot wskazany w `m.mentions` wiadomości, „pigułka” (pill), która do
+niego linkuje, albo wpisany uchwyt: `@` i identyfikator użytkownika, część
+lokalna lub nazwa wyświetlana bota, np. `@AgenticOS co potrafisz?`. Niektóre
+klienty wysyłają wpisany uchwyt jako zwykły tekst, więc liczy się on także bez
+pigułki. Nazwa bez `@`, uchwyt w kodzie i dłuższy uchwyt, jak `@agent-ops`, się
+nie liczą.
+
+Na `@room` bot
+odpowiada tylko wtedy, gdy jego polityka każe odpowiadać na wzmianki całego
+kanału. Jak wszędzie indziej, czat bezpośredni też ma wątki: odpowiedź w wątku
+odpowiedzi kontynuuje rozmowę, a nowa wiadomość na dole zaczyna nową.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją
+przez `m.replace` w miarę, jak odpowiedź spływa. Po 4000 znakach odpowiedź
+przechodzi do kolejnych wiadomości w tym samym wątku. Zapisywany jest tylko
+tekst, który guardraile już sprawdziły. Nic, co publikuje bot, nie może nikogo
+powiadomić: każda wiadomość niesie puste `m.mentions`. Odpowiedzi są wysyłane
+jako Markdown wyrenderowany do HTML, a HTML w wyjściu modelu jest escapowany,
+nigdy nie jest wysyłany jako znaczniki.
+
+**Zatwierdzenia i pytania są numerowane.** Matrix nie ma przycisków, a ankiet nie
+ma w specyfikacji, więc prośba wypisuje swoje opcje jako ponumerowane wiersze w
+wątku. Odpowiedź, która jest samym numerem, rozstrzyga ją, tak jak w
+[SMS](#sms). Bot reaguje 👀 na pytanie, gdy ono przychodzi, i pokazuje, że pisze,
+gdy pracuje.
+
+**Polecenia w Element.** Element traktuje wiadomość zaczynającą się od `/` jako
+własne polecenie. `/help` otwiera pomoc Element i nigdy nie trafia do bota.
+Każde inne polecenie bota, np. `/new` lub `/link`, otwiera okno *Nieznane
+polecenie* w Element, w którym **Wyślij jako wiadomość** je wysyła. Wiadomość
+zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
+
+Przed każdą wiadomością klasyfikowaną jako prywatna bot sprawdza aktualną listę
+uczestników. Ciche dołączenie trzeciej osoby nie zachowuje dostępu do prywatnego
+kontekstu. Wynik klasyfikacji grupy jest pamiętany tylko w bieżącym batchu `/sync`.
+Prywatne odpowiedzi, edycje, pytania i pliki sprawdzają pierwotnego odbiorcę
+bezpośrednio przed wysłaniem, także po wznowieniu runu. Dołączenie osoby lub
+podmiana odbiorcy blokuje tę prywatną odpowiedź; rozmowa grupowa ma osobny kontekst.
+
+Pobieranie mediów nie podąża za przekierowaniami. Homeserver musi udostępniać
+uwierzytelnione media bezpośrednio; przekierowania do CDN są odrzucane.
+
+**Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
+homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła
+agent, są wysyłane tak samo. **Wątek, do którego bota dołączono w trakcie, jest
+czytany najpierw**, tak jak na Slacku i Mattermoście. Każda wiadomość jest
+czytana w brzmieniu jej ostatniej edycji, a pliki wrzucone przez samego bota są
+pomijane. Gdy pozwala na to powiązanie, agent może opisać pokój, wypisać jego
+członków i czytać jego historię.
+
+**Kto mówi**, określa identyfikator Matrixa (`@ada:example.org`) razem z adresem
+klienta skonfigurowanego homeservera. `/link` potwierdza tę parę; inny serwer
+wymaga osobnego powiązania, nawet gdy podaje ten sam identyfikator użytkownika.
+Adres serwera widać przed potwierdzeniem oraz na liście połączonych kont.
+Wielkość liter hosta, domyślne porty i końcowe ukośniki są normalizowane;
+różne ścieżki pozostają osobnymi źródłami tożsamości. Zmiana serwera bota nie
+pozwala wznowić starej tożsamości ani wysłać starej odpowiedzi przez nowy serwer.
+Rozmowę z pokoju widzą w konsoli osoby, które nadal do niego należą.
+
 ## WhatsApp { #whatsapp }
 
 Zweryfikowane wiadomości i statusy zamkniętego okna trafiają do trwałych zadań PostgreSQL w transakcji webhooka. Uruchom pule workerów `agent` i `system`. Worker sprawdza, czy bot nadal jest aktywny w tej samej organizacji. Kolejka szereguje paczki klienta i ponawia błędy; przetwarzanie jest co najmniej jednokrotne, bez gwarancji pojedynczego wysłania do zewnętrznej usługi. Ładunek zawiera tekst i metadane nadawcy lokalnie, nigdy w AgenticOS Bridge. Obowiązuje retencja zadań; zapomnienie klienta usuwa zadania, które nie są wykonywane, a trwające mogą się zakończyć.
@@ -2122,8 +2247,8 @@ audytu zapisuje liczby. To, czego nie obejmuje, opisuje
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
-Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta, Gateway
+Discorda i synchronizacja Matrixa chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
@@ -2253,6 +2378,16 @@ do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysy�
 może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
 Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Odpowiedzi rutyn w czacie prywatnym { #routine-answers-in-a-private-chat }
+
+Gdy rutyna utworzona w czacie prywatnym na Telegramie, Slacku, Mattermoście, Teams, Discordzie lub Matrixie otwiera nowy czat dla każdego uruchomienia (`chat_mode=per_run`), bot publikuje odpowiedź każdego uruchomienia także w czacie, w którym ją utworzono, więc osoba czyta ją tam, gdzie o nią poprosiła. Całe uruchomienie zostaje w osobnym czacie w konsoli.
+
+Wysyłka wyniku rutyny do prywatnego czatu ma jedną trwałą próbę. Gdy worker się zatrzyma lub platforma nie potwierdzi przyjęcia, wynik zostaje oznaczony jako niedostępny zamiast automatycznie wysłany ponownie. Pełna odpowiedź pozostaje w konsoli. Takie zachowanie zapobiega powielaniu wiadomości po niepewnym wyniku wysyłki.
+
+Przed publikacją platforma ponownie sprawdza powiązane konto twórcy, jego członkostwo, przypisanego agenta i rozmowę. Dopóki publikacja czeka, rutyna pokazuje **Wysyłanie ostatniego wyniku do czatu**. Gdy czat przyjmie odpowiedź, status to `delivered`. Gdy czat jej nie przyjmie, rutyna pokazuje **Ostatni wynik niedostępny w czacie**, a jej właściciel dostaje powiadomienie. Odpowiedź zostaje w dzienniku uruchomień.
+
+Rutyna z jedną wspólną historią (`chat_mode=shared`) niczego nie publikuje w czacie. Czaty grupowe, SMS, iMessage i e-mail zostawiają odpowiedź w konsoli. Po `/new` stara rozmowa nie jest już rozmową czatu, więc późniejsze odpowiedzi zostają w konsoli. Nie kieruj dodatkowo powiadomień rutyny do tego samego czatu: odpowiedź przyszłaby dwa razy.
+
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 
 Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
@@ -2349,6 +2484,13 @@ Diagnostyka usług osobistych obejmuje powiązania MCP oraz natywne produkty, ta
     Slacka, bocie Telegrama i dwóch serwerach Mattermosta naraz, a każde z tych
     powiązań niesie własne instrukcje, własne odpytania o kanał i własny zakres
     workspace'u.
+
+    Powiąż lub odłącz agenta na jego zakładce **Availability** albo w wierszu
+    bota w **Channels**. Channels oferuje tylko agentów, których możesz
+    opublikować (`agents:publish` na tym agencie), i wiąże w domyślnym środowisku
+    agenta; środowisko, wstrzymanie, odpytania i instrukcje zostają na zakładce
+    Availability. Wiersz pokazuje agenta, którego nie możesz opublikować, bez
+    akcji odłączenia, a wstrzymane powiązanie wypisuje jako wstrzymane.
 
     Zastąpiło to routowanie kilku agentów za jednym botem przez `@slug`.
     Działało i źle się czytało: ktoś na kanale musiał wpisać uchwyt, żeby wybrać
@@ -2661,6 +2803,8 @@ Diagnostyka usług osobistych obejmuje powiązania MCP oraz natywne produkty, ta
 Pełna historia pokoju pozostaje dostępna, także wiadomości innych uczestników. Run freely pozwala więc również na wywołania narzędzi pod wpływem tego kontekstu; wybieraj je dla zaufanych narzędzi i pokoi, a Ask first, gdy każdy zapis wymaga potwierdzenia.
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
+
+Konsola i kanały komunikacji korzystają z tej samej historii rozmów. We współdzielonej historii każda odpowiedź agenta zachowuje nazwy i statusy wywołanych narzędzi w kolejności. Argumenty i wyniki mogą zależeć od uprawnień pierwotnego nadawcy. Gdy kolejna odpowiedź wymaga tych danych, agent może je odczytać ponownie z uprawnieniami osoby pytającej.
 
 Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
 
@@ -3278,7 +3422,9 @@ Nowe powiązania mają włączone wszystkie obsługiwane narzędzia. Istniejące
 tego się nie oferuje: Telegram nie daje botowi żadnego katalogu czatów do
 przeszukania ani żadnego sposobu na czytanie wiadomości, których do niego nie
 wysłano, a `getChatAdministrators` to całość tego, co może wylistować — więc lista
-członków w Telegramie to lista administratorów i mówi to wprost.
+członków w Telegramie to lista administratorów i mówi to wprost. Czat prywatny
+nie ma listy członków w ogóle: `{channel_members}` pokazuje tam `(unavailable)`, a narzędzie
+członków mówi dlaczego, bez wywoływania Telegrama.
 
 Trzy rzeczy warte wiedzy przed ich przyznaniem:
 
@@ -3425,7 +3571,9 @@ Checkboxy w sekcji **Co agent może robić** przyznają prawdziwe narzędzia. Na
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
 
-Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny. Sprawdź źródła i ewentualną stałą zgodę na akcję w Rutynach. Brak źródła zapisuje rutynę wstrzymaną z informacją o konfiguracji; nie można jej uruchomić ani włączyć przed naprawą i przeglądem źródeł. Napraw istniejącą rutynę, zamiast tworzyć kolejne pod innymi agentami.
+Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny.
+
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację agenta w granicach uprawnień twórcy. Późniejsze rozszerzenia źródeł lub zmiany zachowania, w tym instrukcji i faktycznie używanych skilli, wymagają przeglądu dostępu przez właściciela. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
 
 Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
 

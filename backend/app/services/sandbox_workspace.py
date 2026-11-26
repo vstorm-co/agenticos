@@ -57,6 +57,7 @@ from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS, Workspa
 from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
+    FilesystemBinding,
     SandboxdWorkspace,
     StateWorkspaceBackend,
 )
@@ -80,6 +81,7 @@ from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
+    AuthorizationError,
     BadRequestError,
     ExportTooLargeError,
     ExternalServiceError,
@@ -95,7 +97,10 @@ from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.repositories import project_filesystem_bindings as filesystem_binding_repo
 from app.repositories import project_repo
+from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
+from app.schemas.workspace import ConversationWorkspaceOrigins, WorkspaceOriginRead
 from app.services import device_hub
 from app.services.access import PROJECT, accessible_ids, resolve_access
 from app.services.device_hub import DeviceWorkspace, LocalTarget
@@ -272,6 +277,8 @@ class WorkspaceContents:
 
     thumbnails: dict[str, str] = field(default_factory=dict)
     """Each small image scaled to a `data:` URI, by path, within the fetch budget."""
+
+    unreadable_code: Literal["workspace_not_retained"] | None = None
 
 
 @dataclass(frozen=True)
@@ -473,6 +480,9 @@ class OpenWorkspace:
     row_id: UUID | None
     """The `agent_workspaces` row, absent only where there is no database to
     write to - a run-scoped workspace, or a spec being exercised by a test."""
+
+    filesystem_binding_id: UUID | None = None
+    """Sandbox identity; each run receives separate, short-lived Project authority."""
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
@@ -681,8 +691,9 @@ def _overflow_parents(handle: str) -> list[str]:
 class SandboxWorkspaceService:
     """Resolves the backend a run writes to, and persists what it wrote."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, *, operation_db: AsyncSession | None = None) -> None:
         self.db = db
+        self.operation_db = db if operation_db is None else operation_db
         self.connections = SandboxConnectionService(db)
         self._connections_by_id: dict[UUID, ResolvedConnection] = {}
         # The listings read hosts concurrently, and resolving a connection is a
@@ -1036,9 +1047,39 @@ class SandboxWorkspaceService:
         briefing: str | None = None
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
+        row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
+        filesystem = None
+        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
+            resolved
+        ):
+            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+            # Enabling optional mounts cannot retrofit a retained ordinary session.
+            # A recorded binding must still be forwarded, including any refusal.
+            if (
+                row is None
+                or row.session_id is None
+                or (
+                    await filesystem_binding_repo.binding_for_session(
+                        self.db,
+                        organization_id=identity.organization_id,
+                        connection_id=resolved.row.id,
+                        session_name=key,
+                    )
+                )
+                is not None
+            ):
+                filesystem = await ProjectFilesystemBindingService(self.db).credential(
+                    organization_id=identity.organization_id,
+                    connection_id=resolved.row.id,
+                    session_name=key,
+                    workspace_id=None if row is None else row.id,
+                    conversation_id=identity.conversation_id,
+                )
         sandbox = self._service_capability(
             resolved,
             key,
+            filesystem_binding=filesystem,
             runtime=config.runtime,
             tenant=str(identity.organization_id),
             on_wait=notice.waiting if notice is not None else None,
@@ -1048,7 +1089,6 @@ class SandboxWorkspaceService:
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
 
-        row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
         opened = (
             None
             if row is None or row.session_id is None
@@ -1062,7 +1102,7 @@ class SandboxWorkspaceService:
         backend = sandbox.backend(opened)
         recorder = RecordingWorkspace(
             Workspace(backend),
-            db=self.db,
+            db=self.operation_db,
             organization_id=identity.organization_id,
             session_key=key,
             agent_id=identity.agent_id,
@@ -1084,6 +1124,7 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
             briefing=briefing,
             parses_documents=parses_documents,
         )
@@ -1096,6 +1137,7 @@ class SandboxWorkspaceService:
         runtime: str | None = None,
         tenant: str | None = None,
         on_wait: Callable[[], Awaitable[None]] | None = None,
+        filesystem_binding: ProjectFilesystemCredential | None = None,
     ) -> ServiceSandbox:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
@@ -1138,6 +1180,11 @@ class SandboxWorkspaceService:
                 details={"connection_id": str(resolved.row.id)},
             )
         return SandboxdWorkspace(
+            filesystem_binding=None
+            if filesystem_binding is None
+            else FilesystemBinding(
+                id=filesystem_binding.binding_id, token=filesystem_binding.token
+            ),
             service_url=resolved.row.base_url,
             token=resolved.token,
             # One provider name per connection, so a ref from one host is never
@@ -1649,13 +1696,53 @@ class SandboxWorkspaceService:
         user deleted. Only this platform knows the conversation is gone.
         """
         rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+            self.db,
+            organization_id=ctx.organization_id,
+            conversation_id=conversation_id,
+            include_personal_coding=True,
         )
         for row in rows:
-            if row.backend != "state" and row.session_id:
+            if row.backend != "state" and (row.session_id or row.coding_account_id is not None):
                 await self._purge_remote(ctx, row)
             await workspace_repo.delete(self.db, workspace=row)
         return len(rows)
+
+    async def purge_personal_coding(
+        self,
+        *,
+        organization_id: UUID | None = None,
+        user_id: UUID | None = None,
+        account_id: UUID | None = None,
+        agent_id: UUID | None = None,
+    ) -> int:
+        """Queue owned session teardown in the caller's deletion/consent transaction.
+
+        Internal lifecycle operation: callers have already authorized the account,
+        member, agent or organization change. It grants no read access to session files.
+        """
+        rows = await workspace_repo.list_personal_coding(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            account_id=account_id,
+            agent_id=agent_id,
+        )
+        for row in rows:
+            ctx = AuthContext(user_id=None, organization_id=row.organization_id, role="")
+            await self._purge_remote(ctx, row)
+            await workspace_repo.delete(self.db, workspace=row)
+        return len(rows)
+
+    async def discard_personal_coding(self, ctx: AuthContext, row: AgentWorkspace) -> None:
+        """Queue teardown of an admitted personal task whose cleanup cannot be trusted.
+
+        The personal runner supplies its own admitted row, never a model-selected
+        workspace. Commit this with the failed task's terminal bookkeeping.
+        """
+        if row.organization_id != ctx.organization_id or row.coding_account_id is None:
+            raise AuthorizationError(message="This is not an admitted personal coding workspace")
+        await self._purge_remote(ctx, row)
+        await workspace_repo.delete(self.db, workspace=row)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
         """Delete the sandbox behind a workspace whose conversation or project is going.
@@ -2046,10 +2133,10 @@ class SandboxWorkspaceService:
             reason = _reason(exc)
             return [WorkspaceContents(entries=[], unreadable_reason=reason) for _ in rows]
         contents: list[WorkspaceContents] = []
-        for session in sessions:
+        for row, session in zip(rows, sessions, strict=True):
             tree = trees[session]
             if isinstance(tree, Exception):
-                contents.append(WorkspaceContents(entries=[], unreadable_reason=_reason(tree)))
+                contents.append(_unreadable_contents(row, tree))
                 continue
             if tree.truncated:
                 logger.warning(
@@ -2088,6 +2175,98 @@ class SandboxWorkspaceService:
         if raw is None:
             return None
         return await run_blocking(thumbnail_of, path, raw)
+
+    async def origins(
+        self, ctx: AuthContext, *, conversation_id: UUID
+    ) -> ConversationWorkspaceOrigins:
+        """Actual, still-authorized file origins; resolve by identity, never by fallback path."""
+        from app.services.conversation import ConversationService
+
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            include_messages=False,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        refs = await workspace_repo.recorded_origins(
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+        )
+        limited = refs[:100]
+        agent_ids = [ref.workspace_id for ref in limited if ref.kind == "agent"]
+        agent_rows = await workspace_repo.list_for_reader(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            see_all=self._sees_every_workspace(ctx),
+            workspace_ids=agent_ids,
+            readable_conversation_id=conversation_id,
+        )
+        project_ids = list(
+            dict.fromkeys(
+                [
+                    *(
+                        ref.project_id
+                        for ref in limited
+                        if ref.kind == "project" and ref.project_id is not None
+                    ),
+                    *([conversation.project_id] if conversation.project_id is not None else []),
+                ]
+            )
+        )
+        project_rows_read = await project_repo.get_many(
+            self.db, project_ids, organization_id=ctx.organization_id
+        )
+        projects = {project.id: project for project in project_rows_read}
+        visible = await accessible_ids(
+            self.db, ctx, list(projects.values()), Perm.PROJECTS_VIEW, resource_type=PROJECT
+        )
+        usable = await accessible_ids(
+            self.db, ctx, list(projects.values()), Perm.PROJECTS_USE, resource_type=PROJECT
+        )
+        project_rows = await workspace_repo.active_for_projects(
+            self.db, organization_id=ctx.organization_id, project_ids=list(visible & usable)
+        )
+        items = [
+            WorkspaceOriginRead(
+                kind="agent",
+                workspace_id=row.id,
+                scope=row.scope,
+                backend=row.backend,
+                owner_label=owner_label(row),
+            )
+            for row in agent_rows
+        ]
+        items.extend(
+            WorkspaceOriginRead(
+                kind="project",
+                workspace_id=row.id,
+                project_id=project_id,
+                scope=row.scope,
+                backend=row.backend,
+                owner_label=projects[project_id].name,
+            )
+            for project_id, row in project_rows.items()
+        )
+        preferred = next(
+            (
+                item
+                for item in items
+                if item.kind == "project" and item.project_id == conversation.project_id
+            ),
+            None,
+        )
+        if preferred is None:
+            preferred = next(
+                (item for item in items if item.kind == "agent"), items[0] if items else None
+            )
+        return ConversationWorkspaceOrigins(
+            default_origin=None if preferred is None else preferred.kind,
+            default_workspace_id=None if preferred is None else preferred.workspace_id,
+            items=items,
+            truncated=len(refs) > 100,
+        )
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -2142,6 +2321,7 @@ class SandboxWorkspaceService:
         return WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
+            unreadable_code=contents.unreadable_code,
             truncated=contents.truncated,
         )
 
@@ -2202,6 +2382,19 @@ class SandboxWorkspaceService:
         also discoverable here, but require both project view and use access;
         managing sandbox connections alone never grants access to a project.
         """
+        if row.coding_account_id is not None:
+            from app.repositories import coding_account as coding_account_repo
+
+            return (
+                ctx.user_id is not None
+                and await coding_account_repo.get(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    account_id=row.coding_account_id,
+                )
+                is not None
+            )
         if row.project_id is not None:
             if row.recovery_of_id is None:
                 return False
@@ -2217,6 +2410,21 @@ class SandboxWorkspaceService:
                     self.db, ctx, project, Perm.PROJECTS_USE, resource_type=PROJECT
                 )
             )
+        if row.scope == "conversation" and row.conversation_id is not None:
+            from app.services.conversation import ConversationService
+
+            try:
+                await ConversationService(self.db).get_conversation(
+                    row.conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    include_messages=False,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+            except NotFoundError, AuthorizationError:
+                return False
+            return True
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(
@@ -2579,7 +2787,7 @@ class SandboxWorkspaceService:
             logger.warning(
                 "workspace_listing_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
-            return WorkspaceContents(entries=[], unreadable_reason=_reason(exc))
+            return _unreadable_contents(row, exc)
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
@@ -3026,6 +3234,22 @@ def thumbnail_of(path: str, raw: bytes) -> str | None:
         )
         return None
     return f"data:image/webp;base64,{base64.b64encode(scaled.getvalue()).decode()}"
+
+
+def _unreadable_contents(row: AgentWorkspace, exc: Exception) -> WorkspaceContents:
+    # A missing archive says nothing about whether it once held files. Keep that
+    # uncertainty distinct from both an empty archive and a broken connection.
+    not_retained = (
+        row.session_id is None
+        and isinstance(exc, WorkspaceArchiveError)
+        and exc.status_code == 404
+        and _detail(exc) == f"No workspace for session: {row.scope_key}"
+    )
+    return WorkspaceContents(
+        entries=[],
+        unreadable_reason=_reason(exc),
+        unreadable_code="workspace_not_retained" if not_retained else None,
+    )
 
 
 def _reason(exc: Exception) -> str:

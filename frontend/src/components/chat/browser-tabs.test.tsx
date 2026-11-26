@@ -78,3 +78,12 @@ it("reveals a newly selected overflowing tab without scrolling the chat", () => 
     geometry.mockRestore();
   }
 });
+
+it("keeps keyboard focus changes from scrolling the transcript", () => {
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  const tabs = [tab("first", "Pricing"), tab("second", "Docs")];
+  render(<BrowserTabs tabs={tabs} selected="first" onSelect={vi.fn()} />);
+  fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  focus.mockRestore();
+});

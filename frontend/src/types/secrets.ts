@@ -18,13 +18,16 @@ export type SecretKind =
   | "gcp_service_account"
   | "github_oauth_app"
   | "google_oauth_app"
+  | "mcp_oauth_client"
   | "slack_oauth_app"
   | "git_token"
   | "entra_app"
   | "http_credential"
+  | "webhook_credentials"
   | "smtp_account"
   | "microsoft_oauth_app"
-  | "openai_codex";
+  | "openai_codex"
+  | "openai_chatgpt";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -266,4 +269,10 @@ export interface SecretEdit {
   name?: string;
   description?: string | null;
   value?: SecretPayload;
+}
+
+export type ChatGPTSignInKind = "openai_codex" | "openai_chatgpt";
+
+export function isChatGPTSignInKind(value: unknown): value is ChatGPTSignInKind {
+  return value === "openai_codex" || value === "openai_chatgpt";
 }

@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.resource_grant import ResourceGrant
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_run import WorkflowRunMode
@@ -67,6 +68,7 @@ def _graph(placeholder: UUID) -> WorkflowGraph:
     )
 
 
+@pytest.mark.security
 async def test_atomic_preparation_preserves_required_fields_and_binds_the_new_table(
     db: AsyncSession,
 ):
@@ -82,12 +84,17 @@ async def test_atomic_preparation_preserves_required_fields_and_binds_the_new_ta
             table_placeholder_id=placeholder,
             table=TableCreate(
                 name="Contacts",
+                group_ids=[uuid4()],
+                user_ids=[uuid4()],
                 columns=[ColumnInput(label="Contact ID", type="text", nullable=False)],
             ),
         ),
     )
     assert prepared.table is not None
     assert prepared.table.visibility == "private"
+    assert not await db.scalar(
+        select(ResourceGrant.id).where(ResourceGrant.resource_id == prepared.table.id)
+    )
     assert prepared.table.columns[0].nullable is False
     assert prepared.workflow.draft_graph.nodes[1].config["table"]["table_id"] == str(
         prepared.table.id

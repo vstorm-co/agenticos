@@ -63,6 +63,8 @@ export interface NodeDefinition {
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
+  /** Whether this version can be bound as a function in a Python actions step. */
+  python_callable?: boolean;
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
   /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
@@ -610,11 +612,20 @@ export interface WorkflowRunRead {
   /** The run this one retries; its succeeded steps were not run again. */
   retry_of_run_id: Uuid | null;
   depth: number;
+  /** The one step a step test ran; null for a whole-draft test and a real run. */
+  tested_step?: WorkflowTestedStep | null;
   /** Whether the caller may cancel the run and resolve its steps; the single-run read says so. */
   can_cancel: boolean;
   started_at: string | null;
   ended_at: string | null;
   created_at: string | null;
+}
+
+/** The step a step test ran, as the run's own snapshot names it. */
+export interface WorkflowTestedStep {
+  node_id: Uuid;
+  label: string | null;
+  definition_id: string | null;
 }
 
 export interface WorkflowRunList {
@@ -654,7 +665,7 @@ export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
   id: Uuid;
   node_instance_id: Uuid;
-  scope_path: { loop_node_id: Uuid; index: number }[];
+  scope_path: ({ loop_node_id: Uuid; index: number } | { action: string; index: number })[];
   status: NodeRunStatus;
   waiting_reason: string | null;
   attempts: number;
@@ -771,6 +782,8 @@ export interface RunHistoryQuery {
   workflowId?: Uuid;
   status?: WorkflowRunStatus;
   mode?: "real" | "test";
+  /** Only step tests when true; leaves them out when false. */
+  stepTest?: boolean;
   triggeredBy?: string;
   /** Only runs started at or after this instant, ISO 8601. */
   createdAfter?: string;
@@ -809,6 +822,8 @@ export interface WorkflowExposureRead {
   adapter: ExposureAdapter;
   is_active: boolean;
   execution_principal_user_id: Uuid | null;
+  /** The reusable source whose credentials authenticate this webhook. */
+  source_id: Uuid | null;
   run_input: Record<string, unknown>;
   schedule_kind: ExposureScheduleKind | null;
   interval_seconds: number | null;

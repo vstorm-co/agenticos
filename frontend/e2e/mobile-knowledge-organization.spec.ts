@@ -219,7 +219,7 @@ test("phone organization forms save identity, budget, voice and retention", asyn
   const budget = page.getByRole("spinbutton", { name: "Limit (USD)", exact: true });
   await budget.fill("75.5");
   await page.getByRole("tab", { name: "AI & services", exact: true }).click();
-  await page.getByRole("button", { name: "Voice", exact: true }).click();
+  await page.getByRole("button", { name: "Speech to text", exact: true }).click();
   const length = page.getByRole("textbox", { name: "Max recording length", exact: true });
   await length.fill("8");
   await leave();
@@ -232,7 +232,7 @@ test("phone organization forms save identity, budget, voice and retention", asyn
     .getByRole("button", { name: "Close", exact: true })
     .click();
   await page.getByRole("tab", { name: "AI & services", exact: true }).click();
-  await page.getByRole("button", { name: "Voice", exact: true }).click();
+  await page.getByRole("button", { name: "Speech to text", exact: true }).click();
   await expect(length).toHaveValue("8");
   await page.getByRole("tab", { name: "Budget and approvals", exact: true }).click();
   await expect(budget).toHaveValue("75.5");

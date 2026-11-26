@@ -41,6 +41,13 @@ class TestTheMessage:
         assert text.count("•") == LISTED
         assert "…und 2 weitere." in text
 
+    def test_portuguese_uses_the_accounts_language_for_every_line(self):
+        titles = [f"Item {n}" for n in range(LISTED + 2)]
+        text = _message("pt", titles, "https://os.example/inbox")
+        assert text.startswith("7 novas descobertas dos seus monitoramentos:")
+        assert "…e mais 2." in text
+        assert text.endswith("Tudo na sua inbox: https://os.example/inbox")
+
     def test_a_language_it_was_not_written_in_reads_english(self):
         assert _message("ja", ["x"], "u").startswith("1 new from your watches:")
         assert _message(None, ["x"], "u").startswith("1 new from your watches:")

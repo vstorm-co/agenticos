@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -21,7 +21,8 @@ from fastapi import Depends
 from fastapi import Header
 from fastapi import Query
 from fastapi import WebSocket, Cookie, WebSocketException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from pydantic import SecretStr
 
 from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -524,6 +525,16 @@ def get_project_service(db: DBSession) -> ProjectService:
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
 
+from app.services.project_resources import ProjectResourceService
+
+
+def get_project_resource_service(db: DBSession) -> ProjectResourceService:
+    return ProjectResourceService(db)
+
+
+ProjectResourceSvc = Annotated[ProjectResourceService, Depends(get_project_resource_service)]
+
+
 from app.services.project_tracking import ProjectTrackingService
 
 
@@ -814,6 +825,23 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
+from app.services.portability import PortabilityService, PortableTransferService
+
+
+def get_portability_service(db: DBSession) -> PortabilityService:
+    return PortabilityService(db)
+
+
+PortabilitySvc = Annotated[PortabilityService, Depends(get_portability_service)]
+
+
+def get_portable_transfer_service(db: DBSession) -> PortableTransferService:
+    return PortableTransferService(db)
+
+
+PortableTransferSvc = Annotated[PortableTransferService, Depends(get_portable_transfer_service)]
+
+
 from app.services.system_agents import SystemAgentService as EvalHelperService
 
 
@@ -1010,6 +1038,26 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
+
+from app.services.case_key_draft import CaseKeyDraftService
+
+
+def get_case_key_draft_service(db: DBSession) -> CaseKeyDraftService:
+    """Create CaseKeyDraftService instance with database session."""
+    return CaseKeyDraftService(db)
+
+
+CaseKeyDraftSvc = Annotated[CaseKeyDraftService, Depends(get_case_key_draft_service)]
+
+from app.services.key_coverage import KeyCoverageService
+
+
+def get_key_coverage_service(db: DBSession) -> KeyCoverageService:
+    """Create KeyCoverageService instance with database session."""
+    return KeyCoverageService(db)
+
+
+KeyCoverageSvc = Annotated[KeyCoverageService, Depends(get_key_coverage_service)]
 
 from app.services.knowledge_gaps import KnowledgeGapService
 
@@ -1486,6 +1534,20 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     return dependency
 
 
+def require_any(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
+    """Admit a collection action shared by any listed resource creator."""
+
+    async def dependency(ctx: Auth) -> AuthContext:
+        if not any(ctx.has(perm) for perm in perms):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required_any": [perm.value for perm in perms]},
+            )
+        return ctx
+
+    return dependency
+
+
 def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
     """Admit a key to a public route only when it was issued for `perm`.
 
@@ -1604,6 +1666,19 @@ async def limit_table_write(ctx: Auth) -> None:
         limit=rate_limit.table_write_limit(),
     )
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
+async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
+    """Bound interactive comparisons per person and organization, including the console.
+
+    Thirty computations per person and sixty per organization per minute leave room for
+    the console's three-second polling. One comparison may execute per organization
+    at a time, so parallel requests cannot fill every worker with the same large run.
+    Shared Redis owns both controls; the established local floors apply on outage.
+    """
+    _refuse_missing(ctx, (Perm.RUNS_VIEW,))
+    async with rate_limit.eval_computation(ctx):
+        yield
 
 
 async def limit_coding_revert(ctx: Auth) -> None:
@@ -1945,6 +2020,22 @@ async def _require_app_admin(user: CurrentUser) -> User:
     if not user.is_app_admin:
         raise AuthorizationError(message="App admin privileges required")
     return user
+
+
+async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> None:
+    """An MCP credential needs explicit global consent in addition to the live admin flag.
+
+    Session behavior is unchanged. Ordinary organization keys cannot reach
+    assistant-only routes, and org permissions never imply deployment authority.
+    """
+    caller = _key_caller(request)
+    if caller is not None and not user.is_app_admin:
+        raise AuthorizationError(message="App admin privileges required")
+    if caller is not None and (caller.surface != "mcp" or not caller.context.is_app_admin):
+        raise AuthorizationError(
+            message="This operation requires an external OAuth grant with deployment:admin",
+            details={"required_scope": "deployment:admin"},
+        )
 
 
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
@@ -2306,6 +2397,7 @@ def get_secret_service(db: DBSession) -> OrganizationSecretService:
 
 
 SecretSvc = Annotated[OrganizationSecretService, Depends(get_secret_service)]
+from app.services.chatgpt_plan import ChatGPTPlanService
 from app.services.openai_codex import OpenAICodexService
 
 
@@ -2508,6 +2600,17 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
 
+from app.services.subscription_accounts import SubscriptionAccountService
+
+
+def get_subscription_account_service(db: DBSession) -> SubscriptionAccountService:
+    return SubscriptionAccountService(db)
+
+
+SubscriptionAccountSvc = Annotated[
+    SubscriptionAccountService, Depends(get_subscription_account_service)
+]
+
 
 from app.services.onboarding import OnboardingService
 
@@ -2517,3 +2620,111 @@ def get_onboarding_service(db: DBSession) -> OnboardingService:
 
 
 OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
+
+
+from app.services.event_sources import EventSourceService
+from app.services.event_source_samples import EventSourceSampleService
+
+
+def get_event_source_service(db: DBSession) -> EventSourceService:
+    return EventSourceService(db)
+
+
+def get_event_source_sample_service(db: DBSession, redis: Redis) -> EventSourceSampleService:
+    return EventSourceSampleService(db, redis)
+
+
+EventSourceSvc = Annotated[EventSourceService, Depends(get_event_source_service)]
+EventSourceSampleSvc = Annotated[EventSourceSampleService, Depends(get_event_source_sample_service)]
+
+
+from app.services.personal_model_key import PersonalModelKeyService
+
+
+def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
+    return PersonalModelKeyService(db)
+
+
+PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.clients.github_copilot import CopilotAccountClient
+from app.services.copilot_sign_in import CopilotSignInService
+
+
+def get_copilot_sign_in_service(db: DBSession, redis: Redis) -> CopilotSignInService:
+    return CopilotSignInService(
+        db, redis, CopilotAccountClient(), client_id=settings.GITHUB_COPILOT_OAUTH_CLIENT_ID
+    )
+
+
+CopilotSignInSvc = Annotated[CopilotSignInService, Depends(get_copilot_sign_in_service)]
+
+
+def get_chatgpt_plan_service(db: DBSession, redis: Redis) -> ChatGPTPlanService:
+    return ChatGPTPlanService(db, redis)
+
+
+ChatGPTPlanSvc = Annotated[ChatGPTPlanService, Depends(get_chatgpt_plan_service)]
+
+
+from app.services.solution import SolutionService
+
+
+def get_solution_service(db: DBSession) -> SolutionService:
+    return SolutionService(db)
+
+
+SolutionSvc = Annotated[SolutionService, Depends(get_solution_service)]
+
+
+from app.services.console_experience import ConsoleExperienceService
+
+
+def get_console_experience_service(db: DBSession) -> ConsoleExperienceService:
+    return ConsoleExperienceService(db)
+
+
+ConsoleExperienceSvc = Annotated[ConsoleExperienceService, Depends(get_console_experience_service)]
+
+
+from app.services.chat_cost_visibility import ChatCostVisibilityService
+
+
+def get_chat_cost_visibility_service(db: DBSession) -> ChatCostVisibilityService:
+    return ChatCostVisibilityService(db)
+
+
+ChatCostVisibilitySvc = Annotated[
+    ChatCostVisibilityService, Depends(get_chat_cost_visibility_service)
+]
+
+
+from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+from app.services.project_filesystem_gateway import ProjectFilesystemGateway
+
+
+def get_project_filesystem_binding_service(db: DBSession) -> ProjectFilesystemBindingService:
+    return ProjectFilesystemBindingService(db)
+
+
+def get_project_filesystem_gateway(db: DBSession) -> ProjectFilesystemGateway:
+    return ProjectFilesystemGateway(db)
+
+
+_filesystem_bearer = HTTPBearer(auto_error=False, scheme_name="ProjectFilesystemBinding")
+
+
+def get_project_filesystem_token(
+    credential: Annotated[HTTPAuthorizationCredentials | None, Depends(_filesystem_bearer)],
+) -> SecretStr | None:
+    return None if credential is None else SecretStr(credential.credentials)
+
+
+ProjectFilesystemBindingSvc = Annotated[
+    ProjectFilesystemBindingService, Depends(get_project_filesystem_binding_service)
+]
+ProjectFilesystemGatewaySvc = Annotated[
+    ProjectFilesystemGateway, Depends(get_project_filesystem_gateway)
+]
+ProjectFilesystemToken = Annotated[SecretStr | None, Depends(get_project_filesystem_token)]

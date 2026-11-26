@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
 import { version } from "../../../package.json";
+vi.mock("@/components/settings/console-navigation-dialog", () => ({
+  ConsoleNavigationDialog: () => <button type="button">Customize sidebar</button>,
+}));
 
 /**
  * The blocks are stubbed because this is a test about arrangement, not about
@@ -11,6 +14,7 @@ import { version } from "../../../package.json";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
+vi.mock("@/components/onboarding/onboarding-reminder", () => ({ OnboardingReminder: () => null }));
 vi.mock("@/hooks/use-release-update", () => ({
   useReleaseUpdate: () => ({ data: { latest: null } }),
 }));
@@ -70,6 +74,13 @@ describe("SidebarShell", () => {
   it("leaves search to the sidebar header", () => {
     renderShell();
     expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
+  });
+
+  it("places navigation customization beside notifications", () => {
+    renderShell();
+    expect(screen.getByRole("button", { name: "the bell" }).parentElement).toContainElement(
+      screen.getByRole("button", { name: "Customize sidebar" }),
+    );
   });
 
   it("puts the account last", () => {
@@ -155,3 +166,19 @@ it.each([false, true])("shows the running console version with collapsed=%s", (c
   renderShell({ collapsed });
   expect(screen.getByLabelText(`Console version ${version}`)).toHaveTextContent(`v${version}`);
 });
+
+it.each([false, true])(
+  "keeps New chat reachable and dismisses the drawer (collapsed=%s)",
+  (collapsed) => {
+    const onNavigate = vi.fn();
+    renderShell({ collapsed, onNavigate });
+    const shortcut = screen.getByRole("link", { name: "New chat" });
+    expect(shortcut).toHaveAttribute("href", "/chat?new=workspace");
+    if (collapsed) {
+      expect(shortcut).toHaveAttribute("title", "New chat");
+      expect(shortcut.textContent).toBe("");
+    }
+    fireEvent.click(shortcut);
+    expect(onNavigate).toHaveBeenCalledOnce();
+  },
+);

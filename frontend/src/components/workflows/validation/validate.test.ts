@@ -58,6 +58,7 @@ import {
   validateGraph,
   MESSAGE_KEYS,
   type ValidationProblem,
+  withTableDrift,
 } from "./index";
 import { branchKeys } from "./rules";
 
@@ -1834,3 +1835,28 @@ it.each(["debug.echo", "logic.split", "error.handle"])(
     ).toEqual([]);
   },
 );
+
+describe("withTableDrift", () => {
+  const t = (key: string) => key;
+
+  it("adds one problem per drifted table reference, on its step and field", () => {
+    const rebound = { kind: "table" as const, table_id: "t", column_ids: null, schema_version: 2 };
+    const problems = withTableDrift(
+      [],
+      [
+        { nodeId: "a", field: null, site: { nodeId: "a", binding: null }, rebound },
+        { nodeId: "b", field: "rows", site: { nodeId: "b", binding: 0 }, rebound },
+      ],
+      t,
+    );
+    expect(problems).toEqual([
+      expect.objectContaining({ nodeId: "a", field: "table", code: "table-schema-changed" }),
+      expect.objectContaining({ nodeId: "b", field: "rows", message: "problemTableSchemaChanged" }),
+    ]);
+  });
+
+  it("hands back the same problems when nothing drifted", () => {
+    const problems: ValidationProblem[] = [];
+    expect(withTableDrift(problems, [], t)).toBe(problems);
+  });
+});

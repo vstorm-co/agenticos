@@ -15,6 +15,7 @@ export interface BrowserPanelState {
    */
   openCallId: string | null;
   open: (callId: string) => void;
+  toggle: (callId: string) => void;
   close: () => void;
 }
 
@@ -28,6 +29,7 @@ export interface BrowserPanelState {
 const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,
   open: (callId) => set({ openCallId: callId }),
+  toggle: (callId) => set((state) => ({ openCallId: state.openCallId === callId ? null : callId })),
   close: () => set({ openCallId: null }),
 });
 

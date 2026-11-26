@@ -1,5 +1,7 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { useTranslations } from "next-intl";
 
 import { Input, Label } from "@/components/ui";
@@ -66,6 +68,7 @@ export function MergeForm({ node, graph, catalog, disabled, updateNodeConfig }: 
           <label key={mode} className="flex items-center gap-2 text-sm">
             <input
               type="radio"
+              className={NATIVE_CHOICE}
               name={`merge-wait-${node.id}`}
               checked={all === (mode === "all")}
               onChange={() => setMode(mode)}

@@ -46,11 +46,13 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     select,
     text,
@@ -78,6 +80,7 @@ class TriggerDeliveryStatus(enum.StrEnum):
     RUN_LOG = "run_log"
     NO_ANSWER = "no_answer"
     NOT_COMPLETED = "not_completed"
+    PENDING = "pending"
 
 
 class TriggerType(enum.StrEnum):
@@ -260,7 +263,20 @@ class AgentTrigger(Base, TimestampMixin):
         value = (self.approved_sources or {}).get("unavailable_sources", [])
         return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
+    chat_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="shared", server_default="shared"
+    )
+
+    action_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Null retains the historical source-mode policy; new routines choose explicitly."""
+
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
+    # The owner's narrowing of the agent's own tool settings for this routine:
+    # `ask` or `off` per tool, never a release (`app/services/routine_tools.py`).
+    tool_settings: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
@@ -311,6 +327,8 @@ class AgentTrigger(Base, TimestampMixin):
     # dict; a schedule leaves it `{}` and the source null.
     event_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     event_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # One bounded diagnostic, read through an owner-only endpoint rather than listings.
+    last_filtered_event: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     # The secret an event webhook is verified against, sealed for this
     # organization through the one vault (`app/core/vault.py`) - GitHub's HMAC key
@@ -333,6 +351,7 @@ class AgentTrigger(Base, TimestampMixin):
     )
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
     # When a *schedule* is next due. The heartbeat's claim query is
     # `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`,
@@ -466,6 +485,17 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_agent_trigger_tenant"),
+        ForeignKeyConstraint(
+            ["source_id", "organization_id"],
+            ["event_sources.id", "event_sources.organization_id"],
+            name="fk_agent_trigger_source_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
+            name="ck_trigger_action_mode",
+        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
@@ -480,7 +510,8 @@ class AgentTrigger(Base, TimestampMixin):
             ),
         ),
         CheckConstraint(
-            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', 'not_completed')",
+            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', "
+            "'not_completed', 'pending')",
             name="ck_trigger_delivery_status",
         ),
         CheckConstraint(
@@ -492,6 +523,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0", name="ck_trigger_budget"
         ),
+        CheckConstraint("chat_mode IN ('per_run', 'shared')", name="ck_trigger_chat_mode"),
         CheckConstraint(
             "answer_to IN ('run_log', 'primary', 'conversation')", name="ck_trigger_answer_to"
         ),
@@ -517,16 +549,18 @@ class AgentTrigger(Base, TimestampMixin):
         # webhook URL for a door that refuses it (#1068).
         CheckConstraint(
             "(trigger_type = 'schedule' AND (next_fire_at IS NOT NULL OR one_shot) "
-            "AND event_source IS NULL "
+            "AND event_source IS NULL AND source_id IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
             "OR (trigger_type = 'event' AND event_source IS NOT NULL "
-            f"AND ((event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
+            f"AND ((source_id IS NULL AND event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
             "AND secret_key_version IS NULL) "
-            f"OR (event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
-            "AND secret_key_version IS NOT NULL)) "
+            f"OR (source_id IS NULL AND event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
+            "AND secret_key_version IS NOT NULL) "
+            "OR (source_id IS NOT NULL AND event_source IN ('webhook', 'github', 'linear', 'hubspot', 'zendesk') "
+            "AND event_secret_encrypted IS NULL AND secret_key_version IS NULL)) "
             "AND next_fire_at IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL)",
             name="ck_trigger_shape",

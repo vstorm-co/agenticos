@@ -67,6 +67,9 @@ class ApiKey(Base, TimestampMixin):
     )
 
     # Provenance only: permissions still come from the issuing member and scopes.
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    """Internal runtime provenance; the run is checked live before publishing a finding."""
+
     source_agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

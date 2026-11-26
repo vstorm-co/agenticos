@@ -50,6 +50,7 @@ from app.repositories import (
     whatsapp_customer_repo,
 )
 from app.schemas.channel_bot import (
+    SELF_HOSTED,
     AccessPolicy,
     BotAgent,
     ChannelBotCreate,
@@ -74,6 +75,7 @@ from app.services.channels import (
 from app.services.channels.base import IncomingMessage
 from app.services.channels.email import is_address
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.imessage import TAPBACK_REACTIONS
 from app.services.channels.imessage_transport import BridgeCredentials
 from app.services.channels.public_line import (
@@ -587,7 +589,12 @@ class ChannelBotService:
         an attachment, which is the state every Mattermost bot was in before the
         field existed.
         """
-        if platform in {"mattermost", "imessage"} and api_base_url is None:
+        if platform == "matrix" and api_base_url is not None:
+            try:
+                canonical_matrix_server(api_base_url)
+            except ValueError as exc:
+                raise refused_field("api_base_url", str(exc)) from exc
+        if platform in SELF_HOSTED and api_base_url is None:
             raise refused_field(
                 "api_base_url",
                 "A self-hosted bot cannot lose its server URL - "
@@ -600,7 +607,7 @@ class ChannelBotService:
                 raise refused_field(
                     "api_base_url", "An iMessage bridge endpoint cannot contain query or fragment"
                 )
-        if platform not in {"mattermost", "imessage"} and api_base_url is not None:
+        if platform not in SELF_HOSTED and api_base_url is not None:
             raise refused_field(
                 "api_base_url",
                 f"A server URL is for a self-hosted platform - a {platform} bot "
@@ -1175,7 +1182,7 @@ class ChannelBotService:
         return bot
 
     async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBotRead], int]:
-        """This organization's bots, with who answers on each, and the total.
+        """This organization's bots, with the binding on each (paused or not), and the total.
 
         The agents come back with the rows rather than being fetched per bot by
         the client: "registered and silent" is the state somebody opens this
@@ -1185,7 +1192,7 @@ class ChannelBotService:
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=self._org_id, skip=skip, limit=limit
         )
-        answering = await agent_exposure_repo.active_agents_for_bots(
+        bound = await agent_exposure_repo.bindings_for_bots(
             self.db, channel_bot_ids=[bot.id for bot in bots]
         )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
@@ -1205,12 +1212,14 @@ class ChannelBotService:
                     "connection": connections.get(bot.id),
                     "agents": [
                         BotAgent(
+                            exposure_id=exposure.id,
+                            is_active=exposure.is_active,
                             id=agent.id,
                             name=agent.name,
                             slug=agent.slug,
                             has_avatar=agent.has_avatar,
                         )
-                        for agent in answering.get(bot.id, [])
+                        for exposure, agent in bound.get(bot.id, [])
                     ],
                 }
             )

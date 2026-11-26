@@ -16,7 +16,7 @@ import pytest
 from app.workflows._registry import all_node_definitions
 
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
-LOCALES = ("en", "pl", "de", "tr")
+LOCALES = ("en", "pl", "de", "tr", "fr", "nl", "pt")
 
 
 def _key(text: str) -> str:

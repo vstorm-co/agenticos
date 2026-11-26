@@ -1,5 +1,5 @@
 ---
-source_sha: "83febbc993f8"
+source_sha: "f5e5bc352d66"
 ---
 
 # Uprawnienia { #permissions }
@@ -97,9 +97,19 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Jawny scope `mcp:personal:use` pozwala zewnętrznym runom API lub OAuth korzystać z osobistych połączeń MCP wystawcy credentiala. Wybierz go w **Custom** i potwierdź delegację; żaden preset, także **Full access**, go nie zawiera, a istniejące credentiale zachowują dostęp wyłącznie do zasobów organizacji. Nie daje dostępu do osobistej pamięci, wyszukiwania rozmów ani zgody na routines. Wznowienie po zatwierdzeniu zachowuje pierwotnego właściciela i credential; przed wywołaniem osobistego narzędzia ponownie sprawdzane są połączenia, aktualne scope’y klucza oraz dostęp do agenta głównego i automatycznie dobranych subagentów.
 
 Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+`approvals:decide` odpowiada na kolejkę akceptacji organizacji. Wyjątkiem jest
+wywołanie platformy, które pyta za każdym razem - Architekt akceptujący ulepszenie
+albo publikujący agenta: działa z uprawnieniami platformy osoby, w której imieniu
+działa run, więc zatwierdzić je może tylko ta osoba, zalogowana jako ona sama, i nie
+potrzebuje do tego żadnego uprawnienia. Każdy inny z `approvals:decide` może je
+odrzucić, a klucz API ani sesja w trybie impersonacji nie mogą go zatwierdzić.
+Kolejka pokazuje przy takim wywołaniu, kto może je zatwierdzić.
 
 `promotions:override` promuje wersję na
 [środowisko strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals),
@@ -662,7 +672,7 @@ członka:
 
 | Endpoint | Odpowiada |
 | --- | --- |
-| `GET /me/permissions` | rolą wywołującego, `is_app_admin` oraz każdym uprawnieniem wraz z jego scope'em |
+| `GET /me/permissions` | rolą wywołującego, `is_app_admin`, każdym uprawnieniem wraz z jego scope'em oraz, dla poświadczenia przebiegu agenta, `run_agent_id` |
 | `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
 
 Oba są **wygodą dla interfejsu i niczym więcej**. Serwer sprawdza każde
@@ -693,3 +703,5 @@ ignorujący te API nic na tym nie zyskuje.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Administracja instalacją przez MCP wymaga bieżącej flagi administratora aplikacji oraz osobno zatwierdzonego zakresu OAuth `deployment:admin`. Nie jest to `Perm`, uprawnienie roli ani zestaw uprawnień. Administrator organizacji nie może go nadać. Otrzymuje go wyłącznie jawnie autoryzowany klient zewnętrzny; wewnętrzni agenci, rutyny i zwykłe klucze API go nie dziedziczą. Istniejące połączenie wymaga ponownej autoryzacji. Zobacz [administrację przez MCP](mcp.pl.md#administration-through-mcp).

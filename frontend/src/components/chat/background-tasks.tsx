@@ -1,64 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, GitBranch, Loader2, Square } from "lucide-react";
+import { Square } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  useConversationTasks,
-  taskIsActive,
-  type ConversationTask,
-} from "@/hooks/use-conversation-tasks";
+import { taskIsActive, type ConversationTask } from "@/hooks/use-conversation-tasks";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-/** Tasks stay visible across turns, with their own topic and ordinary approval queue. */
-export function BackgroundTasks({ conversationId }: { conversationId: string | null }) {
-  const t = useTranslations("chat.backgroundTasks");
-  const state = useConversationTasks(conversationId ?? undefined);
-  const [expanded, setExpanded] = useState(false);
-  const tasks = state.data ?? [];
-  if (tasks.length === 0) {
-    if (state.error)
-      return (
-        <Button variant="ghost" size="sm" onClick={() => void state.refetch()}>
-          {t("retry")}
-        </Button>
-      );
-    return null;
-  }
-  const active = tasks.filter(taskIsActive).length;
-  return (
-    <section
-      className="border-foreground/8 mb-2 overflow-hidden rounded-xl border"
-      data-tour="chat-background-tasks"
-    >
-      <button
-        type="button"
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px]"
-        onClick={() => setExpanded(!expanded)}
-      >
-        {active > 0 ? (
-          <Loader2 className="size-3.5 shrink-0 animate-spin" />
-        ) : (
-          <GitBranch className="size-3.5 shrink-0" />
-        )}
-        <span className="min-w-0 flex-1 truncate">{t("heading", { count: active })}</span>
-        <ChevronDown
-          className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")}
-        />
-      </button>
-      {expanded && (
-        <BackgroundTaskList
-          tasks={tasks}
-          stopping={state.stop.isPending}
-          onStop={(id) => state.stop.mutate(id)}
-        />
-      )}
-    </section>
-  );
-}
 
 export function BackgroundTaskList({
   tasks,

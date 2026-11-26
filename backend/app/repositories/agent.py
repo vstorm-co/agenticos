@@ -287,6 +287,7 @@ async def list_visible(
     kind: AgentKind = AgentKind.AGENT,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
+    only_ids: Sequence[UUID] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Agent], int]:
@@ -326,6 +327,8 @@ async def list_visible(
     if tags:
         where.append(Agent.tags.overlap(list(tags)))
 
+    if only_ids is not None:
+        where.append(Agent.id.in_(only_ids))
     query = select(Agent).where(*where)
     count_query = select(func.count(Agent.id)).where(*where)
     query = query.order_by(Agent.created_at.desc()).offset(skip).limit(limit)
@@ -410,6 +413,19 @@ async def published_starters(
 
 
 _STARTER_ICONS = TypeAdapter(StarterIcons)
+
+
+async def published_hidden_starters(db: AsyncSession, *, version_ids: Sequence[UUID]) -> set[UUID]:
+    """Published opt-outs only. Older specs continue to offer chat openers."""
+    if not version_ids:
+        return set()
+    result = await db.execute(
+        select(AgentVersion.id).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.spec["show_starters"].astext == "false",
+        )
+    )
+    return set(result.scalars().all())
 
 
 async def published_starter_icons(
@@ -1346,3 +1362,17 @@ async def fence_deletion(db: AsyncSession, agent_id: UUID, *, organization_id: U
         .where(Agent.id == agent_id, Agent.organization_id == organization_id)
         .with_for_update()
     )
+
+
+async def published_personal_model_keys(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> set[UUID]:
+    if not version_ids:
+        return set()
+    result = await db.execute(
+        select(AgentVersion.id).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.spec["model_credential_mode"].astext == "personal",
+        )
+    )
+    return set(result.scalars().all())

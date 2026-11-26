@@ -3,7 +3,17 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,7 +38,7 @@ class ChannelObservation(Base):
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
     )
-    platform_chat_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    platform_chat_id: Mapped[str] = mapped_column(Text, nullable=False)
     messages: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
     mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

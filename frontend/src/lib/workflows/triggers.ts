@@ -22,6 +22,12 @@ export const MANUAL_TRIGGER = "trigger.manual";
 export const API_TRIGGER = "core.input";
 export const CHAT_TRIGGER = "trigger.chat";
 export const WEBHOOK_TRIGGER = "trigger.webhook";
+
+/** New webhook entries need a source choice; earlier drafts without one stay dedicated. */
+export function initialNodeConfig(definitionId: string): NodeInstance["config"] {
+  return definitionId === WEBHOOK_TRIGGER ? { require_source: true } : {};
+}
+
 export const SCHEDULE_TRIGGER = "trigger.schedule";
 export const TABLE_RECORD_TRIGGER = "trigger.table_record";
 /** An error workflow's trigger: a run of a workflow that names this one fails. */

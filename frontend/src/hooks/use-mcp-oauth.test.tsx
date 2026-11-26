@@ -32,7 +32,7 @@ describe("useConsentRequest", () => {
     const { result } = renderHook(() => useConsentRequest("r1"), { wrapper });
     await waitFor(() => expect(result.current.request).not.toBeNull());
 
-    await act(() => result.current.approve.mutateAsync(["agents:view"]));
+    await act(() => result.current.approve.mutateAsync({ scopes: ["agents:view"] }));
     await act(() => result.current.deny.mutateAsync());
 
     expect(apiClient.get).toHaveBeenCalledWith("/mcp-oauth/requests/r1");
@@ -40,6 +40,12 @@ describe("useConsentRequest", () => {
       scopes: ["agents:view"],
     });
     expect(apiClient.post).toHaveBeenCalledWith("/mcp-oauth/requests/r1/deny");
+  });
+  it("does not request an authorization record for an incomplete consent link", () => {
+    const { result } = renderHook(() => useConsentRequest(""), { wrapper });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.request).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 

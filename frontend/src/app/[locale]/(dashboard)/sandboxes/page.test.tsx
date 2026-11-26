@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SandboxesPage from "./page";
 import { ApiError } from "@/lib/api-error";
+import { Perm } from "@/types/permissions";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 
 /**
@@ -18,6 +19,9 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   error: null as string | null,
   canManage: true,
+  canRead: true,
+  refresh: vi.fn(),
+  enabled: vi.fn(),
   urlParams: new URLSearchParams(),
   sessionsAsked: [] as (string | null)[],
   remove: vi.fn(),
@@ -38,18 +42,22 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
   usePermissions: () => ({
-    can: () => state.canManage,
+    can: (permission: string) =>
+      permission === Perm.connectionsView ? state.canRead : state.canManage,
     isLoading: false,
   }),
-  useSandboxConnections: () => ({
-    connections: state.connections,
-    isLoading: state.isLoading,
-    error: state.error,
-    refresh: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    remove: state.remove,
-  }),
+  useSandboxConnections: (enabled: boolean) => {
+    state.enabled(enabled);
+    return {
+      connections: state.connections,
+      isLoading: state.isLoading,
+      error: state.error,
+      refresh: state.refresh,
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: state.remove,
+    };
+  },
   useSandboxSessions: (id: string | null) => {
     state.sessionsAsked.push(id);
     return { listing: null, isLoading: false, error: null };
@@ -82,6 +90,7 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.canManage = true;
+  state.canRead = true;
   state.urlParams = new URLSearchParams();
   state.sessionsAsked = [];
   state.remove = vi.fn().mockResolvedValue(undefined);
@@ -217,5 +226,26 @@ describe("the sandboxes page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Delete Local Docker" }));
 
     expect(toastError).toHaveBeenCalledTimes(1);
+  });
+  it("does not offer edit or delete controls to a connection reader", () => {
+    state.canManage = false;
+    state.connections = [connection()];
+    render(<SandboxesPage />);
+    expect(screen.getByText("Local Docker")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Edit Local Docker" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete Local Docker" })).toBeNull();
+  });
+  it("does not request a list without connection read permission", () => {
+    state.canManage = false;
+    state.canRead = false;
+    render(<SandboxesPage />);
+    expect(state.enabled).toHaveBeenLastCalledWith(false);
+    expect(screen.getByText("No access to sandbox connections")).toBeVisible();
+  });
+  it("lets a connection read be retried in place", async () => {
+    state.error = "Connections unavailable";
+    render(<SandboxesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refresh).toHaveBeenCalled();
   });
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
@@ -70,14 +72,14 @@ function CopyRow({
           <p className="text-muted-foreground text-xs">
             {t("movedOn", { base: copy.base, latest })}
           </p>
-          <details>
+          <NativeDisclosure>
             <summary className="cursor-pointer text-xs underline underline-offset-4">
               {t("showChanges")}
             </summary>
             <div className="mt-2">
               <Changes copy={copy} />
             </div>
-          </details>
+          </NativeDisclosure>
         </>
       )}
     </li>

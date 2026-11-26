@@ -119,14 +119,14 @@ export function DesktopSetting({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-6">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-6">
+      <div className="min-w-0 flex-1 basis-40 wrap-anywhere">
         <p id={id} className="text-foreground text-sm font-medium">
           {label}
         </p>
         {hint ? <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p> : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="max-w-full min-w-0 shrink-0">{children}</div>
     </div>
   );
 }

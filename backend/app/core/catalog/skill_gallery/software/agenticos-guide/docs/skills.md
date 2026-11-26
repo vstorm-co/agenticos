@@ -269,14 +269,19 @@ has one set, started on the skill page under **Test questions** - from recent an
 that loaded the skill, or empty - or through the API,
 `POST /api/v1/skills/{id}/test-set`, or with **Add test questions** beside an agent
 [Improve](#improving-a-skill) could not check, and edited like any other
-[dataset](datasets.md), which Datasets marks as the skill's.
+[dataset](datasets.md), which Datasets marks as the skill's. The set is named
+after the skill, numbered when a dataset already has that name - one a deleted
+skill of the same name left behind, say.
 
 A judge grades the set, comparing each answer with the one people rated up. Made
 from recent answers, each question is asked once: an answer someone rated wins
 over one that only failed, so one question never asks for an answer and forbids
 it too.
 
-Then the agent's own questions:
+Then the agent's own questions, from the dataset its newest
+[Improve session](authoring.md#the-improve-wizard) measures on when that dataset
+tests it, and otherwise the first dataset testing it. A set kept back for a final
+measurement is so never asked by a skill check while the agent improves on another.
 
 - **Quick**, the default: four questions of the agent's dataset - more when the
   skill's own held-out questions are too few for the five a result needs - whose
@@ -312,10 +317,28 @@ the dataset to add other questions to.
 - At least one agent must get **better**.
 - A difference the check could not confirm is **within noise**: a warning, not a
   block.
+- An agent no whole question moved for, but with a criterion its re-asks
+  confirmed better and none worse, is **better on criteria**; one with a
+  criterion confirmed worse is **worse on criteria**. Neither moves the rule
+  above, which is about whole questions: they count with the better and the
+  worse agents in the bar, and the agent's details list each
+  [family](evals.md#a-flip-is-confirmed-before-it-counts) of criteria with its
+  passes before and after - every case's check of one thing on one row - or each
+  criterion, for an agent checked before families were kept.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is
-  **unknown**, and a person acknowledges it before applying.
+  **unknown**, and a person acknowledges it before applying. So is one whose runs
+  graded every answer on fewer held-out questions than a result needs: its row
+  says how many came out better and worse, and that they are too few to be sure.
+- An agent whose own questions did not finish - their run failed or was
+  stopped, was refused, or the check expired - after the skill's questions
+  confirmed a regression stays **worse**: the change still has to be pinned or
+  forked around it. One the skill's questions did not confirm a regression on is
+  **unknown**: its row says its own questions did not finish and that the skill's
+  did not confirm a regression - or, when they could not start, why - and its details
+  keep what the skill's questions came to, so acknowledging it is a decision made
+  on half a check.
 
 A check where no agent can be checked still starts, and finishes at once with
 every agent unknown, for a person to acknowledge. The dialog says so before the
@@ -326,7 +349,8 @@ check.
 An agent is judged once, on the held-out questions of all its stages together: a
 result needs five of them for the agent, not five per stage, and a regression one
 stage confirmed on its own counts whatever the other found. Every question of the
-skill's set is held out, and a quick check samples only the agent's held-out
+skill's set is held out - its held-out share stays at one, and a question added
+to it is held out whatever - and a quick check samples only the agent's held-out
 questions.
 
 A check sends its confirmed regressions, and the answers the judge could not
@@ -512,7 +536,11 @@ they changed differently is a conflict, and the model proposes one text for it. 
 **Changes** a person can rewrite any part, the model's included
 (`GET …/improvements/{run_id}/merge`, then `PATCH …/merge/description` or
 `…/merge/parts/{index}`). For a file both sides changed differently, a person keeps
-one side (`PATCH …/merge/files`); the model never writes a file. The check starts
+one side (`PATCH …/merge/files`); the model never writes a file. Each file lists
+the description and size each side gives it, and opens to what each side changed
+against the version both started from, read from that side's version
+(`GET …/versions/{version_id}/resources/{name}`). A file over 200 KB, or one that is
+not text, is offered as a download of each side instead. The check starts
 only when nothing is left unsettled. It asks the fork's agents about the merge and,
 unless `main_alone` is turned off when the check is priced at Changes, about main's
 newest alone. That second check says whether the fork is still needed, and the
@@ -817,6 +845,24 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
+A step that cannot run - its helper archived or out of reach, or the evidence it
+was handed gone - fails with the reason on the session, and **Retry this step
+within the spending limit** runs it again, as whoever retries it, once that is
+fixed. A step past the spending limit stops on its budget. Neither is asked again
+on its own.
+
+A session opened from an agent's Improve starts from the problems that session
+reported. Only a problem that quotes a line of the skill stating the wrong value
+or rule takes the agent's criteria with it; where the skill is only silent the
+problem is advice, and the agent stays held to those criteria - see [When the
+fault is in a skill](authoring.md#when-the-fault-is-in-a-skill).
+
+What a session writes - each problem's title and summary, and the text it
+proposes - is drawn from every answer the person it runs as could read (its
+starter, or whoever took its latest step), and everyone who may read the session (`runs:view` and access to the skill) reads it. Only quotes
+and agent names follow the reader's own access: a quote from an agent they
+cannot see, and that agent's name, are counted instead of shown.
+
 Its start says how many rated-down or failed answers it reads, and how many agents
 the line serves. It also says what
 it costs to the first proposal and each attempt after it. The spending limit is
@@ -828,8 +874,8 @@ budget left, no published version, or a run that could not grade every answer.
 Agents you cannot see are counted.
 
 The result opens with a bar that counts the agents that came out better, with no
-change, worse, or not known. Under it is a row for each agent: better, no change,
-within noise, worse or unknown, with the agents to look at first on top. Each row
+change, worse, or not known. Under it is a row for each agent: better, better on
+criteria, no change, within noise, worse on criteria, worse or unknown, with the agents to look at first on top. Each row
 has a small bar of the questions it fixed against the ones it broke.
 
 A whole row opens to its details, by a click anywhere on it or by Enter or Space:

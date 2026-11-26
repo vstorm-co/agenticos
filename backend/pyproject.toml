@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.80.0"
+version = "1.95.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -22,14 +22,14 @@ dependencies = [
     # The floor is a correctness floor, not a taste one: `Depends(..., scope=)`
     # is what makes the request's transaction commit before the response is sent
     # (#353), and an older FastAPI answers `TypeError` at import rather than
-    # quietly reverting - but only 0.141.1 has been run against this suite.
-    "fastapi>=0.162.5",
+    # quietly reverting. CI exercises the version recorded in uv.lock.
+    "fastapi>=0.165.0",
     "uvicorn[standard]>=0.54.0",
-    "pydantic[email]>=2.14.3",
+    "pydantic[email]>=2.14.4",
     "pydantic-settings>=2.16.3",
-    "python-multipart>=0.0.33",
-    "logfire[fastapi,asyncpg,redis,httpx]>=5.6.0",
-    "sqlalchemy[asyncio]>=2.1.8",
+    "python-multipart>=0.0.34",
+    "logfire[fastapi,asyncpg,redis,httpx]>=6.0.1",
+    "sqlalchemy[asyncio]>=2.1.9",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
@@ -43,7 +43,7 @@ dependencies = [
     "greenlet>=3.5.5",
     "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.9.5",
+    "authlib>=1.9.9",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
@@ -61,9 +61,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[typesafe,openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime,elevenlabs-realtime]>=2.68.0",
-    "genai-prices>=0.2.1",
-    "pydantic-ai-slim[mcp]>=2.68.0",
+    "pydantic-ai-slim[typesafe,openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime,elevenlabs-realtime]>=2.71.0",
+    "genai-prices>=0.2.5",
+    "pydantic-ai-slim[mcp]>=2.71.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -83,7 +83,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.8",
+    "fastmcp>=4.2.3",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -92,7 +92,7 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.68.0",
+    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.71.0",
     # The provider adapter uses SDK 1.2 retry and transport configuration explicitly.
     "opensandbox>=1.2.1,<2",
     "websockets>=17.4",
@@ -114,12 +114,12 @@ dependencies = [
     # web-fetch extra; declared here so a release of it cannot drop them.
     "beautifulsoup4>=4.15.0",
     # Patched selector matching for untrusted HTML (CVE-2026-126190).
-    "soupsieve>=4.1,<5",
+    "soupsieve>=4.1.2,<5",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
-    "google-auth[requests]>=2.62.2",
-    "boto3>=1.44.2",
+    "google-auth[requests]>=2.63.1",
+    "boto3>=1.44.7",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -128,7 +128,7 @@ dependencies = [
     # wherever an object crosses into or out of a vendor SDK, and a library our
     # own code imports is one this manifest names (#1820).
     "httpx[http2]>=0.28.1",
-    "httpx2>=2.13.1",
+    "httpx2>=2.16.2",
     "click>=8.5.1",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
@@ -139,7 +139,8 @@ dependencies = [
     "markdown-it-py>=4.3.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.5",
-    "pydantic-monty>=1.6.0",
+    # Saved workflow checkpoints require the exact Monty version that wrote them.
+    "pydantic-monty==1.6.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only
@@ -153,7 +154,10 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.39",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.40",
+    # DaytonaWorkspace uses the 0.x root client. SDK 2.x moves these methods
+    # into v0/v2 namespaces, which the workspace adapter does not yet support.
+    "daytona>=0.226.1,<2",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -177,8 +181,8 @@ dependencies = [
     # 0.2.25.
     "subagents-pydantic-ai>=0.2.25",
     "cryptography>=50.0.2",
-    "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.47.0",
+    "aiogram>=3.33.0,<4.0",
+    "slack-sdk>=3.48.0",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -221,7 +225,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.43",
-    "regex>=2026.11.9",
+    "regex>=2026.11.19",
     # The ingest pool's memory watchdog (#2219): the resident size of a job's child
     # process and of whatever it starts - LibreOffice for a conversion - so a parse
     # that grows past its limit is stopped and the parent says why. `/proc` alone
@@ -284,8 +288,8 @@ dev = [
     "anyio[trio]>=4.16.0",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.5",
-    "ty>=0.0.104",
+    "ruff>=0.17.6",
+    "ty>=0.0.107",
     "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -314,7 +318,7 @@ dev = [
 docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
-    "mkdocs-material>=9.8.1",
+    "mkdocs-material>=9.8.2",
     "mkdocstrings[python]>=1.0.8",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added
@@ -647,6 +651,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
+    "app/commands/refresh_inbox.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
@@ -654,7 +659,9 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/skill_checks.py",
     "app/core/permissions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -704,6 +711,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).
@@ -733,6 +741,11 @@ include = [
     "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
+    "app/services/event_sources.py",
+    "app/services/event_source_auth.py",
+    "app/services/event_source_samples.py",
+    "app/repositories/event_source.py",
+    "app/worker/tasks/event_source_tasks.py",
     "app/services/trigger_dedupe.py",
     "app/services/trigger_templates.py",
     "app/schemas/trigger_template.py",
@@ -768,6 +781,14 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
+    "app/schemas/project_filesystem.py",
+    "app/schemas/project_filesystem_authority.py",
+    "app/repositories/project_filesystem.py",
+    "app/repositories/project_filesystem_bindings.py",
+    "app/services/project_filesystem.py",
+    "app/services/project_filesystem_bindings.py",
+    "app/services/project_filesystem_gateway.py",
+    "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
@@ -805,6 +826,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
@@ -821,6 +843,7 @@ include = [
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
+    "app/services/criterion_access.py",
     "app/repositories/collection_teardown.py",
     "app/repositories/pending_sandbox_destroy.py",
     "app/services/embed_session.py",
@@ -904,6 +927,9 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
+    "app/services/chatgpt_plan.py",
+    "app/services/runtime_tool_approvals.py",
+    "app/repositories/chatgpt_registration.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -923,6 +949,7 @@ include = [
     "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech_settings.py",
     "app/services/text_to_speech/__init__.py",
     "app/services/text_to_speech/clients.py",
     "app/services/text_to_speech/exceptions.py",
@@ -1000,6 +1027,13 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/schemas/console_catalogs.py",
+    "app/schemas/console_dashboard.py",
+    "app/schemas/console_presentation.py",
+    "app/services/console_catalogs.py",
+    "app/services/console_experience.py",
+    "app/services/chat_cost_visibility.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -1008,6 +1042,11 @@ include = [
     "app/services/context.py",
     "app/repositories/project.py",
     "app/services/project.py",
+    "app/db/models/project_resource.py",
+    "app/schemas/project_context.py",
+    "app/schemas/project_resource.py",
+    "app/repositories/project_resource.py",
+    "app/services/project_resources.py",
     "app/services/project_workspace_guard.py",
     "app/services/project_workspace_transfer.py",
     "app/worker/tasks/project_tasks.py",
@@ -1052,6 +1091,14 @@ include = [
     "app/services/case_generation/estimate.py",
     "app/services/case_generation/generation.py",
     "app/services/case_generation/worker.py",
+    "app/db/models/case_key_draft.py",
+    "app/schemas/case_key_draft.py",
+    "app/repositories/case_key_draft.py",
+    "app/services/case_key_draft.py",
+    "app/db/models/key_coverage_report.py",
+    "app/schemas/key_coverage.py",
+    "app/repositories/key_coverage_report.py",
+    "app/services/key_coverage.py",
     "app/api/routes/v1/dataset_generations.py",
     "app/schemas/agent_test_set.py",
     "app/services/agent_test_set.py",
@@ -1114,6 +1161,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
@@ -1182,6 +1235,10 @@ include = [
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
+    "app/services/routine_readiness.py",
+    "app/schemas/routine_readiness.py",
+    "app/services/routine_tools.py",
+    "app/schemas/routine_tools.py",
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
@@ -1218,6 +1275,8 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    "app/worker/tasks/case_key_tasks.py",
+    "app/worker/tasks/key_coverage_tasks.py",
     # Improvement sessions: the Improve pipeline run in the background up to a
     # checked proposal.
     "app/db/models/improvement.py",
@@ -1226,6 +1285,8 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/step_failure.py",
+    "app/services/improvement_search.py",
     "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
@@ -1265,6 +1326,25 @@ include = [
     "app/services/_coding_task_revert.py",
     "app/services/workspace_turn_guard.py",
     "app/worker/tasks/coding_tasks.py",
+    "app/db/models/personal_model_key.py",
+    "app/db/models/personal_model_generation.py",
+    "app/repositories/personal_model_key.py",
+    "app/services/personal_model_key.py",
+    "app/services/copilot_sign_in.py",
+    "app/services/personal_copilot.py",
+    "app/clients/github_copilot.py",
+    "app/subscription_gateway/_instances.py",
+    "app/subscription_gateway/_server.py",
+    "app/subscription_gateway/_account_data.py",
+    "app/subscription_gateway/_usage.py",
+    "app/subscription_gateway/contracts.py",
+    "app/subscription_gateway/__main__.py",
+    "app/clients/subscription_gateway.py",
+    "app/services/subscription_accounts.py",
+    "app/schemas/subscription_account.py",
+    "app/api/routes/v1/subscription_accounts.py",
+    "app/services/personal_model_policy.py",
+    "app/services/personal_model_surfaces.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -1322,6 +1402,8 @@ include = [
     # every branch of the precedence, every class, and every refusal is held to
     # the gate (#1420).
     "app/core/retention.py",
+    "app/core/sign_in_methods.py",
+    "app/core/chat_costs.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
@@ -1387,6 +1469,14 @@ include = [
     "app/services/workflow_registry.py",
     "app/schemas/workflow_portable.py",
     "app/services/workflow_portable.py",
+    "app/schemas/resource_bundle.py",
+    "app/services/portability/**",
+    "app/services/rag/parsed_snapshot.py",
+    "app/db/models/portability_operation.py",
+    "app/repositories/portability_operation.py",
+    "app/schemas/portability_operation.py",
+    "app/worker/tasks/portability_tasks.py",
+    "app/api/routes/v1/portability.py",
     "app/services/workflow_agents.py",
     "app/services/workflow_execution/agent_conversations.py",
     "app/workflows/**",
@@ -1472,6 +1562,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",
@@ -1486,6 +1579,10 @@ include = [
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
+    # How much of a run's input is tool output sent again.
+    "app/repositories/tool_output_report.py",
+    "app/services/tool_output_report.py",
+    "app/commands/tool_output_report.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1534,6 +1631,7 @@ generator_version = "0.2.17"
 generated_at = "2026-07-26T18:01:04.489757+00:00"
 
 [tool.coverage.run]
+relative_files = true
 # `source` must be packages or directories — coverage silently ignores a file
 # path here, which is how a whole module can sit in this list and never be
 # measured. The platform layer is therefore selected with `include` globs,
@@ -1549,6 +1647,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
+    "app/commands/refresh_inbox.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
@@ -1556,7 +1655,9 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/skill_checks.py",
     "app/core/permissions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -1606,6 +1707,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).
@@ -1635,6 +1737,11 @@ include = [
     "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
+    "app/services/event_sources.py",
+    "app/services/event_source_auth.py",
+    "app/services/event_source_samples.py",
+    "app/repositories/event_source.py",
+    "app/worker/tasks/event_source_tasks.py",
     "app/services/trigger_dedupe.py",
     "app/services/trigger_templates.py",
     "app/schemas/trigger_template.py",
@@ -1673,6 +1780,14 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
+    "app/schemas/project_filesystem.py",
+    "app/schemas/project_filesystem_authority.py",
+    "app/repositories/project_filesystem.py",
+    "app/repositories/project_filesystem_bindings.py",
+    "app/services/project_filesystem.py",
+    "app/services/project_filesystem_bindings.py",
+    "app/services/project_filesystem_gateway.py",
+    "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
@@ -1710,6 +1825,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
@@ -1726,6 +1842,7 @@ include = [
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
+    "app/services/criterion_access.py",
     "app/repositories/collection_teardown.py",
     "app/repositories/pending_sandbox_destroy.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
@@ -1839,6 +1956,9 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
+    "app/services/chatgpt_plan.py",
+    "app/services/runtime_tool_approvals.py",
+    "app/repositories/chatgpt_registration.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -1858,6 +1978,7 @@ include = [
     "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech_settings.py",
     "app/services/text_to_speech/__init__.py",
     "app/services/text_to_speech/clients.py",
     "app/services/text_to_speech/exceptions.py",
@@ -1935,6 +2056,13 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/schemas/console_catalogs.py",
+    "app/schemas/console_dashboard.py",
+    "app/schemas/console_presentation.py",
+    "app/services/console_catalogs.py",
+    "app/services/console_experience.py",
+    "app/services/chat_cost_visibility.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -1943,6 +2071,11 @@ include = [
     "app/services/context.py",
     "app/repositories/project.py",
     "app/services/project.py",
+    "app/db/models/project_resource.py",
+    "app/schemas/project_context.py",
+    "app/schemas/project_resource.py",
+    "app/repositories/project_resource.py",
+    "app/services/project_resources.py",
     "app/services/project_workspace_guard.py",
     "app/services/project_workspace_transfer.py",
     "app/worker/tasks/project_tasks.py",
@@ -1987,6 +2120,14 @@ include = [
     "app/services/case_generation/estimate.py",
     "app/services/case_generation/generation.py",
     "app/services/case_generation/worker.py",
+    "app/db/models/case_key_draft.py",
+    "app/schemas/case_key_draft.py",
+    "app/repositories/case_key_draft.py",
+    "app/services/case_key_draft.py",
+    "app/db/models/key_coverage_report.py",
+    "app/schemas/key_coverage.py",
+    "app/repositories/key_coverage_report.py",
+    "app/services/key_coverage.py",
     "app/api/routes/v1/dataset_generations.py",
     "app/schemas/agent_test_set.py",
     "app/services/agent_test_set.py",
@@ -2049,6 +2190,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
@@ -2117,6 +2264,10 @@ include = [
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
+    "app/services/routine_readiness.py",
+    "app/schemas/routine_readiness.py",
+    "app/services/routine_tools.py",
+    "app/schemas/routine_tools.py",
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
@@ -2153,6 +2304,8 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    "app/worker/tasks/case_key_tasks.py",
+    "app/worker/tasks/key_coverage_tasks.py",
     # Improvement sessions: the Improve pipeline run in the background up to a
     # checked proposal.
     "app/db/models/improvement.py",
@@ -2161,6 +2314,8 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/step_failure.py",
+    "app/services/improvement_search.py",
     "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
@@ -2200,6 +2355,25 @@ include = [
     "app/services/_coding_task_revert.py",
     "app/services/workspace_turn_guard.py",
     "app/worker/tasks/coding_tasks.py",
+    "app/db/models/personal_model_key.py",
+    "app/db/models/personal_model_generation.py",
+    "app/repositories/personal_model_key.py",
+    "app/services/personal_model_key.py",
+    "app/services/copilot_sign_in.py",
+    "app/services/personal_copilot.py",
+    "app/clients/github_copilot.py",
+    "app/subscription_gateway/_instances.py",
+    "app/subscription_gateway/_server.py",
+    "app/subscription_gateway/_account_data.py",
+    "app/subscription_gateway/_usage.py",
+    "app/subscription_gateway/contracts.py",
+    "app/subscription_gateway/__main__.py",
+    "app/clients/subscription_gateway.py",
+    "app/services/subscription_accounts.py",
+    "app/schemas/subscription_account.py",
+    "app/api/routes/v1/subscription_accounts.py",
+    "app/services/personal_model_policy.py",
+    "app/services/personal_model_surfaces.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -2257,6 +2431,8 @@ include = [
     # every branch of the precedence, every class, and every refusal is held to
     # the gate (#1420).
     "app/core/retention.py",
+    "app/core/sign_in_methods.py",
+    "app/core/chat_costs.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
@@ -2322,6 +2498,14 @@ include = [
     "app/services/workflow_registry.py",
     "app/schemas/workflow_portable.py",
     "app/services/workflow_portable.py",
+    "app/schemas/resource_bundle.py",
+    "app/services/portability/**",
+    "app/services/rag/parsed_snapshot.py",
+    "app/db/models/portability_operation.py",
+    "app/repositories/portability_operation.py",
+    "app/schemas/portability_operation.py",
+    "app/worker/tasks/portability_tasks.py",
+    "app/api/routes/v1/portability.py",
     "app/services/workflow_agents.py",
     "app/services/workflow_execution/agent_conversations.py",
     "app/workflows/**",
@@ -2407,6 +2591,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",
@@ -2421,6 +2608,10 @@ include = [
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
+    # How much of a run's input is tool output sent again.
+    "app/repositories/tool_output_report.py",
+    "app/services/tool_output_report.py",
+    "app/commands/tool_output_report.py",
 ]
 branch = true
 omit = [
@@ -2457,4 +2648,4 @@ constraint-dependencies = ["opentelemetry-api>=1.45.2"]
 # CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
 # held a known advisory in the lock. xai-sdk reads versions with packaging's
 # stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
-override-dependencies = ["pydantic[email]>=2.14.3", "packaging>=26.3"]
+override-dependencies = ["pydantic[email]>=2.14.4", "packaging>=26.3"]

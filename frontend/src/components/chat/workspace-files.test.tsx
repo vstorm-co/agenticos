@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
@@ -14,10 +15,18 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
 }));
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { useAuthStore } from "@/stores/auth-store";
+import { readConversationWorkspaceOrigins } from "@/lib/conversation-workspace-api";
+vi.mock("@/lib/conversation-workspace-api", async (original) => ({
+  ...(await original<typeof import("@/lib/conversation-workspace-api")>()),
+  readConversationWorkspaceOrigins: vi.fn(),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
+
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => false }) }));
 
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => (
@@ -56,11 +65,19 @@ function workspace(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   useSourcesPanelStore.getState().close();
   vi.clearAllMocks();
+  useAuthStore.setState({ sessionOwnerId: "files-reader" });
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: null,
+    default_workspace_id: null,
+    items: [],
+    truncated: false,
+  });
   vi.mocked(apiClient.get).mockResolvedValue(workspace());
 });
 
 /**
  * The panel beside the transcript.
+ * Main-chat callers can disable it until their first message; embedded callers retain access.
  *
  * Two properties carry it. It is always reachable - one icon among the composer's controls,
  * because hiding it until a workspace row exists made it unreachable for the whole
@@ -75,8 +92,74 @@ beforeEach(() => {
  * has a copy of is one file rather than two.
  */
 describe("the workspace panel", () => {
+  it("docks with the narrow Sources profile and releases temporary list pressure on close", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+      />,
+    );
+    await openPanel();
+    expect(screen.getByRole("complementary")).toHaveStyle({
+      "--browser-panel-width": "min(400px, 38%)",
+    });
+    expect(useChatPanelStore.getState().filesOpen).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
+  it("keeps an embedded overlay from folding the main conversation list", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+        overlay
+      />,
+    );
+    await openPanel();
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
+  it("does not open or fetch files before the first message", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+          beforeFirstMessage
+        />
+      </QueryClientProvider>,
+    );
+    const button = screen.getByRole("button", { name: /^Show the files/ });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+          beforeFirstMessage={false}
+        />
+      </QueryClientProvider>,
+    );
+    expect(button).toBeEnabled();
+    await openPanel();
+    expect(await screen.findByText("report.csv")).toBeVisible();
+  });
+
   it("draws its button only once the composer has a place for it", () => {
-    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" attachments={[]} revision={0} />);
+    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" revision={0} attachments={[]} />);
 
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
@@ -183,6 +266,7 @@ describe("the workspace panel", () => {
     await openPanel();
 
     expect(screen.getByText(/keeps no files/)).toBeVisible();
+    expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
   it("draws the button while the listing is still in flight, and never takes it away", async () => {
@@ -281,6 +365,90 @@ describe("the workspace panel", () => {
     await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
   });
 
+  it("does not call a workspace that holds only folders empty, and counts no files on its button", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          { path: "/workspace", size: null, is_dir: true, modified_at: null },
+          { path: "/workspace/drafts", size: null, is_dir: true, modified_at: null },
+        ],
+        total: 2,
+        bytes_total: 137_216,
+      }),
+    );
+
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
+    await openPanel();
+
+    expect(await screen.findByRole("button", { name: "drafts" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "workspace" })).toBeVisible();
+    expect(screen.queryByText(/Nothing yet/)).toBeNull();
+  });
+
+  it.each(["/", "."])(
+    "calls a listing of only its own root %s empty, since the tree draws nothing for it",
+    async (root) => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          items: [{ path: root, size: null, is_dir: true, modified_at: null }],
+          total: 1,
+          bytes_total: 0,
+        }),
+      );
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
+      expect(screen.queryByRole("tree")).toBeNull();
+    },
+  );
+
+  it("names a folder in full on hover when the narrow panel cuts it", async () => {
+    const long = "/workspace-of-the-quarterly-revenue-reconciliation";
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          { path: long, size: null, is_dir: true, modified_at: null },
+          { path: `${long}/q3.csv`, size: 10, is_dir: false, modified_at: null },
+        ],
+        total: 2,
+      }),
+    );
+
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+
+    const folder = await screen.findByRole("button", { name: long.slice(1) });
+    expect(folder).toHaveAttribute("title", long.slice(1));
+    expect(screen.getByRole("button", { name: /q3\.csv/ })).toHaveAttribute(
+      "title",
+      `${long}/q3.csv`,
+    );
+  });
+
   it("reports a workspace it could not read", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("The sandbox service is unreachable"));
 
@@ -294,9 +462,10 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() =>
-      expect(screen.getByText("The sandbox service is unreachable")).toBeVisible(),
-    );
+    expect(await screen.findByText("Could not load these files")).toBeVisible();
+    expect(screen.getByText("The sandbox service is unreachable")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText("The sandbox service is unreachable")).toBeVisible();
   });
 
   it("re-reads when a turn ends", async () => {
@@ -648,7 +817,9 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText(/No workspace root/)).toBeVisible());
+    expect(await screen.findByText("Files are not available right now")).toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText(/No workspace root/)).toBeVisible();
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
@@ -830,6 +1001,35 @@ describe("the workspace panel", () => {
       ...overrides,
     });
 
+    it("keeps attachments available while explaining an archive that has not been retained", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          backend: "service",
+          items: [],
+          total: 0,
+          bytes_total: 0,
+          unreadable_reason: "This host's files could not be read. No workspace for session: c1",
+          unreadable_code: "workspace_not_retained",
+        }),
+      );
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      expect(
+        await screen.findByText("Workspace has not been created yet or is no longer retained"),
+      ).toBeVisible();
+      expect(screen.getByText("Attached to the chat")).toBeVisible();
+      expect(screen.getByText("invoice.pdf")).toBeVisible();
+      expect(screen.queryByText(/Nothing yet/)).toBeNull();
+      expect(screen.queryByText("Files are not available right now")).toBeNull();
+    });
+
     it("lists one the agent has no copy of", async () => {
       // The case with no workspace at all: the agent cannot open it, and the person
       // who dragged it in still looks for it here.
@@ -849,6 +1049,8 @@ describe("the workspace panel", () => {
 
       expect(screen.getByText("Attached to the chat")).toBeVisible();
       expect(screen.getByText("invoice.pdf")).toBeVisible();
+      expect(screen.queryByText(/keeps no files/)).toBeNull();
+      expect(screen.queryByText(/Nothing yet/)).toBeNull();
     });
 
     it("draws a thumbnail for a render-safe image but not for a TIFF", async () => {
@@ -1035,7 +1237,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
       : workspace({ items: entries }),
   );
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   const folder = await screen.findByRole("button", { name: "site" });
@@ -1054,7 +1256,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
 
 it("switches between files and sources without keeping both panels open", async () => {
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   act(() =>
@@ -1065,4 +1267,171 @@ it("switches between files and sources without keeping both panels open", async 
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   await openPanel();
   expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+});
+
+it("closes the old file selection when navigating to another conversation", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/file")
+      ? { path: "/report.csv", content: "month,total", truncated: false }
+      : workspace(),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const content = (id: string) => (
+    <QueryClientProvider client={client}>
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={id}
+        attachments={[]}
+        revision={0}
+      />
+    </QueryClientProvider>
+  );
+  const view = render(content("c1"));
+  await openPanel();
+  await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+  await waitFor(() =>
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+      "/conversations/c1/workspace/file?path=%2Freport.csv",
+    ),
+  );
+  view.rerender(content("c2"));
+  expect(screen.queryByRole("complementary")).toBeNull();
+  await openPanel();
+  expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain(
+    "/conversations/c2/workspace/file?path=%2Freport.csv",
+  );
+});
+
+it("chooses exact project or agent files without borrowing a same-named path or archive", async () => {
+  const agent = {
+    kind: "agent" as const,
+    workspace_id: "a-space",
+    project_id: null,
+    scope: "agent",
+    backend: "state",
+    owner_label: "Analyst",
+  };
+  const project = {
+    kind: "project" as const,
+    workspace_id: "p-space",
+    project_id: "p1",
+    scope: "project",
+    backend: "state",
+    owner_label: "Launch",
+  };
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "project",
+    default_workspace_id: "p-space",
+    items: [agent, project],
+    truncated: true,
+  });
+  vi.mocked(apiClient.get).mockImplementation(async (url) =>
+    url.includes("/file?")
+      ? { path: "/report.csv", content: "agent-only preview", truncated: false }
+      : workspace({ truncated: true }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
+  );
+  await openPanel();
+  expect(await screen.findByRole("combobox", { name: "File location" })).toHaveTextContent(
+    "Project files · Launch",
+  );
+  expect(apiClient.get).toHaveBeenCalledWith("/projects/p1/files");
+  expect(screen.queryByRole("button", { name: "Download as .zip" })).toBeNull();
+  expect(screen.getByText("Some file locations are omitted from this list.")).toBeVisible();
+  expect(screen.getByText("This file list is incomplete.")).toBeVisible();
+  await userEvent.click(screen.getByRole("combobox", { name: "File location" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Agent files · Analyst" }));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/a-space/files"),
+  );
+  await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+  expect(await screen.findByText("agent-only preview")).toBeVisible();
+  expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/a-space/file?path=%2Freport.csv");
+  expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+});
+
+it("unmounts a preview when its project disappears instead of opening the agent's copy", async () => {
+  const agent = {
+    kind: "agent" as const,
+    workspace_id: "a-space",
+    project_id: null,
+    scope: "agent",
+    backend: "state",
+    owner_label: "Analyst",
+  };
+  const project = {
+    kind: "project" as const,
+    workspace_id: "p-space",
+    project_id: "p1",
+    scope: "project",
+    backend: "state",
+    owner_label: "Launch",
+  };
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "project",
+    default_workspace_id: "p-space",
+    items: [agent, project],
+    truncated: false,
+  });
+  vi.mocked(apiClient.get).mockResolvedValue(workspace());
+  vi.mocked(apiClient.raw).mockResolvedValue(new Response("project-private preview"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = (revision: number) => (
+    <QueryClientProvider client={client}>
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={revision}
+        attachments={[]}
+      />
+    </QueryClientProvider>
+  );
+  const rendered = render(view(0));
+  await openPanel();
+  await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+  expect(await screen.findByText("project-private preview")).toBeVisible();
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "agent",
+    default_workspace_id: "a-space",
+    items: [agent],
+    truncated: false,
+  });
+  rendered.rerender(view(1));
+  expect(
+    await screen.findByText("This file location is no longer available. Choose another location."),
+  ).toBeVisible();
+  expect(screen.queryByText("project-private preview")).toBeNull();
+  const reads = vi.mocked(readConversationWorkspaceOrigins).mock.calls.length;
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(readConversationWorkspaceOrigins).toHaveBeenCalledTimes(reads + 1));
+  expect(apiClient.get).not.toHaveBeenCalledWith("/sandbox-workspaces/a-space/files");
+  expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+});
+
+it("labels files without an extension in an explicit workspace", async () => {
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "agent",
+    default_workspace_id: "a-space",
+    truncated: false,
+    items: [
+      {
+        kind: "agent",
+        workspace_id: "a-space",
+        project_id: null,
+        scope: "agent",
+        backend: "state",
+        owner_label: "Analyst",
+      },
+    ],
+  });
+  vi.mocked(apiClient.get).mockResolvedValue(
+    workspace({ items: [{ path: "/README", size: null, is_dir: false, modified_at: null }] }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
+  );
+  await openPanel();
+  expect(await screen.findByRole("button", { name: /README/ })).toBeVisible();
 });

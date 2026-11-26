@@ -1,5 +1,9 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { NativeSelect } from "@/components/ui/native-select";
 import { MobileConversationNotifications } from "@/components/mobile/notification-preferences";
 import { ConversationNotificationToggle } from "@/components/desktop/notification-settings";
@@ -11,6 +15,7 @@ import { useTranslations } from "next-intl";
 import {
   useDeviceLink,
   useDeviceStatus,
+  useExternalAgents,
   useLocalFolders,
   useLocalServices,
 } from "@/hooks/use-desktop";
@@ -22,12 +27,18 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
-import { useAgentSelectionStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useInChatScope } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { worksOnThisComputer } from "@/hooks/use-local-access-gate";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
+import { ProjectExecutionControl } from "./project-execution-control";
 import { LocalSkillsControl } from "./local-skills-control";
 import { LocalCodingControl } from "./local-coding-control";
+import { useProviderCatalog } from "@/hooks/use-model-providers";
+import {
+  conversationRegistrations,
+  NativeConversationControl,
+} from "./native-conversation-control";
 
 /** The last part of a path, which is what a person recognises a folder by. */
 function folderName(path: string): string {
@@ -37,8 +48,8 @@ function folderName(path: string): string {
 /**
  * "Work on: Cloud / This computer" - where this conversation's runs work (#2305).
  *
- * Only in the desktop app, which is the only place that can pick a folder and
- * carry the work out. Cloud is the agent's own sandbox; this computer is a folder
+ * Project execution is available in every console. Only the desktop app can
+ * select a local folder. Cloud execution has its own workspace selection; a folder
  * the person picks in the native dialog, with the mode they allow there. The
  * choice is remembered per conversation; new chats inherit the last preferences.
  */
@@ -48,21 +59,30 @@ export function WorkOn({
   agentCapabilities?: readonly string[] | null;
 }) {
   const shell = useShell();
-  return isDesktopShell(shell) ? (
+  const scoped = useInChatScope();
+  return (
     <>
-      <LocalCodingControl />
-      <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
-      <LocalToolControl
-        tool="browser"
-        agentEnabled={agentCapabilities?.includes("browser_use") === true}
-      />
-      <LocalToolControl
-        tool="computer"
-        agentEnabled={agentCapabilities?.includes("computer_use") === true}
-      />
-      <LocalSkillsControl />
+      {!scoped &&
+        agentCapabilities?.some(
+          (capability) => capability === "sandbox" || capability === "projects",
+        ) && <ProjectExecutionControl agentCapabilities={agentCapabilities} />}
+      {isDesktopShell(shell) && (
+        <>
+          <LocalCodingControl />
+          <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
+          <LocalToolControl
+            tool="browser"
+            agentEnabled={agentCapabilities?.includes("browser_use") === true}
+          />
+          <LocalToolControl
+            tool="computer"
+            agentEnabled={agentCapabilities?.includes("computer_use") === true}
+          />
+          <LocalSkillsControl />
+        </>
+      )}
     </>
-  ) : null;
+  );
 }
 
 export function ConversationNotifications() {
@@ -164,6 +184,8 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const { link } = useDeviceLink();
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
+  const nativeRuntimes = useProviderCatalog().data?.native_runtimes;
+  const registrations = conversationRegistrations(useExternalAgents().state.data ?? []);
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
@@ -245,6 +267,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
         ...choice.target,
         folder: grant.path,
         mode: grant.mode,
+        ...(choice.target?.conversation_runtime && grant.mode !== "full_access"
+          ? { conversation_runtime: null }
+          : {}),
         computer_grant: undefined,
       };
       setTarget(choice.conversationId, target, localAgent === null);
@@ -269,7 +294,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   };
 
   return (
-    <details className="group border-foreground/8 border-b py-3">
+    <NativeDisclosure className="group border-foreground/8 border-b py-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden">
         <FolderOpen className="text-muted-foreground size-4" aria-hidden />
         <span>{t("title")}</span>
@@ -400,6 +425,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                             ...target,
                             folder: grant.path,
                             mode: grant.mode,
+                            ...(target?.conversation_runtime && grant.mode !== "full_access"
+                              ? { conversation_runtime: null }
+                              : {}),
                           })
                         }
                         className="min-w-0 flex-1 text-left"
@@ -429,6 +457,16 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                 })}
               </div>
             )}
+            {target !== null && (
+              <NativeConversationControl
+                codexEnabled={nativeRuntimes?.codex === true}
+                claudeEnabled={nativeRuntimes?.claude_code === true}
+                externalEnabled={nativeRuntimes?.external === true}
+                registrations={registrations}
+                target={target}
+                onChange={(next) => setTarget(conversationId, next)}
+              />
+            )}
             {target !== null && services.length > 0 && (
               <div className="space-y-2 py-2">
                 <label className="block text-xs">
@@ -441,6 +479,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                       setTarget(conversationId, {
                         ...target,
                         model_service: event.target.value || null,
+                        ...(target.conversation_runtime ? { conversation_runtime: null } : {}),
                       })
                     }
                   >
@@ -463,6 +502,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                     <label key={service.id} className="flex min-h-10 items-center gap-2 text-xs">
                       <input
                         type="checkbox"
+                        className={NATIVE_CHOICE}
                         checked={(target.mcp_services ?? []).includes(service.id)}
                         disabled={
                           (target.mcp_services?.length ?? 0) >= 8 &&
@@ -528,6 +568,6 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
           </div>
         )}
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

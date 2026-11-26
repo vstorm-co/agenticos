@@ -15,7 +15,9 @@ export function SetUpGrading({ agents }: { agents: SkillCheckAgent[] }) {
   const t = useTranslations("skillImprovement.testSet");
   const datasets = new Map<string, string>();
   for (const stage of agents.flatMap((row) => row.stages)) {
-    if (stage.dataset_name !== null) datasets.set(stage.dataset_id, stage.dataset_name);
+    if (stage.dataset_id !== null && stage.dataset_name !== null) {
+      datasets.set(stage.dataset_id, stage.dataset_name);
+    }
   }
   if (datasets.size === 0) return null;
   return (

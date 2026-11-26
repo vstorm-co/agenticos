@@ -66,6 +66,14 @@ async def test_each_job_reaches_its_person(service):
     service.install_role_pack.assert_awaited_once_with(ORG, USER, "sales")
 
 
+@pytest.mark.parametrize("refresh", [False, True])
+async def test_explicit_refresh_reaches_the_nightly_service(service, refresh):
+    await proactive_tasks.think_for_person(
+        ThinkForPerson(organization_id=ORG, user_id=USER, refresh_open=refresh)
+    )
+    service.think_for.assert_awaited_once_with(ORG, USER, refresh_open=refresh)
+
+
 def test_every_kind_is_bound_and_the_sweep_is_scheduled_hourly():
     handlers = production()
     for task in (

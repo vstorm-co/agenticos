@@ -52,82 +52,84 @@ export function StartTasks({ data }: { data: Onboarding }) {
     });
   };
   return (
-    <div className={styles.workbench} data-goal={goal}>
-      <StartTaskMenu goal={goal} savedGoal={data.goal} saving={saving} onChange={choose} />
-      <section className={styles.canvas} aria-label={t(`examples.${goal}.title`)}>
-        <StartTaskCanvas key={goal} goal={goal} />
-        <footer className={styles.canvasFooter}>
-          {agent ? (
-            <div className={styles.agentChoice}>
-              <Label htmlFor="start-agent">{t("agent")}</Label>
-              <NativeSelect
-                id="start-agent"
-                value={agent.id}
-                onChange={(event) => setSelectedAgent(event.target.value)}
-              >
-                {data.agents.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </div>
-          ) : (
-            <p className={styles.actionHint}>
-              {t(
-                setupAgent
-                  ? "workbench.setupChatHint"
-                  : data.can_prepare
-                    ? "workbench.connectionHint"
-                    : "workbench.memberHint",
+    <div className="space-y-6">
+      <div className={styles.workbench} data-goal={goal}>
+        <StartTaskMenu goal={goal} savedGoal={data.goal} saving={saving} onChange={choose} />
+        <section className={styles.canvas} aria-label={t(`examples.${goal}.title`)}>
+          <StartTaskCanvas key={goal} goal={goal} />
+          <footer className={styles.canvasFooter}>
+            {agent ? (
+              <div className={styles.agentChoice}>
+                <Label htmlFor="start-agent">{t("agent")}</Label>
+                <NativeSelect
+                  id="start-agent"
+                  value={agent.id}
+                  onChange={(event) => setSelectedAgent(event.target.value)}
+                >
+                  {data.agents.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            ) : (
+              <p className={styles.actionHint}>
+                {t(
+                  setupAgent
+                    ? "workbench.setupChatHint"
+                    : data.can_prepare
+                      ? "workbench.connectionHint"
+                      : "workbench.memberHint",
+                )}
+              </p>
+            )}
+            <Button
+              ref={action}
+              className={styles.primaryAction}
+              disabled={saving && !!chatAgent}
+              aria-busy={saving && !!chatAgent}
+              onClick={() => {
+                if (!chatAgent) setSetupOpen(true);
+                else
+                  void save(goal, true).catch(() => {
+                    /* The mutation error is rendered below. */
+                  });
+              }}
+            >
+              {setupAgent
+                ? t("workbench.setupChat", { agent: setupAgent.name })
+                : t(
+                    agent
+                      ? "tryExample"
+                      : data.can_prepare
+                        ? "workbench.connect"
+                        : "workbench.getAccess",
+                  )}
+              {saving && chatAgent ? (
+                <LoaderCircle
+                  size={16}
+                  className="animate-spin motion-reduce:animate-none"
+                  aria-hidden
+                />
+              ) : (
+                <ArrowRight size={16} aria-hidden />
               )}
+            </Button>
+          </footer>
+          {state.save.error && (
+            <p role="alert" className={styles.error}>
+              {t("choiceNotSaved")} {getErrorMessage(state.save.error, errors)}
             </p>
           )}
-          <Button
-            ref={action}
-            className={styles.primaryAction}
-            disabled={saving && !!chatAgent}
-            aria-busy={saving && !!chatAgent}
-            onClick={() => {
-              if (!chatAgent) setSetupOpen(true);
-              else
-                void save(goal, true).catch(() => {
-                  /* The mutation error is rendered below. */
-                });
-            }}
-          >
-            {setupAgent
-              ? t("workbench.setupChat", { agent: setupAgent.name })
-              : t(
-                  agent
-                    ? "tryExample"
-                    : data.can_prepare
-                      ? "workbench.connect"
-                      : "workbench.getAccess",
-                )}
-            {saving && chatAgent ? (
-              <LoaderCircle
-                size={16}
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden
-              />
-            ) : (
-              <ArrowRight size={16} aria-hidden />
-            )}
-          </Button>
-        </footer>
-        {state.save.error && (
-          <p role="alert" className={styles.error}>
-            {t("choiceNotSaved")} {getErrorMessage(state.save.error, errors)}
-          </p>
-        )}
-      </section>
-      <StartSetup
-        data={data}
-        open={setupOpen}
-        onOpenChange={setSetupOpen}
-        onReturnFocus={() => action.current?.focus()}
-      />
+        </section>
+        <StartSetup
+          data={data}
+          open={setupOpen}
+          onOpenChange={setSetupOpen}
+          onReturnFocus={() => action.current?.focus()}
+        />
+      </div>
     </div>
   );
 }

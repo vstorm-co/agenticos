@@ -7,12 +7,12 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, NamedTuple
 from uuid import UUID
 
 from pydantic_ai.usage import RunUsage
@@ -25,7 +25,7 @@ from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER, refuse_system_agent
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -37,8 +37,9 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
+    ValidationError,
 )
-from app.core.field_errors import refused_field
+from app.core.field_errors import field_details, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
@@ -54,8 +55,11 @@ from app.db.models.improvement import (
     OPEN_STATUSES,
     DroppedHunk,
     ImprovementIteration,
+    ImprovementMode,
     ImprovementRun,
     ImprovementVerdict,
+    SearchSettings,
+    SearchVariantStatus,
     StopReason,
     VerdictDetail,
 )
@@ -70,11 +74,13 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    credential_repo,
     dataset_repo,
     eval_run_repo,
     improvement_repo,
     knowledge_base_repo,
     knowledge_gap_repo,
+    member_repo,
     organization_repo,
     skill_repo,
     skill_usage_repo,
@@ -88,6 +94,7 @@ from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, Propos
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.schemas.eval_run import (
+    CriterionMoveRead,
     EvalComparisonRead,
     EvalRunRead,
     EvalRunRequest,
@@ -106,6 +113,7 @@ from app.schemas.improvement import (
     ContinuationEstimate,
     EvidenceGrade,
     EvidenceSkill,
+    HelperGuidance,
     ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
@@ -120,30 +128,37 @@ from app.schemas.improvement import (
     ImprovementSelection,
     ImprovementSkills,
     ImprovementStart,
+    ImprovementStopRead,
     ImprovementTarget,
     KnowledgeAdded,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
     NextStepBlocked,
+    SearchChoice,
     SelectionConsent,
     SelectionEstimate,
     TopicDeferral,
     TryAgainBlocked,
+    VerdictCriterion,
 )
+from app.schemas.knowledge_gap import CauseBranch, GapCause
+from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import SKILL, accessible_ids
+from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
-from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack
+from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack, PackedRun
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
+from app.services.criterion_access import criterion_source_access
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
-from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
+from app.services.eval_comparison import CriterionMove
+from app.services.eval_run import EvalRunService, family_move, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import (
     MIN_HOLDOUT_CASES,
@@ -152,9 +167,23 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
+from app.services.improvement_search import (
+    MIN_TRAIN_QUESTIONS,
+    ImprovementSearchService,
+    search_settings,
+)
 from app.services.improvement_skills import ImprovementSkillService, SkillSeed
+from app.services.improvement_states import (
+    criterion_details,
+    criterion_owners,
+    criterion_skill_ids,
+    family_details,
+    family_skills,
+)
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
+from app.services.model_outputs import model_outputs
 from app.services.notifications import NotificationService
+from app.services.step_failure import failure_code
 from app.worker.jobs import (
     ADVANCE_IMPROVEMENT,
     CLASSIFY_GAPS,
@@ -166,6 +195,8 @@ ANSWER_TIME_WINDOW = timedelta(days=30)
 """How far back the agent's answers are read to time a session's checks."""
 
 _AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
+
+UNHELD_KEYS = "The answer misses only keys none of the agent's sources holds."
 """Statuses a session waits in for a person to take the next step or decide."""
 
 
@@ -178,6 +209,7 @@ class Inputs:
     suite: EvalSuiteRead | None
     judge_version_id: UUID | None
     base_version_id: UUID | None
+    holdout_share: Decimal
     helper_settings: DatasetHelper = field(default_factory=DatasetHelper)
 
     @property
@@ -228,6 +260,18 @@ class SelectionPlan:
     quote: SelectionEstimate
 
 
+class KnowledgeSources(NamedTuple):
+    """What a session's knowledge sort reads: the bases it may write, and the bad answers."""
+
+    knowledge_base_ids: list[UUID]
+    message_ids: list[UUID]
+    """Its chat answers rated down, or whose run did not complete."""
+    eval_run_ids: list[UUID]
+    """Its failed training answers from evals, by the run that gave each."""
+    source_run_ids: list[UUID]
+    """Every run whose misses the sort groups: its chat runs, then its eval answers."""
+
+
 @dataclass(frozen=True)
 class ContinuationPlan:
     session: ImprovementRun
@@ -236,6 +280,10 @@ class ContinuationPlan:
     measurable: set[UUID]
     """For a new attempt drawn on continuing, the questions its check could measure."""
     quote: ContinuationEstimate
+
+
+_DECIDING_ON_BEST = frozenset({Status.READY, Status.ACCEPTED, Status.PUBLISHED, Status.REJECTED})
+"""Ends that offer or decide the kept attempt, which is not always the latest one."""
 
 
 def blocked_next_step(
@@ -249,6 +297,56 @@ def blocked_next_step(
     if not isinstance(missing, int) or missing < 1:
         return None
     return NextStepBlocked(reason="missing_holdout", needed=missing)
+
+
+@dataclass(frozen=True)
+class EarlierAttempt:
+    """What one measured attempt of a session changed, and what its check found.
+
+    Attributes:
+        number: The attempt's number in its session.
+        verdict: The check's verdict on it.
+        changes: Each change it made, as the helper would read it.
+        held_out: How many held-out questions the check measured.
+        fixed: Held-out questions confirmed fixed - a count, never which.
+        broken: Held-out questions confirmed broken - a count, never which.
+        criteria: The criteria that moved on the questions it learned from.
+    """
+
+    number: int
+    verdict: ImprovementVerdict
+    changes: tuple[str, ...]
+    held_out: int
+    fixed: int
+    broken: int
+    criteria: tuple[CriterionMoveRead, ...]
+
+
+def _change_excerpt(text: str | None) -> str | None:
+    """Clip a value before adding its structural delimiters to the prompt."""
+    if text is None or len(text) <= 700:
+        return text
+    return text[:350] + "\n[... change excerpt clipped ...]\n" + text[-350:]
+
+
+def _change_text(hunk: SpecProposalHunk) -> str:
+    """A bounded description that keeps old and new excerpts separately labeled."""
+    if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
+        replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
+        where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
+        return (
+            f"In {where}, replaced:\n<old>\n{_change_excerpt(hunk.old_text)}\n</old>\n"
+            f"with:\n<new>\n{_change_excerpt(replaced)}\n</new>"
+        )
+    if hunk.kind == HunkKind.SPEC_FIELD.value:
+        return f"{hunk.op} {hunk.path}: {_change_excerpt(json.dumps(hunk.new_value))}"
+    if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
+        return (
+            f"Tool {hunk.capability_id}/{hunk.tool_id}: "
+            f"name {_change_excerpt(hunk.new_name)!r}, "
+            f"description {_change_excerpt(hunk.new_description)!r}"
+        )
+    return f"{hunk.kind}: {_change_excerpt(hunk.new_text or hunk.new_description or '')}"
 
 
 class ImprovementPipelineService:
@@ -305,10 +403,7 @@ class ImprovementPipelineService:
         )
         helper = DatasetHelpers.model_validate(dataset.helper_settings or {}).improver
         helper = helper.model_copy(
-            update={
-                "model_profile_id": helper.model_profile_id or draft.model_profile_id,
-                "instructions": helper.instructions or IMPROVER.instructions,
-            }
+            update={"model_profile_id": helper.model_profile_id or draft.model_profile_id}
         )
         return Inputs(
             agent,
@@ -320,23 +415,26 @@ class ImprovementPipelineService:
             if checked.judge_pinned
             else (judge.current_version_id if judge else None),
             None if version is None else version.id,
+            dataset.improvement_holdout_share,
             helper,
         )
 
-    async def knowledge_sources(
-        self, ctx: AuthContext, run: ImprovementRun
-    ) -> tuple[list[UUID], list[UUID], list[UUID]]:
-        """Writable bound bases and bad chat answers from the frozen, unerased evidence only."""
+    async def knowledge_sources(self, ctx: AuthContext, run: ImprovementRun) -> KnowledgeSources:
+        """Writable bound bases and bad answers from the frozen, unerased evidence only."""
         await self.ensure_current(ctx, run.id, allow_finished=True)
         agent = await self.registry.get(ctx, run.agent_id, perm=Perm.AGENTS_EDIT)
         return await self._knowledge_sources(ctx, agent, run.id)
 
     async def _knowledge_sources(
         self, ctx: AuthContext, agent: Agent, evidence: EvidencePack | UUID
-    ) -> tuple[list[UUID], list[UUID], list[UUID]]:
-        """`evidence` is a pack already read, or the session whose frozen pack to read."""
+    ) -> KnowledgeSources:
+        """`evidence` is a pack already read, or the session whose frozen pack to read.
+
+        Its chat answers rated down or unfinished, and its failed training answers from
+        evals: a session learning from evals alone has those to sort.
+        """
         if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
-            return [], [], []
+            return KnowledgeSources([], [], [], [])
         pack = await self.authoring.evidence.forget_erased(
             await self.authoring.evidence.for_improvement(ctx, evidence)
             if isinstance(evidence, UUID)
@@ -347,8 +445,13 @@ class ImprovementPipelineService:
             for item in pack.runs
             if item.evidence_kind == "chat" and (item.rating < 0 or item.status != "completed")
         ]
-        if not run_ids:
-            return [], [], []
+        eval_run_ids = [
+            item.run_id
+            for item in pack.runs
+            if item.evidence_kind == "train_eval" and item.status == "train_eval_failure"
+        ]
+        if not run_ids and not eval_run_ids:
+            return KnowledgeSources([], [], [], [])
         spec = AgentSpec.model_validate(agent.draft_spec)
         bases = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
         ids = [
@@ -359,13 +462,22 @@ class ImprovementPipelineService:
         messages = await knowledge_gap_repo.answers_for_runs(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
-        return ids, list(messages.values()), run_ids
+        return KnowledgeSources(
+            ids, list(messages.values()), eval_run_ids, [*run_ids, *eval_run_ids]
+        )
 
     async def _knowledge_branches(
         self, ctx: AuthContext, run: ImprovementRun
     ) -> tuple[int, int, list[UUID]]:
-        ids, messages, source_runs = await self.knowledge_sources(ctx, run)
-        causes = await KnowledgeGapService(self.db).causes(ctx, ids, messages)
+        sources = await self.knowledge_sources(ctx, run)
+        ids, messages, source_runs = (
+            sources.knowledge_base_ids,
+            sources.message_ids,
+            sources.source_run_ids,
+        )
+        gaps = KnowledgeGapService(self.db)
+        causes = await gaps.causes(ctx, ids, messages)
+        answered = await gaps.eval_causes(ctx, ids, sources.eval_run_ids)
         pack = await self.authoring.evidence.for_improvement(ctx, run.id)
         training = sum(item.evidence_kind == "train_eval" for item in pack.runs)
         branches = {c.message_id: c.branch for c in causes.values()}
@@ -380,9 +492,12 @@ class ImprovementPipelineService:
         added = await knowledge_gap_repo.covering_documents(
             self.db, list(set(topics.values())), organization_id=run.organization_id
         )
+        # A training answer stays the improver's whatever its verdict: it is graded on
+        # several criteria, and missing knowledge may explain only some of them.
         agent = (
             training
             + len(source_runs)
+            - len(sources.eval_run_ids)
             - len(messages)
             + sum(branch in {"agent", "unknown"} for branch in branches.values())
         )
@@ -390,6 +505,9 @@ class ImprovementPipelineService:
             branch == "missing_knowledge"
             and not ((source := run_of.get(message_id)) is not None and topics.get(source) in added)
             for message_id, branch in branches.items()
+        ) + sum(
+            branch == "missing_knowledge" and topics.get(run_id) not in added
+            for run_id, (branch, _) in answered.items()
         )
         excluded = [
             message_id
@@ -422,11 +540,15 @@ class ImprovementPipelineService:
             assert moved is not None, "a sort with no job is over"
             await self._move(run, moved)
             return
-        ids, messages, sources = await self.knowledge_sources(ctx, run)
+        sources = await self.knowledge_sources(ctx, run)
         job_id = iteration.classify_job_id
         if job_id is None:
             price = await KnowledgeGapService(self.db).improvement_estimate(
-                ctx, ids, messages, source_run_ids=sources
+                ctx,
+                sources.knowledge_base_ids,
+                sources.message_ids,
+                source_run_ids=sources.source_run_ids,
+                eval_run_ids=sources.eval_run_ids,
             )
             spent = await improvement_repo.spent(
                 self.db, run.id, organization_id=run.organization_id
@@ -442,8 +564,9 @@ class ImprovementPipelineService:
                 CLASSIFY_GAPS,
                 ClassifyGaps(
                     organization_id=run.organization_id,
-                    knowledge_base_ids=ids,
-                    message_ids=messages,
+                    knowledge_base_ids=sources.knowledge_base_ids,
+                    message_ids=sources.message_ids,
+                    eval_run_ids=sources.eval_run_ids,
                     user_id=ctx.user_id,
                     improvement_run_id=run.id,
                 ),
@@ -531,6 +654,7 @@ class ImprovementPipelineService:
             evidence=pack,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
+        measured = await self._first_measurement(ctx, inputs, inputs.request, pack)
         # The check leaves out questions from the conversations the helper reads.
         check = await self.evals.estimate(
             ctx,
@@ -542,15 +666,31 @@ class ImprovementPipelineService:
             exclude_conversations=pack.conversation_ids,
             judge_version_id=inputs.judge_version_id,
             judge_pinned=True,
+            held_out=len(measured.holdout_case_ids),
         )
-        measured = await self._first_measurement(ctx, inputs, inputs.request, pack)
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
-        ids, messages, sources = await self._knowledge_sources(ctx, inputs.agent, pack)
+        sources = await self._knowledge_sources(ctx, inputs.agent, pack)
         total = await KnowledgeGapService(self.db).improvement_estimate(
-            ctx, ids, messages, source_run_ids=sources
+            ctx,
+            sources.knowledge_base_ids,
+            sources.message_ids,
+            source_run_ids=sources.source_run_ids,
+            eval_run_ids=sources.eval_run_ids,
         )
+        train = await ImprovementSearchService(self.db).train_questions(
+            organization_id=ctx.organization_id,
+            dataset_id=inputs.request.dataset_id,
+            dataset_version=inputs.request.dataset_version or 1,
+            drawn=None,
+        )
+        search_usd = Decimal(0)
+        if target.search is not None:
+            # The search runs after Understand and its winner's check after Changes:
+            # the session's limit must already cover both.
+            search_usd = target.search.budget_usd
+            total += search_usd + full_eval
         org_left = await self.evals._org_left(ctx)
         now = datetime.now(UTC)
         answer_ms, _ = await agent_run_repo.latency_percentiles_ms(
@@ -561,6 +701,7 @@ class ImprovementPipelineService:
             where=RunFilter(agent_id=inputs.agent.id),
         )
         return ImprovementEstimate(
+            guidance=await self._guidance(ctx, inputs.helper_settings),
             proposal_usd=proposal.estimate_usd,
             knowledge_usd=total,
             eval_usd=full_eval,
@@ -570,6 +711,8 @@ class ImprovementPipelineService:
             max_iterations=target.max_iterations,
             cases=check.cases,
             evidence_runs=proposal.runs,
+            search_usd=search_usd,
+            train_questions=len(train),
             estimated_minutes=rules.estimated_minutes(
                 rounds=target.max_iterations,
                 answers=check.cases * len(check.arms),
@@ -580,6 +723,30 @@ class ImprovementPipelineService:
             and check.affordable
             and (org_left is None or total <= org_left),
             reason=proposal.reason,
+        )
+
+    async def _guidance(self, ctx: AuthContext, helper: DatasetHelper) -> HelperGuidance | None:
+        """The dataset's guidance for the improver, named by a current member's name alone.
+
+        A person who left, or whose id is not a member here, is a former member: an
+        email address is never shown, and nobody outside the organization is named.
+        """
+        if not helper.instructions:
+            return None
+        author = helper.instructions_updated_by
+        member = (
+            None
+            if author is None
+            else await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=author
+            )
+        )
+        user = None if member is None else await user_repo.get_by_id(self.db, member.user_id)
+        return HelperGuidance(
+            text=helper.instructions,
+            updated_at=helper.instructions_updated_at,
+            updated_by_name=None if user is None else user.full_name,
+            updated_by_former_member=author is not None and member is None,
         )
 
     async def _evidence(
@@ -610,6 +777,8 @@ class ImprovementPipelineService:
         )
         if existing is not None:
             raise self._already_open(existing)
+        if data.search is not None:
+            await self._check_search(ctx, data, estimate)
         if not estimate.affordable or estimate.total_usd > data.budget_usd:
             raise PaymentRequiredError(
                 message="The full improvement estimate exceeds the available budget",
@@ -629,6 +798,7 @@ class ImprovementPipelineService:
                 base_draft_hash=inputs.pins.draft_hash,
                 dataset_id=inputs.request.dataset_id,
                 dataset_version=inputs.request.dataset_version or 1,
+                holdout_share=inputs.holdout_share,
                 suite_id=data.suite_id,
                 suite_hash=inputs.suite_hash,
                 scoring_hash=inputs.current_scoring_hash,
@@ -641,6 +811,7 @@ class ImprovementPipelineService:
                 self.db,
                 run=run,
                 values={
+                    "mode": data.mode.value,
                     "pinned_scoring": inputs.scoring.model_dump(mode="json"),
                     "helper_settings": inputs.helper_settings.model_dump(mode="json"),
                     "chat_evidence_run_ids": [
@@ -650,12 +821,56 @@ class ImprovementPipelineService:
                     "judge_version_id": inputs.judge_version_id,
                 },
             )
-        await improvement_repo.create_iteration(
+        first = await improvement_repo.create_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=1
         )
+        if data.search is not None:
+            await improvement_repo.update_iteration(
+                self.db,
+                iteration=first,
+                values={"search": {"settings": search_settings(data.search)}},
+            )
         await self._audit(run, "started")
         await self._queue(run)
         return await self._read(ctx, run)
+
+    async def _check_search(
+        self, ctx: AuthContext, data: ImprovementStart, estimate: ImprovementEstimate
+    ) -> None:
+        """Refuse a search the dataset or the chosen grading model cannot carry."""
+        assert data.search is not None
+        if (estimate.train_questions or 0) < MIN_TRAIN_QUESTIONS:
+            message = (
+                f"A search needs at least {MIN_TRAIN_QUESTIONS} training questions; this dataset "
+                f"has {estimate.train_questions or 0}. Add questions, or improve step by step."
+            )
+            raise ValidationError(
+                message=message,
+                details=field_details(
+                    "mode",
+                    message,
+                    train_questions=estimate.train_questions or 0,
+                    needed=MIN_TRAIN_QUESTIONS,
+                ),
+            )
+        if data.search.budget_usd > data.budget_usd:
+            raise refused_field(
+                "search.budget_usd", "The search's budget must fit within the session's limit"
+            )
+        chosen = data.search.grading_model_profile_id
+        if chosen is None:
+            return
+        profile = await credential_repo.get_profile(
+            self.db, chosen, organization_id=ctx.organization_id
+        )
+        if profile is None:
+            raise refused_field(
+                "search.grading_model_profile_id", "Choose a model from this organization"
+            )
+        if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+            raise refused_field(
+                "search.grading_model_profile_id", "Choose a model that answers messages"
+            )
 
     @asynccontextmanager
     async def _sole_open(self, *, organization_id: UUID, agent_id: UUID) -> AsyncGenerator[None]:
@@ -753,9 +968,12 @@ class ImprovementPipelineService:
             organization_id=ctx.organization_id,
             run_ids=[item.run_id for item in pack.runs if item.evidence_kind == "chat"],
         )
-        causes = await KnowledgeGapService(self.db).causes(ctx, readable, list(messages.values()))
+        gaps = KnowledgeGapService(self.db)
+        causes = await gaps.causes(ctx, readable, list(messages.values()))
+        trained = [item.run_id for item in pack.runs if item.evidence_kind == "train_eval"]
+        answered = await gaps.eval_causes(ctx, readable, trained)
         topics = await knowledge_gap_repo.topic_of_runs(
-            self.db, readable, list(messages), organization_id=ctx.organization_id
+            self.db, readable, [*messages, *trained], organization_id=ctx.organization_id
         )
         covering = await knowledge_gap_repo.covering_documents(
             self.db, list(set(topics.values())), organization_id=ctx.organization_id
@@ -763,7 +981,7 @@ class ImprovementPipelineService:
         skills_of = await self._skills_of_runs(ctx, agent.id, [item.run_id for item in pack.runs])
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
-            cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
+            branch, reason = self._evidence_branch(item, causes, messages, answered)
             added = covering.get(topic) if (topic := topics.get(item.run_id)) else None
             items.append(
                 ImprovementEvidenceItem(
@@ -788,16 +1006,8 @@ class ImprovementPipelineService:
                         )
                         for grade in item.grades
                     ],
-                    branch=(
-                        "agent"
-                        if item.evidence_kind == "train_eval"
-                        else "not_a_problem"
-                        if item.rating > 0
-                        else cause.branch
-                        if cause
-                        else "unknown"
-                    ),
-                    reason=redact_credentials(cause.reason)[0] if cause else None,
+                    branch=branch,
+                    reason=redact_credentials(reason)[0],
                     topic_id=topics.get(item.run_id),
                     knowledge_added=KnowledgeAdded(
                         document_id=added.document.id,
@@ -806,8 +1016,7 @@ class ImprovementPipelineService:
                         added_at=added.covered_at,
                     )
                     if added is not None
-                    and cause is not None
-                    and cause.branch == "missing_knowledge"
+                    and branch == "missing_knowledge"
                     and added.document.knowledge_base_id is not None
                     else None,
                     skills=skills_of.get(item.run_id, []),
@@ -818,6 +1027,32 @@ class ImprovementPipelineService:
             sample_limit=MAX_EVIDENCE_RUNS,
             training_failures=sum(item.status == "train_eval_failure" for item in pack.runs),
         )
+
+    @staticmethod
+    def _evidence_branch(
+        item: PackedRun,
+        causes: Mapping[UUID, GapCause],
+        messages: Mapping[UUID, UUID],
+        answered: Mapping[UUID, tuple[CauseBranch, str | None]],
+    ) -> tuple[CauseBranch, str | None]:
+        """Where one source example's fix belongs, and the classifier's reason.
+
+        A training answer from an eval is the agent's unless its verdict found
+        missing knowledge, or the only checks it failed ask for keys none of the
+        agent's sources holds: the eval graded it a failure, so even a refusal it
+        read there is the agent's to look at.
+        """
+        if item.evidence_kind == "train_eval":
+            branch, reason = answered.get(item.run_id, ("agent", None))
+            if branch == "missing_knowledge":
+                return "missing_knowledge", reason
+            if item.knowledge_only:
+                return "missing_knowledge", UNHELD_KEYS
+            return "agent", None
+        if item.rating > 0:
+            return "not_a_problem", None
+        cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
+        return (cause.branch, cause.reason) if cause else ("unknown", None)
 
     async def defer_topic(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, topic_id: UUID, data: TopicDeferral
@@ -847,7 +1082,13 @@ class ImprovementPipelineService:
         return await self._read(ctx, run)
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+        """One session, for a reader of its agent who also holds `runs:view`.
+
+        A session is read from its agent's runs - its notes, verdicts and timeline -
+        so reading one asks what starting one asks of the reader.
+        """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
 
     async def skills(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementSkills:
@@ -972,10 +1213,15 @@ class ImprovementPipelineService:
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, *, attempt: int | None = None
     ) -> list[HunkRead]:
         """The changes the session's chosen round measured, wherever their batch is now; with
-        `attempt`, every change that attempt proposed, tested or not."""
+        `attempt`, every change that attempt proposed, tested or not.
+
+        Raises:
+            AuthorizationError: The caller may not view the session's dataset.
+        """
         agent = await self.registry.get(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id)
+        await self.authoring.require_session_datasets(ctx, [run.id])
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
@@ -1003,9 +1249,11 @@ class ImprovementPipelineService:
         """The agent's recent sessions, each without its measurement noise.
 
         The noise re-reads every attempt's check, which a list of up to twenty
-        sessions cannot afford; reading one session gives it.
+        sessions cannot afford; reading one session gives it. Needs `runs:view`, as
+        reading one session does.
         """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         rows = await improvement_repo.list_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -1014,14 +1262,16 @@ class ImprovementPipelineService:
     async def _read(
         self, ctx: AuthContext, run: ImprovementRun, *, noise: bool = True
     ) -> ImprovementRead:
+        self._require_runs(ctx)
+        result = ImprovementRead.model_validate(run)
+        result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
         events = await improvement_repo.timeline(
             self.db, run.id, organization_id=ctx.organization_id
         )
-        result = ImprovementRead.model_validate(run)
-        if run.status == Status.READY and ctx.has(Perm.RUNS_VIEW):
+        if run.status == Status.READY:
             latest = await agent_repo.newest_version(
                 self.db, agent_id=run.agent_id, organization_id=run.organization_id
             )
@@ -1032,7 +1282,13 @@ class ImprovementPipelineService:
         if result.can_restart:
             result.try_again_blocked = await self._try_again_blocked(ctx, run, iterations)
         if run.status == Status.WAITING:
-            result.next_step = "check" if run.stage == Stage.FILTERING else "propose"
+            result.next_step = (
+                "check"
+                if run.stage == Stage.FILTERING
+                else "search"
+                if run.mode == ImprovementMode.SEARCH
+                else "propose"
+            )
         result.next_step_blocked = blocked_next_step(
             run, next((item for item in iterations if item.number == run.iteration), None)
         )
@@ -1040,11 +1296,21 @@ class ImprovementPipelineService:
         hint = rules.no_progress(measured)
         if hint is not None:
             result.round_hint = "no_change" if hint == StopReason.NO_CHANGE else "inconclusive"
-        result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        searched = [
+            (attempt, row)
+            for attempt, row in zip(result.iterations, iterations, strict=True)
+            if row.search is not None
+        ]
+        if searched:
+            search = ImprovementSearchService(self.db)
+            variants_text = await self._may_see_variants(ctx, run)
+            for attempt, row in searched:
+                attempt.variant_search = await search.read(run, row, variants_text=variants_text)
+        await self._redact_criteria(ctx, run, result.iterations)
         for attempt in result.iterations:
             detail = attempt.verdict_detail or {}
             counted = detail.get("held_out", detail.get("gradable_holdout"))
@@ -1056,14 +1322,13 @@ class ImprovementPipelineService:
         )
         result.baseline_answers = await self._answers(run, first, ArmRole.BASELINE)
         result.candidate_answers = await self._answers(run, current, ArmRole.CANDIDATE)
-        if ctx.has(Perm.RUNS_VIEW):
-            result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
-                self.db, run.id, organization_id=ctx.organization_id
+        result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
+            self.db, run.id, organization_id=ctx.organization_id
+        )
+        if noise and not Status(run.status).active:
+            result.measurement_noise = rules.measurement_noise(
+                await self._checked(ctx, run, iterations)
             )
-            if noise and not Status(run.status).active:
-                result.measurement_noise = rules.measurement_noise(
-                    await self._checked(ctx, run, iterations)
-                )
         actors = {
             event.id: UUID(actor)
             for event in events
@@ -1086,9 +1351,59 @@ class ImprovementPipelineService:
             )
             for event in events
         ]
-        if not ctx.has(Perm.RUNS_VIEW):
-            result.error = None
         return result
+
+    async def _redact_criteria(
+        self,
+        ctx: AuthContext,
+        run: ImprovementRun,
+        iterations: list[ImprovementIterationRead],
+    ) -> None:
+        """Criterion and family text and grades inherit the pinned dataset and named
+        skills' access.
+
+        A suite-based session also pins this one dataset at start. Reading the
+        shared agent alone grants no access to its private measurement evidence.
+        """
+        evidence = {"criteria", "criterion_change", "families"}
+        details = [
+            (attempt, detail)
+            for attempt in iterations
+            if (detail := attempt.verdict_detail) is not None and evidence & detail.keys()
+        ]
+        if not details:
+            return
+        ids: set[UUID] = set()
+        for _, detail in details:
+            for key in ("criteria", "families"):
+                items = detail.get(key)
+                if isinstance(items, list):
+                    ids.update(item.skill_id for item in items if item.skill_id is not None)
+        owners = await self._criterion_access(ctx, run, ids)
+        for attempt, detail in details:
+            items = [
+                item
+                for key in ("criteria", "families")
+                if isinstance(found := detail.get(key), list)
+                for item in found
+            ]
+            if owners is None or any(
+                (item.skill is not None or item.skill_id is not None)
+                and (item.skill_id is None or item.skill_id not in owners)
+                for item in items
+            ):
+                attempt.verdict_detail = {
+                    key: value for key, value in detail.items() if key not in evidence
+                }
+
+    async def _criterion_access(
+        self, ctx: AuthContext, run: ImprovementRun, ids: set[UUID]
+    ) -> set[UUID] | None:
+        """Readable original owners, or None when the measurement itself is private."""
+        datasets, owners = await criterion_source_access(
+            self.db, ctx, dataset_ids={run.dataset_id}, skill_ids=ids
+        )
+        return owners if run.dataset_id in datasets else None
 
     async def _answers(
         self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole
@@ -1100,6 +1415,62 @@ class ImprovementPipelineService:
             self.db, round_.eval_run_ids[-1], role=role, organization_id=run.organization_id
         )
         return None if counted is None else CheckAnswers(**counted._asdict())
+
+    async def earlier_attempts(
+        self, ctx: AuthContext, run_id: UUID, *, before: int
+    ) -> list[EarlierAttempt]:
+        """The measured attempts numbered below `before`, for the helper writing the next one.
+
+        Every attempt changes the same draft, so the next one needs to know what the
+        others tried and how it went. Held-out questions stay counts; only the
+        questions an attempt learned from say which criteria moved.
+        """
+        iterations = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        attempts: list[EarlierAttempt] = []
+        for iteration in iterations:
+            if (
+                iteration.number >= before
+                or iteration.verdict is None
+                or iteration.batch_id is None
+            ):
+                continue
+            hunks = await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=iteration.batch_id
+            )
+            included = iteration.included_hunk_ids
+            criteria: tuple[CriterionMoveRead, ...] = ()
+            if iteration.eval_run_ids:
+                try:
+                    comparison = await self.evals.compare(
+                        ctx, iteration.eval_run_ids[-1], training_only=True
+                    )
+                except NotFoundError:
+                    comparison = None
+                if comparison is not None and comparison.verdict != "invalid":
+                    criteria = tuple(
+                        move
+                        for move in comparison.criteria
+                        if move.fixed_confirmed or move.broken_confirmed
+                    )
+            detail = iteration.verdict_detail or {}
+            attempts.append(
+                EarlierAttempt(
+                    number=iteration.number,
+                    verdict=ImprovementVerdict(iteration.verdict),
+                    changes=tuple(
+                        _change_text(hunk)
+                        for hunk in hunks
+                        if included is None or hunk.id in included
+                    ),
+                    held_out=detail.get("held_out") or 0,
+                    fixed=detail.get("fixed") or 0,
+                    broken=detail.get("broken") or 0,
+                    criteria=criteria,
+                )
+            )
+        return attempts
 
     async def _checked(
         self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]
@@ -1118,7 +1489,9 @@ class ImprovementPipelineService:
             ):
                 continue
             try:
-                comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
+                comparison = await self.evals.compare(
+                    ctx, iteration.eval_run_ids[-1], include_criteria=False
+                )
             except NotFoundError:
                 continue
             if comparison.verdict == "invalid":
@@ -1151,7 +1524,9 @@ class ImprovementPipelineService:
         value = details.get(key)
         return value if isinstance(value, str) else None
 
-    async def cancel(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+    async def cancel(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID
+    ) -> ImprovementRead | ImprovementStopRead:
         run = await self._row(ctx, agent_id, run_id, lock=True, settled=Status.CANCELLED)
         if ctx.subject_id != run.created_by_user_id and not ctx.has(Perm.ORG_SETTINGS):
             raise AuthorizationError(
@@ -1165,12 +1540,18 @@ class ImprovementPipelineService:
                 rules.Transition(Status.CANCELLED, Stage(run.stage) if run.stage else None),
                 actor_user_id=ctx.subject_id,
             )
+        if not ctx.has(Perm.RUNS_VIEW):
+            return ImprovementStopRead(id=run.id, status=Status(run.status))
         return await self._read(ctx, run)
 
     async def finish(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementFinish
     ) -> ImprovementFinished:
         """Accept the selected round and optionally publish, in one human-confirmed transaction.
+
+        With `data.round`, a session that stopped without a round waiting - on a
+        criterion that got worse, say - has that round selected first, in the same
+        transaction, as `select_round` would.
 
         Normal authoring and publish validation apply to the confirming person.
         Guarded environments remain on their old version until their checks pass.
@@ -1180,6 +1561,9 @@ class ImprovementPipelineService:
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status != Status.READY and data.round is not None:
+            await self.select_round(ctx, agent_id, run_id, data.round)
+            run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)
@@ -1285,9 +1669,18 @@ class ImprovementPipelineService:
 
     async def _require_may_continue(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Refuse unless the caller may start a session on this agent, which is all that taking
-        a session's next step, trying again, resuming or retrying asks of them."""
+        a session's next step, trying again, resuming, retrying or confirming a check asks
+        of them."""
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
+
+    async def _take_over(self, ctx: AuthContext, run: ImprovementRun) -> None:
+        """Make whoever confirmed a paid step the one the session's later steps run as."""
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"actor_user_id": ctx.subject_id, "actor_api_key_id": ctx.api_key_id},
+        )
 
     @staticmethod
     def _resumes(run: ImprovementRun) -> bool:
@@ -1352,12 +1745,16 @@ class ImprovementPipelineService:
             and await self.registry.may_edit(ctx, agent)
         )
 
-    @staticmethod
-    def _require_requester(ctx: AuthContext, run: ImprovementRun) -> None:
-        if ctx.user_id != run.created_by_user_id or ctx.api_key_id != run.created_by_api_key_id:
-            raise AuthorizationError(
-                message="Use the session requester's original account and credentials for paid restarts, or start a new session"
-            )
+    async def _may_see_variants(self, ctx: AuthContext, run: ImprovementRun) -> bool:
+        """Whether the caller passes every gate of starting the session: a search's variants
+        are written from its dataset's questions and reference answers."""
+        if not await self._may_continue(ctx, run):
+            return False
+        try:
+            await DatasetService(self.db).get(ctx, run.dataset_id, perm=Perm.DATASETS_RUN)
+        except AuthorizationError, NotFoundError:
+            return False
+        return True
 
     async def retry(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         """Retry a failed paid step only after a person's explicit request.
@@ -1372,8 +1769,14 @@ class ImprovementPipelineService:
         run = await self._row(ctx, agent_id, run_id, lock=True)
         if Status(run.status).active:
             return await self._read(ctx, run)
-        if run.status != Status.FAILED or run.stage not in {Stage.PROPOSING, Stage.EVALUATING}:
-            raise BadRequestError(message="Only a failed proposal or test step can be retried")
+        if run.status != Status.FAILED or run.stage not in {
+            Stage.PROPOSING,
+            Stage.SEARCHING,
+            Stage.EVALUATING,
+        }:
+            raise BadRequestError(
+                message="Only a failed proposal, search or test step can be retried"
+            )
         iteration = await improvement_repo.get_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
         )
@@ -1386,6 +1789,8 @@ class ImprovementPipelineService:
             values={
                 "status": Status.RUNNING.value,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
                 "stop_reason": None,
                 "finished_at": None,
                 "actor_user_id": ctx.subject_id,
@@ -1410,7 +1815,7 @@ class ImprovementPipelineService:
                 run,
                 iteration,
             )
-        else:
+        elif run.stage == Stage.EVALUATING:
             inputs = await self._inputs(
                 ctx,
                 agent_id,
@@ -1469,7 +1874,11 @@ class ImprovementPipelineService:
             mode = "next_step"
         elif self._resumes(run):
             mode = "resume"
-        elif run.status == Status.FAILED and run.stage in {Stage.PROPOSING, Stage.EVALUATING}:
+        elif run.status == Status.FAILED and run.stage in {
+            Stage.PROPOSING,
+            Stage.SEARCHING,
+            Stage.EVALUATING,
+        }:
             mode = "retry"
         elif current.verdict is not None and run.status in {Status.READY, Status.STOPPED}:
             deferred = next(
@@ -1566,10 +1975,11 @@ class ImprovementPipelineService:
     def _continued_stage(run: ImprovementRun, mode: str) -> Stage | None:
         """The step a continuation starts: what follows a stop, a new attempt's proposal,
         or the step that stopped or failed again."""
+        proposing = Stage.SEARCHING if run.mode == ImprovementMode.SEARCH else Stage.PROPOSING
         if mode == "next_round":
-            return Stage.PROPOSING
+            return proposing
         if mode == "next_step":
-            return Stage.EVALUATING if run.stage == Stage.FILTERING else Stage.PROPOSING
+            return Stage.EVALUATING if run.stage == Stage.FILTERING else proposing
         return None if run.stage is None else Stage(run.stage)
 
     async def _step_price(
@@ -1587,8 +1997,8 @@ class ImprovementPipelineService:
 
         Only that step: every later paid step waits for a person again. A check may cost
         up to the one repeat an inconclusive result gets, as the check itself would start
-        it, and asking again every answer whose result changed; it most likely costs one
-        check without either.
+        it, and asking again every held-out answer; it most likely costs one check asking
+        again the share of them a check usually does.
         """
         if stage == Stage.PROPOSING:
             proposal = await self.authoring.estimate_agent(
@@ -1655,16 +2065,31 @@ class ImprovementPipelineService:
             repeats = max(0, rules.INCONCLUSIVE_RERUNS - completed)
             return (
                 (check.total_usd + check.rerun_ceiling_usd) * (1 + repeats),
-                check.total_usd,
+                check.expected_usd,
                 check.affordable,
             )
         if stage == Stage.CLASSIFYING:
-            ids, messages, sources = await self._knowledge_sources(ctx, inputs.agent, run.id)
+            sources = await self._knowledge_sources(ctx, inputs.agent, run.id)
             price = await KnowledgeGapService(self.db).improvement_estimate(
-                ctx, ids, messages, source_run_ids=sources
+                ctx,
+                sources.knowledge_base_ids,
+                sources.message_ids,
+                source_run_ids=sources.source_run_ids,
+                eval_run_ids=sources.eval_run_ids,
             )
             return price, price, True
+        if stage == Stage.SEARCHING:
+            # The search spends up to its own budget and stops there; its winner's
+            # check is priced when a person takes it after Changes.
+            budget = Decimal(self._search_settings(iteration)["budget_usd"])
+            return budget, budget, True
         return Decimal(0), Decimal(0), True
+
+    @staticmethod
+    def _search_settings(iteration: ImprovementIteration) -> SearchSettings:
+        """The search settings an attempt of a search session runs with."""
+        assert iteration.search is not None, "every attempt of a search session has settings"
+        return iteration.search["settings"]
 
     async def estimate_continuation(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementContinue
@@ -1707,6 +2132,12 @@ class ImprovementPipelineService:
                     self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
                 )
                 await self._draw_split(run, following, plan.measurable)
+                if run.mode == ImprovementMode.SEARCH:
+                    await improvement_repo.update_iteration(
+                        self.db,
+                        iteration=following,
+                        values={"search": {"settings": self._search_settings(iteration)}},
+                    )
             await improvement_repo.update_iteration(
                 self.db, iteration=following, values={"note": data.note}
             )
@@ -1727,6 +2158,8 @@ class ImprovementPipelineService:
                 "iteration": quote.number,
                 "budget_usd": data.budget_usd,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
                 "actor_user_id": ctx.subject_id,
                 "actor_api_key_id": ctx.api_key_id,
             },
@@ -1888,6 +2321,7 @@ class ImprovementPipelineService:
                         values={
                             "status": AuthoringStatus.FAILED.value,
                             "error": "The improvement session stopped.",
+                            "error_code": "session_stopped",
                             "finished_at": datetime.now(UTC),
                         },
                     )
@@ -2099,11 +2533,12 @@ class ImprovementPipelineService:
         """Record a step on the session's timeline.
 
         `actor_user_id` names a person who acted; the session's own steps name
-        none and are recorded under its requester. `decided` is what they decided.
+        none and are recorded under the person they run as. `decided` is what they
+        decided.
         """
         await record_audit(
             self.db,
-            actor_user_id=actor_user_id or run.created_by_user_id,
+            actor_user_id=actor_user_id or self._acting_as(run)[0],
             organization_id=run.organization_id,
             action=f"improvement.{action}",
             target_type="improvement",
@@ -2197,6 +2632,29 @@ class ImprovementPipelineService:
         current = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
         )
+        described = current
+        if run.status in _DECIDING_ON_BEST and run.best_iteration_id is not None:
+            rounds = await improvement_repo.list_iterations(
+                self.db, organization_id=run.organization_id, run_id=run.id
+            )
+            described = next((item for item in rounds if item.id == run.best_iteration_id), current)
+        criteria = [] if described is None else (described.verdict_detail or {}).get("criteria", [])
+        sources = None
+        if criteria:
+            parsed = [VerdictCriterion.model_validate(item) for item in criteria]
+            ids = {item.skill_id for item in parsed if item.skill_id is not None}
+            reader = await member_context(
+                self.db, organization_id=run.organization_id, user_id=user_id
+            )
+            owners = None if reader is None else await self._criterion_access(reader, run, ids)
+            if owners is None or any(
+                (item.skill is not None or item.skill_id is not None)
+                and (item.skill_id is None or item.skill_id not in owners)
+                for item in parsed
+            ):
+                criteria = []
+            else:
+                sources = CriterionSources(dataset_id=run.dataset_id, skill_ids=sorted(ids))
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -2205,6 +2663,9 @@ class ImprovementPipelineService:
             reason=reason or (run.stage if run.status == Status.WAITING else run.stop_reason),
             end=end,
             next_step_blocked=blocked_next_step(run, current),
+            verdict=None if described is None else described.verdict,
+            criteria=criteria,
+            criterion_sources=sources,
         )
 
     async def check_finished(self, check: EvalRun) -> None:
@@ -2388,7 +2849,15 @@ class ImprovementPipelineService:
                 ),
             )
         except AppException as exc:
-            await improvement_repo.update_run(self.db, run=run, values={"error": exc.message})
+            await improvement_repo.update_run(
+                self.db,
+                run=run,
+                values={
+                    "error": exc.message,
+                    "error_code": failure_code(exc),
+                    "error_params": None,
+                },
+            )
             await self._move(
                 run,
                 rules.Transition(
@@ -2440,18 +2909,28 @@ class ImprovementPipelineService:
                     self.db,
                     run=run,
                     values={
-                        "error": f"Add {needed} more held-out test questions to measure a change"
-                        if needed
-                        else "No rated chat runs or training failures are available yet",
+                        "error": f"Add {needed} more held-out test questions to measure a change",
+                        "error_code": "too_few_held_out",
+                        "error_params": {"missing": needed},
+                    }
+                    if needed
+                    else {
+                        "error": "No rated chat runs or training failures are available yet",
+                        "error_code": "no_evidence",
+                        "error_params": None,
                     },
                 )
             if transition.status.active:
-                ids, messages, _ = await self.knowledge_sources(ctx, run)
-                if not ids or not messages:
+                sources = await self.knowledge_sources(ctx, run)
+                if not sources.knowledge_base_ids or not (
+                    sources.message_ids or sources.eval_run_ids
+                ):
                     transition = rules.Transition(Status.WAITING, Stage.ANALYZING)
             await self._move(run, transition)
         elif run.stage in {Stage.CLASSIFYING, Stage.DRAFTING}:
             await self._knowledge_step(ctx, run, iteration)
+        elif run.stage == Stage.SEARCHING:
+            await self._search_step(inputs, run, iteration)
         elif run.stage == Stage.PROPOSING:
             if iteration.batch_id is not None and iteration.authoring_request_id is None:
                 await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
@@ -2468,6 +2947,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -2489,6 +2969,7 @@ class ImprovementPipelineService:
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
+                    train_case_ids=iteration.train_case_ids,
                 )
                 await improvement_repo.update_iteration(
                     self.db, iteration=iteration, values={"authoring_request_id": request.id}
@@ -2584,6 +3065,104 @@ class ImprovementPipelineService:
         elif run.stage == Stage.JUDGING:  # pragma: no branch - the stages above are exhaustive
             await self._judge(ctx, run, iteration)
 
+    async def _search_step(
+        self, inputs: Inputs, run: ImprovementRun, iteration: ImprovementIteration
+    ) -> None:
+        """Start the attempt's search, keep a unit of it queued, or hand on what it found.
+
+        A lost unit leaves its work pending and is queued again here, so the sweep
+        that advances every running session is what resumes a search.
+        """
+        search = ImprovementSearchService(self.db)
+        progress = iteration.search
+        assert progress is not None, "every attempt of a search session is given its settings"
+        base = AgentSpec.model_validate(inputs.agent.draft_spec).instructions
+        if "case_ids" not in progress:
+            if not await search.begin(run, iteration, instructions=base):
+                await improvement_repo.update_run(
+                    self.db,
+                    run=run,
+                    values={
+                        "error": f"A search needs at least {MIN_TRAIN_QUESTIONS} training "
+                        "questions for this attempt",
+                        "error_code": "search_too_few_training",
+                        "error_params": {"minimum": MIN_TRAIN_QUESTIONS},
+                    },
+                )
+                await self._move(
+                    run, rules.Transition(Status.STOPPED, Stage.SEARCHING, StopReason.NO_DATA)
+                )
+            return
+        if progress.get("stop_reason") is None:
+            last_progress = max(
+                value
+                for value in (run.heartbeat_at, run.stage_started_at, run.created_at)
+                if value is not None
+            )
+            if rules.stalled(
+                Stage.SEARCHING, waiting=False, last_progress=last_progress, now=datetime.now(UTC)
+            ):
+                await self._move(run, rules.stall(Stage.SEARCHING))
+                return
+            await search.queue(run)
+            return
+        best = await search.winners(run, iteration)
+        if not best:
+            await self._move(
+                run, rules.Transition(Status.STOPPED, Stage.SEARCHING, StopReason.NO_VARIANT)
+            )
+            return
+        await search.adopt(run, iteration, base=base, variant=best[0])
+        await self._audit(run, "search_ended")
+        await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
+
+    async def choose_variant(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: SearchChoice
+    ) -> ImprovementRead:
+        """Bring another of the search's best variants to Changes, while the attempt waits
+        there and before its check. Free: nothing is answered or graded."""
+        await self._require_may_continue(ctx, agent_id)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        iteration = await improvement_repo.get_iteration(
+            self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
+        )
+        if (
+            run.status != Status.WAITING
+            or run.stage != Stage.FILTERING
+            or iteration is None
+            or iteration.search is None
+            or iteration.batch_id is None
+            or iteration.eval_run_ids
+        ):
+            raise BadRequestError(
+                message="Another variant can be chosen only at Changes, before the check"
+            )
+        search = ImprovementSearchService(self.db)
+        offered = (await search.winners(run, iteration))[: rules.SEARCH_CHOICES]
+        variant = next((item for item in offered if item.id == data.variant_id), None)
+        if variant is None or variant.status != SearchVariantStatus.SCORED:
+            raise NotFoundError(
+                message="That variant is not one of the search's best",
+                details={"variant_id": data.variant_id},
+            )
+        if str(variant.id) == iteration.search.get("chosen_variant_id"):
+            return await self._read(ctx, run)
+        inputs = await self._current_inputs(ctx, run)
+        previous = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=ctx.organization_id
+        )
+        assert previous is not None, "deleting a batch sets the attempt's batch_id to null"
+        await search.adopt(
+            run,
+            iteration,
+            base=AgentSpec.model_validate(inputs.agent.draft_spec).instructions,
+            variant=variant,
+        )
+        await authoring_repo.close_batch(self.db, batch=previous, status=BatchStatus.SUPERSEDED)
+        await self._audit(run, "variant_chosen", actor_user_id=ctx.subject_id)
+        await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
+        return await self._read(ctx, run)
+
     async def _candidate(
         self,
         agent: Agent,
@@ -2665,6 +3244,7 @@ class ImprovementPipelineService:
             )
             remaining = model_changes
             await self._audit(run, "candidate_split")
+        authoring_hunks.refuse_quoted_credentials(remaining)
         projected, skipped = authoring_hunks.projection(draft, remaining)
         dropped.extend(h.id for h in skipped)
         reasons.extend({"hunk_id": str(h.id), "reason": "does_not_apply"} for h in skipped)
@@ -2742,6 +3322,7 @@ class ImprovementPipelineService:
         request = self._eval_request(inputs, run)
         scoring = DatasetScoring.model_validate(run.pinned_scoring)
         baseline = AgentSpec.model_validate(inputs.agent.draft_spec)
+        check_record = await self._check_record(ctx, run, iteration, batch, count)
         estimate = await self.evals.estimate(
             ctx,
             run.agent_id,
@@ -2752,6 +3333,7 @@ class ImprovementPipelineService:
             ),
             baseline_spec=baseline,
             scoring=scoring,
+            proposal_check=check_record,
             exclude_conversations=batch.evidence_conversation_ids,
             judge_version_id=run.judge_version_id,
             judge_pinned=True,
@@ -2783,7 +3365,7 @@ class ImprovementPipelineService:
             else EvalSuiteCheck(
                 suite_id=inputs.suite.id, name=inputs.suite.name, threshold=inputs.suite.threshold
             ),
-            proposal_check=await self._check_record(ctx, run, iteration, batch, count),
+            proposal_check=check_record,
         )
         await improvement_repo.update_iteration(
             self.db,
@@ -2818,14 +3400,11 @@ class ImprovementPipelineService:
         )
 
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
-        """The share a new attempt keeps aside, and the pinned questions it draws them from."""
-        dataset = await dataset_repo.get(
-            self.db, run.dataset_id, organization_id=run.organization_id
-        )
+        """The share the session started with, and the pinned questions an attempt draws from."""
         version = await dataset_repo.get_version(
             self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
         )
-        assert dataset is not None and version is not None, "the quote checked the pinned set"
+        assert version is not None, "the quote checked the pinned set"
         cases = [
             case.case_id
             for case in await dataset_repo.list_cases(
@@ -2833,7 +3412,7 @@ class ImprovementPipelineService:
             )
             if case.anonymised_at is None
         ]
-        return dataset.improvement_holdout_share, cases
+        return run.holdout_share, cases
 
     async def _next_draw(
         self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, number: int
@@ -2922,6 +3501,9 @@ class ImprovementPipelineService:
             held_out=None
             if child.proposal_check is None or child.proposal_check.measurement is None
             else len(child.proposal_check.measurement.holdout_case_ids),
+            criterion_change=comparison.criterion_change,
+            criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
+            families=tuple(family_move(move) for move in comparison.families),
         )
 
     @staticmethod
@@ -2934,11 +3516,21 @@ class ImprovementPipelineService:
             detail.get("fixed") or 0,
             detail.get("broken") or 0,
             detail.get("held_out") or 0,
+            criterion_change=detail.get("criterion_change", 0.0),
         )
 
     @staticmethod
-    def _result_detail(result: rules.CheckResult) -> VerdictDetail:
+    def _result_detail(
+        result: rules.CheckResult,
+        owners: Mapping[str, str] | None = None,
+        owner_ids: Mapping[str, str] | None = None,
+    ) -> VerdictDetail:
         return {
+            "criteria": criterion_details(result.criteria, owners or {}, owner_ids),
+            "criterion_change": result.criterion_change,
+            "families": family_details(
+                result.families, result.family_skills, result.family_skill_ids
+            ),
             "reason": None,
             "broken": result.regressions_confirmed,
             "fixed": result.fixed_confirmed,
@@ -2949,6 +3541,32 @@ class ImprovementPipelineService:
             "baseline_pass_rate": result.baseline_pass_rate,
             "held_out": result.held_out,
         }
+
+    @staticmethod
+    def _owned(
+        result: rules.CheckResult, owners: Mapping[str, str], owner_ids: Mapping[str, str]
+    ) -> rules.CheckResult:
+        """The result with the skill each of its families was put down to."""
+        found = family_skills(
+            result.families, {key: (name, owner_ids.get(key)) for key, name in owners.items()}
+        )
+        return replace(
+            result,
+            family_skills={family: name for family, (name, _) in found.items()},
+            family_skill_ids={
+                family: source_id
+                for family, (_, source_id) in found.items()
+                if source_id is not None
+            },
+        )
+
+    async def _criterion_owners(self, run: ImprovementRun) -> tuple[dict[str, str], dict[str, str]]:
+        """Which skill the session's improver put each criterion down to, by criterion name."""
+        requests = await authoring_repo.requests_of_improvement(
+            self.db, run.id, organization_id=run.organization_id
+        )
+        reports = [request.report for request in requests]
+        return criterion_owners(reports), criterion_skill_ids(reports)
 
     async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
         """Refresh measured verdicts in the review transaction without new work or publication.
@@ -3005,8 +3623,10 @@ class ImprovementPipelineService:
                             rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.PERMISSION),
                         )
                 else:
+                    owners, owner_ids = await self._criterion_owners(run)
+                    result = self._owned(result, owners, owner_ids)
                     verdict = rules.judge(result)
-                    detail = self._result_detail(result)
+                    detail = self._result_detail(result, owners, owner_ids)
                 await improvement_repo.update_iteration(
                     self.db,
                     iteration=iteration,
@@ -3022,7 +3642,8 @@ class ImprovementPipelineService:
     ) -> None:
         child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
         comparison = await self.evals.compare(ctx, child.id)
-        result = self._check_result(child, comparison)
+        owners, owner_ids = await self._criterion_owners(run)
+        result = self._owned(self._check_result(child, comparison), owners, owner_ids)
         verdict = rules.judge(result)
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
@@ -3038,7 +3659,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    **self._result_detail(result),
+                    **self._result_detail(result, owners, owner_ids),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),
@@ -3374,7 +3995,7 @@ class ImprovementPipelineService:
     async def start_knowledge(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckConsent
     ) -> EvalRunRead:
-        self._require_requester(ctx, await self._row(ctx, agent_id, run_id))
+        await self._require_may_continue(ctx, agent_id)
         planned = await self._knowledge_plan(ctx, agent_id, run_id, data)
         quote = planned.quote if isinstance(planned, KnowledgePlan) else planned
         if quote.draft_hash != data.draft_hash or quote.total_usd != data.estimate_usd:
@@ -3407,7 +4028,8 @@ class ImprovementPipelineService:
             baseline_skills=planned.skills,
             proposal_check=planned.record,
         )
-        await self._audit(planned.session, "knowledge_check_started", actor_user_id=ctx.user_id)
+        await self._take_over(ctx, planned.session)
+        await self._audit(planned.session, "knowledge_check_started", actor_user_id=ctx.subject_id)
         return child
 
     async def _attribution_target(
@@ -3461,6 +4083,7 @@ class ImprovementPipelineService:
             exclude_conversations=batch.evidence_conversation_ids,
             judge_version_id=run.judge_version_id,
             judge_pinned=True,
+            proposal_check=await self._check_record(ctx, run, iteration, batch, count),
         )
         total = (quote.total_usd + quote.rerun_ceiling_usd) * (1 + rules.INCONCLUSIVE_RERUNS)
         spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
@@ -3501,12 +4124,10 @@ class ImprovementPipelineService:
         Excluded suggestions stay undecided; accepting the session applies only
         its measured selection through normal authoring decisions.
         """
-        await self.authoring._editable(ctx, agent_id)
-        self.authoring._require_runs_view(ctx)
+        await self._require_may_continue(ctx, agent_id)
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         existing = await self._row(ctx, agent_id, run_id, lock=True)
-        self._require_requester(ctx, existing)
         if Status(existing.status).active:
             current = await improvement_repo.get_iteration(
                 self.db, organization_id=ctx.organization_id, run_id=run_id, number=number
@@ -3564,8 +4185,11 @@ class ImprovementPipelineService:
             values={
                 "iteration": number,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
             },
         )
+        await self._take_over(ctx, run)
         await self._audit(
             run,
             "selection_confirmed",
@@ -3627,6 +4251,7 @@ class ImprovementPipelineService:
                 and hunk.id not in iteration.included_hunk_ids
             ):
                 continue
+            authoring_hunks.refuse_quoted_credentials([hunk])
             candidate, skipped = authoring_hunks.projection(baseline, [hunk])
             if skipped:
                 raise ConcurrentChangeError(message="A change no longer applies to the base")
@@ -3677,8 +4302,8 @@ class ImprovementPipelineService:
         number: int,
         consent: AttributionConsent,
     ) -> ImprovementRead:
+        await self._require_may_continue(ctx, agent_id)
         run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
-        self._require_requester(ctx, run)
         if iteration.attribution_eval_run_ids:
             return await self._read(ctx, run)
         if await improvement_repo.has_active_check(
@@ -3737,5 +4362,6 @@ class ImprovementPipelineService:
         await improvement_repo.update_iteration(
             self.db, iteration=iteration, values={"attribution_eval_run_ids": ids}
         )
-        await self._audit(run, "attribution_started")
+        await self._take_over(ctx, run)
+        await self._audit(run, "attribution_started", actor_user_id=ctx.subject_id)
         return await self._read(ctx, run)

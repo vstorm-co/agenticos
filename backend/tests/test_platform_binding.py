@@ -33,7 +33,9 @@ class TestTheCredential:
             )
             assert await runner._platform_credential(unbound, CTX, runs_as_agent=False) is None
 
-        mint.assert_awaited_once_with(CTX, agent_id=None, conversation_id=None)
+        mint.assert_awaited_once_with(
+            CTX, agent_id=None, conversation_id=None, run_id=None, reporting_only=False
+        )
 
     async def test_a_fresh_agent_is_named_before_its_run_row_exists(self) -> None:
         runner = AgentRunnerService(MagicMock())
@@ -42,17 +44,14 @@ class TestTheCredential:
         with patch(
             "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
         ) as mint:
-            assert (
-                await runner._platform_credential(
-                    bound, CTX, agent_id=agent_id, runs_as_agent=False
-                )
-                == "aos_minted"
-            )
-        mint.assert_awaited_once_with(CTX, agent_id=agent_id, conversation_id=None)
+            assert await runner._platform_credential(bound, CTX, agent_id=agent_id) == "aos_minted"
+        mint.assert_awaited_once_with(
+            CTX, agent_id=agent_id, conversation_id=None, run_id=None, reporting_only=False
+        )
 
     async def test_existing_agent_identity_travels_with_its_platform_credential(self) -> None:
         runner = AgentRunnerService(MagicMock())
-        run = MagicMock(agent_id=uuid.uuid4())
+        run = MagicMock(id=uuid.uuid4(), agent_id=uuid.uuid4(), routine_origin_id=None)
         bound = AgentSpec(name="Researcher", mcp_servers=[PlatformMcpServerRef(account="platform")])
         with (
             patch.object(runner, "_run_owner_context", new=AsyncMock(return_value=CTX)),
@@ -60,11 +59,10 @@ class TestTheCredential:
                 "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
             ) as mint,
         ):
-            assert (
-                await runner._platform_credential(bound, CTX, run, runs_as_agent=False)
-                == "aos_minted"
-            )
-        mint.assert_awaited_once_with(CTX, agent_id=run.agent_id, conversation_id=None)
+            assert await runner._platform_credential(bound, CTX, run) == "aos_minted"
+        mint.assert_awaited_once_with(
+            CTX, agent_id=run.agent_id, conversation_id=None, run_id=run.id, reporting_only=False
+        )
 
     async def test_a_run_resumed_by_somebody_else_keeps_its_owner_s_authority(self) -> None:
         """Codex on #2062: an administrator answering an approval lent the run their role."""
@@ -96,7 +94,7 @@ class TestTheCredential:
         mint.assert_not_awaited()
 
         assert await runner._run_owner_context(CTX, None) is CTX
-        own = MagicMock(user_id=CTX.user_id, key_scopes=None)
+        own = MagicMock(user_id=CTX.user_id, initiated_by_publisher_fallback=False, key_scopes=None)
         assert await runner._run_owner_context(CTX, own) is CTX
 
     @pytest.mark.security
@@ -156,6 +154,73 @@ class TestPublishing:
         assert alone == []
         assert len(clashing) == 1
         assert "'agenticos'" in clashing[0]
+
+    @pytest.mark.security
+    async def test_a_tool_approval_naming_no_platform_tool_is_refused(self) -> None:
+        """A mistyped name would leave the tool on the binding's default, silently."""
+        registry = AgentRegistryService(MagicMock())
+
+        known = await registry._mcp_problems(
+            CTX,
+            [
+                PlatformMcpServerRef(
+                    account="platform", tool_approval={"add_virtual_table_record": "never"}
+                )
+            ],
+            taken={},
+        )
+        unknown = await registry._mcp_problems(
+            CTX,
+            [PlatformMcpServerRef(account="platform", tool_approval={"add_table_row": "never"})],
+            taken={},
+        )
+
+        assert known == []
+        assert unknown == [
+            "This platform's server has no tool named add_table_row to set approval for"
+        ]
+
+    @pytest.mark.security
+    async def test_a_tool_that_widens_authority_cannot_be_published_to_run_freely(self) -> None:
+        """Codex on #3172: a Builder's agent, run by an Owner, invited an Admin unasked."""
+        registry = AgentRegistryService(MagicMock())
+
+        def binding(mode: str) -> list[PlatformMcpServerRef]:
+            approvals = {"invite_member": mode, "update_proactivity_settings": mode}
+            return [PlatformMcpServerRef(account="platform", tool_approval=approvals)]
+
+        released = await registry._mcp_problems(CTX, binding("never"), taken={})
+        asked = await registry._mcp_problems(CTX, binding("required"), taken={})
+
+        assert released == [
+            "invite_member, update_proactivity_settings always asks the person the agent "
+            "runs for, so it cannot run freely"
+        ]
+        assert asked == []
+
+
+class TestTheStoredBinding:
+    def test_a_binding_with_no_tool_of_its_own_stores_as_before(self) -> None:
+        """Published agents' stored specs do not change shape."""
+        stored = {"account": "platform", "allowed_tools": None, "approval": "writes"}
+
+        assert PlatformMcpServerRef.model_validate(stored).model_dump(mode="json") == stored
+
+    @pytest.mark.security
+    def test_each_tool_s_own_approval_survives_the_yaml_round_trip(self) -> None:
+        spec = AgentSpec(
+            name="Ops",
+            mcp_servers=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    tool_approval={"run_workflow": "never", "default_tool": "default"},
+                )
+            ],
+        )
+
+        (platform,) = AgentSpec.from_yaml(spec.to_yaml()).mcp_servers
+        assert isinstance(platform, PlatformMcpServerRef)
+        assert platform.tool_approval == {"run_workflow": "never"}
 
 
 @pytest.mark.parametrize(

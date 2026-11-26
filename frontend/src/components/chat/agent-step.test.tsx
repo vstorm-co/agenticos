@@ -53,6 +53,20 @@ describe("a run of steps", () => {
     expect(screen.queryByText(/earlier steps/)).toBeNull();
   });
 
+  it("preserves a visited step's draft when streaming adds a new current step", async () => {
+    const draft = <input key="draft" aria-label="Draft input" defaultValue="Original" />;
+    const { rerender } = render(<AgentSteps>{[step("One"), draft]}</AgentSteps>);
+    const input = screen.getByRole("textbox");
+    await userEvent.type(input, " edited");
+    rerender(<AgentSteps>{[step("One"), draft, step("Three")]}</AgentSteps>);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /2 earlier steps/ }));
+    expect(screen.getByRole("textbox")).toBe(input);
+    expect(input).toHaveValue("Original edited");
+    await userEvent.click(screen.getByRole("button", { name: /2 earlier steps/ }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
   it("closes a finished run of several with Done", () => {
     render(<AgentSteps done>{["Read a.md", "Wrote b.md"].map(step)}</AgentSteps>);
 

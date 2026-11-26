@@ -3,6 +3,7 @@
 import { Play, X } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
@@ -166,7 +167,13 @@ function OpenBrowser({
                 </button>
               </BrowserTabs>
             )}
-            <div className="min-h-0 flex-1">{content}</div>
+            <div
+              key={browse.nativeId ? "native" : streamed.callId}
+              className={cn("min-h-0 flex-1", !browse.nativeId && "tab-panel")}
+              data-state="active"
+            >
+              {content}
+            </div>
           </>
         );
       }}

@@ -122,45 +122,46 @@ export function SkillGallery({
         </div>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <ul className="divide-border divide-y">
         {list.visible.map((skill) => {
           const isOn = chosen.has(skill.id);
           return (
-            <button
-              key={skill.id}
-              type="button"
-              role="checkbox"
-              aria-checked={isOn}
-              aria-label={skill.name}
-              disabled={disabled}
-              onClick={() => onToggle(skill.id)}
-              className={cn(
-                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
-                isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
-                disabled && "cursor-not-allowed opacity-60",
-              )}
-            >
-              <span
+            <li key={skill.id}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isOn}
+                aria-label={skill.name}
+                disabled={disabled}
+                onClick={() => onToggle(skill.id)}
                 className={cn(
-                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                  isOn ? "border-brand bg-brand text-brand-foreground" : "border-input",
+                  "focus-visible:outline-ring flex min-h-12 w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                  !disabled && "hover:bg-muted/60",
+                  disabled && "cursor-not-allowed opacity-60",
                 )}
               >
-                {isOn && <Check className="h-3 w-3" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-medium">{skill.name}</span>
-                  <GroupsChip groups={skill.shared_groups} />
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                    isOn ? "border-brand bg-brand text-brand-foreground" : "border-input",
+                  )}
+                >
+                  {isOn && <Check className="h-3 w-3" />}
                 </span>
-                <span className="text-muted-foreground mt-1 block text-sm">
-                  {skill.description}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-medium">{skill.name}</span>
+                    <GroupsChip groups={skill.shared_groups} />
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-sm">
+                    {skill.description}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       <Pager
         page={list.page}

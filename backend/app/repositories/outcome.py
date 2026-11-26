@@ -85,6 +85,7 @@ async def list_for_user(
     statuses: Sequence[str],
     conversation_id: UUID | None,
     limit: int,
+    skip: int = 0,
 ) -> list[Outcome]:
     """The person's outcomes in these states, newest first."""
     query = select(Outcome).where(
@@ -94,7 +95,9 @@ async def list_for_user(
     )
     if conversation_id is not None:
         query = query.where(Outcome.source_conversation_id == conversation_id)
-    result = await db.execute(query.order_by(Outcome.created_at.desc(), Outcome.id).limit(limit))
+    result = await db.execute(
+        query.order_by(Outcome.created_at.desc(), Outcome.id).offset(skip).limit(limit)
+    )
     return list(result.scalars().all())
 
 
@@ -288,3 +291,22 @@ async def refresh_context(
     outcome.source_run_id = source_run_id
     outcome.source_conversation_id = source_conversation_id
     await db.flush()
+
+
+async def count_run_findings(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, run_id: UUID
+) -> int:
+    """Count persisted findings, rather than model claims or reporting tool attempts."""
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(Outcome)
+            .where(
+                Outcome.organization_id == organization_id,
+                Outcome.user_id == user_id,
+                Outcome.source_run_id == run_id,
+                Outcome.kind == "finding",
+            )
+        )
+        or 0
+    )

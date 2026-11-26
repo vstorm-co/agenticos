@@ -120,6 +120,10 @@ COPY --from=builder /app /app
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /app/
 COPY frontend/licenses/texts /app/licenses/texts
 
+# CLIProxyAPI (MIT), which the `subscription-gateway` service runs once per person
+# for subscription accounts (docs/models.md). Pinned; a static Go binary.
+COPY --from=eceasy/cli-proxy-api:v8.0.80 /CLIProxyAPI/CLIProxyAPI /usr/local/bin/cliproxyapi
+
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -127,8 +131,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 # directories it writes at run time are its own. uid pinned: media_data volumes
 # created by earlier images are owned by 1000.
 RUN adduser --disabled-password --gecos "" --uid 1000 appuser && \
-    mkdir -p /app/media /app/data /app/chroma_data /app/models_cache && \
-    chown -R appuser:appuser /app/media /app/data /app/chroma_data /app/models_cache
+    mkdir -p /app/media /app/data /app/chroma_data /app/models_cache /data/subscription-gateway && \
+    chmod 700 /data/subscription-gateway && \
+    chown -R appuser:appuser /app/media /app/data /app/chroma_data /app/models_cache \
+        /data/subscription-gateway
 USER appuser
 
 EXPOSE 8000

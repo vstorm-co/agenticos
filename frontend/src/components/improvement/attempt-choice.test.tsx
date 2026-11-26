@@ -33,7 +33,8 @@ const TWO: Improvement = {
 
 const show = (session: Improvement) =>
   render(<AttemptChoice session={session} agent="Refund desk" />);
-const option = (number: number) => screen.getByRole("radio", { name: `Keep attempt ${number}` });
+const option = (number: number) =>
+  screen.getByRole("radio", { name: new RegExp(`^Keep attempt ${number} `) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -129,4 +130,33 @@ it.each([
   expect(screen.getByText("Best attempt")).toBeInTheDocument();
   expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+
+const criteria = (fixed: number, broken: number) => [
+  { scorer: "judge", name: "price break", graded: 40, before: 9, after: 40, fixed, broken },
+];
+
+it("keeps an attempt better on criteria without calling it no gain", async () => {
+  const better = { ...round(2, "criteria_better"), verdict_detail: { criteria: criteria(31, 0) } };
+  show({ ...TWO, iterations: [TWO.iterations[0]!, better] });
+  await userEvent.click(option(2));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Keep attempt 2" })).toBeInTheDocument();
+});
+
+it("warns that an attempt worse on criteria keeps that loss", async () => {
+  const worse = { ...round(2, "criteria_worse"), verdict_detail: { criteria: criteria(0, 10) } };
+  show({ ...TWO, iterations: [TWO.iterations[0]!, worse] });
+  await userEvent.click(option(2));
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Attempt 2 made Refund desk worse on 1 criterion, though no question broke. " +
+      "Accepting it keeps that loss.",
+  );
+  expect(screen.getByRole("button", { name: "Keep attempt 2 anyway" })).toBeInTheDocument();
+});
+
+it("names each attempt's verdict with its radio, as a screen reader announces it", () => {
+  show(TWO);
+  expect(screen.getByRole("radio", { name: "Keep attempt 1 Better" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Keep attempt 2 Mixed" })).not.toBeChecked();
 });

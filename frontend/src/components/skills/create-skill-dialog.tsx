@@ -217,6 +217,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
               <Label htmlFor="new-skill-name">{t("name")}</Label>
               <Input
                 id="new-skill-name"
+                data-initial-focus
                 value={name}
                 onChange={(event) => edit("name", event.target.value)}
                 onBlur={() => {

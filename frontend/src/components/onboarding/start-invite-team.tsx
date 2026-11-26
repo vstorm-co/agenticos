@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { MailPlus, Link2, ArrowRight, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
+import { StartActions } from "./start-navigation";
 import { InviteMemberDialog, InviteLinkDialog } from "@/components/teams";
 import { ErrorState } from "@/components/states";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -69,10 +70,12 @@ export function StartInviteTeam({
           <Link href={`/orgs/${org.id}/groups`}>{t("manageGroups")}</Link>
         )}
       </div>
-      <Button onClick={onContinue}>
-        {t("continueSetup")}
-        <ArrowRight size={15} aria-hidden />
-      </Button>
+      <StartActions>
+        <Button onClick={onContinue}>
+          {t("continueSetup")}
+          <ArrowRight size={15} aria-hidden />
+        </Button>
+      </StartActions>
       {can(Perm.membersManage) && (
         <>
           <InviteMemberDialog orgId={org.id} open={inviting} onOpenChange={setInviting} />

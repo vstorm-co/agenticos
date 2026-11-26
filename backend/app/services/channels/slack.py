@@ -268,7 +268,12 @@ class SlackAdapter(ChannelAdapter):
                 raise
 
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question with the bot's chosen emoji (#2084)."""
         if not incoming.message_id:
@@ -384,6 +389,8 @@ class SlackAdapter(ChannelAdapter):
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Send a reply back to Slack via the Web API."""
         client = self._web(bot_token)
+        # A disconnect can follow acceptance; an SDK retry could post it twice.
+        client.retry_handlers = []
 
         channel, thread_ts = split_thread(msg.platform_chat_id)
 

@@ -18,6 +18,7 @@ owners hear of it.
 """
 
 import logging
+from hashlib import sha256
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,24 +27,37 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.db.models.context import ContextFile
+from app.core.redaction import holds_credential
+from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill_proposal import ProposalStatus
-from app.repositories import context_proposal_repo, context_repo
+from app.repositories import audit_log_repo, context_proposal_repo, context_repo
 from app.schemas.context import ContextFileUpdate
 from app.schemas.context_proposal import ContextProposalList, ContextProposalRead
 from app.schemas.resource_usage import AgentUsage, ProposalDecision, ReachedAgent
-from app.services import proposal_reach
-from app.services.access import CONTEXT, accessible_ids
+from app.services import proposal_reach, skill_library
+from app.services.access import CONTEXT, accessible_ids, resolve_access
 from app.services.context import ContextService
+from app.services.dataset import redact_credentials
 from app.services.notifications import NotificationService
 from app.services.resource_usage import agents_using
 
 logger = logging.getLogger(__name__)
+
+
+_PRODUCT_CONTEXT = "agenticos-product-map"
+_PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
+
+
+def context_quotes_credential(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change would write a credential into the file."""
+    return holds_credential([proposal.description, proposal.content])
 
 
 class ContextProposalService:
@@ -52,6 +66,89 @@ class ContextProposalService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.contexts = ContextService(db)
+
+    async def bundled_product_context(
+        self, ctx: AuthContext, *, synchronize: bool
+    ) -> ContextFile | None:
+        """Resolve the managed Context; synchronize only under the shipped install lock."""
+        organization = ctx.organization_id
+        file = await context_repo.get_by_library_key(
+            self.db, organization_id=organization, key=_PRODUCT_CONTEXT
+        )
+        if not synchronize:
+            if file is not None and await resolve_access(
+                self.db, ctx, file, Perm.CONTEXT_VIEW, resource_type=CONTEXT
+            ):
+                return file
+            return None
+        bundled = skill_library.get("platform-context")
+        if bundled is None:
+            raise NotFoundError(message="The shipped product Context is missing")
+        content = next(
+            resource.content
+            for resource in bundled.resources
+            if resource.name == "references/product-map.md"
+        )
+        revision = sha256(f"{_PRODUCT_CONTEXT_DESCRIPTION}\n{content}".encode()).hexdigest()
+        if file is None:
+            if await audit_log_repo.has_bundled_context_installation(
+                self.db, organization_id=organization, key=_PRODUCT_CONTEXT
+            ):
+                return None
+            if await context_repo.get_by_name(
+                self.db, _PRODUCT_CONTEXT, organization_id=organization
+            ):
+                return None
+            file = await self.contexts.create(
+                ctx,
+                name=_PRODUCT_CONTEXT,
+                description=_PRODUCT_CONTEXT_DESCRIPTION,
+                content=content,
+                mode=ContextMode.LINK.value,
+                visibility=Visibility.ORG,
+            )
+            file = await context_repo.update(
+                self.db,
+                file=file,
+                update_data={"library_key": _PRODUCT_CONTEXT, "library_revision": revision},
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=organization,
+                action="context.library_installed",
+                target_type="context",
+                target_id=str(file.id),
+                details={"key": _PRODUCT_CONTEXT},
+            )
+            return file
+        if file.library_revision == revision or (
+            file.content == content and file.description == _PRODUCT_CONTEXT_DESCRIPTION
+        ):
+            return file
+        if await context_proposal_repo.has_library_revision(
+            self.db, organization_id=organization, context_id=file.id, revision=revision
+        ):
+            return file
+        values = {
+            "base_updated_at": file.updated_at,
+            "content": content,
+            "description": _PRODUCT_CONTEXT_DESCRIPTION,
+            "library_revision": revision,
+            "rationale": "An updated Context file ships with this version of AgenticOS.",
+            "expected_effect": "Apply the new platform guidance to agents using this Context file.",
+        }
+        pending = await context_proposal_repo.get_pending_for_context(
+            self.db, organization_id=organization, context_id=file.id, library=True
+        )
+        if (
+            pending is None
+            or await context_proposal_repo.rewrite(self.db, proposal=pending, values=values) is None
+        ):
+            await context_proposal_repo.create(
+                self.db, organization_id=organization, context_id=file.id, values=values
+            )
+        return file
 
     async def list_read(
         self, ctx: AuthContext, *, status: str | None = None
@@ -127,26 +224,28 @@ class ContextProposalService:
             id=proposal.id,
             context_id=proposal.context_id,
             context_name=file.name,
-            description=proposal.description,
-            content=proposal.content,
+            description=redact_credentials(proposal.description)[0],
+            content=redact_credentials(proposal.content)[0] or proposal.content,
+            contains_credential=context_quotes_credential(proposal),
             current_description=file.description,
             current_content=file.content,
             status=proposal.status,
             decided_by_user_id=proposal.decided_by_user_id,
             decided_at=proposal.decided_at,
             stale=file.updated_at != proposal.base_updated_at,
-            rationale=proposal.rationale,
+            rationale=redact_credentials(proposal.rationale)[0] or proposal.rationale,
             evidence=[
                 {
                     "run_id": item.get("run_id"),
-                    "quote": item.get("quote"),
+                    "quote": redact_credentials(item.get("quote"))[0],
                     "source": item.get("source"),
                     "number": item.get("number"),
                 }
                 for item in proposal.evidence
             ],
             evidence_dropped=proposal.evidence_dropped,
-            expected_effect=proposal.expected_effect,
+            expected_effect=redact_credentials(proposal.expected_effect)[0]
+            or proposal.expected_effect,
             authoring_request_id=proposal.authoring_request_id,
             used_by=used,
             revision=proposal.revision,
@@ -208,6 +307,11 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
+        if context_quotes_credential(proposal):
+            raise BadRequestError(
+                message="This change quotes a credential; discard it and edit the file by hand",
+                details={"proposal_id": proposal.id},
+            )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:

@@ -2,7 +2,6 @@
 
 import dataclasses
 import uuid
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -311,6 +310,5 @@ async def test_a_question_wait_without_a_durable_child_needs_attention():
             attempt=MagicMock(),
             result=Waiting(reason="question", resume_token="unused"),
             waiting_agent_run_id=None,
-            now=datetime.now(UTC),
         )
         assert update.await_args.kwargs["update_data"]["status"] == "needs_attention"

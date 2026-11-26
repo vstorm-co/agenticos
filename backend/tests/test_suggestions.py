@@ -51,6 +51,12 @@ def _decided(suggestion, status):
     return suggestion
 
 
+@pytest.fixture(autouse=True)
+def context_change_dispatch():
+    with patch(f"{SERVICE}.ProactiveService.queue_context_change", new=AsyncMock()):
+        yield
+
+
 class TestDeciding:
     async def test_accepting_a_profile_update_saves_it_to_the_account(self):
         suggestion = _suggestion(
@@ -102,7 +108,10 @@ class TestDeciding:
                     side_effect=lambda _db, suggestion, status: _decided(suggestion, status)
                 ),
             ),
-            patch(f"{SERVICE}.ProactiveService", return_value=MagicMock(queue_role_pack=queue)),
+            patch(
+                f"{SERVICE}.ProactiveService",
+                return_value=MagicMock(queue_role_pack=queue, queue_context_change=AsyncMock()),
+            ),
         ):
             await SuggestionService(MagicMock()).accept(CTX, suggestion.id)
 
@@ -119,13 +128,16 @@ class TestDeciding:
                 ),
             ),
             patch(f"{SERVICE}.user_repo.update", new=AsyncMock()) as update,
-            patch(f"{SERVICE}.ProactiveService") as proactive,
+            patch(
+                f"{SERVICE}.ProactiveService",
+                return_value=MagicMock(queue_context_change=AsyncMock()),
+            ) as proactive,
         ):
             accepted = await SuggestionService(MagicMock()).accept(CTX, suggestion.id)
 
         assert accepted.status == SuggestionStatus.ACCEPTED.value
         update.assert_not_awaited()
-        proactive.assert_not_called()
+        proactive.return_value.queue_role_pack.assert_not_called()
 
     async def test_declining_keeps_it_as_dismissed(self):
         suggestion = _suggestion("agent", {"request": "r"})
@@ -283,3 +295,20 @@ class TestTheRoutes:
         assert service.list_mine.await_args.kwargs == {"decided": True}
         assert restored.status_code == 200 and restored.json()["status"] == "open"
         service.restore.assert_awaited_once_with(CTX, dismissed.id)
+
+
+@pytest.mark.parametrize("operation", ["accept", "dismiss", "restore"])
+async def test_personal_proposal_decisions_never_create_or_settle_watch_outcomes(operation):
+    suggestion = _suggestion(
+        "personal",
+        {"personal_context": True, "category": "routine", "chat_prompt": "Help me configure it"},
+        status="dismissed" if operation == "restore" else "open",
+    )
+    with (
+        patch(f"{SERVICE}.suggestion_repo.get_own", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.suggestion_repo.decide", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.suggestion_repo.reopen", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.OutcomeService") as outcomes,
+    ):
+        await getattr(SuggestionService(MagicMock()), operation)(CTX, suggestion.id)
+    outcomes.assert_not_called()

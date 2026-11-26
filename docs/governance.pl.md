@@ -1,5 +1,5 @@
 ---
-source_sha: "ae118943abf0"
+source_sha: "250edf9ea8a8"
 ---
 
 # Governance { #governance }
@@ -16,7 +16,7 @@ przychodzący e-mail (zobacz [Koncepcje](concepts.md#trigger)).
 
 Korzysta z tej samej ewidencji kosztów, kolejki zatwierdzeń i audytu.
 [Polityka działań bez nadzoru](#routine-action-consent) zaostrza wybór wywołań
-wymagających zatwierdzenia; jawna stała zgoda wskazuje konkretne działania i wersję.
+wymagających zatwierdzenia; ustawienia narzędzi rutyny zachowują lub zaostrzają reguły agenta.
 
 Praca bez nadzoru określa też, co dzieje się z **odmową**:
 
@@ -46,24 +46,42 @@ Trigger zdarzeniowy dokłada na swojej krawędzi jeszcze jedną odmowę: webhook
 którego podpis nie weryfikuje się względem własnego sekretu triggera, to 403,
 które w ogóle nie dociera do runnera.
 
+Rutyny GitHub pokazują filtr autorów przy tworzeniu i edycji triggerów issue,
+pull requestów i komentarzy. **Członkowie repozytorium (domyślnie)** dopuszcza
+`OWNER`, `MEMBER` i `COLLABORATOR`; **Członkowie i contributorzy** dopuszcza też
+`CONTRIBUTOR`. **Każdy** obejmuje osoby wnoszące pierwszy wkład i innych
+zgłaszających. To powiązania autorów w GitHub, a nie role organizacji AgenticOS.
+Boty i jawnie wykluczony login podłączonego konta pozostają zablokowane w każdej
+opcji. Filtr autorów nie dotyczy pushy, runów workflow ani wydań. Istniejące rutyny
+zachowują swoją politykę; brak `authors` w konfiguracji nadal oznacza `members`.
+
+W historii rutyny jej zalogowany właściciel widzi **Ostatnie odfiltrowane zdarzenie
+GitHub**: czas odrzucenia zweryfikowanego webhooka, przyczynę i politykę autorów
+obowiązującą przy odbiorze. Diagnostykę zapisują webhooki rutyn i dostawy GitHub App.
+Zachowujemy ostatnie zapisane odrzucenie, aktualizowane najwyżej raz na minutę na
+rutynę według zegara bazy danych. Nie zapisujemy treści zdarzenia, tekstu autora
+ani sekretu. Nie powstaje run i nie zużywamy limitu uruchomień. Brak diagnostyki oznacza brak zapisanego odrzucenia, a nie
+potwierdzenie dostawy webhooka. Publiczne odpowiedzi webhooków pozostają bez zmian.
+
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
-Rutyna utworzona w prywatnym czacie przez MCP platformy odpowiada w tym czacie,
-chyba że wybierzesz inny cel. Jej karta w rozmowie pokazuje aktualny stan,
-następną aktywację oraz istniejące przyciski edycji, wstrzymania i usunięcia.
-Dziennik uruchomień pozostaje dostępny w Routines.
+Nowe rutyny domyślnie zapisują wszystkie wykonania we wspólnej historii tylko do odczytu. Twórca może kontynuować odpowiedź przez fork do prywatnego czatu. Opcja nowego prywatnego czatu dla każdego wykonania daje każdemu przebiegowi własną edytowalną rozmowę. Karta rutyny zachowuje przyciski edycji, wstrzymania i usunięcia, a Routines pokazuje wszystkie wykonania z linkami do czatów i szczegółów.
 
-Przed zapisaniem gotowej odpowiedzi platforma ponownie sprawdza aktywne członkostwo twórcy i jego bieżące prawo zapisu w wybranej rozmowie. Usunięty lub niedostępny cel pozostawia odpowiedź w logu wykonania, a rutyna pokazuje **Ostatni wynik niedostępny w czacie**. Błąd bazy podczas dostarczania wiadomości jest izolowany, aby nie cofał zakończonego wykonania ani nie uruchamiał ponownie agenta.
+Przebiegi przyjęte przed aktualizacją trybów czatu zachowują wcześniejszy sposób dostarczania. Tylko te starsze przebiegi kopiują gotową odpowiedź do wcześniej wybranego celu, po ponownym sprawdzeniu aktywnego członkostwa twórcy i jego bieżącego prawa zapisu. Brak celu pozostawia odpowiedź w logu. Błąd dostarczania nie cofa zakończonego wykonania ani nie uruchamia ponownie agenta.
 
 Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
 
 `last_delivery_status` rozróżnia dostarczenie, sam log, brak odpowiedzi i niezakończony przebieg; stare wpisy pozostają nieznane do kolejnego wykonania. Migracja `0265_trigger_delivery_status.py` dodaje ten stan bez zgadywania wcześniejszych sukcesów.
+
+Dla rutyny utworzonej w czacie prywatnym w komunikatorze, która otwiera nowy czat dla każdego uruchomienia (`chat_mode=per_run`), status to `pending`, dopóki bot nie opublikuje odpowiedzi, a potem `delivered` albo `unavailable` z powiadomieniem właściciela. Migracja `0363_trigger_delivery_pending.py` dodaje `pending`; jej cofnięcie odczytuje `pending` jako `delivered`. Zobacz [Odpowiedzi rutyn w czacie prywatnym](channels.md#routine-answers-in-a-private-chat).
 
 Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
 do korzystania z osobistych kont jego wystawcy. Takiej zgody nie nadają też uruchomienia
 w tle, podszywanie się ani wznowione tury grupowe lub publiczne.
+
+Gdy inna osoba publikuje, cofa lub promuje wersję, **Act as creator** zostaje wyłączone w rutynach, do których ta wersja trafia: na środowisku, na które się przesuwa, także chronionym przez strażników, które przesunie się po ich przejściu, oraz w rutynach bez środowiska, gdy przesuwa domyślne. Taka rutyna czeka na przegląd właściciela. Rutyna przypięta do wersji albo działająca na środowisku, do którego wersja nie trafia, dalej uruchamia to, na co zgodził się jej twórca.
 
 Przebiegi wykonywane co minutę rozliczają minione terminy niezależnie od kolejnej aktywacji, także dla wstrzymanych rutyn i obserwacji. Wyłączają aktywną pracę, zamykają jej nieaktualne blokery i anulują oczekujące powiadomienia bez wywołania modelu. Worker nadrabia zaległości po restarcie; sprzątanie może poczekać na workera lub kolejną partię, a kontrole terminu przed narzędziami i dostarczeniem odpowiedzi od razu odmawiają pracy po terminie.
 
@@ -83,9 +101,17 @@ Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa p
 
 Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
-Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
+Wbudowany serwer MCP AgenticOS wymaga opcji **Uruchamiaj jako ja**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
 
 Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
+
+Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura się uruchomi. Każda procedura pyta te same mechanizmy sprawdzające co uruchomienie, ocenione w imieniu jej twórcy i bez skutków ubocznych: aktywne członkostwo twórcy i jego uprawnienie do uruchamiania agenta, wersję możliwą do uruchomienia, przegląd źródeł, datę zakończenia, miesięczny budżet, poprzedni run czekający na zatwierdzenie lub odpowiedź oraz akcje bez stałej zgody.
+
+Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka z akcjami wymagającymi zatwierdzenia w razie użycia jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk naprawy. Gdy sprawdzanie trwa lub jego wynik jest niedostępny, neutralny komunikat informuje o tym zamiast sugerować gotowość. Po błędzie można ponowić sprawdzanie; Uruchom teraz nadal wykonuje własne kontrole dopuszczenia.
+
+Karta Routines na pulpicie pokazuje procedurę, która się nie uruchomi, na samej górze i podaje powód w jej etykiecie. `POST /triggers/readiness` zwraca te same powody jako ograniczone kody dla maksymalnie 100 procedur naraz, pomija te, których wywołujący nie widzi, i nie podaje nazw źródeł, kont ani poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
+
+Dla jednej osoby w organizacji może trwać tylko jedno sprawdzanie gotowości naraz. Druga karta czeka lub ponawia próbę zamiast rozpoczynać równoległe, rozbudowane sprawdzanie. Zmiany zasobów źródłowych odświeżają widoczną gotowość; run główny czekający na człowieka zostaje odnaleziony w historii procedury także wtedy, gdy worker zatrzymał się przed zapisaniem go jako ostatniego runu. Podczas awarii Redisa to ograniczenie współbieżności obowiązuje osobno w każdym procesie API.
 
 ## Budżety { #budgets }
 
@@ -796,48 +822,40 @@ otwarte sprawy budżetowe zamykają się i anulują oczekujące wysyłki. Zmiana
 pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaje
 wyciszona przez dany miesiąc.
 
-### Zgody na działania { #routine-action-consent }
+### Narzędzia rutyny { #routine-action-consent }
 
-Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
-Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
-też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
-Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
-zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+Nowa rutyna działa jako jej twórca, z jego aktualnymi uprawnieniami. Domyślnie dozwolone narzędzia działają automatycznie zgodnie z regułami zatwierdzania agenta (`action_mode=agent`), a uruchomienia trafiają do jednego wspólnego czatu tylko do odczytu. Nadal można wybrać osobny edytowalny czat dla każdego uruchomienia. Tożsamość, historia rozmowy i zatwierdzanie narzędzi są niezależnymi ustawieniami.
 
-Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
-instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
-sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
-zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
-się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
+**Narzędzia rutyny** grupują capabilities, narzędzia AgenticOS i konkretne konta MCP. Można je przeszukiwać i wybrać:
 
-Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
-plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
-jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
-Domyślne zachowanie zwykłego interaktywnego agenta nie zmienia się. Tryb kodu jest
-wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych działań.
+| Ustawienie | Działanie w tej rutynie |
+|---|---|
+| **Jak u agenta** | Zachowuje reguły zatwierdzania agenta. Narzędzie wymagające zgody nadal jej wymaga. |
+| **Pytaj za każdym razem** | Dodaje zatwierdzenie przed użyciem narzędzia, także odczytem. Opcja jest dostępna, gdy agent jeszcze nie pyta. |
+| **Wyłączone** | Uniemożliwia rutynie użycie narzędzia. Nie oznacza pomijania zatwierdzenia. |
 
-Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
+Te ustawienia tylko ograniczają agenta. Jawne wymagania agenta lub MCP oraz obowiązkowe zgody platformy i narzędzi natywnych nadal obowiązują. Delegowani agenci zachowują własne reguły; ustawienia rodzica nie upoważniają do działań delegata. Narzędzia wykonywane przez dostawcę są pomijane, jeśli platforma nie może wymusić tych ograniczeń. Tryb kodu pozostaje wyłączony dla rutyn.
 
-Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
+Ograniczenia może zmieniać twórca rutyny zalogowany jako on sam. Klucz API, inny administrator, sesja z impersonacją, agent ani rutyna działająca jako twórca nie mogą wykonać tego przeglądu. Dodanie ograniczeń nie wymaga `approvals:decide` ani organizacyjnego przełącznika zwalniania ze zgód: nie nadaje nowych uprawnień.
 
-Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
+Zapis zastępuje ograniczenia narzędzi rutyny; dopuszcza najwyżej 1000 wpisów. **Ustawienia agenta dla wszystkich narzędzi** usuwa te nadpisania, ale nie reguły agenta. Ograniczenia niedostępnych narzędzi pozostają zapisane do ich jawnego usunięcia. Ponowne połączenie konta MCP nie usuwa po cichu ograniczeń jego narzędzi.
 
-Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
-Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i
-narzędzia oraz konfigurację rutyny. Zmiana pracy lub odbiorcy ją unieważnia. Każdy
-przebieg zachowuje przyjęte identyfikatory zgód; dodanie zgody później nie zwalnia
-wstrzymanego przebiegu, a cofnięcie i ponowne nadanie tworzy nową tożsamość. Przy
-każdym narzędziu ponownie sprawdzane są członkostwo, uprawnienia, polityka organizacji
-i zgoda. Każde wykonanie na podstawie zgody zapisuje zatwierdzony wpis z osobą i
-argumentami. Delegaci wymagają własnych decyzji; nie pożyczają wyjątku rodzica.
+!!! warning "Zapis starszej rutyny usuwa jej stałe zgody"
+    Dialog ostrzega przed zapisem: rutyna przechodzi na reguły zatwierdzania agenta, a wszystkie poprzednie stałe zgody na działania są usuwane atomowo. Zapisane starsze polityki obowiązują do zapisania tego przeglądu; wybór **Jak u agenta** nie zachowuje dawnego wyjątku.
 
-Stała zgoda na działania zapisuje także aktualne rewizje przypiętych skills, ich zasobów, plików kontekstu i instrukcji projektu. Edycja któregokolwiek unieważnia wyjątek, nawet gdy opublikowana wersja agenta się nie zmienia lub później przywrócono dawną treść. Ponownie przejrzyj działania, aby nadać nowy wyjątek. Istniejące wyjątki bez odcisku rewizji pozostają ważne tylko dla agentów bez takich zmiennych źródeł instrukcji.
+Panel **Sprawdzone źródła** pokazuje capabilities, skille, bazy wiedzy, tabele i konta według rodzaju i nazwy. Każdy rodzaj jest zwinięty do licznika; brakujące źródła są oznaczone. Ograniczenia narzędzi nie omijają przeglądu źródeł, aktualnych grantów ani zatwierdzonego zakresu źródeł i zachowania.
 
-`0267_routine_action_consents.py` nie tworzy wyjątków istniejącym rutynom. Zmienia
-się wykonanie bez nadzoru: dotychczasowe działanie może teraz czekać na zatwierdzenie.
-Opróżnij stare workery i zaktualizuj API oraz workery razem przed wznowieniem zadań,
-ponieważ stary worker nie egzekwuje tej kontroli. Downgrade usuwa zapisane wyjątki;
-wpisy audytu zatwierdzeń i wykonane już skutki pozostają.
+Zapisy w AgenticOS Virtual Tables nadal korzystają z aktualnych grantów tabeli i operacji. Ograniczenie rutyny może dodać decyzję, a jawna polityka zatwierdzania agenta zawsze obowiązuje.
+
+**Starsze stałe zgody.** W zapisanych starszych rutynach i zgodnym API mogą występować polityki `manual`, `per_tool` lub nieokreślony tryb. Różnią się od nowych ograniczeń. Nadanie starszego wyjątku wymaga twórcy, `approvals:decide` i `chat_may_waive_approvals`; jawnie wymaganych zgód nie można wyłączyć. Zmiana samej nazwy lub częstotliwości zachowuje zgodę, a zmiana pracy lub celu ją unieważnia.
+
+Starszy wyjątek wiąże sprawdzoną opublikowaną wersję, konfigurację rutyny i trwałą tożsamość działania. Wyjątek MCP określa też konto, hash endpointu i generację autoryzacji. Nie obejmuje innego działania ani konta. Konta osobiste są dostępne tylko przy działaniu jako twórca; zgodę można cofnąć także przy niedostępnej zapisanej liście narzędzi.
+
+Każdy run zachowuje identyfikatory zgód przyjętych na starcie. Dodana zgoda nie odblokuje już zatrzymanego runu; cofnięcie i ponowne nadanie tworzy nową tożsamość. Członkostwo, uprawnienia, polityka organizacji i zgoda są sprawdzane przy każdym narzędziu. Pominięte zatwierdzenie ma wpis audytowy z osobą i argumentami. Delegaci nie dziedziczą wyjątków rodzica.
+
+Starsza zgoda wiąże też rewizje skilli, ich zasobów, plików context i instrukcji projektu. Edycja unieważnia ją nawet po przywróceniu starego tekstu. Wyjątki bez tego odcisku pozostają ważne tylko dla agentów bez takich zmiennych źródeł. Zapis nowych ograniczeń usuwa starsze wyjątki zamiast je odnawiać.
+
+`0267_routine_action_consents.py` nie utworzyła wyjątków dla istniejących rutyn. Jej bramka zatwierdzania pracy bez nadzoru wymaga wspólnej aktualizacji API i workerów po opróżnieniu starych workerów. Downgrade usuwa zapisane wyjątki, lecz zachowuje audyt zgód i wykonane efekty.
 
 ### Odpowiedzi wznowionych rutyn { #resumed-routine-answers }
 
@@ -901,7 +919,7 @@ Część pracy należy do samej platformy i mimo to potrzebuje modelu. **Rola
 systemowa** daje jej właściciela, którego operator widzi: jedna konfiguracja na
 organizację i rolę, nigdy wiersz agenta, nigdy jedna na zadanie i nigdy
 przypisana agentowi startowemu ani żadnemu agentowi, którego instrukcje się nie
-wykonały (#2575). **Organizacje → AI i usługi → Usługi w tle**
+wykonały (#2575). **Organizacje → AI i usługi**
 (`budgets:manage`) wylicza każdą rolę z modelem, na którym działa, wydatkami w tym
 miesiącu i ostatnimi wykonaniami.
 
@@ -909,6 +927,8 @@ miesiącu i ostatnimi wykonaniami.
 | --- | --- | --- |
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W zakładce Proaktywność: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+
+Daily briefing czyta aktualną pamięć profilu i pamięć danej osoby z domyślnym agentem oraz starsze notatki. Propozycje rutyn i agentów wymagają dowodów z osobnych wątków lub dni i są porównywane z wcześniejszymi sugestiami oraz istniejącymi rutynami. Memory maintenance porównuje aktualne wpisy w zakresie rozmowy i wymaga cytatu z wypowiedzi użytkownika przed zapisem.
 
 Utrzymanie pamięci nie wymaga startowego agenta AgenticOS. Przebieg zachowuje agenta źródłowego jako referencję zapisu i jest rozliczany jako `memory_maintenance`; wykonują się wyłącznie platformowe instrukcje ekstrakcji na modelu wybranym dla roli. Usunięcie lub wycofanie publikacji agenta startowego nie wyłącza ekstrakcji innych opublikowanych agentów.
 
@@ -1383,6 +1403,10 @@ tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawk
 którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
 wymienia każdą poprawkę i to, kto ją wysłał.
 
+Recenzent dostaje zasadę, że run, który czyta, jest materiałem do oceny, a nie
+instrukcjami dla niego; jego zadanie jest dopisywane do tej zasady i nigdy jej
+nie zastępuje.
+
 Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
 zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
 odrzucone z powodu budżetu jest pomijane, a recenzent, który zawiedzie, jest
@@ -1466,6 +1490,19 @@ w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
+
+W czacie w przeglądarce, w sekcji Aktywność → Zatwierdzenia lub w Skrzynce
+odbiorczej wybierz **Odrzuć z uwagami**, aby wyjaśnić decyzję lub zaproponować
+inne działanie. Proponowana akcja nie zostanie wykonana, a uwagi zostaną zapisane
+wraz z decyzją. Przy wielu wywołaniach w czacie odrzucane są wszystkie, ale każda
+uwaga dotyczy tylko swojego wywołania. Bez uwag wybierz **Odrzuć**.
+
+Po wznowieniu zwykłego uruchomienia agent otrzymuje uwagi do odrzuconego wywołania
+narzędzia. Jeśli zmieniona akcja wymaga zatwierdzenia, agent pyta ponownie. W kroku
+workflow **Poproś o zatwierdzenie** gałąź **Odrzucono** może odczytać uwagi z pola
+`note`, na przykład w celu poprawienia propozycji. Odrzucenie nie ponawia kroku
+automatycznie. Odrzucony krok narzędzia MCP nadal kończy się błędem bez wywołania
+narzędzia.
 
 Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
 i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.
@@ -1623,6 +1660,14 @@ Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Z
 Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamiętane akceptacje tooli → Pytaj ponownie** cofa zgodę bez usuwania historii pierwotnej akceptacji. Przed każdym automatycznym zatwierdzeniem ponownie sprawdzane są członkostwo, uprawnienie do akceptacji i polityka organizacji. Tryb pytania o wszystko ma pierwszeństwo przed zapisanymi zgodami. Każde automatyczne zatwierdzenie nadal zapisuje osobę udzielającą zgody i rzeczywiste argumenty wywołania.
 
 Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
+
+Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, wersja, którą utworzy publikacja, dataset, na którym działa eval, i podana cena. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
+
+Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, publikacja agenta, zaproszenie członka - działa z uprawnieniami platformy osoby, w której imieniu działa run. Dlatego zatwierdzić je może tylko ta osoba, zalogowana jako ona sama: nie inny członek z `approvals:decide`, nie klucz API, także jej własny, i nie administrator w trybie impersonacji. Każdy z `approvals:decide` może je nadal odrzucić. Osoba nie potrzebuje do tego żadnego uprawnienia poza tym, że jest tą osobą, więc Builder albo Member zatwierdza kartę Architekta we własnym czacie i tam wznawia run. Tylko ona może wznowić run po zatwierdzonym wywołaniu platformy.
+
+Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
+
+Run bez osoby - gościa na widgecie albo stronie publicznej, niepowiązanego członka kanału albo osoby, którą usunięto - nie ma nikogo, czyja odpowiedź się liczy, więc jego wywołanie platformy czeka, aż wygaśnie; taki run w ogóle nie dostaje uprawnień platformy. Zmiana wdrożenia (`change_deployment`) wymaga obu reguł naraz: osoby runu, która jest też administratorem aplikacji. Architekt każdej innej osoby go nie zmieni.
 
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent
@@ -2100,7 +2145,8 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| nic, ale jest osobą runu, a wśród wywołań jest jej własne wywołanie platformy, które zawsze pyta | prośbę, z linkiem do rozmowy, w której padło pytanie, dopóki to wywołanie czeka |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
@@ -2490,9 +2536,15 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
 
-Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
+Wyłączona capability i to, do czego sięga tylko ona - skille przy wyłączonej **Skills**, pliki kontekstu przy wyłączonej **Context**, kolekcje przy wyłączonej **Knowledge**, delegaci i zdalni agenci przy wyłączonej **Subagents** - nie są źródłami: żaden run do nich nie sięga, więc przegląd ich nie wymienia, usunięcie któregoś nie blokuje rutyny, a edycja takiego skilla lub pliku kontekstu nie wymaga nowej zgody. Włączenie capability to nowe źródło i wymaga przeglądu.
+
+Zmiana przypiętej wersji delegata wymaga przeglądu, także gdy jego publikacja zmienia tylko model.
+
+Właściciel może wybrać tryb `restricted`, który utrwala zatwierdzoną konfigurację źródeł, konkretne konta MCP, generacje autoryzacji i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, wiedzę, skille, kontekst, capabilities i zdalne rejestracje A2A. Nowe źródła lub zmieniona autoryzacja konta wymagają ponownego przeglądu. Istniejące zasady bez pola trybu pozostają ograniczone; aktualizacja nie rozszerza ich automatycznie.
+
+Każde dopuszczone wykonanie zachowuje własny zapis źródeł i kont. Zaparkowane wykonanie nie może przejąć późniejszego konta, autoryzacji ani przeglądu. Własność źródeł, cofnięcie dostępu i listy dozwolonych narzędzi są sprawdzane ponownie przed wywołaniem. Brak opcjonalnych narzędzi jest zgłaszany, a nie uznawany za udaną pracę. Właściciel może jawnie zmienić tryb istniejącej rutyny w ustawieniach dostępu chronionych tokenem przeglądu.
 
 Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.
 
@@ -2507,14 +2559,21 @@ monitorowania w trybie odczytu. Trigger określa, _kiedy_ uruchomić rutynę;
 wariant monitorujący ogranicza, _co_ może zrobić. Jedna odpowiedzialność powinna
 mieć jedną rutynę, bez dublowania obserwacji i zadania czasowego dla tej samej poczty.
 
-Wybierz **Po każdym zakończonym wykonaniu** (`result_mode: report`, dotychczasowa
-wartość domyślna) dla raportów albo **Tylko gdy coś wymaga uwagi** (`result_mode:
-inbox`) dla cichych sprawdzeń. Agent zwraca istotne elementy źródła ze stałymi
-identyfikatorami elementu i wersji, kontekstem i pełnym zamówionym draftem.
-Pusty wynik nie tworzy rozmowy ani powiadomienia o zakończeniu. Każdy element ma
-jedną prywatną rozmowę i jedną sprawę w Inbox. Powtórne odczyty tej samej wersji
-są trwale deduplikowane, także po rozwiązaniu sprawy. Nowa wersja aktualizuje tę
-samą rozmowę i otwiera sprawę ponownie; wyciszony element pozostaje wyciszony.
+Ustalenia trafiają do Inboxu wyłącznie przez narzędzie MCP AgenticOS `publish_inbox_finding`. Każda rutyna i monitor dostają je automatycznie, również bez powiązania platformy. Niejawny klucz raportowania nie ma ogólnych uprawnień platformy: jest przypisany do jednego aktywnego przebiegu i publikuje tylko dla właściciela rutyny. Nie może wskazać innego odbiorcy, czytać prywatnego Inboxu ani administrować organizacją. Każdy zapis sprawdza członkostwo, zgodę na źródła, wstrzymanie i wygaśnięcie. Monitor musi najpierw poprawnie odczytać źródło; nierozwiązany błąd odczytu blokuje publikację. Pilność respektuje ustawienie właściciela monitora.
+
+Agent podaje stałe identyfikatory elementu i rewizji, kontekst oraz pełny zamówiony szkic. Niezmieniona rewizja nie tworzy kolejnej karty; nowa aktualizuje tę samą rozmowę roboczą i otwiera sprawę ponownie, a wyciszenie nadal obowiązuje. Przebieg publikuje najwyżej osiem ustaleń. Odpowiedź końcowa zostaje w logu lub jawnie wybranym czacie; nie jest parsowana na karty Inboxu. Stare pole `result_mode` pozostaje odczytywalne, lecz nie wybiera już automatycznego dostarczania strukturalnego. Gdy nie ma zmian, nie publikuj karty, chyba że monitor ma raportować każde sprawdzenie.
+
+Ustalenie jest zatwierdzane w bazie przy wywołaniu MCP. Późniejszy błąd przebiegu nie usuwa już opublikowanej karty; nieudana próba pozostaje widoczna, a ponowienia deduplikują rewizje źródeł.
+
+Nowe rutyny domyślnie mają **jedną wspólną historię tylko do odczytu** (`chat_mode=shared`). Opcja **nowego prywatnego chatu dla każdego uruchomienia** (`chat_mode=per_run`) zachowuje cały przebieg i narzędzia w osobnej edytowalnej rozmowie. Kolejne wiadomości nie edytują rutyny ani nie stają się historią następnego wykonania; skonfigurowana pamięć nadal obowiązuje. Chat pojawia się w panelu bocznym rozmów.
+
+Wybierz **wspólną historię** (`chat_mode=shared`), aby dopisywać wykonania do jednego systemowego chatu tylko do odczytu. Twórca widzi go w panelu bocznym, jeśli ma `runs:view` i aktualny dostęp do agenta; dostęp do logów projektu nadal wynika z uprawnień do projektu. Twórca może zrobić fork odpowiedzi do prywatnego chatu. Nowe wykonania nie odczytują automatycznie poprzednich wiadomości logu; ciągłość zapewniają pamięć i jawny odczyt źródeł.
+
+Migracja `0351_routine_chat_modes.py` mapuje dostarczanie do głównego lub wskazanego chatu na osobne chaty wykonania, a sam log i dawny tryb Inbox na wspólną historię. Zachowuje rozmowy, harmonogramy, pauzy, budżety oraz zgody na źródła i narzędzia. Istniejące logi stają się tylko do odczytu; wcześniej dopuszczone wykonania bez zapisanego trybu zachowują dawną umowę dostarczania. Aktualizuj API i workery razem. Dawne pola pozostają czytelne dla zgodności i cofnięcia migracji.
+
+Ustalenia w Inboxie nadal mają własne rozmowy robocze grupowane według stabilnego identyfikatora sprawy. Publikowanie ustalenia nie tworzy karty dla każdego wykonania.
+
+Wykonanie bez nadzoru nie ma aktywnego kanału `ask_user`. Gdy brakuje niezbędnych informacji, instrukcja każe opublikować pytanie i opis zablokowanej pracy w Inboxie, zamiast zakładać odpowiedź. Samo to nie wstrzymuje wykonania z formularzem pytania do wznowienia.
 
 Z Inbox otwórz rozmowę, aby poprawić draft lub zlecić następny krok. Czytanie i
 edycja draftu nie wysyłają go i nie kończą sprawy. Nadal obowiązują uprawnienia i

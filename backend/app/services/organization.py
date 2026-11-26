@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
+from app.core.chat_costs import chat_cost_policy
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -27,6 +28,8 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
+from app.schemas.console_presentation import ConsoleNotices, stored_role_defaults
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -41,6 +44,7 @@ from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
+from app.services.text_to_speech_settings import TextToSpeechSettingsService
 from app.worker.jobs import Restamp
 
 if TYPE_CHECKING:
@@ -86,6 +90,15 @@ def _org_read(
     """
     return OrganizationRead(
         id=org.id,
+        onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
+        if org.onboarding_reminders is not None
+        else None,
+        console_role_defaults=stored_role_defaults(org.console_role_defaults),
+        console_notices=ConsoleNotices.model_validate(org.console_notices or {}),
+        chat_cost_visibility=chat_cost_policy(org.chat_cost_visibility),
+        chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
+        if org.chat_home_defaults is not None
+        else None,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
@@ -108,6 +121,7 @@ def _org_read(
         chat_may_waive_approvals=org.chat_may_waive_approvals,
         public_agenticos_attribution=org.public_agenticos_attribution,
         public_live_data=org.public_live_data,
+        text_to_speech=org.text_to_speech,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -458,7 +472,8 @@ class OrganizationService:
         The speech-to-text default falls under `org:settings` with the metadata,
         and is validated only when one of its fields is named - so a rename never
         trips over a default that went stale (#1797). Calls and dictation are
-        switched on per agent, so nothing else about voice is the organization's.
+        switched on per agent. Text-to-speech defaults are a separate group,
+        inherited only by agents that explicitly choose them.
 
         `key_scopes` are those of the API key the request came with, `None` for
         a session: each field's permission must be one the key was issued for
@@ -510,6 +525,71 @@ class OrganizationService:
                     "Changing whether pages may show data publicly is not allowed while "
                     "impersonating another account."
                 )
+            )
+
+        if "console_role_defaults" in data.model_fields_set:
+            org = await organization_repo.set_console_role_defaults(
+                self.db,
+                org,
+                changes={
+                    role.value: value.changes() if value is not None else None
+                    for role, value in data.console_role_defaults.items()
+                }
+                if data.console_role_defaults is not None
+                else None,
+            )
+        if "console_notices" in data.model_fields_set:
+            org = await organization_repo.set_console_notices(
+                self.db,
+                org,
+                changes=data.console_notices.changes()
+                if data.console_notices is not None
+                else None,
+            )
+        console_fields = data.model_fields_set & {"console_role_defaults", "console_notices"}
+        if console_fields:
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                organization_id=org.id,
+                action="organization.console_presentation_changed",
+                target_type="organization",
+                target_id=str(org.id),
+                details={"fields": sorted(console_fields)},
+            )
+
+        if "onboarding_reminders" in data.model_fields_set:
+            org = await organization_repo.set_onboarding_reminders(
+                self.db,
+                org,
+                changes=data.onboarding_reminders.changes()
+                if data.onboarding_reminders is not None
+                else None,
+            )
+
+        if "chat_cost_visibility" in data.model_fields_set:
+            before_visibility = org.chat_cost_visibility
+            org = await organization_repo.set_chat_cost_visibility(
+                self.db, org, policy=data.chat_cost_visibility
+            )
+            if before_visibility != org.chat_cost_visibility:
+                await record_audit(
+                    self.db,
+                    actor_user_id=requester_id,
+                    organization_id=org.id,
+                    action="organization.chat_cost_visibility_changed",
+                    target_type="organization",
+                    target_id=str(org.id),
+                    details={"from": before_visibility, "to": org.chat_cost_visibility},
+                )
+
+        if "chat_home_defaults" in data.model_fields_set:
+            org = await organization_repo.set_chat_home_defaults(
+                self.db,
+                org,
+                changes=data.chat_home_defaults.changes()
+                if data.chat_home_defaults is not None
+                else None,
             )
 
         if wants_budget:
@@ -577,6 +657,18 @@ class OrganizationService:
             )
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
+
+        if "text_to_speech" in data.model_fields_set:
+            await TextToSpeechSettingsService(self.db).validate_defaults(
+                org.id, data.text_to_speech
+            )
+            org = await organization_repo.set_text_to_speech(
+                self.db,
+                org,
+                defaults=data.text_to_speech.model_dump(mode="json")
+                if data.text_to_speech is not None
+                else None,
+            )
 
         return await organization_repo.update(
             self.db,
@@ -849,6 +941,12 @@ class OrganizationService:
         if self._vector_store is not None:
             restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
+        from app.services.subscription_accounts import queue_organization_wipe
+
+        await queue_organization_wipe(self.db, org.id)
         await organization_repo.delete(self.db, org)
 
         restamps = [

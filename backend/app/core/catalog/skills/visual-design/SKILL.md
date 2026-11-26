@@ -29,4 +29,4 @@ Read the relevant reference or example only:
 
 For maps, use the bundled d3, topojson, world-atlas and `AOWorldMap.draw` country-outline kit by default, including pins and city-to-city itineraries. Use Leaflet and `AOMap.itinerary` only when the operator has enabled map tiles and street detail matters. Keep a country-outline fallback. A line between stops is not a road route; do not invent travel times or distances.
 
-Render through the real drawing surface and try the interaction at phone and desktop widths. Verify geometry, legibility, focus, reset, limits and error states. A local HTML screenshot alone does not verify publication or data access. Share the actual result, its assumptions and any remaining limitation.
+For a requested inline graph, call `draw` with Mermaid or SVG so it renders in chat. Render through the real drawing surface and try the interaction at phone and desktop widths. Verify geometry, legibility, focus, reset, limits and error states. A local HTML screenshot alone does not verify publication or data access. Share the actual result, its assumptions and any remaining limitation.

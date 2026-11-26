@@ -21,6 +21,7 @@ it.each([
   ["analyzing", "understand"],
   ["classifying", "understand"],
   ["drafting", "changes"],
+  ["searching", "changes"],
   ["proposing", "changes"],
   ["filtering", "changes"],
   ["evaluating", "check"],

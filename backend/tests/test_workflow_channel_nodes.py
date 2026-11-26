@@ -292,6 +292,24 @@ class TestMembersAndFind:
         }
         assert adapter.channel_members.await_args.kwargs["limit"] == 100
 
+    async def test_a_telegram_members_step_on_a_private_chat_fails_unsupported_not_retryable(
+        self, bot_on
+    ):
+        bot = MagicMock(get_chat_administrators=AsyncMock())
+        bot.session.close = AsyncMock()
+        bot_on("telegram", TelegramAdapter())
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            result = await _run(
+                members_on("telegram"),
+                ChannelMembersConfig.model_validate(BOT),
+                ChannelMembersInput(channel_id="42"),
+            )
+
+        assert isinstance(result, Failed) and result.error.code == "CHANNEL_UNSUPPORTED"
+        assert not result.error.retryable
+        bot.get_chat_administrators.assert_not_awaited()
+
     async def test_channels_are_found_by_name_from_a_channel_the_bot_is_in(self, adapter):
         adapter.search_channels = AsyncMock(
             return_value=[ChannelSummary(channel_id="c-2", name="ops", purpose="Incidents")]

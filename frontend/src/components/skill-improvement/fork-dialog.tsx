@@ -100,7 +100,7 @@ function ForkForm({
   const [refusal, setRefusal] = useState<string | null>(null);
   const movable = check.agents.filter((row) => row.via_specialist === null);
   const throughSpecialist = check.agents.length - movable.length;
-  const helped = movable.filter((row) => row.state === "better");
+  const helped = movable.filter((row) => row.state === "better" || row.state === "criteria_better");
   const [name, setName] = useState(helped[0]?.agent.name ?? t("fork.defaultName", { attempt }));
   const [picked, setPicked] = useState(() => new Set(helped.map((row) => row.agent.id)));
   const toggle = (id: string, on: boolean) =>

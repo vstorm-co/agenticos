@@ -25,10 +25,13 @@ class VoiceChainRead(BaseSchema):
 class RunOriginRead(BaseSchema):
     """Which platform agent a run was, and where its work is read."""
 
-    kind: Literal["grader", "improve", "knowledge_gaps", "test_questions"] = Field(
+    kind: Literal[
+        "grader", "improve", "knowledge_gaps", "test_questions", "key_drafts", "key_coverage"
+    ] = Field(
         description=(
             "The judge grading eval cases, the assistant proposing changes, the "
-            "knowledge-gap classifier or drafter, or the case generator"
+            "knowledge-gap classifier or drafter, the case generator, the key extractor, "
+            "or the source coverage agent"
         )
     )
     agent_name: str = Field(description="The platform agent's own name")
@@ -40,7 +43,10 @@ class RunOriginRead(BaseSchema):
     knowledge_base_id: UUID | None = Field(
         default=None, description="The knowledge base whose gaps it read or drafted"
     )
-    dataset_id: UUID | None = Field(default=None, description="The dataset it wrote cases for")
+    dataset_id: UUID | None = Field(
+        default=None,
+        description="The dataset it wrote cases, drafted keys or judged key coverage for",
+    )
 
 
 class RunSkillUseRead(BaseSchema):
@@ -511,6 +517,15 @@ class ApprovalRead(BaseSchema):
             "Whether only a person's answer to this call could let it run - `share_memory`, "
             "or a correction of a shared fact. With `content_hidden`, the caller may "
             "reject the call but not approve it"
+        ),
+    )
+    may_approve: bool = Field(
+        default=False,
+        description=(
+            "Whether an approval from the caller would be accepted. False for a call "
+            "whose content is hidden from them, and for a platform call that always "
+            "asks on somebody else's run: only that run's person may approve it, and "
+            "the caller may still reject it"
         ),
     )
 

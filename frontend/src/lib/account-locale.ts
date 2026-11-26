@@ -61,7 +61,7 @@ export function adoptAccountLocale(locale: Locale): void {
  * refusal the model reads, and changes nothing here.
  */
 export function localeChosenBy(toolName: string, result: string): Locale | null {
-  if (toolName !== SET_MY_LANGUAGE) return null;
+  if (toolName !== SET_MY_LANGUAGE && toolName !== "agenticos_set_my_preferences") return null;
   try {
     const parsed: unknown = JSON.parse(result);
     const locale =

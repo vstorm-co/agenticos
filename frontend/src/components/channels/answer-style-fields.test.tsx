@@ -46,6 +46,7 @@ describe("how a bot answers (#2084)", () => {
     ["mattermost", "eyes"],
     ["slack", "eyes"],
     ["telegram", "eyes"],
+    ["matrix", "eyes"],
     ["imessage", "emphasize"],
     ["discord", null],
     ["teams", null],

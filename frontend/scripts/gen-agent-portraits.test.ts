@@ -22,3 +22,7 @@ it.each(portraits)("keeps $folder's starter picture in step with its recipe", as
   const metadata = await sharp(actual).metadata();
   expect(metadata).toMatchObject({ width: 256, height: 256, hasAlpha: true });
 });
+
+it("leaves Architect portraits to the ordinary generated-avatar policy", () => {
+  expect(portraits.map((portrait) => portrait.folder)).not.toContain("platform-assistant");
+});

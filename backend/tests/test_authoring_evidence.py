@@ -7,6 +7,7 @@ nobody can find.
 """
 
 import uuid
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -18,6 +19,7 @@ from app.repositories import (
     conversation_repo,
     eval_run_repo,
     improvement_repo,
+    key_coverage_report_repo,
     personal_data_repo,
 )
 from app.repositories.authoring import EvidenceRun
@@ -95,6 +97,16 @@ class TestPack:
         assert pack.groups() == [pack.runs]
         monkeypatch.setattr(authoring_evidence, "PACK_BUDGET_CHARS", 10)
         assert [len(group) for group in EvidencePack(runs=runs).groups()] == [5, 2]
+
+    def test_keys_no_source_holds_are_named_for_the_user_to_supply(self):
+        assert "No source of this agent holds" not in _packed().render()
+
+        text = _packed(uncovered_keys=("Due date", "Total")).render()
+
+        assert (
+            "No source of this agent holds these keys, so the user must supply them "
+            "rather than the instructions: Due date, Total"
+        ) in text
 
     def test_rendering_several_runs_separates_them(self):
         pack = EvidencePack(runs=[_packed(), _packed()])
@@ -333,6 +345,8 @@ def _train_row(*, case_id: uuid.UUID, arm: SimpleNamespace, answer: str) -> Simp
         run=SimpleNamespace(id=uuid.uuid4(), user_id=None, initiated_by_publisher_fallback=False),
         case=SimpleNamespace(
             case_id=case_id,
+            dataset_id=uuid.uuid4(),
+            checks=[],
             tags=None,
             input="How long do I have to return shoes?",
             created_by_user_id=None,
@@ -355,13 +369,14 @@ class TestTrainingFeedback:
             "evaluated_datasets",
             AsyncMock(return_value=[SimpleNamespace(id=dataset_id)]),
         )
+        monkeypatch.setattr(key_coverage_report_repo, "ready_for_agent", AsyncMock(return_value=[]))
         return dataset_id
 
     async def test_only_the_newest_answer_per_case_is_read_and_an_ungraded_one_has_no_grade_line(
         self, monkeypatch, mock_db_session, evaluated
     ):
         case_id = uuid.uuid4()
-        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="candidate")
         newest = _train_row(case_id=case_id, arm=arm, answer="90 days")
         older = _train_row(case_id=case_id, arm=arm, answer="60 days")
         monkeypatch.setattr(
@@ -395,7 +410,7 @@ class TestTrainingFeedback:
         self, monkeypatch, mock_db_session, evaluated
     ):
         case_id = uuid.uuid4()
-        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="candidate")
         row = _train_row(case_id=case_id, arm=arm, answer="90 days")
         row.score = SimpleNamespace(
             results=[
@@ -444,6 +459,157 @@ class TestTrainingFeedback:
         ]
         assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
         assert "It quotes 90 days" in run.quotable
+        named = replace(run, grades=(run.grades[1].model_copy(update={"family": "total"}),))
+        assert "Graded: check/regex '30' (family: total): " in named.render()
+
+    @pytest.mark.parametrize(
+        ("uncovered", "judged_too", "knowledge_only"),
+        [
+            ({"due date", "total"}, False, True),
+            ({"due date"}, False, False),
+            ({"due date", "total"}, True, False),
+        ],
+    )
+    async def test_keys_no_source_holds_are_the_users_to_supply(
+        self, monkeypatch, mock_db_session, evaluated, uncovered, judged_too, knowledge_only
+    ):
+        case_id = uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="baseline")
+        row = _train_row(case_id=case_id, arm=arm, answer="Invoice INV-7")
+        row.case.dataset_id = evaluated
+        row.case.checks = [
+            {
+                "type": "keys",
+                "keys": [
+                    {"key": "Invoice number", "value": "INV-7"},
+                    {"key": "Due date", "value": "2026-12-01"},
+                    {"key": "Total", "value": "913.68"},
+                ],
+            }
+        ]
+        keys = {
+            "scorer": "check",
+            "name": "keys",
+            "required": True,
+            "status": "fail",
+            "reason": "-",
+        }
+        judge = {**keys, "scorer": "judge", "name": "Polite"}
+        row.score = SimpleNamespace(
+            results=[keys, judge] if judged_too else [keys],
+            human_passed=None,
+            human_note=None,
+            reviewed_by_user_id=None,
+        )
+        report = SimpleNamespace(
+            id=uuid.uuid4(),
+            judged_sources=[],
+            source_marks={},
+            dataset_id=evaluated,
+            items=[{"key": label.title(), "verdict": "not_covered"} for label in uncovered]
+            + [{"key": "Invoice number", "verdict": "covered"}],
+        )
+        monkeypatch.setattr(
+            key_coverage_report_repo, "ready_for_agent", AsyncMock(return_value=[report])
+        )
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(eval_run_repo, "list_cases", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), _ = await EvidenceService(mock_db_session)._train(ctx, uuid.uuid4(), window_days=30)
+
+        spelled = {"due date": "Due date", "total": "Total"}
+        assert set(run.uncovered_keys) == {spelled[label] for label in uncovered}
+        assert run.knowledge_only is knowledge_only
+        assert "2026-12-01" not in run.render() and "913.68" not in run.render()
+
+    async def test_a_confirmed_flip_of_the_agents_own_version_reads_with_its_baseline_answer(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        case_id, run_id = uuid.uuid4(), uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=run_id, role="candidate")
+        baseline = SimpleNamespace(id=uuid.uuid4(), role="baseline")
+        row = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(
+            eval_run_repo,
+            "list_cases",
+            AsyncMock(
+                return_value=[
+                    SimpleNamespace(
+                        case_id=case_id, arm_id=baseline.id, attempt=0, answer="30 days"
+                    )
+                ]
+            ),
+        )
+        monkeypatch.setattr(eval_run_repo, "list_arms", AsyncMock(return_value=[arm, baseline]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    cases=[SimpleNamespace(case_id=case_id, flip="regression", confirmed=True)],
+                    verdict="worse",
+                )
+            ),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        assert run.comments == [
+            "Baseline answer: 30 days",
+            "Confirmed regression in a train-part eval",
+        ]
+        assert "newly broken: 1." in feedback
+
+    async def test_an_answer_the_draft_gave_in_a_check_reads_without_the_checks_flips(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        """A check's baseline arm is the draft itself: its flips belong to the candidate."""
+        case_id = uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="baseline")
+        row = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(eval_run_repo, "list_cases", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    cases=[SimpleNamespace(case_id=case_id, flip="regression", confirmed=True)],
+                    verdict="worse",
+                )
+            ),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        assert run.answer == "90 days" and run.comments == []
+        assert "Confirmed newly fixed: 0; newly broken: 0." in feedback
 
     async def test_training_answers_of_datasets_the_caller_cannot_read_are_never_queried(
         self, monkeypatch, mock_db_session, evaluated
@@ -568,3 +734,29 @@ class TestUnknownRuns:
         assert run.request.evidence["unknown_runs"] == 3
         with pytest.raises(Stopped, match="Nothing to learn from yet"):
             run._record_evidence(EvidencePack())
+
+
+@pytest.mark.security
+def test_a_dataset_s_own_names_reach_the_prompt_redacted() -> None:
+    from app.schemas.scoring import ScorerResult
+
+    leaked = "postgres://app:Kanar3kName@db/app"
+    run = _packed(
+        evidence_kind="train_eval",
+        grades=(
+            ScorerResult(
+                scorer="judge",
+                name=f"Never print {leaked}",
+                family=leaked,
+                required=True,
+                status="fail",
+                reason="It printed it.",
+            ),
+        ),
+        uncovered_keys=(leaked,),
+    )
+
+    rendered = run.render()
+
+    assert "Kanar3kName" not in rendered
+    assert rendered.count("[redacted:url_credentials]") == 3

@@ -8,13 +8,21 @@ import { ResultStep } from "./result-decision";
 
 const state = vi.hoisted(() => ({
   topics: [] as { id: string }[],
+  topicsError: null as Error | null,
+  skipped: 0,
   discard: vi.fn(),
   select: vi.fn(),
   judges: [{ id: "judge-1", system_key: "eval_judge" }] as { id: string; system_key: string }[],
 }));
 vi.mock("./outcome", () => ({
   DOCUMENTS_ANCHOR: "improvement-documents",
-  useSessionTopics: () => ({ topics: state.topics, added: [] }),
+  useSessionTopics: () => ({
+    topics: state.topics,
+    added: [],
+    skipped: state.skipped,
+    more: 0,
+    error: state.topicsError,
+  }),
   ResultSummary: () => <p>Counters</p>,
   KnowledgeDocuments: () => <p>Topic list</p>,
 }));
@@ -81,6 +89,8 @@ const primary = (name: string | RegExp) =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.topics = [];
+  state.topicsError = null;
+  state.skipped = 0;
   state.judges = [{ id: "judge-1", system_key: "eval_judge" }];
 });
 
@@ -88,7 +98,7 @@ it("leads with the better attempt and sends the person to accept it", async () =
   const onAccept = vi.fn();
   show(SESSION, { candidate: true, onAccept });
   expect(
-    screen.getByText("Attempt 1 made Refund desk better: 3 questions fixed and none broke."),
+    screen.getByText("The updated agent answered 3 more test questions correctly."),
   ).toBeInTheDocument();
   primary("Review and accept the changes");
   await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
@@ -118,7 +128,7 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   expect(topics).toHaveClass("bg-action");
   expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass(
-    "border-2",
+    "border",
     "border-input",
   );
   expect(screen.queryByRole("button", { name: /Try again|Improve again/ })).toBeNull();
@@ -127,6 +137,26 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
     "improvement-documents",
   );
   expect(screen.getAllByText(/^Row \d$/)).toHaveLength(3);
+});
+
+it("leads to the topics' error, not to ending, when they could not be read", () => {
+  state.topicsError = new Error("Server error");
+  show(EXHAUSTED);
+  expect(
+    screen.getByText(/Not every topic this session found could be read\./),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Draft the ones you need" })).toHaveClass("bg-action");
+  expect(screen.getByText("Topic list")).toBeInTheDocument();
+});
+
+it("does not call a session done while some of its topics could not be read", () => {
+  state.skipped = 1;
+  show(EXHAUSTED);
+  expect(
+    screen.getByText(/Not every topic this session found could be read\./),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Draft the ones you need" })).toHaveClass("bg-action");
+  expect(screen.getByText("Topic list")).toBeInTheDocument();
 });
 
 it("offers to end, or to start over with better test questions, when nothing is left", async () => {
@@ -202,7 +232,7 @@ it("names the published attempt and its version once the session is decided", ()
   expect(
     screen.getByText(
       "None of the 3 attempts made Refund desk better. Attempt 2 made it worse: 2 questions broke. " +
-        "Attempt 2 was published as version 7.",
+        "Published as version 7.",
     ),
   ).toBeInTheDocument();
 });
@@ -211,13 +241,13 @@ it("says a better attempt was kept as a draft, and a publish whose version is un
   const view = show({ ...SESSION, status: "accepted" });
   expect(
     screen.getByText(
-      "Attempt 1 made Refund desk better: 3 questions fixed and none broke. " +
-        "Attempt 1 was accepted as a draft.",
+      "The updated agent answered 3 more test questions correctly. " +
+        "Saved to the agent’s draft.",
     ),
   ).toBeInTheDocument();
   view.unmount();
   show({ ...SESSION, status: "published", published_version: null });
-  expect(screen.getByText(/Attempt 1 was published\.$/)).toBeInTheDocument();
+  expect(screen.getByText(/Changes published\.$/)).toBeInTheDocument();
 });
 
 const NOISE: MeasurementNoise = {
@@ -322,7 +352,7 @@ it("judges noise only within attempts when they shared too few questions, and sa
 it("only notes the noise beside a better attempt, without the diagnosis", () => {
   show({ ...SESSION, measurement_noise: NOISE }, { candidate: true });
   expect(
-    screen.getByText(/^Attempt 1 made Refund desk better: 3 questions fixed and none broke\.$/),
+    screen.getByText(/^The updated agent answered 3 more test questions correctly\.$/),
   ).toBeInTheDocument();
   expect(
     screen.getByText(/^The test is noisy: today's version of Refund desk scored 50% and 70%/),
@@ -382,7 +412,7 @@ it("names the attempt limit only once it is really reached", () => {
 it("puts the choice of attempt in the decision card, not inside an attempt's details", async () => {
   show(EXHAUSTED);
   const choice = screen.getByRole("group", { name: "Which attempt to keep" });
-  expect(choice).toHaveTextContent("Summary 1Summary 2Summary 3");
+  expect(choice).toHaveTextContent(/Summary 1.*Summary 2.*Summary 3/);
   await userEvent.click(screen.getByRole("radio", { name: "Keep attempt 3" }));
   await userEvent.click(screen.getByRole("button", { name: "Keep attempt 3 anyway" }));
   expect(state.select).toHaveBeenCalledWith(3);
@@ -397,3 +427,82 @@ it("gives the whole session's cost above the attempts, so a row's cost is not re
   show({ ...EXHAUSTED, spent_usd: "0.0912" });
   expect(screen.getByText("The whole session, analysis included: $0.0912")).toBeInTheDocument();
 });
+
+const PRICE_BREAK = {
+  scorer: "judge",
+  name: "price break",
+  graded: 40,
+  before: 9,
+  after: 40,
+  fixed: 31,
+  broken: 0,
+};
+const VALIDITY = {
+  scorer: "judge",
+  name: "validity",
+  graded: 40,
+  before: 0,
+  after: 0,
+  fixed: 0,
+  broken: 0,
+  skill: "Quote rules",
+};
+
+it("says what an attempt fixed criterion by criterion instead of no change, and offers Accept", () => {
+  const criteriaBetter = {
+    ...round(1, "criteria_better"),
+    verdict_detail: { fixed: 0, broken: 0, criteria: [PRICE_BREAK, VALIDITY] },
+  };
+  show(
+    { ...SESSION, status: "ready", best_iteration_id: "r1", iterations: [criteriaBetter] },
+    { candidate: true },
+  );
+
+  expect(
+    screen.getByText(
+      "Attempt 1 made Refund desk better on 1 criterion: price break 9/40 → 40/40. " +
+        "No additional question passes yet, because other criteria still fail: " +
+        "validity (skill “Quote rules”).",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/did not make Refund desk better/)).not.toBeInTheDocument();
+  primary("Review and accept the changes");
+});
+
+it("says an attempt made a criterion worse once, beside the attempts that did no better", () => {
+  const LENGTH = { ...PRICE_BREAK, name: "under 200 words", before: 40, after: 30, fixed: 0 };
+  const worse = {
+    ...round(1, "criteria_worse"),
+    verdict_detail: { fixed: 0, broken: 0, criteria: [{ ...LENGTH, broken: 10 }] },
+  };
+  show({
+    ...SESSION,
+    status: "stopped",
+    stop_reason: "criteria_worse",
+    best_iteration_id: "r1",
+    iterations: [worse],
+  });
+
+  expect(
+    screen.getByText(
+      "The attempt did not make Refund desk better. Attempt 1 made Refund desk worse on " +
+        "1 criterion, though no question broke: under 200 words 40/40 → 30/40.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it.each(["ready", "accepted", "published"] as const)(
+  "keeps a result headline when criterion evidence is hidden: %s",
+  (status) => {
+    const gained = round(1, "criteria_better");
+    show(
+      { ...SESSION, status, best_iteration_id: gained.id, iterations: [gained] },
+      { candidate: status === "ready" },
+    );
+    expect(
+      screen.getByText(
+        /Attempt 1 improved some grading criteria for Refund desk; no whole question changed\./,
+      ),
+    ).toBeVisible();
+  },
+);

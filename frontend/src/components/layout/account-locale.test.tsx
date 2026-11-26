@@ -11,6 +11,7 @@ import { AccountLocale } from "./account-locale";
 const replace = vi.hoisted(() => vi.fn());
 const route = vi.hoisted(() => ({ path: "/agents", locale: "en" }));
 vi.mock("next-intl", () => ({ useLocale: () => route.locale }));
+vi.mock("@/components/layout/account-appearance", () => ({ AccountAppearance: () => null }));
 vi.mock("@/lib/locale-navigation", () => ({
   usePathname: () => route.path,
   useRouter: () => ({ replace }),

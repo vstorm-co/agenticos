@@ -256,7 +256,7 @@ def test_a_text_agent_working_for_a_call_settles_approvals_with_the_caller(anony
     # A text run in every other respect: its sandbox and structured tool failures.
     assert len(built.capabilities) == 1
     assert any(isinstance(c, AnswerUnknownTools) and c.structured for c in found)
-    assert built.agent._system_prompts
+    assert built.agent._instructions
 
 
 def test_a_sandbox_binding_never_reaches_a_call():

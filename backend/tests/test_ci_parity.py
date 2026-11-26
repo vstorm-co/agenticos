@@ -54,6 +54,7 @@ MAKEFILE = REPO_ROOT / "Makefile"
 GATING_JOBS = (
     "lint",
     "test",
+    "backend-shards",
     "lint-frontend",
     "frontend-shards",
     "build-frontend",
@@ -93,6 +94,10 @@ INSTALL_EXEMPT = frozenset(
 CI_ONLY_TARGETS = {
     # This disables durability only on CI's ephemeral database container.
     "ci-test-db-configure",
+    # Distributed backend execution and the same complete-suite coverage gate.
+    "test-backend-shard",
+    "test-backend-jobs-check",
+    "test-backend-merge",
     # Distribution and aggregation transport the same suite/gate as test-frontend-cov.
     "test-frontend-jobs-check",
     "test-frontend-reports-check",
@@ -322,6 +327,9 @@ class TestCheckRunsNothingCIDoesNot:
         leaves = {target for target in prerequisites["check"] if not prerequisites.get(target)} | {
             leaf for target in prerequisites["check"] for leaf in prerequisites.get(target, [])
         }
+        # The backend test target is transported as file shards plus an aggregate.
+        if {"test-backend-shard", "test-backend-merge"} <= invoked:
+            invoked.add("test")
         missing = sorted(leaves - invoked)
         assert not missing, (
             f"`make check` runs {missing} and no CI job does. Either CI is missing a "
@@ -363,7 +371,10 @@ class TestCheckRunsUnderThePinnedInterpreter:
 def test_dependency_freshness_allows_the_full_backend_runtime() -> None:
     """The upgrade canary runs the same suite; 25 minutes cut off healthy tests."""
     timeouts: list[int] = []
-    for filename, job_name in (("ci.yml", "test"), ("dependency-freshness.yml", "newest")):
+    for filename, job_name in (
+        ("ci.yml", "backend-shards"),
+        ("dependency-freshness.yml", "newest"),
+    ):
         config: object = yaml.safe_load((WORKFLOW.parent / filename).read_text())
         assert isinstance(config, dict)
         jobs = config["jobs"]

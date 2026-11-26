@@ -181,7 +181,6 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
         <div className={cn(DIALOG_BODY, "space-y-4")}>
-          <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
           <FormField
             label={t("name4")}
             htmlFor="agent-name"
@@ -261,6 +260,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           <p className="text-muted-foreground mr-auto hidden text-xs sm:block">
             {t("startsWithRecommended", { count: starter.length })}
           </p>
+          <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel2")}
           </Button>

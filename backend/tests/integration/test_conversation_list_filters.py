@@ -29,6 +29,7 @@ from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
+from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
@@ -349,3 +350,39 @@ class TestWhatAListingReads:
         assert [row.title for row in rows] == ["long thread"]
         unloaded = sa_inspect(rows[0]).unloaded
         assert {"summary_messages", "plan_items", "reminder_state"} <= unloaded
+
+
+async def test_project_and_unfiled_conversation_windows_paginate_independently(db) -> None:
+    organization = await _org(db)
+    owner = await _user(db)
+    project = Project(organization_id=organization.id, owner_user_id=owner.id, name="Launch")
+    other = Project(organization_id=organization.id, owner_user_id=owner.id, name="Restricted")
+    db.add_all([project, other])
+    await db.flush()
+    planned = await _conversation(db, organization, owner, title="Old launch chat")
+    planned.project_id = project.id
+    hidden = await _conversation(db, organization, owner, title="Restricted")
+    hidden.project_id = other.id
+    for i in range(3):
+        await _conversation(
+            db,
+            organization,
+            owner,
+            title=f"Unfiled {i}",
+            updated_at=_START + timedelta(days=i + 1),
+        )
+    await db.flush()
+    scope = {"visible_project_ids": {project.id}}
+    assert await _titles(db, organization, owner, project_scope="only", limit=1, **scope) == [
+        "Old launch chat"
+    ]
+    assert await _titles(db, organization, owner, project_scope="exclude", limit=1, **scope) == [
+        "Unfiled 2"
+    ]
+    for subset, expected in (("only", 1), ("exclude", 3)):
+        assert (
+            await conversation_repo.count_conversations(
+                db, owner.id, organization_id=organization.id, project_scope=subset, **scope
+            )
+            == expected
+        )

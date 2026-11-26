@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +10,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ChevronRight, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
+import { TableCallReadout } from "@/components/chat/tool-results/table-call";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
@@ -346,14 +349,14 @@ function TimelineTurn({
             part.type === "tool" && part.toolCall !== undefined ? (
               <RawToolCall key={part.id} toolCall={part.toolCall} />
             ) : part.type === "thinking" ? (
-              <details key={part.id} className="text-muted-foreground text-sm">
+              <NativeDisclosure key={part.id} className="text-muted-foreground text-sm">
                 <summary className="cursor-pointer select-none">{t("reasoning")}</summary>
                 {/* The model's own reasoning is markdown too - it writes lists
                     and headings in here exactly as it does in an answer. */}
                 <div className="mt-1">
                   <MarkdownContent content={part.content ?? ""} inertImages />
                 </div>
-              </details>
+              </NativeDisclosure>
             ) : part.type === "ask_user" ? (
               <div
                 key={part.id}
@@ -500,13 +503,19 @@ function CopyablePanel({
 function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
   const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
+  // A closed <details> keeps its children mounted, so the table readout - which
+  // reads the table - waits for the step to be opened.
+  const [open, setOpen] = useState(false);
   const args = JSON.stringify(toolCall.args, null, 2);
   const result =
     typeof toolCall.result === "string"
       ? toolCall.result
       : JSON.stringify(toolCall.result, null, 2);
   return (
-    <details className="group/tool bg-muted/40 rounded-lg">
+    <NativeDisclosure
+      className="group/tool bg-muted/40 rounded-lg"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       {/* What the step did in words, with the tool's own id beside it for the
           reader matching it against a trace - and how it ended as a dot and a
           word rather than the raw state name. */}
@@ -535,6 +544,14 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
         </span>
       </summary>
       <div className="space-y-2 px-3 pt-1 pb-3">
+        {/* A table call in the table's labels; the raw input and output stay below it. */}
+        {open && (
+          <TableCallReadout
+            toolName={toolLookupName(toolCall)}
+            args={toolCall.args}
+            result={toolCall.result}
+          />
+        )}
         <div className="group flex items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("toolInput")}</p>
           <CopyButton text={args} />
@@ -554,6 +571,6 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
           </>
         )}
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

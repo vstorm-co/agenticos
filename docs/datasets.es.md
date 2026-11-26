@@ -1,5 +1,5 @@
 ---
-source_sha: "1e63060a548e"
+source_sha: "a4c2f48f28ee"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -21,6 +21,8 @@ verdad la decepcionó.
 **Cases**, **Results** y **Settings** comparten un espacio con control de pantalla completa. Cases reúne casos escritos y generados; Results combina ejecuciones de prueba y revisión de respuestas; Settings contiene evaluación, generación y mejora. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
 
 El modelo y las instrucciones del calificador, la generación y la mejora se eligen en **Settings**. Los modelos guardados tienen un selector compacto con búsqueda; **Add model** abre el formulario de provider, modelo y clave. Las instrucciones usan el editor Markdown. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
+
+Para la generación y la mejora, un dataset añade sus propias orientaciones bajo las reglas de la plataforma para ese ayudante. Las reglas - las preguntas reservadas no son material de aprendizaje, el texto de los runs son datos, ningún dato personal en un caso - se aplican siempre, y las orientaciones no pueden cambiarlas ni quitarlas. El editor contiene solo las orientaciones; las reglas aparecen al lado, de solo lectura.
 
 ## De un dataset nuevo a los resultados { #dataset-workflow }
 
@@ -136,13 +138,21 @@ caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `POS
 /datasets/{id}/cases/twins`, con la pregunta en el cuerpo para que no llegue a
 los registros de acceso.
 
+Durante la actualización, las revisiones generadas existentes sin una referencia conservada a un documento reciben la misma protección de privacidad. No se distingue un chat anónimo eliminado de un caso generado sin material de origen. Las revisiones históricas y las posteriores que solo cambian metadatos siguen protegidas. Quienes tienen `runs:view` conservan el contenido completo almacenado; no se elimina ningún caso.
+
+Los casos procedentes únicamente de un documento conocido, los manuales y los importados no cambian. Los nuevos casos de herramientas del agente sin material de chat no se ocultan automáticamente. Las filas ocultas indican una fuente no disponible o no verificada, sin afirmar que proceden de una conversación.
+
+Detenga los procesos antiguos de API y workers antes de la migración `0374_case_from_conversation` e inicie después únicamente el código actualizado. Los procesos antiguos no conservan la marca de privacidad. No se admiten escrituras de versiones mezcladas durante esta actualización; el despliegue gestionado detiene esos procesos antes de migrar.
+
 ### Desde un archivo { #import-and-export }
 
 **Importar** lee un archivo `.csv` o `.jsonl` y añade todos sus casos como una
 única versión nueva. La importación es todo o nada: si una fila no es válida, no
 se añade ninguna, y el rechazo nombra cada fila no válida para que puedas
-corregir el archivo y volver a intentarlo. Un archivo tiene como máximo 10 MB, y
-un dataset guarda como máximo 10.000 casos. En la consola, **Importar** primero
+corregir el archivo y volver a intentarlo. Un archivo tiene como máximo 10 MB y
+10.000 filas (`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), y un
+dataset guarda como máximo 10.000 casos. Un valor anidado demasiado para leerlo
+rechaza su fila. En la consola, **Importar** primero
 enumera las columnas y ofrece **Download a template**, un CSV con todas las
 columnas y un caso que se importa tal cual; **Choose file** abre el selector de
 archivos.
@@ -326,6 +336,15 @@ modelo o que lleva una exportación, incluidos los argumentos de una llamada a
 herramienta esperada, y a cada forma de añadir un caso. La entrada de auditoría
 del cambio registra cuántos valores se ocultaron, nunca los valores.
 
+Reconoce las claves de API y los tokens de los proveedores y servicios con los
+que trabaja la plataforma, los JWT y las claves privadas, una contraseña escrita
+en una dirección (`postgres://user:password@host`), una clave o contraseña en
+una query string o en el cuerpo de un formulario (`?api_key=`, `token=`,
+`password=`) y una cabecera `Authorization` de tipo Basic o Bearer. El mismo
+detector limpia lo que lee el asistente de una mejora, lo que lee el
+clasificador de lagunas de conocimiento y los mensajes de un agent cuando su
+guardrail oculta secretos.
+
 Una generación también oculta las credenciales de las preguntas y los
 fragmentos que entrega al generador, antes de que salgan hacia el modelo, y
 quita de las preguntas y los comentarios que escribió la gente los datos
@@ -393,6 +412,7 @@ encima de ella se rechaza nombrando `judge.pass_at`.
 | `max_latency_ms` | `value` | El run no tardó más que esto |
 | `length` | `unit` (`characters` o `words`), `min` y/o `max`, opcional `path` | La respuesta mide como mínimo `min` y como máximo `max` |
 | `judge` | `criterion` | El juez de evals califica el criterio en la nota de aprobado o por encima |
+| `keys` | `keys`: pares de `key` (una etiqueta) y `value`, como mucho 200 entre todas las comprobaciones `keys` de un caso - y entre las comprobaciones por defecto del dataset; familia `keys` salvo que se indique otra | La respuesta contiene cada valor; la puntuación es la parte que contiene |
 
 `path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
@@ -412,6 +432,77 @@ son espacios en blanco, y necesita al menos un límite.
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
 puede expresar, como "se niega y no revela la dirección del cliente".
+
+Una comprobación `keys` enumera los datos que debe contener un documento escrito
+- un número de factura, un total, el nombre de un cliente -, cada uno como una
+etiqueta y el valor que tiene el documento. La comprobación se supera cuando la
+respuesta contiene cada valor; su puntuación es la parte que contiene, y su
+motivo nombra las etiquetas que faltan.
+
+Cada valor se busca en la respuesta:
+
+- como un token completo: `12` no se encuentra en `120`, ni `INV-1` en `INV-10`;
+- no dentro de un número más largo: `12` no se encuentra en `12,50`, ni `234` en
+  `1 234`, ni `1 234` en `1 234 567`;
+- sin tener en cuenta las mayúsculas, las secuencias de espacios en blanco ni
+  las formas Unicode, como una ligadura o un espacio de no separación;
+- con un espacio que puede agrupar los miles de un número, así que `1234` y
+  `1 234` se encuentran;
+- con la coma y el punto tal como están, porque en un idioma separan los miles
+  y en otro los decimales: escriba el valor como lo muestra el documento.
+
+En la consola, un caso guardado con una respuesta de referencia guardada ofrece
+**List keys from the reference answer** junto a sus comprobaciones. El key
+extractor, un agent de sistema, lee la respuesta en un job, como la persona que
+lo pidió, con su coste medido y en Activity, y enumera los datos que contiene.
+Solo se conserva un valor que la respuesta contiene tal cual. **Use these keys**
+rellena la comprobación de claves del caso para que la revise y la guarde; nada
+se guarda solo, y el borrador se elimina al usarse o descartarse,
+o 7 días después de pedirlo.
+
+Cada comprobación admite un `family` opcional (como máximo 80 caracteres): lo que
+prueba en todo el dataset, como `total including VAT` en la regex de cada caso
+para su propio importe. Una comparación cuenta juntas las comprobaciones de una
+familia, caso por caso, así que un cambio se juzga por lo que se movió en todo el
+dataset y no por el patrón de un caso. Una comprobación sin familia es una
+familia propia; una con familia puntúa, y calcula la huella de su puntuación,
+exactamente igual que antes.
+
+### Claves sin fuente { #key-coverage }
+
+Una comprobación `keys` dice qué datos debe contener un documento escrito; no
+dice si el agent podía conocerlos. **Resultados → Cobertura de claves** lo
+responde para un agent publicado que elijas. El agent de cobertura de fuentes,
+un agent de sistema, lee las etiquetas de las claves de las comprobaciones
+`keys` de la versión más reciente - las primeras 200 distintas - junto a lo que
+alcanza la versión publicada del agent, y dice para cada etiqueta que una
+fuente la contiene, que ninguna lo hace o que no puede saberse. De cada fuente
+lee:
+
+- de una base de conocimiento: una búsqueda de cada etiqueta;
+- de un archivo de contexto o un skill: los pasajes que nombran una etiqueta, de
+  un skill en la versión o el fork que indica el vínculo del agent;
+- de un servidor MCP de la organización que esté activado: sus herramientas,
+  según lo que cada una dice hacer.
+
+Ve etiquetas y nunca sus valores. Se ejecuta en un job, como la persona que lo
+pidió, que debe poder editar el agent, con coste medido y en Actividad. Cada
+agent y dataset conserva un informe, que sustituye el siguiente. Una fuente que
+la persona que lo pidió no puede ver no se lee, como tampoco un servidor MCP que
+funciona con la cuenta de cada persona o de la plataforma, y el informe dice
+cuántas se omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
+no puede ver todas las fuentes que leyó el juez recibe veredictos sin motivos.
+
+Una clave sin fuente tiene que llegar al agent como conocimiento - un
+documento, un archivo de contexto, una herramienta -, porque ningún cambio en
+sus instrucciones puede aportarla.
+[Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
+desde un informe completo - con cada fuente leída - hecho para la versión que el
+agent ejecuta ahora. Cuando el
+agent se publica de nuevo, el dataset gana una versión o cambia una fuente leída
+- un documento añadido a una base de conocimiento o quitado de ella, un archivo
+de contexto o un skill editado, las herramientas de un servidor cambiadas -, el
+informe aparece como desactualizado hasta que vuelvas a comprobarlo.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 
@@ -436,6 +527,11 @@ El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
 anteriores y la pregunta, la respuesta de referencia cuando se califica, el
 contraejemplo, cada llamada a herramienta que hizo el agent (con sus argumentos,
 y si un run aislado la bloqueó) y la respuesta.
+
+Cada una de estas partes va cercada en el prompt del juez, de modo que su texto
+no puede cerrar su propia sección y pasar por palabras del prompt. El prompt
+termina con la regla de que el texto cercado se califica y nunca se obedece, y
+las instrucciones propias del dataset no pueden sustituir esa regla.
 
 Un caso con contraejemplo se califica siempre también con un criterio
 obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
@@ -486,6 +582,10 @@ El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
 cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
 
+Una nueva calificación de la respuesta de un eval run vuelve a resolver la
+comparación de ese run y las suites, sesiones de mejora y comprobaciones de
+skills construidas sobre él, como lo hace la decisión de una persona.
+
 Una causa que sigue ahí (el juez sin publicar)
 se rechaza tal cual, igual que el juez de un run de evaluación publicado de
 nuevo desde que falló, o una puntuación de ese run fijada a un prompt de juez
@@ -512,6 +612,10 @@ nota hace ilegible un veredicto. Un criterio calificado más de una vez es un
 error, en lugar de la nota que llegó la última. El run del juez en Activity
 indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
 caso de un dataset que quien lo lee no puede ver.
+
+El juez responde con esa forma mediante una salida estructurada, no en prosa.
+Una respuesta que la incumple vuelve al juez para corregirla, como mucho dos
+veces; solo entonces el caso queda sin calificar.
 
 Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 
@@ -597,8 +701,10 @@ así que ninguno se hace desde el diálogo.
 | Cambiar cómo se califica un dataset | `datasets:edit` sobre él |
 | Crear un juez para él | `datasets:edit` sobre él, y `agents:edit` |
 | Puntuar un run contra él | `datasets:run` sobre él, y `runs:view` |
+| Volver a calificar una respuesta | `datasets:run` sobre él, y `runs:view`; para la respuesta de un eval run, también acceso al agent que respondió |
 | Leer sus puntuaciones | `datasets:view` sobre él |
-| Enviar puntuaciones a revisión, registrar o retirar una decisión | `datasets:edit` sobre él |
+| Enviar puntuaciones a revisión | `datasets:edit` sobre él |
+| Registrar o retirar una decisión | `datasets:edit` sobre él; para la respuesta de un eval run, también `runs:view` y acceso al agent que respondió |
 
 Un motivo que escribió el juez pasa por la misma ocultación de credenciales que
 un caso antes de guardarse.
@@ -647,9 +753,20 @@ algo que no debe saber. Un grant amplía el acceso a un dataset y nunca cambia u
 rol. Consulta [Permisos](permissions.md) para ver cómo se combinan los ámbitos y
 los grants.
 
-El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
+El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto, también en un caso generado a partir de un chat. La comprobación de preguntas duplicadas (`cases/twins`) nunca coincide con un caso oculto, y la **Cobertura de claves** omite las etiquetas de claves que solo tienen casos ocultos. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
 
 Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
+
+Los pasajes de conocimiento del juez se eliminan junto con la respuesta. Quien ve la respuesta recibe un pasaje solo de una base de conocimiento que puede leer; ver [Eval runs](evals.md).
+
+El texto escrito a partir de los casos de un dataset sigue el acceso al dataset. Los cambios de una sesión de Improve requieren acceso de lectura a su dataset. Un run no registra qué dataset leyó, así que dos lecturas requieren acceso de lectura a todos los datasets: las citas de una sesión de skill tomadas de respuestas de evaluación y, en el registro del run, los mensajes que recibió una respuesta de evaluación y el prompt y los mensajes de un agente de la plataforma, como el juez.
+
+Decidir sobre la respuesta de un eval run, o volver a calificarla, también requiere `runs:view` y acceso al agente que respondió, porque cambia los veredictos construidos sobre ese run: a un lector que no puede ver la respuesta no se le ofrece ninguna de las dos cosas, y la API las rechaza con `403`.
+
+Los datasets no se agrupan por departamento - la lista no tiene filtro de grupo
+ni insignias de departamento -, así que un departamento llega a un dataset
+mediante un grant sobre él, como con cualquier otro recurso. Consulte
+[Departamentos](departments.md#grouping-a-list-by-department).
 
 ## Datos personales { #personal-data }
 
@@ -663,9 +780,12 @@ Cuando se borra a la persona que hizo la pregunta de un caso, el texto también 
 La pregunta, los turnos anteriores, ambas respuestas y la nota se sustituyen en
 todas las versiones que contienen el caso, y también las respuestas y llamadas
 que los eval runs registraron para él. El caso conserva su id, sus llamadas
-esperadas, sus comprobaciones y sus etiquetas, y se marca como anonimizado tras
+esperadas, sus comprobaciones y sus etiquetas - salvo una comprobación `keys`,
+cuyos valores venían de la respuesta que se elimina - y se marca como anonimizado tras
 el borrado (**Anonymised after erasure**), para que su curador pueda reescribirlo
-o eliminarlo. Hasta entonces un eval run lo deja fuera, porque una respuesta al
+o eliminarlo.
+
+Hasta entonces un eval run lo deja fuera, porque una respuesta al
 texto de sustitución no mide nada.
 
 Un caso guarda de quién son las palabras que contiene: quién hizo su pregunta,

@@ -23,16 +23,18 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
-import hashlib
+import hmac
 import json
 import logging
 import re
+import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
+import httpx2
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
@@ -47,6 +49,9 @@ MAX_LISTING_BYTES = 2 * 1024 * 1024
 MAX_CATALOG_MODELS = 2048
 MAX_CATALOG_FIELD = 256
 MAX_CACHED_CATALOGS = 16
+# Cache partitions last only for this process; avoid a reusable credential
+# fingerprint in cache diagnostics across process lifetimes.
+_CACHE_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 CatalogSource = Literal["live", "curated", "unlisted"]
 """Where a picker's suggestions came from, and it is three answers rather than two.
@@ -96,6 +101,9 @@ class ListingSpec:
     eleven places for the next one to be subtly different.
     """
 
+    # The provider's own listing endpoint. Empty for a provider that exists
+    # only at an endpoint the caller names: the path there is derived from that
+    # endpoint rather than from here (see `models_for`).
     url: str
     # Where the array lives in the response body. Empty means the body *is* the
     # array, which is what Together answers with.
@@ -118,6 +126,9 @@ class ListingSpec:
     # Dotted path to the list of APIs a model is served on, where the listing
     # says. Only Stav.ai states it (`stav_surfaces`).
     surfaces_path: str | None = None
+    # A gateway may list embeddings, audio and Responses-only models alongside chat.
+    operations_path: str | None = None
+    required_operation: str | None = None
 
 
 # Loaded from data rather than written out here. Every field is declarative - a
@@ -156,9 +167,8 @@ class FallbackModel:
 # OpenAI is `ada`. A short current list beats a long misleading one.
 #
 # What the library *is* used for is the half that rots: every context length comes
-# from it at read time, and `test_model_catalog.py` fails when an id here is one
-# the snapshot has never heard of - which is how a typo or a retired model is
-# caught rather than shipped as a dropdown the provider refuses.
+# from it at read time. The catalog test requires either a pricing snapshot row
+# or direct evidence from the subscription catalog for a new Codex model.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
     "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
@@ -168,10 +178,8 @@ def priced_model(provider: str, model_id: str) -> Any | None:
     """This model as `genai-prices` knows it, or None where it has no row for it.
 
     Two questions come off this and they are not the same one: whether the model
-    exists at all, and whether anybody recorded how much context it takes. A
-    curated id the snapshot has never heard of is a typo or a retirement, which is
-    a build failure; a known model with no window is simply not recorded, and the
-    capability resolves one itself.
+    is recorded in the price catalog, and how much context that row says it takes.
+    A new subscription model can appear before the price snapshot records it.
 
     The provider ids differ in a handful of places - the snapshot writes `x-ai`
     where the platform writes `xai` - so the alias table is part of the lookup
@@ -257,6 +265,10 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
             continue
         raw = row.get(spec.id_field)
         if not isinstance(raw, str) or not raw:
+            continue
+        if spec.required_operation is not None and spec.required_operation not in _modalities(
+            row, spec.operations_path
+        ):
             continue
         model_id = raw.removeprefix(spec.id_prefix)
         name = row.get(spec.name_field) if spec.name_field else None
@@ -410,13 +422,33 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
     return (curated, "curated") if curated else ([], "unlisted")
 
 
-CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True, "otari": True}
+CUSTOM_LISTINGS: dict[str, bool] = {
+    "openrouter": False,
+    "stav": True,
+    "otari": True,
+    "zai": True,
+    "kimi_code": True,
+    "alibaba_coding_plan": True,
+    "opencode_go": True,
+    "ollama_cloud": True,
+    "nous_portal": True,
+    "inception": True,
+    "cline": True,
+    "chutes": True,
+    "synthetic": True,
+    "cliproxyapi": True,
+    "openai_compatible": True,
+    "anthropic_compatible": True,
+}
 """Providers whose model list can be read at an endpoint the caller names, and
 whether the vault key goes with that request.
 
 OpenRouter's list is public, so a regional OpenRouter is asked with no key.
-Stav and Otari need one; the key is the one the profile sends to that same
+The others need one; the key is the one the profile sends to that same
 endpoint on every run - listing there reaches no host the profile does not.
+The two custom providers need one for the same reason: the endpoint is the
+organization's own server, and it is the key stored for it that authenticates
+the listing.
 """
 
 
@@ -426,7 +458,7 @@ DECISION_SUGGESTIONS: dict[str, tuple[FallbackModel, ...]] = catalog.load(
 
 
 async def _decision_models_for(
-    provider: str, *, base_url: str | None
+    provider: str, *, base_url: str | None, refresh: bool = False
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """Keep native-decision suggestions and caches separate from text models."""
     curated = [
@@ -443,7 +475,11 @@ async def _decision_models_for(
     listing = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=decisions")
     try:
         models = await _listed(
-            f"openrouter:decisions:{endpoint}", listing, None, custom=base_url is not None
+            f"openrouter:decisions:{endpoint}",
+            listing,
+            None,
+            custom=base_url is not None,
+            refresh=refresh,
         )
     except httpx.HTTPError, ValueError:
         logger.warning("The native decision model catalog could not be reached")
@@ -457,6 +493,7 @@ async def models_for(
     api_key: str | None = None,
     base_url: str | None = None,
     api: ModelApi | None = None,
+    refresh: bool = False,
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -473,8 +510,25 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if provider == "github_copilot":
+        from app.clients.github_copilot import CopilotAccountClient
+        from app.core.exceptions import BadRequestError
+
+        if base_url is not None:
+            raise ValueError("Copilot account models require the fixed GitHub.com gateway")
+        if api_key is None:
+            return [], "unlisted"
+        try:
+            models = await CopilotAccountClient().models(api_key)
+        except BadRequestError, httpx.HTTPError, httpx2.HTTPError:
+            logger.warning("Could not list this Copilot account's supported chat models")
+            return [], "unlisted"
+        return [
+            CatalogModel(id=model.id, name=model.name or model.id, surfaces=("chat",))
+            for model in models
+        ], "live"
     if is_decision_api(provider, api):
-        return await _decision_models_for(provider, base_url=base_url)
+        return await _decision_models_for(provider, base_url=base_url, refresh=refresh)
     if (
         base_url is None
         and (provider_spec := PROVIDERS.get(provider)) is not None
@@ -487,11 +541,17 @@ async def models_for(
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS or spec is None:
             raise ValueError(
-                "Custom model listing endpoints are supported only for OpenRouter, Stav and Otari"
+                "Custom model listing endpoints are supported only for "
+                + ", ".join(sorted(CUSTOM_LISTINGS))
             )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")
-        spec = replace(spec, url=f"{endpoint}/models")
+        # The SDK's own path sits below the endpoint: Anthropic lists its models
+        # at `<endpoint>/v1/models`, while OpenAI lists them at `<endpoint>/models`
+        # because its endpoint already is the `/v1` root.
+        provider_spec = PROVIDERS.get(provider)
+        prefix = provider_spec.api_prefix if provider_spec is not None else ""
+        spec = replace(spec, url=f"{endpoint}{prefix}/models")
         curated = []
         cache_key = f"{provider}:{endpoint}"
 
@@ -499,10 +559,13 @@ async def models_for(
         return _fallback(curated)
 
     if spec.auth_header is not None and api_key is not None:
-        cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
+        fingerprint = hmac.digest(_CACHE_FINGERPRINT_KEY, api_key.encode(), "sha256").hex()
+        cache_key = f"{cache_key}:{fingerprint}"
 
     try:
-        models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
+        models = await _listed(
+            cache_key, spec, api_key, custom=base_url is not None, refresh=refresh
+        )
     except Exception:
         # What is said has to match what is answered: for a provider with no
         # curated entry there is no list to fall back to, and a log line during
@@ -551,7 +614,7 @@ async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
 
 
 async def _listed(
-    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool
+    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool, refresh: bool = False
 ) -> list[CatalogModel]:
     """One listing, from the cache while it is fresh, fetched and cached otherwise.
 
@@ -563,7 +626,11 @@ async def _listed(
     """
     async with _lock:
         entry = _cache.get(cache_key)
-        if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
+        if (
+            not refresh
+            and entry is not None
+            and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS
+        ):
             _cache.move_to_end(cache_key)
             return list(entry.models)
 

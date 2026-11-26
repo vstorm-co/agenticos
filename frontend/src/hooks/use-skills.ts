@@ -158,7 +158,7 @@ export function useSkill(skillId: string | null) {
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.detail(skillId ?? ""),
     queryFn: () => apiClient.get<Skill>(`/skills/${skillId}`),
     enabled: skillId !== null,
@@ -260,6 +260,7 @@ export function useSkill(skillId: string | null) {
 
   return {
     skill: data,
+    refetch,
     isLoading,
     error,
     save,

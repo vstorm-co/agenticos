@@ -1537,6 +1537,56 @@ async def test_a_literal_value_of_the_right_type_publishes(mock_db_session, regi
     assert validated.bindings == (binding,)
 
 
+def _data_node() -> NodeInstance:
+    return NodeInstance(
+        id=uuid4(), definition_id="data.value", definition_version=1, config={}, layout=_pos()
+    )
+
+
+async def test_a_data_step_without_a_value_is_refused(mock_db_session):
+    a, data = _echo_node(), _data_node()
+    graph = WorkflowGraph(
+        entry_node_id=a.id, nodes=(a, data), edges=(_edge(a.id, "out", data.id, "in"),)
+    )
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == f"nodes.{data.id}.value" and "not bound" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_path_into_a_data_steps_value_is_bound_downstream(mock_db_session, registered_node):
+    """A typed-in object publishes, and a later step can read one field out of it
+    into a typed field: the value has no schema, so the path is checked when the
+    step runs."""
+    consumer = registered_node(_action_definition("test.reads_data"))
+    a, data = _echo_node(), _data_node()
+    reader = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    bindings = (
+        Binding(
+            target_node_id=data.id,
+            target_field="value",
+            source=LiteralValue(value={"customer": {"email": "ada@example.com"}, "tags": [1, 2]}),
+        ),
+        Binding(
+            target_node_id=reader.id,
+            target_field="value",
+            source=NodeOutputRef(node_id=data.id, port="out", field_path=("value", "customer")),
+        ),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=a.id,
+        nodes=(a, data, reader),
+        edges=(_edge(a.id, "out", data.id, "in"), _edge(data.id, "out", reader.id, "in")),
+        bindings=bindings,
+    )
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.bindings == bindings
+
+
 # Multiple problems collected together
 
 

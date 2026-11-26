@@ -9,6 +9,13 @@
 /** Follow the operating system, always reduce, or always animate. */
 export type MotionPreference = "system" | "reduce" | "full";
 
+/** New browsers animate until the person chooses System or Reduce. */
+export const DEFAULT_MOTION_PREFERENCE: MotionPreference = "full";
+
+export function isMotionPreference(value: unknown): value is MotionPreference {
+  return value === "system" || value === "reduce" || value === "full";
+}
+
 /** The `localStorage` key the motion store persists under. */
 export const MOTION_STORAGE_KEY = "motion-storage";
 
@@ -35,13 +42,14 @@ export function resolveReducedMotion(
  * would play for somebody who asked for none. It reads the store's persisted
  * shape (`{"state":{"motion":…}}`) and resolves it exactly as
  * `resolveReducedMotion` does; `motion-preference.test.ts` runs it against the
- * same cases. Storage that throws (blocked, or a corrupt value) leaves the
- * attribute to `MotionProvider`, which sets it once the app hydrates.
+ * same cases. Missing, blocked, corrupt or unknown storage uses Full, matching
+ * the store's initial state without overwriting an existing preference.
  */
 export const MOTION_BOOTSTRAP_SCRIPT =
-  "(function(){try{" +
+  `(function(){var p=${JSON.stringify(DEFAULT_MOTION_PREFERENCE)};try{` +
   `var s=JSON.parse(localStorage.getItem(${JSON.stringify(MOTION_STORAGE_KEY)})||"{}").state;` +
-  'var p=s&&s.motion;if(p==="reduce"||(p!=="full"&&' +
+  'if(s&&(s.motion==="full"||s.motion==="reduce"||s.motion==="system"))p=s.motion;' +
+  '}catch(e){}if(p==="reduce"||(p==="system"&&' +
   `window.matchMedia(${JSON.stringify(REDUCED_MOTION_QUERY)}).matches))` +
-  `document.documentElement.setAttribute(${JSON.stringify(MOTION_ATTRIBUTE)},"reduce")` +
-  "}catch(e){}})()";
+  `document.documentElement.setAttribute(${JSON.stringify(MOTION_ATTRIBUTE)},"reduce");` +
+  `else document.documentElement.removeAttribute(${JSON.stringify(MOTION_ATTRIBUTE)});})()`;

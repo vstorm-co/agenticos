@@ -139,3 +139,35 @@ def test_quickstart_reports_the_engine_before_compose_compatibility(
         assert "compose" not in calls.read_text()
     assert not (tmp_path / "agenticos").exists()
     assert not (tmp_path / ".env").exists()
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "ghcr.io/vstorm-co/agenticos-backend:1.84.0",
+        "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:1.84.0",
+        "unrelated/example:latest",
+    ],
+)
+def test_quickstart_recognizes_official_and_configurable_compose_without_adopting_other_stacks(
+    tmp_path: Path, image: str
+) -> None:
+    import re
+
+    source = (ROOT / "scripts/quickstart.sh").read_text()
+    definition = re.search(r"(?m)^ours\(\) \{.*$", source)
+    assert definition is not None
+    (tmp_path / "docker-compose.yml").write_text(f"services:\n  app:\n    image: {image}\n")
+    result = subprocess.run(
+        [
+            shutil.which("bash") or "/bin/bash",
+            "-c",
+            definition[0] + '\nours "$1"',
+            "check",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == (1 if image.startswith("unrelated/") else 0)

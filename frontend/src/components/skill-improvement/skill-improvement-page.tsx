@@ -9,9 +9,9 @@ import { AttemptHistory } from "@/components/improvement/attempt-history";
 import { ContinueSession } from "@/components/improvement/continue-session";
 import { ImprovementShell, WorkingNote } from "@/components/improvement/improvement-shell";
 import { type ReadOnlyReason } from "@/components/improvement/read-only";
-import { TriedChanges } from "@/components/improvement/tried-changes";
+import { AcceptedChanges, TriedChanges } from "@/components/improvement/tried-changes";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, Card, ListCard } from "@/components/ui";
 import { useSkill } from "@/hooks";
 import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -64,11 +64,18 @@ export function SkillImprovementPage({
   merge?: MergeKind | null;
 }) {
   const t = useTranslations("skillImprovement");
+  const common = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const { skill, isLoading, error } = useSkill(skillId);
-  const { can } = usePermissions();
+  const { skill, isLoading, error, refetch } = useSkill(skillId);
+  const permissions = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
-  if (error || !skill) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  if (error || !skill)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: common("retry"), onClick: () => void refetch() }}
+      />
+    );
   const header = (
     <SkillImprovementHeader
       skillId={skillId}
@@ -78,15 +85,32 @@ export function SkillImprovementPage({
       }
     />
   );
+  const canViewRuns = permissions.can(Perm.runsView);
+  // Until the set is in, a missing permission is unknown rather than refused.
+  const permissionsUnknown = !canViewRuns && !permissions.isLoaded;
   // A session is read from the line agents' runs; starting one changes the skill too.
-  if (!can(Perm.runsView) || (!skill.can_edit && sessionId === "new"))
+  if (permissionsUnknown || !canViewRuns || (!skill.can_edit && sessionId === "new"))
     return (
       <div className="w-full space-y-6 pb-16">
         {header}
-        <p role="alert">{t("permission")}</p>
-        <Link className="text-sm underline underline-offset-4" href={ROUTES.SKILL_DETAIL(skillId)}>
-          {t("openSkill")}
-        </Link>
+        {permissionsUnknown && permissions.error ? (
+          <ErrorState
+            description={getErrorMessage(permissions.error, tErrors)}
+            cta={{ label: common("retry"), onClick: () => void permissions.refetch() }}
+          />
+        ) : permissionsUnknown ? (
+          <LoadingState variant="pending" />
+        ) : (
+          <>
+            <p role="alert">{t("permission")}</p>
+            <Link
+              className="text-sm underline underline-offset-4"
+              href={ROUTES.SKILL_DETAIL(skillId)}
+            >
+              {t("openSkill")}
+            </Link>
+          </>
+        )}
       </div>
     );
   return (
@@ -164,6 +188,7 @@ function SkillSession({
       ? null
       : "viewOnly";
   const check = session.check;
+  const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const measured = check ? (
     <CheckAgents check={check} />
   ) : (
@@ -174,6 +199,11 @@ function SkillSession({
       <SkillImprovementHeader
         skillId={skillId}
         skillName={skillName}
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={ROUTES.SKILL_DETAIL(skillId)}>{t("openSkill")}</Link>
+          </Button>
+        }
         merge={
           session.purpose === "catch_up"
             ? { kind: "catch_up", forkId: session.fork_id }
@@ -186,6 +216,22 @@ function SkillSession({
         session={session}
         readOnly={readOnly}
         closeHref={ROUTES.SKILL_DETAIL(skillId)}
+        attempts={
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium">{tImprovement("attemptsTitle")}</h2>
+            <ul className="divide-y rounded-xl border">
+              {session.iterations.map((round) => (
+                <li key={round.id} className="p-4 text-sm">
+                  {tImprovement("triedAttempt", {
+                    number: round.number,
+                    verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                    dropped: round.dropped.length,
+                  })}
+                </li>
+              ))}
+            </ul>
+          </section>
+        }
         wordingOpen={wordingOpen}
         nextStepDetail={(quote) => (
           <>
@@ -213,9 +259,11 @@ function SkillSession({
         }
         panel={({ step, views, goTo, followCurrent }) => (
           <>
-            <p className="text-muted-foreground text-sm">
-              {t("line", { line: session.line_name })}
-            </p>
+            {step !== "result" && (
+              <p className="text-muted-foreground text-xs">
+                {t("line", { line: session.line_name })}
+              </p>
+            )}
             {step === "understand" &&
               (views.understand.content === "working" ? (
                 <WorkingNote>{t("understandWorking")}</WorkingNote>
@@ -263,16 +311,48 @@ function SkillSession({
               ))
             )}
             {step === "check" && (
-              <section className="space-y-4 rounded-xl border p-6">
+              <section className="space-y-4">
                 <h2 className="font-medium">{t("checkTitle")}</h2>
                 {measured}
                 <MainAloneResult session={session} />
               </section>
             )}
             {step === "result" && (
-              <section className="space-y-4 rounded-xl border p-6">
-                <h2 className="font-medium">{t("resultTitle")}</h2>
-                {measured}
+              <section className="space-y-4">
+                <Card className="space-y-2 p-4 sm:p-5">
+                  <h2 className="text-lg font-medium">{t("workspace.title")}</h2>
+                  <p className="text-muted-foreground text-sm">{t("workspace.hint")}</p>
+                  <p className="text-sm font-medium">
+                    {tImprovement(
+                      `status.${session.status === "accepted" ? "skillAccepted" : session.status}`,
+                      { outcome: session.outcome ?? "other" },
+                    )}
+                  </p>
+                </Card>
+                <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                  <section className="min-w-0 space-y-4">
+                    <h2 className="text-base font-medium">{t("workspace.agents")}</h2>
+                    {measured}
+                  </section>
+                  {(check || chosen?.batch_id) && (
+                    <ListCard title={t("workspace.skillText")}>
+                      {chosen?.batch_id ? (
+                        <AcceptedChanges session={session} round={chosen} report />
+                      ) : (
+                        check && (
+                          <div className="max-h-96 space-y-3 overflow-y-auto text-sm leading-relaxed wrap-anywhere">
+                            <p className="text-muted-foreground">{check.candidate.description}</p>
+                            {/* Source, not rendered: a rendered view hides reference
+                                definitions and shows a link's label without its address. */}
+                            <pre className="bg-muted/40 rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap">
+                              {check.candidate.content}
+                            </pre>
+                          </div>
+                        )
+                      )}
+                    </ListCard>
+                  )}
+                </div>
                 <MainAloneResult session={session} />
                 {session.stale &&
                   readOnly === null &&
@@ -281,7 +361,7 @@ function SkillSession({
                   ) : (
                     <CheckAgain session={session} onStarted={followCurrent} />
                   ))}
-                {isReachable(views.accept) ? (
+                {readOnly === null && isReachable(views.accept) ? (
                   <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
                 ) : (
                   readOnly === null && (

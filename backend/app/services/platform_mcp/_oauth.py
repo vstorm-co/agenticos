@@ -30,6 +30,7 @@ from pydantic import AnyUrl
 
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE
 from app.db.session import get_db_context
 from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
@@ -236,7 +237,12 @@ class PlatformOAuthProvider(OAuthProvider):
             # token presented by its own client - or the key's prefix for a key a
             # person pasted, which no client may revoke through OAuth.
             client_id=grant.client_id if grant is not None else caller.prefix,
-            scopes=sorted(scope.value for scope in caller.context.key_scopes or ()),
+            scopes=sorted(
+                [
+                    *(scope.value for scope in caller.context.key_scopes or ()),
+                    *([DEPLOYMENT_ADMIN_SCOPE] if caller.deployment_admin_granted else []),
+                ]
+            ),
             expires_at=_epoch(expires_at) if expires_at else None,
             subject=str(caller.user.id),
             grant_id=row.oauth_grant_id if row is not None else None,

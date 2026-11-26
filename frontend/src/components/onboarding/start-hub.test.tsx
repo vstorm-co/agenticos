@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Onboarding } from "@/lib/onboarding-api";
 import { StartHub } from "./start-hub";
+vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
+vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
+
 const env = vi.hoisted(() => ({
   appAdmin: false,
   orgAdmin: false,

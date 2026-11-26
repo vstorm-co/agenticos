@@ -1,8 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BrandingProvider } from "@/components/branding/branding-provider";
+import { BUILT_IN_BRANDING } from "@/lib/branding";
 import { DeploymentSettingsForm } from "@/components/admin/deployment-settings-form";
 import type { DeploymentSettings, DeploymentSettingsPatch } from "@/hooks/use-deployment-settings";
 import DeploymentSettingsPage from "./page";
@@ -38,7 +41,15 @@ vi.mock("@/lib/api-client", () => ({
 function queryWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>
+        <BrandingProvider
+          branding={{ ...BUILT_IN_BRANDING, signInProviders: settings?.sign_in_providers ?? [] }}
+        >
+          {children}
+        </BrandingProvider>
+      </QueryClientProvider>
+    );
   };
 }
 
@@ -98,6 +109,7 @@ const SAVED: DeploymentSettings = {
 };
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/settings");
   settings = null;
   error = null;
   loading = true;
@@ -135,22 +147,22 @@ describe("deployment settings loading", () => {
     expect(save).toHaveBeenCalledWith({ app_name: "Updated" }, expect.any(Object));
   });
 
-  it("keeps drafts across sections and discards them without saving", () => {
+  it("keeps drafts across sections and discards them without saving", async () => {
     settings = SAVED;
     loading = false;
     render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
-    expect(screen.getByRole("button", { name: /^Identity$/ })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(screen.getByRole("tab", { name: /^Identity$/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New name" } });
-    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Access & accounts" }));
     expect(screen.queryByLabelText("Name")).not.toBeVisible();
-    expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(screen.getByRole("tab", { name: "Access & accounts" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Identity$/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Identity$/ }));
     expect(screen.getByLabelText("Name")).toHaveValue("New name");
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(screen.getByLabelText("Name")).toHaveValue("Acme");
@@ -158,19 +170,19 @@ describe("deployment settings loading", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("saves edited fields from different sections in a single patch", () => {
+  it("saves edited fields from different sections in a single patch", async () => {
     settings = SAVED;
     loading = false;
     render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Across sections" } });
-    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Access & accounts" }));
     fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
     expect(save).toHaveBeenCalledWith(
       { app_name: "Across sections", personal_organizations: false },
       expect.any(Object),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Maintenance$/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Updates & diagnostics$/ }));
     expect(screen.getByText(/^Installed:/)).toBeVisible();
   });
 
@@ -183,14 +195,14 @@ describe("deployment settings loading", () => {
   });
 });
 
-it("guides setup from access settings and advances only when edited settings have saved", () => {
+it("guides setup from access settings and advances only when edited settings have saved", async () => {
   settings = SAVED;
   loading = false;
   const next = vi.fn();
   render(<DeploymentSettingsForm onContinue={next} />, { wrapper: queryWrapper() });
-  expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
-    "aria-current",
-    "page",
+  expect(screen.getByRole("tab", { name: "Access & accounts" })).toHaveAttribute(
+    "aria-selected",
+    "true",
   );
   fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
   fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
@@ -200,4 +212,34 @@ it("guides setup from access settings and advances only when edited settings hav
   if (!firstSave) throw new Error("Expected deployment settings to be saved");
   act(() => firstSave[1].onSuccess());
   expect(next).toHaveBeenCalledOnce();
+});
+
+describe("local sign-in policy", () => {
+  it("saves the policy without resending other deployment settings", async () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: true, sign_in_providers: ["oidc"] };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    await userEvent.click(screen.getByRole("switch", { name: "Allow local sign-in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith({ password_sign_in_enabled: false }, expect.any(Object));
+  });
+
+  it("keeps the last visible sign-in method enabled", () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: true, sign_in_providers: [] };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).toBeDisabled();
+  });
+
+  it("shows the operator override without changing the saved switch", () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: false, password_sign_in_forced: true };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    expect(screen.getByText(/operator recovery override currently enables/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).toBeEnabled();
+  });
 });

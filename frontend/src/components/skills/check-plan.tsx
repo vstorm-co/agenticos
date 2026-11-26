@@ -2,20 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
-import type { SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
-
-const REASONS: readonly UnknownReason[] = [
-  "no_questions",
-  "no_access",
-  "no_budget",
-  "no_published_version",
-  "inconclusive",
-  "failed",
-  "unscorable",
-  "all_evidence",
-  "cancelled",
-  "own_not_asked",
-];
+import { knownReason } from "@/lib/skill-check-reasons";
+import type { SkillCheckAgent } from "@/types/skill-checks";
 
 /**
  * Before a check starts: one row per agent of the line and what it would be asked,
@@ -36,7 +24,7 @@ export function CheckPlan({ agents, hidden }: { agents: SkillCheckAgent[]; hidde
               <p className="font-medium">{row.agent.name}</p>
               <p className="text-muted-foreground text-xs">
                 {row.unknown_reason !== null
-                  ? REASONS.includes(row.unknown_reason)
+                  ? knownReason(row.unknown_reason)
                     ? t(`reason.${row.unknown_reason}`)
                     : t("reason.other")
                   : row.sample === "skill_set_only"
@@ -75,8 +63,10 @@ export function CheckProgress({ agents }: { agents: SkillCheckAgent[] }) {
         className="bg-muted h-1.5 overflow-hidden rounded-full"
       >
         <div
-          className="bg-primary h-full animate-pulse transition-[width] duration-500 motion-reduce:animate-none"
-          style={{ width: `${Math.max(4, (done / agents.length) * 100)}%` }}
+          className="bg-primary h-full w-full origin-left animate-pulse transition-transform duration-500 motion-reduce:animate-none"
+          style={{
+            transform: `scaleX(${agents.length > 0 ? Math.max(0.04, done / agents.length) : 0})`,
+          }}
         />
       </div>
     </div>

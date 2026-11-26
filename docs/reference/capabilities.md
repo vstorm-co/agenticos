@@ -18,12 +18,9 @@ tools listed.
     renders its picker and its configuration forms from that response. If the two
     disagree, the API is right.
 
-The Builder names each capability in the console's language and explains it in
-plain words: what it lets the agent do, two or three example uses, what it needs
-and what it never does. The names below are the English ones. Five capabilities
-that tune how a run is carried - long conversations, image offload, instruction
-reminders, tool output limits and tool search - are folded under **Advanced**
-until somebody opens it, searches, or switches one on.
+The Builder explains capabilities in the console’s language and groups them by task: everyday work, knowledge and memory, web research, outputs, delegation, automation and channels. Enabled capabilities appear first within each group, followed by recommended ones. Advanced run tuning is folded last and opens when searched. These UI groups do not change the registry categories or stored capability IDs.
+
+**Delegate to agents** contains subagents, **Claude Code & Codex** (`coding_agent`) and **Other installed agents** (`external_acp`). These delegate tasks to another harness; choosing a subscription model instead keeps the Pydantic AI runtime and AgenticOS tools. Coding Agent remains enabled in the default AgenticOS template.
 
 In a capability's settings, limits, cache lifetimes, prompts and other tuning sit
 folded under **Advanced settings**, which opens by itself wherever one of them was
@@ -121,6 +118,7 @@ across the sandbox boundary.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — | as-is |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adapted |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
+| `projects` | Projects | knowledge | `search_projects`, `select_project_context`, `list_project_files`, `read_project_file`, `write_project_file` | `projects:read`, `projects:write` | — | as-is |
 | `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | as-is |
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
@@ -129,7 +127,7 @@ across the sandbox boundary.
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | for Daytona | handed off |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | for Daytona | handed off |
 | `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
@@ -209,15 +207,27 @@ and records:
 
 | id | Tools that write |
 |---|---|
-| `artifacts` | `publish_artifact` |
+| `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
+| `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `drafts` | `write_draft` |
+| `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
+| `follow_ups` | `suggest_next_steps`, `propose_setup` |
 | `image_generation` | `generate_image` |
-| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
-| `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
+| `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
+| `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
+| `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
+| `projects` | `write_project_file`, `transfer_project_file` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `text_to_speech` | `generate_speech` |
+| `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
+| `workflows` | `run_workflow` |
 
 Every other tool above only reads. Delegation counts as reading: a delegate's
 own tools are held to their own declarations. `side_effecting` and `read_only`
@@ -672,7 +682,9 @@ scope.
 
 ## Read web pages { #web-fetch }
 
-`web_fetch` — *Read the full page at a URL, as Markdown.*
+`web_fetch` — *Read the content of a URL as Markdown.*
+
+Local fetch accepts a character `offset` and `limit` for long pages. Start at zero and continue at `next_offset`. When the scan reaches its ceiling before the source ends, the result sets `reached_limit`.
 
 | Config | Default | Values |
 |---|---|---|
@@ -1154,9 +1166,27 @@ memory are the only limits worth setting.
     An author raising a limit for one data-heavy agent should not need an
     operator or a redeploy — and the ceilings are capped rather than open-ended.
 
+## Projects
+
+`search_projects`, `select_project_context`, `list_project_files`, `read_project_file`,
+`write_project_file` work with projects the current member may use. The capability
+declares `projects:read` and `projects:write`; the run rechecks the write scope. Only
+`write_project_file` changes content. It does not grant shell execution.
+
+Selection opens no runtime, lasts one run and reports the separate command target.
+Linked private channel senders can use it; an unverified room audience cannot.
+Project text tools are bounded to 100 directory entries and 256 KB UTF-8 files;
+reserved paths, escaping symlinks and concurrent changes after a read are refused.
+See [Projects](../projects.md) for executor choices and file origins.
+
 ## Sandbox { #files-shell }
 
-`select_project_workspace` selects an accessible project for file and shell tools until the run ends. Omit its project id to restore the original workspace. Approval continuations retain the selection; the next turn starts in the original workspace. The conversation stays in its own thread. Access is checked on every operation, and routines remain limited to their reviewed project source. Isolated evaluations cannot switch into persistent projects.
+`select_project_workspace` is the legacy file-context selector; it does not change
+the command executor. `select_execution_target` explicitly chooses `agent` or
+`project` without copying or mounting files. A project must have a command-capable
+backend and existing Sandbox shell tools must be enabled. Approvals, current access,
+routine source ceilings and isolation rules still apply. Approval continuations
+retain the selection; a later ordinary chat turn starts without it.
 
 `ls`, `read_file`, `glob`, `grep` — *reading.*
 `write_file`, `edit_file`, `execute` — *writing and running.*
@@ -1491,8 +1521,13 @@ Reads a text aloud through a speech provider the author picks, and behaves as
 image generation does: the clip is stored, shown in the conversation as a player,
 and written under `output/` when a workspace is open (#2259).
 
+Organization defaults are optional. In **Organization → AI & services → Text to speech**, an administrator saves the provider, model, voice and organization-visible vault key as one group. An agent inherits that group only after its author enables **Use organization defaults**; existing agents keep their explicit settings. A waiting run keeps its resolved group when the default changes, but disabling organization TTS or revoking the key still refuses speech. An agent override uses its own provider and key together.
+
+The HTTP catalog includes Eleven v4 through its text-to-dialogue endpoint, with chunks of at most 2,000 characters, plus Eleven v3 and Flash v2. WebSocket-only conversational models belong to a different transport and are not offered for clip generation.
+
 | Config | Default | Values |
 |---|---|---|
+| `use_organization_defaults` | `false` | Inherit the organization's provider, model, voice and key together; otherwise use this binding |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
 | `voice` | the model's first | The default the agent speaks in; it may switch per clip within `voices`. A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
@@ -1634,7 +1669,13 @@ than steered: a second attempt would be billed again.
 
 **Personal cloud accounts.** In **Settings → Profile → Coding accounts**, connect an Anthropic API key/Claude setup token, OpenAI API key or a fresh ChatGPT sign-in, then explicitly enable it for this organization. Choose **Private cloud task with my account** in Coding agent. Only authenticated tasks you initiate in web/API chat can use it; schedules, channels, API keys and impersonation cannot. Another member cannot borrow your account.
 
-A separate run-scoped container receives a bounded source copy (500 files, 1 MiB per file, 16 MiB total; no symlinks or platform/cache folders). The final report identifies the account and snapshot, with a diff and ZIP in chat. Source files are not automatically changed. Account revocation cancels work; disconnect also requires revoking the external ChatGPT grant in ChatGPT Settings if desired. Existing tool-level organization credentials and approved desktop/local CLI sign-ins remain separate. Upgrade API/workers together after `0290_personal_coding_accounts.py`.
+Each named personal session retains a private user-scoped container, initialized once from a bounded source copy (500 files, 1 MiB per file, 16 MiB total; no symlinks or platform/cache folders). The final report identifies the account and snapshot, with a diff and ZIP in chat. Source files are not automatically changed. Account revocation cancels work; disconnect also requires revoking the external ChatGPT grant in ChatGPT Settings if desired. Existing tool-level organization credentials and approved desktop/local CLI sign-ins remain separate. Upgrade API/workers together after `0290_personal_coding_accounts.py`.
+
+Personal cloud tasks may choose `harness=claude_code` or `harness=codex` on each `run_coding_agent` call; omitting it uses **Default coding agent**. Both can work concurrently through the same agent in separate session containers and accounts. The configured model applies to the default harness; choosing the other harness uses its own default. Each account keeps its exclusive credential lease, so tasks on the same account wait in a bounded queue.
+
+A missing or disabled account is not replaced by an organization key or another person’s account. Codex is refused for read-only container tasks. The organization-sandbox mode remains pinned to its configured harness and credential.
+
+Personal cloud names retain separate native CLI histories and files within the same conversation and account generation. A new name copies the current source; reusing it continues its existing files. `fresh_session` resets CLI history while preserving files. Idle sandbox expiry can end a session. A failed task whose cleanup cannot be trusted is discarded; start a new name explicitly after unavailable state. Account consent changes, disconnect, membership removal and agent/conversation/user/organization deletion queue remote cleanup. Apply `0342_personal_coding_sessions.py` and update API/workers together.
 
 Personal cloud mode accepts only private source workspaces. It refuses projects, agent/channel workspaces, group chats and conversations shared for editing before loading a personal credential or copying files. A private destination container does not make collaborator-controlled source code trusted. Use the organization-configured coding mode for shared project work. Output redaction is not a credential boundary for executable source code.
 
@@ -1670,7 +1711,7 @@ refuses the combination. Whether a person says yes before each task is the
 capability's **Human approval**, set to **Always ask**. The Builder starts newly added bindings in this mode;
 existing bindings retain their policy. There is no Tools tab: the one tool is the capability.
 
-**Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. In a sandbox or a private cloud task the binding's harness is the only one, since its key or account belongs to it.
+**Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. An organization-sandbox task remains pinned to its configured harness. Personal cloud sessions may choose either harness through that person’s own account.
 
 **On this computer.** Set `runs_on` to `this_computer` to use the person's installed harness over the [Agent Client Protocol](https://agentclientprotocol.com). The desktop app launches a pinned adapter through `npx`; the server speaks ACP. Choose a full-access folder in **Work on** and confirm each start natively. The folder is a working directory, not an operating-system sandbox. The harness uses its own sign-in, so a vault key is optional. Permission requests follow `access`; approval applies once per task. Claude read-only disables bypass and writing tools; local Codex selects its native read-only mode.
 
@@ -1709,6 +1750,11 @@ conversation's work. You need current edit access, and no run may be writing the
 workspace. Every affected file must match the task's final content and executable
 mode; a conflict refuses the whole revert and lists the files. Unrelated files
 and your Git index and history stay unchanged.
+
+Undo is unavailable if either snapshot encounters an uncaptured oversized file,
+an unreadable path or an unsupported file type, even if that path appears unchanged.
+The captured diff stays readable. Platform and toolchain folders remain outside
+snapshot coverage by design.
 
 The action queues a durable job and reserves the workspace. The panel shows
 progress and any definite refusal. An unknown result keeps the reservation;
@@ -2586,11 +2632,16 @@ tokens into output tokens, which are billed at a premium and generated serially,
 so an agent whose runs are dominated by large tool results is usually better on
 `tiered`.
 
-**It reaches one run, not one conversation.** Between turns the history is rebuilt
-from the transcript as user and assistant text, so tool calls and their results
-are not there to compact and no edit made here survives a turn boundary. The
-history worth compacting is the long tool loop inside a single run, where one
-directory listing or knowledge search is tens of thousands of tokens.
+**History survives turn boundaries.** Each completed turn checkpoints its model
+messages, including tool calls, results and local or native tool-search discovery.
+Compaction works on that same history; its summaries survive into the next turn.
+
+The checkpoint keeps at most 200 model messages and 2 MiB of serialized history.
+Older messages are evicted without separating calls from their results, and an
+omission notice tells the model to rediscover missing tools or reread evidence.
+Discovery expires when its evidence is evicted. Current tool definitions,
+availability, permissions and execution approvals still apply on every run.
+Parked approvals use their separate resume state; a checkpoint does not replay actions.
 
 **The trigger is a fraction because an absolute number is only right for one
 model**, and the same agent runs on whatever profile its spec points at. The
@@ -2656,13 +2707,10 @@ stores and the walkers come from
 |---|---|---|
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; parts at least this large are stored out of line |
 
-**There is one place media actually piles up, and this is it.** An attachment
-reaches the model once, on the turn it was attached: the ordinary history is
-rebuilt from the transcript's *text*, so a picture is not re-sent on later turns.
-A conversation that has been [compacted](#context-management) is the exception —
-the library's own dump of the run's messages is stored whole and replayed exactly
-as the model last saw it, base64 and all, until the next summary replaces it.
-That blob is rows in Postgres and bytes on the wire, every turn in between.
+**Attachments can survive into later turns.** Completed turns retain model
+messages within the history limits, including retained images. Media offload runs
+on ordinary checkpoints as well as compacted histories. Ephemeral desktop
+screenshots are replaced with a notice before storage.
 
 **Where the bytes go, and how long they live.** Into the deployment's own file
 storage, at `media/<organization>/<conversation>/<digest>`. The organization is
@@ -2842,7 +2890,7 @@ Python guard.
 
 | Config | Default | |
 |---|---|---|
-| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs, PEM blocks, passwords in addresses, keys in query strings and form bodies, and Basic or Bearer authorization headers |
 | `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
 | `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
@@ -3213,6 +3261,8 @@ the agent is assembled:
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
+| `projects:read` | `projects` |
+| `projects:write` | `projects` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 | `tables:read` | every [table workflow node](workflow-nodes.md#virtual-tables) |
@@ -3348,3 +3398,47 @@ Explicit bot grants for finding channels, searching messages and delivering requ
 | `send_chat_message` | Requested message or report, new post or existing thread |
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+## External ACP agent { #external-acp }
+
+`external_acp` exposes `run_acp_agent` for delegating complete tasks to an installed
+ACP v1 program on the initiating person's computer. This uses the existing
+Desktop task lifecycle; it does not create an A2A endpoint, a background job or a
+primary conversation runtime.
+
+In **Settings → Desktop app → External ACP agents** (also available under profile
+coding accounts), register a stable ID, display name, absolute executable path
+and JSON array of arguments, such as `["acp"]`. Log in with the program's own
+command first. Do not put credentials in arguments. Native confirmation reviews
+the command. In the Builder, enable **External ACP agent** and enter the same ID.
+The published spec stores the ID, a 1–60 minute timeout (default 15), optional authentication/model choices, an optional Pi provider/key reference and the forwarding flag. Executables, command arguments and raw credentials stay outside the spec.
+
+Start chat work on this computer with an approved full-access folder. Launch needs
+native consent for this connection, folder and registration. The program runs as
+your local account without an OS sandbox and owns its tools, model and login;
+read-only confinement is not promised. Human approval can require a separate
+confirmation before each delegated task. Platform tools are off by default. Enable the [run-scoped bridge](../desktop.md#runtime-platform-tools) explicitly.
+
+Tasks stream their steps and answer through the existing delegation panel. Named
+sessions resume only if the program advertises `loadSession`; otherwise start a
+fresh session explicitly. Stop, timeout and folder revocation terminate the
+process. Removing or re-registering the ID stops its running tasks and discards
+saved permissions and session IDs. Register again after changing the program's
+account. Switching the Desktop connection clears registrations as well.
+
+The integration records usage as unpriced; subscription eligibility, quota and
+API charges depend on the program's account. Missing programs, required login,
+unsupported protocol versions and unsupported resume fail explicitly. This
+registration does not certify a vendor's subscription entitlement.
+
+`inspect_acp_agent` reads account/session model and thinking choices without an inference prompt. `auth_method` defaults to `configured`; `oauth-personal` explicitly requests Antigravity Google personal login. A Desktop Antigravity registration enforces that mode. Optional `model_id` selects an exact advertised runtime ID. See [Antigravity setup](../desktop.md#antigravity-acp) for billing boundaries and pending account verification.
+
+OpenCode registrations refresh delayed session catalog updates. The separate Go template filters discovery and restricts the primary model to `opencode-go/`; auxiliary models and Extra Usage remain CLI/account settings. See [OpenCode and Go setup](../desktop.md#opencode-acp).
+
+The Cursor template uses CLI account login with `cursor_login`, removes inherited API credential overrides and cancels unanswered human requests. API-key registration remains pending isolation verification. See [Cursor setup](../desktop.md#cursor-acp).
+
+Cline has separate account and inherited-API-key templates, both locked to the Cline provider and foreground `--acp`. See [Cline setup](../desktop.md#cline-acp) for credential, credit and acceptance boundaries.
+
+Mistral Vibe uses its own browser/key setup, with sanitized credential-source status in discovery and task reports. See [Vibe setup](../desktop.md#mistral-vibe-acp) for billing and account verification.
+
+Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.

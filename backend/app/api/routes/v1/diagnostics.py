@@ -2,15 +2,20 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.deps import CurrentAppAdmin, CurrentUser, DiagnosticsSvc
+from app.api.deps import CurrentAppAdmin, CurrentUser, DiagnosticsSvc, require_deployment_mcp_scope
+from app.api.public_api import ASSISTANT
 from app.schemas.diagnostics import DiagnosticsStatusRead, PresenceCreate, PresenceRead
 
 router = APIRouter()
 
 
-@router.get("/admin/diagnostics", response_model=DiagnosticsStatusRead)
+@router.get(
+    "/admin/diagnostics",
+    response_model=DiagnosticsStatusRead,
+    dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)],
+)
 async def diagnostics_status(service: DiagnosticsSvc, _user: CurrentAppAdmin) -> Any:
     """Read operational status. Configuration changes belong exclusively in .env."""
     return await service.status()

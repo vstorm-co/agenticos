@@ -127,3 +127,34 @@ describe("the chat account link page", () => {
     expect(await screen.findByText("This chat account is now yours.")).toBeVisible();
   });
 });
+
+it("shows the asserting Matrix homeserver before account consent", async () => {
+  api.readChannelLink.mockResolvedValue({
+    platform: "matrix",
+    server_url: "https://homeserver.example.org/tenant",
+    platform_username: "@ada:example.org",
+    platform_display_name: "Ada",
+    expires_at: "2026-11-20T20:00:00Z",
+  });
+  api.confirmChannelLink.mockResolvedValue({
+    platform: "matrix",
+    server_url: "https://homeserver.example.org/tenant",
+    platform_username: "@ada:example.org",
+    platform_display_name: "Ada",
+    expires_at: "2026-11-20T20:00:00Z",
+  });
+  const params = Promise.resolve({ token: "matrix-link" });
+  await act(async () => {
+    render(
+      <Suspense>
+        <ChannelLinkPage params={params} />
+      </Suspense>,
+    );
+  });
+  expect(await screen.findByText("https://homeserver.example.org/tenant")).toBeVisible();
+  expect(screen.getByText("Matrix")).toBeVisible();
+  expect(screen.getByText("@ada:example.org")).toBeVisible();
+  expect(api.confirmChannelLink).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Connect this account" }));
+  expect(api.confirmChannelLink).toHaveBeenCalledWith("matrix-link");
+});

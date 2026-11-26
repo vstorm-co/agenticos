@@ -118,6 +118,14 @@ overlapping runs, and the recording wrapper keeps other tools outside the coding
 task's whole snapshot interval. Project-, agent-, channel- and user-scoped
 snapshots remain readable without undo: a diff can include another chat's work.
 
+Both snapshots must cover every regular file in their scope. An oversized file
+not already in the private index, an unreadable path or an unsupported file type
+makes undo unavailable, even when that path appears unchanged. The exclusion
+marker survives from the first snapshot to the second, so deleting or shrinking
+an excluded file cannot turn a partial capture into an undoable task. Failed
+traversal cannot supply a partial discovery list. The captured diff remains
+readable; platform and toolchain folders are deliberately outside this scope.
+
 The request requires current conversation edit access and queues its job and
 workspace reservation in one transaction. New runs and other reverts cannot
 enter the reserved workspace. The worker rechecks current membership and access,
@@ -209,3 +217,31 @@ loading the initiating person's credentials: projects, agent/channel scopes,
 group chats and conversations shared for editing. Copying files into a disposable
 private container isolates output writes; it does not make executable source
 trusted. Shared project work uses the organization-configured coding mode.
+
+## Both personal harnesses in one agent
+
+In `personal_sandbox`, `harness` on `run_coding_agent` selects Claude Code or
+Codex per task. The configured harness is only the default. The executor resolves
+that harness's enabled account for the initiating person and opens the private container for that conversation, account generation and session name. Different accounts can work concurrently; an account's existing lease
+queues tasks until the running credential writer releases it (bounded wait, no strict FIFO guarantee). A model or effort configured for
+the default harness does not cross to the other vendor.
+
+The read-only access policy is preserved: choosing Codex cannot enable editing
+inside a read-only cloud binding. Missing personal authority or credentials never
+falls back to the tool's organization credential. Organization-sandbox mode stays
+pinned to its configured harness. Desktop mode keeps its existing per-session
+selection and local sign-ins.
+
+
+Named personal sessions retain native history and files, unlike separate source copies
+for every task. A new name copies the current source; `fresh_session` resets CLI
+history and preserves files. Account changes and agent/conversation/member/user/org
+deletion queue remote teardown before cascading metadata. Failed tasks are
+discarded when safe retention cannot be established. Personal cloud invocations opt into a Python supervisor that enforces a
+container-side deadline even if the worker disappears; Python is already needed
+for their bounded source copy. Organization sandbox tasks keep the existing
+shell-only launcher and caller-side deadline. Codex auth
+read-back must succeed before retaining a personal container; its per-task auth
+home is removed while native session history stays. See
+`0342_personal_coding_sessions.py` and the integration tests for ownership,
+continuation, revocation and rollback contracts.

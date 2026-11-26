@@ -19,20 +19,21 @@ import { useAuthStore } from "@/stores";
  * while the save is in flight. A save that fails says so; the page stays in the
  * language picked, held by the cookie as it was before accounts kept one.
  */
-export function useChooseLocale(): (next: Locale) => void {
+export function useChooseLocale(): (next: Locale, options?: { navigate?: boolean }) => void {
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const pathname = usePathname();
   const signedIn = useAuthStore((state) => state.user !== null);
 
   return useCallback(
-    (next: Locale) => {
+    (next: Locale, options?: { navigate?: boolean }) => {
       if (signedIn) {
         adoptAccountLocale(next);
         saveAccountLocale(next).catch((error: unknown) =>
           toast.error(getErrorMessage(error, tErrors)),
         );
       }
+      if (options?.navigate === false) return;
       const search = window.location.search;
       router.push(`${pathname}${search}${window.location.hash}`, { locale: next });
     },

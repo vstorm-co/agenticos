@@ -61,10 +61,39 @@ function mount(actionRequests: ActionRequest[]) {
  * answers there actually are, and the arguments are read.
  */
 describe("the tool approval dialog", () => {
+  it("offers only resume when all choices were saved", async () => {
+    const onDecisions = vi.fn();
+    render(
+      <ToolApprovalDialog
+        actionRequests={[]}
+        savedDecisions={[{ request: action("a-1"), approved: true }]}
+        reviewConfigs={[]}
+        onDecisions={onDecisions}
+      />,
+    );
+    expect(screen.getByText(/Already approved:/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approve|reject/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry resume" }));
+    expect(onDecisions).toHaveBeenCalledWith([]);
+  });
+
+  it("rejects a batch with feedback only on the call the reviewer annotated", async () => {
+    const onDecisions = mount([action("a-1"), action("a-2")]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject with feedback" }));
+    expect(screen.getByRole("button", { name: "Reject all and send feedback" })).toBeDisabled();
+    await userEvent.type(screen.getByRole("textbox", { name: /^Call 2:/ }), "  Remove pricing  ");
+    await userEvent.click(screen.getByRole("button", { name: "Reject all and send feedback" }));
+
+    expect(onDecisions).toHaveBeenCalledWith([
+      { type: "reject" },
+      { type: "reject", note: "Remove pricing" },
+    ]);
+  });
   it("says what is waiting, and names each call", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     // The catalog's words - the same ones the step above it uses - as a question.
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
@@ -241,6 +270,7 @@ describe("the tool approval dialog", () => {
     mount([action("a-1")]);
 
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject with feedback" })).toBeNull();
     expect(screen.getByText(/needs a permission you do not hold/)).toBeVisible();
   });
 
@@ -250,7 +280,7 @@ describe("the tool approval dialog", () => {
 
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
@@ -413,4 +443,93 @@ it("offers only Reject on a call this person may not approve unread", async () =
   ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
+});
+
+it("shows the price a paid platform call was quoted at", () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_start_eval_run",
+      args: { quoted_usd: "0.40" },
+      context: { platform_tool: "true" },
+      always_asks: true,
+    }),
+  ]);
+  expect(screen.getByText("Quoted estimate: $0.40")).toBeInTheDocument();
+});
+
+it("lets the run's person approve their own platform call without approvals:decide", async () => {
+  held.permissions = [];
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_accept_improvement",
+      args: { publish: true },
+      always_asks: true,
+      may_decide: true,
+      may_approve: true,
+    }),
+  ]);
+
+  expect(screen.queryByText(/needs a permission you do not hold/)).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }]);
+});
+
+it("offers only Reject on a platform call that runs as somebody else", async () => {
+  const onDecisions = mount([
+    action("a-1", {
+      tool_name: "agenticos_publish_agent",
+      args: {},
+      always_asks: true,
+      may_decide: true,
+      may_approve: false,
+    }),
+  ]);
+
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText("Only the person this run acts for can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
+});
+
+it("keeps the permission sentence for a call the person may not decide", () => {
+  held.permissions = [];
+  mount([action("a-1", { may_decide: false, may_approve: false })]);
+
+  expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  expect(screen.getByText(/needs a permission you do not hold/)).toBeInTheDocument();
+});
+
+it("lets the run's person answer their own call of a mixed batch and leaves the rest", async () => {
+  held.permissions = [];
+  const own = action("a-1", {
+    tool_name: "agenticos_accept_improvement",
+    args: { publish: true },
+    always_asks: true,
+    may_decide: true,
+    may_approve: true,
+  });
+  const onDecisions = mount([own, action("a-2", { may_decide: false, may_approve: false })]);
+
+  expect(screen.getByText(/The others wait for somebody who can decide/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }], [own]);
+});
+
+it("explains the application administration requirement for deployment changes", () => {
+  mount([
+    action("deployment", {
+      tool_name: "agenticos_change_deployment",
+      always_asks: true,
+      may_decide: true,
+      may_approve: false,
+    }),
+  ]);
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText(
+      "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    ),
+  ).toBeInTheDocument();
 });

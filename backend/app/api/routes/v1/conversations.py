@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import (
     ActiveOrg,
     Auth,
+    ChatCostVisibilitySvc,
     CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
@@ -21,7 +22,7 @@ from app.api.deps import (
     limit_fork,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
@@ -34,10 +35,12 @@ from app.schemas.conversation import (
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
+    ConversationSearchList,
     ConversationUpdate,
     MessageCreate,
     MessageList,
     MessageRead,
+    WaitingChatQuestionList,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
@@ -53,13 +56,54 @@ from app.schemas.message_rating import (
 )
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
+    ConversationWorkspaceOrigins,
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get(
+    "/search",
+    response_model=ConversationSearchList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def search_conversation_messages(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(min_length=1, max_length=500),
+    limit: int = Query(default=40, ge=1, le=50),
+) -> Any:
+    """Search readable message text, including archives, with highlighted snippets.
+
+    Matches use the existing indexed full-text search and the same access rules
+    as reading a transcript. Snippets contain plain text with matched words
+    wrapped in `**`, never trusted HTML. Only the best `limit` threads return.
+    """
+    return {
+        "items": await conversation_search.search(
+            query=query, organization_id=active_org.id, user_id=current_user.id, limit=limit
+        )
+    }
+
+
+@router.get("/waiting-questions", response_model=WaitingChatQuestionList, openapi_extra=INTERNAL)
+async def list_waiting_questions(
+    service: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+) -> Any:
+    """Find unanswered web-chat questions addressed to the signed-in member.
+
+    Returns only navigation metadata. Open the conversation to read and answer
+    the question; access to the approval queue is unrelated.
+    """
+    return await service.list_waiting_questions(ctx, skip=skip, limit=limit)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])
@@ -155,12 +199,18 @@ async def list_conversations(
         "updated_at", description="Sort column"
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    favourites_first: bool = Query(
+        True, description="Pin favourites before the requested ordering"
+    ),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
     hide_channels: bool = Query(
         True,
         description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
     ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
+    project_scope: Literal["include", "only", "exclude"] = Query(
+        "include", description="Include, isolate or exclude project chats from pagination"
+    ),
 ) -> Any:
     """List conversations for the current user.
 
@@ -189,9 +239,11 @@ async def list_conversations(
         archived_only=archived_only,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        **({"favourites_first": False} if not favourites_first else {}),
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        project_scope=project_scope,
         reader=auth,
         for_model=for_model,
     )
@@ -229,6 +281,7 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     include_messages: bool = Query(True),
 ) -> Any:
     """Get a conversation, optionally including its full transcript.
@@ -256,7 +309,9 @@ async def get_conversation(
         ctx=ctx,
     )
 
-    return conversation if include_messages else ConversationRead.model_validate(conversation)
+    if not include_messages:
+        return ConversationRead.model_validate(conversation)
+    return await costs.conversation(ctx, ConversationReadWithMessages.model_validate(conversation))
 
 
 @router.post(
@@ -280,7 +335,8 @@ async def fork_conversation(
     turn continues from there. The source is unchanged. Attachments, cost and
     run records are not copied.
 
-    Only the conversation's owner may fork it; anybody else gets 404. `400`
+    Only the conversation's owner, or the creator of a shared routine history,
+    may fork it; anybody else gets 404. `400`
     when a run in the copied history is still running or parked on an
     approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
     calls or 20 MiB. Conversations with a saved checklist require their latest
@@ -408,17 +464,22 @@ async def delete_conversation(
     ctx: Auth,
 ) -> None:
     """Delete a conversation and all its messages."""
+    await conversation_service.lock_for_deletion(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+    # Read workspace refs before the conversation delete flushes their cascade.
+    # The purge queues remote destruction after commit, so a later refusal or
+    # rollback cannot delete the files of a restored conversation.
+    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
     await conversation_service.delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
     )
-    # The rows would cascade away with the conversation, but a container-backed
-    # workspace lives outside this database and would sit on the host until its
-    # TTL swept it - holding files whose conversation the user just deleted. Only
-    # this platform knows the conversation is gone.
-    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
 
 
 @router.post(
@@ -516,6 +577,7 @@ async def list_messages(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
@@ -546,7 +608,12 @@ async def list_messages(
         user_id=current_user.id,
         ctx=ctx,
     )
-    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+    return await costs.transcript(
+        ctx,
+        MessageList(
+            items=[MessageRead.model_validate(item) for item in items], total=total, cost=cost
+        ),
+    )
 
 
 @router.post(
@@ -560,15 +627,19 @@ async def add_message(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
+    costs: ChatCostVisibilitySvc,
 ) -> Any:
     """Add a message to a conversation in the caller's organization.
 
     Unscoped, this accepted a `role: "assistant"` turn into any conversation
     in the deployment, and it rendered to its owner as the agent's answer.
     """
-    return await conversation_service.add_message(
+    message = await conversation_service.add_message(
         conversation_id, data, organization_id=active_org.id, user_id=current_user.id
     )
+
+    return await costs.message(ctx, MessageRead.model_validate(message))
 
 
 @router.post(
@@ -775,8 +846,20 @@ async def list_workspace_files(
         # workspace is is a fact about now, not about what a turn cost.
         bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
+        unreadable_code=contents.unreadable_code,
         truncated=contents.truncated,
     )
+
+
+@router.get("/{conversation_id}/workspace-origins", response_model=ConversationWorkspaceOrigins)
+async def list_workspace_origins(conversation_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) -> Any:
+    """List actual project and agent file origins without starting any runtime.
+
+    Each origin is read through its own existing resource endpoint: project_id
+    selects project files, workspace_id selects agent files. Identical paths in
+    separate origins never fall back to one another. Access is rechecked on reads.
+    """
+    return await workspaces.origins(ctx, conversation_id=conversation_id)
 
 
 @router.get("/{conversation_id}/workspace/file", response_model=WorkspaceFileContent)

@@ -36,6 +36,9 @@ worker:
 frontend:
   replicas: 1
   runAsUser: 1001
+  # Nonsecret console settings, for example OAUTH_PROVIDERS: oidc.
+  # Backend credentials belong in existingSecret, never here.
+  extraEnv: {}
   resources:
     requests: {cpu: 100m, memory: 256Mi}
     limits: {cpu: "1", memory: 1Gi}

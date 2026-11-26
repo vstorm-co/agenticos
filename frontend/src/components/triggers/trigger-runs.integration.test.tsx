@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerRow } from "./trigger-row";
 import { TriggerRunsView } from "./trigger-runs-view";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger, TriggerAttempt, TriggerAttemptList } from "@/types/triggers";
@@ -145,6 +146,50 @@ const OPEN = { name: "See what this trigger has done" };
 describe("TriggerRow run list", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps a constrained chat card readable with its independent management controls", async () => {
+    serveRuns([]);
+    const previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: "creator",
+        email: "creator@example.com",
+        is_active: true,
+        created_at: "2026-11-16T00:00:00Z",
+      },
+    });
+    const prompt = "Prepare an actionable weekly report covering all the open work and deadlines.";
+    const view = render(
+      <div style={{ width: 320 }}>
+        <TriggerRow
+          trigger={trigger({
+            name: "Weekly planning and priorities",
+            prompt,
+            created_by_user_id: "creator",
+            runs_as_creator: true,
+          })}
+          showAgent
+        />
+      </div>,
+      { wrapper },
+    );
+    const summary = screen.getByRole("button", OPEN);
+    const article = summary.closest("article");
+    expect(article).toHaveClass("@container/routine");
+    expect(summary).toHaveClass("basis-full", "@min-[48rem]/routine:basis-0");
+    expect(within(summary).getByText("Weekly planning and priorities")).toBeVisible();
+    expect(within(summary).getByText(prompt)).toBeVisible();
+    for (const name of ["Run now", "Edit", "Pause", "Delete"]) {
+      const action = screen.getByRole("button", { name });
+      expect(action).toBeEnabled();
+      expect(summary).not.toContainElement(action);
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    view.unmount();
+    useAuthStore.setState({ user: previousUser });
+  });
+
   it("shows action labels on hover and keyboard focus", async () => {
     const user = userEvent.setup();
     serveRuns([]);
@@ -195,21 +240,24 @@ describe("TriggerRow run list", () => {
     expect(within(await screen.findByRole("dialog")).getByText(/\$0\.0042/)).toBeVisible();
   });
 
-  it("links each fire to its own run detail", async () => {
+  it("links each fire to its own run detail and execution chat", async () => {
     // The point of listing runs rather than turns: the requests, the tools and
     // the cost per turn are on that page, and there was no way to reach it.
-    serveRuns([run({ id: "r-42" })]);
-    render(<TriggerRow trigger={trigger()} />, { wrapper });
+    serveRuns([run({ id: "r-42", conversation_id: "execution-chat" })]);
+    render(<TriggerRow trigger={trigger({ conversation_id: "execution-chat" })} />, { wrapper });
 
     await userEvent.click(screen.getByRole("button", OPEN));
 
     const link = within(await screen.findByRole("dialog")).getByRole("link", { name: /Open run/ });
     expect(link).toHaveAttribute("href", "/runs?run=r-42");
+    expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute(
+      "href",
+      "/chat?id=execution-chat",
+    );
   });
 
   it("asks only for this trigger's own fires", async () => {
-    // Every fire of one trigger appends to a single run-log conversation, so the
-    // conversation is the trigger's identity in the run history.
+    // Routine identity spans independent execution chats and shared histories.
     serveRuns([run()]);
     render(<TriggerRow trigger={trigger({ conversation_id: "c-9" })} />, { wrapper });
 
@@ -218,7 +266,7 @@ describe("TriggerRow run list", () => {
 
     await waitFor(() =>
       expect(apiClient.get).toHaveBeenCalledWith("/runs", {
-        params: expect.objectContaining({ conversation_id: "c-9" }),
+        params: expect.objectContaining({ trigger_id: "t1" }),
       }),
     );
   });
@@ -334,7 +382,7 @@ describe("before-run attempts", () => {
       { wrapper },
     );
     expect(await screen.findByRole("heading", { name: "Before the agent started" })).toBeVisible();
-    expect(screen.getByText(/Enable Act as creator/)).toBeVisible();
+    expect(screen.getByText(/Turn on Run as me/)).toBeVisible();
     expect(screen.getByText(/did not start an agent run or incur model charges/)).toBeVisible();
     expect(screen.queryByText("Starting…")).toBeNull();
     expect(screen.queryByRole("link", { name: "Open run" })).toBeNull();
@@ -418,7 +466,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
   );
   firing = true;
   view.rerender(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />);
-  expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
+  expect(await screen.findByText(/Turn on Run as me/)).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
 });
 
@@ -433,8 +481,9 @@ it("shows paused setup status without granting non-owners a source-review contro
     />,
     { wrapper },
   );
-  expect(screen.getByText("Setup required")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Setup required" })).not.toBeInTheDocument();
+  expect(screen.getByText("Its sources have not been reviewed yet.")).toBeVisible();
+  expect(screen.getByText("Only its creator can fix this.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Review access" })).not.toBeInTheDocument();
 });
 
 it.each([true, false])(
@@ -518,8 +567,8 @@ it("reopens pending setup from Resume without enabling an unreviewed routine", a
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: false, review_token: "actions", items: [] };
+    if (path.endsWith("/tools"))
+      return { items: [], unavailable_settings: [], unavailable_sources: [] };
     return { items: [], total: 0 };
   });
   render(
@@ -559,11 +608,11 @@ it("finishes deferred setup before enabling the routine", async () => {
     accounts: [],
     unavailable_sources: [],
   };
-  const actions = { can_waive: false, review_token: "actions", items: [] };
+  const actions = { items: [], unavailable_settings: [], unavailable_sources: [] };
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path.includes("/activations/")) return { state: "pending" };
     if (path.endsWith("/sources")) return sources;
-    if (path.endsWith("/action-consents")) return actions;
+    if (path.endsWith("/tools")) return actions;
     return { items: [], total: 0 };
   });
   vi.mocked(apiClient.put).mockImplementation(async (path) =>
@@ -582,6 +631,7 @@ it("finishes deferred setup before enabling the routine", async () => {
   );
   expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/sources", {
     review_token: "sources",
+    mode: "restricted",
   });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
@@ -695,7 +745,7 @@ it.each([false, true])("matches before-run attempts by identity (new: %s)", asyn
 
 it("does not settle a dispatch from cached rows older than its history snapshot", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const runKey = qk.runs.list({ conversationId: "c1" });
+  const runKey = qk.runs.list({ triggerId: "t1" });
   const attemptKey = qk.triggers.attempts("a1", "t1", 0);
   client.setQueryData(runKey, {
     items: [run({ id: "older-run", routine_activation_id: "old-fire" })],
@@ -780,3 +830,135 @@ it("reports an unavailable activation receipt without polling it indefinitely", 
   expect(await screen.findByText("This trigger's runs could not be read.")).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
 });
+
+describe("GitHub filtered delivery diagnostics", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState({
+      user: {
+        id: "owner",
+        email: "owner@example.com",
+        is_active: true,
+        created_at: "2026-11-17T09:00:00Z",
+      },
+    });
+  });
+  function serveDiagnostic(last_event: unknown) {
+    serveRuns([]);
+    const previous = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(
+      async (path: string, options?: Parameters<typeof apiClient.get>[1]) => {
+        if (path.endsWith("/filtered-event")) return { last_event };
+        return previous?.(path, options);
+      },
+    );
+  }
+  it("shows the owner's latest rejection even when the routine has never run", async () => {
+    serveDiagnostic({ received_at: "2026-11-17T09:00:00Z", reason: "author", authors: "members" });
+    render(
+      <TriggerRunsView
+        trigger={trigger({
+          created_by_user_id: "owner",
+          event_source: "github",
+          conversation_id: null,
+        })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(
+      await screen.findByText("The author association was excluded by the author filter."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Author filter at receipt: Repository members (default)"),
+    ).toBeVisible();
+    expect(screen.getByText(/has not run yet/)).toBeVisible();
+  });
+  it("distinguishes no recorded refusal from a webhook receipt", async () => {
+    serveDiagnostic(null);
+    render(
+      <TriggerRunsView
+        trigger={trigger({ created_by_user_id: "owner", event_source: "github" })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(
+      await screen.findByText(/This does not confirm that a webhook has arrived/),
+    ).toBeVisible();
+  });
+  it("shows a diagnostic request failure instead of claiming no filtered events", async () => {
+    serveRuns([]);
+    const previous = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(
+      async (path: string, options?: Parameters<typeof apiClient.get>[1]) => {
+        if (path.endsWith("/filtered-event")) throw new Error("unavailable");
+        return previous?.(path, options);
+      },
+    );
+    render(
+      <TriggerRunsView
+        trigger={trigger({ created_by_user_id: "owner", event_source: "github" })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Could not read filtered event diagnostics")).toBeVisible();
+    expect(screen.queryByText(/No filtered event has been recorded/)).toBeNull();
+  });
+  it.each(["other-person", null])(
+    "does not fetch owner diagnostics for %s",
+    async (created_by_user_id) => {
+      serveDiagnostic(null);
+      render(
+        <TriggerRunsView
+          trigger={trigger({ created_by_user_id, event_source: "github" })}
+          activationId={null}
+        />,
+        { wrapper },
+      );
+      await screen.findByText(/has not run yet/);
+      expect(screen.queryByText("Latest filtered GitHub event")).toBeNull();
+      expect(
+        vi.mocked(apiClient.get).mock.calls.some(([path]) => path.endsWith("/filtered-event")),
+      ).toBe(false);
+    },
+  );
+});
+
+it.each([
+  { reader: "creator", project: null, visible: true },
+  { reader: "operator", project: null, visible: false },
+  { reader: "operator", project: "project-1", visible: true },
+])(
+  "shows private execution chat only to its creator or project readers: $reader/$project",
+  async ({ reader, project, visible }) => {
+    const previous = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: reader,
+        email: "reader@example.com",
+        is_active: true,
+        created_at: "2026-11-23T00:00:00Z",
+      },
+    });
+    try {
+      serveRuns([run({ user_id: "creator", conversation_id: "private-execution" })]);
+      render(
+        <TriggerRunsView
+          trigger={trigger({
+            chat_mode: "per_run",
+            project_id: project,
+            created_by_user_id: "creator",
+          })}
+          activationId={null}
+        />,
+        { wrapper },
+      );
+      await screen.findByRole("link", { name: "Open run" });
+      expect(screen.queryByRole("link", { name: "Open chat" }) !== null).toBe(visible);
+    } finally {
+      useAuthStore.setState({ user: previous });
+    }
+  },
+);

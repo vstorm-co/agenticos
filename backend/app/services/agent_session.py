@@ -15,6 +15,7 @@ from pydantic import Field, ValidationError
 from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
@@ -35,6 +36,12 @@ from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.runtime_questions import (
+    RuntimeAnswer,
+    RuntimeQuestionRequest,
+    RuntimeQuestionResponse,
+    normalize_runtime_answers,
+)
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
@@ -78,11 +85,14 @@ from app.services.agent_chat import (
     requested_local,
     requested_mentions,
     requested_model_profile_id,
+    requested_project_execution_target,
     requested_testing,
     requested_time_zone,
 )
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
+from app.services.approvals import may_approve, may_decide
 from app.services.attachments import load_turn_attachments
+from app.services.chat_cost_visibility import ChatCostVisibilityService, cost_bearing_chat_frame
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
@@ -257,6 +267,8 @@ class AgentSession:
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        self._runtime_question_id: str | None = None
+        self._runtime_request: RuntimeQuestionRequest | None = None
         self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
@@ -355,10 +367,22 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
+            runtime_id = self._runtime_question_id
+            if runtime_id is not None and data.get("runtime_question_id") != runtime_id:
+                return
             if not await self._reauthorize_write():
+                return
+            if (
+                self._ask_user_future is not fut
+                or fut.done()
+                or self._runtime_question_id != runtime_id
+            ):
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
+            if self._runtime_request is not None:
+                normalized = normalize_runtime_answers(self._runtime_request, answers)
+                answers = [answer.model_dump() for answer in normalized.answers]
             fut.set_result(answers)
             # Recorded here, in the receive loop, rather than after the run
             # resumes past its await: a `stop` sent right behind the answer is
@@ -367,11 +391,28 @@ class AgentSession:
             # (#502).
             if self._pending_questions is not None and self._current_timeline is not None:
                 for index, question in enumerate(self._pending_questions):
+                    rendered = render_answer(answers[index] if index < len(answers) else None)
+                    if (
+                        self._runtime_request is not None
+                        and index < len(self._runtime_request.questions)
+                        and index < len(answers)
+                    ):
+                        runtime_question = self._runtime_request.questions[index]
+                        answer = RuntimeAnswer.model_validate(answers[index])
+                        if not answer.skipped and not answer.selected:
+                            if runtime_question.multiline:
+                                rendered = answer.answer or "(empty text)"
+                            elif runtime_question.allow_empty and not answer.answer:
+                                rendered = "(empty text)"
                     self._current_timeline.add_ask_user(
-                        question,
-                        render_answer(answers[index] if index < len(answers) else None),
-                        asked_by=self._pending_asked_by,
+                        question, rendered, asked_by=self._pending_asked_by
                     )
+            request_id = data.get("request_id")
+            if isinstance(request_id, str):
+                await self._emit(
+                    "ask_user_answered",
+                    {"request_id": request_id, "asked_by": self._pending_asked_by},
+                )
             return
 
         if msg_type == "steer":
@@ -690,6 +731,7 @@ class AgentSession:
                         live_surface=LiveRunSurface(
                             ask_user=self._ask_one,
                             ask_questions=self._ask_questions,
+                            runtime_questions=self._runtime_questions,
                             emit=self._resume_frame,
                         ),
                     )
@@ -830,6 +872,9 @@ class AgentSession:
             "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
             "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
             "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "fr": "Bonjour, je suis {name}. Je suis prêt à vous aider à planifier, travailler sur des documents et avancer sur vos tâches. Avant que je puisse répondre, terminez la connexion de mon modèle d'IA et publiez-moi. Ajoutez une clé de fournisseur si le modèle choisi en demande une. Préparons cela ensemble.",
+            "nl": "Hallo, ik ben {name}. Ik help je graag met plannen, werken met documenten en taken afronden. Rond eerst de koppeling met mijn AI-model af en publiceer de agent. Daarna kan ik je vraag beantwoorden. Voeg zo nodig een sleutel voor je provider toe. Laten we dat samen klaarzetten.",
+            "pt": "Olá, sou {name}. Posso ajudar você a planejar, trabalhar com documentos e concluir tarefas. Primeiro, conclua a conexão com meu modelo de IA e publique o agente. Depois poderei responder à sua pergunta. Se necessário, adicione uma chave do seu provedor. Vamos configurar isso juntos.",  # codespell:ignore meu
             "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
         }
         text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
@@ -1111,6 +1156,7 @@ class AgentSession:
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
                     ask_questions=self._ask_questions,
+                    runtime_questions=self._runtime_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -1131,6 +1177,7 @@ class AgentSession:
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
                     local=local_target,
+                    project_execution_target=requested_project_execution_target(data),
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).
@@ -1171,7 +1218,7 @@ class AgentSession:
                 # write. A failure is reported below, before the turn completes.
                 answered = True
                 if assistant_msg_id is not None:
-                    await self._remember_context(turn)
+                    await self._remember_context(turn, through_message_id=assistant_msg_id)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
                     # Only an answer that is there to come back to. A write that
                     # failed returns no id, and "answered while you were away"
@@ -1193,6 +1240,8 @@ class AgentSession:
             # turn is still on screen. The queue and the email carry the same rows;
             # this is a shortcut for whoever is already looking at the tab.
             if turn.parked:
+                async with get_db_context() as db:
+                    decider = await self._chat_context(db)
                 await self._emit(
                     "tool_approval_required",
                     {
@@ -1210,6 +1259,22 @@ class AgentSession:
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
                                 "account": parked.account,
+                                "always_asks": parked.always_asks,
+                                "may_decide": may_decide(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    context=parked.context,
+                                ),
+                                "may_approve": may_approve(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    content_hidden=False,
+                                    context=parked.context,
+                                ),
                             }
                             for parked in turn.parked
                         ],
@@ -1442,6 +1507,30 @@ class AgentSession:
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
+    async def _runtime_questions(self, request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        """Answer a native process live; parking would strand its pending RPC."""
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = request.runtime_name
+            runtime_id = uuid4().hex
+            self._runtime_question_id = runtime_id
+            self._runtime_request = request
+            try:
+                raw = await self._send_and_wait(
+                    [
+                        question.model_dump(exclude={"id"}, exclude_none=True)
+                        for question in request.questions
+                    ]
+                )
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+                self._runtime_question_id = None
+                self._runtime_request = None
+                with anyio.move_on_after(2, shield=True):
+                    await self._emit("runtime_question_closed", {"runtime_question_id": runtime_id})
+        return normalize_runtime_answers(request, raw)
+
     async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
         """Park the run's own questions; answer a delegate's card live.
 
@@ -1488,7 +1577,10 @@ class AgentSession:
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            if not await self._emit("ask_user", {"questions": questions}):
+            data: dict[str, Any] = {"questions": questions}
+            if self._runtime_question_id is not None:
+                data["runtime_question_id"] = self._runtime_question_id
+            if not await self._emit("ask_user", data):
                 return []
             return await fut
         finally:
@@ -1628,11 +1720,11 @@ class AgentSession:
         frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
         await self._emit("personal_services_unavailable", frame)
 
-    async def _remember_context(self, turn: ChatTurn) -> None:
+    async def _remember_context(self, turn: ChatTurn, *, through_message_id: str) -> None:
         """Record what this turn learned about the thread's own context.
 
-        The summary it produced, so the next turn starts from it rather than
-        buying another; and what a request here carries before a single message,
+        Its model-history checkpoint, so the next turn retains tool evidence
+        and discovery; and what a request here carries before a single message,
         so the next turn can tell a window with no room for a summary from one
         that works before it has a response of its own to measure.
 
@@ -1644,18 +1736,21 @@ class AgentSession:
         time this runs, and its own for a second reason - a failure to record
         either must cost the record, not the answer somebody is reading.
         """
-        if turn.summarized_history is None and turn.overhead_tokens is None:
+        if turn.history_snapshot is None and turn.overhead_tokens is None:
             return
         # Called from inside the branch that has one, which is also the branch
         # that has just written the rows this is measured against.
         conversation_id = UUID(str(self.current_conversation_id))
         async with get_db_context() as db:
             conversations = ConversationService(db)
-            if turn.summarized_history is not None:
+            if turn.history_snapshot is not None:
                 await conversations.keep_summary(
                     conversation_id,
-                    turn.summarized_history,
+                    turn.history_snapshot,
                     expected_revision=turn.history_revision,
+                    expected_frontier=turn.history_frontier,
+                    through_message_id=through_message_id,
+                    provenance=turn.history_provenance,
                 )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
@@ -1719,6 +1814,26 @@ class AgentSession:
             db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
         )
 
+    async def _send_chat_frame(self, kind: str, payload: object) -> bool:
+        accounting = cost_bearing_chat_frame(kind, payload)
+        if accounting is None:
+            return await send_event(self.websocket, kind, payload)
+        try:
+            async with get_db_context() as db:
+                visible = await ChatCostVisibilityService(db).visible_for_user(
+                    organization_id=self.organization_id, user_id=self.user.id
+                )
+        except NotFoundError:
+            visible = False
+        except SQLAlchemyError:
+            # A failed policy read withholds the financial metadata. It must not
+            # disclose spend, or discard an answer already persisted successfully.
+            logger.exception("chat_cost_visibility_read_failed")
+            visible = False
+        return await send_event(
+            self.websocket, kind, accounting.data if visible else accounting.redacted()
+        )
+
     async def _emit(self, kind: str, payload: Any) -> bool:
         """Send one frame to this socket, and keep it for whoever follows the turn.
 
@@ -1726,7 +1841,7 @@ class AgentSession:
         and came back follows the rest of the turn from another socket. Answers
         whether this socket took it, as `send_event` does.
         """
-        sent = await send_event(self.websocket, kind, payload)
+        sent = await self._send_chat_frame(kind, payload)
         if self._live_turn is not None:
             await live_turn.publish(self._live_turn, kind, payload)
         return sent
@@ -2014,7 +2129,7 @@ class AgentSession:
                     )
                     return False
                 recheck = time.monotonic() + RECHECK_SECONDS
-            if not await send_event(self.websocket, frame["type"], frame["data"]):
+            if not await self._send_chat_frame(frame["type"], frame["data"]):
                 return False
         if not ended:
             # The turn ended between the check and the subscription: the

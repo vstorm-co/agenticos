@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun
 from app.db.models.dataset import DatasetCase
 from app.schemas.dataset import (
     DatasetCaseContent,
@@ -132,7 +133,11 @@ async def test_verdict_ignores_training_results_but_preserves_them_for_the_next_
         (result.verdict, result.fixed_confirmed, result.candidate_summary.pass_rate)
         for result in comparisons
     ] == [("better", 5, 1.0), ("better", 5, 1.0)]
-    assert [result.fixed_confirmed for result in raw] == [7, 5]
+    # Only held-out cases are asked again; the training flips stay as first answers.
+    assert [(result.fixed_confirmed, result.fixed_unconfirmed) for result in raw] == [
+        (5, 2),
+        (5, 0),
+    ]
     assert all(result.compared == 5 for result in comparisons)
 
 
@@ -182,6 +187,7 @@ async def test_a_run_too_small_to_judge_alone_can_be_compared_for_a_pool(db):
 
     assert (alone.verdict, alone.gradable_holdout) == ("invalid", 3)
     assert alone.invalid_reason_code == "too_few_held_out"
+    assert alone.invalid_reason_params == {"missing": 2}
     assert (pooled.verdict, pooled.invalid_reason, pooled.gradable_holdout) == ("better", None, 3)
     assert pooled.fixed_confirmed == pooled.compared == 3
 
@@ -286,8 +292,28 @@ async def test_a_session_below_the_holdout_minimum_stops_with_an_actionable_reas
     stopped = await service.read(ctx, agent.id, started.id)
     assert (stopped.status, stopped.stop_reason) == ("stopped", "no_data")
     assert stopped.error == "Add 1 more held-out test questions to measure a change"
+    assert (stopped.error_code, stopped.error_params) == ("too_few_held_out", {"missing": 1})
     assert stopped.iterations[0].authoring_request_id is None
     assert stopped.iterations[0].verdict_detail["missing_holdout"] == 1
+
+
+async def test_a_session_with_nothing_to_learn_from_stops_saying_so(db):
+    ctx, agent, run = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=12)
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(5), max_iterations=1),
+    )
+    await db.delete(await db.get(AgentRun, run.id))
+    await db.flush()
+    await service.advance(started.id, ctx.organization_id)
+    await service.advance(started.id, ctx.organization_id)
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert (stopped.status, stopped.stop_reason) == ("stopped", "no_data")
+    assert (stopped.error_code, stopped.error_params) == ("no_evidence", None)
+    assert stopped.error == "No rated chat runs or training failures are available yet"
 
 
 async def test_improver_reads_train_failures_review_notes_and_aggregates_without_holdout_text(db):
@@ -351,7 +377,7 @@ async def test_improver_reads_train_failures_review_notes_and_aggregates_without
         .join(DatasetCase, DatasetCase.id == CaseScore.case_revision_id)
         .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
         .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
-        .where(CaseScore.eval_run_id == started.id, EvalRunArm.role == "candidate")
+        .where(CaseScore.eval_run_id == started.id, EvalRunArm.role == "baseline")
     )
     train_run_id = None
     for score, revision, attempt in rows:

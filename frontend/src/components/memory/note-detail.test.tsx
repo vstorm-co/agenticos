@@ -47,7 +47,7 @@ it("keeps a refused correction open and saves against the original revision", as
     <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Source" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+  fireEvent.change(screen.getByRole("textbox", { name: /source/i }), {
     target: { value: "Corrected" },
   });
   view.rerender(
@@ -93,7 +93,7 @@ it.each(["save", "discard"] as const)(
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: /source/i }), {
       target: { value: "Corrected" },
     });
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -128,7 +128,7 @@ it("keeps a blank correction open when navigation asks it to save", async () => 
     <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Source" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+  fireEvent.change(screen.getByRole("textbox", { name: /source/i }), {
     target: { value: "   " },
   });
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -136,5 +136,5 @@ it("keeps a blank correction open when navigation asks it to save", async () => 
   await act(() => useUnsavedChangesStore.getState().answer("save"));
   expect(update).not.toHaveBeenCalled();
   expect(close).not.toHaveBeenCalled();
-  expect(screen.getByRole("textbox", { name: "Note content" })).toHaveValue("   ");
+  expect(screen.getByRole("textbox", { name: /source/i })).toHaveValue("   ");
 });

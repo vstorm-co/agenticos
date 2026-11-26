@@ -19,19 +19,22 @@ import {
   ToolMark,
   useActionPhrase,
 } from "@/components/runs/approval-request";
+import { RejectionFeedback } from "@/components/runs/rejection-feedback";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
 import { cn } from "@/lib/utils";
-import type { ActionRequest, ReviewConfig, Decision } from "@/types";
+import type { ActionRequest, ReviewConfig, Decision, PendingApproval } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ToolApprovalDialogProps {
+  savedDecisions?: PendingApproval["savedDecisions"];
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
-  onDecisions: (decisions: Decision[]) => void;
+  /** Decisions for `requests`, or for the whole batch when it is omitted. */
+  onDecisions: (decisions: Decision[], requests?: ActionRequest[]) => void;
   disabled?: boolean;
   mayRemember?: boolean;
 }
@@ -42,11 +45,15 @@ interface ToolApprovalDialogProps {
  * **It checks `approvals:decide` itself**, for the same reason the model picker
  * beside it checks `connections:manage`: the permission belongs to the write, and
  * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
- * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
- * `builder` hold `agents:run` and not the decision - so the everyday chat user was
- * offered a Submit and refused by the API on the first call. What stays for them is
- * the call itself and the sentence saying who can decide: a panel that goes quiet
- * leaves a stopped conversation unexplained.
+ * both of which ask for `Perm.APPROVALS_DECIDE`. Running an agent is not - `member`
+ * and `builder` hold `agents:run` and not the decision - so the everyday chat user
+ * was offered a Submit and refused by the API on the first call. What stays for them
+ * is the call itself and the sentence saying who can decide: a panel that goes quiet
+ * leaves a stopped conversation unexplained. The one exception is the server's:
+ * a platform call that always asks runs as its person, who answers it without the
+ * permission and is the only one who may approve it - each request says so in
+ * `may_decide` and `may_approve`. In a batch mixing the two, that person answers
+ * their own calls and the rest waits for somebody who may decide it.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
  * contents were diffed into an `edit` decision - and the backend never offered it:
@@ -65,60 +72,72 @@ interface ToolApprovalDialogProps {
  */
 export function ToolApprovalDialog({
   actionRequests,
+  savedDecisions = [],
   onDecisions,
   disabled = false,
   mayRemember = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
+  const feedback = useTranslations("approvalFeedback");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
-  const mayDecide = can(Perm.approvalsDecide);
+  const decidesAll = can(Perm.approvalsDecide);
+  const yours = decidesAll
+    ? actionRequests
+    : actionRequests.filter((action) => action.may_decide === true);
+  const partial = yours.length < actionRequests.length;
+  const mayDecide = decidesAll || yours.length > 0;
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
   const sameTool =
-    actionRequests.length > 0 &&
-    actionRequests.every(
+    yours.length > 0 &&
+    yours.every(
       (action) =>
         action.can_remember === true &&
         !action.subagent_name &&
-        action.tool_name === actionRequests[0]!.tool_name &&
-        action.account === actionRequests[0]!.account,
+        action.tool_name === yours[0]!.tool_name &&
+        action.account === yours[0]!.account,
     );
-  const mayApprove = actionRequests.every(
-    (action) => !(action.always_asks && action.content_hidden),
+  const hiddenFromThem = yours.some((action) => action.always_asks && action.content_hidden);
+  const mayApprove = yours.every(
+    (action) => action.may_approve ?? !(action.always_asks && action.content_hidden),
   );
+  const decide = (decisions: Decision[]) =>
+    partial ? onDecisions(decisions, yours) : onDecisions(decisions);
   const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
-    onDecisions(
-      actionRequests.map((_, index) => ({
+    decide(
+      yours.map((_, index) => ({
         type,
         ...(index === 0 && scope ? { remember_scope: scope } : {}),
       })),
     );
 
   return (
-    // A batch uses the full card width, with decisions below the scrolling
-    // list: its scrollbar must not look like a divider beside the buttons.
-    // For one call, the answers sit beside the question: under it, a
-    // folded Details left a band of empty card between what was asked and the
-    // buttons that answer it.
-    // Laid out by the card's own width, not the window's: in the Architect's
-    // widget the window is wide and the card is not, and buttons beside the
-    // question squeezed what was asked into a column a third of the card.
+    // Keep batch decisions below the scrollable requests. A single request has
+    // room for decisions beside it only when both regions retain readable width.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
       <div
         className={cn(
-          "border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm",
-          !batch && "@xl:flex-row @xl:items-start",
+          "border-border bg-card flex flex-col gap-2 rounded-xl border px-3 py-2 shadow-sm",
+          !batch && "@md:flex-row @md:flex-wrap @md:items-start",
         )}
       >
         <ul
           className={cn(
             "min-w-0 flex-1 space-y-4",
+            !batch && "@md:flex-[1_1_18rem]",
             batch &&
               "-mr-1 max-h-[min(36dvh,20rem)] scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain pr-2",
           )}
         >
+          {savedDecisions.map(({ request, approved }) => (
+            <li key={request.id} className="text-muted-foreground text-sm">
+              {feedback(approved ? "savedApproval" : "savedRejection", {
+                action: phrase(request.tool_name),
+              })}
+            </li>
+          ))}
           {actionRequests.map((action) => {
             // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
             const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
@@ -127,19 +146,20 @@ export function ToolApprovalDialog({
             // it was parked as the person the run acts for; else the one telling argument.
             const summary =
               draft === null
-                ? (approvalSummary(action.capability_tool_id, action.context, tTools) ??
-                  callSummary(args))
+                ? (approvalSummary(
+                    action.capability_tool_id,
+                    action.context,
+                    tTools,
+                    action.tool_name,
+                  ) ?? callSummary(args))
                 : null;
             return (
-              <li key={action.id} className="flex gap-3">
-                <ToolMark toolName={action.tool_name} />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-muted-foreground text-xs font-medium">
-                    {t("toolApprovalRequired")}
-                  </p>
+              <li key={action.id} className="flex gap-2.5">
+                <ToolMark toolName={action.tool_name} className="size-7" />
+                <div className="min-w-0 flex-1 space-y-0.5">
                   {/* The question, in the words the step above it uses - "Allow
                     Search in Notion?" - rather than `notion_notion-search`. */}
-                  <p className="text-foreground text-sm font-medium">
+                  <p className="text-foreground pt-1 text-sm leading-5 font-medium">
                     {draft !== null
                       ? t("draftProposalTitle")
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
@@ -155,8 +175,8 @@ export function ToolApprovalDialog({
                   {summary !== null && (
                     <p
                       className={cn(
-                        "text-foreground/80 line-clamp-2 text-sm break-words",
-                        ("command" in args || "cmd" in args) && "font-mono text-xs",
+                        "text-muted-foreground line-clamp-2 text-xs break-words",
+                        ("command" in args || "cmd" in args) && "font-mono",
                       )}
                       title={summary}
                     >
@@ -166,7 +186,11 @@ export function ToolApprovalDialog({
                   {draft !== null ? (
                     <AgentDraftProposal draft={draft} />
                   ) : (
-                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                    <ApprovalDetails
+                      toolName={action.tool_name}
+                      args={args}
+                      context={action.context}
+                    />
                   )}
                 </div>
               </li>
@@ -174,8 +198,17 @@ export function ToolApprovalDialog({
           })}
         </ul>
 
-        {mayDecide ? (
-          <div className={cn("flex shrink-0 justify-end gap-2", !batch && "@xl:pt-4")}>
+        {mayDecide && actionRequests.length === 0 ? (
+          <Button size="sm" disabled={disabled} onClick={() => onDecisions([])}>
+            {feedback("retryResume")}
+          </Button>
+        ) : mayDecide ? (
+          <div className="ms-auto flex max-w-full shrink-0 flex-wrap justify-end gap-1.5">
+            {partial && (
+              <p className="text-muted-foreground w-full text-right text-xs">
+                {t("approvalOthersWait")}
+              </p>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -184,13 +217,33 @@ export function ToolApprovalDialog({
             >
               {t("reject")}
             </Button>
+            <RejectionFeedback
+              requests={yours.map((action) => ({
+                id: action.id,
+                label: phrase(action.tool_name),
+              }))}
+              disabled={disabled}
+              onReject={(notes) =>
+                decide(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
+              }
+            />
             <div className="flex items-center gap-1">
               {mayApprove ? (
                 <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
                   {t("approve")}
                 </Button>
               ) : (
-                <p className="text-muted-foreground max-w-56 text-xs">{t("approvalNeedsTheRun")}</p>
+                <p className="text-muted-foreground max-w-56 text-xs">
+                  {hiddenFromThem
+                    ? t("approvalNeedsTheRun")
+                    : yours.some(
+                          (action) =>
+                            action.tool_name === "agenticos_change_deployment" &&
+                            action.may_approve === false,
+                        )
+                      ? t("approvalNeedsItsAdminPerson")
+                      : t("approvalNeedsItsPerson")}
+                </p>
               )}
               {mayApprove && mayRemember && sameTool && (
                 <DropdownMenu>
@@ -220,7 +273,7 @@ export function ToolApprovalDialog({
             </div>
           </div>
         ) : (
-          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @md:pt-1">
             {t("decidingNeedsPermission")}
           </p>
         )}

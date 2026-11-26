@@ -221,11 +221,14 @@ class TestPublishing:
             base, headers=headers, json={"spec": {"name": "Refunds", "instructions": "Be kind."}}
         )
         agent_id = created.json()["id"]
-        await http.get(f"{base}/{agent_id}", headers=headers)
+        detail = await http.get(f"{base}/{agent_id}", headers=headers)
         await http.put(
             f"{base}/{agent_id}/draft",
             headers=headers,
-            json={"spec": {"name": "Refunds", "instructions": "Be brief."}},
+            json={
+                "spec": {"name": "Refunds", "instructions": "Be brief."},
+                "expected_revision": detail.json()["draft_revision"],
+            },
         )
         await http.delete(f"{base}/{agent_id}", headers=headers)
 

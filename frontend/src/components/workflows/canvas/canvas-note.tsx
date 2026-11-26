@@ -197,6 +197,7 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
         }}
       >
         <DialogContent
+          data-workflow-fields
           className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}
           onCloseAutoFocus={(event) => {
             event.preventDefault();

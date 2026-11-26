@@ -5,6 +5,7 @@ import { FlaskConical, Pencil, Pin, PinOff, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { LiveSample, PasteSample } from "@/components/event-sources/live-sample";
 import {
   Badge,
   Button,
@@ -19,8 +20,13 @@ import {
 } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
-import { availableSourceNodes, validateGraph } from "@/components/workflows/validation";
+import {
+  availableSourceNodes,
+  validateGraph,
+  withTableDrift,
+} from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
+import type { EventSample } from "@/lib/event-sources-api";
 import {
   MAX_PINNED_BYTES,
   earlierSteps,
@@ -250,6 +256,7 @@ export function OutputPane({
 }) {
   const t = useTranslations("workflows");
   const tp = useTranslations("pages.workflows");
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const iterationData = useWorkflowEditorStore((state) => state.iterationData);
   const iteration = useWorkflowEditorStore((state) => state.editingIteration);
@@ -262,7 +269,7 @@ export function OutputPane({
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const [confirming, setConfirming] = useState(false);
   const [asking, setAsking] = useState(false);
-  const { start } = useWorkflowRuns(workflowId, asking);
+  const { start } = useWorkflowRuns(workflowId, asking, { startFeedback: "inline" });
   const [draft, setDraft] = useState<string | null>(null);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
   // The start a test admits from: the first entry (default first) whose branch
@@ -270,8 +277,13 @@ export function OutputPane({
   const branch = useMemo(() => testEntryGraph(graph, node.id), [graph, node.id]);
 
   const problems = useMemo(
-    () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
-    [graph, catalog, t],
+    () =>
+      withTableDrift(
+        validateGraph(graph, { items: catalog, total: catalog.length }, t),
+        tableDrift,
+        t,
+      ),
+    [graph, catalog, t, tableDrift],
   );
   const data = stepDataAt(stepData, iterationData, node.id, iteration);
   const pinned = readOnly ? null : (node.pinned_output ?? null);
@@ -316,6 +328,12 @@ export function OutputPane({
     else test(sampleRunInput(branch));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
+  const pinWebhookSample = (delivery: EventSample) => {
+    updateNodeDetails(node.id, {
+      pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },
+    });
+    toast.success(t("webhookTestCaught"));
+  };
 
   const save = () => {
     let parsed: unknown;
@@ -388,15 +406,25 @@ export function OutputPane({
         </div>
       ) : (
         <>
-          {!readOnly && definition.id === WEBHOOK_TRIGGER && (
-            <WebhookListener
-              workflowId={workflowId}
-              onCaught={(delivery) => {
-                updateNodeDetails(node.id, { pinned_output: delivery });
-                toast.success(t("webhookTestCaught"));
-              }}
-            />
-          )}
+          {!readOnly &&
+            definition.id === WEBHOOK_TRIGGER &&
+            (typeof node.config.source_id === "string" ? (
+              <LiveSample
+                key={`${node.id}:${node.config.source_id}`}
+                sourceId={node.config.source_id}
+                onSample={pinWebhookSample}
+              />
+            ) : node.config.require_source === true ? (
+              <PasteSample onSample={pinWebhookSample} />
+            ) : (
+              <WebhookListener
+                workflowId={workflowId}
+                onCaught={(delivery) => {
+                  updateNodeDetails(node.id, { pinned_output: delivery });
+                  toast.success(t("webhookTestCaught"));
+                }}
+              />
+            ))}
           {pinned !== null && (
             <p className="bg-muted text-muted-foreground rounded-md px-2.5 py-1.5 text-xs">
               {t("stepPinnedHint")}

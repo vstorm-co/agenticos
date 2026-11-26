@@ -1,6 +1,7 @@
 """What a person is shown about the files an agent kept."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -66,6 +67,10 @@ class WorkspaceListing(BaseSchema):
             "a container: its ceiling belongs to its host and is only knowable by "
             "sampling the session, which a listing does not pay for."
         ),
+    )
+    unreadable_code: Literal["workspace_not_retained"] | None = Field(
+        default=None,
+        description="A missing archive without a recorded session: not created yet or no longer retained, not proof of a connection failure or an empty healthy archive.",
     )
     unreadable_reason: str | None = Field(
         default=None,
@@ -295,4 +300,30 @@ class WorkspaceFileContent(BaseSchema):
 
     path: str
     content: str
+    truncated: bool = False
+
+
+class RunWorkspaceOrigin(BaseSchema):
+    """A server-owned reference to files a run actually used, never a path-based authority."""
+
+    kind: Literal["agent", "project"]
+    workspace_id: UUID
+    project_id: UUID | None = None
+
+
+class WorkspaceOriginRead(BaseSchema):
+    kind: Literal["agent", "project"]
+    workspace_id: UUID
+    project_id: UUID | None = None
+    scope: str
+    backend: str
+    owner_label: str
+
+
+class ConversationWorkspaceOrigins(BaseSchema):
+    """Materialized file origins this reader may still access; no runtime is started."""
+
+    default_origin: Literal["agent", "project"] | None = None
+    default_workspace_id: UUID | None = None
+    items: list[WorkspaceOriginRead]
     truncated: bool = False

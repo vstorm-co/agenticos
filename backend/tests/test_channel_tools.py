@@ -36,6 +36,7 @@ from app.services.channels.directory import (
     supported_tools,
 )
 from app.services.channels.discord import DiscordAdapter
+from app.services.channels.matrix import MatrixAdapter
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
@@ -390,6 +391,7 @@ class TestWhatEachPlatformCanActuallyAnswer:
             ("telegram", TelegramAdapter),
             ("mattermost", MattermostAdapter),
             ("discord", DiscordAdapter),
+            ("matrix", MatrixAdapter),
         ],
     )
     def test_the_offered_list_matches_what_the_adapter_implements(
@@ -610,6 +612,26 @@ class TestWhatAnAdapterActuallyBuilds:
             "Customer questions",
             "On call: Ada",
         )
+
+
+class TestMembersInAPrivateTelegramChat:
+    async def test_listing_members_in_a_private_telegram_chat_answers_with_the_reason(self):
+        from app.services.channels.directory import BoundChannelDirectory
+
+        bot = MagicMock()
+        bot.get_chat_administrators = AsyncMock()
+        bot.session.close = AsyncMock()
+        directory = BoundChannelDirectory(
+            adapter=TelegramAdapter(), bot_token="t", channel_id="42", private_chat=True
+        )
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            answer = await call(directory, "list_channel_members")
+
+        assert answer == (
+            "Telegram has no member list for a private chat: it is this person and the bot."
+        )
+        bot.get_chat_administrators.assert_not_awaited()
 
 
 class TestIsChannelMember:

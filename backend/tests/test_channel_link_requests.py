@@ -1029,3 +1029,20 @@ def test_the_page_view_cannot_be_built_without_deciding_whether_to_reveal_the_co
 
     with pytest.raises(TypeError, match="reveal_code"):
         ChannelLinkRequestRead.for_user(MagicMock(), uuid.uuid4())  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("platform", [None, "slack"])
+async def test_a_matrix_link_requires_a_live_matrix_bot(platform):
+    from app.core.exceptions import NotFoundError
+
+    bot = None if platform is None else SimpleNamespace(platform=platform)
+    incoming = _incoming()
+    incoming.platform = "matrix"
+    with (
+        patch(
+            "app.services.channel_link.channel_bot_repo.get_for_inbound",
+            AsyncMock(return_value=bot),
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await ChannelLinkService(_db()).request(incoming)

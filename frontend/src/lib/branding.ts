@@ -15,6 +15,8 @@
  * `TestFrontendToolCatalog` takes with the tool catalog.
  */
 
+import type { SignInProvider } from "@/lib/public-config";
+
 import { APP_NAME } from "@/lib/constants";
 import { SITE } from "@/lib/seo";
 
@@ -34,10 +36,13 @@ export interface BrandingResponse {
   footer_text: string | null;
   terms_url: string | null;
   privacy_url: string | null;
+  password_sign_in_enabled?: boolean;
+  sign_in_providers?: SignInProvider[];
   signup_mode: SignupMode;
   allowed_email_domains: string[];
   maintenance_mode: boolean;
   maintenance_message: string | null;
+  maintenance_planned_end_at?: string | null;
 }
 
 /**
@@ -54,6 +59,7 @@ export interface NoticeResponse {
   level: NoticeLevel;
   maintenance_mode: boolean;
   maintenance_message: string | null;
+  maintenance_planned_end_at?: string | null;
 }
 
 /** The resolved answer every surface reads: no nulls where a built-in exists. */
@@ -68,10 +74,13 @@ export interface Branding {
   /** Null keeps the built-in `/legal/*` pages; set, and the links go outward. */
   termsUrl: string | null;
   privacyUrl: string | null;
+  passwordSignInEnabled: boolean;
+  signInProviders: readonly SignInProvider[];
   signupMode: SignupMode;
   allowedEmailDomains: string[];
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
+  maintenancePlannedEndAt?: string | null;
 }
 
 /**
@@ -90,10 +99,13 @@ export const BUILT_IN_BRANDING: Branding = {
   footerText: null,
   termsUrl: null,
   privacyUrl: null,
+  passwordSignInEnabled: true,
+  signInProviders: [],
   signupMode: "open",
   allowedEmailDomains: [],
   maintenanceMode: false,
   maintenanceMessage: null,
+  maintenancePlannedEndAt: null,
 };
 
 /**
@@ -131,9 +143,12 @@ export function resolveBranding(overrides: BrandingResponse | null | undefined):
     footerText: overrides.footer_text || null,
     termsUrl: overrides.terms_url || null,
     privacyUrl: overrides.privacy_url || null,
+    passwordSignInEnabled: overrides.password_sign_in_enabled ?? true,
+    signInProviders: overrides.sign_in_providers ?? [],
     signupMode: overrides.signup_mode,
     allowedEmailDomains: overrides.allowed_email_domains,
     maintenanceMode: overrides.maintenance_mode,
     maintenanceMessage: overrides.maintenance_message || null,
+    maintenancePlannedEndAt: overrides.maintenance_planned_end_at ?? null,
   };
 }

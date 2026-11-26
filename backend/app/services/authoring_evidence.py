@@ -43,7 +43,9 @@ from app.schemas.authoring import (
 from app.schemas.scoring import ScorerResult
 from app.services.access import AGENT, DATASET, accessible_ids
 from app.services.conversation import ConversationService
+from app.services.dataset import redact_credentials
 from app.services.eval_comparison import Attempt, Outcome
+from app.services.scorers import MAX_MISSING_NAMED, missing_keys
 
 MAX_EVIDENCE_RUNS = 20
 """The most runs one request reads."""
@@ -62,6 +64,15 @@ _SPACE = re.compile(r"\s+")
 
 def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else f"{text[:limit]} [...]"
+
+
+def _shown(text: str, limit: int) -> str:
+    """Text a person or a tool wrote, as the assistant is shown and may quote it.
+
+    Redacted before it is cut, so a cut cannot leave half a key the detector no
+    longer recognises.
+    """
+    return _clip(redact_credentials(text)[0] or text, limit)
 
 
 def _normal(text: str) -> str:
@@ -95,6 +106,10 @@ class PackedRun:
         via_delegate: The skill was used by an agent this run delegated to.
         masked: Its text was withheld from a reader who may not open its
             conversation.
+        uncovered_keys: Keys a test answer is missing that no source of the agent
+            holds, by label, from the agent's source coverage report.
+        knowledge_only: Every check the answer failed is a keys check, and every key
+            it is missing is one of those - nothing the agent's instructions can fix.
     """
 
     run_id: UUID
@@ -113,11 +128,15 @@ class PackedRun:
     skill_use: Literal["used", "probable"] | None = None
     via_delegate: bool = False
     masked: bool = False
+    uncovered_keys: tuple[str, ...] = ()
+    knowledge_only: bool = False
 
     @property
     def grade_lines(self) -> list[str]:
         return [
-            f"{grade.scorer}/{grade.name}: {_clip(grade.reason, _TURN_CHARS)}"
+            f"{grade.scorer}/{grade.name}"
+            + (f" (family: {grade.family})" if grade.family else "")
+            + f": {_shown(grade.reason, _TURN_CHARS)}"
             for grade in self.grades
         ]
 
@@ -131,7 +150,8 @@ class PackedRun:
         return f"{self.source.replace('_', ' ')} {self.number}"
 
     def render(self) -> str:
-        """The run as the prompt shows it."""
+        """The run as the prompt shows it, redacted whole: the dataset's own names - a
+        criterion, a family, a tag, a key - reach the prompt here as well as the run's text."""
         rated = {-1: "rated down", 1: "rated up", 0: "not rated"}[self.rating]
         heading = self.label[0].upper() + self.label[1:]
         lines = [f"## {heading} (run {self.run_id}) - {self.status}, {rated}"]
@@ -144,6 +164,11 @@ class PackedRun:
             lines.append("Skill used by an agent this one delegated to")
         lines += [f"Reader comment: {comment}" for comment in self.comments]
         lines += [f"Graded: {line}" for line in self.grade_lines]
+        if self.uncovered_keys:
+            lines.append(
+                "No source of this agent holds these keys, so the user must supply them "
+                f"rather than the instructions: {', '.join(self.uncovered_keys)}"
+            )
         lines.append(
             f"Test question from the dataset: {self.prompt}"
             if self.evidence_kind == "train_eval"
@@ -153,7 +178,8 @@ class PackedRun:
         lines.append(f"Answered: {self.answer}")
         if self.error:
             lines.append(f"Error: {self.error}")
-        return "\n".join(lines)
+        text = "\n".join(lines)
+        return redact_credentials(text)[0] or text
 
     @property
     def quotable(self) -> str:
@@ -288,7 +314,7 @@ def _calls(messages: Sequence[Message]) -> list[str]:
     for message in messages:
         for call in message.tool_calls:
             args = json.dumps(call.args, ensure_ascii=False, sort_keys=True, default=str)
-            calls.append(f"{call.tool_name}({_clip(args, _ARGS_CHARS)})")
+            calls.append(f"{call.tool_name}({_shown(args, _ARGS_CHARS)})")
     return calls
 
 
@@ -401,6 +427,7 @@ class EvidenceService:
     ) -> tuple[list[PackedRun], str]:
         from app.repositories import eval_run_repo
         from app.services.eval_run import EvalRunService
+        from app.services.key_coverage import KeyCoverageService
 
         since = self._since(window_days, at)
         candidates = await authoring_repo.evaluated_datasets(
@@ -426,6 +453,9 @@ class EvidenceService:
             since=since,
             until=at,
             case_ids=case_ids,
+        )
+        uncovered = await KeyCoverageService(self.db).uncovered_labels(
+            ctx, agent_id, sorted(allowed)
         )
         packed: list[PackedRun] = []
         seen: set[UUID] = set()
@@ -467,8 +497,11 @@ class EvidenceService:
                         if result.status == "fail"
                         else None
                     )
-            if row.arm.eval_run_id not in flips:
-                comparison = await service.compare(ctx, row.arm.eval_run_id, measurement_only=False)
+            compared = row.arm.role == "candidate"
+            if compared and row.arm.eval_run_id not in flips:
+                comparison = await service.compare(
+                    ctx, row.arm.eval_run_id, measurement_only=False, include_criteria=False
+                )
                 flips[row.arm.eval_run_id] = {
                     case.case_id: case.flip
                     for case in comparison.cases
@@ -487,16 +520,18 @@ class EvidenceService:
                     and attempt.attempt == 0
                     and attempt.answer is not None
                 }
-            flip = flips[row.arm.eval_run_id].get(row.case.case_id)
+            flip = flips[row.arm.eval_run_id].get(row.case.case_id) if compared else None
             fixed += flip == "fixed"
             broken += flip == "regression"
             note = None if row.score is None else row.score.human_note
             if settled is not False and not note and flip != "regression":
                 continue
-            comments = [f"Review note: {_clip(note, _TURN_CHARS)}"] if note else []
-            baseline_answer = before[row.arm.eval_run_id].get(row.case.case_id)
+            comments = [f"Review note: {_shown(note, _TURN_CHARS)}"] if note else []
+            baseline_answer = (
+                before[row.arm.eval_run_id].get(row.case.case_id) if compared else None
+            )
             if baseline_answer is not None:
-                comments.append(f"Baseline answer: {_clip(baseline_answer, _TURN_CHARS)}")
+                comments.append(f"Baseline answer: {_shown(baseline_answer, _TURN_CHARS)}")
             if flip in {"fixed", "regression"}:
                 comments.append(f"Confirmed {flip} in a train-part eval")
             people = {
@@ -511,21 +546,31 @@ class EvidenceService:
                 ]
                 if person is not None
             }
+            missing = missing_keys(row.case.checks or [], row.attempt.answer or "")
+            gaps = uncovered.get(row.case.dataset_id, frozenset())
+            unheld = tuple(label for label in missing if label.casefold() in gaps)
+            failed = [result for result in results if result.status == "fail"]
             packed.append(
                 PackedRun(
                     run_id=row.run.id,
                     conversation_id=None,
+                    uncovered_keys=unheld[:MAX_MISSING_NAMED],
+                    knowledge_only=bool(failed)
+                    and len(unheld) == len(missing) > 0
+                    and all(
+                        result.scorer == "check" and result.name == "keys" for result in failed
+                    ),
                     status="train_eval_failure" if settled is False else "train_eval_reviewed",
                     rating=0,
                     evidence_kind="train_eval",
                     comments=comments,
                     grades=tuple(results),
-                    prompt=_clip(row.case.input, _TURN_CHARS),
-                    answer=_clip(row.attempt.answer or "", _TURN_CHARS),
+                    prompt=_shown(row.case.input, _TURN_CHARS),
+                    answer=_shown(row.attempt.answer or "", _TURN_CHARS),
                     calls=[],
                     error=None
                     if row.attempt.error is None
-                    else _clip(row.attempt.error, _TURN_CHARS),
+                    else _shown(row.attempt.error, _TURN_CHARS),
                     people=frozenset(people),
                 )
             )
@@ -541,12 +586,13 @@ class EvidenceService:
             if not rows
             else (
                 "# Train-part feedback only; held-out results are not shown\n"
-                "From at most 200 recent candidate training answers, using the latest answer per case.\n"
+                "From at most 200 recent training answers the agent itself gave, using the latest "
+                "answer per case.\n"
                 f"Confirmed newly fixed: {fixed}; newly broken: {broken}.\n"
                 f"Pass rate by tag:\n{rates(by_tag)}\nJudge criterion pass rate:\n{rates(by_criterion)}"
             )
         )
-        return packed[:MAX_EVIDENCE_RUNS], feedback
+        return packed[:MAX_EVIDENCE_RUNS], redact_credentials(feedback)[0] or feedback
 
     async def for_skill(
         self,
@@ -628,6 +674,47 @@ class EvidenceService:
             hidden_agents=len((reading | set(unknown)) - visible),
         )
 
+    async def for_skill_handoff(
+        self, ctx: AuthContext, skill_id: UUID, improvement_run_id: UUID
+    ) -> list[PackedRun]:
+        """The failed training answers an agent's session read that used this skill.
+
+        An agent's Improve that hands a skill over found its problems in these
+        answers: test questions of the session's own dataset, from its stored
+        training partition only, which a skill check never measures on. A caller
+        who may not run that dataset, or no longer see it, reads none of them.
+        """
+        from app.core.exceptions import AuthorizationError, NotFoundError
+        from app.repositories import improvement_repo
+
+        session = await improvement_repo.get_run(
+            self.db, improvement_run_id, organization_id=ctx.organization_id
+        )
+        if session is None:
+            return []
+        try:
+            handed = await self.for_improvement(ctx, improvement_run_id)
+        except AuthorizationError, NotFoundError:
+            return []
+        failed = [
+            run
+            for run in handed.runs
+            if run.evidence_kind == "train_eval" and run.status == "train_eval_failure"
+        ]
+        uses: dict[UUID, list[RunSkillUse]] = {}
+        for use in await skill_usage_repo.uses_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill_id,
+            run_ids=[run.run_id for run in failed],
+        ):
+            uses.setdefault(use.run_id, []).append(use)
+        return [
+            replace(_by_skill(run, uses[run.run_id], session.agent_id), number=0)
+            for run in failed
+            if run.run_id in uses
+        ]
+
     async def for_context(
         self, ctx: AuthContext, context_id: UUID, *, window_days: int
     ) -> EvidencePack:
@@ -688,11 +775,11 @@ class EvidenceService:
                     conversation_id=row.run.conversation_id,
                     status=row.run.status,
                     rating=row.rating,
-                    comments=[_clip(comment, _TURN_CHARS) for comment in row.comments],
-                    prompt=_clip(asked, _TURN_CHARS),
-                    answer=_clip(answered, _TURN_CHARS),
+                    comments=[_shown(comment, _TURN_CHARS) for comment in row.comments],
+                    prompt=_shown(asked, _TURN_CHARS),
+                    answer=_shown(answered, _TURN_CHARS),
                     calls=_calls(messages),
-                    error=None if row.run.error is None else _clip(row.run.error, _TURN_CHARS),
+                    error=None if row.run.error is None else _shown(row.run.error, _TURN_CHARS),
                     people=frozenset(
                         [
                             *row.commenters,

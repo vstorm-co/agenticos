@@ -18,12 +18,10 @@ it("lays tiles out by how many there are, under the name that says them as a sen
   );
   const group = screen.getByRole("group", { name: "Three things" });
   expect(group).toHaveClass("sm:grid-cols-3");
-  const rated = within(group).getByText("Rated down").closest("div.flex-col")!;
-  expect(rated).toHaveTextContent("4");
-  expect(rated.querySelector("svg")).toBeInTheDocument();
-  expect(
-    within(group).getByText("Failed").closest("div.flex-col")!.querySelector("svg"),
-  ).toBeNull();
+  const tile = (name: string) => within(group).getByText(name).closest(".bg-card")!;
+  expect(tile("Rated down")).toHaveTextContent("4");
+  expect(tile("Rated down").querySelector("svg")).toBeInTheDocument();
+  expect(tile("Failed").querySelector("svg")).toBeNull();
   expect(within(group).getByText("answers")).toBeInTheDocument();
   expect(within(group).getByText("Of the chosen examples")).toBeInTheDocument();
   view.rerender(
@@ -74,17 +72,31 @@ it("shows before and after against one total, with the difference and its direct
     <BeforeAfter title="All test questions" label="3 → 4 of 4" before={3} after={4} total={4} />,
   );
   const figure = screen.getByRole("figure");
-  expect(within(figure).getByText("+1")).toHaveClass("text-success-ink");
+  expect(within(figure).getByText("+1")).toHaveClass("text-success");
   expect(screen.getByRole("img", { name: "3 → 4 of 4" })).toHaveTextContent(
     "Before3 of 4After4 of 4",
   );
   view.rerender(<BeforeAfter title="All" label="4 → 2 of 4" before={4} after={2} total={4} />);
-  expect(screen.getByText("-2")).toHaveClass("text-destructive-ink");
+  expect(screen.getByText("-2")).toHaveClass("text-destructive");
   expect(screen.getByText("2 of 4").previousElementSibling!.firstElementChild).toHaveClass(
     "bg-destructive",
   );
   view.rerender(<BeforeAfter title="All" label="0 → 0 of 0" before={0} after={0} total={0} />);
   expect(screen.getByText("0")).toHaveClass("text-muted-foreground");
+  // Inside the noise a rise is not a gain, and a fall that reads well is painted as one.
+  view.rerender(
+    <BeforeAfter title="All" label="3 → 4" before={3} after={4} total={4} tone="neutral" />,
+  );
+  expect(screen.getByText("+1")).toHaveClass("text-muted-foreground");
+  view.rerender(
+    <BeforeAfter title="All" label="4 → 3" before={4} after={3} total={4} tone="good" />,
+  );
+  expect(screen.getByText("-1")).toHaveClass("text-success");
+});
+
+it("links a tile to where its figure is listed in full", () => {
+  render(<Tiles label="Evidence" tiles={[{ label: "Rated down", value: 4, href: "#rated" }]} />);
+  expect(screen.getByRole("link", { name: /Rated down/ })).toHaveAttribute("href", "#rated");
 });
 
 it("marks each stage with an icon and a word, and the running one as current", () => {

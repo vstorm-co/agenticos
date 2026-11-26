@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -281,7 +281,7 @@ export function StartEvalDialog({
             onClick={() => full && void run(full).catch(() => undefined)}
           >
             {priced
-              ? t("runFor", { amount: usd(priced.total_usd, locale) })
+              ? t("runFor", { amount: usd(priced.expected_usd, locale) })
               : full !== null && !failure
                 ? t("estimating")
                 : t("start")}

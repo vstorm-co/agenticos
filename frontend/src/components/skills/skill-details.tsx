@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Bot, FileText, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -62,7 +62,7 @@ export function SkillDetails({ id }: { id: string }) {
   const [deleting, setDeleting] = useState(false);
   const [forkFrom, setForkFrom] = useState<string | null>(null);
   const [returning, setReturning] = useState<SkillFork | null>(null);
-  const { skill, error, remove } = useSkill(id);
+  const { skill, error, refetch, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
   const mainVersions = useSkillVersions(id, null, 0);
@@ -73,7 +73,20 @@ export function SkillDetails({ id }: { id: string }) {
   // Forks name the lines `?show=`, History and Edit act on, and main's newest version
   // counts who an edit of main reaches, so nothing is drawn on a guess about either.
   const failed = error ?? lines.error ?? mainVersions.error;
-  if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
+  if (failed)
+    return (
+      <ErrorState
+        description={getErrorMessage(failed, tErrors)}
+        cta={{
+          label: tc("retry"),
+          onClick: () => {
+            void refetch();
+            void lines.refetch();
+            void mainVersions.refetch();
+          },
+        }}
+      />
+    );
   if (skill === undefined || lines.isLoading || mainVersions.isLoading) {
     return <LoadingState variant="pending" />;
   }

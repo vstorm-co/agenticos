@@ -143,6 +143,16 @@ pytestmark = pytest.mark.anyio
 _CONVERSATION = "11111111-1111-1111-1111-111111111111"
 
 
+@pytest.fixture(autouse=True)
+def public_cost_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Disclosure authorization has its own repository/recipient tests; these
+    # tests exercise protocol ordering under the unchanged default policy.
+    monkeypatch.setattr(
+        "app.services.agent_session.ChatCostVisibilityService.visible_for_user",
+        AsyncMock(return_value=True),
+    )
+
+
 def _session() -> AgentSession:
     websocket = MagicMock()
     websocket.send_json = AsyncMock()
@@ -196,7 +206,7 @@ def _finished_turn(
     parked: tuple[ParkedApproval, ...] = (),
     questions: tuple[str, ...] = (),
     usage: UsageReport | None = None,
-    summarized_history: list[dict[str, Any]] | None = None,
+    history_snapshot: list[dict[str, Any]] | None = None,
     overhead_tokens: int | None = None,
 ) -> ChatTurn:
     return ChatTurn(
@@ -208,7 +218,7 @@ def _finished_turn(
         parked=parked,
         questions=questions,
         usage=usage,
-        summarized_history=summarized_history,
+        history_snapshot=history_snapshot,
         overhead_tokens=overhead_tokens,
     )
 
@@ -857,7 +867,7 @@ class TestATurnThatFinished:
         turn = _finished_turn(
             usage=UsageReport(input_tokens=1200, output_tokens=300, cost_usd=Decimal("0.0125")),
             parked=_parked_call() if parked else (),
-            summarized_history=[{"kind": "request"}],
+            history_snapshot=[{"kind": "request"}],
             overhead_tokens=1200,
         )
 
@@ -912,7 +922,7 @@ class TestATurnThatFinished:
         session = _session()
         summary = [{"kind": "request", "parts": []}]
 
-        with _chat(AsyncMock(return_value=_finished_turn(summarized_history=summary))) as stubs:
+        with _chat(AsyncMock(return_value=_finished_turn(history_snapshot=summary))) as stubs:
             await session.process_message(_message())
 
         assert stubs.conversations.keep_summary.await_args.args[1] == summary
@@ -944,7 +954,7 @@ class TestATurnThatFinished:
         order: list[str] = []
 
         with _chat(
-            AsyncMock(return_value=_finished_turn(summarized_history=[{"kind": "request"}]))
+            AsyncMock(return_value=_finished_turn(history_snapshot=[{"kind": "request"}]))
         ) as stubs:
             stubs.answer.side_effect = lambda *args, **kwargs: order.append("answer") or "saved-1"
             stubs.conversations.keep_summary.side_effect = lambda *args, **kwargs: order.append(
@@ -1050,10 +1060,39 @@ class TestATurnThatFinished:
                         # the card puts above the arguments.
                         "context": {"recipient": "Ops"},
                         "account": None,
+                        "always_asks": False,
+                        # A member holds no `approvals:decide`: the card says who can.
+                        "may_decide": False,
+                        "may_approve": False,
                     }
                 ],
                 "review_configs": [{"tool_name": "send_email", "allow_edit": False}],
             },
+        )
+
+    async def test_the_person_answers_their_own_platform_call_whatever_their_role(self):
+        """A platform call that always asks runs as the person whose run it is, so
+        that person answers it, whatever their role."""
+        session = _session()
+        parked = (
+            ParkedApproval(
+                approval_id=uuid4(),
+                tool_call_id="call-1",
+                tool_name="agenticos_accept_improvement",
+                tool_args={"publish": True},
+                context={"platform_tool": "true"},
+                always_asks=True,
+            ),
+        )
+
+        with _chat(AsyncMock(return_value=_finished_turn(parked=parked))):
+            await session.process_message(_message())
+
+        [request] = _sent_events(session)[2][1]["action_requests"]
+        assert (request["always_asks"], request["may_decide"], request["may_approve"]) == (
+            True,
+            True,
+            True,
         )
 
     async def test_a_parked_turn_stores_which_calls_are_waiting(self):
@@ -1578,6 +1617,25 @@ class TestAskingTheUser:
         assert await asking == [{"answer": "eu", "skipped": False}]
         # Cleared, or the next question resolves against a future already done.
         assert session._ask_user_future is None
+
+    async def test_correlated_answer_is_acknowledged_after_it_reaches_the_waiting_run(self):
+        session = _session()
+        asked = _next_frame(session)
+        asking = asyncio.create_task(session._ask_user(self._QUESTIONS))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "request_id": "answer-1", "answers": [{"answer": "eu"}]}
+        )
+        assert await asking == [{"answer": "eu"}]
+        assert _sent_events(session)[-1] == (
+            "ask_user_answered",
+            {"request_id": "answer-1", "asked_by": None},
+        )
+        before = len(_sent_events(session))
+        await session.handle_frame(
+            {"type": "ask_user_response", "request_id": "duplicate", "answers": []}
+        )
+        assert len(_sent_events(session)) == before
 
     async def test_an_answers_payload_that_is_not_a_list_releases_the_run_anyway(self):
         """A client that sent `null`, or an object, would otherwise leave the run
@@ -4221,7 +4279,16 @@ class TestStarterSetupReply:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "locale, greeting", [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Hi")]
+        "locale, greeting",
+        [
+            ("pl", "Cześć"),
+            ("de", "Hallo"),
+            ("tr", "Merhaba"),
+            ("fr", "Bonjour"),
+            ("nl", "Hallo"),
+            ("pt", "Olá"),
+            ("es", "Hi"),
+        ],
     )
     @pytest.mark.parametrize("saved", ["saved", None])
     async def test_first_message_gets_a_persisted_setup_card_without_running_a_draft(

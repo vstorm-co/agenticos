@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserPanelFrame } from "./browser-panel-frame";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 function panel() {
   return render(
@@ -66,4 +67,81 @@ it("bounds pointer resizing and removes the native blocker when the drag ends", 
     expect(view.container.querySelector("[data-native-browser-blocked]")).toBeNull();
   }
   vi.unstubAllGlobals();
+});
+
+it("keeps Sources at a readable bounded pixel width while leaving room for the chat", () => {
+  const view = render(
+    <BrowserPanelFrame sizing="sources" layout="sources">
+      {() => <span>Sources</span>}
+    </BrowserPanelFrame>,
+  );
+  const resize = screen.getByRole("separator");
+  expect(resize).toHaveAttribute("aria-valuenow", "400");
+  expect(
+    view.container.querySelector("aside")?.style.getPropertyValue("--browser-panel-width"),
+  ).toBe("min(400px, 38%)");
+  fireEvent.keyDown(resize, { key: "Home" });
+  expect(resize).toHaveAttribute("aria-valuenow", "360");
+  fireEvent.keyDown(resize, { key: "ArrowLeft" });
+  expect(resize).toHaveAttribute("aria-valuenow", "376");
+  fireEvent.keyDown(resize, { key: "End" });
+  expect(resize).toHaveAttribute("aria-valuenow", "420");
+  fireEvent.keyDown(resize, { key: "ArrowLeft" });
+  expect(resize).toHaveAttribute("aria-valuenow", "420");
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  Object.defineProperty(resize, "setPointerCapture", { value: vi.fn() });
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 1200, 700),
+  );
+  fireEvent.pointerDown(resize, { button: 0 });
+  fireEvent.pointerMove(resize, { clientX: 810 });
+  expect(resize).toHaveAttribute("aria-valuenow", "390");
+  fireEvent.pointerUp(resize);
+  fireEvent(resize, new MouseEvent("dblclick", { bubbles: true }));
+  expect(resize).toHaveAttribute("aria-valuenow", "400");
+});
+
+it("announces the capped dock width and resizes from it on the first keypress", () => {
+  let resizeDock: (width: number) => void;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
+        resizeDock = (width) => callback([{ contentRect: { width } }]);
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const view = render(
+    <BrowserPanelFrame sizing="sources" layout="sources">
+      {() => <span>Files</span>}
+    </BrowserPanelFrame>,
+  );
+  const resize = screen.getByRole("separator");
+  act(() => resizeDock(1000));
+  expect(resize).toHaveAttribute("aria-valuemax", "380");
+  expect(resize).toHaveAttribute("aria-valuenow", "380");
+  fireEvent.keyDown(resize, { key: "ArrowRight" });
+  expect(resize).toHaveAttribute("aria-valuenow", "364");
+  expect(
+    view.container.querySelector("aside")?.style.getPropertyValue("--browser-panel-width"),
+  ).toBe("min(364px, 38%)");
+  fireEvent.keyDown(resize, { key: "End" });
+  expect(resize).toHaveAttribute("aria-valuenow", "380");
+  act(() => resizeDock(1200));
+  expect(resize).toHaveAttribute("aria-valuemax", "420");
+  expect(resize).toHaveAttribute("aria-valuenow", "380");
+});
+it("keeps its header clear of a phone's status bar when it covers the screen", () => {
+  // On a phone the panel covers the screen, under the status bar and home
+  // indicator; its header and close button sat beneath the clock.
+  const view = panel();
+  const aside = view.container.querySelector("aside")!;
+  for (const token of FULLSCREEN_SAFE.split(" ")) expect(aside.className).toContain(token);
+  // Docked beside the chat it sits below the console's header instead.
+  expect(aside.className).toContain("@min-[900px]/browser-layout:pt-0");
+  // Inside another surface, that surface clears the status bar.
+  const inside = render(<BrowserPanelFrame contained>{() => null}</BrowserPanelFrame>);
+  expect(inside.container.querySelector("aside")!.className).not.toContain("fullscreen-inset-top");
 });

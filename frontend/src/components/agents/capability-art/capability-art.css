@@ -658,3 +658,15 @@
   filter: saturate(0.6);
   opacity: 0.9;
 }
+
+.capability-art-viewport > .cap-art {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+button:active > .capability-art-viewport > .cap-art,
+button[aria-current="true"] > .capability-art-viewport > .cap-art {
+  transform: scale(1.065);
+}
+:root[data-motion="reduce"] .capability-art-viewport > .cap-art {
+  transition: none;
+  transform: none;
+}

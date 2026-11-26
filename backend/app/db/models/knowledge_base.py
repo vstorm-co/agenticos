@@ -153,4 +153,8 @@ class KnowledgeBase(TimestampMixin, Base):
             "scope <> 'org' OR organization_id IS NOT NULL",
             name="ck_knowledge_bases_org_scope_has_org",
         ),
+        CheckConstraint(
+            "scope <> 'app' OR organization_id IS NULL",
+            name="ck_knowledge_bases_app_scope_has_no_org",
+        ),
     )

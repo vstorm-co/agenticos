@@ -70,7 +70,7 @@ async def test_late_admission_refusals_never_restart_an_obsolete_activation(monk
         execute.assert_not_awaited()
     else:
         execute.assert_awaited_once()
-        assert "revision" in execute.await_args.args[2]
+        assert execute.await_args.args[2] == trigger.prompt
     if change in {"source_during_deleted", "preparation_deleted"}:
         notice.assert_not_awaited()
         service._record_attempt.assert_not_awaited()
@@ -237,6 +237,7 @@ async def test_creation_refuses_unreviewed_project_or_device_authority(monkeypat
     from tests.test_agent_triggers import _interval
 
     service = _service()
+    monkeypatch.setattr(module, "require_organization_agent", AsyncMock())
     service._version_target = AsyncMock()
     service._delivery_target = AsyncMock()
     data = _interval()
@@ -322,6 +323,7 @@ async def test_a_native_fire_keeps_its_durable_device_admission(monkeypatch, cha
             status="waiting",
             intent_hash=activation_intent(trigger),
             event_context=None,
+            event_source_id=None,
         )
     monkeypatch.setattr(module.device_wait_repo, "get", AsyncMock(return_value=wait))
     settled = AsyncMock()
@@ -409,7 +411,7 @@ async def test_delivery_rechecks_the_reviewed_mode_agent_and_target_before_posti
         run=MagicMock(routine_policy={"result_mode": "report"}),
         answer="Done",
     )
-    assert delivery.status == "unavailable"
+    assert delivery.status == ("run_log" if change == "result_mode" else "unavailable")
     post.assert_not_awaited()
 
 

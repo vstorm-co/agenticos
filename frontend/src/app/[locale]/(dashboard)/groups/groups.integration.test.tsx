@@ -237,7 +237,7 @@ describe("one group's page", () => {
 
     expect(await screen.findByRole("link", { name: /month-end-close/ })).toHaveAttribute(
       "href",
-      "/skills",
+      "/skills/s1",
     );
     expect(screen.getByRole("link", { name: /Accounts payable/ })).toHaveAttribute(
       "href",

@@ -1,12 +1,10 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
-import { ArchitectMark } from "@/components/assistant/architect-mark";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
 import { useOrgStore } from "@/stores/org-store";
 import { cn } from "@/lib/utils";
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
 const SIZES = {
   sm: "h-6 w-6 text-[11px]",
@@ -79,8 +77,6 @@ export function AgentAvatar({
   unframed = true,
 }: AgentAvatarProps) {
   const organizationId = useOrgStore((state) => state.activeOrgId);
-  const wearsMark = useArchitectMarkStore((state) => state.agentId === agentId);
-  if (wearsMark && hasAvatar) return <ArchitectMark className={cn(SIZES[size], className)} />;
   return (
     <Avatar
       data-agent-avatar={agentId}
@@ -91,7 +87,7 @@ export function AgentAvatar({
           it would show as a ring wherever the two discs disagree. Held back
           while an uploaded picture loads: shown at once, the generated face
           flashed in every place the picture was about to appear - the
-          Architect's mark was a blob for a beat on every new message. A
+          uploaded picture would flash as a blob on every new message. A
           picture that fails to load still gets the face, a moment later. */}
       <AvatarFallback
         className="bg-transparent"

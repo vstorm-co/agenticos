@@ -5,12 +5,16 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
 
+import { useBranding } from "@/components/branding/branding-provider";
+import { ProviderSignIn } from "@/components/auth/provider-sign-in";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { EMAIL_RE } from "@/lib/utils";
 
 export function ForgotPasswordForm() {
+  const branding = useBranding();
   const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +44,8 @@ export function ForgotPasswordForm() {
     setIsLoading(false);
   };
 
+  if (!branding.passwordSignInEnabled) return <ProviderSignIn />;
+
   if (submitted) {
     return (
       <div className="space-y-7 text-center">
@@ -48,9 +54,9 @@ export function ForgotPasswordForm() {
         </div>
         <div className="space-y-2">
           <span className="text-muted-foreground text-sm font-medium">{t("checkYourInbox")}</span>
-          <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
+          <AuthHeading>
             {t.rich("linkSentHeading", { em: (chunks) => <em>{chunks}</em> })}
-          </h1>
+          </AuthHeading>
           <p className="text-foreground/70 text-sm">
             {t.rich("resetLinkSent", {
               email,
@@ -75,9 +81,7 @@ export function ForgotPasswordForm() {
         <span className="text-muted-foreground text-sm font-medium">
           {t("forgotPasswordPrompt")}
         </span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t.rich("forgotHeading", { em: (chunks) => <em>{chunks}</em> })}
-        </h1>
+        <AuthHeading>{t.rich("forgotHeading", { em: (chunks) => <em>{chunks}</em> })}</AuthHeading>
         <p className="text-foreground/65 text-sm">{t("dropYourEmailBelow")}</p>
       </div>
 

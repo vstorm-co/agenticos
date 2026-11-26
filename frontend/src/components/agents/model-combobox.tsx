@@ -2,12 +2,15 @@
 
 import { useId, useState } from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown, Pencil } from "lucide-react";
+import { Check, ChevronsUpDown, Pencil, RefreshCw } from "lucide-react";
 
-import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
+import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+
+import { ModelIcon } from "@/components/icons/model-icon";
 
 /** One entry as the picker needs it - the shape `useProviderModels` returns. */
 export interface ModelOption {
@@ -17,13 +20,16 @@ export interface ModelOption {
 }
 
 interface ModelComboboxProps {
+  provider?: string;
   value: string;
   onChange: (model: string) => void;
   options: ModelOption[];
   /** Where the list came from, so the panel can be honest about it. */
   source: "live" | "curated" | "unlisted" | null;
   loading?: boolean;
+  onRefresh?: () => void;
   disabled?: boolean;
+  allowCustom?: boolean;
   placeholder: string;
   id?: string;
   /**
@@ -64,18 +70,22 @@ function contextLabel(tokens: number | null | undefined): string | null {
  * free-text case, now visible instead of implicit.
  */
 export function ModelCombobox({
+  provider,
   value,
   onChange,
   options,
   source,
   loading,
+  onRefresh,
   disabled,
+  allowCustom = true,
   placeholder,
   id,
   "aria-invalid": invalid,
   "aria-describedby": describedBy,
 }: ModelComboboxProps) {
   const t = useTranslations("agents");
+  const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const listId = useId();
@@ -85,7 +95,9 @@ export function ModelCombobox({
   // Only when it is genuinely not in the catalog. Offering "use openai/gpt-5"
   // beneath the openai/gpt-5 row is offering the same thing twice.
   const custom =
-    typed !== "" && !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
+    allowCustom &&
+    typed !== "" &&
+    !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
       ? typed
       : null;
 
@@ -112,8 +124,13 @@ export function ModelCombobox({
             "touch:min-h-11 flex h-10 w-full items-center gap-2 px-3 text-left text-sm",
           )}
         >
-          <span className={cn("min-w-0 flex-1 truncate font-mono", value === "" && "font-sans")}>
-            {value === "" ? <span className="text-muted-foreground">{placeholder}</span> : value}
+          {value !== "" && <ModelIcon model={value} provider={provider} />}
+          <span className="min-w-0 flex-1 truncate">
+            {value === "" ? (
+              <span className="text-muted-foreground">{placeholder}</span>
+            ) : (
+              catalogModelName(value, chosen?.name)
+            )}
           </span>
           {chosen?.context_length != null && (
             <span className="text-muted-foreground shrink-0 text-xs">
@@ -133,11 +150,11 @@ export function ModelCombobox({
               value={search}
               onValueChange={setSearch}
               placeholder={t("searchModels")}
-              className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground w-full bg-transparent text-base outline-none md:text-sm"
             />
           </div>
 
-          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1">
+          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
             {/* Not `Command.Empty`: when something has been typed there *is* an
                 option - itself - and an "no matches" line above an offer to use
                 what you typed contradicts it. */}
@@ -153,16 +170,19 @@ export function ModelCombobox({
               </p>
             )}
 
+            {!allowCustom && !loading && options.length > 0 && (
+              <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
+                {t("noMatchingModels")}
+              </Command.Empty>
+            )}
+
             {custom !== null && (
               <Command.Item
                 value={custom}
                 onSelect={() => pick(custom)}
-                className={cn(
-                  COMMAND_ITEM_FOCUS,
-                  "flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm",
-                )}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer pr-9")}
               >
-                <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <ModelIcon model={custom} provider={provider} />
                 <span className="min-w-0 flex-1 truncate">
                   {t.rich("useCustomModel", {
                     name: custom,
@@ -170,6 +190,7 @@ export function ModelCombobox({
                   })}
                 </span>
                 <Badge variant="outline">{t("notList")}</Badge>
+                <Pencil aria-hidden className="text-muted-foreground absolute right-3 size-3.5" />
               </Command.Item>
             )}
 
@@ -180,29 +201,22 @@ export function ModelCombobox({
                 // "opus" is the name and "claude-opus" is the id.
                 value={`${option.id} ${option.name}`}
                 onSelect={() => pick(option.id)}
-                className={cn(
-                  COMMAND_ITEM_FOCUS,
-                  "flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm",
-                )}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer pr-9")}
               >
-                <Check
-                  className={cn(
-                    "mt-0.5 h-3.5 w-3.5 shrink-0",
-                    option.id === value ? "opacity-100" : "opacity-0",
-                  )}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-mono text-xs">{option.id}</span>
-                  {option.name !== option.id && (
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {option.name}
-                    </span>
-                  )}
+                <ModelIcon model={option.id} provider={provider} className="self-center" />
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {catalogModelName(option.id, option.name)}
                 </span>
                 {option.context_length != null && (
                   <span className="text-muted-foreground shrink-0 text-xs">
                     {contextLabel(option.context_length)}
                   </span>
+                )}
+                {option.id === value && (
+                  <Check
+                    aria-hidden
+                    className="absolute top-1/2 right-3 size-3.5 -translate-y-1/2"
+                  />
                 )}
               </Command.Item>
             ))}
@@ -214,6 +228,24 @@ export function ModelCombobox({
             </p>
           )}
         </Command>
+        {onRefresh && (
+          <div className="border-border flex justify-end border-t px-2 py-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled || loading}
+              onClick={onRefresh}
+            >
+              <RefreshCw
+                size={14}
+                aria-hidden
+                className={cn(loading && "animate-spin motion-reduce:animate-none")}
+              />
+              {picker("refreshCatalog")}
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

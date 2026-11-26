@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MembersPage from "./page";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { DEFAULT_CHAT_HOME, type ConsoleExperience } from "@/lib/console-experience-api";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
@@ -50,6 +51,19 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
+
+const CONSOLE_EXPERIENCE: ConsoleExperience = {
+  availability: DEFAULT_CHAT_HOME,
+  organization_defaults: {},
+  preferences: {},
+  effective: DEFAULT_CHAT_HOME,
+  reminders: {
+    availability: true,
+    organization_defaults: {},
+    preferences: {},
+    effective: { enabled: true, snooze_days: 1 },
+  },
+};
 
 const ME = "user-me";
 
@@ -100,6 +114,7 @@ function serve(
   configuration: Partial<Organization> = {},
 ) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions"))
       return Promise.resolve({
@@ -241,6 +256,7 @@ describe("the members table's role control", () => {
     path.mockReturnValue(`/orgs/${URL_ORG}/members`);
     useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
       if (url.startsWith("/me/permissions")) {
         const asked = useOrgStore.getState().activeOrgId;
@@ -303,6 +319,7 @@ describe("the members table's role control", () => {
     // Offering nothing and being unable to answer are the same pixels and a
     // different fact.
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
       if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
       if (url === "/system-agents")
@@ -470,31 +487,122 @@ describe("organization settings tabs", () => {
     ]);
     await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
     const expand = screen.getByRole("button", {
-      name: "Assistant suggestions and monitoring",
+      name: "Daily briefing & suggestions",
     });
     await userEvent.click(expand);
-    const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });
+    const nightly = screen.getByRole("switch", { name: "Daily briefing & suggestions" });
     await userEvent.click(nightly);
     expect(nightly).toBeChecked();
+    const limit = screen.getByLabelText("Limit per person (USD a month)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "5");
     await userEvent.click(expand);
-    expect(nightly).not.toBeVisible();
+    expect(nightly).toBeVisible();
+    expect(limit).not.toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Members" }));
     await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
     await userEvent.click(expand);
     expect(nightly).toBeChecked();
     expect(nightly).toBeVisible();
+    expect(limit).toHaveValue(5);
+    expect(limit).toBeVisible();
   });
 
-  it("places Background services before the other settings for budget managers", async () => {
+  it("uses one service-card header for all seven functions, with independent keyboard disclosures", async () => {
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      { welcome_dm_enabled: true },
+    );
+    const original = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
+      if (url === "/assistant")
+        return Promise.resolve({
+          status: "ready",
+          agent_id: "architect",
+          slug: "ai-architect",
+          name: "Architect",
+          named_by_default: true,
+          greeting: null,
+          avatar_url: null,
+          avatar_color: null,
+          wears_mark: true,
+          can_use: true,
+          can_configure: true,
+        });
+      return original(url);
+    });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    const aiServices = screen.getByRole("tabpanel", { name: "AI & services" });
+    const titles = [
+      "Memory maintenance",
+      "AI Architect",
+      "Daily briefing & suggestions",
+      "Allow read-only monitoring routines",
+      "Welcome message in chat apps",
+      "Speech to text",
+      "Text to speech",
+    ];
+    const headers: HTMLElement[] = [];
+    for (const title of titles) {
+      const card = await within(aiServices).findByRole("region", { name: title });
+      expect(card).toHaveAttribute("data-slot", "service-card");
+      const chatHome = within(aiServices).getByRole("region", { name: "Chat home" });
+      expect(
+        card.compareDocumentPosition(chatHome) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      const header = card.querySelector("header");
+      expect(header).not.toBeNull();
+      headers.push(header!);
+      expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
+      if (title === "AI Architect") {
+        expect(within(card).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(header!).queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
+        expect(within(header!).queryByRole("button", { name: title })).toBeNull();
+        expect(within(header!).getByRole("switch")).toBeVisible();
+        continue;
+      }
+      const trigger = within(header!).getByRole("button", { name: title });
+      const toggle = within(header!).getByRole("switch");
+      expect(trigger).not.toContainElement(toggle);
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      trigger.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await userEvent.keyboard(" ");
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toBeVisible();
+    }
+    expect(new Set(headers.map((header) => header.className)).size).toBe(1);
+    const serviceTitles = [...titles, "Chat home", "Setup reminders"];
+    for (const title of serviceTitles) {
+      expect(within(aiServices).getByRole("region", { name: title })).toHaveAttribute(
+        "data-slot",
+        "service-card",
+      );
+    }
+  });
+
+  it("groups background services without adding a second interactive disclosure", async () => {
     serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent(
-      "Background services",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Background services" }));
+    expect(screen.getByRole("heading", { name: "Background services", level: 2 })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Assistant and conversations", level: 2 }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Background services" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Memory maintenance/ }));
     expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "AI Architect" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Speech to text" })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(3);
   });
 
   it("shows actionable Voice setup without warning about disabled services", async () => {
@@ -548,4 +656,28 @@ describe("organization settings tabs", () => {
       expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual(["Members"]);
     },
   );
+});
+
+it("shows the membership's onboarding status and readable current step", async () => {
+  serve("owner");
+  const fallback = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((url) =>
+    url.includes("/members")
+      ? Promise.resolve({
+          items: [
+            {
+              ...member(ME, "me@acme.test", "owner"),
+              onboarding_completed_at: null,
+              onboarding_current_step: "member.profile",
+              onboarding_updated_at: "2026-11-22T10:00:00Z",
+            },
+          ],
+          total: 1,
+        })
+      : fallback(url),
+  );
+  await mount();
+  const row = await roleCell("me@acme.test");
+  expect(within(row).getByText("In progress")).toBeVisible();
+  expect(within(row).getByText("Your profile")).toBeVisible();
 });

@@ -109,6 +109,12 @@ class CodingAccountService:
                 message="The coding account changed. Reload its settings.",
                 details={"account_id": account_id},
             )
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id,
+            account_id=row.id,
+        )
         row.enabled = data.enabled
         row.generation = uuid4()
         await self.db.flush()
@@ -117,6 +123,12 @@ class CodingAccountService:
 
     async def disconnect(self, ctx: AuthContext, account_id: UUID) -> None:
         row = await self.own(ctx, account_id, locked=True)
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id,
+            account_id=row.id,
+        )
         await self._audit(ctx, row, "coding_account.disconnected")
         await account_repo.delete(self.db, row)
 

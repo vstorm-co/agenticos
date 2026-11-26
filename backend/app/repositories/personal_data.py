@@ -32,6 +32,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    tuple_,
     update,
 )
 from sqlalchemy import case as sa_case
@@ -52,9 +53,11 @@ from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_generation import CaseProposal
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
+from app.db.models.chatgpt_registration import ChatGPTRegistration
 from app.db.models.coding_account import CodingAccount
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.context_proposal import ContextProposal
@@ -62,10 +65,17 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunCase
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementSearchVariant,
+)
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import (
     DraftAuthor,
+    GapSignal,
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -80,6 +90,9 @@ from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
+from app.db.models.personal_context import PersonalContextCache
+from app.db.models.personal_model_generation import PersonalModelGeneration
+from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.routine_device_wait import RoutineDeviceWait
@@ -555,6 +568,8 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
             ChannelIdentity.user_id == user_id,
             ChannelIdentity.platform == BackgroundJob.payload["platform"].astext,
             ChannelIdentity.platform_user_id == BackgroundJob.payload["platform_user_id"].astext,
+            ChannelIdentity.server_url
+            == func.coalesce(BackgroundJob.payload["server_url"].astext, ""),
         )
     )
     own_run = BackgroundJob.payload["run_id"].astext.in_(
@@ -732,6 +747,10 @@ def _their_turns(user_id: UUID) -> ColumnElement[bool]:
     return or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(linked))
 
 
+_NOT_KEYS = '$[*] ? (!exists(@.type ? (@ == "keys")))'
+"""Every check but a `keys` one, in order; `exists` keeps a check with no type."""
+
+
 async def anonymise_dataset_cases_of(
     db: AsyncSession, user_id: UUID, *, placeholder: str, at: datetime
 ) -> list[UUID]:
@@ -741,8 +760,10 @@ async def anonymise_dataset_cases_of(
     answer they got, so all of it goes:
     the input becomes `placeholder`, and the history, both answers and the note -
     the comment a down-rating left - are emptied. The case keeps its id, its
-    place, its expected tool calls and its checks, which are the curator's, and
-    is marked anonymised, so its curator can rewrite it or remove it.
+    place, its expected tool calls and its checks, which are the curator's,
+    except a `keys` check: its values were drawn from the reference answer that
+    goes, and so were the keys drafted from it, which go too. It is marked
+    anonymised, so its curator can rewrite it or remove it.
 
     Revisions are immutable everywhere else; an erasure is the exception, and
     reaches the revisions only earlier versions still hold. Unscoped by
@@ -774,6 +795,7 @@ async def anonymise_dataset_cases_of(
             history=[],
             reference_answer=None,
             counter_example=None,
+            checks=func.jsonb_path_query_array(DatasetCase.checks, cast(_NOT_KEYS, JSONPATH)),
             note=None,
             history_author_ids=[],
             noted_by_user_id=None,
@@ -782,6 +804,13 @@ async def anonymise_dataset_cases_of(
         .returning(DatasetCase.id)
     )
     revisions = list(result.scalars().all())
+    if revisions:
+        drafts = await db.execute(
+            sa_delete(CaseKeyDraft)
+            .where(CaseKeyDraft.revision_id.in_(revisions))
+            .returning(CaseKeyDraft.run_id)
+        )
+        await forget_runs(db, [run_id for run_id in drafts.scalars() if run_id is not None])
     await db.flush()
     return revisions
 
@@ -793,8 +822,9 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     the question's details as arguments, so the answer and calls of every
     attempt go, and every score's copy of the answer with the parts of its
     results that can repeat it - and, through :func:`forget_runs`, what the
-    agent's and the judge's runs kept of the question. The outcome stays:
-    whether the case passed is the organization's.
+    agent's and the judge's runs kept of the question. A knowledge gap read from
+    an answer holds the question, and its verdict a model's words on the answer,
+    so both go too. The outcome stays: whether the case passed is the organization's.
 
     Returns:
         How many attempts and scores were cleared.
@@ -802,11 +832,25 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     if not revision_ids:
         return 0
     answered = await db.execute(
-        select(EvalRunCase.agent_run_id).where(
-            EvalRunCase.case_revision_id.in_(revision_ids), EvalRunCase.agent_run_id.is_not(None)
-        )
+        select(EvalRunCase.agent_run_id)
+        .where(EvalRunCase.case_revision_id.in_(revision_ids))
+        .order_by(EvalRunCase.id)
+        .with_for_update()
     )
     runs = {run_id for run_id in answered.scalars() if run_id is not None}
+    await db.execute(
+        sa_delete(KnowledgeSearch).where(
+            KnowledgeSearch.run_id.in_(runs),
+            KnowledgeSearch.message_id.is_(None),
+            KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+        )
+    )
+    classifiers = await db.scalars(
+        sa_delete(KnowledgeGapEvalClassification)
+        .where(KnowledgeGapEvalClassification.run_id.in_(runs))
+        .returning(KnowledgeGapEvalClassification.classifier_run_id)
+    )
+    runs.update(classifier for classifier in classifiers if classifier is not None)
     attempts = await db.execute(
         update(EvalRunCase)
         .where(EvalRunCase.case_revision_id.in_(revision_ids))
@@ -891,6 +935,7 @@ BRIEFING_SUGGESTION_KINDS = (
     SuggestionKind.AGENT,
     SuggestionKind.PROFILE,
     SuggestionKind.ROLE_PACK,
+    SuggestionKind.PERSONAL,
 )
 """What a daily briefing proposes, each drawn from the person's requests and notes."""
 
@@ -913,11 +958,20 @@ async def forget_briefings_of(db: AsyncSession, user_id: UUID, *, organization_i
         )
         .values(personal_starters=None, personal_starters_at=None)
     )
+    await db.execute(
+        sa_delete(PersonalContextCache).where(
+            PersonalContextCache.organization_id == organization_id,
+            PersonalContextCache.user_id == user_id,
+        )
+    )
     removed = await db.execute(
         sa_delete(Suggestion).where(
             Suggestion.organization_id == organization_id,
             Suggestion.user_id == user_id,
-            Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+            or_(
+                Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+                Suggestion.payload["personal_context"].as_boolean().is_(True),
+            ),
         )
     )
     await db.flush()
@@ -1034,6 +1088,74 @@ async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
         assert run_id is not None and note is not None
         comments[run_id].append(note)
     return dict(comments)
+
+
+async def clear_search_variant_text(db: AsyncSession, revision_ids: list[UUID]) -> int:
+    """Clear what Improve searches wrote over the datasets these case revisions are in.
+
+    A search writes each variant's instructions and rationale from its dataset's
+    training questions and reference answers, and records no case a variant drew
+    on, so every variant of every session on a dataset that held one of these
+    revisions loses its text. Its scores and counts stay, and a variant left
+    without text is never adopted.
+
+    Returns:
+        How many variants were cleared.
+    """
+    if not revision_ids:
+        return 0
+    datasets = select(DatasetCase.dataset_id, DatasetCase.organization_id).where(
+        DatasetCase.id.in_(revision_ids)
+    )
+    sessions = select(ImprovementRun.id).where(
+        tuple_(ImprovementRun.dataset_id, ImprovementRun.organization_id).in_(datasets)
+    )
+    attempts = select(ImprovementIteration.id).where(ImprovementIteration.run_id.in_(sessions))
+    result = await db.execute(
+        sql_update(ImprovementSearchVariant)
+        .where(
+            ImprovementSearchVariant.iteration_id.in_(attempts),
+            or_(
+                ImprovementSearchVariant.instructions != "",
+                ImprovementSearchVariant.rationale != "",
+            ),
+        )
+        .values(instructions="", rationale="")
+        .returning(ImprovementSearchVariant.id)
+    )
+    cleared = len(result.scalars().all())
+    await db.flush()
+    return cleared
+
+
+async def clear_attempt_notes_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the notes on the attempts of Improve sessions this person started or last continued.
+
+    A note is what the person who asked for an attempt told its helper, and it
+    records no author, so every note of a session they started or took the
+    latest step of goes.
+
+    Returns:
+        How many attempts lost their note.
+    """
+    sessions = select(ImprovementRun.id).where(
+        or_(
+            ImprovementRun.created_by_user_id == user_id,
+            ImprovementRun.actor_user_id == user_id,
+        )
+    )
+    result = await db.execute(
+        sql_update(ImprovementIteration)
+        .where(
+            ImprovementIteration.run_id.in_(sessions),
+            ImprovementIteration.note.is_not(None),
+        )
+        .values(note=None)
+        .returning(ImprovementIteration.id)
+    )
+    cleared = len(result.scalars().all())
+    await db.flush()
+    return cleared
 
 
 async def clear_case_notes_of(
@@ -1576,6 +1698,7 @@ async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
         select(
             func.coalesce(func.sum(func.length(cast(AgentTrigger.approved_sources, Text))), 0)
             + func.coalesce(func.sum(func.length(cast(AgentTrigger.action_consents, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(AgentTrigger.tool_settings, Text))), 0)
             + func.count(AgentTrigger.id) * 1024
         ).where(AgentTrigger.created_by_user_id == user_id)
     )
@@ -1587,7 +1710,7 @@ async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
     await db.execute(
         sql_update(AgentTrigger)
         .where(AgentTrigger.created_by_user_id == user_id)
-        .values(approved_sources=None, action_consents=[])
+        .values(approved_sources=None, action_consents=[], tool_settings=[])
     )
     await db.execute(
         sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)
@@ -1836,4 +1959,26 @@ async def private_task_schemas_of(
             .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
             .order_by(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.version)
         )
+    )
+
+
+async def personal_model_keys_of(db: AsyncSession, user_id: UUID) -> list[PersonalModelKey]:
+    return list(
+        await db.scalars(select(PersonalModelKey).where(PersonalModelKey.user_id == user_id))
+    )
+
+
+async def personal_model_generations_of(
+    db: AsyncSession, user_id: UUID
+) -> list[PersonalModelGeneration]:
+    return list(
+        await db.scalars(
+            select(PersonalModelGeneration).where(PersonalModelGeneration.user_id == user_id)
+        )
+    )
+
+
+async def chatgpt_registrations_of(db: AsyncSession, user_id: UUID) -> list[ChatGPTRegistration]:
+    return list(
+        await db.scalars(select(ChatGPTRegistration).where(ChatGPTRegistration.user_id == user_id))
     )

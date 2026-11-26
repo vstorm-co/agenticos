@@ -153,15 +153,13 @@ describe("the chip a composer draws", () => {
     expect(screen.getByTitle("report.csv")).toBeInTheDocument();
   });
 
-  it("gives remove its own hit area at chip height", () => {
-    // The tile's × is a 12px glyph in a corner. At chip height the card is about
-    // the size that corner used to be.
-    render(<FileCard name="report.csv" compact onRemove={vi.fn()} />);
-
-    const remove = screen.getByRole("button", { name: /report\.csv/ });
-
-    expect(remove.className).toContain("h-6");
-    expect(remove.className).toContain("w-6");
+  it("keeps removal independent of opening the compact file", async () => {
+    const onRemove = vi.fn();
+    const onOpen = vi.fn();
+    render(<FileCard name="report.csv" compact onRemove={onRemove} onOpen={onOpen} />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove report.csv" }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("draws a thumbnail in the chip for an image", () => {

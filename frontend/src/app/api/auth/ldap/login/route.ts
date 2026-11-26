@@ -53,7 +53,11 @@ export async function POST(request: NextRequest) {
       headers: { Authorization: `Bearer ${data.access_token}` },
     });
 
-    const response = bffJson({ user, access_token: data.access_token });
+    const response = bffJson({
+      user,
+      access_token: data.access_token,
+      is_new_user: data.is_new_user === true,
+    });
     response.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
       httpOnly: true,
       secure: secureCookies(request),

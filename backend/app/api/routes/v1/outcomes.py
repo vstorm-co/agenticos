@@ -1,6 +1,6 @@
 """What needs the caller's attention, and settling it once (#2575)."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import Auth, OutcomeSvc, key_needs
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
-from app.schemas.outcome import OutcomeList, OutcomeRead, OutcomeSettle
+from app.schemas.outcome import InboxItems, OutcomeList, OutcomeRead, OutcomeSettle
 
 router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 
@@ -17,6 +17,8 @@ router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 async def list_outcomes(
     service: OutcomeSvc,
     ctx: Auth,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    skip: Annotated[int, Query(ge=0)] = 0,
     open_only: bool = Query(default=True),
     conversation_id: UUID | None = Query(default=None),
     include_source: bool = Query(
@@ -28,14 +30,25 @@ async def list_outcomes(
 
     No role gate: an outcome is addressed to one person and never listed to anybody else.
     """
-    items = await service.list_mine(ctx, open_only=open_only, conversation_id=conversation_id)
+    items = await service.list_mine(
+        ctx, open_only=open_only, conversation_id=conversation_id, limit=limit + 1, skip=skip
+    )
+    more = len(items) > limit
+    items = items[:limit]
     sources = await service.finding_sources(ctx, items) if include_source else {}
     return OutcomeList(
+        next_skip=skip + len(items) if more else None,
         items=[
             OutcomeRead.model_validate(item).model_copy(update={"source": sources.get(item.id)})
             for item in items
-        ]
+        ],
     )
+
+
+@router.get("/inbox", response_model=InboxItems)
+async def list_inbox_items(service: OutcomeSvc, ctx: Auth, item_id: UUID | None = None) -> Any:
+    """Private Inbox cards such as findings and suggestions, plus a count of visible approvals."""
+    return await service.inbox_items(ctx, item_id=item_id)
 
 
 @router.post("/{outcome_id}/settle", response_model=OutcomeRead)

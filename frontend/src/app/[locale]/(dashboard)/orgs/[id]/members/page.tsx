@@ -1,5 +1,7 @@
 "use client";
 
+import { OnboardingStatusCell } from "@/components/onboarding/onboarding-status-cell";
+
 import { use, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -83,6 +85,7 @@ import { formatDate } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
+import { OrgChatHomeSettings } from "@/components/teams/org-chat-home-settings";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -105,6 +108,7 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
 export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
+  const onboarding = useTranslations("onboardingStatus");
   const tc = useTranslations("common");
   const tSetup = useTranslations("setupHints");
   const setupId = useId();
@@ -289,6 +293,17 @@ export default function OrgMembersPage({ params }: PageProps) {
         },
       },
       {
+        key: "onboarding",
+        header: onboarding("header"),
+        cell: (member) => (
+          <OnboardingStatusCell
+            completed_at={member.onboarding_completed_at}
+            current_step={member.onboarding_current_step}
+            updated_at={member.onboarding_updated_at}
+          />
+        ),
+      },
+      {
         key: "lastAction",
         header: <span title={t("lastActionHint")}>{t("lastAction")}</span>,
         cell: (member) => (
@@ -348,11 +363,23 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
 
     return cols;
-  }, [canManage, user?.id, assignable, changeRole, tDirectory, tDiscord, t, tc, locale]);
+  }, [
+    canManage,
+    user?.id,
+    assignable,
+    changeRole,
+    tDirectory,
+    tDiscord,
+    t,
+    tc,
+    locale,
+    onboarding,
+  ]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
+        className="[&_.page-actions]:max-md:w-full"
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}
         breadcrumbs={[
@@ -361,7 +388,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         ]}
         secondaryActions={
           // Wrapping, because four links are wider than a phone (#2075).
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center max-md:[&>a]:h-auto max-md:[&>a]:min-h-11 max-md:[&>a]:whitespace-normal max-md:[&>button]:h-auto max-md:[&>button]:min-h-11 max-md:[&>button]:whitespace-normal">
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />
@@ -412,7 +439,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           </div>
         }
         actions={
-          <>
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 md:contents max-md:[&>button]:h-auto max-md:[&>button]:min-h-11 max-md:[&>button]:whitespace-normal">
             <Button
               variant="outline"
               data-tour="org-tab-profile"
@@ -427,12 +454,12 @@ export default function OrgMembersPage({ params }: PageProps) {
                 {t("inviteTeammate")}
               </Button>
             )}
-          </>
+          </div>
         }
       />
 
       <Tabs
-        className="flex flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
         value={tab}
         onValueChange={(next) => {
           setTabParam(next === "members" ? null : next);
@@ -444,17 +471,23 @@ export default function OrgMembersPage({ params }: PageProps) {
           }
         }}
       >
-        <TabsList data-tour="org-tabs">
+        <TabsList
+          data-tour="org-tabs"
+          className="max-sm:grid max-sm:gap-1"
+          // i18n-exempt: CSS grid syntax with a numeric column count, not user-facing copy.
+          style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}
+        >
           {sections.map((section) => (
-            <div key={section.id} className="relative pt-2">
+            <div key={section.id} className="relative min-w-0 pt-2">
               <TabsTrigger
                 value={section.id}
                 data-tour={`org-tab-${section.id}`}
+                className="max-sm:h-full max-sm:w-full max-sm:flex-col max-sm:gap-1 max-sm:px-1.5 max-sm:py-2 max-sm:text-xs max-sm:whitespace-normal"
                 aria-describedby={
                   hints[section.id]?.length ? `${setupId}-${section.id}` : undefined
                 }
               >
-                <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <section.icon className="mr-1.5 size-4 shrink-0 max-sm:mr-0" aria-hidden />
                 {t(section.label)}
               </TabsTrigger>
               <span id={`${setupId}-${section.id}`} className="sr-only">
@@ -474,7 +507,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           value="members"
           hidden={tab !== "members"}
           forceMount
-          className="flex-1 flex-col space-y-6 data-[state=active]:flex"
+          className="min-h-0 flex-1 flex-col gap-6 data-[state=active]:flex"
         >
           {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
@@ -493,7 +526,10 @@ export default function OrgMembersPage({ params }: PageProps) {
                   placeholder={t("searchMembers")}
                 />
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-auto min-w-36" aria-label={t("filterRole")}>
+                  <SelectTrigger
+                    className="w-auto min-w-36 capitalize"
+                    aria-label={t("filterRole")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,7 +537,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                     {Array.from(new Set(members.map((member) => member.role)))
                       .sort()
                       .map((role) => (
-                        <SelectItem key={role} value={role}>
+                        <SelectItem key={role} value={role} className="capitalize">
                           {role}
                         </SelectItem>
                       ))}
@@ -536,6 +572,8 @@ export default function OrgMembersPage({ params }: PageProps) {
               />
             ) : (
               <DataTable<OrganizationMember>
+                fillHeight
+                clientPagination
                 stackOnNarrow
                 columns={columns}
                 rows={visibleMembers}
@@ -552,7 +590,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           </ListCard>
 
           {pendingInvitations.length > 0 && (
-            <section className="space-y-3">
+            <section className="max-h-52 shrink-0 space-y-3 overflow-auto">
               <div>
                 <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                   {t("pendingInvitations")}
@@ -635,14 +673,34 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          {org && canSystemServices && <OrgSystemAgents org={org} collapsible />}
-          {canConfigureAssistant && <OrgAssistant orgId={id} collapsible />}
-          <div data-tour="org-proactivity">
-            {org && (
-              <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
+              <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
+            </div>
+            {canConfigureAssistant && <OrgAssistant orgId={id} />}
+            <div data-tour="org-proactivity">
+              {org && (
+                <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+              )}
+            </div>
+            {org && canSettings && (
+              <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />
             )}
           </div>
-          {org && canSettings && <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />}
+          {org && canSystemServices && (
+            <section
+              className="border-border space-y-3 border-t pt-5"
+              aria-label={t("backgroundServices")}
+            >
+              <div className="space-y-1">
+                <h2 className="text-sm font-medium">{t("backgroundServices")}</h2>
+                <p className="text-muted-foreground text-sm">{t("backgroundServicesHint")}</p>
+              </div>
+              <OrgSystemAgents org={org} excludeBriefing />
+            </section>
+          )}
+          {org && canSettings && <OrgChatHomeSettings org={org} />}
         </TabsContent>
       </Tabs>
 

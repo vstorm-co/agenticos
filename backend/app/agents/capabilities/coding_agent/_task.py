@@ -187,7 +187,10 @@ async def run_detached(
     # which the detached process inherits; it is never on a command line.
     await check_model_context()
     started = await ctx.workspace.run(  # noqa: S604
-        command.detached_line(files), shell=True, env=command.env, timeout=60
+        command.detached_line(files, timeout_seconds=timeout_seconds),
+        shell=True,
+        env=command.env,
+        timeout=60,
     )
     group = _group(started.stdout)
     if group is None:
@@ -207,7 +210,12 @@ async def run_detached(
                 if rest := reader.rest():
                     await on_events(rest)
                 finished = True
-                return Outcome(reader.events, await _read(ctx, files.errors), exit_code)
+                return Outcome(
+                    reader.events,
+                    await _read(ctx, files.errors),
+                    exit_code,
+                    timed_out=command.supervised and exit_code == 124,
+                )
             if time.monotonic() >= deadline:
                 return Outcome(reader.events, await _read(ctx, files.errors), None, timed_out=True)
             await anyio.sleep(POLL_SECONDS)
@@ -281,7 +289,8 @@ async def _read(ctx: RunContext[Any], path: str) -> str:
 async def clean_up(ctx: RunContext[Any], files: TaskFiles) -> None:
     """Remove a finished task's files; the session it continues stays."""
     line = "rm -f " + " ".join(
-        shlex.quote(path) for path in (files.events, files.errors, files.status)
+        shlex.quote(path)
+        for path in (files.events, files.errors, files.status, files.status + ".part")
     )
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 

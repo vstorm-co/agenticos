@@ -17,7 +17,7 @@ from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRun
 from app.repositories import resource_grant_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish, WorkflowUpdate
-from app.schemas.workflow_run import WorkflowStepTest
+from app.schemas.workflow_run import WorkflowRunFilters, WorkflowStepTest
 from app.services.access import WORKFLOW
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
@@ -450,3 +450,49 @@ class TestPinnedDataAndAStepTest:
         assert [node.id for node in snapshot.nodes] == [entry.id, step.id]
         assert snapshot.node_by_id[entry.id].pinned_output == {"payload": {}}
         assert snapshot.node_by_id[step.id].pinned_output is None
+
+    async def test_a_step_test_is_listed_apart_from_a_test_of_the_whole_draft(self, db, tenant):
+        ctx, workflow = tenant
+        graph, entry, step = _pinned_line()
+        named = step.model_copy(update={"label": "Shape the answer"})
+        graph = graph.model_copy(
+            update={"nodes": tuple(named if node.id == step.id else node for node in graph.nodes)}
+        )
+        workflow.draft_graph = graph.model_dump(mode="json")
+        await db.flush()
+        service = WorkflowExecutionService(db)
+
+        stepped = await service.start(
+            ctx,
+            workflow.id,
+            mode=WorkflowRunMode.TEST,
+            step=WorkflowStepTest(node_id=step.id, outputs={entry.id: {"payload": {}}}),
+        )
+        whole = await service.start(ctx, workflow.id, mode=WorkflowRunMode.TEST)
+
+        assert stepped.tested_step is not None
+        assert (stepped.tested_step.node_id, stepped.tested_step.label) == (
+            step.id,
+            "Shape the answer",
+        )
+        assert stepped.tested_step.definition_id == "data.map"
+        assert whole.tested_step is None
+
+        step_tests = await service.list(
+            ctx, workflow_id=workflow.id, filters=WorkflowRunFilters(step_test=True)
+        )
+        draft_tests = await service.list(
+            ctx,
+            workflow_id=workflow.id,
+            filters=WorkflowRunFilters(mode=WorkflowRunMode.TEST, step_test=False),
+        )
+        assert [run.id for run in step_tests.items] == [stepped.id]
+        assert [run.id for run in draft_tests.items] == [whole.id]
+
+        await workflow_run_repo.update_run(
+            db,
+            run=await db.get(WorkflowRun, stepped.id),
+            update_data={"status": WorkflowRunStatus.FAILED.value},
+        )
+        retried = await service.retry(ctx, stepped.id)
+        assert retried.tested_step is not None and retried.tested_step.node_id == step.id

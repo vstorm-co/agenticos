@@ -1,13 +1,17 @@
 "use client";
 
+import { useUrlState } from "@/hooks/use-url-state";
+import { ProjectFilter } from "@/components/projects/project-filter";
+
 import { CatalogLoading } from "@/components/states/catalog-loading";
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import { ImportAgentDialog } from "@/components/agents/import-dialog";
 import {
   AGENT_LIMIT_NOTICE_ID,
   AgentLimitNotice,
@@ -17,8 +21,12 @@ import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
 import { ListFilters } from "@/components/ui/list-filters";
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
+  Alert,
+  AlertDescription,
   Button,
   ConfirmDialog,
   ListCard,
@@ -84,7 +92,9 @@ function AgentsCard({
 export default function AgentsPage() {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
+  const [projectId, setProjectId] = useUrlState("project");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   // The discovery facet is server-driven: it filters the whole set rather than
@@ -93,6 +103,8 @@ export default function AgentsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const tPortability = useTranslations("portability");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const tTemplates = useTranslations("agentTemplates");
   const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
@@ -107,11 +119,14 @@ export default function AgentsPage() {
     categoryOptions,
     tagOptions,
     isLoading,
+    error,
+    refetch,
     clone,
     archive,
     unarchive,
     remove,
   } = useAgents({
+    projectId,
     includeArchived: filter === "all" || filter === "archived",
     categories,
     tags,
@@ -133,9 +148,14 @@ export default function AgentsPage() {
   // A zero-match facet returns an empty page, so this is what tells "no agent
   // matched" from "no agents exist", and it gates the Clear-filters CTA.
   const filtersActive =
-    filter !== "all" || query.trim() !== "" || categories.length > 0 || tags.length > 0;
+    projectId !== null ||
+    filter !== "all" ||
+    query.trim() !== "" ||
+    categories.length > 0 ||
+    tags.length > 0;
 
   const clearFilters = () => {
+    setProjectId(null);
     setFilter("all");
     setQuery("");
     setCategories([]);
@@ -164,6 +184,7 @@ export default function AgentsPage() {
   // container's own controls slot, like every list card's.
   const galleryControls = (
     <div data-tour="agents-filters" className="flex min-w-0 flex-wrap items-center gap-2">
+      <ProjectFilter value={projectId} onChange={setProjectId} />
       <SearchInput
         value={query}
         onChange={setQuery}
@@ -222,15 +243,24 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         secondaryActions={
           canEdit ? (
-            <Button
-              variant="outline"
-              data-tour="agents-templates"
-              disabled={!ceilingKnown}
-              onClick={() => setTemplatesOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tTemplates("browse")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={!ceilingKnown || atLimit}
+                onClick={() => setImportOpen(true)}
+              >
+                {tPortability("importTitle")}
+              </Button>
+              <Button
+                variant="outline"
+                data-tour="agents-templates"
+                disabled={!ceilingKnown}
+                onClick={() => setTemplatesOpen(true)}
+              >
+                <Library className="h-4 w-4" />
+                {tTemplates("browse")}
+              </Button>
+            </div>
           ) : undefined
         }
         actions={
@@ -252,6 +282,17 @@ export default function AgentsPage() {
         <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
       ) : null}
 
+      {error && agents.length > 0 && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{getErrorMessage(error, tErrors)}</span>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {tc("retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* The header and the controls are static, so they stay put while the
           list loads rather than being replaced by a placeholder of themselves.
           The panel below is equally static - loading, empty and populated all
@@ -259,6 +300,13 @@ export default function AgentsPage() {
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
           <CatalogLoading kind="agent" />
+        </AgentsCard>
+      ) : error && agents.length === 0 ? (
+        <AgentsCard visible={null} total={total} controls={galleryControls}>
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+          />
         </AgentsCard>
       ) : (
         <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
@@ -328,6 +376,7 @@ export default function AgentsPage() {
         onOpenChange={setCreateOpen}
         onCreated={(agent) => router.push(ROUTES.AGENT_DETAIL(agent.id))}
       />
+      {importOpen && <ImportAgentDialog open onOpenChange={setImportOpen} />}
 
       {pendingArchive && (
         <ConfirmDialog

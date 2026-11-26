@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "80da2d54c72a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -27,6 +27,10 @@ Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mi
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
+
+Weniger als drei gemessene Runs sind noch kein Trend: An der Stelle des Diagramms
+stehen sie als Liste, jeder mit seiner Bestehensquote und einem Link, und dazu, wie
+viele Runs es bisher gibt.
 
 Die Achse zeigt Uhrzeiten, wenn die Historie innerhalb eines Tages liegt, auch eines vergangenen. Über mehrere Tage zeigt sie Daten für ältere Runs und Uhrzeiten für heutige, ohne gleiche Beschriftungen zu wiederholen. Der Tooltip enthält das vollständige Startdatum mit Uhrzeit. Ab mehr als 10 Runs zeigt ein
 Schalter über dem Diagramm die letzten 10, die letzten 30 oder alle Runs; er
@@ -77,7 +81,7 @@ antwortet, sagt die Seite, wie viele erste Antworten vorliegen, und der
 Vergleich wartet auf beide Seiten. Antworten, die der Bewerter nicht bewerten
 konnte, sagen, warum, und zählen weder als bestanden noch als nicht bestanden,
 und **Erneut bewerten** (Grade again) im Kopfbereich bewertet sie erneut, ohne den Agent zu
-fragen, für jeden, der das Dataset laufen lassen darf.
+fragen, für jeden, der das Dataset laufen lassen und die Antworten des Runs lesen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden
@@ -148,13 +152,18 @@ das Dataset bewertet .
 
 Die Schätzung berücksichtigt modellgestützte Bewertung, wenn das Dataset sie verlangt, zum unter Bewertung gewählten Modellpreis. Kein Organisationsschalter deaktiviert diesen Bewerter.
 
-Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
-`EVAL_FALLBACK_INPUT_TOKENS` hinein, `EVAL_FALLBACK_OUTPUT_TOKENS` heraus - zum
-eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
+Ein Agent ohne Historie auf einem Modell wird als typische Anfragen geschätzt -
+je `EVAL_FALLBACK_INPUT_TOKENS` hinein und `EVAL_FALLBACK_OUTPUT_TOKENS` heraus -
+zum eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
 Modell ohne bekannten Preis, und die Schätzung sagt, dass es eine grobe Annahme
-ist (`basis: "fallback"`). Ein Bewerter ohne Historie wird genauso bepreist, auf
-dem Modell, das sein veröffentlichter Spec nennt; die Schätzung warnt, wenn das
-das getestete Modell ist, und die Seite eines Runs, wenn es das war. Die Kosten
+ist (`basis: "fallback"`). Eine Antwort ist eine Anfrage, oder
+`1 + EVAL_FALLBACK_TOOL_ROUNDS`, wenn der Agent ein Werkzeug hat: Jeder
+Werkzeugaufruf wird in einer weiteren Anfrage beantwortet.
+
+Ein Bewerter ohne Historie wird als eine Anfrage bepreist, die auch die bewertete
+Antwort liest, auf dem Modell, das sein veröffentlichter Spec nennt; die
+Schätzung warnt, wenn das das getestete Modell ist, und die Seite eines Runs,
+wenn es das war. Die Kosten
 der Baseline gehören zur Summe, außer eine aktuelle passende Baseline wird
 wiederverwendet - dann kosten ihre ersten Antworten nichts, und die Schätzung
 nennt den Run, aus dem sie stammen.
@@ -162,14 +171,34 @@ nennt den Run, aus dem sie stammen.
 ### Das verbleibende Budget { #the-budget-it-leaves }
 
 Ein Eval nutzt die bestehenden Monatsbudgets des Agents und der Organisation.
-Die Schätzung zeigt die verbleibenden Beträge nach dem vollständigen erwarteten
-Aufwand als `agent_after_usd` und `org_after_usd`. Der Start wird mit `402`
+`total_usd` sind die ersten Antworten und ihre Bewertung, `expected_usd` das,
+was der Run voraussichtlich kostet: das, plus die Hälfte von `rerun_ceiling_usd`
+bei einem Run, der mit einer Baseline verglichen wird, denn ein solcher Run
+fragt üblicherweise etwa die Hälfte der Fälle erneut, die er erneut fragen darf.
+Ein Stabilitätsrun fragt jeden Fall erneut, ein Run ohne Vergleich keinen. Der
+Startdialog zeigt `expected_usd` und darunter das Höchste, was der Run kosten
+kann, und die Seite eines Runs, was er gegenüber beidem ausgegeben hat.
+
+Die Schätzung zeigt die in den Budgets verbleibenden Beträge nach dem
+vollständigen erwarteten Aufwand als `agent_after_usd` und `org_after_usd`. Der Start wird mit `402`
 abgelehnt, wenn erster Durchlauf plus `rerun_ceiling_usd` eines der Budgets
 übersteigt. Die Obergrenze enthält alle bestätigenden Versuche bei geänderten
 Ergebnissen, den Richter und Wiederholungen der Baseline, auch bei einer
 wiederverwendeten Baseline. Tatsächliche Kosten können abweichen. Jede
 Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
 beendet den Run als `budget_exceeded`.
+
+Ein Start kann `total_usd` als `quoted_usd` und die geschätzte
+`dataset_version` übergeben. Ist die aktuelle Startschätzung höher, lehnt der
+Server mit `409` ab. Der Architect übergibt beide Werte; die Freigabekarte zeigt
+das Angebot. Dies vergleicht Schätzungen und begrenzt nicht die endgültige
+Rechnung des Anbieters. Skill-Update-Prüfungen, Wissensentwürfe und Promotion-
+Wächter akzeptieren ebenfalls `quoted_usd`; `GET .../gate/estimate` bepreist die
+noch zu startenden Wächter.
+
+Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
+Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder
+unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unverändert.
 
 Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
 Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende
@@ -200,11 +229,13 @@ Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen v
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%); die eigenen Testfragen eines Skills sind alle Kontrollfragen, und ihr Anteil lässt sich nicht senken. Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche mit dem Anteil neu auf, den das Dataset beim Start der Sitzung hatte, und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
 Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 
@@ -222,6 +253,11 @@ den Fall, den er beantwortet hat (`eval_case`), für eine lesende Person, die
 das Dataset sehen darf. Er läuft als die Person, die den Eval gestartet hat,
 mit ihrer aktuellen Rolle, und liest oder schreibt nicht ihr persönliches
 Gedächtnis.
+
+Diese Rolle wird vor jedem Fall erneut gelesen. Hat die startende Person die
+Organisation verlassen, den Zugriff auf den Agent oder das Dataset verloren oder
+wurde ihr Schlüssel widerrufen, schlägt der Run fehl, bevor er einen weiteren
+Fall beantwortet.
 
 Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
 Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,
@@ -300,6 +336,8 @@ auf einem anderen Modell als die Fälle davor.
 
 ## Ergebnisse { #results }
 
+Das Ergebnis zeigt zuerst das Resultat und die zu prüfenden Antworten. Ein Vergleich nennt die bestandenen Antworten vorher und nachher. Öffnen Sie eine Frage für Antwort und Bewertung. **Testverfahren** enthält Kriterienfamilien, Kosten und Ausführungsdetails; die Antworten bleiben dabei sichtbar. Ergebnisfilter und ausgewählte Frage bleiben in der URL.
+
 Jeder Versuch behält die Antwort, die gemachten Aufrufe - jeder markiert als
 ausgeführt, blockiert, wiedergegeben oder abweichend -, das Urteil und die
 Begründung jedes Bewerters, seine Kosten, seine Tokens und seine Latenz.
@@ -310,7 +348,7 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 
 | Achse | Misst |
 |---|---|
-| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum |
+| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum; **Erfüllte Kriterien** (`partial_credit`), der mittlere Anteil der Kriterien eines Falls, den seine erste Antwort erfüllt hat - sechs von sieben zählen 6/7, wo die Bestehensquote den Fall als nicht bestanden zählt - mit `criteria_passed` und `criteria_graded` |
 | Effizienz | Kosten pro bestandenem Fall, Tokens pro Fall und Latenz bei p50 und p95 |
 
 Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
@@ -341,7 +379,7 @@ Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
 Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
 [Prüfung](datasets.md#review) ersetzt für diesen Fall das Ergebnis der Scorer,
-und die Zahlen des Runs folgen ihm.
+und die Zahlen des Runs folgen ihm, wie sie einer neuen Bewertung folgen.
 
 Ein Bewerter, der sucht - [Knowledge search](concepts.md#system-agent-spec) auf
 seinem Toolbox-Tab -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
@@ -350,6 +388,11 @@ er dort fand: das Dokument und den Anfang der Stelle. Bis seine Runs ihm einen
 Verlauf geben, bepreist die Schätzung jede Bewertung mit den Schritten des
 Bewerters. Ein Bewerter beginnt mit Temperatur 0, damit dieselbe Antwort
 zweimal gleich bewertet wird, und seine Seite warnt, wenn sie erhöht wird.
+
+Eine gefundene Stelle sieht nur, wer die Antwort sehen und die Wissensbasis
+lesen darf, aus der sie stammt, und Zugangsdaten darin werden geschwärzt, bevor
+sie gespeichert wird. Eine Stelle, die ihre Wissensbasis nicht nennt, sieht
+niemand, da sie aus der persönlichen Wissensbasis einer Person stammen kann.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run
@@ -379,6 +422,20 @@ Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Bewertung** (Grading) die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Prüfungsnotizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
+
+`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch. Bei ungültigen Vergleichen werden Kriterienänderungen weder aggregiert noch zurückgegeben. Nicht vergleichbare Baselines lösen keine kostenpflichtigen Bestätigungswiederholungen aus.
+
+Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Zugriff auf den festgelegten Datensatz der Sitzung und auf jeden genannten Skill. Details einer Skill-Prüfung erfordern Zugriff auf alle beteiligten Datensätze. Verborgene oder fehlende Quellen blenden diese Details aus, ohne gespeicherte Ergebnisse zu ändern. Ergebnisbenachrichtigungen prüfen die aktuellen Zugriffsrechte des Empfängers, bevor sie Kriteriendetails enthalten. Gespeicherte Benachrichtigungen mit Kriteriendetails prüfen diese Quellen beim Lesen des Posteingangs und vor einer verzögerten Zustellung erneut; fehlende Herkunftsdaten oder entzogener Zugriff blenden die Benachrichtigung aus.
+
+Gespeicherte Skill-Quellen verwenden stabile IDs: Eine Umbenennung behält die Identität bei; Löschen und erneutes Verwenden des Namens stellt keinen Zugriff auf alte Belege wieder her. Kriteriendetails einer Sitzung mit benanntem Skill, aber ohne ursprüngliche Skill-ID bleiben ebenfalls verborgen. Der optionale angezeigte Skill-Name gewährt keinen Zugriff: Die ursprüngliche ID wird auch ohne Bezeichnung geprüft.
+
+Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
+
+Das Lesen eines Runs vergleicht ihn nur dann erneut, wenn eine Person seit dem Speichern seines Urteils über eine seiner Bewertungen entschieden hat, und dieser Vergleich nutzt dieselbe Sperre und dasselbe Budget. Solange die Sperre belegt ist, zeigen eine Liste von Runs und der Hinweis im Builder, ob ein Modellwechsel angenommen werden kann, das Urteil jedes Runs wie gespeichert, und das Lesen eines einzelnen Runs antwortet mit 429. Das Annehmen des Wechsels vergleicht weiterhin. Eine Prüfung auf einer Eval-Suite speichert das Urteil der Suite zusammen mit dem des Runs, sodass ein erneutes Lesen nichts vergleicht.
+
+Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
+
+Ablehnungen wegen eines laufenden Vergleichs verbrauchen die Minutenkontingente nicht. Die Konsole pausiert Abfragen bis zum Ablauf von `Retry-After`.
 
 Ein Vergleich ordnet beide Seiten Fall für Fall über die stabile ID des Falls
 zu und meldet jeden Fall als **Regression** (bestanden, jetzt nicht mehr),
@@ -423,9 +480,26 @@ Agent.
 Ein abgeschlossener Baseline-Arm ersetzt einen neuen Lauf nur, wenn Version,
 Dataset-Version, Modell, Scoring und Bewerter übereinstimmen, er in derselben
 Umgebung mit denselben `from_recordings` und `live_reads` lief und er
-innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
+innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Keine Kontextdatei, die der
+Agent bindet, darf sich seit jenem Run geändert haben: Eine Kontextdatei wird bei
+jeder Antwort live gelesen. Der Run nennt den Run, den er
 wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
 der kippt, wird ihm in diesem Run erneut gestellt.
+
+Eine Baseline, die der Entwurf des Agents ist - das, woran eine Improve-Sitzung
+jeden Versuch misst -, wird über den exakten Fingerabdruck des Entwurfs
+zugeordnet, und nur, wenn der frühere Run genau dieselben Fälle ausgelassen hat.
+Dieser Run kann die vorige Prüfung der Sitzung sein oder ein Run einer
+veröffentlichten Version, deren Spec der Entwurf noch ist, sodass eine Sitzung,
+die von einem unbearbeiteten Entwurf startet, den eigenen Eval dieser Version
+wiederverwendet.
+
+Eine Sitzung lässt bei jeder Prüfung ihre eigenen Belege aus, sodass die
+Baseline, solange der Entwurf unverändert bleibt, höchstens einmal pro Sitzung
+antwortet. Ein Run, der mehr Fälle gefragt hat, wird nie gekürzt, weil die
+Antworten eines wiederverwendeten Arms ganz gelesen werden. Eine
+wiederverwendete Baseline kostet in der Schätzung nichts. Eine veröffentlichte
+Baseline mit ausgelassenen Fällen wird nie wiederverwendet.
 
 ### Ein Kippen wird bestätigt, bevor es zählt { #a-flip-is-confirmed-before-it-counts }
 
@@ -444,6 +518,48 @@ Modell, auf dieselbe Weise ausgeführt, wie sie eine Suite, die täglich eine
 Version prüft, zum Vergleich heranzieht: Ihre Wiederholungen wären nur wieder
 die des Kandidaten, daher wird sie nicht wiederholt, und die Wiederholungen des
 Kandidaten allein bestätigen die Drift.
+
+Ein Fall besteht erst, wenn jedes Kriterium besteht, nach dem er bewertet wird -
+jeder Check, jedes Kriterium des Bewerters, jeder erwartete Tool-Aufruf und jede
+Bewertung gegen die Referenzantwort -, daher lässt eine Änderung, die eines von
+mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen.
+`criteria` des Vergleichs nennt für jedes Kriterium, auf wie vielen Fällen beide
+Seiten es bewertet haben, wie viele davon jede Seite mit ihrer ersten Antwort
+bestanden hat, und die Behebungen und Verschlechterungen, die jede Wiederholung
+auf beiden Seiten wiederholt hat. Die Liste nennt höchstens 200: Darüber hinaus
+zuerst jedes Kriterium, das sich bewegt hat, dann die am häufigsten nicht
+erfüllten.
+
+Kriterien werden auch nach **Familie** gezählt: den Checks und Kriterien des
+Bewerters, die eine Sache über das ganze Dataset hinweg prüfen, benannt durch
+die [`family`](datasets.md#checks) eines Checks. Ein Kriterium, dessen Check
+keine nennt, ist eine eigene Familie. Eine Familie besteht in einem Fall, wenn
+dort jedes ihrer Kriterien besteht, und `families` des Vergleichs nennt für jede
+Familie die Fälle, die beide Seiten bewertet haben, wie viele davon jede Seite
+bestanden hat, und die Fälle, auf denen sie gekippt ist. Er nennt höchstens 200
+Familien: darüber hinaus zuerst jede schlechtere oder bessere, dann jede andere,
+die sich bewegt hat, dann die, die am häufigsten durchfallen.
+
+Eine Familie ist
+**entschieden**, wenn ihre eigenen gekippten Fälle ausreichen, damit ein exakter
+McNemar-Test sagen kann, in welche Richtung sie sich bewegt hat; dann zählt jedes
+Kippen. Bei einer Familie, die sich auf zwei oder mehr Fällen bewegt hat, ohne
+entschieden zu sein, werden diese Fälle wiederholt, und nur ein Kippen, das jede
+Wiederholung wiederholt hat, zählt. Eine Familie, die sich auf einem Fall bewegt
+hat, entscheidet nichts und lässt keinen Fall erneut fragen. Neben den Fällen,
+deren Ergebnis gekippt ist, sind dies die einzigen wiederholten Fälle.
+
+Ein Run, der Fragen für eine Improve-Sitzung zurücklegt, wird nur nach ihnen
+beurteilt, daher werden nur seine zurückgelegten Fälle wiederholt, und seine
+Familien entscheiden sich auf ihnen. Seine Trainingsfälle werden nie erneut
+gefragt: Der nächste Versuch liest ihre ersten Antworten, und eine Wiederholung
+von ihnen liest niemand. Seine Wiederholungsobergrenze zählt nur die
+zurückgelegten Fälle.
+
+Das Urteil unten bleibt bei
+ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
+[Skill-Prüfung](skills.md#the-rule) lesen die Familien, wenn kein Fall gekippt
+ist.
 
 Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
 Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit
@@ -688,8 +804,9 @@ eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Wie alt eine passende Baseline sein darf, um wiederverwendet zu werden |
 | `EVAL_SIGNIFICANCE` | `0.05` | Das Niveau, unter dem bestätigte Kippfälle ein Urteil sind |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Eine relative Änderung von Kosten, Tokens oder Latenz, die als keine zählt |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Die Input-Tokens, mit denen ein Fall auf einem Modell ohne Historie bepreist wird |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Die Output-Tokens, mit denen ein Fall auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Die Input-Tokens, mit denen eine Anfrage auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Die Output-Tokens, mit denen eine Anfrage auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Wie viele Anfragen über eine hinaus die Antwort eines Agents mit Werkzeugen auf einem Modell ohne Historie braucht |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Die Schätzung pro Fall auf einem Modell ohne Historie und ohne bekannten Preis |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Wie viele letzte Runs die Schätzung mittelt |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
@@ -717,6 +834,13 @@ Agent als auch das Dataset sehen kann - ein Run über ein Dataset, das sie nicht
 `404`, wie bei einem Run einer anderen Organisation. Die Runs eines Datasets
 erfordern außerdem `datasets:view` darauf und listen nur die Agents, die die
 lesende Person sehen darf.
+
+Über eine der Antworten eines Runs zu entscheiden oder sie erneut zu bewerten,
+erfordert neben der eigenen Berechtigung des Datasets - `datasets:edit` zum
+Entscheiden, `datasets:run` zum Bewerten - auch `runs:view` und Zugriff auf den
+antwortenden Agent. Beides ändert das Urteil des Runs und was darauf aufbaut:
+das Gate einer Suite, eine Verbesserungssitzung, eine Skill-Prüfung. Eine
+Freigabe des Datasets allein öffnet beides nicht.
 
 Eine Suite anzulegen, zu ändern, zu pausieren oder auszuführen erfordert
 `agents:edit` und `agents:run` auf dem Agent, `datasets:run` auf dem Dataset und

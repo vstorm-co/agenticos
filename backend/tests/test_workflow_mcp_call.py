@@ -96,6 +96,7 @@ class _Server:
     asked: list[dict[str, Any]] = field(default_factory=list)
     notified: list[dict[str, Any]] = field(default_factory=list)
     opened_with: list[tuple[str, dict[str, str] | None]] = field(default_factory=list)
+    timeouts: list[float] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -120,8 +121,9 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
             return state.result
 
     @asynccontextmanager
-    async def mcp_session(url: str, headers: dict[str, str] | None):
+    async def mcp_session(url: str, headers: dict[str, str] | None, *, timeout: float):
         state.opened_with.append((url, headers))
+        state.timeouts.append(timeout)
         if state.connect_failure is not None:
             raise state.connect_failure
         yield _Session()
@@ -193,6 +195,7 @@ async def test_a_tool_not_marked_read_only_waits_for_approval_without_being_call
     result = await _run(_config(tool, approvers=(APPROVER,)), {"name": "Ada"})
 
     assert isinstance(result, Waiting) and result.reason == "approval"
+    assert result.effect_not_started
     assert server.calls == []
     request = server.asked[0]
     assert request["title"] == f"Call {tool} on Acme CRM?"
@@ -256,7 +259,7 @@ async def test_a_call_not_approved_fails_the_step_uncalled(server, status):
     result = await _run(_config("create_lead"))
 
     assert isinstance(result, Failed) and result.error.code == "MCP_CALL_REJECTED"
-    assert server.calls == []
+    assert result.effect_not_started and server.calls == []
 
 
 async def test_a_tool_the_server_does_not_offer_fails_rather_than_asking(server):
@@ -322,7 +325,7 @@ async def test_a_server_that_cannot_be_reached_fails_for_a_retry(server):
 
     assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
     assert result.error.message == "refused"
-    assert server.attempted == 0
+    assert result.effect_not_started and server.attempted == 0
 
 
 async def test_an_unkeyed_write_that_breaks_mid_call_is_uncertain(server):
@@ -345,6 +348,7 @@ async def test_a_keyed_write_that_breaks_mid_call_fails_for_a_retry(server):
 
     assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
     assert result.error.message == "reset by peer"
+    assert not result.effect_not_started and server.attempted == 1
 
 
 async def test_a_read_only_tool_that_breaks_mid_call_fails_for_a_retry(server):
@@ -405,7 +409,9 @@ async def test_a_timeout_after_the_call_is_classified_like_a_break(server):
     read = _config().model_copy(update={"timeout_seconds": 0.01})
 
     assert isinstance(await _run(unkeyed), Uncertain)
-    assert _failure(await _run(read)).error.retryable is True
+    failed = _failure(await _run(read))
+    assert failed.error.retryable is True
+    assert failed.error.message == "The server timed out after 0.01s"
 
 
 async def test_cancellation_inside_the_call_is_not_swallowed(server):
@@ -833,3 +839,9 @@ class TestPublishingAKeyArgument:
             _config("drop_tables", idempotency_key_argument="request_id")
         )
         assert [field for field, _ in problems] == ["tool"]
+
+
+async def test_the_configured_tool_deadline_reaches_the_transport_session(server):
+    result = await _run(_config(timeout_seconds=90))
+    assert isinstance(result, Completed)
+    assert server.timeouts == [90]

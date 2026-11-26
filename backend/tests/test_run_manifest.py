@@ -545,7 +545,12 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
 
     @staticmethod
     def _prepared(recorder: RunRecorder) -> MagicMock:
-        prepared = MagicMock(earlier_attachments_checked=False, admitted_as=AdmittedAs())
+        prepared = MagicMock(
+            earlier_attachments_checked=False,
+            admitted_as=AdmittedAs(),
+            project_workspace=None,
+            workspace=None,
+        )
         prepared.run = MagicMock(id=_RUN, organization_id=_ORG, conversation_id=None)
         prepared.built.ledger = MagicMock(
             input_tokens=10, output_tokens=2, total_usd=Decimal("0.01"), has_unpriced_models=False

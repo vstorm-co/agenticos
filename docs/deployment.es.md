@@ -1,5 +1,5 @@
 ---
-source_sha: "1297bb7c3062"
+source_sha: "9a57eadec91e"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -19,7 +19,7 @@ redespliegue, sin variable de entorno, sin reconstrucción.
     Es la misma autoridad que ya administra usuarios y tenants en toda la
     instalación.
 
-La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios, Voz y móvil, y Mantenimiento. Cambiar de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
+La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios y modo de mantenimiento, Voz y móvil, y Actualizaciones y diagnóstico. Cada sección tiene una URL que puedes compartir con `?section=`. Abrir otro enlace de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
 
 ## Identidad { #identity }
 
@@ -135,6 +135,32 @@ origen, para el dictado por voz del chat.
     valores. El `nginx/nginx.conf` incluido fija únicamente
     `Strict-Transport-Security`, que pertenece a lo que termine TLS; una
     configuración de proxy ya existente que añada las demás debería quitarlas.
+
+## Acceso solo mediante el proveedor de identidad { #provider-only-sign-in }
+
+En **Admin → Despliegue →
+Acceso y cuentas**, desactive el acceso local después de configurar un proveedor.
+Esto desactiva las contraseñas locales, el registro local, el restablecimiento de
+contraseñas y los enlaces de acceso por correo tanto en las páginas como en la
+API. Las sesiones existentes siguen siendo válidas. LDAP verifica las contraseñas
+del directorio como método independiente. La creación de cuentas por SSO sigue
+sujeta a las reglas de registro e invitaciones del despliegue.
+
+La respuesta pública de marca enumera solo los proveedores configurados. La
+consola los filtra mediante `OAUTH_PROVIDERS`; el valor predeterminado permite
+`google,oidc,ldap,kerberos`. Nunca aparece un botón de Google sin configurar.
+Si establece un filtro explícito, incluya el proveedor deseado antes de desactivar
+el acceso local. La consola impide desactivar el último método visible; la API
+exige al menos un proveedor configurado.
+
+**Recuperación por el operador:** establezca
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` en el entorno de la API y reinicie
+todas sus réplicas. El acceso local vuelve a funcionar, la política guardada no
+cambia y la administración muestra la anulación. Use una contraseña local de
+administrador existente o el formulario habitual para restablecerla tras activar
+la anulación. Repare el
+proveedor, retire la anulación y reinicie las réplicas. La variable por sí sola
+no concede ninguna cuenta, rol ni sesión.
 
 ## Quién puede registrarse { #who-may-register }
 

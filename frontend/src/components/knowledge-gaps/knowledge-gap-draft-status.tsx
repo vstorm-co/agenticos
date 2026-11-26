@@ -14,6 +14,7 @@ interface KnowledgeGapDraftStatusProps {
   editable: boolean;
   /** Offer a new draft of a current one too, not only of a stale one. */
   offerRedraft?: boolean;
+  disabled?: boolean;
 }
 
 /**
@@ -27,6 +28,7 @@ export function KnowledgeGapDraftStatus({
   topic,
   editable,
   offerRedraft = false,
+  disabled = false,
 }: KnowledgeGapDraftStatusProps) {
   const t = useTranslations("knowledgeGaps");
   const draft = useDraftKnowledgeGap();
@@ -55,7 +57,12 @@ export function KnowledgeGapDraftStatus({
           <AlertDescription className="flex flex-wrap items-center gap-2 text-xs">
             {t("draftFailed")}
             {editable && (
-              <Button size="sm" variant="outline" onClick={() => draft.mutate(topic.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => draft.mutate(topic.id)}
+              >
                 {t("retry")}
               </Button>
             )}
@@ -70,6 +77,7 @@ export function KnowledgeGapDraftStatus({
       )}
       {editable && offer && (
         <DraftButton
+          disabled={disabled}
           again={topic.has_draft}
           cost={estimate.estimate?.total_usd}
           onClick={() => draft.mutate(topic.id)}
@@ -81,10 +89,12 @@ export function KnowledgeGapDraftStatus({
 
 function DraftButton({
   again,
+  disabled,
   cost,
   onClick,
 }: {
   again: boolean;
+  disabled: boolean;
   /** Absent while it is read, when reading it failed, or when the model has no price. */
   cost: string | null | undefined;
   onClick: () => void;
@@ -93,7 +103,7 @@ function DraftButton({
   const locale = useLocale();
   const values = { known: cost ? "yes" : "no", cost: cost ? usd(cost, locale) : "" };
   return (
-    <Button size="sm" variant="outline" onClick={onClick}>
+    <Button size="sm" variant="outline" disabled={disabled} onClick={onClick}>
       <Sparkles className="h-3.5 w-3.5" aria-hidden />
       {again ? t("redraftAction", values) : t("draftAction", values)}
     </Button>

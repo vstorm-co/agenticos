@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useCreateJudge,
-  useJudgeAgreement,
   useJudgeTemplate,
   useNoteToCriterion,
   useReviewQueue,
@@ -245,16 +244,6 @@ describe("useJudgeTemplate", () => {
 
     await waitFor(() => expect(result.current.instructions).toBe("Grade by the rules."));
     expect(apiClient.get).toHaveBeenCalledWith("/datasets/d1/judge-template");
-  });
-});
-
-describe("useJudgeAgreement", () => {
-  it("reads how often people agreed with one judge", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ agreed: 7, decided: 10 });
-    const { result } = renderHook(() => useJudgeAgreement("j1"), { wrapper });
-
-    await waitFor(() => expect(result.current.agreement).toEqual({ agreed: 7, decided: 10 }));
-    expect(apiClient.get).toHaveBeenCalledWith("/datasets/judge-agreement?judge=j1");
   });
 });
 

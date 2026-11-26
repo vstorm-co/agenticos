@@ -5,7 +5,6 @@ about, and only those the caller may read are searched. Nobody's memory reaches
 it, so the same answer is judged the same whoever started the eval.
 """
 
-import json
 import re
 import uuid
 from collections.abc import Callable, Iterator
@@ -18,7 +17,6 @@ from pydantic import BaseModel
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
-    TextPart,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -57,22 +55,22 @@ class Answer(BaseModel):
     ok: bool
 
 
-def _ok(_prompt: str) -> str:
-    return json.dumps({"ok": True})
+def _ok(_prompt: str) -> dict[str, Any]:
+    return {"ok": True}
 
 
-def _grades(prompt: str) -> str:
+def _grades(prompt: str) -> dict[str, Any]:
     ids = re.findall(r"^- (\w+) \(", prompt, flags=re.MULTILINE)
-    return json.dumps(
-        {"grades": [{"id": item, "score": 5, "reason": "Matches.", "quotes": []} for item in ids]}
-    )
+    return {
+        "grades": [{"id": item, "score": 5, "reason": "Matches.", "quotes": []} for item in ids]
+    }
 
 
 @dataclass
 class Script:
     """The model and the search: what a run was offered, told and where it searched."""
 
-    answer: Callable[[str], str] = _ok
+    answer: Callable[[str], dict[str, Any]] = _ok
     forever: bool = False
     requests: int = 0
     tools: list[set[str]] = field(default_factory=list)
@@ -91,7 +89,10 @@ class Script:
             if SEARCH in names and (self.forever or not searched):
                 return ModelResponse(parts=[ToolCallPart(SEARCH, {"query": "refund window"})])
             prompt = str(messages[0].parts[-1].content)  # type: ignore[union-attr]
-            return ModelResponse(parts=[TextPart(self.answer(prompt))])
+            # The answer is the output tool's call: a system agent answers in its schema.
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, self.answer(prompt))]
+            )
 
         return FunctionModel(respond)
 
@@ -107,7 +108,10 @@ class Script:
         self.searched.append(names)
         if on_results is not None and names:
             found = SearchResult(
-                content=PASSAGE, score=1.0, similarity=0.9, metadata={"filename": "refunds.md"}
+                content=PASSAGE,
+                score=1.0,
+                similarity=0.9,
+                metadata={"filename": "refunds.md", "collection": names[0]},
             )
             on_results(names, [found])
         return f"refunds.md: {PASSAGE}"
@@ -209,7 +213,9 @@ class TestEachKind:
 
         assert SEARCH in script.tools[0]
         assert script.searched == [[mine.collection_name]]
-        assert result.found == [FoundPassage(source="refunds.md", quote=PASSAGE)]
+        assert result.found == [
+            FoundPassage(source="refunds.md", quote=PASSAGE, knowledge_base_ids=(mine.id,))
+        ]
 
     async def test_one_that_does_not_search_is_offered_no_search(
         self, db, script: Script, definition: SystemAgentDef
@@ -338,7 +344,12 @@ class TestAJudgeThatSearches:
         judged = [result for result in evaluation.results if result.judge_run_id is not None]
         assert judged
         assert all(
-            result.knowledge == [KnowledgeFinding(source="refunds.md", quote=PASSAGE)]
+            result.knowledge
+            == [
+                KnowledgeFinding(
+                    source="refunds.md", quote=PASSAGE, knowledge_base_ids=[handbook.id]
+                )
+            ]
             for result in judged
         )
 

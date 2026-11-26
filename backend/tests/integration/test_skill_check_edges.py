@@ -74,7 +74,9 @@ from app.services import skill_check as skill_check_module
 from app.services.api_key import ApiKeyService
 from app.services.authoring import AuthoringService
 from app.services.dataset import DatasetService
+from app.services.eval_run import EvalRunService
 from app.services.notifications import NotificationService
+from app.services.run_reaper import RunReaperService
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
@@ -178,6 +180,40 @@ class TestWhatCannotBeChecked:
                 lab.skill.id,
                 SkillCheckStart(proposal_id=proposal.id, fork_id=lab.fork_id),
             )
+
+    @pytest.mark.security
+    async def test_a_proposal_quoting_a_credential_is_never_checked(self, db):
+        lab = await _lab(db)
+        proposal = await _proposal(db, lab)
+        proposal.content = "An order number counts. Use postgres://app:Kanar3kCheck@db/app."
+        await db.flush()
+        datasets = DatasetService(db)
+        dataset = await datasets.create(lab.ctx, DatasetCreate(name="leaky-cases"))
+        await datasets.add_case(
+            lab.ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}]),
+        )
+        authoring = AuthoringService(db)
+        body = ProposalCheck(dataset_id=dataset.id, agent_id=lab.a.id, proposal_id=proposal.id)
+
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await SkillCheckService(db).start(
+                lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+            )
+        for attempt in (authoring.estimate_skill_check, authoring.check_skill):
+            with pytest.raises(BadRequestError, match="quotes a credential"):
+                await attempt(lab.ctx, lab.skill.id, body)
+
+        checks = await db.scalar(
+            select(func.count()).select_from(SkillCheck).where(SkillCheck.skill_id == lab.skill.id)
+        )
+        runs = await db.scalar(
+            select(func.count())
+            .select_from(EvalRun)
+            .where(EvalRun.organization_id == lab.ctx.organization_id)
+        )
+        assert (checks, runs) == (0, 0)
 
     async def test_a_proposal_written_against_an_older_version_is_refused(self, db, monkeypatch):
         lab = await _lab(db)
@@ -502,7 +538,11 @@ class TestRunning:
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert {r.unknown_reason for r in read.agents} == {"failed"}
 
-    async def test_a_dataset_gone_before_its_stage_is_judged_on_the_first(self, db, monkeypatch):
+    async def test_a_dataset_gone_before_its_stage_leaves_a_better_agent_unknown(
+        self, db, monkeypatch
+    ):
+        """Better on the skill's questions alone is not a pass for a check that planned the
+        agent's own as well; only a regression they confirmed would decide it."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
@@ -520,7 +560,8 @@ class TestRunning:
 
         read = await _run_to_end(service, evals, lab, check.id)
 
-        assert next(row for row in read.agents if row.agent.name == "A").state == "better"
+        a = next(row for row in read.agents if row.agent.name == "A")
+        assert (a.state, a.unknown_reason) == ("unknown", "failed")
 
     async def test_the_sweep_and_a_settled_run_carry_a_check_on(self, db, monkeypatch):
         lab = await _lab(db)
@@ -528,7 +569,7 @@ class TestRunning:
         evals.install(monkeypatch)
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
-        evals.finish_all()
+        await _settled(db, evals)
 
         assert await service.sweep() >= 1
         run_id = next(iter(evals.runs))
@@ -560,10 +601,12 @@ class TestRunning:
         stale.created_at = stale.created_at - timedelta(days=2)
         await db.flush()
 
-        async def fail(_self, _check):
+        async def fail(_self, _check, _ctx):
             raise RuntimeError("cannot settle")
 
         monkeypatch.setattr(SkillCheckService, "_expire", fail)
+
+        await _settled(db, evals)
 
         assert await service.sweep() >= 2
         queued = {
@@ -580,6 +623,89 @@ class TestRunning:
         evals.finish_all()
         await service.advance(healthy.id, lab.ctx.organization_id)
         assert (await service.read(lab.ctx, lab.skill.id, healthy.id)).status is CheckStatus.DONE
+
+    async def test_a_stage_run_cancelled_by_a_person_moves_its_check_on(self, db, monkeypatch):
+        """The run's worker would have moved the check on; a run a person cancels never
+        reaches it, so the cancel does."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        check = await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
+        [row, *_] = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        monkeypatch.undo()
+        # A stage run the fake started has no arms to read back; the read is not the point.
+        monkeypatch.setattr(EvalRunService, "_reads", AsyncMock(return_value=[None]))
+
+        await EvalRunService(db).cancel(lab.ctx, row.skill_set_run_id)
+
+        job = await db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.dedupe_key == f"{check.id}:{row.skill_set_run_id}"
+            )
+        )
+        assert job is not None and job.kind == "advance-skill-check"
+
+    async def test_a_stage_run_whose_job_was_lost_moves_its_check_on(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        check = await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
+        [row, *_] = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        monkeypatch.undo()
+
+        await RunReaperService(db).settle_lost_eval(
+            row.skill_set_run_id, organization_id=lab.ctx.organization_id, why="timed out"
+        )
+
+        job = await db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.dedupe_key == f"{check.id}:{row.skill_set_run_id}"
+            )
+        )
+        assert job is not None and job.kind == "advance-skill-check"
+
+    async def test_the_sweep_takes_a_check_that_can_move_ahead_of_older_ones_waiting(
+        self, db, monkeypatch
+    ):
+        """More running checks than the sweep reads at once must not keep a newer one
+        whose runs all ended waiting behind them, nor one whose agents were all deleted;
+        one old enough to expire is read too."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        waiting = [await service.start(lab.ctx, lab.skill.id, _start()) for _ in range(3)]
+        expiring = await service.start(lab.ctx, lab.skill.id, _start(fork_id=lab.fork_id))
+        movable = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        orphaned = await service.start(lab.ctx, lab.skill.id, _start())
+        await db.execute(delete(SkillCheckAgent).where(SkillCheckAgent.check_id == orphaned.id))
+        for check in waiting:
+            stored = await skill_check_repo.get(
+                db, check.id, organization_id=lab.ctx.organization_id
+            )
+            assert stored is not None
+            stored.created_at -= timedelta(hours=2)
+        old = await skill_check_repo.get(db, expiring.id, organization_id=lab.ctx.organization_id)
+        assert old is not None
+        old.created_at -= skill_check_module.STALE_AFTER + timedelta(minutes=1)
+        for row in await skill_check_repo.list_agents(
+            db, [movable.id], organization_id=lab.ctx.organization_id
+        ):
+            run = await db.get(EvalRun, row.skill_set_run_id)
+            assert run is not None
+            run.status = EvalRunStatus.COMPLETED.value
+        await db.flush()
+
+        assert await service.sweep(limit=3) == 3
+
+        queued = {
+            job.payload["check_id"]
+            for job in await db.scalars(
+                select(BackgroundJob).where(BackgroundJob.kind == "advance-skill-check")
+            )
+        }
+        assert queued == {str(movable.id), str(expiring.id), str(orphaned.id)}
 
     async def test_a_starter_who_lost_sight_of_the_runs_leaves_the_agent_unknown(
         self, db, monkeypatch
@@ -643,6 +769,16 @@ async def _live_runs(db: AsyncSession, check_id: uuid.UUID) -> list[str]:
         )
     )
     return list(rows.scalars())
+
+
+async def _settled(db: AsyncSession, evals: FakeEvals) -> None:
+    """Finish every fake run and its stored row, which the sweep reads."""
+    evals.finish_all()
+    for run_id, fake in evals.runs.items():
+        row = await db.get(EvalRun, run_id)
+        assert row is not None
+        row.status = fake.status
+    await db.flush()
 
 
 def _without(get, gone: uuid.UUID):
@@ -1898,3 +2034,46 @@ class TestTwoSessionsOnOneProposal:
             )
             await discarding.commit()
             await applying.rollback()
+
+
+@pytest.mark.security
+async def test_criterion_metadata_in_skill_check_read_and_list_needs_every_dataset(db, monkeypatch):
+    lab = await _lab(db)
+    evals = FakeEvals()
+    evals.install(monkeypatch)
+    service, started = await _finished(
+        db, lab, evals, {lab.a.id: Outcome(fixed=2)}, mode="thorough"
+    )
+    rows = await skill_check_repo.list_agents(
+        db, [started.id], organization_id=lab.ctx.organization_id
+    )
+    row = next(item for item in rows if item.agent_id == lab.a.id)
+    row.criteria = [
+        {
+            "scorer": "judge",
+            "name": "protected rubric",
+            "graded": 5,
+            "before": 0,
+            "after": 5,
+            "fixed": 5,
+            "broken": 0,
+        }
+    ]
+    await db.flush()
+    owner = await service.read(lab.ctx, lab.skill.id, started.id)
+    assert next(item for item in owner.agents if item.agent.id == lab.a.id).criteria
+    with monkeypatch.context() as denied:
+        _deny_datasets(denied)
+        read = await service.read(lab.ctx, lab.skill.id, started.id)
+        listed = await service.list_checks(lab.ctx, lab.skill.id, fork_id=None, skip=0, limit=10)
+        for response in (read, listed.items[0]):
+            assert all(not item.criteria for item in response.agents)
+            assert "protected rubric" not in response.model_dump_json()
+    assert (await service.read(lab.ctx, lab.skill.id, started.id)).agents
+    assert row.criteria[0]["name"] == "protected rubric"
+    assert row.skill_set_run_id is not None and row.dataset_run_id is not None
+    await db.execute(delete(EvalRun).where(EvalRun.id == row.skill_set_run_id))
+    await db.refresh(row)
+    assert row.skill_set_run_id is None and row.stages
+    retained = await service.read(lab.ctx, lab.skill.id, started.id)
+    assert not next(item for item in retained.agents if item.agent.id == lab.a.id).criteria

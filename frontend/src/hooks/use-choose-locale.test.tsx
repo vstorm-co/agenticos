@@ -76,3 +76,12 @@ it("preserves the wizard workspace, question and fragment when choosing a langua
     { locale: "pl" },
   );
 });
+
+it("confirms the current account language without navigating away from a setup step", () => {
+  useAuthStore.setState({ user: { ...ADA, locale: null } });
+  const { result } = renderHook(() => useChooseLocale());
+  act(() => result.current("pl", { navigate: false }));
+  expect(env.save).toHaveBeenCalledWith("pl");
+  expect(useAuthStore.getState().user?.locale).toBe("pl");
+  expect(env.push).not.toHaveBeenCalled();
+});

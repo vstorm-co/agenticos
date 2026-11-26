@@ -40,8 +40,11 @@ from app.db.models.channel_bot import ChannelBot
 from app.db.models.coding_account import CodingAccount
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
+from app.db.models.event_source import EventSourceCredential
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.personal_model_key import PersonalModelKey
+from app.db.models.project_filesystem import ProjectFilesystemBinding
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
@@ -49,12 +52,18 @@ from app.worker.jobs import ChannelMessage
 
 
 def _org_scope(
-    row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger | WorkflowExposure,
+    row: OrganizationSecret
+    | ChannelBot
+    | AgentEmbed
+    | AgentTrigger
+    | WorkflowExposure
+    | EventSourceCredential
+    | ProjectFilesystemBinding,
 ) -> VaultScope:
     return VaultScope.organization(row.organization_id)
 
 
-def _person_scope(row: BrowserSignIn | CodingAccount) -> VaultScope:
+def _person_scope(row: BrowserSignIn | CodingAccount | PersonalModelKey) -> VaultScope:
     return VaultScope.user(row.user_id)
 
 
@@ -85,8 +94,11 @@ class SealedTable:
         | AgentEmbed
         | AgentTrigger
         | WorkflowExposure
+        | EventSourceCredential
+        | ProjectFilesystemBinding
         | BrowserSignIn
         | CodingAccount
+        | PersonalModelKey
         | DeploymentSettings
         | DiagnosticsIdentity
     ]
@@ -101,6 +113,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         model=OrganizationSecret,
         columns=("sealed_secret",),
         version_attr="key_version",
+        scope=_org_scope,
+    ),
+    SealedTable(
+        label="event_source_credentials",
+        model=EventSourceCredential,
+        columns=("sealed_secret",),
+        version_attr="secret_key_version",
         scope=_org_scope,
     ),
     SealedTable(
@@ -146,6 +165,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         scope=_org_scope,
     ),
     SealedTable(
+        label="personal_model_keys",
+        model=PersonalModelKey,
+        columns=("sealed_secret",),
+        version_attr="key_version",
+        scope=_person_scope,
+    ),
+    SealedTable(
         label="coding_accounts",
         model=CodingAccount,
         columns=("sealed_secret",),
@@ -179,6 +205,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("apns_private_key",),
         version_attr="apns_key_version",
         scope=_deployment_scope,
+    ),
+    SealedTable(
+        label="project_filesystem_bindings",
+        model=ProjectFilesystemBinding,
+        columns=("ciphertext",),
+        version_attr="secret_key_version",
+        scope=_org_scope,
     ),
 )
 

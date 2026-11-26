@@ -73,10 +73,17 @@ describe("QuestionPrompt", () => {
     await userEvent.type(screen.getByPlaceholderText("Type your answer…"), "Soon");
     await userEvent.click(screen.getByRole("button", { name: "Use this" }));
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("Who will use it?").closest("[data-direction]")).toHaveAttribute(
+      "data-direction",
+      "forward",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Previous question" }));
 
     expect(screen.getByPlaceholderText("Type your answer…")).toHaveValue("Soon");
+    expect(
+      screen.getByPlaceholderText("Type your answer…").closest("[data-direction]"),
+    ).toHaveAttribute("data-direction", "backward");
     await userEvent.click(screen.getByRole("button", { name: "Go to question 2" }));
     expect(screen.getByText("Who will use it?")).toBeInTheDocument();
   });
@@ -178,4 +185,166 @@ describe("QuestionPrompt", () => {
     expect(screen.getByRole("button", { name: "Dismiss questions" })).toBeDisabled();
     fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
   });
+  it("does not submit the Enter used to finish IME composition", () => {
+    const onComplete = vi.fn();
+    render(<QuestionPrompt questions={[FREE]} onComplete={onComplete} autoFocus={false} />);
+    const input = screen.getByPlaceholderText("Type your answer…");
+    fireEvent.change(input, { target: { value: "日本語" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onComplete).toHaveBeenCalledWith([{ answer: "日本語", skipped: false }]);
+  });
+  it("keeps keyboard navigation in the review without scrolling the transcript", () => {
+    render(
+      <QuestionPrompt questions={[AUDIENCE, AUDIENCE]} onComplete={vi.fn()} autoFocus={false} />,
+    );
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(screen.getByRole("group")).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(
+      screen.getByRole("button", { name: "Send answers" }).parentElement?.parentElement,
+    ).toHaveFocus();
+  });
+  it("does not restart inline-question focus when tabbing between options", async () => {
+    render(<QuestionPrompt questions={[AUDIENCE]} onComplete={vi.fn()} autoFocus={false} />);
+    const first = screen.getByRole("button", { name: /Everyone/ });
+    first.focus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: /My team/ })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(first).toHaveFocus();
+  });
+  it("lets Shift+Tab leave a custom input without autofocus pulling it back", async () => {
+    render(<QuestionPrompt questions={[FREE]} onComplete={vi.fn()} autoFocus={false} />);
+    screen.getByPlaceholderText("Type your answer…").focus();
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Dismiss questions" })).toHaveFocus();
+  });
+});
+
+it("keeps native editor whitespace and permits an explicit empty replacement", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Edit",
+          requestId: "native-one",
+          multiline: true,
+          initialValue: "  original\n",
+          allowEmpty: true,
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  const editor = screen.getByRole("textbox");
+  expect(editor.tagName).toBe("TEXTAREA");
+  expect(editor).toHaveValue("  original\n");
+  await userEvent.clear(editor);
+  await userEvent.type(editor, "  indented{enter}next");
+  expect(onComplete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Use this" }));
+  expect(onComplete).toHaveBeenLastCalledWith([{ answer: "  indented\nnext", skipped: false }]);
+  await userEvent.clear(editor);
+  await userEvent.click(screen.getByRole("button", { name: "Use this" }));
+  expect(onComplete).toHaveBeenLastCalledWith([{ answer: "", skipped: false }]);
+});
+
+it("enforces a native selection range and sends the offered identities", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Pick two",
+          multiSelect: true,
+          minSelections: 2,
+          maxSelections: 2,
+          allowCustom: false,
+          options: [{ label: "A" }, { label: "B" }, { label: "C" }],
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  const submit = screen.getByRole("button", { name: "Continue" });
+  expect(submit).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: /^1\s*A$/ }));
+  expect(submit).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: /^2\s*B$/ }));
+  expect(screen.getByRole("button", { name: /^3\s*C$/ })).toBeDisabled();
+  await userEvent.click(submit);
+  expect(onComplete).toHaveBeenCalledWith([{ answer: "", selected: ["A", "B"], skipped: false }]);
+});
+
+it("resets editor and carousel state for a new native request identity", async () => {
+  const onComplete = vi.fn();
+  const { rerender } = render(
+    <QuestionPrompt
+      questions={[
+        { question: "Edit", requestId: "one", multiline: true, initialValue: "original" },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.clear(screen.getByRole("textbox"));
+  await userEvent.type(screen.getByRole("textbox"), "Stale answer");
+  rerender(
+    <QuestionPrompt
+      questions={[
+        { question: "Edit", requestId: "two", multiline: true, initialValue: "New request" },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("New request");
+});
+
+it("localizes synthetic native controls without changing the protocol label", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Review plan",
+          allowCustom: false,
+          options: [
+            { label: "approved-wire-value", labelKey: "runtimeApprovePlan" },
+            { label: "rejected-wire-value", labelKey: "runtimeRejectPlan" },
+          ],
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: /Approve plan/ }));
+  expect(onComplete).toHaveBeenCalledWith([
+    { answer: "", selected: ["approved-wire-value"], skipped: false },
+  ]);
+});
+
+it("focuses pointer choices without the browser scrolling them between press and release", async () => {
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        { question: "Format?", options: [{ label: "List" }], allowCustom: false },
+        { question: "Length?", options: [{ label: "Short" }], allowCustom: false },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: /1\s*List/ }));
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  await userEvent.click(screen.getByRole("button", { name: /1\s*Short/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Send answers" }));
+  expect(onComplete).toHaveBeenCalledWith([
+    { answer: "", selected: ["List"], skipped: false },
+    { answer: "", selected: ["Short"], skipped: false },
+  ]);
+  focus.mockRestore();
 });

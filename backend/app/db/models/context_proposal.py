@@ -64,6 +64,7 @@ class ContextProposal(Base, TimestampMixin):
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     evidence_dropped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     expected_effect: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    library_revision: Mapped[str | None] = mapped_column(String(64), nullable=True)
     authoring_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),

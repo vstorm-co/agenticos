@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -6,6 +8,17 @@ import { useEvalCases, useEvalComparison, useEvalRun } from "@/hooks/use-eval-ru
 import { getErrorMessage } from "@/lib/api-error";
 import type { CaseFlip, EvalCase } from "@/types/eval-runs";
 import { Details, StateBadge } from "./widgets";
+
+/** As many changed answers as a step lists; the check lists them all. */
+const SHOWN = 50;
+
+/** Regressions first: a list cut short must never cut one of them. */
+const RANK: Record<CaseFlip["flip"], number> = {
+  regression: 0,
+  fixed: 1,
+  unchanged: 2,
+  incomplete: 2,
+};
 
 /**
  * Changed held-out questions, each marked newly fixed or newly broken. Only a change
@@ -18,7 +31,11 @@ export function ChangedAnswers({
   baselineId,
   candidateId,
   attributions,
+  preview = false,
+  baselineRunId = runId,
 }: {
+  preview?: boolean;
+  baselineRunId?: string;
   runId: string;
   agentId: string;
   flips: CaseFlip[];
@@ -28,36 +45,51 @@ export function ChangedAnswers({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { cases, error, isLoading } = useEvalCases(runId, {
-    caseIds: flips.slice(0, 100).map((flip) => flip.case_id),
-    limit: 50,
-  });
-  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
-  if (isLoading) return <p role="status">{t("loading")}</p>;
+  const shown = [...flips].sort((a, b) => RANK[a.flip] - RANK[b.flip]).slice(0, SHOWN);
+  const caseIds = shown.map((flip) => flip.case_id);
+  const { cases, error, isLoading } = useEvalCases(runId, { caseIds, limit: SHOWN });
+  const baseline = useEvalCases(baselineRunId, { caseIds, limit: SHOWN });
+  if (error || baseline.error)
+    return <p role="alert">{getErrorMessage(error ?? baseline.error, tErrors)}</p>;
+  if (isLoading || baseline.isLoading) return <p role="status">{t("loading")}</p>;
   const byCase = new Map(flips.map((flip) => [flip.case_id, flip]));
-  const confirmed = cases.filter((item) => byCase.get(item.case_id)?.confirmed);
-  const pending = cases.filter((item) => !byCase.get(item.case_id)?.confirmed);
-  const row = (item: EvalCase) => (
+  const ordered = shown.flatMap((flip) => cases.filter((item) => item.case_id === flip.case_id));
+  const confirmed = ordered.filter((item) => byCase.get(item.case_id)?.confirmed);
+  const pending = ordered.filter((item) => !byCase.get(item.case_id)?.confirmed);
+  const row = (item: EvalCase, index: number) => (
     <ChangedRow
       key={item.case_id}
-      item={item}
+      item={{
+        ...item,
+        attempts: [
+          ...item.attempts,
+          ...(baseline.cases.find((before) => before.case_id === item.case_id)?.attempts ?? []),
+        ],
+      }}
       flip={byCase.get(item.case_id)!.flip}
       confirmed={byCase.get(item.case_id)!.confirmed}
       baselineId={baselineId}
       candidateId={candidateId}
       attributions={attributions}
+      initiallyOpen={preview && index === 0}
+      preview={preview}
     />
   );
   return (
     <div className="space-y-3">
-      {confirmed.map(row)}
+      <div className={preview ? "divide-border divide-y" : "space-y-3"}>{confirmed.map(row)}</div>
       {pending.length > 0 && (
-        <details className="rounded-lg border p-3">
+        <NativeDisclosure className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm font-medium">
             {t("notConfirmedYet", { count: pending.length })}
           </summary>
           <div className="mt-3 space-y-3">{pending.map(row)}</div>
-        </details>
+        </NativeDisclosure>
+      )}
+      {flips.length > shown.length && (
+        <p className="text-muted-foreground text-sm">
+          {t("changedMore", { count: flips.length - shown.length })}
+        </p>
       )}
       <Link className="text-sm underline" href={`/agents/${agentId}/evals/${runId}`}>
         {t("openCheck")}
@@ -73,7 +105,11 @@ function ChangedRow({
   baselineId,
   candidateId,
   attributions,
+  initiallyOpen,
+  preview,
 }: {
+  preview: boolean;
+  initiallyOpen: boolean;
   item: EvalCase;
   flip: CaseFlip["flip"];
   confirmed: boolean;
@@ -82,31 +118,35 @@ function ChangedRow({
   attributions: Record<string, string>;
 }) {
   const t = useTranslations("improvement");
+  const tStatus = useTranslations("evals.cases.flip");
   const before = item.attempts.find((a) => a.arm_id === baselineId && a.attempt === 0);
   const after = item.attempts.find((a) => a.arm_id === candidateId && a.attempt === 0);
   return (
     <Details
+      initiallyOpen={initiallyOpen}
+      row={preview}
+      className="@container"
       summary={
-        <span className="flex flex-wrap items-center gap-2">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 basis-64 break-words">{item.input}</span>
           {confirmed ? (
             <StateBadge tone={flip === "regression" ? "bad" : "good"}>
-              {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
+              {tStatus(flip === "regression" ? "regression" : "fixed", { confirmed: "true" })}
             </StateBadge>
           ) : (
             <StateBadge tone="neutral" className="bg-transparent">
-              {t(flip === "regression" ? "possiblyBroken" : "possiblyFixed")}
+              {tStatus(flip === "regression" ? "regression" : "fixed", { confirmed: "false" })}
             </StateBadge>
           )}
-          <span className="break-words">{item.input}</span>
         </span>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         {[
           { label: t("before"), value: before?.answer },
           { label: t("after"), value: after?.answer },
         ].map((v) => (
-          <div key={v.label} className="min-w-0 rounded-lg border p-4">
+          <div key={v.label} className="bg-background/50 min-w-0 rounded-lg p-4">
             <p className="text-muted-foreground text-xs">{v.label}</p>
             <div className="prose-sm mt-2 text-sm leading-relaxed wrap-anywhere">
               <MarkdownContent content={v.value ?? t("unavailableAnswer")} inertImages />
@@ -114,21 +154,28 @@ function ChangedRow({
           </div>
         ))}
       </div>
-      {after?.score?.results.map((grade, index) => (
-        <p key={index} className="text-muted-foreground text-sm">
-          {t("graderSaid", { reason: grade.reason })}
-        </p>
-      ))}
-      <div className="text-sm">
-        <p className="font-medium">{t("whichChange")}</p>
-        {Object.keys(attributions).length === 0 ? (
-          <p className="text-muted-foreground">{t("notAttributed")}</p>
-        ) : (
-          Object.values(attributions).map((id, index) => (
-            <ChangeCause key={id} caseId={item.case_id} runId={id} number={index + 1} />
-          ))
-        )}
-      </div>
+      <NativeDisclosure className="text-muted-foreground text-sm">
+        <summary className="cursor-pointer">{t("technicalDetails")}</summary>
+        <div className="mt-2 space-y-2">
+          {after?.score?.results.map((grade, index) => (
+            <p key={index} className="text-muted-foreground text-sm">
+              {t("graderSaid", { reason: grade.reason })}
+            </p>
+          ))}
+        </div>
+      </NativeDisclosure>
+      {(!preview || Object.keys(attributions).length > 0) && (
+        <NativeDisclosure className="text-muted-foreground text-sm">
+          <summary className="cursor-pointer">{t("whichChange")}</summary>
+          {Object.keys(attributions).length === 0 ? (
+            <p className="text-muted-foreground">{t("notAttributed")}</p>
+          ) : (
+            Object.values(attributions).map((id, index) => (
+              <ChangeCause key={id} caseId={item.case_id} runId={id} number={index + 1} />
+            ))
+          )}
+        </NativeDisclosure>
+      )}
     </Details>
   );
 }

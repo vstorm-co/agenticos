@@ -151,6 +151,8 @@ class TestReadingTheIdentity:
             "level": "warning",
             "maintenance_mode": False,
             "maintenance_message": None,
+            "announcement_expires_at": None,
+            "maintenance_planned_end_at": None,
         }
 
 

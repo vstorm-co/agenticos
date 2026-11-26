@@ -17,6 +17,8 @@ no walkthrough.
 
 **New workflow** asks for a name and who can use it, using the same audience picker as agent creation: everyone, only you, or selected people and departments. Choose its starting trigger, optionally add a description and tags, then press **Create**. Selecting a trigger never creates a workflow by itself. **Workflow templates** is a separate category gallery; choosing a template opens this form with its name and description prefilled.
 
+To change who can access an existing workflow, open it and choose **More → Settings → Access**. Under **General access**, choose **Only people with access** or **Everyone in the organization**. If you can edit the workflow, you can also add or remove grants for people and groups here. Switching to private keeps explicit grants. People whose role only reaches shared workflows can lose access; roles that reach all workflows retain it. Sharing also controls access to past runs; it does not pause schedules or disable webhooks.
+
 The catalog keeps its cards and search inside one panel. **Filters** reveals status, tags and sorting, with a count of active filters. Failed loading offers **Retry** instead of an empty catalog. Importing starts with a file picker; **Or paste the file's JSON here** reveals a labelled text field.
 
 The list shows every workflow you can see as a card: its status, who can reach
@@ -59,14 +61,11 @@ Run history fills the available page area by default, without an expansion contr
 
 Run history keeps pagination at the bottom of its panel. A run detail uses a compact summary, a canvas that fills the workspace and one side panel with Steps, Output and available files. Click a step to inspect its recorded data. File and pasted-JSON imports have separate tabs; pasted JSON has a code field and a format action that reports invalid JSON without discarding it.
 
-**Export workflow**, under **More** in the editor's header, exports the draft as a
-`.workflow.json` file. The file carries no ids of this deployment: every agent,
-table, secret, member, bot or workflow a step picked is left out and listed,
-pinned test data is left out, and so is the error workflow. It never holds a
-secret's value. **Import** on the list makes a new draft from such a file, takes
-out any id a hand-made one still names, and lists every step and field to choose
-again before you publish. A file with a step this deployment does not have is
-refused, and nothing is made.
+**Export workflow**, under **More**, opens a selectable resource bundle. Choose linked definitions, then use ZIP to include selected knowledge-base originals or parsed text. The workflow list's **Import** reviews those dependencies before creating private drafts. Missing bindings are shown before import and in its receipt; published delegate versions must be chosen under their destination agent.
+
+**Export an older workflow file** keeps the `.workflow.json` format: resource IDs, pinned test output and the error workflow are left out. **Import an older workflow file** keeps its original flow, listing resources to choose again before publication. Unsupported step types are refused without creating a workflow.
+
+The tab can restore a transfer after a page refresh for the same signed-in person and organization. Only its operation ID is kept in session storage. The server checks access again before showing its result. An interrupted upload needs the original ZIP selected again and uploads from the beginning; file bytes and upload offsets are not saved in the browser. An expired or inaccessible transfer offers a fresh start.
 
 ### Finding, naming and retiring a workflow { #finding-naming-and-retiring-a-workflow }
 
@@ -431,9 +430,17 @@ step names a real thing your organization has:
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a
 create-new link — always, not only when the list is empty — while the **Table**
-picker has none. A table whose schema changed since it was bound says so and offers
-**Rebind to the current schema**, so a stale column set is a visible prompt
-rather than a silent break.
+picker has none.
+
+When a table's schema changes after a step was bound to it, the editor moves the
+step onto the new schema by itself as long as every column the step reads still
+exists with the same type - an added column, or a change to one the step does not
+read, needs nothing from you. When a column it reads was removed or changed type,
+the step shows a problem instead, and both the step's **Table** field and the
+toolbar's problem list offer **Update to the current schema**, which keeps every
+chosen column that still exists. Check what reads the step afterwards.
+
+Filters, sort columns and value bindings are checked too. Remove or replace dependent settings that use changed columns before updating the table schema; the bulk update leaves those steps unchanged. A whole-record value binding also requires this manual review.
 
 ### Evals for a model step { #evals-for-a-model-step }
 
@@ -645,12 +652,11 @@ failed — will retry** if it did not.
 
 Each save is written against the revision you opened, so a draft edited in two
 places at once cannot silently overwrite. When that happens the editor raises a
-banner titled **This draft changed elsewhere**: *Someone edited this workflow
-since you opened it. Overwrite keeps your changes; reload replaces them with the
-latest saved draft.* You choose:
+banner titled **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* You choose:
 
-- **Overwrite** — keep your version and write it over the one saved elsewhere.
-- **Reload** — discard your unsaved edits and take the latest saved draft.
+- **Keep my changes** — keep your version and write it over the one saved elsewhere.
+- **Load their version** — discard your unsaved edits and take the latest saved draft.
 
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
@@ -867,19 +873,20 @@ label its author wrote, in place of **Approve**; **Reject** stays. Each way is a
 port of the step, so the workflow goes on by the one the approver pressed, and the
 decided row names it. An edit goes with whichever button is pressed.
 
-In the list a test run's version reads **Draft (test)** and a real one's
-**Published**, and a run started from the console or the HTTP API reads **Console or
-API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+In the list a test of the whole draft reads **Draft (test)**, a
+[test of one step](#a-steps-data-pinning-and-testing-one-step) **Step test** followed by the step's name, and a
+real run **Published**. **Version** can show step tests alone or leave them out.
+
+A run started from the console or the HTTP API reads **Console or API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a
 run's page, clicking a step shows its **Input** and **Output** from that run. The lines a step's
 [quick log](#quick-log) wrote show under the step.
 
-**Retry from failed step** starts a new run of the same version and input in which
-each step that succeeded hands on what it handed on before, so only the failed
-step and what it did not reach run, and a write is never made twice. A loop runs
-again and reuses each item's steps that had succeeded. **Debug in editor** pins
+**Retry from failed step** starts a new run with the same version and input. It reuses completed steps and the completed calls of a Python block, so it need not repeat their writes. Loops run again and reuse successful steps for each item. A Resume link is generated anew: an old run's link cannot wake this run.
+
+**Debug in editor** pins
 what each step outside a loop handed on in that run onto the draft's steps, so a
 test run starts from where that run was. Over the API, `POST
 /api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes
@@ -1003,6 +1010,26 @@ last event it saw and picks up exactly where it stopped. Events are written befo
 they are sent, so nothing is lost and nothing runs twice. The socket re-checks the
 session and the member's access before every frame and every read of the stream.
 The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Reusable webhook sources { #reusable-webhook-sources }
+
+The source picker links to source management without adding another default sidebar destination. New source credentials are selected or created in Vault: organization-visible `api_key` for signing keys and tokens, or `webhook_credentials` for inbound Basic Auth. The workflow keeps only its source binding; credential rotation stays in Vault.
+
+New **Webhook** steps in the workflow editor start by asking you to choose or create an event source. Drafts can be saved and tested with pasted JSON before a source is selected, but publishing requires a source or an explicit choice of **Dedicated endpoint**. Choose a dedicated endpoint when the sender needs a synchronous response. Existing dedicated steps keep their settings and URLs.
+
+In a **Webhook** trigger, choose an existing **Event source** or create one. Publishing subscribes that specific workflow entry to the source; later publications keep the subscription when the source and entry are unchanged. The source holds the credentials, outside the workflow definition. Its other routines and workflows receive the same authenticated events independently. [Event sources](https://vstorm-co.github.io/agenticos/triggers/#reusable-event-sources) explains providers, authentication, permissions, pause and retention.
+
+You can replace a source you can no longer use with one you can use; the live subscription changes on publish. Pinning a sample changes the workflow draft and requires edit access.
+
+Anyone who can inspect this workflow’s runs may see delivered payloads in its history, even if the source is private. Sharing the workflow later can expose payloads from earlier runs. It does not grant access to listen to the live source.
+
+Choose **Listen for event** to capture the next authenticated event on the configured live source URL. The window lasts two minutes; temporary samples last ten minutes and respect the 64 KB pin limit. **Active subscribers still execute.** Capture does not add a run or change delivery processing. Pasted example JSON is an alternative, and saving or publishing never requires a sample.
+
+The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly.
+
+Testing a Manual branch or using pinned JSON does not need **Use** on the webhook source. Publishing a workflow that subscribes to the source and listening for live events both require **Use**.
+
+A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
 
 ### A webhook or a schedule { #a-webhook-or-a-schedule }
 
@@ -1409,7 +1436,7 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
 - A parameter is **a value or data from a step** — **Data** reads one from a
   reachable, type-compatible upstream output, or puts it into text.
 - The draft **saves itself**, and an edit from two places raises a banner with
-  **Overwrite** or **Reload**.
+  **Keep my changes** or **Load their version**.
 - **Publish** is blocked while a problem stands and re-validates on the server;
   past versions stay viewable read-only, and **Restore to draft** makes one the
   draft again.
@@ -1428,3 +1455,11 @@ New automations can be submitted through `prepare_workflow_draft`: one approval 
 ### Follow-up drafts { #follow-up-drafts }
 
 The Await reply creation dialog can also enable **Prepare a follow-up draft after the deadline**. Choose an existing model and a maximum cost per draft. When starting the workflow, provide the context the draft should use. Only a successfully checked deadline branch runs this agent; a verified reply skips it, and a mailbox failure fails the check. The agent has no tools. Its draft is saved in the workflow result and you receive a notification pointing there. Review the current thread before sending anything. This preset does not create a draft in Gmail/Outlook or send mail.
+
+Selectable resource bundles also support workflow roots through `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` and the bundle-import endpoints. Choose which linked definitions to copy, reuse or skip. Imported workflows are private, unpublished drafts; triggers are never activated. Uploaded-file bindings and pinned run output do not travel. The import result lists omitted binding paths, and publication still checks missing resources. Delegates require an explicitly selected existing published version belonging to the mapped agent. Error workflows must resolve to an accessible published failure handler; imported drafts are never automatically published to satisfy that requirement. Dependency creation cycles require explicit reuse or skipping a binding.
+
+Table bindings with selected columns are omitted for manual selection at the destination; whole-table bindings use the destination schema version.
+
+Python action bindings use each bound action’s resource schema. Reusing a destination remaps table IDs and schema versions together. Omitting an action dependency removes its entire binding; review the Python code before publishing. Exports with column-specific table selections are rejected: clear the selection before exporting, then choose the destination columns again.
+
+Reusable event-source subscriptions do not travel with a workflow bundle. Export and import remove the source ID, report its omitted binding path, and leave the webhook step requiring a source. Select an authorized source again in the private draft before publishing; importing never activates a dedicated endpoint as a fallback.

@@ -106,6 +106,32 @@ def windows(folder: Path) -> None:
         print("WINDOWS_INSTALL: per-user silent installation and removal verified")
 
 
+def verify_appimage_tree(root: Path) -> None:
+    if not (root / "AppRun").is_file():
+        raise RuntimeError("The portable AppImage launcher is missing")
+    # Mesa must use the host Wayland client. Match AppImage's excludelist:
+    # https://github.com/probonopd/AppImages/blob/master/excludelist
+    bundled = sorted(str(path.relative_to(root)) for path in root.rglob("libwayland-client.so*"))
+    if bundled:
+        raise RuntimeError(
+            f"AppImage must use the host Wayland client library; found: {', '.join(bundled)}"
+        )
+
+
+def appimage(folder: Path) -> None:
+    image = one(folder / "appimage", "*.AppImage").resolve()
+    with tempfile.TemporaryDirectory(prefix="agenticos-appimage-") as temporary:
+        subprocess.run(
+            [str(image), "--appimage-extract"],
+            cwd=temporary,
+            check=True,
+            capture_output=True,
+            timeout=120,
+        )
+        verify_appimage_tree(Path(temporary) / "squashfs-root")
+    print("APPIMAGE_INSTALL: extraction and host Wayland client policy verified")
+
+
 def linux(folder: Path) -> None:
     disposable_runner()
     package = one(folder / "deb", "*.deb")
@@ -120,22 +146,23 @@ def linux(folder: Path) -> None:
             raise RuntimeError("The Linux launcher is missing")
     finally:
         run("sudo", "dpkg", "--remove", name)
-    image = one(folder / "appimage", "*.AppImage")
-    with tempfile.TemporaryDirectory(prefix="agenticos-appimage-") as temporary:
-        subprocess.run(
-            [str(image), "--appimage-extract"], cwd=temporary, check=True, capture_output=True
-        )
-        if not (Path(temporary) / "squashfs-root/AppRun").is_file():
-            raise RuntimeError("The portable AppImage launcher is missing")
-    print("LINUX_INSTALL: Debian installation/removal and AppImage extraction verified")
+    appimage(folder)
+    print("LINUX_INSTALL: Debian installation/removal and AppImage validation verified")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path)
+    parser.add_argument(
+        "--appimage-only",
+        action="store_true",
+        help="Validate AppImage without installing packages",
+    )
     args = parser.parse_args()
     folder = args.bundle.resolve()
-    if sys.platform == "darwin":
+    if args.appimage_only:
+        appimage(folder)
+    elif sys.platform == "darwin":
         macos(folder)
     elif sys.platform == "win32":
         windows(folder)

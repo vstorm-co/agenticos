@@ -18,7 +18,6 @@ from app.services.channels.whatsapp_graph import (
     GRAPH_BASE,
     GRAPH_VERSION,
     MAX_ATTEMPTS,
-    MEDIA_HOSTS,
     TEMPLATE_PAGES,
     TOKEN_REFUSED,
     WhatsAppCredentials,
@@ -306,7 +305,6 @@ async def test_a_foreign_media_host_is_refused(url: str):
     with pytest.raises(WhatsAppGraphError):
         await graph.download_media(CREDS, url=url, limit=1000)
     assert seen == []
-    assert "lookaside.fbsbx.com" in MEDIA_HOSTS
 
 
 async def test_download_returns_the_bytes():

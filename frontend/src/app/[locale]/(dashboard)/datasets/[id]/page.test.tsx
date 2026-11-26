@@ -21,9 +21,12 @@ const state = vi.hoisted(() => ({
   linked: null as string | null,
   linkedCase: undefined as unknown,
   linkedError: null as Error | null,
+  retryCase: vi.fn(),
+  retryDataset: vi.fn(),
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
+  agentsRun: true,
   findTwin: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
@@ -52,11 +55,18 @@ vi.mock("@/hooks/use-datasets", () => ({
           scoring: DEFAULT_SCORING,
         }),
     error: state.datasetError,
+    refetch: state.retryDataset,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
   }),
   useDatasetVersions: () => ({ versions: [], isLoading: false }),
-  useDatasetCase: () => ({ kase: state.linkedCase, isLoading: false, error: state.linkedError }),
+  useDatasetCase: () => ({
+    kase: state.linkedCase,
+    isLoading: false,
+    error: state.linkedError,
+    fetchedAt: 1,
+    refetch: state.retryCase,
+  }),
   useDatasetCases: (_id: string, { skip }: { skip: number }) => {
     state.skips.push(skip);
     return {
@@ -79,7 +89,9 @@ vi.mock("@/hooks/use-organizations", async (original) => ({
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView }),
+  usePermissions: () => ({
+    can: (perm: string) => (perm === "agents:run" ? state.agentsRun : state.runsView),
+  }),
 }));
 vi.mock("@/components/evals/dataset-evals-panel", () => ({
   DatasetEvalsPanel: ({ datasetId }: { datasetId: string }) => <p>evals of {datasetId}</p>,
@@ -97,6 +109,12 @@ vi.mock("@/components/datasets/helper-settings", () => ({
   HelperSettings: () => <p>helper settings</p>,
 }));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/key-coverage-panel", () => ({
+  KeyCoveragePanel: ({ datasetId }: { datasetId: string }) => <p>coverage of {datasetId}</p>,
+}));
+vi.mock("@/components/datasets/key-draft-panel", () => ({
+  KeyDraftPanel: ({ caseId }: { caseId: string }) => <p>keys of {caseId}</p>,
+}));
 vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
 const CASE = {
@@ -143,6 +161,7 @@ describe("the dataset page", () => {
     state.metadataLoading = false;
     state.casesLoading = false;
     state.runsView = true;
+    state.agentsRun = true;
     state.total = 0;
     state.cases = [];
     state.skips = [];
@@ -152,6 +171,7 @@ describe("the dataset page", () => {
     state.linked = null;
     state.linkedCase = undefined;
     state.linkedError = null;
+    state.retryCase.mockReset();
     state.push.mockReset();
     state.remove.mockReset();
   });
@@ -344,16 +364,68 @@ describe("the dataset page", () => {
     expect(dialog).toHaveTextContent("How long is the return window?");
     await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.getByText("keys of c1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("offers no key listing to an editor who may not run agents", async () => {
+    state.agentsRun = false;
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    await mount();
+
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.queryByText("keys of c1")).not.toBeInTheDocument();
+  });
+
+  it("explains a case deleted after opening and retries its live query", async () => {
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    const refresh = await mount();
+    state.linkedError = new ApiError(404, "Case no longer exists");
+    refresh();
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Case no longer exists");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+    expect(state.retryCase).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a historical case readable when its latest version no longer exists", async () => {
+    state.version = "2";
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    state.linkedError = new ApiError(404, "Case no longer exists");
+    await mount();
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    expect(dialog).toHaveTextContent("How long is the return window?");
+    expect(within(dialog).queryByText("Case no longer exists")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
   it("says when the case a link names is gone", async () => {
     state.linked = "c9";
-    state.linkedError = new Error("Not found");
+    state.linkedError = new ApiError(404, "Not found");
     await mount();
 
     expect(screen.getByRole("alert")).toHaveTextContent("not in the newest version");
+  });
+
+  it("says the case a link names could not be read, not that it is gone, and reads it again", async () => {
+    state.linked = "c9";
+    state.linkedError = new ApiError(500, "Internal error", {
+      error: { code: "INTERNAL", message: "Internal error" },
+    });
+    await mount();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The case this link names could not be read. Internal error",
+    );
+    expect(screen.queryByText(/not in the newest version/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.retryCase).toHaveBeenCalled();
   });
 
   it("marks the Grading tab while a change there is unsaved", async () => {
@@ -406,6 +478,7 @@ it.each([
   ["grading", "Settings"],
   ["evals", "Results"],
   ["review", "Results"],
+  ["coverage", "Results"],
 ])("keeps the %s deep link inside %s", async (route, section) => {
   state.tab = route;
   await mount();
@@ -421,6 +494,22 @@ it("offers run history and answer review under one Results section", async () =>
   expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
 });
 
+it("offers key coverage under Results, to a reader who may not read runs too", async () => {
+  state.runsView = false;
+  state.tab = "review";
+  await mount();
+  expect(screen.queryByRole("button", { name: "Test runs" })).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: "Key coverage" }));
+
+  expect(new URL(window.location.href).searchParams.get("tab")).toBe("coverage");
+  expect(screen.getByText("coverage of d1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Key coverage" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
 it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {
   state.datasetError = new ApiError(status, "Dataset not found");
   await act(async () => {
@@ -432,4 +521,12 @@ it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", asy
   });
   expect(await screen.findByText("Resource unavailable")).toBeVisible();
   expect(screen.queryByText("Something went wrong")).toBeNull();
+});
+
+it("offers recovery for a failed dataset read", async () => {
+  state.datasetError = new Error("Dataset service unavailable");
+  await mount();
+  expect(screen.getByRole("alert")).toHaveTextContent("Dataset service unavailable");
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.retryDataset).toHaveBeenCalledOnce();
 });

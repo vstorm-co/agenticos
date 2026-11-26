@@ -8,6 +8,7 @@ import { ThemeProvider } from "./theme-provider";
 import * as commands from "@/lib/desktop/commands";
 import * as shell from "@/lib/desktop/shell";
 import { useThemeStore } from "@/stores/theme-store";
+import { useMotionStore } from "@/stores/motion-store";
 
 const route = vi.hoisted(() => ({ pathname: "/dashboard" }));
 vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
@@ -61,6 +62,7 @@ function reducedMotion(matches: boolean) {
 }
 
 beforeEach(() => {
+  useMotionStore.setState({ motion: "system" });
   route.pathname = "/dashboard";
   document.documentElement.removeAttribute("data-desktop-setup");
   // The motion preference is a mock that outlives the test that set it.
@@ -94,6 +96,20 @@ describe("the animated theme switch", () => {
     expect(transition).toHaveBeenCalledTimes(1);
     expect(root().classList.contains("dark")).toBe(true);
     expect(root().classList.contains("light")).toBe(false);
+  });
+
+  it("flushes the new palette with component transitions suppressed and restores them immediately", () => {
+    const flush = vi.spyOn(root(), "offsetHeight", "get").mockImplementation(() => {
+      expect(root()).toHaveClass("theme-switching", useThemeStore.getState().theme);
+      return 0;
+    });
+    useThemeStore.setState({ theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    expect(flush).toHaveBeenCalled();
+    expect(root()).not.toHaveClass("theme-switching");
+    act(() => useThemeStore.setState({ theme: "light" }));
+    expect(root()).not.toHaveClass("theme-switching");
+    flush.mockRestore();
   });
 
   it("still changes the theme in a browser without the API", () => {

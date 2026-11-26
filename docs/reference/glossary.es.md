@@ -1,5 +1,5 @@
 ---
-source_sha: "e7cfdf5d9e23"
+source_sha: "212655200686"
 ---
 
 # Glosario { #glossary }
@@ -48,7 +48,7 @@ tal como se ven en pantalla.
 | En la consola | Qué es | En la API y el spec |
 |---|---|---|
 | Chat | La conversación web con un agent | `conversation` |
-| Channel | Slack, Telegram, Mattermost, Teams, Discord o WhatsApp, donde las personas hablan con un agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost, Teams, Discord, Matrix o WhatsApp, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
 | Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
@@ -92,6 +92,8 @@ tal como se ven en pantalla.
 | Noise | Respuestas calificadas de otra manera al preguntar de nuevo sin que nada haya cambiado; un resultado que eso podría explicar queda dentro del ruido, y **Ask each question twice** lo mide | `measurement_noise`, `purpose: stability` |
 | Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
 | Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Key extractor | El agent de sistema que enumera los datos de la respuesta de referencia de un caso para su comprobación de claves | `kind: extractor` |
+| Source coverage | El agent de sistema que dice qué claves de un dataset no contiene ninguna fuente de un agent | `kind: coverage` |
 | Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
 | Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 
@@ -154,6 +156,7 @@ se describe en [Capabilities](capabilities.md).
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| Agente ACP externo | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |
@@ -166,6 +169,7 @@ se describe en [Capabilities](capabilities.md).
 | Memory | `memory_files` |
 | Mirage (terminal virtual) | `mirage` |
 | Planning | `planning` |
+| Proyectos | `projects` |
 | Work while tools run | `background_tools` |
 | Temas en segundo plano | `background_tasks` |
 | Watch a command | `monitor` |

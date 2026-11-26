@@ -6,6 +6,24 @@ background execution come from
 what lives here is who an agent may delegate to, under which ceilings, and what
 every delegation is recorded as having cost.
 
+## Personal model credentials
+
+In signed-in web chat, the runner resolves each published delegate's configured
+credential mode for the original caller. Personal-mode delegates require that
+caller's connection and the exact model profile selected on a personal-mode root.
+An organization-mode root cannot spend a personal delegate's key, and a personal
+root cannot select another personal model through delegation. These restrictions
+are checked at publish, surface admission, promotion and runtime. No key is forwarded
+from the parent and no organization key substitutes for a missing connection.
+The tree is resolved again after an approval park, using the original owner
+rather than the approver. Personal MCP authority follows its existing rules.
+
+Inline specialists inherit their parent's credential mode. Dynamic specialists
+in personal mode are restricted to the parent's configured model, so an invented
+specialist cannot select a different destination or spend an organization key.
+Other surfaces still refuse personal-mode delegates. See
+[personal model keys](../../../../../docs/models.md#personal-model-keys).
+
 ## Why an adapter rather than registering the library's capability
 
 `thinking` registers Pydantic AI's own class and has no `_capability.py` at all,
@@ -472,3 +490,12 @@ it, for the reason above.
 | `_events.py` | A delegate's stream events, as frames a surface can render |
 
 `allow_any_agent` is an explicit interactive catalog option. Candidates are tenant scoped and require the initiating member’s run permission, including use grants and API-key ceilings. It never discovers agents using a publisher fallback or widens routine source consent. Versions are snapshotted across approval parks and live run access is checked again before each discovered delegation. Explicit pins retain their existing publisher-authorized contract.
+
+
+The shipped AgenticOS enables this catalog but instructs the assistant to work
+directly unless the user explicitly requests delegation or parallel agent work.
+Research, exploration or review requests alone do not authorize subagents.
+Dynamic specialist creation is disabled in that starter. This is an instruction
+policy, not an authorization rule that guesses intent from user text. The
+Builder's Delegates controls expose the existing `allow_any_agent` flag beside
+explicit version pins; switching it off does not remove those pins.

@@ -11,15 +11,22 @@ export type MarkdownMode = "source" | "preview";
 export function MarkdownModeToggle({
   mode,
   onChange,
+  compact = false,
 }: {
   mode: MarkdownMode;
+  compact?: boolean;
   onChange: (mode: MarkdownMode) => void;
 }) {
   const t = useTranslations("ui");
   const next = mode === "source" ? "preview" : "source";
   const Icon = next === "preview" ? Eye : Code2;
   return (
-    <Button type="button" variant="outline" size="sm" onClick={() => onChange(next)}>
+    <Button
+      type="button"
+      variant={compact ? "ghost" : "outline"}
+      size="sm"
+      onClick={() => onChange(next)}
+    >
       <Icon aria-hidden />
       {t(next)}
     </Button>

@@ -1,0 +1,29 @@
+# Built from the exact release source by scripts/build_arch_package.sh.
+pkgname=agenticos
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Chat, call and work with your AI agents'
+arch=('x86_64')
+url='https://github.com/vstorm-co/agenticos'
+license=('Apache-2.0')
+depends=('glibc' 'gcc-libs' 'gtk3' 'webkit2gtk-4.1' 'libayatana-appindicator' 'xdotool' 'libxcb' 'libpipewire' 'dbus' 'hicolor-icon-theme')
+makedepends=('rust' 'clang' 'pkgconf' 'python' 'git')
+optdepends=('bubblewrap: isolated local command execution' 'docker: local platform instances')
+# Rust's LLVM linker cannot consume GCC LTO objects from the native aws-lc build.
+options=('!debug' '!lto')
+source=("agenticos-$pkgver.tar.gz")
+sha256sums=('@SHA256@')
+
+build() {
+  cd "$srcdir/agenticos-$pkgver"
+  python scripts/prepare_app_release.py "v$pkgver"
+  cargo build --release --locked --features arch-package --manifest-path desktop/src-tauri/Cargo.toml
+}
+
+package() {
+  cd "$srcdir/agenticos-$pkgver"
+  install -Dm755 desktop/src-tauri/target/release/agenticos-desktop "$pkgdir/usr/bin/agenticos"
+  install -Dm644 packaging/arch/co.vstorm.agenticos.desktop "$pkgdir/usr/share/applications/co.vstorm.agenticos.desktop"
+  install -Dm644 desktop/src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/co.vstorm.agenticos.png"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

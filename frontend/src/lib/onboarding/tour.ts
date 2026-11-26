@@ -192,6 +192,76 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "deployment-console-navigation",
+    page: "/admin/settings",
+    target: "deployment-console-navigation",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-console-navigation",
+    page: ORG_MEMBERS,
+    target: "organization-console-navigation",
+    activate: ["org-tab-assistant", "organization-console-navigation-expand"],
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "organization-console-notices",
+    page: ORG_MEMBERS,
+    target: "organization-console-notices",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-console-navigation",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-navigation",
+    activate: "personal-console-navigation-open",
+    optional: true,
+  },
+  {
+    id: "personal-console-catalogs",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-catalogs",
+    optional: true,
+  },
+  {
+    id: "personal-console-notices",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-notices",
+    optional: true,
+  },
+  {
+    id: "deployment-chat-costs",
+    page: "/admin/settings",
+    target: "deployment-chat-costs",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-chat-costs",
+    page: ORG_MEMBERS,
+    target: "organization-chat-costs",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-chat-costs",
+    page: SETTINGS_DETAIL,
+    target: "personal-chat-costs",
+    optional: true,
+  },
+  {
+    id: "deployment-password-sign-in",
+    page: "/admin/settings",
+    target: "deployment-password-sign-in",
+    activate: "deployment-access-tab",
+    optional: true,
+  },
+  {
     id: "improvement-start",
     page: IMPROVEMENT_START,
     target: "improvement-start",
@@ -201,6 +271,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "improvement-test-set",
     page: IMPROVEMENT_START,
     target: "improvement-quote",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-mode",
+    page: IMPROVEMENT_START,
+    target: "improvement-mode",
     permission: Perm.runsView,
     optional: true,
   },
@@ -386,12 +463,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "coding-task-revert",
     optional: true,
   },
-  {
-    id: "chat-background-tasks",
-    page: ROUTES.CHAT,
-    target: "chat-background-tasks",
-    optional: true,
-  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
@@ -491,6 +562,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
+  {
+    id: "agent-model-credentials",
+    page: AGENT_BUILDER,
+    target: "agent-model-credentials",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    agentKind: "ordinary",
+  },
   // The Voice card, right under the model: dictation and, below it, the
   // realtime model, key and voice the agent takes calls with (#54).
   {
@@ -504,8 +583,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-identity",
     page: AGENT_BUILDER,
-    target: "agent-identity",
-    activate: "agent-tab-build",
+    target: "agent-share",
     permission: Perm.agentsView,
   },
   {
@@ -972,6 +1050,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "workflow-python-actions",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-python-actions",
+    permission: Perm.workflowsEdit,
+    optional: true,
+  },
+  {
     id: "workflow-input-contract",
     page: WORKFLOW_DETAIL,
     target: "workflow-input-contract",
@@ -1257,6 +1342,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "datasets-results-tab",
     permission: Perm.datasetsView,
   },
+  {
+    id: "dataset-key-coverage",
+    page: DATASET_DETAIL,
+    target: "datasets-coverage-tab",
+    activate: "datasets-results-tab",
+    permission: Perm.datasetsView,
+  },
 
   {
     id: "tables-catalog",
@@ -1495,6 +1587,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.channelsManage,
     optional: true,
   },
+  // Binding is on a bot's row, so it renders only once a bot exists.
+  {
+    id: "channels-binding",
+    page: ROUTES.CHANNELS,
+    target: "channels-binding",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
   // A Discord bot's role mappings (#2569): only on a Discord row, and only for
   // somebody who may manage members, so optional - most organizations have none.
   {
@@ -1543,6 +1643,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "project-tracking", page: PROJECT_DETAIL, target: "project-tracking", optional: true },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  {
+    id: "project-resources",
+    page: PROJECT_DETAIL,
+    target: "project-resources",
+    activate: "project-tab-resources",
+    optional: true,
+  },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
   { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
 
@@ -1596,6 +1703,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsEdit,
   },
 
+  {
+    id: "event-sources-header",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-header",
+    permission: Perm.eventSourcesView,
+  },
+  {
+    id: "event-sources-create",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-create",
+    permission: Perm.eventSourcesEdit,
+  },
+
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create
   // stop is gated on the run floor a trigger is created at, not on a role: a
@@ -1633,6 +1753,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // What the platform brought the reader on its own (#2301). "?"-only, like the
   // routines stop: the launch walk does not take a first login here.
   { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
+  { id: "inbox-questions", page: ROUTES.INBOX, target: "inbox-questions", optional: true },
 
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
@@ -1655,6 +1776,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,
     target: "personal-coding-accounts",
+    optional: true,
+  },
+  {
+    id: "start-subscriptions",
+    page: ROUTES.ONBOARDING,
+    target: "start-subscriptions",
+    optional: true,
+  },
+  {
+    id: "personal-subscription-accounts",
+    page: ROUTES.SETTINGS_SUBSCRIPTIONS,
+    target: "personal-subscription-accounts",
     optional: true,
   },
   {
@@ -1741,6 +1874,7 @@ export function pageKey(path: string): string {
     return ORG_MEMBERS;
   }
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
+  if (path === ROUTES.SETTINGS_SUBSCRIPTIONS) return ROUTES.SETTINGS_SUBSCRIPTIONS;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;

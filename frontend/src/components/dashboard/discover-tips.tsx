@@ -13,7 +13,7 @@ import { Button, Card, CardContent } from "@/components/ui";
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { prefersReducedMotion } from "@/lib/motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -32,6 +32,36 @@ interface Tip {
 }
 
 const TIPS: readonly Tip[] = [
+  {
+    id: "subscriptions",
+    href: ROUTES.SETTINGS_SUBSCRIPTIONS,
+    brands: [
+      { name: "claude", color: "#D97757" },
+      { name: "codex", color: "currentColor" },
+      { name: "google", color: "currentColor" },
+    ],
+  },
+  { id: "firstTask", href: `${ROUTES.CHAT}?new=workspace&answerer=agenticos`, art: "planning" },
+  {
+    id: "mcp",
+    href: ROUTES.SETTINGS_MCP,
+    brands: [
+      { name: "claude", color: "#D97757" },
+      { name: "codex", color: "currentColor" },
+    ],
+  },
+  {
+    id: "connectedTools",
+    href: ROUTES.MCP_SERVERS,
+    gate: Perm.mcpPersonalUse,
+    brands: [
+      { name: "github", color: "currentColor" },
+      { name: "notion", color: "currentColor" },
+      { name: "google", color: "currentColor" },
+    ],
+  },
+  { id: "projects", href: ROUTES.PROJECTS, art: "context", gate: Perm.projectsView },
+  { id: "personalMemory", href: ROUTES.SETTINGS_MEMORY, art: "memory_files" },
   { id: "sandbox", href: ROUTES.AGENTS, art: "sandbox", gate: Perm.agentsEdit },
   { id: "subagents", href: ROUTES.AGENTS, art: "subagents", gate: Perm.agentsEdit },
   { id: "apps", href: ROUTES.ARTIFACTS, art: "artifacts", gate: Perm.artifactsView },
@@ -46,6 +76,8 @@ const TIPS: readonly Tip[] = [
       { name: "mattermost", color: "#0058CC" },
       { name: "microsoftteams", color: "#6264A7" },
       { name: "discord", color: "#5865F2" },
+      // Matrix's mark is black; ink keeps it legible in the dark theme too.
+      { name: "matrix", color: "currentColor" },
       { name: "whatsapp", color: "#25D366" },
     ],
   },
@@ -55,14 +87,6 @@ const TIPS: readonly Tip[] = [
   // Keyboard tips remain available after the illustrated product examples.
   { id: "mentions", href: ROUTES.CHAT, key: "@" },
   { id: "commands", href: ROUTES.CHAT, key: "/" },
-  {
-    id: "mcp",
-    href: ROUTES.SETTINGS_MCP,
-    brands: [
-      { name: "claude", color: "#D97757" },
-      { name: "cursor", color: "currentColor" },
-    ],
-  },
 ];
 
 const DISMISSED_KEY = "agenticos:discover-tips:dismissed";
@@ -96,12 +120,16 @@ function readDismissed(): ReadonlySet<string> {
 export function DiscoverTips() {
   const t = useTranslations("dashboard.discover");
   const { can } = usePermissions();
+  const reducedMotion = useReducedMotion();
   const [dismissed, setDismissed] = useState(readDismissed);
   const strip = useRef<HTMLDivElement>(null);
   useScrollFade(strip);
   // Held while the reader is on the strip: a tile moving out from under the
   // pointer, or from under the focus, is a tile they cannot read or close.
-  const [held, setHeld] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [touching, setTouching] = useState(false);
+  const held = hovered || focused || touching;
 
   const tips = TIPS.filter((tip) => !dismissed.has(tip.id) && (!tip.gate || can(tip.gate)));
 
@@ -110,7 +138,7 @@ export function DiscoverTips() {
   // reaching for the arrows. Still for reduced motion.
   const [active, setActive] = useState(0);
   useEffect(() => {
-    if (held || tips.length === 0 || prefersReducedMotion()) return;
+    if (held || tips.length === 0 || reducedMotion) return;
     const timer = window.setInterval(() => {
       setActive((current) => {
         const next = (current + 1) % tips.length;
@@ -129,7 +157,7 @@ export function DiscoverTips() {
       });
     }, ADVANCE_MS);
     return () => window.clearInterval(timer);
-  }, [held, tips.length]);
+  }, [held, tips.length, reducedMotion]);
 
   if (tips.length === 0) return null;
 
@@ -188,10 +216,15 @@ export function DiscoverTips() {
         </div>
         <div
           ref={strip}
-          onMouseEnter={() => setHeld(true)}
-          onMouseLeave={() => setHeld(false)}
-          onFocus={() => setHeld(true)}
-          onBlur={() => setHeld(false)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+          }}
+          onTouchStart={() => setTouching(true)}
+          onTouchEnd={() => setTouching(false)}
+          onTouchCancel={() => setTouching(false)}
           className={cn(
             "-mx-1 flex snap-x snap-mandatory scrollbar-none gap-3 overflow-x-auto px-1 pt-1 pb-1.5",
             SCROLL_FADE,
@@ -219,7 +252,7 @@ function TipTile({ tip, lit, onDismiss }: { tip: Tip; lit: boolean; onDismiss: (
       aria-label={title}
       data-lit={lit || undefined}
       className={cn(
-        "group bg-card relative flex w-[72%] shrink-0 snap-start flex-col overflow-hidden rounded-xl border transition-all duration-500 sm:w-60",
+        "group bg-card relative flex w-[72%] shrink-0 snap-start flex-col overflow-hidden rounded-xl border transition-[transform,opacity,border-color,box-shadow] duration-500 sm:w-60",
         lit
           ? "border-foreground/25 ring-foreground/10 -translate-y-0.5 shadow-md ring-2"
           : "opacity-80 hover:opacity-100",

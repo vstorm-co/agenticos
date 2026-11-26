@@ -71,7 +71,28 @@ async def test_private_board_is_reused_and_hidden_even_from_another_org_owner(
     assert (await tables.list_tables(data.contexts[1])).items == []
     with pytest.raises(NotFoundError):
         await tables.describe_table(data.contexts[1], first.table_id)
-    assert len((await tables.list_tables(data.contexts[0])).items) == 1
+    assert [item.name for item in (await tables.list_tables(data.contexts[0])).items] == [
+        "Owner Tasks"
+    ]
+
+
+async def test_private_boards_with_the_same_owner_name_get_distinct_titles(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    for user in data.users:
+        user.full_name = "A" * 120
+    await db.flush()
+    service = TaskService(db)
+    await service.ensure_board(data.contexts[0], BoardEnsure())
+    second = await service.ensure_board(data.contexts[1], BoardEnsure())
+    assert (await service.ensure_board(data.contexts[1], BoardEnsure())).id == second.id
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[0])).items
+    ] == ["A" * 58 + " Tasks"]
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[1])).items
+    ] == ["A" * 54 + " Tasks (2)"]
 
 
 async def test_group_membership_controls_table_and_task_access_live(db: AsyncSession) -> None:
@@ -236,6 +257,7 @@ async def test_agent_task_is_pinned_and_ends_in_review_or_blocked_state(
     agent = Agent(
         organization_id=data.org.id,
         name="Researcher",
+        draft_spec={"name": "Researcher"},
         slug=f"research-{uuid4().hex}",
         owner_user_id=data.users[0].id,
     )
@@ -765,6 +787,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     from app.db.models.background_job import BackgroundJob
     from app.db.models.project import Project
     from app.db.models.virtual_table import VirtualTable, VirtualTableReceipt, VirtualTableRecord
+    from app.schemas.virtual_table import RecordBatchCreate, RecordCreate
     from app.services.group import GroupService
     from app.services.personal_data import PersonalDataService
     from app.services.project import ProjectService
@@ -796,6 +819,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             scope=kind,
             scope_id=scope_id,
             title="Reminder",
+            external_id="private@example.com",
             start_at=datetime.now(UTC) + timedelta(days=1),
         ),
     )
@@ -808,6 +832,21 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     review_link = await db.get(TaskLink, review.id)
     case_id = review_link.outcome_id
     board_id, table_id = task.board_id, task.table_id
+    board = await service.ensure_board(data.contexts[0], BoardEnsure(scope=kind, scope_id=scope_id))
+    batch, _ = await VirtualTableService(db).write_batch(
+        data.contexts[0],
+        table_id,
+        RecordBatchCreate(
+            records=[
+                RecordCreate(
+                    external_id="private@example.com",
+                    values={board.column_ids["title"]: "Duplicate"},
+                )
+            ]
+        ),
+        operation_key="private-batch",
+    )
+    assert batch.failed[0].details == {"external_id": "private@example.com"}
     receipts = [
         VirtualTableReceipt(
             organization_id=data.org.id,
@@ -831,6 +870,15 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             ]
         )
     ]
+    batch = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.batch",
+        operation_key="batch",
+        payload_hash="0" * 64,
+        outcome={"failed": [{"details": {"external_id": "ada@example.com"}}]},
+        table_id=table_id,
+    )
     expired = VirtualTableReceipt(
         organization_id=data.org.id,
         principal_id=data.users[1].id,
@@ -840,7 +888,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
         outcome={"record": {"table_id": str(table_id), "values": {"title": "Old"}}},
         created_at=datetime.now(UTC) - timedelta(days=2),
     )
-    db.add_all([*receipts, expired])
+    db.add_all([*receipts, expired, batch])
     await db.flush()
     kept_receipt = receipts[2].id
     if kind == "project":
@@ -886,6 +934,7 @@ async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: Asy
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     project = Project(organization_id=data.org.id, owner_user_id=data.users[0].id, name="Tasks")
@@ -982,6 +1031,7 @@ async def test_cancelling_a_task_expires_its_parked_approval(db: AsyncSession) -
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     db.add(agent)
@@ -1899,3 +1949,57 @@ async def test_agent_board_reuses_its_table_and_tracks_live_agent_access(db: Asy
     await service.purge_scope("agent", agent.id, organization_id=data.org.id)
     assert await service.boards(data.contexts[0]) == []
     assert (await tables.list_tables(data.contexts[0])).items == []
+
+
+async def test_approval_preflight_cannot_release_a_write_after_the_record_changes(
+    db: AsyncSession,
+) -> None:
+    from app.services.virtual_tables.exceptions import RevisionConflictError
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Human review"))
+    board = await service.ensure_board(data.contexts[0], BoardEnsure())
+    values = {board.column_ids["description"]: "Edited notes"}
+    assert not await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(NotFoundError):
+        await service.record_may_schedule_agent_work(
+            data.contexts[1],
+            board.table_id,
+            values,
+            operation="update",
+            record_id=task.id,
+            expected_revision=task.revision,
+        )
+    tables = VirtualTableService(db)
+    await tables.update_record(
+        data.contexts[0],
+        board.table_id,
+        task.id,
+        RecordUpdate(
+            expected_revision=task.revision, values={board.column_ids["title"]: "Changed elsewhere"}
+        ),
+    )
+    assert await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(RevisionConflictError):
+        await tables.update_record(
+            data.contexts[0],
+            board.table_id,
+            task.id,
+            RecordUpdate(expected_revision=task.revision, values=values),
+        )
+    assert (await service.get(data.contexts[0], task.id)).description != "Edited notes"

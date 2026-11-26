@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useChanged } from "@/hooks/use-changed";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
+import { DISCLOSURE_TRIGGER } from "@/components/ui/control-styles";
 import { ContextHelp } from "@/components/ui/context-help";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -49,14 +51,14 @@ export function SectionCard({
           danger && "border-border border-b px-5 sm:px-6",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {Icon && (
             <span
               className={cn(
-                "grid size-9 shrink-0 place-items-center rounded-xl",
+                "grid shrink-0 place-items-center",
                 danger
-                  ? "bg-destructive/10 text-destructive-ink"
-                  : "bg-foreground/5 text-foreground/80",
+                  ? "bg-destructive/10 text-destructive-ink size-9 rounded-xl"
+                  : "text-muted-foreground size-5",
               )}
             >
               <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
@@ -64,7 +66,7 @@ export function SectionCard({
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+              <h2 className="console-section-title text-foreground">{title}</h2>
               {description && !danger && <ContextHelp>{description}</ContextHelp>}
             </div>
             {description && danger && (
@@ -86,6 +88,8 @@ interface SettingsSectionProps {
   toggleTour?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   status?: ReactNode;
   description?: string;
@@ -102,6 +106,8 @@ export function SettingsSection({
   toggleTour,
   collapsible = false,
   defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
   title,
   status,
   description,
@@ -111,8 +117,13 @@ export function SettingsSection({
   className,
 }: SettingsSectionProps) {
   const panelId = useId();
-  const [open, setOpen] = useState(defaultOpen);
-  if (useChanged(defaultOpen) && defaultOpen) setOpen(true);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  if (useChanged(defaultOpen) && defaultOpen) setInternalOpen(true);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <section
       data-tour={tour}
@@ -134,18 +145,20 @@ export function SettingsSection({
           <div className="flex items-center gap-1">
             <h2
               className={cn(
-                "text-base font-semibold tracking-tight",
+                "console-section-title",
                 danger ? "text-destructive" : "text-foreground",
               )}
             >
               {collapsible ? (
                 <button
+                  id={`${panelId}-toggle`}
                   type="button"
                   data-tour={toggleTour}
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen(!open)}
-                  className="focus-visible:ring-ring hover:text-foreground/70 touch:min-h-11 flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
+                  data-press-feedback="quiet"
+                  className={DISCLOSURE_TRIGGER}
                 >
                   <ChevronDown
                     aria-hidden
@@ -171,9 +184,19 @@ export function SettingsSection({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      <div id={panelId} hidden={collapsible && !open}>
-        {children}
-      </div>
+      {collapsible ? (
+        <DisclosureContent
+          id={panelId}
+          open={open}
+          triggerId={`${panelId}-toggle`}
+          mountOnOpen={false}
+          onReveal={() => setOpen(true)}
+        >
+          {children}
+        </DisclosureContent>
+      ) : (
+        <div>{children}</div>
+      )}
     </section>
   );
 }

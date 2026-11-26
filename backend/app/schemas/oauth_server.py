@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.permissions import Perm
 from app.schemas.api_key import ApiKeyScopeCatalog
@@ -20,10 +20,18 @@ class OAuthConsentRead(BaseSchema):
     organization_id: UUID
     organization_name: str
     catalog: ApiKeyScopeCatalog
+    deployment_admin_available: bool = False
 
 
 class OAuthConsentApprove(BaseSchema):
-    scopes: list[Perm] = Field(min_length=1)
+    scopes: list[Perm]
+    deployment_admin: bool = Field(default=False, strict=True)
+
+    @model_validator(mode="after")
+    def _has_authority(self) -> OAuthConsentApprove:
+        if not self.scopes and not self.deployment_admin:
+            raise ValueError("Choose at least one permission")
+        return self
 
 
 class OAuthConsentAnswer(BaseSchema):

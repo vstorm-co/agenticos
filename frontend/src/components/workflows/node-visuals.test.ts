@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { render } from "@testing-library/react";
+import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import { TableIcon as Table2, WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import {
   ArrowUpDown,
@@ -58,6 +61,16 @@ describe("sectionSwatchClass", () => {
 });
 
 describe("nodeVisual", () => {
+  it("uses the MCP mark for calls before service metadata is available, in both styles", () => {
+    for (const style of ["colour", "simple"] as const) {
+      const { icon } = nodeVisual("mcp.call", "mcp", style);
+      const { container, unmount } = render(createElement(icon));
+      expect(container.querySelector("svg")).toHaveAttribute("viewBox", BRAND_GLYPHS.mcp.viewBox);
+      expect(container.querySelector("path")).toHaveAttribute("d", BRAND_GLYPHS.mcp.paths[0]!.d);
+      expect(container.querySelector("svg.lucide-plug")).toBeNull();
+      unmount();
+    }
+  });
   it("names a step by its own id first, then by what it touches", () => {
     expect(nodeVisual("logic.if", "logic", "colour").icon).toBe(GitBranch);
     expect(nodeVisual("logic.split", "logic", "colour").icon).toBe(GitFork);

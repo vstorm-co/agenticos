@@ -235,6 +235,10 @@ class WorkflowRun(Base, TimestampMixin):
     # directly whether the column holds SQL NULL.
     entry_node_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     """The selected trigger; older runs use the version's default entry."""
+    tested_step_node_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """The step a step test ran up to; null for a whole-draft test and a real run."""
     draft_graph_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
@@ -540,6 +544,10 @@ class NodeAttempt(Base, TimestampMixin):
     # Stable across attempts of the same logical operation, distinct across
     # loop iterations - see `dispatcher.py` for the exact format.
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # A stored receipt, never the action handler, was selected before dispatch.
+    receipt_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     retry_guarantee: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     # `none_as_null=True` for the same reason `WorkflowRun.draft_graph_snapshot`

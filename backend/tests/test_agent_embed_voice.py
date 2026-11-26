@@ -239,6 +239,10 @@ class TestTheCallScript:
 class TestCallsOnASave:
     """The switch is checked where it is saved, not only in the helper."""
 
+    @pytest.fixture(autouse=True)
+    def organization_model(self, monkeypatch):
+        monkeypatch.setattr(f"{_M}.require_organization_agent", AsyncMock())
+
     @pytest.mark.security
     async def test_creating_a_widget_with_calls_on_where_none_would_start_is_refused(self):
         from app.schemas.agent_embed import EmbedCreate

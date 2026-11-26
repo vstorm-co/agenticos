@@ -115,6 +115,7 @@ _SURFACES: dict[str, RunSurface] = {
     "imessage": RunSurface.IMESSAGE,
     "whatsapp": RunSurface.WHATSAPP,
     "discord": RunSurface.DISCORD,
+    "matrix": RunSurface.MATRIX,
 }
 
 

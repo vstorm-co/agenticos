@@ -11,7 +11,7 @@ timer.
 died or was lost, not the way work normally starts.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,11 +68,14 @@ async def queue_dispatch(
     run: WorkflowRun,
     node_run_id: UUID,
     available_at: datetime | None = None,
+    delay: timedelta | None = None,
 ) -> DispatchOutbox:
     """Insert `node_run_id`'s dispatch row and queue the job that runs it.
 
-    `available_at=None` is due now by the database's clock; a later time is a
-    timer or a retry's backoff, and the job is not claimable before it. Raises
+    With neither argument the row is due now by the database's clock. `delay` is a
+    retry's backoff, measured from the database's clock; `available_at` is an
+    absolute time, a Wait step's. The job runs at the row's due time and the row is
+    not claimable before it. Raises
     `IntegrityError` at the row's flush when one is already live for the node,
     before any job is written, so a caller that treats that as "already
     dispatched" wraps this in `db.begin_nested()`.
@@ -83,13 +86,14 @@ async def queue_dispatch(
         workflow_run_id=run.id,
         node_run_id=node_run_id,
         available_at=available_at,
+        delay=delay,
     )
     await enqueue(
         db,
         WORKFLOW_DISPATCH_NODE,
         DispatchWorkflowNode(workflow_run_id=run.id, node_run_id=node_run_id),
         organization_id=run.organization_id,
-        run_after=available_at,
+        run_after=None if available_at is None and delay is None else outbox.available_at,
         priority=await priority_for(db, run),
     )
     return outbox

@@ -7,12 +7,13 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.services.agent_runner import AdmittedAs, AgentRunnerService
+from app.services.agent_runner import AgentRunnerService
 from app.services.skill_workspace import SkillChange
 
 pytestmark = pytest.mark.anyio
@@ -39,11 +40,12 @@ async def test_failed_proposal_flush_leaves_terminal_run_and_session_usable(db):
     ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
     prepared = SimpleNamespace(
         workspace=MagicMock(),
+        project_workspace=None,
+        spec=AgentSpec(name="Test"),
         materialised_skills=MagicMock(),
         ctx=ctx,
         agent=agent,
         run=run,
-        admitted_as=AdmittedAs(),
     )
     # Bypass collection deliberately: a future caller can still violate the DB
     # contract, and the savepoint must protect the run independently of validation.
@@ -56,8 +58,13 @@ async def test_failed_proposal_flush_leaves_terminal_run_and_session_usable(db):
         content="Body",
         resources={},
     )
-    with patch("app.services.agent_runner.collect_changes", AsyncMock(return_value=[invalid])):
-        await AgentRunnerService(db)._propose_skill_changes(prepared)
+    service = AgentRunnerService(db)
+    with (
+        patch("app.services.agent_runner.collect_changes", AsyncMock(return_value=[invalid])),
+        patch.object(service.proposals, "record", wraps=service.proposals.record) as record,
+    ):
+        await service._propose_skill_changes(prepared)
+    record.assert_awaited_once()
     assert db.is_active
     assert run.id == run_id
     run.status = "completed"

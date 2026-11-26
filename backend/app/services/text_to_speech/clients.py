@@ -156,6 +156,19 @@ async def elevenlabs(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
     return _audio(call, response.content)
 
 
+async def elevenlabs_dialogue(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
+    """Generate one voice through the dialogue endpoint required by Eleven v4."""
+    output_format = "mp3_44100_128" if call.encoding == "mp3" else f"pcm_{SAMPLE_RATE}"
+    response = await client.post(
+        f"{call.base_url}/text-to-dialogue",
+        params={"output_format": output_format},
+        headers={"xi-api-key": call.api_key},
+        json={"model_id": call.model, "inputs": [{"text": call.text, "voice_id": call.voice}]},
+    )
+    _raise_for(call, response)
+    return _audio(call, response.content)
+
+
 async def gemini_interactions(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
     """`POST /interactions` with an audio response, the audio base64 in the steps.
 
@@ -205,6 +218,7 @@ def _gemini_audio(call: SpeechCall, response: httpx.Response) -> bytes:
 CLIENTS: dict[str, Client] = {
     "openai_speech": openai_speech,
     "elevenlabs": elevenlabs,
+    "elevenlabs_dialogue": elevenlabs_dialogue,
     "gemini_interactions": gemini_interactions,
 }
 """The client for each API shape the catalog may name."""

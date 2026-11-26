@@ -48,6 +48,7 @@ describe("AppearanceSettings", () => {
 
   it("keeps the voice glow style the person picks, and says what it is", async () => {
     render(<AppearanceSettings />);
+    await userEvent.click(screen.getByText("Interface details"));
     expect(screen.queryByText("How the chat box reacts to your voice while dictating")).toBeNull();
     await userEvent.click(
       within(group("Voice glow").parentElement!).getByRole("button", { name: "More information" }),
@@ -71,6 +72,7 @@ describe("AppearanceSettings", () => {
 
   it("chooses how workflow steps are drawn, and says what each does", async () => {
     render(<AppearanceSettings />);
+    await userEvent.click(screen.getByText("Interface details"));
     expect(within(group("Workflow steps")).getByRole("radio", { name: "In colour" })).toBeChecked();
     expect(screen.queryByText(/Simple keeps the tiles neutral/)).toBeNull();
     await userEvent.click(
@@ -87,10 +89,11 @@ describe("AppearanceSettings", () => {
     expect(within(group("Workflow steps")).getByRole("radio", { name: "Simple" })).toBeChecked();
   });
 
-  it("offers no glow under reduced motion, says why, and keeps the stored style", () => {
+  it("offers no glow under reduced motion, says why, and keeps the stored style", async () => {
     env.reduced = true;
     useVoiceGlowStore.setState({ style: "vivid" });
     render(<AppearanceSettings />);
+    await userEvent.click(screen.getByText("Interface details"));
 
     const glow = group("Voice glow");
     expect(within(glow).getByRole("radio", { name: "Off" })).toBeChecked();
@@ -112,5 +115,16 @@ describe("AppearanceSettings", () => {
     render(<AppearanceSettings />);
     await userEvent.click(within(group("Style")).getByRole("radio", { name: /Midnight/ }));
     expect(useThemeStore.getState().look).toBe("midnight");
+  });
+  it("keeps theme, style and motion visible while optional interface details stay collapsed", async () => {
+    render(<AppearanceSettings />);
+    expect(group("Theme")).toBeVisible();
+    expect(group("Style")).toBeVisible();
+    expect(group("Motion")).toBeVisible();
+    expect(group("Voice glow")).not.toBeVisible();
+    expect(group("Workflow steps")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Interface details"));
+    expect(group("Voice glow")).toBeVisible();
+    expect(group("Workflow steps")).toBeVisible();
   });
 });

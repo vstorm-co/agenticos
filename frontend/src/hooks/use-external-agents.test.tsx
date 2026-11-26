@@ -58,4 +58,14 @@ describe("useExternalAgents", () => {
     expect(result.current.isLoading).toBe(false);
     expect(api.listExternalAgents).not.toHaveBeenCalled();
   });
+  it("can recover a failed list read without reloading the console", async () => {
+    vi.mocked(api.listExternalAgents).mockRejectedValueOnce(new Error("down"));
+    const { result } = renderHook(() => useExternalAgents(), { wrapper });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    await act(async () => {
+      await result.current.retry();
+    });
+    await waitFor(() => expect(result.current.error).toBeNull());
+    expect(result.current.agents).toEqual([AGENT]);
+  });
 });

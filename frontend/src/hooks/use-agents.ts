@@ -4,10 +4,11 @@ import { useCallback, useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { toastDone } from "@/lib/toast";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
 import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-spec";
 import { apiClient } from "@/lib/api-client";
-import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
+import { ApiError, fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
@@ -20,6 +21,8 @@ import type {
   Agent,
   AgentCeiling,
   AgentDetail,
+  AgentDraftDiscard,
+  AgentDraftUpdate,
   AgentList,
   AgentSpec,
   AgentVersion,
@@ -122,11 +125,13 @@ export function useAgents({
   enabled = true,
   categories = [],
   tags = [],
+  projectId = null,
 }: {
   includeArchived?: boolean;
   enabled?: boolean;
   categories?: string[];
   tags?: string[];
+  projectId?: string | null;
 } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -139,12 +144,15 @@ export function useAgents({
   const facetTags = canonicalFacet(tags);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
+    queryKey: projectId
+      ? [...qk.agents.list(includeArchived, facetCategories, facetTags), { projectId }]
+      : qk.agents.list(includeArchived, facetCategories, facetTags),
     queryFn: () => {
-      const ask = () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags));
+      const ask = () =>
+        everyAgent(agentListParams(includeArchived, facetCategories, facetTags, projectId));
       // The unfiltered list - the chat's picker, an agent's name and face
       // beside its answers - is kept on the device in the apps (#2097).
-      if (facetCategories.length > 0 || facetTags.length > 0) return ask();
+      if (projectId || facetCategories.length > 0 || facetTags.length > 0) return ask();
       return readThrough(includeArchived ? "agents:all" : "agents:active", ask);
     },
     networkMode: "offlineFirst",
@@ -189,6 +197,7 @@ export function useAgents({
       user_ids?: string[];
       categories?: string[];
       tags?: string[];
+      projectId?: string | null;
       /** Fill what the spec leaves empty from the AgenticOS starter agent (#2301). */
       from_starter?: boolean;
     }) =>
@@ -223,7 +232,7 @@ export function useAgents({
         flow.setFlowAgentId(agent.id);
       }
       await invalidate();
-      toast.success(t("created", { name: agent.name }));
+      toastDone(t("created", { name: agent.name }));
     },
     // Not awaited: the dialog shows the refusal now, not after the recount.
     onError: () => {
@@ -242,7 +251,7 @@ export function useAgents({
     mutationFn: (id: string) => apiClient.post<Agent>(`/agents/${id}/clone`, {}),
     onSuccess: async (agent) => {
       await invalidate();
-      toast.success(t("createdDraft", { name: agent.name }));
+      toastDone(t("createdDraft", { name: agent.name }));
     },
     onError: (error) => {
       void recount();
@@ -302,7 +311,10 @@ export function useAgents({
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/agents/${id}`),
     onSuccess: async () => {
-      await invalidate();
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: qk.eventSources.usage() }),
+      ]);
       toast.success(t("deleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -378,11 +390,51 @@ export function useAgent(agentId: string | null) {
     [queryClient, agentId],
   );
 
+  const tDraft = useTranslations("pages.agents");
+
   const saveDraft = useMutation({
-    mutationFn: (spec: AgentSpec) =>
-      apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, { spec }),
+    mutationFn: (update: AgentDraftUpdate) =>
+      apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, update),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError && error.details?.reason === "draft_changed"
+          ? tDraft("draftChanged")
+          : getErrorMessage(error, tErrors),
+      ),
+  });
+
+  const discardDraft = useMutation({
+    mutationFn: (request: AgentDraftDiscard) =>
+      apiClient.post<AgentDetail>(`/agents/${agentId}/draft/discard`, request),
+    onSuccess: async (saved) => {
+      queryClient.setQueryData<AgentDetail>(
+        qk.agents.detail(agentId ?? ""),
+        (current) =>
+          current && {
+            ...current,
+            name: saved.name,
+            description: saved.description,
+            draft_spec: saved.draft_spec,
+            draft_revision: saved.draft_revision,
+            updated_at: saved.updated_at,
+          },
+      );
+      await invalidate();
+      await queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
+      toast.success(tDraft("draftDiscarded"));
+    },
+    onError: async (error) => {
+      const reason = error instanceof ApiError ? error.details?.reason : null;
+      if (reason === "draft_changed") {
+        toast.error(tDraft("draftChanged"));
+      } else if (reason === "published_version_changed") {
+        toast.error(tDraft("discardVersionChanged"));
+        await invalidate();
+      } else {
+        toast.error(getErrorMessage(error, tErrors));
+      }
+    },
   });
 
   /**
@@ -423,7 +475,7 @@ export function useAgent(agentId: string | null) {
       await invalidateEnvironments();
       // A publication ends the assistant's cycle: its suggestions were for the draft just frozen.
       await queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
-      toast.success(t("publishedVersion", { version: version.version }));
+      toastDone(t("publishedVersion", { version: version.version }));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -507,6 +559,7 @@ export function useAgent(agentId: string | null) {
     fetchedAt: dataUpdatedAt,
     refetch,
     saveDraft,
+    discardDraft,
     validate,
     publish,
     rollback,
@@ -709,6 +762,7 @@ export function useAddToAgent() {
       if (hasResource(agent.draft_spec, resource)) return { already: true };
       await apiClient.put<Agent>(`/agents/${agentId}/draft`, {
         spec: withResource(agent.draft_spec, resource),
+        expected_revision: agent.draft_revision,
       });
       return { already: false };
     },

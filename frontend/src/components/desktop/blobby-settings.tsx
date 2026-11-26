@@ -12,7 +12,7 @@ import {
   type Kind,
 } from "@/components/desktop/blobby-pickers";
 import { DesktopOnly, DesktopSetting } from "@/components/desktop/desktop-only";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { SectionCard } from "@/components/settings/settings-section";
 import { Switch } from "@/components/ui/switch";
 import { useSetBlobby } from "@/hooks/use-desktop";

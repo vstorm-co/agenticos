@@ -1792,9 +1792,18 @@ class TestTheVisualFrame:
         assert b"OrbitControls" in response.content
 
 
-async def test_thumbnail_route_passes_the_exact_requested_version_to_the_authorized_service(client):
+@pytest.mark.parametrize("retryable", [False, True])
+async def test_thumbnail_route_passes_the_exact_requested_version_to_the_authorized_service(
+    client, retryable
+):
     artifact_id, version_id = uuid.uuid4(), uuid.uuid4()
-    result = {"version_id": version_id, "state": "ready", "image": "data:image/jpeg;base64,eA=="}
+    result = {
+        "version_id": version_id,
+        "state": "unavailable" if retryable else "ready",
+        "image": None if retryable else "data:image/jpeg;base64,eA==",
+    }
+    if retryable:
+        result["retryable"] = True
     with patch.object(ArtifactService, "thumbnail", AsyncMock(return_value=result)) as thumbnail:
         async with client() as opened:
             response = await opened.get(
@@ -1802,5 +1811,6 @@ async def test_thumbnail_route_passes_the_exact_requested_version_to_the_authori
             )
     assert response.status_code == 200
     assert response.json()["version_id"] == str(version_id)
+    assert response.json()["retryable"] is retryable
     assert thumbnail.await_args.args[1] == artifact_id
     assert thumbnail.await_args.kwargs == {"version_id": version_id}

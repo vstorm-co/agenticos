@@ -31,7 +31,13 @@ from typing import Any
 
 from pydantic_ai import AgentRunResult, ApprovalRequired, RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler, WrapToolExecuteHandler
-from pydantic_ai.messages import CapabilityLoadDeltaPart, ModelRequest, ToolCallPart
+from pydantic_ai.messages import (
+    CapabilityLoadDeltaPart,
+    LoadCapabilityReturnPart,
+    ModelRequest,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.tools import ToolDefinition
 from pydantic_core import to_jsonable_python
 
@@ -52,7 +58,14 @@ from app.agents.capabilities._registry import (
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
 from app.agents.durable_code import active_code
-from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
+from app.agents.mcp import (
+    ACCOUNT,
+    ALWAYS_ASKS,
+    CONDITIONAL_EXECUTION,
+    NEEDS_APPROVAL,
+    PLATFORM_TOOL,
+)
+from app.agents.platform_describers import platform_describer
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
 
@@ -123,12 +136,16 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             for message in ctx.messages:
                 if isinstance(message, ModelRequest):
                     parts = [
-                        part
-                        for part in message.parts
-                        if not (
-                            isinstance(part, CapabilityLoadDeltaPart)
-                            and part.tool_call_id == "agenticos:restored-loads"
+                        ToolReturnPart(
+                            tool_name=part.tool_name,
+                            tool_call_id=part.tool_call_id,
+                            content="This capability was loaded in an earlier turn. Load it again for fresh approval.",
+                            timestamp=part.timestamp,
                         )
+                        if isinstance(part, LoadCapabilityReturnPart)
+                        else part
+                        for part in message.parts
+                        if not isinstance(part, CapabilityLoadDeltaPart)
                     ]
                     if parts:
                         kept.append(replace(message, parts=parts))
@@ -141,7 +158,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: BoundDescriber,
+        describe: BoundDescriber | None,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -150,9 +167,13 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         must not stop the call from being asked about - a call nobody can be asked
         about is refused, which would make a broken lookup a broken tool.
         """
+        platform = (
+            tool_def.capability_id is None and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True
+        )
+        context = {"platform_tool": "true"} if platform else {}
         try:
             async with asyncio.timeout(DESCRIBE_TIMEOUT_SECONDS):
-                described = await describe(ctx.deps, args)
+                described = await describe(ctx.deps, args) if describe is not None else None
         except Exception:
             logger.warning(
                 "Could not describe %s for approval on run %s; parking it without context",
@@ -160,8 +181,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 ctx.deps.run_id,
                 exc_info=True,
             )
-            return None
-        return described or None
+            return context or None
+        return {**(described or {}), **context} or None
 
     async def _always_asks(
         self, ctx: RunContext[AgentDeps], tool_def: ToolDefinition, args: dict[str, Any]
@@ -172,10 +193,19 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         that must not run on consent given in advance.
         """
         if tool_def.capability_id is None:
-            return False
-        if tool_def.name in self.always_asking_tool_names:
-            return True
-        check = self.always_asking_checks.get(tool_def.name)
+            from app.agents.platform_approval import may_schedule_agent_work
+
+            metadata = tool_def.metadata or {}
+            if metadata.get(ALWAYS_ASKS) is True:
+                return True
+            condition = metadata.get(CONDITIONAL_EXECUTION)
+            if metadata.get(PLATFORM_TOOL) is not True or not isinstance(condition, str):
+                return False
+            check = partial(may_schedule_agent_work, condition)
+        else:
+            if tool_def.name in self.always_asking_tool_names:
+                return True
+            check = self.always_asking_checks.get(tool_def.name)
         if check is None:
             return False
         try:
@@ -267,9 +297,15 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         asked = to_jsonable_python(args)
         # Only a capability's own tool is named or described, so an MCP tool sharing
         # a name with one under `ASK_ALL` is never handed a describer written for
-        # another tool.
+        # another tool. The platform's own tools are described only when the platform
+        # binding marked them so - a connection may be named after the platform too.
         owned = capability_id is not None
-        describer = self.describers.get(tool_def.name) if owned else None
+        if owned:
+            describer = self.describers.get(tool_def.name)
+        elif (tool_def.metadata or {}).get(PLATFORM_TOOL) is True:
+            describer = platform_describer(tool_def.name)
+        else:
+            describer = None
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
@@ -285,9 +321,10 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 # Handed over unawaited: the channel runs it only for a call it is
                 # about to record, never for one a resumed run already decided.
                 describe=(
-                    None
-                    if describer is None
-                    else partial(self._describe, ctx, tool_def, describer, args)
+                    partial(self._describe, ctx, tool_def, describer, args)
+                    if describer is not None
+                    or (not owned and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True)
+                    else None
                 ),
             )
         )
@@ -299,7 +336,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
             if active_code.get() == call.tool_call_id:
-                raise RuntimeError("The tool call was not approved")
+                reason = "The tool call was not approved"
+                raise RuntimeError(f"{reason}: {decision.note}" if decision.note else reason)
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
         # The arguments approved are what runs. When they are this call's own, run
         # them as the tool validated them, so an id is a `UUID` again and not its text.

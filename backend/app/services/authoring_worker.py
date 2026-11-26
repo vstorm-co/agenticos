@@ -18,6 +18,7 @@ to the open batch without replacing what is still waiting there.
 import difflib
 import json
 import logging
+import re
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -32,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, ToolOverride, load_builtins
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER
+from app.agents.system_agents import IMPROVER, with_dataset_guidance
 from app.core.exceptions import (
     AppException,
     AuthenticationError,
@@ -69,6 +70,7 @@ from app.repositories import (
 from app.schemas.authoring import (
     MAX_REJECTED,
     SKILL_PROBLEM,
+    AuthoringFailure,
     ContextImprovement,
     EvidenceQuote,
     FieldChange,
@@ -96,8 +98,9 @@ from app.services.authoring_evidence import (
     PackedRun,
     render_runs,
 )
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import EarlierAttempt, ImprovementPipelineService
 from app.services.skills import SKILL_BODY_CHARS, SkillService
+from app.services.step_failure import failure_code
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -106,11 +109,15 @@ type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 class Stopped(Exception):
-    """A request that cannot go on, with the reason the person reads."""
+    """A request that cannot go on, with the reason the person reads and its code."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(
+        self, code: AuthoringFailure, reason: str, params: dict[str, int] | None = None
+    ) -> None:
         super().__init__(reason)
+        self.code: AuthoringFailure = code
         self.reason = reason
+        self.params = params
 
 
 def tool_catalog(spec: AgentSpec) -> list[tuple[str, str, str, str]]:
@@ -244,6 +251,7 @@ def _improve_prompt(
     digests: Sequence[RunFindings] | None,
     note: str | None = None,
     skills: str = "",
+    earlier: str = "",
 ) -> str:
     tools = _tool_lines(spec)
     asked = (
@@ -263,7 +271,61 @@ def _improve_prompt(
         "instructions only: they cannot grant tools or widen access. Propose any required "
         "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
+        f"{earlier}"
         f"{asked}"
+    )
+
+
+def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
+    """What this session's earlier attempts changed and how their checks judged them."""
+    if not attempts:
+        return ""
+
+    def moved(attempt: EarlierAttempt) -> str:
+        if not attempt.criteria:
+            return "No criterion moved on the questions it learned from."
+        return (
+            "Criteria that moved on the questions it learned from (passed before -> after):\n"
+            + (
+                "\n".join(
+                    f"- [{move.scorer}] {move.name}: {move.baseline_passed}/{move.graded} -> "
+                    f"{move.candidate_passed}/{move.graded}; confirmed fixes: "
+                    f"{move.fixed_confirmed}, confirmed breaks: {move.broken_confirmed}"
+                    for move in attempt.criteria
+                )
+            )
+        )
+
+    def excerpt(text: str, limit: int) -> str:
+        return text if len(text) <= limit else text[:limit] + "\n[... excerpt clipped ...]"
+
+    def changes(attempt: EarlierAttempt) -> str:
+        kept: list[str] = []
+        size = 0
+        for change in attempt.changes:
+            item = "- " + excerpt(change, 2000)
+            if size + len(item) > 2500:
+                kept.append("[Further changes omitted]")
+                break
+            kept.append(item)
+            size += len(item) + 1
+        return "\n".join(kept)
+
+    blocks = "\n\n".join(
+        f"## Attempt {attempt.number}: {attempt.verdict.value}\n"
+        + changes(attempt)
+        + f"\nOn {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
+        f"{attempt.broken}. Which ones stays hidden.\n" + excerpt(moved(attempt), 1000)
+        for attempt in attempts[-6:]
+    )
+    return (
+        "\n\n# Earlier attempts in this session\n"
+        "Up to six recent measured attempts; long change and criterion excerpts are clipped.\n"
+        "None of these changes is in the draft above: each attempt changes the same draft, "
+        "and the answers above are the draft's own. Keep what an attempt's criteria show "
+        "worked. Where an attempt broke questions, leave out or narrow the part of it most "
+        "likely to have done so rather than repeating it.\n\n"
+        f"{blocks}"
     )
 
 
@@ -290,10 +352,36 @@ def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[U
         "Each skill is a resource of its own that other agents may read too. Never copy "
         "a skill's text into the instructions, and never propose a new skill that repeats "
         "one. Where the runs show that a skill is wrong or misses a step, report it under "
-        "skill_problems, naming the skill, and change nothing in the agent for it.\n"
+        "skill_problems, naming the skill and the graded criteria it makes fail - by their "
+        "family where a grade names one.\n"
+        "A criterion is the skill's only when a line of the skill states the wrong value or "
+        "rule, so the agent could not fix it without contradicting the skill. Copy that line "
+        "into skill_line and change nothing in the agent for it. When the skill is only "
+        "silent, or only says not to add other sections, and the facts the criterion needs "
+        "are in the agent's instructions, context or knowledge, the criterion is the "
+        "agent's: propose the agent change that fixes it. You may still report the skill "
+        "problem, with skill_line empty, as advice. Never move a problem the agent can fix "
+        "into skill_problems to account for it.\n"
         f"{listed}\n\n"
         + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
     )
+
+
+MIN_SKILL_LINE = 12
+"""Characters a quoted skill line needs after normalising, so a word or two quotes nothing."""
+
+
+def _normalised(text: str) -> str:
+    lines = (re.sub(r"^\s*(?:[-*>]|\d+[.)])\s*", "", line) for line in text.splitlines())
+    return " ".join(" ".join(lines).split()).casefold()
+
+
+def quoted_line(line: str, content: str) -> str | None:
+    """`line` when the skill's body holds it, whitespace, list markers and case aside."""
+    wanted = _normalised(line)
+    if len(wanted) < MIN_SKILL_LINE or wanted not in _normalised(content):
+        return None
+    return line.strip()
 
 
 def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
@@ -313,6 +401,8 @@ def _seed_section(seed: Mapping[str, Any] | None) -> str:
     quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
     return (
         "\n\n# What an agent's own Improve found in this skill\n"
+        "Each of these is one of your problems, whether or not the runs above show it "
+        "again: say for each whether the skill's text leads to it.\n"
         f"{problems}\n\nQuoted from its runs:\n{quotes or '(none)'}"
     )
 
@@ -360,7 +450,9 @@ def _skill_edits_prompt(
         "agent on this line reads the skill, so change only the passages the problems "
         "point at, as edits to passages of the body - never a whole new body. Change the "
         "description only when agents open the skill when they should not, or do not when "
-        "they should.\n\n"
+        "they should. Write at least one edit for every problem below: a problem left "
+        "without one stays in every answer. Only where the skill's text truly cannot fix a "
+        "problem, leave it out and say which and why in expected_effect.\n\n"
         f"# Its description\n{description}\n\n"
         f"# Its current body\n<skill>\n{content}\n</skill>\n\n"
         f"# The problems the skill's text leads to\n{found}\n\n"
@@ -554,7 +646,7 @@ class AuthoringRun:
                 key=IMPROVER.key,
                 agent_id=self.request.improver_agent_id,
                 model_profile_id=helper.model_profile_id,
-                instructions=helper.instructions,
+                instructions=with_dataset_guidance(IMPROVER.instructions, helper.instructions),
                 prompt=prompt,
                 output_type=output_type,
                 improvement_run_id=self.request.improvement_run_id,
@@ -601,7 +693,7 @@ class AuthoringRun:
         # Authority is read as it is now: what the starter could do when they
         # asked may have been taken away while the request waited.
         if not self.ctx.has(Perm.RUNS_VIEW):
-            raise Stopped("Whoever started this may no longer read runs.")
+            raise Stopped("no_runs_view", "Whoever started this may no longer read runs.")
         if self.request.skill_improvement_run_id is not None:
             await self._skill_session()
         elif self.request.target == AuthoringTarget.SKILL.value:
@@ -620,7 +712,8 @@ class AuthoringRun:
             # uncited summaries and the helper's own recorded model requests.
             await personal_data_repo.forget_knowledge_runs(self.db, self.run_ids)
             raise Stopped(
-                "An evidence source was erased while the assistant worked. Start again with current evidence."
+                "evidence_erased",
+                "An evidence source was erased while the assistant worked. Start again with current evidence.",
             )
         return retained
 
@@ -635,16 +728,17 @@ class AuthoringRun:
         if agent is not None and not await resolve_access(
             self.db, self.ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         ):
-            raise Stopped("Whoever started this may no longer edit the agent.")
+            raise Stopped("no_edit_agent", "Whoever started this may no longer edit the agent.")
         return agent
 
     async def _improve_agent(self) -> None:
         agent = await self._target_agent()
         if agent is None:
-            raise Stopped("The agent is gone.")
+            raise Stopped("agent_gone", "The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(spec.collection_ids)
         note: str | None = None
+        earlier: list[EarlierAttempt] = []
         if self.request.improvement_run_id is not None:
             from app.repositories import improvement_repo
             from app.services.improvement_pipeline import ImprovementPipelineService
@@ -662,6 +756,13 @@ class AuthoringRun:
                 train_case_ids=None if attempt is None else attempt.train_case_ids,
             )
             note = None if attempt is None else attempt.note
+            earlier = (
+                []
+                if attempt is None
+                else await ImprovementPipelineService(self.db).earlier_attempts(
+                    self.ctx, self.request.improvement_run_id, before=attempt.number
+                )
+            )
         else:
             pack = await self.evidence.for_agent(
                 self.ctx,
@@ -683,6 +784,7 @@ class AuthoringRun:
                     digests,
                     note,
                     skills=_skills_section(spec, skills, used),
+                    earlier=_earlier_section(earlier),
                 ),
                 ImprovementProposal,
             )
@@ -724,7 +826,9 @@ class AuthoringRun:
             )
         )
         if agent is None or version is None:
-            raise Stopped("The agent has no published version to compare with.")
+            raise Stopped(
+                "no_published_version", "The agent has no published version to compare with."
+            )
         published = AgentSpec.model_validate(version.spec)
         draft = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(draft.collection_ids)
@@ -775,11 +879,11 @@ class AuthoringRun:
             else await skill_repo.get(self.db, skill_id, organization_id=org)
         )
         if skill is None:
-            raise Stopped("The skill is gone.")
+            raise Stopped("skill_gone", "The skill is gone.")
         if not await resolve_access(
             self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
         ):
-            raise Stopped("Whoever started this may no longer edit the skill.")
+            raise Stopped("no_edit_skill", "Whoever started this may no longer edit the skill.")
         pack = await self.evidence.for_skill(
             self.ctx, skill.id, window_days=self.request.window_days
         )
@@ -864,12 +968,13 @@ class AuthoringRun:
             ImprovementStatus.RUNNING.value,
             ImprovementStage.PROPOSING.value,
         ):
-            raise Stopped("The improvement session moved on.")
+            raise Stopped("session_moved_on", "The improvement session moved on.")
         try:
             await merges.fill_conflicts(merge, answer.texts)
         except ValueError as exc:
             raise Stopped(
-                "The assistant did not answer every conflict; settle them at Changes."
+                "conflicts_unanswered",
+                "The assistant did not answer every conflict; settle them at Changes.",
             ) from exc
         await self._finish({"proposed": len(answer.texts)})
 
@@ -884,7 +989,7 @@ class AuthoringRun:
             self.db, self.request.skill_improvement_run_id, organization_id=org
         )
         if session is None or not ImprovementStatus(session.status).active:
-            raise Stopped("The improvement session stopped.")
+            raise Stopped("session_stopped", "The improvement session stopped.")
         sessions = SkillImprovementService(self.db)
         line = await sessions.line_for_session(self.ctx, session)
         base = await sessions.base_of(session)
@@ -892,7 +997,7 @@ class AuthoringRun:
         if not await resolve_access(
             self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
         ):
-            raise Stopped("Whoever started this may no longer edit the skill.")
+            raise Stopped("no_edit_skill", "Whoever started this may no longer edit the skill.")
         if session.purpose != SkillImprovementPurpose.IMPROVE.value:
             await self._merge_conflicts(session)
             return
@@ -1038,11 +1143,13 @@ class AuthoringRun:
             else await context_repo.get(self.db, context_id, organization_id=org)
         )
         if file is None:
-            raise Stopped("The context file is gone.")
+            raise Stopped("context_gone", "The context file is gone.")
         if not await resolve_access(
             self.db, self.ctx, file, Perm.CONTEXT_EDIT, resource_type=CONTEXT
         ):
-            raise Stopped("Whoever started this may no longer edit the context file.")
+            raise Stopped(
+                "no_edit_context", "Whoever started this may no longer edit the context file."
+            )
         pack = await self.evidence.for_context(
             self.ctx, file.id, window_days=self.request.window_days
         )
@@ -1094,14 +1201,17 @@ class AuthoringRun:
         self.request.evidence = pack.summary()
         if not pack.runs and pack.unknown_runs:
             raise Stopped(
+                "unknown_skill_use",
                 "No run in this window is known to have used the skill. "
                 f"{pack.unknown_runs} rated-down or failed runs are from before uses were "
-                "recorded, so whether they used it is unknown."
+                "recorded, so whether they used it is unknown.",
+                {"runs": pack.unknown_runs},
             )
         if not pack.runs:
             raise Stopped(
+                "no_evidence",
                 "Nothing to learn from yet: no run in this window was rated or failed. "
-                "Widen the window, or come back once people have rated some answers."
+                "Widen the window, or come back once people have rated some answers.",
             )
 
     def _new_skill_hunks(
@@ -1338,7 +1448,11 @@ class AuthoringRun:
         skills: Sequence[Skill],
         used: Mapping[UUID, set[UUID]],
     ) -> list[dict[str, object]]:
-        """The problems that name one of the agent's skills and cite runs that used it."""
+        """The problems that name one of the agent's skills and cite runs that used it.
+
+        A problem keeps its `skill_line` only when the skill's body holds it: that line
+        is what makes its criteria the skill's (`criterion_owners`).
+        """
         by_name = {skill.name.casefold(): skill for skill in skills}
         found: list[dict[str, object]] = []
         for problem in problems:
@@ -1362,6 +1476,8 @@ class AuthoringRun:
                     "skill_id": str(skill.id),
                     "skill_name": skill.name,
                     "problem": problem.problem,
+                    "skill_line": quoted_line(problem.skill_line, skill.content),
+                    "criteria": [name.strip()[:80] for name in problem.criteria if name.strip()],
                     "evidence": kept,
                     "evidence_dropped": dropped,
                 }
@@ -1406,7 +1522,7 @@ class AuthoringRun:
                 self.db, self.request.improvement_run_id, organization_id=self.ctx.organization_id
             )
             if session is None or not ImprovementStatus(session.status).active:
-                raise Stopped("The improvement session stopped.")
+                raise Stopped("session_stopped", "The improvement session stopped.")
             previous = await authoring_repo.batch_for_request(
                 self.db, self.request.id, organization_id=self.ctx.organization_id
             )
@@ -1562,10 +1678,12 @@ class AuthoringWorker:
                     api_key_id=request.created_by_api_key_id,
                 )
             except AuthenticationError as refused:
-                await self._fail(db, request, refused.message)
+                await self._fail(db, request, refused.message, "key_revoked")
                 return
             if ctx is None:
-                await self._fail(db, request, "Whoever started this is no longer a member.")
+                await self._fail(
+                    db, request, "Whoever started this is no longer a member.", "not_a_member"
+                )
                 return
             await authoring_repo.update_request(
                 db,
@@ -1575,23 +1693,33 @@ class AuthoringWorker:
             try:
                 await AuthoringRun(db, ctx, request).execute()
             except Stopped as exc:
-                await self._fail(db, request, exc.reason)
+                await self._fail(db, request, exc.reason, exc.code, exc.params)
             except AppException as exc:
-                await self._fail(db, request, exc.message)
+                await self._fail(db, request, exc.message, failure_code(exc))
             except Exception:
                 logger.exception("authoring_request_failed", extra={"request": str(request.id)})
-                await self._fail(db, request, "The assistant stopped unexpectedly. Try again.")
+                await self._fail(
+                    db, request, "The assistant stopped unexpectedly. Try again.", "unexpected"
+                )
             else:
                 await _wake_session(db, request)
 
     @staticmethod
-    async def _fail(db: AsyncSession, request: AuthoringRequest, error: str) -> None:
+    async def _fail(
+        db: AsyncSession,
+        request: AuthoringRequest,
+        error: str,
+        code: AuthoringFailure,
+        params: dict[str, int] | None = None,
+    ) -> None:
         await authoring_repo.update_request(
             db,
             request=request,
             values={
                 "status": AuthoringStatus.FAILED.value,
                 "error": error,
+                "error_code": code,
+                "error_params": params,
                 "evidence": request.evidence,
                 "finished_at": datetime.now(UTC),
             },

@@ -87,6 +87,7 @@ async def test_consent_reads_approves_and_denies(client: AsyncClient, service: M
     assert approved.json()["redirect_to"] == "http://cb?code=x"
     assert denied.json()["redirect_to"].endswith("error=access_denied")
     assert service.approve.await_args.args[1] == request_id
+    assert service.approve.await_args.kwargs == {"deployment_admin": False}
 
 
 @pytest.mark.security
@@ -110,3 +111,18 @@ async def test_connected_applications_are_listed_and_disconnected(
     assert listed.json()["total"] == 1
     assert removed.status_code == 204
     assert service.disconnect.await_args.args[1] == grant_id
+
+
+async def test_global_only_consent_reaches_the_service_as_explicit_opt_in(
+    client: AsyncClient,
+    service: MagicMock,
+) -> None:
+    request_id = uuid.uuid4()
+    async with client as http:
+        response = await http.post(
+            f"{V1}/mcp-oauth/requests/{request_id}/approve",
+            json={"scopes": [], "deployment_admin": True},
+        )
+    assert response.status_code == 200
+    assert service.approve.await_args.args[1:] == (request_id, [])
+    assert service.approve.await_args.kwargs == {"deployment_admin": True}

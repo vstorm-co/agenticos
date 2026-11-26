@@ -73,7 +73,14 @@ def screen_history(
         ]
         messages.append(replace(message, parts=parts))
     return (
-        ModelHistory(messages, revision=history.revision)
+        ModelHistory(
+            messages,
+            revision=history.revision,
+            frontier=history.frontier,
+            provenance=history.provenance,
+            source=history.source,
+            public_context=history.public_context,
+        )
         if isinstance(history, ModelHistory)
         else messages
     )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -46,7 +46,12 @@ function scopeKey(scope: KnowledgeGapScope): string {
 /** A page of topics, the most asked first, and how many misses wait to be grouped. */
 export function useKnowledgeGaps(
   scope: KnowledgeGapScope,
-  { status = "open", skip = 0, limit = PAGE_SIZE }: KnowledgeGapQuery = {},
+  {
+    status = "open",
+    skip = 0,
+    limit = PAGE_SIZE,
+    enabled = true,
+  }: KnowledgeGapQuery & { enabled?: boolean } = {},
 ) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.knowledgeGaps.list(scopeKey(scope), { status, skip, limit }),
@@ -54,6 +59,7 @@ export function useKnowledgeGaps(
       const params = new URLSearchParams({ status, skip: String(skip), limit: String(limit) });
       return apiClient.get<KnowledgeGapTopicList>(`${scopePath(scope)}?${params}`);
     },
+    enabled,
     placeholderData: (previous) => previous,
     refetchInterval: (query) =>
       query.state.data?.items.some((topic) => topic.drafting) ? DRAFTING_POLL_MS : false,
@@ -79,6 +85,38 @@ export function useKnowledgeGap(topicId: string) {
     refetchInterval: (query) => (query.state.data?.drafting ? DRAFTING_POLL_MS : false),
   });
   return { topic: data, isLoading, error, refetch };
+}
+
+/** A topic removed since, or in a knowledge base the reader cannot see. */
+function unreachable(cause: unknown): boolean {
+  return cause instanceof ApiError && (cause.status === 403 || cause.status === 404);
+}
+
+/**
+ * Topics read one by one, whatever their status: the ones a session found. A topic
+ * the reader cannot reach is counted in `skipped`, not shown and not an error.
+ */
+export function useKnowledgeGapTopics(topicIds: string[]) {
+  const reads = useQueries({
+    queries: topicIds.map((topicId) => ({
+      queryKey: qk.knowledgeGaps.detail(topicId),
+      queryFn: () => apiClient.get<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}`),
+      retry: (failures: number, cause: unknown) => !unreachable(cause) && failures < 1,
+      // A failed read with no data goes back to pending when read again, which unmounts
+      // whatever a failure shows; a part of the page mounting on that failure would then
+      // read it again on every mount. It is read again only when asked.
+      retryOnMount: false,
+    })),
+  });
+  const failed = reads.filter((read) => read.error !== null);
+  return {
+    // A refetch refused with 403 or 404 keeps the earlier answer; it is not shown.
+    topics: reads.flatMap((read) => (read.data && !unreachable(read.error) ? [read.data] : [])),
+    skipped: failed.filter((read) => unreachable(read.error)).length,
+    error: failed.find((read) => !unreachable(read.error))?.error ?? null,
+    isLoading: reads.some((read) => read.isLoading),
+    refetch: () => Promise.all(failed.map((read) => read.refetch())),
+  };
 }
 
 /** What one draft of a topic would cost; refused like the draft itself. */

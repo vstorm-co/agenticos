@@ -412,6 +412,10 @@ describe("the table detail page", () => {
     renderPage();
 
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("boom");
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(before));
   });
 
   it.each(["table", "list"])("offers retry when records fail in the %s view", async (view) => {

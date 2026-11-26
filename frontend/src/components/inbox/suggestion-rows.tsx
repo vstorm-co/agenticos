@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, MessageSquare } from "lucide-react";
+import { Check, Clock, ExternalLink, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -10,8 +10,16 @@ import {
   useSuggestionActions,
   useSuggestionSource,
 } from "@/components/chat/suggestion-actions";
+import { SuggestionPriority } from "@/components/chat/suggestion-priority";
 import { Badge, Button, Skeleton } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Suggestion } from "@/lib/suggestions-api";
+import styles from "./inbox-row.module.css";
 import { cn, timeAgo } from "@/lib/utils";
 
 /**
@@ -52,6 +60,13 @@ export function SuggestionRows({
               : null;
           const url =
             tableUrl ?? (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
+          const workingChat = suggestion.payload.conversation_id;
+          const workingChatUrl =
+            suggestion.kind === "finding" &&
+            typeof workingChat === "string" &&
+            /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(workingChat)
+              ? `/chat?id=${encodeURIComponent(workingChat)}`
+              : null;
           const server = sourceOf(suggestion);
           const source = server?.name ?? tInbox(`source.${suggestion.kind}`);
           const waitingSource =
@@ -65,18 +80,21 @@ export function SuggestionRows({
               id={`suggestion-${suggestion.id}`}
               aria-label={suggestion.title}
               className={cn(
-                "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
                 dense
-                  ? "items-center px-1 py-2.5 @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
-                  : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
+                  ? "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-1 py-2.5 transition-colors @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
+                  : styles.row,
               )}
             >
-              <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
+              <SuggestionMark
+                suggestion={suggestion}
+                className={cn("bg-muted shadow-none", !dense && styles.mark)}
+              />
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-baseline gap-2">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                   <p
                     className={cn(
-                      "min-w-0 text-sm font-semibold",
+                      "min-w-0",
+                      dense ? "text-sm font-medium" : styles.title,
                       dense ? "truncate" : "text-pretty",
                     )}
                   >
@@ -102,13 +120,11 @@ export function SuggestionRows({
                       {t("acknowledged")}
                     </Badge>
                   )}
-                  {suggestion.urgent && (
-                    <Badge variant="destructive" className="shrink-0 px-2.5 text-xs">
-                      {t("urgent")}
-                    </Badge>
-                  )}
+                  {suggestion.urgent && <SuggestionPriority />}
                 </div>
-                <span className={cn("text-muted-foreground mt-1 block text-xs")}>
+                <span
+                  className={dense ? "text-muted-foreground mt-1 block text-xs" : styles.metadata}
+                >
                   {waitingSource ? (
                     <Skeleton aria-hidden className="h-4 w-32" />
                   ) : (
@@ -121,7 +137,9 @@ export function SuggestionRows({
                 {showDetails && suggestion.detail && (
                   <p
                     className={cn(
-                      "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",
+                      dense
+                        ? "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed"
+                        : styles.detail,
                       dense
                         ? "line-clamp-1 @[48rem]/widget:col-span-2"
                         : !expandedDetails && "line-clamp-2",
@@ -133,45 +151,90 @@ export function SuggestionRows({
               </div>
               <div
                 className={cn(
-                  "col-start-2 flex flex-wrap items-center gap-1.5",
+                  styles.controls,
                   dense
-                    ? "mt-0.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
-                    : "md:col-start-3 md:row-start-1 md:self-center",
+                    ? "col-start-2 mt-0.5 flex flex-wrap items-center gap-1.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
+                    : styles.actions,
                 )}
               >
-                {suggestion.kind === "finding" &&
-                  typeof suggestion.payload.conversation_id === "string" &&
-                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                    suggestion.payload.conversation_id,
-                  ) && (
-                    <Button asChild size="sm" variant="secondary" className="h-8">
+                {dense ? (
+                  <>
+                    {workingChatUrl && (
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="secondary"
+                        className="h-9 pointer-coarse:h-11"
+                      >
+                        <Link href={workingChatUrl}>
+                          <MessageSquare className="size-3.5" aria-hidden />
+                          {tInbox("openWorkingChat")}
+                        </Link>
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-9 pointer-coarse:h-11"
+                      onClick={() => take(suggestion)}
+                    >
+                      {suggestion.kind === "finding" && <Check className="size-3.5" aria-hidden />}
+                      {t(`take.${suggestion.kind}`)}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground h-9 pointer-coarse:h-11"
+                      onClick={() => notNow(suggestion)}
+                    >
+                      <Clock className="size-3.5" aria-hidden />
+                      {t("notNow")}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button asChild size="sm" variant="ghost" className="h-9 pointer-coarse:h-11">
                       <Link
-                        href={`/chat?id=${encodeURIComponent(suggestion.payload.conversation_id)}`}
+                        href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&answerer=agenticos`}
                       >
                         <MessageSquare className="size-3.5" aria-hidden />
-                        {tInbox("openWorkingChat")}
+                        {tInbox("discuss")}
                       </Link>
                     </Button>
-                  )}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="h-8"
-                  onClick={() => take(suggestion)}
-                >
-                  {suggestion.kind === "finding" && <Check className="size-3.5" aria-hidden />}
-                  {t(`take.${suggestion.kind}`)}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground h-8"
-                  onClick={() => notNow(suggestion)}
-                >
-                  {t("notNow")}
-                </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="text-muted-foreground size-9 pointer-coarse:size-11"
+                          aria-label={tInbox("moreActions", { title: suggestion.title })}
+                        >
+                          <MoreHorizontal className="size-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {workingChatUrl && (
+                          <DropdownMenuItem asChild>
+                            <Link href={workingChatUrl}>{tInbox("openWorkingChat")}</Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onSelect={() => take(suggestion)}>
+                          {suggestion.kind === "finding" && (
+                            <Check className="size-4" aria-hidden />
+                          )}
+                          {t(`take.${suggestion.kind}`)}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => notNow(suggestion)}>
+                          <Clock className="size-3.5" aria-hidden />
+                          {t("notNow")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
               </div>
             </li>
           );

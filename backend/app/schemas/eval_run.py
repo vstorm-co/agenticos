@@ -2,10 +2,10 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, PrivateAttr, field_validator
 
 from app.db.models.eval_run import (
     ArmRole,
@@ -76,6 +76,11 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    answer_estimates_usd: list[Annotated[Decimal, Field(ge=0)]] = Field(
+        default_factory=list,
+        description="Frozen replacement answer and judge cost per case, indexed by arm position; "
+        "older records without prices do not automatically replace lost answers",
+    )
     skill_check_id: UUID | None = Field(
         default=None,
         description="The check of a skill change on every agent this run is one stage of",
@@ -147,6 +152,12 @@ class EvalRunRequest(BaseSchema):
         max_length=1000,
         description="Only these case identities in the selected version; omitted runs every case",
     )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `total_usd` the person agreed to; a start that would now "
+        "cost more is refused, and omitted it is not checked",
+    )
 
     @field_validator("case_ids")
     @classmethod
@@ -183,12 +194,15 @@ class EvalRunEstimate(BaseSchema):
 
     `total_usd` is what the run costs if no case flips. `rerun_ceiling_usd` is
     the most the confirmation reruns can add on top, which only happens to the
-    cases that flip. The `*_after_usd` fields are what the agent's and the
-    organization's monthly budgets keep for live traffic once `total_usd` is
+    cases that flip. `expected_usd` is what the run most likely costs: the first
+    answers and the share of the reruns a compared run usually asks. The
+    `*_after_usd` fields are what the agent's and the organization's monthly
+    budgets keep for live traffic once the first answers and every rerun are
     spent; `None` where there is no cap.
     """
 
     cases: int
+    dataset_version: int = Field(description="The dataset version priced; pin it on the start")
     arms: list[ArmEstimate]
     judge_usd: Decimal
     judge_model_profile_id: UUID | None = Field(
@@ -197,6 +211,10 @@ class EvalRunEstimate(BaseSchema):
     )
     total_usd: Decimal
     rerun_ceiling_usd: Decimal
+    expected_usd: Decimal = Field(
+        description="What the run most likely costs: its first answers, the judge, and the "
+        "confirming reruns a compared run usually asks - about half of its ceiling"
+    )
     agent_remaining_usd: Decimal | None
     org_remaining_usd: Decimal | None
     agent_after_usd: Decimal | None
@@ -251,6 +269,19 @@ class ArmSummaryRead(BaseSchema):
         )
     )
     first_pass_rate: float | None = Field(description="The pass rate of the first attempts alone")
+    criteria_passed: int = Field(
+        default=0, description="First answers' required criteria that passed, over every case"
+    )
+    criteria_graded: int = Field(
+        default=0, description="First answers' required criteria that decided, over every case"
+    )
+    partial_credit: float | None = Field(
+        default=None,
+        description=(
+            "The mean share of each case's decided criteria its first answer passed - a case "
+            "passing six of seven counts 6/7; null with no criterion decided"
+        ),
+    )
     cost_usd: Decimal
     cost_per_pass_usd: Decimal | None
     avg_tokens: float | None
@@ -410,6 +441,10 @@ class EvalRunRead(BaseSchema):
     estimate_usd: Decimal
     rerun_ceiling_usd: Decimal = Field(
         description="What confirming reruns may add on top of the estimate"
+    )
+    expected_usd: Decimal = Field(
+        description="What the run was expected to cost: the estimate and the share of the "
+        "confirming reruns a compared run usually asks"
     )
     cost_usd: Decimal
     cost_is_partial: bool
@@ -586,6 +621,61 @@ class CaseFlipRead(BaseSchema):
         default=None,
         description="Why the candidate's first answer failed, when its run crashed rather than answered",
     )
+    baseline_criteria: list[int] | None = Field(
+        default=None,
+        description="The baseline's first answer as [criteria passed, criteria decided]",
+    )
+    candidate_criteria: list[int] | None = Field(
+        default=None,
+        description="The candidate's first answer as [criteria passed, criteria decided]",
+    )
+
+
+class CriterionMoveRead(BaseSchema):
+    """One criterion over the cases both sides graded on it, first answers counted.
+
+    A criterion is one check, judge criterion, expected-call check or reference
+    grade, named as the scores name it. A flip on it is confirmed as a case's is:
+    every rerun on both sides repeated it. A case that kept failing can still
+    have criteria that moved.
+    """
+
+    scorer: str = Field(description="The scorer kind: check, judge, trajectory or reference")
+    name: str
+    graded: int = Field(description="Cases both sides' first answers were graded on it")
+    baseline_passed: int
+    candidate_passed: int
+    fixed_confirmed: int
+    broken_confirmed: int
+    fixed_unconfirmed: int
+    broken_unconfirmed: int
+
+
+class FamilyMoveRead(BaseSchema):
+    """One family of criteria over the cases both sides graded it on, first answers counted.
+
+    A family passes in a case when every criterion of it does. Its direction is
+    `settled` when its own flipped cases are enough for an exact McNemar test to
+    tell; otherwise only the flips every rerun repeated count. A family that moved
+    on fewer than two cases decides nothing.
+    """
+
+    family: str
+    criteria: list[str] = Field(description="The criteria counted in it, by name; at most 50")
+    cases: int = Field(description="Cases both sides' first answers graded it on")
+    baseline_passed: int
+    candidate_passed: int
+    fixed: int = Field(description="Cases it went from fail to pass on, first answers")
+    broken: int = Field(description="Cases it went from pass to fail on, first answers")
+    fixed_confirmed: int
+    broken_confirmed: int
+    p_value: float
+    settled: bool
+    better: bool
+    worse: bool
+    # Every criterion counted in it, past the 50 `criteria` shows: whom a verdict puts
+    # a family down to is found through any of them. Never serialized.
+    _members: tuple[str, ...] = PrivateAttr(default=())
 
 
 class EfficiencyRead(BaseSchema):
@@ -593,6 +683,19 @@ class EfficiencyRead(BaseSchema):
     avg_tokens: TrendLiteral
     p50_ms: TrendLiteral
     p95_ms: TrendLiteral
+
+
+InvalidReasonCode = Literal[
+    "knowledge_not_retrieved",
+    "too_few_held_out",
+    "scoring_changed",
+    "judge_changed_mid_run",
+    "judge_instructions_changed",
+    "judge_differs",
+    "knowledge_draft_changed",
+    "held_out_ungraded",
+]
+"""Why two sides cannot be compared, as a code a client can translate."""
 
 
 class EvalComparisonRead(BaseSchema):
@@ -613,8 +716,16 @@ class EvalComparisonRead(BaseSchema):
     verdict: VerdictLiteral | None
     overall: OverallLiteral | None
     p_value: float | None
-    invalid_reason: str | None
-    invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
+    invalid_reason: str | None = Field(
+        description="Why the two sides cannot be compared, as an English sentence"
+    )
+    invalid_reason_code: InvalidReasonCode | None = Field(
+        default=None, description="`invalid_reason` as a code, for a client to put in its own words"
+    )
+    invalid_reason_params: dict[str, int] = Field(
+        default_factory=dict,
+        description="The numbers `invalid_reason` names: `missing` for `too_few_held_out`",
+    )
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int
@@ -648,3 +759,21 @@ class EvalComparisonRead(BaseSchema):
     efficiency: EfficiencyRead | None
     cases: list[CaseFlipRead]
     flips_by_tag: dict[str, dict[FlipLiteral, int]]
+    criterion_change: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Net confirmed criterion fixes divided by all paired criterion grades, "
+        "computed before limiting the returned detail",
+    )
+    criteria: list[CriterionMoveRead] = Field(
+        default_factory=list,
+        description=(
+            "Criteria graded on both sides, by scorer and name: at most 200, the ones "
+            "that moved first"
+        ),
+    )
+    families: list[FamilyMoveRead] = Field(
+        default_factory=list,
+        description="Each family of criteria graded on both sides, by name",
+    )

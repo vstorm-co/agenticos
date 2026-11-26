@@ -39,7 +39,6 @@ export function HelperSettings({
 }) {
   const t = useTranslations("datasets.helpers");
   const tc = useTranslations("common");
-  const ta = useTranslations("pages.agents");
   const tErrors = useTranslations("errors");
   const stored = dataset.helper_settings ?? EMPTY;
   const [draft, setDraft] = useState(stored[kind]);
@@ -71,18 +70,16 @@ export function HelperSettings({
     discard: () => setDraft(stored[kind]),
   });
   return (
-    <Card className="min-w-0" data-tour={`datasets-${kind}-settings`}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <DatasetIcon tone={kind === "generator" ? "purple" : "green"} icon={Icon} />
+    <Card className="flex min-w-0 flex-col" data-tour={`datasets-${kind}-settings`}>
+      <CardHeader className="space-y-1.5 p-4 sm:p-5">
+        <CardTitle className="flex items-center gap-2 text-sm font-medium">
+          <DatasetIcon tone="gray" icon={Icon} />
           {t(`${kind}Title`)}
         </CardTitle>
         <CardDescription>{t(`${kind}Description`)}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {draft.model_profile_id === null && (
-          <p className="text-muted-foreground text-sm">{t("modelFallback")}</p>
-        )}
+      <CardContent className="flex flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 sm:pb-5">
+        <p className="text-muted-foreground text-xs leading-5">{t("modelFallback")}</p>
         <PipelineModelPicker
           profiles={profiles}
           profilesStatus={profilesStatus}
@@ -91,23 +88,40 @@ export function HelperSettings({
           allowAdd={can(Perm.connectionsManage)}
           disabled={disabled}
         />
-        <MoreOptions label={ta("instructions")} defaultOpen={draft.instructions !== null}>
+        <MoreOptions label={t("guidance")} defaultOpen={draft.instructions !== null}>
+          <p className="text-muted-foreground text-xs leading-5">{t("guidanceHint")}</p>
+          {dataset.helper_defaults?.[kind] && (
+            <MoreOptions label={t("platformRules")}>
+              <p className="bg-muted/40 text-muted-foreground max-h-64 overflow-y-auto rounded-md border p-3 text-xs leading-5 whitespace-pre-wrap">
+                {dataset.helper_defaults[kind]}
+              </p>
+            </MoreOptions>
+          )}
           <MarkdownEditor
-            label={ta("instructions")}
-            toolbar={<h3 className="text-sm font-medium">{ta("instructions")}</h3>}
-            value={draft.instructions ?? dataset.helper_defaults?.[kind] ?? ""}
+            label={t("guidance")}
+            toolbar={<h3 className="text-sm font-medium">{t("guidance")}</h3>}
+            value={draft.instructions ?? ""}
             rows={8}
             inertImages
             disabled={disabled}
-            onChange={(instructions) => setDraft((current) => ({ ...current, instructions }))}
+            onChange={(text) =>
+              setDraft((current) => ({ ...current, instructions: text.trim() ? text : null }))
+            }
           />
         </MoreOptions>
-        {dirty && (
-          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => setDraft(stored[kind])} disabled={disabled}>
+        {dataset.can_edit && (
+          <div
+            className="mt-auto flex min-h-14 flex-wrap justify-end gap-2 border-t pt-4"
+            data-helper-actions
+          >
+            <Button
+              variant="outline"
+              onClick={() => setDraft(stored[kind])}
+              disabled={disabled || !dirty}
+            >
               {tc("cancel")}
             </Button>
-            <Button onClick={() => void save()} disabled={disabled}>
+            <Button onClick={() => void save()} disabled={disabled || !dirty}>
               {tc("save")}
             </Button>
           </div>

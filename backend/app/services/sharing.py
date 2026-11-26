@@ -113,6 +113,7 @@ _CONSOLE_PATHS = {
     "project": "/projects/{id}",
     "table": "/tables/{id}",
     "workflow": "/workflows/{id}",
+    "event_source": "/event-sources",
 }
 """Where the console opens a shared resource of each kind."""
 
@@ -350,12 +351,15 @@ class SharingService:
         resource_type: ResourceType,
         group_ids: list[UUID],
         user_ids: list[UUID],
+        level: GrantLevel = GrantLevel.USE,
     ) -> None:
         """Share a resource just created with the groups and people its creator chose.
 
         The other half of `AudienceChoice` (#2072): the resource was created private,
-        and each group and person gets a `use` grant - they find it, run it and
-        attach it. The creator owns it already, so naming themselves adds nothing.
+        and each group and person gets a grant at `level` - `use` by default, so they
+        find it, run it and attach it. A table passes `read`: no table permission asks
+        for `use`, and the share list should name what the grant actually gives.
+        The creator owns it already, so naming themselves adds nothing.
         Called inside the creating request, so a refusal here takes the new row with
         it rather than leaving it visible to nobody but its creator.
 
@@ -381,7 +385,7 @@ class SharingService:
                 raise refused_field("user_ids", "Choose people from this organization.")
         for group_id in groups:
             await self.share_with_group(
-                ctx, resource, resource_type=resource_type, group_id=group_id, level=GrantLevel.USE
+                ctx, resource, resource_type=resource_type, group_id=group_id, level=level
             )
         for user_id in people:
             await self.share(
@@ -389,7 +393,7 @@ class SharingService:
                 resource,
                 resource_type=resource_type,
                 subject_user_id=user_id,
-                level=GrantLevel.USE,
+                level=level,
             )
 
     async def revoke_group(
@@ -481,6 +485,8 @@ class SharingService:
         answer.
         """
         await self._require_edit(ctx, resource, resource_type)
+        if visibility not in resource_type.visibilities:
+            raise BadRequestError(message="This visibility is not supported for this resource")
         guard = _GUARDS.get(resource_type.key)
         if guard is not None:
             await guard.before_visibility(self.db, ctx, resource, visibility)

@@ -1,3 +1,10 @@
+import type {
+  ChatHomeOverrides,
+  OnboardingReminderOverrides,
+  ChatCostVisibility,
+  ConsoleRoleDefaults,
+  ConsoleNotices,
+} from "@/lib/console-experience-api";
 // Mirrors OrgRoleName in the backend permission catalog - the roles a member
 // can hold. What each role may actually do lives in ROLE_PERMS server-side and
 // reaches the UI via /me/permissions, never hardcoded here.
@@ -54,7 +61,24 @@ export interface WelcomeDmChanges {
   welcome_dm_text?: string | null;
 }
 
+export interface OrganizationTextToSpeech {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  voice: string | null;
+  secret_id: string;
+}
+
+export interface TextToSpeechSettingsUpdate {
+  text_to_speech: OrganizationTextToSpeech | null;
+}
+
 export interface Organization {
+  console_role_defaults?: Partial<Record<OrgRole, ConsoleRoleDefaults>>;
+  console_notices?: ConsoleNotices;
+  chat_cost_visibility?: ChatCostVisibility;
+  chat_home_defaults?: ChatHomeOverrides | null;
+  onboarding_reminders?: OnboardingReminderOverrides | null;
   id: string;
   name: string;
   slug: string;
@@ -118,6 +142,7 @@ export interface Organization {
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.
    */
+  text_to_speech?: OrganizationTextToSpeech | null;
   speech_to_text_provider: string | null;
   /** A model that provider offers in the catalog. Set and cleared with the provider. */
   speech_to_text_model: string | null;
@@ -155,6 +180,9 @@ export type VoiceSettingsUpdate = Pick<
   >;
 
 export interface OrganizationMember {
+  onboarding_completed_at?: string | null;
+  onboarding_current_step?: string | null;
+  onboarding_updated_at?: string | null;
   id: string;
   organization_id: string;
   user_id: string;

@@ -38,8 +38,21 @@ const AGENT_LABEL: Record<AgentStatus, string> = {
   archived: "statusArchived",
 };
 
-export function AgentStatusBadge({ status }: { status: AgentStatus }) {
+export function AgentStatusBadge({
+  status,
+  compact = false,
+}: {
+  status: AgentStatus;
+  compact?: boolean;
+}) {
   const t = useTranslations("agents");
+  if (compact)
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+        <StatusDot className={AGENT_DOT[status]} />
+        {t(AGENT_LABEL[status])}
+      </span>
+    );
   return (
     <Badge variant="outline" className="text-muted-foreground">
       <StatusDot className={AGENT_DOT[status]} />

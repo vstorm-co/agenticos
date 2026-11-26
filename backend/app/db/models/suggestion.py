@@ -44,6 +44,8 @@ class SuggestionKind(enum.StrEnum):
     """Save what the agent learned to the person's profile; `payload` has the fields."""
     ROLE_PACK = "role_pack"
     """Install the templates for the person's role; `payload` names the pack."""
+    PERSONAL = "personal"
+    """An evidence-verified personal proposal; accepting records the decision only."""
     FINDING = "finding"
     """Something a `Watch` noticed in one of their connections; `payload` says where."""
 
@@ -64,7 +66,7 @@ class Suggestion(Base, TimestampMixin):
             "organization_id", "user_id", "dedupe_key", name="uq_suggestion_person_key"
         ),
         CheckConstraint(
-            "kind IN ('routine', 'agent', 'profile', 'role_pack', 'finding')",
+            "kind IN ('routine', 'agent', 'profile', 'role_pack', 'finding', 'personal')",
             name="ck_suggestion_kind",
         ),
         CheckConstraint("status IN ('open', 'accepted', 'dismissed')", name="ck_suggestion_status"),

@@ -31,6 +31,14 @@ vi.mock("@/hooks/use-watches", () => ({
   }),
 }));
 vi.mock("@/hooks", () => ({ useMcpConnections: () => ({ connections: [] }) }));
+// One readiness read for the routines shown; the rows themselves are stubbed here.
+const readiness = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-routine-readiness", () => ({
+  useRoutinesReadiness: (triggers: { id: string }[]) => {
+    readiness(triggers.map((trigger) => trigger.id));
+    return () => [];
+  },
+}));
 vi.mock("./trigger-row", () => ({
   TriggerRow: ({ trigger }: { trigger: { name: string } }) => <span>{trigger.name}</span>,
 }));
@@ -63,6 +71,8 @@ it("lists scheduled tasks and monitoring in the same searchable list", async () 
   expect(screen.getByText("Weekly report")).toBeVisible();
   expect(screen.getByText("Client mail")).toBeVisible();
   expect(screen.getByText("2 routines")).toBeVisible();
+  // Readiness is asked for the scheduled tasks on screen, never for a monitor.
+  expect(readiness).toHaveBeenLastCalledWith(["task"]);
   await userEvent.type(screen.getByPlaceholderText("Search routines"), "urgent");
   expect(screen.getByText("Client mail")).toBeVisible();
   expect(screen.queryByText("Weekly report")).toBeNull();
@@ -102,4 +112,21 @@ it("retries both reads after the combined list fails", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetchTasks).toHaveBeenCalledTimes(1);
   expect(state.refetchWatches).toHaveBeenCalledTimes(1);
+});
+
+it("keeps search mounted and editable through a cold list load", async () => {
+  state.empty = true;
+  state.loading = true;
+  const user = userEvent.setup();
+  const { rerender } = render(<RoutinesList />);
+  const search = screen.getByPlaceholderText("Search routines");
+  await user.type(search, "report");
+  expect(screen.getByRole("status", { name: "Loading" })).toBeVisible();
+  state.empty = false;
+  state.loading = false;
+  rerender(<RoutinesList />);
+  expect(screen.getByPlaceholderText("Search routines")).toBe(search);
+  expect(search).toHaveValue("report");
+  expect(screen.getByText("Weekly report")).toBeVisible();
+  expect(screen.queryByText("Client mail")).not.toBeInTheDocument();
 });

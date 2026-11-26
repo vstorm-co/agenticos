@@ -435,3 +435,53 @@ describe("the three tabs each show only their own section (#939)", () => {
   // `vitest.setup.ts` answers empty and wins: a test written that way passed
   // while the page rendered its default, which is worse than not having it.
 });
+
+it("keeps semantic search editable and preserves its draft while bases load", async () => {
+  mockApi([]);
+  const fallback = vi.mocked(apiClient.get).getMockImplementation();
+  let finish!: (value: { items: KnowledgeBase[]; total: number }) => void;
+  const pending = new Promise<{ items: KnowledgeBase[]; total: number }>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(apiClient.get).mockImplementation((path) => {
+    if (path === "/kb") return pending;
+    if (!fallback) throw new Error("Missing mock transport");
+    return fallback(path);
+  });
+  window.history.replaceState({}, "", "/rag?tab=search");
+  render(<RAGPage />, { wrapper });
+  await openSearchTab();
+  const input = await screen.findByRole("textbox", { name: "rag.search.queryLabel" });
+  await userEvent.type(input, "vacation");
+  expect(screen.getByRole("button", { name: "rag.search.button" })).toBeDisabled();
+  expect(screen.queryByText("rag.search.noBasesTitle")).not.toBeInTheDocument();
+  await act(async () => finish({ items: [kb("kb-1", "Handbook", "handbook")], total: 1 }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "rag.search.button" })).toBeEnabled(),
+  );
+  expect(screen.getByRole("textbox", { name: "rag.search.queryLabel" })).toBe(input);
+  expect(input).toHaveValue("vacation");
+});
+
+describe("knowledge count beside the tabs", () => {
+  it("shows one count in the tab row and removes it when switching to search", async () => {
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    render(<RAGPage />, { wrapper });
+    const count = await screen.findByText("pages.kb.storedCount");
+    expect(count.parentElement).toBe(screen.getByRole("tablist").parentElement);
+    expect(screen.getAllByText("pages.kb.storedCount")).toHaveLength(1);
+    await openSearchTab();
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+  });
+  it("does not claim a count after a failed list or when the list is empty", async () => {
+    mockApi(new Error("Unavailable"));
+    const view = render(<RAGPage />, { wrapper });
+    await screen.findByText("pages.kb.listFailedTitle");
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+    view.unmount();
+    mockApi([]);
+    render(<RAGPage />, { wrapper });
+    await screen.findByText("pages.kb.noKnowledgeBasesYet");
+    expect(screen.queryByText("pages.kb.storedCount")).toBeNull();
+  });
+});

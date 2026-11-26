@@ -45,6 +45,33 @@ struct ConfigOption {
 }
 
 fn choices(value: &Value, category: &str) -> Result<(Option<String>, Vec<Choice>), String> {
+    if category == "model" && value.get("models").is_some() {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyModel {
+            model_id: String,
+            name: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyModels {
+            current_model_id: String,
+            available_models: Vec<LegacyModel>,
+        }
+        let models: LegacyModels = serde_json::from_value(value["models"].clone())
+            .map_err(|_| "The agent returned malformed legacy models.")?;
+        return Ok((
+            Some(models.current_model_id),
+            models
+                .available_models
+                .into_iter()
+                .map(|model| Choice {
+                    value: model.model_id,
+                    name: model.name,
+                })
+                .collect(),
+        ));
+    }
     let selected = value["configOptions"].as_array().and_then(|options| {
         options
             .iter()
@@ -222,22 +249,64 @@ async fn request(
     Err("The coding agent sent too many messages while checking its settings.".into())
 }
 
-async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory: &Path) -> Result<Options, String> {
+/// Whose choices are read: a managed builtin harness, or a registered ACP CLI.
+#[derive(Clone, Copy)]
+enum Target<'a> {
+    Builtin(&'a crate::coding_runtime::Runtime, AgentId),
+    External(&'a crate::external_agents::Registration),
+}
+
+/// Registrations whose catalog this probe can read like a session would.
+///
+/// Pi and Muse speak their own protocols, Hermes keeps a home per private
+/// conversation, and some CLIs choose their model themselves.
+fn readable_catalog(provider: crate::external_agents::Provider) -> bool {
+    use crate::external_agents::Provider;
+    !matches!(
+        provider,
+        Provider::Hermes
+            | Provider::Pi
+            | Provider::PiInception
+            | Provider::PiDeepseek
+            | Provider::PiOpenrouter
+            | Provider::Muse
+            | Provider::MuseApiKey
+    )
+}
+
+async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> {
     let working_directory = directory
         .to_str()
         .ok_or("The settings directory is not a valid text path.")?;
-    let mut command = match id {
-        AgentId::ClaudeCode => {
+    let mut command = match target {
+        Target::Builtin(runtime, id @ AgentId::ClaudeCode) => {
             let mut command = runtime.command()?;
             command.arg(runtime.adapter(id));
             command
         }
-        AgentId::Codex => {
+        Target::Builtin(runtime, id @ AgentId::Codex) => {
             let (program, prefix) = runtime.cli(id)?;
             let mut command = tokio::process::Command::new(program);
             command.args(prefix).arg("app-server");
             command
         }
+        Target::External(registration) => {
+            let program = Path::new(&registration.program);
+            let mut command = tokio::process::Command::new(program);
+            command.args(&registration.args);
+            // The catalog must describe the same credential a session of this registration uses.
+            crate::agent_session::provider_environment(&mut command, registration.provider, None)
+                .map_err(|refusal| refusal.message)?;
+            if let Some(path) = crate::agent_session::path_with(program) {
+                command.env("PATH", path);
+            }
+            command
+        }
+    };
+    let _key_profile = if let Target::External(registration) = target {
+        crate::agent_session::key_profile(&mut command, registration.provider).map_err(|refusal| refusal.message)?
+    } else {
+        None
     };
     command
         .current_dir(directory)
@@ -260,13 +329,33 @@ async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory:
             .ok_or("The coding agent provided no output pipe.")?,
     );
     let result = tokio::time::timeout(Duration::from_secs(45), async {
-        match id {
-            AgentId::ClaudeCode => {
+        match target {
+            Target::External(registration) => {
+                let initialized = request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
+                if let Some(method) = crate::agent_session::login_method(registration.provider) {
+                    advertised_login(&initialized, method)?;
+                    let mut parameters = json!({"methodId":method});
+                    if matches!(method, "cached_token" | "xai.api_key") {
+                        parameters["_meta"] = json!({"headless": true});
+                    }
+                    request(&mut input, &mut output, 2, "authenticate", parameters).await?;
+                } else if initialized["protocolVersion"] != 1 {
+                    return Err("This agent did not negotiate ACP protocol version 1.".into());
+                }
+                let session = request(&mut input, &mut output, 3, "session/new", json!({"cwd":working_directory,"mcpServers":[]})).await?;
+                if choices(&session, "model")?.0.is_some() {
+                    claude_options(&session)
+                } else {
+                    // Some CLIs announce their catalog in an update right after the session opens.
+                    claude_options(&config_update(&mut output).await?)
+                }
+            }
+            Target::Builtin(_, AgentId::ClaudeCode) => {
                 request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
                 let session = request(&mut input, &mut output, 2, "session/new", json!({"cwd":working_directory,"mcpServers":[],"_meta":{"claudeCode":{"options":{"persistSession":false,"tools":[],"mcpServers":{},"settingSources":[],"plugins":[]}}}})).await?;
                 claude_options(&session)
             }
-            AgentId::Codex => {
+            Target::Builtin(_, AgentId::Codex) => {
                 request(&mut input, &mut output, 1, "initialize", json!({"clientInfo":{"name":"agenticos-settings","version":"1"},"capabilities":{"experimentalApi":true}})).await?;
                 let models = request(&mut input, &mut output, 2, "model/list", json!({"limit":100,"includeHidden":false})).await?;
                 let config = request(&mut input, &mut output, 3, "config/read", json!({"includeLayers":false})).await?;
@@ -284,9 +373,78 @@ async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory:
     }
 }
 
+/// Refuse a CLI that does not advertise the login this registration's sessions enforce.
+fn advertised_login(initialized: &Value, method: &str) -> Result<(), String> {
+    if initialized["protocolVersion"] != 1 {
+        return Err("This agent did not negotiate ACP protocol version 1.".into());
+    }
+    let advertised = initialized["authMethods"]
+        .as_array()
+        .is_some_and(|methods| methods.iter().any(|advertised| advertised["id"] == method));
+    if !advertised {
+        return Err(format!(
+            "This agent does not offer the {method} login. Check its version and sign-in; no other account or billing mode was selected."
+        ));
+    }
+    if method == "cached_token"
+        && initialized["authMethods"]
+            .as_array()
+            .is_some_and(|methods| methods.iter().any(|advertised| advertised["id"] == "xai.api_key"))
+    {
+        return Err("Grok account mode requires API-key authentication to be disabled; no models were read.".into());
+    }
+    Ok(())
+}
+
+/// The first catalog update after a session opens, bounded in time and size.
+async fn config_update(output: &mut (impl AsyncBufRead + Unpin)) -> Result<Value, String> {
+    let unavailable = || "This agent did not announce model choices. Check its sign-in and refresh.".to_owned();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for _ in 0..256 {
+            let mut line = Vec::new();
+            let count = (&mut *output)
+                .take(1024 * 1024 + 1)
+                .read_until(b'\n', &mut line)
+                .await
+                .map_err(|_| unavailable())?;
+            if count == 0 || count > 1024 * 1024 {
+                return Err(unavailable());
+            }
+            let Ok(message) = serde_json::from_slice::<Value>(&line) else {
+                continue;
+            };
+            let update = &message["params"]["update"];
+            if message["method"] == "session/update" && update["sessionUpdate"] == "config_option_update" {
+                return Ok(json!({"configOptions": update["configOptions"].clone()}));
+            }
+        }
+        Err(unavailable())
+    })
+    .await
+    .map_err(|_| unavailable())?
+}
+
 #[tauri::command]
 pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options, String> {
     let runtime = crate::coding_runtime::prepare(&app).await?;
+    in_scratch(&app, Target::Builtin(&runtime, id)).await
+}
+
+/// A registered ACP CLI's models under its own login, without a model turn.
+#[tauri::command]
+pub async fn external_agent_options(app: AppHandle, id: String) -> Result<Options, String> {
+    let registration = crate::settings::current(&app)
+        .external_agents
+        .into_iter()
+        .find(|item| item.id == id)
+        .ok_or("That ACP registration no longer exists.")?;
+    if !readable_catalog(registration.provider) {
+        return Err("This agent chooses its model itself; select it in the agent's own settings.".into());
+    }
+    in_scratch(&app, Target::External(&registration)).await
+}
+
+async fn in_scratch(app: &AppHandle, target: Target<'_>) -> Result<Options, String> {
     let directory = app
         .path()
         .app_cache_dir()
@@ -301,7 +459,7 @@ pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options,
                 .await
                 .map_err(|e| e.to_string())?;
         }
-        probe(&runtime, id, &directory).await
+        probe(target, &directory).await
     }
     .await;
     let removed = tokio::fs::remove_dir_all(directory).await;
@@ -315,6 +473,66 @@ pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_options_require_the_registrations_login_and_protocol_one() {
+        let both = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"},{"id":"oauth-personal"}]});
+        assert!(advertised_login(&both, "oauth-personal").is_ok());
+        assert!(advertised_login(&both, "gemini-api-key").is_ok());
+        let key_only = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"}]});
+        assert!(advertised_login(&key_only, "oauth-personal")
+            .unwrap_err()
+            .contains("no other account"));
+        assert!(advertised_login(
+            &json!({"protocolVersion":2,"authMethods":[{"id":"oauth-personal"}]}),
+            "oauth-personal"
+        )
+        .is_err());
+        assert!(advertised_login(&json!({"protocolVersion":1}), "login").is_err());
+        let grok = json!({"protocolVersion":1,"authMethods":[{"id":"cached_token"},{"id":"xai.api_key"}]});
+        assert!(advertised_login(&grok, "cached_token").unwrap_err().contains("API-key"));
+    }
+
+    #[test]
+    fn only_acp_registrations_with_session_models_are_probed() {
+        use crate::external_agents::Provider;
+        for provider in [
+            Provider::Custom,
+            Provider::Antigravity,
+            Provider::Cursor,
+            Provider::Cline,
+            Provider::Grok,
+            Provider::OpenCode,
+            Provider::Kimi,
+            Provider::Devin,
+            Provider::QwenSubscription,
+            Provider::MistralVibe,
+        ] {
+            assert!(readable_catalog(provider), "{provider:?}");
+        }
+        for provider in [Provider::Hermes, Provider::Pi, Provider::PiDeepseek, Provider::Muse] {
+            assert!(!readable_catalog(provider), "{provider:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_catalog_update_after_the_session_opens_is_read() {
+        let stream = concat!(
+            "not json\n",
+            r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk"}}}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"config_option_update","configOptions":[{"category":"model","currentValue":"a","options":[{"value":"a","name":"A"}]}]}}}"#,
+            "\n",
+        );
+        let mut reader = BufReader::new(stream.as_bytes());
+        let options = claude_options(&config_update(&mut reader).await.unwrap()).unwrap();
+        assert_eq!(options.models[0].value, "a");
+        let mut empty = BufReader::new(&b""[..]);
+        assert!(config_update(&mut empty)
+            .await
+            .unwrap_err()
+            .contains("did not announce"));
+    }
 
     #[test]
     fn claude_exposes_grouped_models_and_the_actual_reasoning_choices() {
@@ -415,7 +633,7 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("agenticos-options-smoke-{}", uuid::Uuid::new_v4()));
         tokio::fs::create_dir_all(&directory).await.unwrap();
         for agent in [AgentId::ClaudeCode, AgentId::Codex] {
-            let options = probe(&runtime, agent, &directory).await.unwrap();
+            let options = probe(Target::Builtin(&runtime, agent), &directory).await.unwrap();
             assert!(!options.models.is_empty());
         }
         tokio::fs::remove_dir_all(directory).await.unwrap();

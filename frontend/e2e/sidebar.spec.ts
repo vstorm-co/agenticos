@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, OWNER_EMAIL, submitDialog } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, readAppearanceAs, submitDialog } from "./helpers";
 
 /**
  * The column is the whole chrome now.
@@ -151,5 +151,62 @@ async function ensureSecondOrganization(page: Page): Promise<void> {
     dialog,
     submit: dialog.getByRole("button", { name: "Create", exact: true }),
     path: "/api/orgs",
+  });
+}
+
+// A short visible viewport exercises the shared keyboard-height budget. This is
+// a layout regression, not certification of a real device's virtual keyboard.
+for (const theme of ["light", "dark"] as const) {
+  test(`command palette keeps search and dismiss reachable in a short phone viewport in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 420 });
+    await readAppearanceAs(page, theme);
+    await page.goto("/chat");
+    await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEnabled();
+    const beforeUrl = page.url();
+    await page.keyboard.press("Control+k");
+    const dialog = page.getByRole("dialog", { name: "Command palette" });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole("combobox");
+    const close = dialog.getByRole("button", { name: "Close", exact: true });
+    await expect(input).toBeFocused();
+    await expect(close).toBeVisible();
+    expect(
+      await input.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+    ).toBeGreaterThanOrEqual(16);
+    const bounds = await dialog.boundingBox();
+    const closeBounds = await close.boundingBox();
+    const inputBounds = await input.boundingBox();
+    if (!bounds || !closeBounds || !inputBounds)
+      throw new Error("Expected reachable palette controls");
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(420);
+    expect(bounds.width).toBeLessThanOrEqual(390 - 16);
+    expect(closeBounds.width).toBeGreaterThanOrEqual(43.5);
+    expect(closeBounds.height).toBeGreaterThanOrEqual(43.5);
+    expect(inputBounds.height).toBeGreaterThanOrEqual(43.5);
+    expect(await dialog.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
+      "none",
+    );
+    const footer = dialog.locator("[cmdk-root] > div").last();
+    const footerBounds = await footer.boundingBox();
+    if (!footerBounds) throw new Error("Expected a reachable palette footer");
+    expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    const results = dialog.getByRole("listbox");
+    await expect
+      .poll(() => results.evaluate((element) => element.scrollHeight > element.clientHeight))
+      .toBe(true);
+    await results.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect((await input.boundingBox())?.y).toBeCloseTo(inputBounds.y, 0);
+    expect((await footer.boundingBox())?.y).toBeCloseTo(footerBounds.y, 0);
+    expect(await results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expect(close).toBeVisible();
+    expect(page.url()).toBe(beforeUrl);
+    await close.click();
+    await expect(dialog).toBeHidden();
+    expect(page.url()).toBe(beforeUrl);
   });
 }

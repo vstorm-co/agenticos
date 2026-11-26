@@ -5,6 +5,9 @@ import { attempt, evalCase, FLIP } from "@/test-utils/eval-runs";
 import { ChangedAnswers } from "./changed-answers";
 const state = vi.hoisted(() => ({
   error: null as Error | null,
+  cached: false,
+  cachedError: null as Error | null,
+  cachedLoading: false,
   loading: false,
   status: "completed",
   confirmed: true,
@@ -12,45 +15,62 @@ const state = vi.hoisted(() => ({
   comparisonAvailable: true,
   missingAnswers: false,
   flip: "fixed" as "fixed" | "regression" | "unchanged",
+  /** Answer exactly the cases asked for, by id. */
+  byId: false,
 }));
+const requested = vi.hoisted(() => vi.fn());
 const comparisonOptions = vi.hoisted(() => vi.fn());
 const FLIPS = [{ ...FLIP, case_id: "case-1", flip: "fixed" as const, confirmed: true }];
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalCases: () => ({
-    error: state.error,
-    isLoading: state.loading,
-    cases: [
-      evalCase({
-        input: "How long can I return an order?",
-        attempts: [
-          attempt({ arm_id: "before", answer: state.missingAnswers ? null : "90 days" }),
-          attempt({
-            arm_id: "after",
-            answer: state.missingAnswers ? null : "30 days",
-            score: caseScore({
-              results: [
-                {
-                  scorer: "check",
-                  name: "Return policy",
-                  required: true,
-                  status: "pass",
-                  score: 1,
-                  reason_code: null,
-                  unverified_quotes: [],
-                  rule: null,
-                  unverified: false,
-                  judge_said: null,
-                  judge_run_id: null,
-                  knowledge: [],
-                  reason: "Matches the reviewed return policy",
-                },
-              ],
+  useEvalCases: (runId: string, options: { caseIds: string[]; limit: number }) =>
+    state.byId
+      ? (requested(runId, options),
+        {
+          error: null,
+          isLoading: false,
+          cases: options.caseIds.map((id) =>
+            evalCase({ case_id: id, input: id, attempts: [attempt({ arm_id: "after" })] }),
+          ),
+        })
+      : {
+          error: state.error ?? (runId === "cached" ? state.cachedError : null),
+          isLoading: state.loading || (runId === "cached" && state.cachedLoading),
+          cases: [
+            evalCase({
+              input: "How long can I return an order?",
+              attempts: [
+                attempt({ arm_id: "before", answer: state.missingAnswers ? null : "90 days" }),
+                attempt({
+                  arm_id: "after",
+                  answer: state.missingAnswers ? null : "30 days",
+                  score: caseScore({
+                    results: [
+                      {
+                        scorer: "check",
+                        name: "Return policy",
+                        required: true,
+                        status: "pass",
+                        score: 1,
+                        reason_code: null,
+                        unverified_quotes: [],
+                        rule: null,
+                        unverified: false,
+                        judge_said: null,
+                        judge_run_id: null,
+                        knowledge: [],
+                        reason: "Matches the reviewed return policy",
+                      },
+                    ],
+                  }),
+                }),
+              ].filter(
+                (item) =>
+                  !state.cached ||
+                  (runId === "cached" ? item.arm_id === "before" : item.arm_id === "after"),
+              ),
             }),
-          }),
-        ],
-      }),
-    ],
-  }),
+          ],
+        },
   useEvalRun: () => ({ run: { status: state.status } }),
   useEvalComparison: (_id: string, options: { live: boolean }) => {
     comparisonOptions(options);
@@ -65,7 +85,12 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   },
 }));
 beforeEach(() => {
+  state.byId = false;
+  requested.mockClear();
   state.error = null;
+  state.cached = false;
+  state.cachedError = null;
+  state.cachedLoading = false;
   state.loading = false;
   state.status = "completed";
   state.confirmed = true;
@@ -222,7 +247,7 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
       attributions={{}}
     />,
   );
-  expect(screen.getByText("Newly broken")).toBeInTheDocument();
+  expect(screen.getByText("Got worse")).toBeInTheDocument();
   expect(screen.queryByText(/Not confirmed yet/)).not.toBeInTheDocument();
   view.rerender(
     <ChangedAnswers
@@ -236,8 +261,8 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
   );
   const group = screen.getByText("Not confirmed yet (1)").closest("details")!;
   expect(group).not.toHaveAttribute("open");
-  expect(group).toHaveTextContent("Possibly fixed");
-  expect(group).not.toHaveTextContent("Newly fixed");
+  expect(group).toHaveTextContent("May have improved");
+  expect(group).not.toHaveTextContent("Improved");
   view.rerender(
     <ChangedAnswers
       runId="r1"
@@ -248,6 +273,82 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
       attributions={{}}
     />,
   );
-  expect(screen.getByText("Possibly broken")).toBeInTheDocument();
-  expect(screen.queryByText("Newly broken")).not.toBeInTheDocument();
+  expect(screen.getByText("May be worse")).toBeInTheDocument();
+  expect(screen.queryByText("Got worse")).not.toBeInTheDocument();
+});
+
+it("loads a reused baseline from its own run and opens the first answer for review", () => {
+  state.cached = true;
+  const view = render(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByText("90 days")).toBeVisible();
+  expect(screen.getByText("30 days")).toBeVisible();
+  expect(screen.queryByText("Which change caused it")).toBeNull();
+  state.cachedLoading = true;
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByRole("status")).toBeVisible();
+  state.cachedLoading = false;
+  state.cachedError = new Error("Baseline unavailable");
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Baseline unavailable");
+});
+
+it("lists every regression before any fix, and says how many changed answers are left out", () => {
+  state.byId = true;
+  const flips = Array.from({ length: 70 }, (_, index) => ({
+    ...FLIP,
+    case_id: `case-${index}`,
+    // Regressions sit at the end of the run, where a page in run order would drop them.
+    flip: index >= 50 ? ("regression" as const) : ("fixed" as const),
+    confirmed: true,
+  }));
+  render(
+    <ChangedAnswers
+      runId="run-1"
+      agentId="agent-1"
+      flips={flips}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+    />,
+  );
+
+  const asked: string[] = requested.mock.calls[0]![1].caseIds;
+  expect(asked).toHaveLength(50);
+  expect(asked.slice(0, 20)).toEqual(flips.slice(50).map((flip) => flip.case_id));
+  const rows = screen.getAllByText(/^case-\d+$/).map((row) => row.textContent);
+  expect(rows.slice(0, 20).every((id) => Number(id!.slice(5)) >= 50)).toBe(true);
+  expect(screen.getByText("20 more changed answers are in the check.")).toBeVisible();
 });

@@ -73,15 +73,9 @@ export function useRuns(
     modelLabel?: string;
     /** Who the run ran as. */
     userId?: string;
-    /**
-     * The thread the runs ran inside.
-     *
-     * How a trigger's fires are listed: every fire appends to one run-log
-     * conversation, so the conversation is the trigger's identity in the run
-     * history - and read as *runs* each fire carries its own status, cost and a
-     * link to its detail, which a transcript of the same thread cannot give.
-     */
+    /** Narrow to one conversation, or to a routine across its execution chats. */
     conversationId?: string;
+    triggerId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
     agentVersionId?: string;
     /** Only test runs from the Builder's panel (true), only the rest (false) (#2074). */
@@ -103,6 +97,7 @@ export function useRuns(
     modelLabel,
     userId,
     conversationId,
+    triggerId,
     agentVersionId,
     isTest,
     skip,
@@ -122,6 +117,7 @@ export function useRuns(
       modelLabel,
       userId,
       conversationId,
+      triggerId,
       agentVersionId,
       isTest,
       skip,
@@ -147,6 +143,7 @@ export function useRuns(
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;
+      if (triggerId) params.trigger_id = triggerId;
       if (agentVersionId) params.agent_version_id = agentVersionId;
       if (skip) params.skip = String(skip);
       return apiClient.get<AgentRunList>(
@@ -175,7 +172,7 @@ export function useRuns(
  * not read are the same absence, and only one of them is the reader's problem.
  */
 export function useRun(runId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.detail(runId),
     queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
     // Hold the run being read while the next one is in flight. Stepping through
@@ -186,7 +183,7 @@ export function useRun(runId: string) {
     // `data.id` is the run this answer is about, not the one asked for.
     placeholderData: keepPreviousData,
   });
-  return { run: data, isLoading, error };
+  return { run: data, isLoading, error, refetch };
 }
 
 /**
@@ -364,11 +361,6 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
-  const t = useTranslations("pages.runs");
-  const tErrors = useTranslations("errors");
-
-  const queryClient = useQueryClient();
-
   // The queue is server-paged. It used to ask for no page at all and take the
   // route's default fifty, so with fifty or more waiting, the request an alert
   // was about was the one row its reader could not reach - the alert addresses
@@ -393,9 +385,23 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     placeholderData: keepPreviousData,
   });
 
-  const resume = useResumeRun({ ignoreStillParked: true });
+  const decide = useDecideApproval();
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    decide,
+    refetch,
+  };
+}
 
-  const decide = useMutation({
+export function useDecideApproval() {
+  const t = useTranslations("pages.runs");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const resume = useResumeRun({ ignoreStillParked: true });
+  return useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiClient.post<ToolApproval>(`/approvals/${id}`, { approved, note }),
     onSuccess: async (approval) => {
@@ -416,15 +422,6 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
-
-  return {
-    approvals: data?.items ?? [],
-    total: data?.total ?? 0,
-    isLoading,
-    error,
-    decide,
-    refetch,
-  };
 }
 
 /**

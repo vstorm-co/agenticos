@@ -10,6 +10,9 @@ export type Theme = "light" | "dark" | "system";
 
 interface ThemeState {
   theme: Theme;
+  /** Local deliberate edits; remote adoption does not enqueue another write. */
+  editRevision: number;
+  editedField: "theme" | "look" | null;
   /** The console's style, orthogonal to light and dark (`lib/appearance.ts`). */
   look: Look;
   setTheme: (theme: Theme) => void;
@@ -20,14 +23,19 @@ export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: "system",
+      editRevision: 0,
+      editedField: null,
       look: "standard",
-      setTheme: (theme) => set({ theme }),
-      setLook: (look) => set({ look }),
+      setTheme: (theme) =>
+        set((state) => ({ theme, editedField: "theme", editRevision: state.editRevision + 1 })),
+      setLook: (look) =>
+        set((state) => ({ look, editedField: "look", editRevision: state.editRevision + 1 })),
     }),
     {
       // The key `APPEARANCE_BOOTSTRAP_SCRIPT` reads the look from before the
       // first paint, which is why it is a shared constant and not a literal.
       name: THEME_STORAGE_KEY,
+      partialize: ({ theme, look }) => ({ theme, look }),
       merge: (persisted: unknown, current) => {
         const saved = persisted !== null && typeof persisted === "object" ? persisted : {};
         const theme = "theme" in saved ? saved.theme : undefined;

@@ -67,8 +67,11 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
             else "in your sandbox"
         )
         continuation = (
-            "Each personal cloud task starts in an isolated copy. Review its diff and result archive; "
-            "it does not apply changes to shared project files. Personal accounts do not run unattended schedules."
+            "Each named personal cloud session keeps its own files and native CLI history. The same name resumes; a new name starts from the current source copy. `fresh_session` resets CLI history and keeps files. Review its diff and result archive; "
+            "it does not apply changes to shared project files. Choose `harness=claude_code` "
+            "or `harness=codex` per task, using that person's own enabled account. "
+            "Different accounts may work concurrently in separate containers; tasks sharing "
+            "one account wait in a bounded queue. Sessions can expire; report unavailable state rather than claiming a successful continuation. Personal accounts do not run unattended schedules."
             if self.runs_on == "personal_sandbox"
             else "Each task names a session (`main` when it names none): the same name continues "
             "that session's earlier work and a new name opens another."

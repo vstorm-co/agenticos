@@ -1,10 +1,13 @@
 """The durable pipeline across actual PostgreSQL transactions and scripted model calls."""
 
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelTimeoutError
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,12 +19,14 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, dataset_repo, improvement_repo
+from app.schemas.eval_run import EvalRunEstimate
 from app.schemas.improvement import (
     ContinuationConsent,
     ImprovementContinue,
@@ -32,6 +37,7 @@ from app.schemas.improvement import (
 from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
+from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import KnowledgeGapService
@@ -77,6 +83,34 @@ class Answers(Model):
         return answer, run
 
 
+class TimingOut(Answers):
+    """Times out on the proposed side's first `timeouts` answers, after the provider charged."""
+
+    def __init__(self, db: AsyncSession, *, timeouts: int) -> None:
+        super().__init__(db)
+        self.timeouts = timeouts
+        self.timed_out: list[UUID] = []
+
+    async def execute(
+        self,
+        runner: AgentRunnerService,
+        ctx: AuthContext,
+        agent_id: UUID,
+        prompt: str,
+        **kw: object,
+    ):
+        answer, run = await super().execute(runner, ctx, agent_id, prompt, **kw)
+        candidate = kw["candidate"]
+        assert isinstance(candidate, UnpublishedCandidate)
+        if self.timeouts and "30 days" in candidate.spec.instructions:
+            self.timeouts -= 1
+            started = cast(Callable[[AgentRun], Awaitable[None]], kw["started"])
+            await started(run)
+            self.timed_out.append(run.id)
+            raise ModelTimeoutError("gpt-test", "Request timed out")
+        return answer, run
+
+
 async def _next_step(
     db: AsyncSession, ctx: AuthContext, run_id: UUID, *, note: str | None = None
 ) -> ImprovementRead:
@@ -109,7 +143,7 @@ async def _until_child(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> None
     await ImprovementPipelineService(db).advance(run_id, ctx.organization_id)
 
 
-async def _ready_proposal(db):
+async def _ready_proposal(db, *, timeouts: int = 0, timed_out: list[UUID] | None = None):
     ctx, agent, _, read = await _started(db)
     original = AgentSpec.model_validate(agent.draft_spec)
     version = agent.current_version_id
@@ -153,7 +187,7 @@ async def _ready_proposal(db):
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).iterations[
         0
     ].eval_run_ids == [eval_id]
-    model = Answers(db)
+    model = TimingOut(db, timeouts=timeouts)
 
     async def execute(runner, *args, **kwargs):
         return await model.execute(runner, *args, **kwargs)
@@ -165,6 +199,8 @@ async def _ready_proposal(db):
         await EvalRunWorker(
             eval_id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
         ).run()
+    if timed_out is not None:
+        timed_out.extend(model.timed_out)
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     ready = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
@@ -196,6 +232,30 @@ async def _ready_proposal(db):
     return ctx, agent, ready
 
 
+async def test_answers_a_check_lost_to_timeouts_are_asked_again_not_the_whole_check(db):
+    """A timed-out answer would leave the check inconclusive and the session paying for
+    all of it again; only the lost answers are asked again, and what they cost counts."""
+    from app.repositories import eval_run_repo
+    from app.services.eval_run import EvalRunService
+
+    timed_out: list[UUID] = []
+    ctx, _, ready = await _ready_proposal(db, timeouts=2, timed_out=timed_out)
+
+    [eval_id] = ready.iterations[0].eval_run_ids
+    attempts = await eval_run_repo.list_cases(db, eval_id, organization_id=ctx.organization_id)
+    assert {(a.status, a.error) for a in attempts} == {("done", None)}
+    check = await EvalRunService(db).get(ctx, eval_id)
+    assert check.outcome is not None and check.outcome.verdict != "invalid"
+    assert len(timed_out) == 2
+    assert not {a.agent_run_id for a in attempts} & set(timed_out)
+    # No attempt leads to the timed-out tries any more; the session still paid for them.
+    paid = (
+        await db.scalars(select(AgentRun.improvement_run_id).where(AgentRun.id.in_(timed_out)))
+    ).all()
+    assert paid == [ready.id, ready.id]
+    assert ready.iterations[0].cost_usd >= Decimal("0.01") * (len(attempts) + 2)
+
+
 async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_readable(db):
     from dataclasses import replace
 
@@ -225,6 +285,53 @@ async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_
     await db.flush()
     assert await service.awaiting(ctx) == []
     assert await service.awaiting(ctx, open_sessions=True) == []
+
+
+@pytest.mark.security
+async def test_every_session_waiting_for_a_person_is_listed_past_twenty(db):
+    """An agent holds one open session, so the organization's list is every waiting
+    session; a session on an agent the caller cannot read is still left out."""
+    from datetime import timedelta
+
+    from sqlalchemy import insert
+
+    from tests.integration.test_eval_suites import _agent
+
+    ctx, agent, _, first = await _started(db)
+    row = await db.get(ImprovementRun, first.id)
+    assert row is not None
+    row.status, row.stage = "waiting", "analyzing"
+    await db.flush()
+    columns = {column.key: getattr(row, column.key) for column in ImprovementRun.__table__.columns}
+    hidden = None
+    for n in range(21):
+        other, _ = await _agent(db, ctx)
+        hidden = hidden or other.id
+        await db.execute(
+            insert(ImprovementRun).values(
+                {
+                    **columns,
+                    "id": uuid4(),
+                    "agent_id": other.id,
+                    "created_at": row.created_at - timedelta(minutes=n + 1),
+                }
+            )
+        )
+    service = ImprovementPipelineService(db)
+
+    listed = await service.awaiting(ctx)
+    real_get = service.registry.get
+
+    async def one_unreadable(caller: AuthContext, agent_id: UUID, **kwargs: Any) -> Any:
+        if agent_id == hidden:
+            raise NotFoundError(message="Agent not found")
+        return await real_get(caller, agent_id, **kwargs)
+
+    with patch.object(service.registry, "get", one_unreadable):
+        readable = await service.awaiting(ctx, open_sessions=True)
+
+    assert len(listed) == 22 and listed[0].id == first.id
+    assert len(readable) == 21 and hidden not in {item.agent_id for item in readable}
 
 
 async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):
@@ -317,7 +424,7 @@ async def test_an_ended_step_wakes_its_session_instead_of_waiting_for_the_sweep(
     proposing = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, proposing.iterations[0].authoring_request_id)
     await _settle_queued_jobs(db)
-    await AuthoringWorker._fail(db, request, "The improver could not answer.")
+    await AuthoringWorker._fail(db, request, "The improver could not answer.", "unexpected")
     assert await _queued_advances(db, read.id) == 1
 
     await _settle_queued_jobs(db)
@@ -615,8 +722,22 @@ async def test_a_check_over_the_budget_is_refused_and_the_session_keeps_waiting(
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     service = ImprovementPipelineService(db)
     tight = ImprovementContinue(budget_usd=Decimal("0.020001"))
-    quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
+    priced: list[EvalRunEstimate] = []
+    estimate = EvalRunService.estimate
+
+    async def kept(self: EvalRunService, *args: Any, **kwargs: Any) -> EvalRunEstimate:
+        priced.append(await estimate(self, *args, **kwargs))
+        return priced[-1]
+
+    with patch.object(EvalRunService, "estimate", kept):
+        quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
     assert quote.mode == "next_step" and not quote.affordable
+    # Most likely one check asking again about half of what it may; at most every
+    # held-out answer again, and the repeat an inconclusive result gets.
+    [check] = priced
+    assert quote.expected_usd == check.expected_usd
+    assert check.expected_usd == check.total_usd + check.rerun_ceiling_usd / 2
+    assert quote.total_usd == (check.total_usd + check.rerun_ceiling_usd) * 2
     with pytest.raises(PaymentRequiredError):
         await service.continue_run(
             ctx,
@@ -837,9 +958,14 @@ async def test_failed_proposal_needs_explicit_retry_and_repeated_click_starts_on
     assert (await service.read(ctx, agent.id, read.id)).status == "failed"
     await service.advance(read.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, read.id)).iterations[0].authoring_request_id == old_id
+    row = await db.get(ImprovementRun, read.id)
+    assert row is not None
+    row.error, row.error_code, row.error_params = "Add 2 more", "too_few_held_out", {"missing": 2}
+    await db.flush()
     retried = await service.retry(ctx, agent.id, read.id)
     new_id = retried.iterations[0].authoring_request_id
     assert new_id is not None and new_id != old_id
+    assert (retried.error, retried.error_code, retried.error_params) == (None, None, None)
     again = await service.retry(ctx, agent.id, read.id)
     assert again.iterations[0].authoring_request_id == new_id
     assert any(event.action == "improvement.retried" for event in again.timeline)
@@ -915,6 +1041,10 @@ async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
     assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
 
 
+ADMITTED = ("model_profile_id", "instructions")
+"""What a session keeps of the helper settings it was admitted with; who wrote them is the dataset's."""
+
+
 async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instructions(db):
     from app.schemas.dataset import DatasetUpdate
     from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
@@ -936,7 +1066,9 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     )
     run = await db.get(ImprovementRun, read.id)
     assert run is not None
-    assert run.helper_settings == original.model_dump(mode="json")
+    assert {key: run.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
     await DatasetService(db).update(
         ctx,
         dataset.id,
@@ -952,4 +1084,238 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     current = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, current.iterations[0].authoring_request_id)
     assert request is not None
-    assert request.helper_settings == original.model_dump(mode="json")
+    assert {key: request.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
+
+
+@pytest.mark.security
+async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_access(db):
+    from dataclasses import replace
+
+    from app.core.permissions import OrgRoleName, Perm
+    from app.repositories import improvement_repo
+    from tests.integration.test_authoring import _member
+    from tests.integration.test_skill_bindings import _skill
+
+    ctx, agent, dataset, started = await _started(db)
+    dataset.visibility = "private"
+    skill = await _skill(db, ctx, name="private-grading-owner")
+    [attempt] = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    attempt.verdict = "criteria_better"
+    attempt.verdict_detail = {
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "private rubric text",
+                "skill": skill.name,
+                "skill_id": str(skill.id),
+                "graded": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+            }
+        ],
+        "criterion_change": 1.0,
+        "families": [
+            {
+                "family": "private family text",
+                "criteria": 1,
+                "cases": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+                "settled": True,
+                "better": True,
+                "worse": False,
+                "skill": skill.name,
+                "skill_id": str(skill.id),
+            }
+        ],
+        "fixed": 0,
+    }
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    owner = await service.read(ctx, agent.id, started.id)
+    assert owner.iterations[0].verdict_detail["criteria"][0].name == "private rubric text"
+    assert owner.iterations[0].verdict_detail["families"][0].family == "private family text"
+    contexts = [
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW})),
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW})),
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW})),
+        await _member(db, ctx, OrgRoleName.MEMBER),
+        await _member(db, ctx, OrgRoleName.VIEWER),
+    ]
+    for reader in contexts:
+        if not reader.has(Perm.RUNS_VIEW):
+            with pytest.raises(AuthorizationError, match="runs:view"):
+                await service.read(reader, agent.id, started.id)
+            continue
+        read = await service.read(reader, agent.id, started.id)
+        [listed] = await service.list_for_agent(reader, agent.id)
+        for response in (read, listed):
+            detail = response.iterations[0].verdict_detail
+            assert "criteria" not in detail and "criterion_change" not in detail
+            assert "families" not in detail
+            assert "private rubric text" not in response.model_dump_json()
+            assert "private family text" not in response.model_dump_json()
+            assert "private-grading-owner" not in response.model_dump_json()
+    # Redaction is per response; neither the stored detail nor an owner's later read loses it.
+    assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    # The stable ID remains authoritative when a historical display label is absent.
+    saved_detail = attempt.verdict_detail
+    attempt.verdict_detail = {
+        **saved_detail,
+        "criteria": [
+            {key: value for key, value in saved_detail["criteria"][0].items() if key != "skill"}
+        ],
+    }
+    await db.flush()
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    denied_source = replace(
+        ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW})
+    )
+    for response in (
+        await service.read(denied_source, agent.id, started.id),
+        *(await service.list_for_agent(denied_source, agent.id)),
+    ):
+        assert "criteria" not in response.iterations[0].verdict_detail
+    # A family named for a skill with no identity kept fails closed, as a criterion does.
+    attempt.verdict_detail = {
+        **saved_detail,
+        "families": [
+            {key: value for key, value in saved_detail["families"][0].items() if key != "skill_id"}
+        ],
+    }
+    await db.flush()
+    unproven = (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    assert "families" not in unproven and "criteria" not in unproven
+    attempt.verdict_detail = saved_detail
+    await db.flush()
+    original_name = skill.name
+    skill.name = "renamed-original-owner"
+    await db.flush()
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    await db.delete(skill)
+    await db.flush()
+    await _skill(db, ctx, name=original_name)
+    for response in (
+        await service.read(ctx, agent.id, started.id),
+        *(await service.list_for_agent(ctx, agent.id)),
+    ):
+        assert "criteria" not in response.iterations[0].verdict_detail
+
+    await db.delete(dataset)
+    await db.flush()
+    assert (
+        "criteria"
+        not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    )
+
+
+async def _guided(db: AsyncSession, author: AuthContext, dataset_id: UUID) -> None:
+    from app.schemas.dataset import DatasetUpdate
+    from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+    from app.services.dataset import DatasetService
+
+    await DatasetService(db).update(
+        author,
+        dataset_id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(instructions="Prefer the shortest correct answer.")
+            )
+        ),
+    )
+
+
+@pytest.mark.security
+class TestTheStartShowsTheDatasetsGuidance:
+    async def test_it_names_the_member_who_last_changed_it(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from app.db.models.user import User
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await db.execute(
+            update(User).where(User.id == author.user_id).values(full_name="Ada Lovelace")
+        )
+        await _guided(db, author, dataset.id)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.text == "Prefer the shortest correct answer."
+        assert estimate.guidance.updated_by_name == "Ada Lovelace"
+        assert estimate.guidance.updated_at is not None
+        assert not estimate.guidance.updated_by_former_member
+
+    async def test_a_member_who_left_is_a_former_member_and_not_named(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await _guided(db, author, dataset.id)
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == author.user_id)
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_somebody_from_another_organization_is_never_named(self, db: AsyncSession):
+        from app.db.models.dataset import Dataset
+        from app.db.models.user import User
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        elsewhere = await _owner(db)
+        await db.execute(
+            update(User).where(User.id == elsewhere.user_id).values(full_name="Outside Person")
+        )
+        await db.execute(
+            update(Dataset)
+            .where(Dataset.id == dataset.id)
+            .values(
+                helper_settings={
+                    "improver": {
+                        "instructions": "Prefer the shortest correct answer.",
+                        "instructions_updated_by": str(elsewhere.user_id),
+                    }
+                }
+            )
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_a_dataset_without_guidance_shows_none(self, db: AsyncSession):
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is None

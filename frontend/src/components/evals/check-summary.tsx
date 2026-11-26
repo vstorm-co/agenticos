@@ -71,6 +71,9 @@ export function CheckSummary({ check }: { check: CaseCheck }) {
     case "judge":
       rule = t("judge", { criterion: String(check.criterion) });
       break;
+    case "keys":
+      rule = t("keys", { count: Array.isArray(check.keys) ? check.keys.length : 0 });
+      break;
     default:
       return <code className="break-all">{raw}</code>;
   }

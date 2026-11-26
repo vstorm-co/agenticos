@@ -10,8 +10,7 @@ const state = vi.hoisted(() => ({
   sources: null as ImprovementEvidence | null,
   sourceError: null as Error | null,
   loading: false,
-  attentionError: null as Error | null,
-  rated: 5,
+  fetching: false,
   total: 21,
   questions: [
     {
@@ -34,17 +33,11 @@ vi.mock("@/hooks/use-improvements", () => ({
     return {
       evidence: state.sources,
       isLoading: state.loading,
+      isFetching: state.fetching,
       error: state.sourceError,
       refetch: state.refetch,
     };
   },
-}));
-vi.mock("@/hooks/use-usage-stats", () => ({
-  useAgentAttention: () => ({
-    agents: state.rated ? [{ agent_id: "a1", rated_down: state.rated, failed_runs: 2 }] : [],
-    isLoading: state.loading,
-    error: state.attentionError,
-  }),
 }));
 vi.mock("./write-questions", () => ({
   WriteQuestions: ({ more, onReady }: { more: number; onReady: (id: string) => void }) => (
@@ -120,10 +113,10 @@ beforeEach(() => {
       },
     ],
   };
-  state.sourceError = state.attentionError = state.questionError = null;
+  state.sourceError = state.questionError = null;
   state.loading = false;
   state.share = "0.5";
-  state.rated = 5;
+  state.fetching = false;
   state.total = 21;
   state.questions = [
     {
@@ -135,10 +128,13 @@ beforeEach(() => {
     { id: "q2", input: "Shipping?", improvement_partition: "holdout", reference_answer: null },
   ];
 });
-it("shows real signal counts, and no failing test answers before anything was tested", () => {
+it("counts the selected source sample including positive feedback and test failures", () => {
   render(<StartSignals agentId="a1" datasetId="d1" />);
-  for (const count of ["5", "2"]) expect(screen.getByText(count)).toBeInTheDocument();
-  expect(screen.queryByText("Test answers marked as failing")).not.toBeInTheDocument();
+  const region = screen.getByRole("region", { name: "Sources to learn from" });
+  const values = Array.from(region.querySelectorAll("dd"), (item) => Number(item.textContent));
+  expect(values).toEqual([2, 1, 0, 1]);
+  expect(values.reduce((sum, value) => sum + value, 0)).toBe(state.sources?.items.length);
+  expect(screen.getByText(/4 selected source examples/)).toBeInTheDocument();
   expect(state.evidenceHook).toHaveBeenCalledWith("a1", { datasetId: "d1" });
 });
 it("distinguishes loading, read failures and no learning data", () => {
@@ -150,14 +146,9 @@ it("distinguishes loading, read failures and no learning data", () => {
   view.rerender(<StartSignals agentId="a1" datasetId="" />);
   expect(screen.getByRole("alert")).toBeInTheDocument();
   state.sourceError = null;
-  state.attentionError = new Error("Cannot read counts");
-  view.rerender(<StartSignals agentId="a1" datasetId="" />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
-  state.attentionError = null;
-  state.rated = 0;
   state.sources = { items: [], sample_limit: 20, training_failures: 0 };
   view.rerender(<StartSignals agentId="a1" datasetId="" />);
-  expect(screen.getAllByText("0")).toHaveLength(2);
+  expect(screen.getAllByText("0")).toHaveLength(3);
   expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
 });
 it("keeps unknown causes explicit and shows quotes, comments, reasons and source links", async () => {
@@ -185,7 +176,9 @@ it("does not invent examples when sources are gone or unreadable", () => {
   const view = render(<Understand session={SESSION} />);
   expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
   expect(screen.queryByText(/No selected examples/)).not.toBeInTheDocument();
-  expect(screen.queryByRole("region", { name: "Fix in the agent" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "Fix in the agent or its skills" }),
+  ).not.toBeInTheDocument();
   state.loading = true;
   view.rerender(<Understand session={{ ...SESSION, status: "running" }} />);
   expect(screen.getByRole("status")).toBeInTheDocument();
@@ -350,6 +343,46 @@ function withTopic() {
   state.sources!.items[2]!.topic_id = "t1";
 }
 
+it("names the criteria an attempt put down to a skill beside the agent's column", () => {
+  withTopic();
+  const family = {
+    criteria: 4,
+    cases: 5,
+    before: 1,
+    fixed: 0,
+    broken: 0,
+    settled: false,
+    better: false,
+    worse: false,
+    skill: "fernhill-quote-format",
+  };
+  render(
+    <Understand
+      session={{
+        ...SESSION,
+        iterations: [
+          {
+            ...SESSION.iterations[0]!,
+            verdict: "criteria_better",
+            verdict_detail: {
+              families: [
+                { ...family, family: "total including VAT", after: 2 },
+                { ...family, family: "valid for 14 days", after: 0 },
+                { ...family, family: "price break", after: 5, skill: null },
+              ],
+            },
+          },
+        ],
+      }}
+    />,
+  );
+  expect(
+    screen.getByText(
+      "The helper put 2 still-failing criteria down to fernhill-quote-format: those are fixed in the skill, not in the agent's instructions.",
+    ),
+  ).toBeInTheDocument();
+});
+
 it("groups examples by topic into problems and says how many each column holds", async () => {
   withTopic();
   state.sources!.items.push({
@@ -361,7 +394,7 @@ it("groups examples by topic into problems and says how many each column holds",
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+      "We found 3 problems: 2 we can fix in the agent or its skills, 1 is information missing from the knowledge base.",
     ),
   ).toBeInTheDocument();
   expect(screen.getByText("3 conversations about one topic")).toBeInTheDocument();
@@ -394,7 +427,7 @@ it("keeps answers whose knowledge was added since apart from what is still missi
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 4 problems: 2 we can fix in the agent, 2 lacked knowledge that has since been added to the knowledge base.",
+      "We found 4 problems: 2 we can fix in the agent or its skills, 2 lacked knowledge that has since been added to the knowledge base.",
     ),
   ).toBeInTheDocument();
   const group = screen.getByRole("region", { name: "Already in the knowledge base" });
@@ -496,7 +529,7 @@ it("shows a question asked both as a test and in a conversation as one problem",
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+      "We found 3 problems: 2 we can fix in the agent or its skills, 1 is information missing from the knowledge base.",
     ),
   ).toBeInTheDocument();
   expect(screen.getByText("Test question and conversation example")).toBeInTheDocument();
@@ -605,4 +638,53 @@ it("names the skills an example's runs used, each once", () => {
   };
   render(<Understand session={SESSION} />);
   expect(screen.getAllByText("Used skill refunds")).toHaveLength(1);
+});
+
+it("partitions rated and unrated failures and reviewed tests without dropping or double-counting sources", () => {
+  const example = state.sources!.items[0]!;
+  state.sources!.items.push(
+    { ...example, run_id: "failed-rated", rating: -1, status: "failed" },
+    { ...example, run_id: "failed-unrated", rating: 0, status: "failed" },
+    {
+      ...example,
+      run_id: "reviewed-test",
+      kind: "train_eval",
+      rating: 0,
+      status: "train_eval_reviewed",
+    },
+  );
+  render(<StartSignals agentId="a1" datasetId="d1" />);
+  const values = Array.from(screen.getByRole("region").querySelectorAll("dd"), (item) =>
+    Number(item.textContent),
+  );
+  expect(values).toEqual([3, 1, 1, 1, 1]);
+  expect(values.reduce((sum, value) => sum + value, 0)).toBe(7);
+  expect(screen.getByText(/7 selected source examples/)).toBeInTheDocument();
+});
+
+it("waits for an empty cached preview to finish refreshing before claiming there is nothing to learn", () => {
+  state.sources = { items: [], sample_limit: 20, training_failures: 0 };
+  state.fetching = true;
+  const view = render(<StartSignals agentId="a1" datasetId="d1" />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
+  expect(screen.queryByText(/Nothing to learn from yet/)).not.toBeInTheDocument();
+  state.fetching = false;
+  view.rerender(<StartSignals agentId="a1" datasetId="d1" />);
+  expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
+});
+
+it("keeps an existing nonempty sample visible during background refresh", () => {
+  state.fetching = true;
+  render(<StartSignals agentId="a1" datasetId="d1" />);
+  expect(screen.getByText(/4 selected source examples/)).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("opens the question review on arrival when requested and lets the reader collapse it", async () => {
+  render(<TestQuestions session={SESSION} reviewInitiallyOpen />);
+  const review = screen.getByText("Review the questions").closest("details");
+  expect(review).toHaveAttribute("open");
+  expect(screen.getByText("A good answer: 30 days")).toBeVisible();
+  await userEvent.click(screen.getByText("Review the questions"));
+  expect(review).not.toHaveAttribute("open");
 });

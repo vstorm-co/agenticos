@@ -59,6 +59,16 @@ describe("platformProxy", () => {
     vi.unstubAllGlobals();
   });
 
+  it("passes Retry-After through on a rate refusal", async () => {
+    backendReplies(JSON.stringify({ detail: "Busy" }), {
+      status: 429,
+      headers: { "Retry-After": "17" },
+    });
+    const response = await platformProxy().GET(request("/api/eval-runs/r/comparison"));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("17");
+  });
+
   it("forwards the path and query verbatim to the backend's v1 prefix", async () => {
     const backend = backendReplies('{"items":[]}');
 
@@ -201,22 +211,14 @@ describe("platformProxy", () => {
     const transcript = JSON.stringify({ items: Array(200).fill({ content: "said something" }) });
     const compressed = { headers: { "Content-Encoding": "gzip", "Content-Length": "60" } };
 
-    async function gunzip(response: Response): Promise<string> {
-      const body = response.body?.pipeThrough(new DecompressionStream("gzip"));
-      return new Response(body).text();
-    }
-
-    it("is compressed again for a browser that accepts gzip", async () => {
+    it("leaves the decoded body for Next.js to compress once", async () => {
       backendReplies(transcript, compressed);
-
       const response = await platformProxy().GET(
         request("/api/conversations/c1/messages", { headers: { "Accept-Encoding": "gzip, br" } }),
       );
-
-      expect(response.headers.get("Content-Encoding")).toBe("gzip");
-      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
+      expect(response.headers.get("Content-Encoding")).toBeNull();
       expect(response.headers.get("Content-Length")).toBeNull();
-      expect(await gunzip(response)).toBe(transcript);
+      expect(await response.text()).toBe(transcript);
     });
 
     it("is not compressed for a client that refuses gzip by quality", async () => {
@@ -787,4 +789,26 @@ describe("every endpoint the client calls is proxied", () => {
 
     expect(unrouted).toEqual([]);
   });
+});
+
+it("streams transfer bodies with the same authority and refuses redirect replay", async () => {
+  const backend = backendReplies("{}");
+  const source = request("/api/portability/operation/upload", {
+    method: "PUT",
+    body: new Uint8Array([0, 255, 1]),
+    headers: {
+      "content-type": "application/zip",
+      "content-length": "3",
+      "X-Organization-Id": "org",
+    },
+  });
+  const buffered = vi.spyOn(source, "arrayBuffer");
+  await platformProxy({ streamRequest: true }).PUT(source);
+  expect(buffered).not.toHaveBeenCalled();
+  const call = backend.forwarded();
+  expect(call.init.body).toBe(source.body);
+  expect(call.init.redirect).toBe("manual");
+  expect(call.init.headers["Content-Length"]).toBe("3");
+  expect(call.init.headers.Authorization).toBe("Bearer tok");
+  expect(call.init.headers["X-Organization-Id"]).toBe("org");
 });

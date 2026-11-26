@@ -18,6 +18,7 @@ const others = vi.hoisted(() => ({
   review: 0,
   suites: 0,
   suggestions: 0,
+  questions: 0,
   settled: true,
   failed: false,
   retry: (() => {}) as () => void,
@@ -112,7 +113,7 @@ describe("a person's own period", () => {
     expect(screen.getByText("Your runs")).toBeVisible();
     expect(screen.getByText("86%")).toBeVisible();
     expect(screen.getByText("of 73 runs")).toBeVisible();
-    expect(screen.getByRole("link", { name: "1 call" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "1 action to approve" })).toHaveAttribute(
       "href",
       "/runs?tab=approvals",
     );
@@ -123,13 +124,27 @@ describe("a person's own period", () => {
     others.suggestions = 0;
   });
 
-  it("links nothing when no call waits among what does", () => {
+  it("names agent suggestions and links them directly to Inbox", () => {
     others.suggestions = 1;
     renderWidget({ usage: usage({ pending_approvals: 0 }) });
 
-    expect(screen.getByText("1 suggestion")).toBeVisible();
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Agent suggestions")).toBeVisible();
+    expect(screen.getByRole("link", { name: "1 suggestion in Inbox" })).toHaveAttribute(
+      "href",
+      "/inbox",
+    );
     others.suggestions = 0;
+  });
+
+  it("links waiting questions to Inbox instead of the approval queue", () => {
+    others.questions = 1;
+    renderWidget({ usage: usage({ pending_approvals: 0 }) });
+    expect(screen.getByText("Questions to answer")).toBeVisible();
+    expect(screen.getByRole("link", { name: "1 question to answer" })).toHaveAttribute(
+      "href",
+      "/inbox",
+    );
+    others.questions = 0;
   });
 
   it("says nothing is waiting, at zero, rather than drawing an empty card", () => {

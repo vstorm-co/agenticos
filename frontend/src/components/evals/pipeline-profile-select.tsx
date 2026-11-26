@@ -2,13 +2,13 @@
 
 import { useId, useState } from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ProviderIcon } from "@/components/vault/provider-icon";
-import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
-import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import { ModelIcon } from "@/components/icons/model-icon";
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
+import { hasKey, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 
@@ -18,20 +18,39 @@ export function PipelineProfileSelect({
   value,
   onChange,
   disabled,
+  onRefresh,
+  refreshing,
 }: {
   profiles: ModelProfile[];
   value: string | null;
   onChange: (value: string | null) => void;
   disabled?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const t = useTranslations("agents");
+  const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const listId = useId();
   const selected = profiles.find((profile) => profile.id === value);
   const offered = profiles.filter((profile) => usableForAgents(profile) || profile.id === value);
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium">{t("model2")}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">{t("model2")}</p>
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={picker("refreshCatalog")}
+            disabled={disabled || refreshing}
+            onClick={onRefresh}
+          >
+            <RefreshCw aria-hidden className="size-4" />
+          </Button>
+        )}
+      </div>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -46,7 +65,7 @@ export function PipelineProfileSelect({
               "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm",
             )}
           >
-            {selected && <ProviderIcon provider={selected.provider} />}
+            {selected && <ModelIcon model={selected.model} provider={selected.provider} />}
             <span className={cn("min-w-0 flex-1 truncate", !selected && "text-muted-foreground")}>
               {selected?.label ?? t("pipelineModelPlaceholder")}
             </span>
@@ -79,18 +98,12 @@ export function PipelineProfileSelect({
                   }}
                   className={cn(
                     COMMAND_ITEM_FOCUS,
-                    "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm data-[disabled=true]:opacity-50",
+                    MENU_ROW,
+                    "cursor-pointer data-[disabled=true]:opacity-50",
                   )}
                 >
-                  <ProviderIcon provider={profile.provider} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{profile.label}</span>
-                    {modelDetail(profile) && (
-                      <span className="text-muted-foreground block truncate text-xs">
-                        {modelDetail(profile)}
-                      </span>
-                    )}
-                  </span>
+                  <ModelIcon model={profile.model} provider={profile.provider} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{profile.label}</span>
                   {!hasKey(profile) && <Badge variant="destructive">{t("noKey")}</Badge>}
                   {!runsAgents(profile) && (
                     <Badge variant="destructive">{t("notAChatModel")}</Badge>

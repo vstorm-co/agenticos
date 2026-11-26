@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc0bd6a3c5a"
+source_sha: "4f9850e16b2b"
 ---
 
 # Skills { #skills }
@@ -299,13 +299,19 @@ jüngsten Antworten, die den Skill geladen haben, oder leer - oder über die API
 `POST /api/v1/skills/{id}/test-set`, oder mit **Testfragen hinzufügen** neben einem
 Agent, den [Verbessern](#improving-a-skill) nicht prüfen konnte, und bearbeitet wie
 jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet.
+Der Satz trägt den Namen des Skills, nummeriert, wenn ein Dataset diesen Namen
+schon hat - etwa einer, den ein gelöschter Skill gleichen Namens zurückließ.
 
 Ein Judge bewertet den Satz und vergleicht jede Antwort mit der, die Personen
 positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
 gestellt: Eine Antwort, die jemand bewertet hat, gewinnt gegen eine, die nur
 fehlschlug, so verlangt eine Frage nie eine Antwort und verbietet sie zugleich.
 
-Dann die eigenen Fragen des Agents:
+Dann die eigenen Fragen des Agents, aus dem Dataset, auf dem seine neueste
+[Improve-Sitzung](authoring.md#the-improve-wizard) misst, wenn dieses Dataset ihn
+testet, und sonst aus dem ersten Dataset, das ihn testet. Ein Satz, der für eine
+abschließende Messung zurückgehalten wird, wird so nie von einer Skill-Prüfung
+gefragt, während sich der Agent auf einem anderen verbessert.
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
@@ -345,11 +351,33 @@ andere Fragen hinzuzufügen sind.
 - Mindestens ein Agent muss **besser** werden.
 - Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
   Rauschen**: eine Warnung, keine Sperre.
+- Ein Agent, bei dem keine ganze Frage gekippt ist, aber erneutes Fragen ein
+  Kriterium als besser und keines als schlechter bestätigt hat, ist **besser bei
+  Kriterien**; einer mit einem als schlechter bestätigten Kriterium ist
+  **schlechter bei Kriterien**. Keines davon ändert die Regel oben, die ganze
+  Fragen betrifft: Im Balken zählen sie zu den besseren und den schlechteren
+  Agents, und die Details des Agents nennen jede
+  [Familie](evals.md#a-flip-is-confirmed-before-it-counts) von Kriterien mit
+  ihren Treffern vorher und nachher - die Prüfung einer Sache in jedem Fall in
+  einer Zeile - oder jedes Kriterium, für einen Agent, der geprüft wurde, bevor
+  Familien gespeichert wurden.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
   fehlgeschlagener Run, eine angehaltene Prüfung - ist **unbekannt**, und eine
-  Person bestätigt das vor dem Anwenden.
+  Person bestätigt das vor dem Anwenden. Ebenso einer, dessen Runs jede Antwort
+  auf weniger zurückgelegten Fragen bewertet haben, als ein Ergebnis braucht:
+  Seine Zeile sagt, wie viele besser und schlechter ausfielen und dass es zu
+  wenige sind, um sicher zu sein.
+- Ein Agent, dessen eigene Fragen nicht fertig wurden - ihr Run schlug fehl oder
+  wurde angehalten, wurde abgelehnt, oder die Prüfung lief ab -, nachdem die
+  Fragen des Skills eine Regression bestätigt haben, bleibt **schlechter**: Die
+  Änderung muss weiterhin angeheftet oder per Fork umgangen werden. Einer, bei dem
+  die Fragen des Skills keine Regression bestätigten, ist **unbekannt**: Seine Zeile
+  sagt, dass seine eigenen Fragen nicht fertig wurden und die des Skills keine
+  Regression bestätigten - oder, wenn sie nicht starten konnten, warum -, und seine
+  Details behalten, was die Fragen des Skills ergaben, sodass ihn zu bestätigen
+  eine Entscheidung auf einer halben Prüfung ist.
 
 Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
 sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.
@@ -361,7 +389,8 @@ Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
 zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
 und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die andere
 fand.
-Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
+Jede Frage des Skill-Sets ist held-out - sein Anteil bleibt bei eins, und eine
+hinzugefügte Frage ist in jedem Fall held-out -, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
 
 Eine Prüfung schickt ihre bestätigten Regressionen und die Antworten, die der
@@ -578,7 +607,12 @@ geändert haben, ist ein Konflikt, und das Modell schlägt einen Text dafür vor
 (`GET …/improvements/{run_id}/merge`, dann `PATCH …/merge/description` oder
 `…/merge/parts/{index}`). Bei einer Datei, die beide Seiten verschieden geändert
 haben, behält eine Person eine Seite (`PATCH …/merge/files`); das Modell schreibt nie
-eine Datei. Die Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
+eine Datei. Jede Datei zeigt Beschreibung und Größe, die ihr jede Seite gibt, und
+aufgeklappt, was jede Seite gegenüber der Version geändert hat, von der beide
+ausgingen, gelesen aus der Version dieser Seite
+(`GET …/versions/{version_id}/resources/{name}`). Eine Datei über 200 KB oder eine,
+die kein Text ist, wird stattdessen von jeder Seite zum Herunterladen angeboten. Die
+Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
 Agents des Forks nach dem Ergebnis und, sofern `main_alone` nicht beim Bepreisen
 der Prüfung unter Changes abgeschaltet wird, nach der neuesten Version von main
 allein. Diese zweite Prüfung sagt, ob der Fork noch gebraucht wird, und die Schätzung
@@ -910,6 +944,28 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
+Ein Schritt, der nicht laufen kann - sein Helfer ist archiviert oder nicht
+erreichbar, oder die übergebenen Belege sind weg -, schlägt mit dem Grund in der
+Sitzung fehl, und **Retry this step within the spending limit** führt ihn erneut
+aus, als die Person, die es erneut versucht, sobald das behoben ist. Ein Schritt
+über dem Ausgabenlimit hält bei seinem Budget an. Keiner wird von selbst erneut
+gestellt.
+
+Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
+Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
+Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
+Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
+der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
+Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
+
+Was eine Sitzung schreibt - Titel und Zusammenfassung jedes Problems und den
+vorgeschlagenen Text -, stammt aus allen Antworten, die die Person lesen konnte, als
+die sie läuft (wer sie gestartet oder ihren letzten Schritt ausgeführt hat), und
+jeder, der die Sitzung lesen darf (`runs:view` und Zugriff auf den Skill),
+liest es. Nur Zitate und Agent-Namen folgen dem Zugriff des Lesenden: Ein Zitat
+aus einem Agent, den er nicht sieht, und der Name dieses Agents werden gezählt
+statt gezeigt.
+
 Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
 und wie vielen Agents die Linie dient. Er nennt
 auch, was der Weg bis zum ersten Vorschlag und jeder Versuch danach kostet. Das
@@ -923,7 +979,8 @@ gezählt.
 
 Das Ergebnis beginnt mit einem Balken, der die Agents zählt, die besser,
 unverändert, schlechter oder unbekannt herauskamen. Darunter steht eine Zeile pro
-Agent: besser, unverändert, im Rauschen, schlechter oder unbekannt, die wichtigsten
+Agent: besser, besser bei Kriterien, unverändert, im Rauschen, schlechter bei
+Kriterien, schlechter oder unbekannt, die wichtigsten
 zuerst. Jede Zeile hat einen kleinen Balken der behobenen gegen die
 verschlechterten Fragen.
 

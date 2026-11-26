@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -19,7 +21,7 @@ export function RoutineOptions({
     if (invalid && details.current) details.current.open = true;
   }, [invalid]);
   return (
-    <details ref={details} className="group rounded-lg border">
+    <NativeDisclosure ref={details} className="group rounded-lg border">
       <summary
         data-tour="routine-advanced"
         className="focus-visible:ring-ring touch:min-h-11 flex cursor-pointer list-none items-start gap-2 rounded-lg px-3 py-3 text-sm font-medium outline-none focus-visible:ring-2 sm:px-4 [&::-webkit-details-marker]:hidden"
@@ -36,6 +38,6 @@ export function RoutineOptions({
         </span>
       </summary>
       <div className="space-y-4 border-t p-3 sm:p-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }

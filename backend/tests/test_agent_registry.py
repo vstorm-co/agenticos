@@ -41,6 +41,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentKind, AgentStatus
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate, LocalCodingAgent, PublishedCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
@@ -537,6 +538,10 @@ class TestList:
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value=set()),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(return_value={}),
             ),
@@ -611,6 +616,10 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value={version_id}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(
                     return_value={version_id: {"What can you do?": "Explore possibilities"}}
@@ -646,6 +655,8 @@ class TestList:
         assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
+        assert rows[0].show_starters is False
+        assert rows[1].show_starters is True
         assert rows[1].is_starter is (template == "general/agenticos")
         assert rows[1].setup_required is (template is not None and enabled)
         assert rows[0].setup_required is False
@@ -1971,7 +1982,8 @@ class TestValidateSpec:
             )
 
         assert refused.value.details == {
-            "problems": ["The selected model profile no longer exists"]
+            "reason": "does_not_publish",
+            "problems": ["The selected model profile no longer exists"],
         }
 
     @pytest.mark.anyio
@@ -2309,6 +2321,29 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
                 new=_batch(foreign),
             ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(collection_ids=[collection_id], model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [f"Collection not found: {collection_id}"]
+
+    @pytest.mark.anyio
+    async def test_an_app_scoped_collection_cannot_be_bound(self):
+        """An app-scoped base belongs to no organization, so no publisher reaches it."""
+        ctx = _ctx()
+        collection_id = uuid.uuid4()
+        app_base = KnowledgeBase(
+            id=collection_id, scope=KBScope.APP.value, organization_id=None, collection_name="kb"
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(app_base)),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
@@ -3611,6 +3646,10 @@ class TestArchiveAndDelete:
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
             patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
             patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purge_board,
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(return_value=0),
+            ) as purge_sessions,
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -3625,6 +3664,9 @@ class TestArchiveAndDelete:
         # stored webhook ids the hooks are removable by are gone for good.
         triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
         purge_board.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
 
 class TestGetVersion:
@@ -4874,8 +4916,21 @@ class TestBrowserRefusedAtPublish:
         return problems
 
     @pytest.mark.anyio
-    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
-        assert any("needs a cdp_url" in problem for problem in await self._problems({}))
+    async def test_a_builtin_browser_without_an_endpoint_does_not_prevent_publish(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        spec = _spec(
+            capabilities=[{"id": "browser_use", "config": {}}], model_profile_id=uuid.uuid4()
+        )
+        await _publishes(spec)
+
+    @pytest.mark.anyio
+    async def test_a_proxy_browser_still_requires_its_cdp_endpoint(self):
+        assert any(
+            "needs a cdp_url" in problem
+            for problem in await self._problems({"connection": "proxy"})
+        )
 
     @pytest.mark.anyio
     async def test_a_host_the_operator_has_not_vetted_is_refused(self):
@@ -5051,7 +5106,9 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
         with (
             patch.object(service, "get", new=AsyncMock(return_value=agent)),
             patch.object(service, "validate_spec", new=AsyncMock()),
-            patch.object(service, "_move_environments_that_follow", new=AsyncMock()),
+            patch.object(
+                service, "_move_environments_that_follow", new=AsyncMock(return_value=set())
+            ),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.create_version",
@@ -5185,9 +5242,11 @@ class TestAgentTemplates:
         first.key, first.name, first.description = "healthcare/a", "Procedure Assistant", "d"
         first.capabilities, first.skills, first.mcp, first.attach = ({"id": "clock"},), (), (), ()
         first.budget_usd = None
+        first.avatar.read_bytes.return_value = b"art"
         second.key, second.name, second.description = "healthcare/b", "Front Desk", "d"
         second.capabilities, second.skills, second.mcp, second.attach = (), (), (), ()
         second.budget_usd = 40.0
+        second.avatar = None
         industry.templates = [first, second]
 
         with (
@@ -5203,6 +5262,12 @@ class TestAgentTemplates:
             ("Procedure Assistant", True),
             ("Front Desk", False),
         ]
+
+        installed, available = catalog.industries[0].templates
+        assert installed.slug == "procedure-assistant"
+        assert installed.avatar_url == "data:image/png;base64,YXJ0"
+        assert available.slug == "front-desk"
+        assert available.avatar_url is None
 
     @pytest.mark.anyio
     async def test_installing_a_template_leaves_a_draft_with_no_model(self):
@@ -5937,7 +6002,15 @@ class TestUndoingADraft:
         )
         purge = AsyncMock()
         monkeypatch.setattr("app.services.tasks.TaskService.purge_scope", purge)
+        purge_sessions = AsyncMock(return_value=0)
+        monkeypatch.setattr(
+            "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+            purge_sessions,
+        )
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
         purge.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
         delete.assert_awaited_once_with(db, agent)
@@ -6440,3 +6513,142 @@ async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
             AsyncMock(return_value={uuid.UUID(profile.fallback_profile_ids[0]): fallback}),
         ):
             assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]
+
+
+@pytest.fixture(autouse=True)
+def organization_key_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing listing fixtures publish organization-key agents unless overridden."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.agent_repo.published_personal_model_keys",
+        AsyncMock(return_value=set()),
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("surface", ["channel", "embed", "trigger", "none", "unattached", "a2a"])
+async def test_personal_model_publish_refuses_existing_noninteractive_surfaces(surface: str):
+    from app.db.models.credential import ModelProfile
+
+    ctx, agent_id = _ctx(), uuid.uuid4()
+    service = AgentRegistryService(_db())
+    chosen = _spec(model_profile_id=uuid.uuid4(), model_credential_mode="personal")
+    profile = ModelProfile(
+        id=chosen.model_profile_id,
+        label="Gateway",
+        provider="openai",
+        model="gpt-5",
+        base_url="https://approved.example/v1",
+        fallback_profile_ids=[],
+        api="chat",
+        secret_id=None,
+    )
+    row = _agent(ctx, a2a_enabled=surface == "a2a")
+    with (
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profile", AsyncMock(return_value=profile)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=row)),
+        patch(
+            f"{REGISTRY_PATH}.agent_exposure_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "channel" else []),
+        ),
+        patch(
+            "app.repositories.agent_embed_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "embed" else []),
+        ),
+        patch(
+            f"{REGISTRY_PATH}.agent_trigger_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "trigger" else []),
+        ),
+    ):
+        if surface in {"none", "unattached"}:
+            await service.validate_spec(
+                ctx, chosen, agent_id=agent_id if surface == "none" else None
+            )
+        else:
+            with pytest.raises(BadRequestError) as refused:
+                await service.validate_spec(ctx, chosen, agent_id=agent_id)
+            assert any(
+                field["field"] == "model_credential_mode"
+                for field in refused.value.details["fields"]
+            )
+        profile.fallback_profile_ids = [str(uuid.uuid4())]
+        assert (
+            "fallback" in (await service.model_profile_problems(ctx, profile.id, personal=True))[0]
+        )
+
+
+@pytest.mark.anyio
+async def test_promoting_a_personal_model_version_rechecks_surface_compatibility():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    chosen = _spec(model_credential_mode="personal")
+    version = _version(uuid.uuid4(), spec=chosen)
+    with (
+        patch.object(service, "get", AsyncMock()),
+        patch.object(service, "validate_spec", AsyncMock()) as validate,
+    ):
+        await service.refuse_borrowed_sign_ins(ctx, version)
+        validate.assert_awaited_once_with(ctx, chosen, agent_id=version.agent_id)
+
+
+@pytest.mark.anyio
+async def test_a_personal_model_agent_cannot_be_enabled_as_an_a2a_service():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, draft_spec=_spec(model_credential_mode="personal").model_dump(mode="json"))
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        pytest.raises(BadRequestError, match="signed-in web chat"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)
+
+
+@pytest.mark.anyio
+async def test_a_personal_published_version_cannot_serve_a2a_after_editing_the_draft():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, draft_spec=_spec().model_dump(mode="json"), current_version_id=uuid.uuid4())
+    version = _version(row.id, spec=_spec(model_credential_mode="personal"))
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=version)),
+        pytest.raises(BadRequestError, match="signed-in web chat"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("personal", [True, False])
+async def test_pins_allow_both_personal_and_organization_model_modes(personal: bool) -> None:
+    from app.agents.spec import SubagentRef
+
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    child = _agent(ctx, status=AgentStatus.PUBLISHED.value)
+    version = _version(
+        child.id,
+        spec=_spec(model_credential_mode="personal" if personal else "organization"),
+    )
+    with (
+        patch(f"{REGISTRY_PATH}.agent_repo.get_many", AsyncMock(return_value={child.id: child})),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=version)),
+        patch(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True)),
+    ):
+        resolved = await service._resolve_pins(
+            ctx, [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
+        )
+    assert resolved.problems == []
+    assert [delegate.version_id for delegate in resolved.delegates] == [version.id]
+    assert resolved.handles == [child.slug]
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a2a_cannot_be_enabled_when_the_selected_version_cannot_be_read() -> None:
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, current_version_id=uuid.uuid4())
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=None)),
+        patch(f"{REGISTRY_PATH}.agent_repo.update", AsyncMock()) as update,
+        pytest.raises(NotFoundError, match="Agent version not found"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)
+    update.assert_not_awaited()

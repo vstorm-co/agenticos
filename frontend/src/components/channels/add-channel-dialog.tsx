@@ -55,6 +55,7 @@ import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const PLATFORMS: readonly ChannelPlatform[] = [
   "discord",
+  "matrix",
   "mattermost",
   "slack",
   "teams",
@@ -78,6 +79,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
   // i18n-exempt: a product\'s own name, written the same in every language
   whatsapp: "WhatsApp",
 };
@@ -93,6 +95,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   imessage: "botTokenHintImessage",
 
   discord: "botTokenHintDiscord",
+  matrix: "botTokenHintMatrix",
   whatsapp: "botTokenHintWhatsapp",
 };
 
@@ -194,11 +197,12 @@ export function AddChannelDialog({
         : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Mattermost is self-hosted: without its server's address a bot cannot reply,
-  // cannot open its event stream and cannot fetch an attachment, so the backend
-  // refuses to save one. Said here rather than after the round trip.
+  // Mattermost and Matrix are self-hosted: without its server's address a bot
+  // cannot reply, cannot open its event stream and cannot fetch an attachment, so
+  // the backend refuses to save one. Said here rather than after the round trip.
   const missingServerUrl =
-    (platform === "mattermost" || platform === "imessage") && serverUrl.trim() === "";
+    (platform === "mattermost" || platform === "matrix" || platform === "imessage") &&
+    serverUrl.trim() === "";
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
@@ -282,7 +286,8 @@ export function AddChannelDialog({
         token: token.trim(),
         // Absent rather than empty, like the token itself: the backend applies
         // what it was sent, and a blank string is a value.
-        ...((platform === "mattermost" || platform === "imessage") && serverUrl.trim()
+        ...((platform === "mattermost" || platform === "matrix" || platform === "imessage") &&
+        serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
         ...((["mattermost", "email", "whatsapp"] as ChannelPlatform[]).includes(platform) &&
@@ -396,7 +401,13 @@ export function AddChannelDialog({
                   <SelectContent>
                     {PLATFORMS.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {PLATFORM_LABEL[option]}
+                        <span className="flex items-center gap-2">
+                          <ChannelPlatformIcon
+                            platform={option}
+                            className="h-5 w-5 bg-transparent"
+                          />
+                          {PLATFORM_LABEL[option]}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -486,6 +497,24 @@ export function AddChannelDialog({
                     />
                   </FormField>
                 </div>
+
+                {platform === "matrix" && (
+                  <FormField
+                    label={t("matrixHomeserverUrl")}
+                    htmlFor="matrix-homeserver-url"
+                    description={t("matrixHomeserverUrlHint")}
+                    error={errors.api_base_url}
+                    required
+                  >
+                    <Input
+                      id="matrix-homeserver-url"
+                      value={serverUrl}
+                      onChange={(event) => setServerUrl(event.target.value)}
+                      placeholder="https://matrix.example.org"
+                      maxLength={MAX_URL}
+                    />
+                  </FormField>
+                )}
 
                 {platform === "whatsapp" && (
                   <div className="space-y-5">

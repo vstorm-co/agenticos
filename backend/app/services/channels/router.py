@@ -59,6 +59,7 @@ from app.services.channels.base import (
     channel_key,
     is_run_control,
     memory_room_key,
+    platform_name,
     split_thread,
 )
 from app.services.channels.dedupe import (
@@ -70,7 +71,7 @@ from app.services.channels.dedupe import (
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
-from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.exceptions import ChannelNotConfigured, PartlyDelivered
 from app.services.channels.formatting import (
     LINK_ACCOUNT_INSTRUCTION,
     PICTURE_DELIVERY_UNCONFIRMED,
@@ -78,6 +79,7 @@ from app.services.channels.formatting import (
     STRANGER_REFUSAL,
     WAITS_FOR_A_PERSON,
 )
+from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -324,6 +326,22 @@ class Admission:
 
 
 @dataclass(frozen=True)
+class ChatTurn:
+    """What `admission` reads of a turn that has no run: a routine's chat post.
+
+    Exactly the attributes of an `AgentRun` the standing checks consult.
+    """
+
+    organization_id: UUID
+    surface: str
+    conversation_id: UUID | None
+    channel_identity_id: UUID | None
+    agent_id: UUID
+    initiated_by_publisher_fallback: bool
+    user_id: UUID | None
+
+
+@dataclass(frozen=True)
 class _Passed:
     """What `ChannelMessageRouter._standing` returns for a sender nothing refuses."""
 
@@ -354,7 +372,7 @@ class ChannelMessageRouter:
         )
 
     async def admission(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage
     ) -> Admission:
         """Whether the chat a run came from still admits the person it was asked of.
 
@@ -398,7 +416,7 @@ class ChannelMessageRouter:
         return Admission("admitted", "member")
 
     async def _standing(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage, *, strict: bool
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage, *, strict: bool
     ) -> str | _Passed:
         """The bot, the chat and the sender's standing, short of the platform's membership answer.
 
@@ -439,6 +457,10 @@ class ChannelMessageRouter:
             identity is None
             or identity.platform != incoming.platform
             or identity.platform_user_id != incoming.platform_user_id
+            or (
+                bot.platform == "matrix"
+                and identity.server_url != identity_scope(bot).get("server_url")
+            )
         ):
             return "identity"
         exposure = await agent_exposure_repo.get_for_bot(
@@ -544,9 +566,9 @@ class ChannelMessageRouter:
                 if (receipt := current_receipt()) is not None:
                     from functools import partial
 
-                    from app.services.channels.ingress import collect_steering
+                    from app.services.channels.ingress import poll_steering
 
-                    inbox.poll = partial(collect_steering, receipt, incoming)
+                    inbox.poll = partial(poll_steering, receipt, incoming)
                 _in_flight[key] = InFlight(inbox=inbox, sender=incoming.platform_user_id)
                 try:
                     with steerable(inbox):
@@ -820,8 +842,10 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = await self._load_history(db, session.conversation_id)
-        history.extend(thread_history)
+        history = await self._load_history(
+            db, session.conversation_id, chat_type=incoming.chat_type
+        )
+        history.extend_public_context(thread_history)
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -942,7 +966,17 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             token = unseal_bot_token(bot)
             try:
-                await adapter.update_reply(token, self._message(bot, incoming, text), handle)
+                ends_at = await adapter.update_reply(
+                    token, self._message(bot, incoming, text, final=True), handle
+                )
+            except PartlyDelivered:
+                # The edit landed and some of the continuation did: posting the
+                # answer whole would repeat what is already there. Unrated, as
+                # the answer on screen is not the whole of it.
+                logger.warning("live reply final edit partly delivered", exc_info=True)
+                if answered.image_png is None and not answered.attachments:
+                    return True
+                text = ""
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -954,7 +988,7 @@ class ChannelMessageRouter:
                 )
             else:
                 if rated is not None:
-                    await self._offer_feedback(bot, incoming, text, handle, rated)
+                    await self._offer_feedback(bot, incoming, text, ends_at or handle, rated)
                 if answered.image_png is None and not answered.attachments:
                     return True
                 text = ""
@@ -1265,8 +1299,10 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             try:
                 await adapter.update_reply(
-                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                    unseal_bot_token(bot), self._message(bot, incoming, message, final=True), handle
                 )
+            except PartlyDelivered:
+                logger.warning("live reply failure edit partly delivered", exc_info=True)
             except Exception:
                 logger.warning(
                     "live reply failure edit failed; posting the message whole", exc_info=True
@@ -1315,7 +1351,12 @@ class ChannelMessageRouter:
 
     @staticmethod
     def _message(
-        bot: ChannelBot, incoming: IncomingMessage, text: str, *, in_reply: bool = False
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        text: str,
+        *,
+        in_reply: bool = False,
+        final: bool = False,
     ) -> OutgoingMessage:
         """One outgoing message for the chat this one arrived in.
 
@@ -1329,6 +1370,7 @@ class ChannelMessageRouter:
             text=text,
             reply_to_message_id=incoming.message_id if in_reply else None,
             api_base_url=getattr(bot, "api_base_url", None),
+            final=final,
         )
 
     async def _post_placeholder(
@@ -1783,6 +1825,12 @@ class ChannelMessageRouter:
         a live message carries one, and a sender rebuilt from a run has none. A
         bot that approves no server refuses every server channel, id or not.
         """
+        if incoming.platform == "matrix":
+            server = identity_scope(bot).get("server_url")
+            if server is None or incoming.raw.get("server_url") != server:
+                raise AuthorizationError(
+                    message="The Matrix message does not belong to this homeserver"
+                )
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
         server_unknown = False
@@ -1805,12 +1853,14 @@ class ChannelMessageRouter:
                 )
         elif mode == "group_only":
             allowed: list[str] = [str(x) for x in policy.get("allowed_groups", [])]
+            native_group = channel_key(incoming.platform_chat_id)
+            if incoming.platform == "matrix":
+                from app.services.channels.matrix_protocol import room_of
+
+                native_group = room_of(native_group)
             # The room as well as the conversation: a key that folds a thread in
             # (`channel:thread`) is not the id a group is listed under.
-            if (
-                str(incoming.platform_chat_id) not in allowed
-                and channel_key(incoming.platform_chat_id) not in allowed
-            ):
+            if str(incoming.platform_chat_id) not in allowed and native_group not in allowed:
                 raise AuthorizationError(
                     message=policy.get(
                         "denied_message", "This bot is only available in specific groups."
@@ -2076,7 +2126,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{channel_name(incoming.platform)} Chat",
+                    title=f"{platform_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -2143,6 +2193,7 @@ class ChannelMessageRouter:
             platform_username=incoming.platform_username,
             platform_display_name=incoming.platform_display_name,
             user_id=None,
+            **identity_scope(bot),
         )
         if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
             # Dropped rather than refused: the person is asked to link again like any
@@ -2288,7 +2339,7 @@ class ChannelMessageRouter:
         Linking a platform identity authenticates the sender; it does not authorize
         a bot or bridge to receive the person's pre-existing console history.
         """
-        title = f"{channel_name(incoming.platform)} Chat"
+        title = f"{platform_name(incoming.platform)} Chat"
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
         )
@@ -2452,7 +2503,10 @@ class ChannelMessageRouter:
             return
         try:
             await get_adapter(incoming.platform).acknowledge_message(
-                unseal_bot_token(bot), incoming, bot.ack_reaction
+                unseal_bot_token(bot),
+                incoming,
+                bot.ack_reaction,
+                api_base_url=bot.api_base_url,
             )
         except Exception:
             logger.warning("Could not react to a message on %s", incoming.platform, exc_info=True)
@@ -2656,6 +2710,7 @@ class ChannelMessageRouter:
                     platform=incoming.platform,
                     platform_user_id=post.author_id,
                     platform_username=post.author if post.author != post.author_id else None,
+                    **identity_scope(bot),
                 )
                 if post.author_id
                 else None
@@ -2843,6 +2898,7 @@ class ChannelMessageRouter:
                 platform=incoming.platform,
                 platform_user_ids=author_ids,
                 organization_id=bot.organization_id,
+                **identity_scope(bot),
             )
             filters.append(
                 lambda post: (
@@ -2854,7 +2910,9 @@ class ChannelMessageRouter:
         return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
-    async def _load_history(db: AsyncSession, conversation_id: UUID | None) -> ModelHistory:
+    async def _load_history(
+        db: AsyncSession, conversation_id: UUID | None, *, chat_type: str = "private"
+    ) -> ModelHistory:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -2869,4 +2927,8 @@ class ChannelMessageRouter:
         """
         if conversation_id is None:
             return ModelHistory([], revision=None)
-        return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)
+        return await ConversationService(db).model_history(
+            conversation_id,
+            limit=HISTORY_MESSAGES,
+            public_transcript_only=chat_type != "private",
+        )

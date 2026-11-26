@@ -310,6 +310,7 @@ class TestTheSweep:
             "delete_finished_device_waits": AsyncMock(return_value=0),
             "delete_runs_keeping_their_spend": AsyncMock(return_value=(counts.get("runs", 0), [])),
             "delete_workspaces": AsyncMock(return_value=counts.get("workspaces", 0)),
+            "lock_expiring_coding_workspaces": AsyncMock(return_value=[]),
             "delete_memory": AsyncMock(return_value=counts.get("memory", 0)),
             "stored_paths_for_expiring_conversations": AsyncMock(return_value=[]),
             "expiring_documents": AsyncMock(return_value=[]),
@@ -322,6 +323,7 @@ class TestTheSweep:
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(f"{MODULE}.retention_repo.{name}", mock)
+        monkeypatch.setattr(f"{MODULE}.SandboxWorkspaceService.purge_for_conversation", AsyncMock())
         # One active member, matching the budget the table-sweep tests below already assume.
         monkeypatch.setattr(f"{MODULE}.member_repo.count_active_for_org", AsyncMock(return_value=1))
         return mocks
@@ -536,7 +538,7 @@ class TestTheSweep:
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch)
-        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb", "vec", None, SCOPE)]
+        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb", "vec", None, SCOPE, None)]
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
@@ -619,7 +621,7 @@ class TestTheSweep:
         repo = self._repo(monkeypatch)
         document_id = uuid.uuid4()
         repo["expiring_documents"].side_effect = [
-            [(document_id, "kb_main", "vec-1", "uploads/a.pdf", SCOPE)],
+            [(document_id, "kb_main", "vec-1", "uploads/a.pdf", SCOPE, "snapshots/a.jsonl")],
             [],
         ]
         repo["delete_documents"].return_value = 1
@@ -629,7 +631,7 @@ class TestTheSweep:
         results = await service.sweep(now=NOW)
 
         remove_vectors.assert_awaited_once_with("kb_main", "vec-1", SCOPE)
-        assert queued.await_args.kwargs["required_paths"] == ["uploads/a.pdf"]
+        assert queued.await_args.kwargs["required_paths"] == ["uploads/a.pdf", "snapshots/a.jsonl"]
         assert repo["delete_documents"].await_args.kwargs["document_ids"] == [document_id]
         assert results[0].removed["knowledge_documents"] == 1
 
@@ -648,8 +650,8 @@ class TestTheSweep:
         repo = self._repo(monkeypatch)
         repo["expiring_documents"].side_effect = [
             [
-                (uuid.uuid4(), "kb_org", "vec-org", None, SCOPE),
-                (uuid.uuid4(), "kb_app", "vec-app", None, None),
+                (uuid.uuid4(), "kb_org", "vec-org", None, SCOPE, None),
+                (uuid.uuid4(), "kb_app", "vec-app", None, None, None),
             ],
             [],
         ]
@@ -674,7 +676,9 @@ class TestTheSweep:
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch)
-        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb_main", None, None, SCOPE)]
+        repo["expiring_documents"].return_value = [
+            (uuid.uuid4(), "kb_main", None, None, SCOPE, None)
+        ]
         repo["delete_documents"].return_value = 1
         queued = self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())

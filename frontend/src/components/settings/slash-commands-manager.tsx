@@ -288,6 +288,8 @@ export function SlashCommandsManager() {
         }
       >
         <DataTable
+          clientPagination
+          fillHeight
           columns={columns}
           className="rounded-none border-0 bg-transparent"
           rows={rows}

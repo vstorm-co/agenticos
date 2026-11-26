@@ -367,6 +367,19 @@ fails with `MAPPING_COERCION_FAILED` and names the field.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.value { #data-value }
+
+**Data** holds one value for later steps: an object, a list, or a single number,
+text or boolean. Type it in as JSON, or bind it whole from an earlier output. The
+step hands it on unchanged as `value`, and a later step binds to the whole value
+or to a path into it, such as `value.customer.email`.
+
+The value is set once per run and is never overwritten. A step's output is fixed
+when the step completes, so no later step can change it: Data is a named
+constant, not a variable. To change a value, add a step that builds a new one
+from it. To collect values from the items of a loop, use `loop.yield`. A draft
+run of a Data step with no value fails with `DATA_NOT_SET`.
+
 ## data.filter and data.combine { #data-filter-and-data-combine }
 
 **Filter a list** keeps the items of a bound list for which a JMESPath condition
@@ -635,6 +648,12 @@ typed sources, best first. An empty result is a successful search. A
 collection that is gone, or no longer readable by the run's principal, fails
 the step with `COLLECTION_NOT_ACCESSIBLE`. The step never searches fewer
 collections than the graph names.
+
+Collections that share a collection name are searched together, each under its
+own base. One that shares its name with another of a different scope - an
+app-wide collection and an organization's - cannot be, so publishing refuses
+the step and a run fails it with `COLLECTIONS_SHARE_STORAGE`; search them in
+separate steps.
 
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
@@ -1104,6 +1123,8 @@ can go on with the run. Every run has its own, made from its id under the
 deployment's secret and shown to nobody else: holding it is what lets a caller
 resume the run, so it is sent only where the answer should come from.
 
+Retrying starts a different run. A Resume link step, including one called from Python, generates a link for the new run. This does not redirect an old link or resend a message that already delivered it.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Error handling { #error-handling }
@@ -1251,6 +1272,8 @@ Four more steps read what the organization's tables are, and change nothing.
 create its table the first time it runs and reuse it after. The two questions
 leave by exactly one port, and a `logic.merge` can join the branches again.
 
+`table.record.exists` and `table.record.query` accept select option labels as well as IDs in saved filters. They resolve labels against the current table before querying; unknown or ambiguous labels remain validation errors.
+
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 
 ::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
@@ -1321,7 +1344,37 @@ Sandbox output is also capped while streaming it from the host. A file that grow
 
 ## Python { #python }
 
-Two nodes run Python, for two kinds of work.
+**Python with actions** (`code.python.actions`) runs your script without a model. Bind each action once under a Python name and configure its resources. Pass the action's input fields as keyword arguments; the function returns the same output object as its canvas step. You can also pass data fields that the action marks as bindable, such as a filename or URL. A bindable field that the action requires, such as the HTTP URL, may be left unset when you bind the action. Supply it in each call instead. Credentials and permissions stay fixed.
+
+For example, bind **Compare texts** as `compare`. The expression `compare(a=args["expected"], b=args["actual"])["score"]` passes just the similarity score to the next step as `result`.
+
+For **Call an MCP tool**, select the connection and tool once. If the function name is `lookup`, call `lookup(arguments={"hostname": "leaf-01"})` and read its `structured` or `text` field. An action failure follows the Python step's workflow error policy, not a Python `except` clause. Use a normal result, such as an approval decision, for branches you expect.
+
+Calls run in order, up to 100 per script. The interpreter saves its place before each call (up to 512 KiB of interpreter state). An approval belongs to that call, not the entire script. A write whose outcome is unknown follows the action's own recovery rules. Retrying a failed run reuses completed calls with matching arguments; it does not silently repeat an unconfirmed write. Triggers, graph routing and both Finish steps stay on the canvas.
+
+Replaying a stored result reserves no budget. If a pure action or an HTTP GET receives different arguments on retry, the same bound action runs again with the new values. A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
+
+The timeout caps total Python execution time across all segments of a script. Time spent waiting for an action, approval or reply does not count. The memory limit caps the interpreter's heap while it runs.
+
+A paused **Python with actions** step can only resume with the Monty version that saved it. Before deploying a release that changes the pinned `pydantic-monty` version, let paused scripts finish on the old version. If a script was still paused at the change, it fails with `PYTHON_CHECKPOINT_INVALID`. Use **Retry from failed step** on the run.
+
+| What happened | Result |
+|---|---|
+| A call names an unbound function or an object method | `PYTHON_ACTION_UNKNOWN` |
+| A call uses positional arguments or values that are not JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Keyword arguments do not match the bound action | `INVALID_BINDING` |
+| Several calls are awaited at once | `PYTHON_ACTION_ASYNC` |
+| The script makes a 101st call | `PYTHON_ACTION_LIMIT` |
+| The call arguments exceed the inline byte limit | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| The interpreter state at a call exceeds 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| The interpreter cannot restore a saved checkpoint | `PYTHON_CHECKPOINT_INVALID`, never bypassed |
+| A bound action or its resources are no longer available to the run | `SCRIPT_ACTION_UNAVAILABLE`, the run ends |
+| A retry cannot prove an earlier write was not sent | `SCRIPT_ACTION_RETRY_UNSAFE`, the run ends |
+| The script exhausts its Python time or memory limit | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound

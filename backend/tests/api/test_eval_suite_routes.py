@@ -84,11 +84,13 @@ _RESULT = EvalSuiteResultRead(
     settled_at=None,
 )
 _RUN_ESTIMATE = EvalRunEstimate(
+    dataset_version=1,
     cases=1,
     arms=[],
     judge_usd=Decimal(0),
     total_usd=Decimal("0.05"),
     rerun_ceiling_usd=Decimal("0.10"),
+    expected_usd=Decimal("0.10"),
     agent_remaining_usd=None,
     org_remaining_usd=None,
     agent_after_usd=None,

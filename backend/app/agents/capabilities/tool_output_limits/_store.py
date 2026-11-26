@@ -19,7 +19,7 @@ store per-run and process-local rather than on shared disk.
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from pydantic_ai.workspaces import WorkspaceError
 
@@ -53,6 +53,17 @@ class OverflowWriteError(Exception):
     """
 
 
+@runtime_checkable
+class OverflowWorkspace(Protocol):
+    """A routing workspace pins spill handles to their owning executor."""
+
+    async def write_overflow(
+        self, path: str, data: bytes, *, spill_log: list[str] | None
+    ) -> str: ...
+
+    async def read_overflow(self, handle: str) -> bytes: ...
+
+
 @dataclass
 class WorkspaceOverflowStore:
     """An `OverflowStore` over the run's workspace.
@@ -73,8 +84,12 @@ class WorkspaceOverflowStore:
     nothing to delete."""
 
     async def write(self, key: str, data: bytes) -> str:
-        handle = await self.workspace.resolve(f"{self.prefix}/{key}")
         try:
+            if isinstance(self.workspace, OverflowWorkspace):
+                return await self.workspace.write_overflow(
+                    f"{self.prefix}/{key}", data, spill_log=self.spill_log
+                )
+            handle = await self.workspace.resolve(f"{self.prefix}/{key}")
             await self.workspace.write_bytes(handle, data)
         except (OSError, WorkspaceError) as refused:
             raise OverflowWriteError(str(refused)) from refused
@@ -83,4 +98,6 @@ class WorkspaceOverflowStore:
         return handle
 
     async def read(self, handle: str) -> bytes:
+        if isinstance(self.workspace, OverflowWorkspace):
+            return await self.workspace.read_overflow(handle)
         return await self.workspace.read_bytes(handle)

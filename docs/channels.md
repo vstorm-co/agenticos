@@ -1224,7 +1224,7 @@ Inbound `references` must be a list of strings without CR or LF; retained entrie
    commands and messages from the messages tab*. Without it Slack hides the
    bot's message box and a direct message is impossible.
 8. Publish the agent, then bind it: Builder → the agent → **Availability** → the
-   bot.
+   bot, or **Channels** → the bot's row → **Bind agent**.
 9. Invite the bot to a channel — `/invite @your-bot` — and mention it.
 
 !!! tip "Or paste a manifest and skip steps 2, 4, 6 and 7"
@@ -1409,11 +1409,11 @@ that one in too, or the bot keeps the access it had.
     to the container log and nowhere else.
 
     The rest is still silent, and this is the order to check it in: no agent
-    bound to the bot (the row says so), a missing scope or event subscription,
-    then a wrong `BOT_ID` in the Request URL. That last one cannot report
-    itself: the events route answers **200 and does nothing** for a bot id it
-    cannot find, on purpose, because a prober should learn only that the
-    endpoint exists - which the URL already said.
+    bound to the bot, or its binding paused (the row says which), a missing
+    scope or event subscription, then a wrong `BOT_ID` in the Request URL. That
+    last one cannot report itself: the events route answers **200 and does
+    nothing** for a bot id it cannot find, on purpose, because a prober should
+    learn only that the endpoint exists - which the URL already said.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
@@ -1495,6 +1495,11 @@ does, beside `/new`, `/link` and `/help` - shows *typing…* while it works and
 names the step it is on, sends answers as Telegram HTML converted from the
 agent's Markdown so code blocks and links survive, and answers a forum group's
 topic in that topic.
+
+A streamed answer is formatted the same way once it is
+finished. List items start with `•`, and a task list shows ☐ and ☒. An answer
+longer than Telegram's 4096 characters arrives as several messages, and a code
+block cut between two of them is closed and opened again.
 
 ## Mattermost
 
@@ -1819,6 +1824,118 @@ Directory access takes priority when both sources grant membership. At sign-in,
 a directory grant takes over the Discord-managed row; when it ends, a remaining
 Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+A Matrix bot is an ordinary account on your own homeserver, spoken to over the
+Client-Server API with no library between (#2081). Everything arrives over the
+bot's `/sync` long-poll, so **a deployment needs no public address for Matrix**,
+and a Matrix bot has no webhook mode. Where the bot stopped reading is kept in
+the deployment's Redis, so a restart resumes there. The first start of an account
+skips the room history rather than answering it.
+
+A limited `/sync` batch is recovered in chronological pages of 50 from the last
+saved sync cursor, including after a restart. Each page is admitted before the
+next is read; the cursor advances only after the whole batch succeeds.
+
+!!! warning "Unencrypted rooms only, for now"
+
+    The bot reads rooms without end-to-end encryption. It declines an
+    invitation to an encrypted room or direct chat, with a reason the inviter
+    sees, and stays silent in a room whose encryption is switched on later.
+    Encryption is the second stage of #2081. The adapter checks current room
+    encryption before admitting messages and before posting replies, edits or
+    reactions. If the state cannot be read, it sends no plaintext.
+    If the invitation omits encryption state, the bot checks after joining and
+    leaves when encryption is present.
+
+1. Create an account for the bot on the homeserver, for example `@agent:example.org`.
+2. Get an **access token** for it:
+    - On a homeserver behind the Matrix Authentication Service (MAS), issue a
+      compatibility token on the MAS host:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 and later
+      can also create a personal session in the account's settings.
+    - On a homeserver without MAS, sign in once with the account's password:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      and keep `access_token` from the answer. Do not sign that session out: its
+      token is the bot's.
+3. Register it: **Channels → Add channel**, platform `matrix`, with the token and
+   the homeserver's **client URL** (`https://matrix.example.org`). When the
+   stream opens, the bot asks the homeserver who it is. A token the homeserver
+   rejects stops the bot, and its row says so.
+4. Invite the bot to a room, or start a direct chat with it. It joins when the
+   person inviting is someone its access policy admits, and declines otherwise.
+
+**Lift the rate limit for the bot.** An answer is one message edited once a
+second while it streams, and Synapse's default message rate limit throttles that
+after a few seconds. The bot waits when the homeserver says how long, so nothing
+is lost, but a long answer then appears in jumps. On Synapse, an administrator
+exempts the bot with
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` and
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Where | When it answers |
+|---|---|
+| A direct chat (a room of the bot and one person) | Every message |
+| A room | When the message mentions the bot. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot was asked in | Every message in it |
+
+A mention is the bot named in the message's `m.mentions`, a pill linking to it,
+or a typed handle: `@` and the bot's user ID, localpart or display name, as in
+`@AgenticOS what can you do?`. Some clients send a typed handle as plain text,
+so it counts without a pill. The name without the `@`, a handle inside code and
+a longer handle such as `@agent-ops` do not.
+
+`@room` is answered only when the bot's policy says to answer
+channel-wide mentions. Like everywhere else, a direct chat is threaded too: a
+reply in the answer's thread continues the conversation, and a new message at
+the bottom starts a new one.
+
+**The answer is written in place.** The bot posts one message and edits it with
+`m.replace` as the answer streams. Past 4,000 characters the answer runs into
+further messages in the same thread. Only text the guardrails have already
+screened is written. Nothing the bot posts can notify anybody: every message
+carries an empty `m.mentions`. Answers are sent as Markdown rendered to HTML, and
+HTML in the model's output is escaped, never sent as markup.
+
+**Approvals and questions are numbered.** Matrix has no buttons, and polls are
+not in the specification, so a prompt lists its choices as numbered lines in the
+thread. A reply that is just the number decides it, as with
+[SMS](#sms). The bot reacts with 👀 to a question as it arrives, and shows that
+it is typing while it works.
+
+**Commands in Element.** Element reads a message that starts with `/` as one of
+its own commands. `/help` opens Element's own help and never reaches the bot.
+Any other bot command, such as `/new` or `/link`, opens Element's *Unknown
+command* dialog, where **Send as message** sends it. Starting the message with
+`//`, as in `//help`, sends it straight away.
+
+Private-chat classification rechecks current joined members before every message,
+so a silent third joiner cannot retain private access. Group classifications
+are cached only within the current sync batch. Private replies, edits, prompts
+and uploads also recheck the original recipient immediately before delivery,
+including resumed runs. A room gaining members or replacing the recipient cannot
+receive that private turn; group turns use a separate conversation.
+
+Media downloads do not follow redirects. The homeserver must serve authenticated
+media directly; redirected CDN downloads are refused.
+
+**Files** people post are fetched over the homeserver's authenticated media with
+the bot's token, up to the upload limit; files and charts the agent sends are
+uploaded the same way. **A thread the bot is brought into partway is read first**,
+as on Slack and Mattermost. Each message is read as its latest edit says, and
+files the bot posted itself are left out. Where the binding allows it, the agent
+can describe the room, list its members and read its history.
+
+**Who is speaking** is the Matrix user ID (`@ada:example.org`) together with the
+configured homeserver client URL. `/link` confirms that pair; another homeserver
+requires a separate link, even if it claims the same user ID. The confirmation
+page and connected accounts show the server URL. Host case, default ports and
+trailing slashes are normalized; different paths remain separate authorities.
+Changing the bot's server cannot resume an old identity or send an old answer
+through the new server. A conversation from a room is shown in the console to
+those still joined to that room.
+
 ## WhatsApp { #whatsapp }
 
 Verified inbound messages and closed-window delivery statuses are admitted to durable PostgreSQL jobs in the webhook transaction. Run the `agent` and `system` worker pools. A worker checks that the bot is still active in the same organization before processing. Jobs serialize each customer’s batches and retry failures; this is at-least-once processing, not an exactly-once guarantee for external sends. Queued payloads contain message text and sender metadata in the local deployment, never in AgenticOS Bridge. Job retention applies; Forget this customer removes non-running delivery jobs, while running work may finish.
@@ -2069,8 +2186,8 @@ entry records the counts. What it does not reach is listed in
 
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
-Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream, the Discord
+Gateway and the Matrix sync all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`
@@ -2199,6 +2316,16 @@ show a duplicate if a send succeeded but its acknowledgement was lost; this is
 at-least-once delivery, not a promise of exactly-once messages. Exhausted attempts
 are visible in **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Routine answers in a private chat { #routine-answers-in-a-private-chat }
+
+A routine made in a private chat on Telegram, Slack, Mattermost, Teams, Discord or Matrix that opens a new chat for each run (`chat_mode=per_run`) also has the bot post each run's answer to the chat it was made in, so the person reads it where they asked for it. The whole run stays in its own console chat.
+
+The private-chat routine send has one durable attempt. If the worker stops or the platform does not confirm acceptance, it is marked unavailable rather than sent automatically again; the complete answer remains in the console. This favors avoiding duplicate messages over retrying an uncertain send.
+
+Before it posts, the platform checks again the creator's linked account, their membership, the bound agent and the conversation. While the post is waiting, the routine reads **Sending last answer to chat**. When the chat accepts the answer, the status is `delivered`. When the chat cannot take it, the routine reads **Last answer unavailable in chat** and its owner gets a notice. The answer stays in the run log.
+
+A routine with one shared history (`chat_mode=shared`) posts nothing to the chat. Group chats, SMS, iMessage and email keep the answer in the console. After `/new` the old conversation is no longer the chat's, so later answers stay in the console. Do not also route the routine's notifications to the same chat: the answer would arrive twice.
+
 ### Next steps as buttons { #next-steps-as-buttons }
 
 An answer from an agent with [Follow-ups](reference/capabilities.md#follow-ups)
@@ -2294,6 +2421,13 @@ Personal-service diagnostics include both MCP bindings and native products such 
     Telegram bot and two Mattermost servers at once, and each of those bindings
     carries its own instructions, its own channel lookups and its own workspace
     scope.
+
+    Bind or unbind from the agent's **Availability** tab, or from the bot's row
+    under **Channels**. Channels offers only agents you may publish
+    (`agents:publish` on that agent) and binds on the agent's default
+    environment; environment, pause, lookups and instructions stay on the
+    Availability tab. A row shows an agent you may not publish without the
+    unbind action, and lists a paused binding as paused.
 
     This replaced routing several agents behind one bot with `@slug`. It worked
     and it read badly: somebody in a channel had to type a handle to pick
@@ -2589,6 +2723,8 @@ Personal-service diagnostics include both MCP bindings and native products such 
 The full room history remains available, including messages from other participants. Run freely therefore also permits tool calls influenced by that context; choose it only for trusted tools and rooms, and use Ask first when each write needs confirmation.
 
 Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
+
+The console and messaging channels use the same conversation history. When history is shared, each assistant turn retains the recorded tool names and statuses in order. Arguments and results can depend on the original sender’s permissions. To answer a follow-up that needs those data, the agent can make a fresh, authorized read.
 
 Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
 
@@ -3160,7 +3296,9 @@ admitted the message, the same way it appends that binding's prompt.
 New bindings enable every tool supported by their platform. Existing bindings keep their saved selection; turn off any tool the agent should not use. What a platform cannot answer is not offered:
 Telegram gives a bot no directory of chats to search and no way to read messages
 it was not sent, and `getChatAdministrators` is the whole of what it may list —
-so a Telegram member list is a list of administrators and says so.
+so a Telegram member list is a list of administrators and says so. A private chat
+has no member list at all: `{channel_members}` reads `(unavailable)` there and the
+member tool says why, without calling Telegram.
 
 Three things worth knowing before granting them:
 
@@ -3309,7 +3447,9 @@ The checkboxes under **What this agent may do** grant real tools. Conversation t
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
 
-Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified connection/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy. Review its sources and any standing action consent under Routines. A missing source saves the requested routine paused with setup issues; it cannot run or be enabled until the sources are repaired and reviewed. Repair the existing routine rather than retrying creation with other agents.
+Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified bot/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy.
+
+New routines automatically admit the agent's initial available configuration within the creator's permissions. Later source or behavior expansions need the owner's access review, including changed instructions or effective skills. Missing optional MCP accounts do not block unrelated work. Sending still follows the agent's approvals and mandatory gates; do not promise unattended delivery if approval is required. A genuinely blocked setup is saved paused. Repair the existing routine rather than creating duplicates or changing shared agent bindings without agreement.
 
 Long work streams text and actual tool stages. While a tool runs, text-channel progress retains its current stage after an interim sentence; bounded liveness updates show elapsed time and completed steps, never an invented percentage. The final reply replaces that temporary status. Native streamed platforms keep their own timeline.
 

@@ -123,6 +123,7 @@ class RunSurface(enum.StrEnum):
 
     WHATSAPP = "whatsapp"
     DISCORD = "discord"
+    MATRIX = "matrix"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
@@ -149,6 +150,7 @@ CHANNEL_SURFACES = frozenset(
         RunSurface.MATTERMOST,
         RunSurface.TEAMS,
         RunSurface.DISCORD,
+        RunSurface.MATRIX,
         RunSurface.SMS,
         RunSurface.EMAIL,
         RunSurface.IMESSAGE,
@@ -338,6 +340,9 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    text_to_speech_defaults: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # The skill versions this run served, its inline specialists' included; null for
     # a run from before skills were versioned.
@@ -461,6 +466,10 @@ class AgentRun(Base, TimestampMixin):
     # ends, because state left behind on a finished run is state somebody will
     # eventually replay.
     paused_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    workspace_origins: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -3,8 +3,10 @@
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { ChevronDown } from "lucide-react";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { ContextHelp } from "@/components/ui/context-help";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useMounted } from "@/hooks/use-mounted";
@@ -49,9 +51,8 @@ function Setting({
  * How the console looks and moves for this person: the theme, the style, the
  * voice glow, Motion preference and how workflow steps are drawn, side by side.
  *
- * All four are kept in this browser rather than on the account, like the
- * theme always was, so each applies the moment it is picked and there is
- * nothing to save. Gated on `useMounted` for the reason the account menu's
+ * Theme and style synchronize with the account; voice glow, Motion and node
+ * style remain local to this browser. Every choice applies immediately. Gated on `useMounted` for the reason the account menu's
  * Appearance submenu is: the stored values are unknown on the server, so
  * before hydration nothing is shown as checked.
  *
@@ -92,18 +93,6 @@ export function AppearanceSettings() {
               onChange={setLook}
             />
           </Setting>
-          <Setting id="appearance-voice-glow" label={tGlow("title")} hint={t("voiceGlowHint")}>
-            <ChoiceGroup
-              labelledBy="appearance-voice-glow"
-              value={mounted ? glow : undefined}
-              options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
-              onChange={setStyle}
-              disabled={reduced}
-            />
-            {reduced && (
-              <p className="text-muted-foreground mt-1.5 text-xs">{tGlow("reducedMotion")}</p>
-            )}
-          </Setting>
           <Setting id="appearance-motion" label={t("motion")} hint={t("motionHint")}>
             <ChoiceGroup
               labelledBy="appearance-motion"
@@ -112,18 +101,46 @@ export function AppearanceSettings() {
               onChange={setMotion}
             />
           </Setting>
-          <Setting
-            id="appearance-workflow-nodes"
-            label={t("workflowNodes")}
-            hint={t("workflowNodesHint")}
-          >
-            <ChoiceGroup
-              labelledBy="appearance-workflow-nodes"
-              value={mounted ? nodeStyle : undefined}
-              options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
-              onChange={setNodeStyle}
-            />
-          </Setting>
+          <NativeDisclosure className="border-border group/advanced border-t pt-3">
+            <summary className="focus-visible:outline-ring flex cursor-pointer list-none items-center gap-3 rounded-lg py-2 [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{t("advancedTitle")}</span>
+                <span className="text-muted-foreground mt-1 block text-xs font-normal">
+                  {t("advancedHint")}
+                </span>
+              </span>
+              <ChevronDown
+                className="text-muted-foreground size-4 shrink-0 transition-transform group-open/advanced:rotate-180 motion-reduce:transition-none"
+                aria-hidden
+              />
+            </summary>
+            <div className="space-y-5 pt-4">
+              <Setting id="appearance-voice-glow" label={tGlow("title")} hint={t("voiceGlowHint")}>
+                <ChoiceGroup
+                  labelledBy="appearance-voice-glow"
+                  value={mounted ? glow : undefined}
+                  options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
+                  onChange={setStyle}
+                  disabled={reduced}
+                />
+                {reduced && (
+                  <p className="text-muted-foreground mt-1.5 text-xs">{tGlow("reducedMotion")}</p>
+                )}
+              </Setting>
+              <Setting
+                id="appearance-workflow-nodes"
+                label={t("workflowNodes")}
+                hint={t("workflowNodesHint")}
+              >
+                <ChoiceGroup
+                  labelledBy="appearance-workflow-nodes"
+                  value={mounted ? nodeStyle : undefined}
+                  options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
+                  onChange={setNodeStyle}
+                />
+              </Setting>
+            </div>
+          </NativeDisclosure>
         </div>
       </SectionCard>
     </div>

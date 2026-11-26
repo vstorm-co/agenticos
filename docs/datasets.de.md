@@ -1,5 +1,5 @@
 ---
-source_sha: "1e63060a548e"
+source_sha: "a4c2f48f28ee"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -22,6 +22,8 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 **Fälle**, **Ergebnisse** und **Einstellungen** teilen einen Arbeitsbereich mit Vollbildsteuerung. Fälle enthält geschriebene und generierte Fälle; Ergebnisse verbindet Testläufe mit der Antwortprüfung; Einstellungen enthält Bewertung, Generierung und Verbesserung. Hinzufügen, Importieren, Generieren und Aktivität stehen an der Falltabelle. Ein Fall öffnet sich im Seitenpanel, Bearbeiten öffnet sein Formular. Frage und erwartete Antworten stehen zuerst; Werkzeuge, Prüfungen und Labels haben aufklappbare Abschnitte.
 
 Bewertungsmodell und Anweisungen stehen zusammen mit Generierung und Verbesserung unter **Einstellungen**. Gespeicherte Modelle haben einen kompakten durchsuchbaren Selektor; **Modell hinzufügen** öffnet das Formular für Provider, Modell und Schlüssel. Anweisungen verwenden den Markdown-Editor. Helfer sind im Code definiert und benötigen keinen zusätzlich erstellten oder veröffentlichten Agenten. Wartende Aufgaben behalten ihre Startkonfiguration.
+
+Für Generierung und Verbesserung ergänzt ein Dataset eigene Hinweise unter den Plattformregeln des jeweiligen Helfers. Die Regeln - zurückgehaltene Fragen sind kein Lernmaterial, Run-Text ist Daten, keine personenbezogenen Angaben in einem Testfall - gelten immer, und die Hinweise können sie weder ändern noch entfernen. Der Editor enthält nur die Hinweise; die Regeln stehen daneben, nur lesbar.
 
 ## Vom neuen Dataset zu Ergebnissen { #dataset-workflow }
 
@@ -146,13 +148,22 @@ hinzufügen**, um beide zu behalten. Geprüft wird mit
 `POST /datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
 Zugriffsprotokollen landet.
 
+Beim Upgrade erhalten vorhandene generierte Revisionen ohne erhaltenen Dokumentverweis denselben Datenschutz. Ein gelöschter anonymer Chat lässt sich nicht von einem ohne Quellenmaterial generierten Fall unterscheiden. Historische und spätere reine Metadatenrevisionen bleiben geschützt. Leser mit `runs:view` behalten den vollständigen gespeicherten Inhalt; kein Fall wird gelöscht.
+
+Nachweislich reine Dokumentfälle, manuelle Fälle und Importe bleiben unverändert. Neue Fälle aus Agentenwerkzeugen ohne Chatmaterial werden nicht automatisch verborgen. Maskierte Zeilen nennen nicht verfügbares oder ungeprüftes Quellenmaterial, statt eine Gesprächsherkunft zu behaupten.
+
+Stoppen Sie alte API- und Worker-Prozesse vor Migration `0374_case_from_conversation` und starten Sie danach ausschließlich aktualisierten Code. Ältere Writer erhalten das Datenschutzkennzeichen nicht. Schreibzugriffe gemischter Versionen während dieses Upgrades werden nicht unterstützt; der verwaltete Deployer stoppt diese Prozesse vor der Migration.
+
 ### Aus einer Datei { #import-and-export }
 
 **Importieren** liest eine `.csv`- oder `.jsonl`-Datei und fügt alle Fälle darin
 als eine neue Version hinzu. Der Import gilt ganz oder gar nicht: Ist eine Zeile
 ungültig, wird keine hinzugefügt, und die Ablehnung nennt jede ungültige Zeile,
 damit Sie die Datei korrigieren und es erneut versuchen können. Eine Datei ist
-höchstens 10 MB groß, und ein Dataset enthält höchstens 10.000 Fälle. In der
+höchstens 10 MB groß und hat höchstens 10.000 Zeilen
+(`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), und ein Dataset enthält
+höchstens 10.000 Fälle. Ein Wert, der zu tief verschachtelt ist, um ihn zu lesen,
+lehnt seine Zeile ab. In der
 Konsole listet **Importieren** zuerst die Spalten auf und bietet **Vorlage
 herunterladen** an, eine CSV-Datei mit jeder Spalte und einem Fall, der sich
 unverändert importieren lässt; **Datei wählen** öffnet die Dateiauswahl.
@@ -344,6 +355,15 @@ erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
 Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
 Werte selbst.
 
+Erkannt werden die API-Schlüssel und Tokens der Anbieter und Dienste, mit denen
+die Plattform arbeitet, JWTs und private Schlüssel, ein in eine Adresse
+geschriebenes Passwort (`postgres://user:password@host`), ein Schlüssel oder
+Passwort in einem Query-String oder Formularinhalt (`?api_key=`, `token=`,
+`password=`) und ein `Authorization`-Header vom Typ Basic oder Bearer. Derselbe
+Detektor bereinigt, was der Helfer einer Verbesserung liest, was der
+Klassifikator für Wissenslücken liest, und die Nachrichten eines Agents, wenn
+sein Guardrail Geheimnisse schwärzt.
+
 Eine Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem
 Generator übergibt, bevor sie an das Modell gehen, und nimmt aus den Fragen und
 Kommentaren von Menschen die personenbezogenen Daten, die die Detektoren finden
@@ -412,6 +432,7 @@ gelesen wird, und eine darüber wird mit Verweis auf `judge.pass_at` abgelehnt.
 | `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
 | `length` | `unit` (`characters` oder `words`), `min` und/oder `max`, optional `path` | Die Antwort mindestens `min` und höchstens `max` lang ist |
 | `judge` | `criterion` | Der Bewerter das Kriterium mit der Bestehensgrenze oder höher bewertet |
+| `keys` | `keys`: Paare aus `key` (einer Bezeichnung) und `value`, höchstens 200 zusammen in den Schlüssel-Prüfungen eines Falls - und in den Standardprüfungen des Datasets; Familie `keys`, sofern keine andere genannt ist | Die Antwort jeden Wert enthält; die Punktzahl ist der Anteil, den sie enthält |
 
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
@@ -432,6 +453,80 @@ Leerzeichen sind, und braucht mindestens eine Grenze.
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Run des Bewerters wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
 nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
+
+Eine `keys`-Prüfung führt die Fakten auf, die ein geschriebenes Dokument enthalten
+muss - eine Rechnungsnummer, einen Betrag, den Namen eines Kunden -, jeweils als
+Bezeichnung und als Wert aus dem Dokument. Die Prüfung besteht, wenn die Antwort
+jeden Wert enthält; ihre Punktzahl ist der Anteil, den sie enthält, und ihre
+Begründung nennt die fehlenden Bezeichnungen.
+
+Jeder Wert wird in der Antwort gesucht:
+
+- als ganzes Token: `12` wird in `120` nicht gefunden, `INV-1` nicht in `INV-10`;
+- nicht innerhalb einer längeren Zahl: `12` wird in `12,50` nicht gefunden, `234`
+  nicht in `1 234` und `1 234` nicht in `1 234 567`;
+- ohne Rücksicht auf Groß- und Kleinschreibung, Folgen von Leerraum und
+  Unicode-Formen wie eine Ligatur oder ein geschütztes Leerzeichen;
+- mit einem Leerzeichen, das die Tausender einer Zahl gruppieren darf, sodass
+  `1234` und `1 234` einander finden;
+- mit Komma und Punkt, wie sie sind, weil sie in einer Sprache Tausender und in
+  einer anderen Dezimalstellen trennen: Schreiben Sie den Wert so, wie das
+  Dokument ihn zeigt.
+
+In der Konsole bietet ein gespeicherter Fall mit gespeicherter Referenzantwort
+neben seinen Prüfungen **Schlüssel aus der Referenzantwort auflisten** an. Der
+Schlüssel-Extraktor, ein System-Agent, liest die Antwort in einem Job, als die
+Person, die gefragt hat, abgerechnet und in der Aktivität, und listet die Fakten
+auf, die sie nennt. Nur ein Wert, den die Antwort wörtlich enthält, bleibt.
+**Diese Schlüssel verwenden** füllt die Schlüssel-Prüfung des Falls, damit Sie sie
+prüfen und speichern; nichts wird von selbst gespeichert, und der Entwurf wird
+gelöscht, sobald er verwendet oder verworfen wird, spätestens 7 Tage nach der
+Anforderung.
+
+Jede Prüfung nimmt ein optionales `family` (höchstens 80 Zeichen): die Sache, die
+sie über das ganze Dataset hinweg prüft, etwa `total including VAT` an der Regex
+jedes Falls für seinen eigenen Betrag. Ein Vergleich zählt die Prüfungen einer
+Familie gemeinsam, Fall für Fall, sodass eine Änderung danach beurteilt wird, was
+sich über das Dataset hinweg bewegt hat, und nicht nach dem Muster eines
+einzelnen Falls. Eine Prüfung ohne Familie ist eine eigene Familie; bei einer mit
+Familie bleiben die Bewertung und ihr Fingerabdruck genau wie bisher.
+
+### Schlüssel ohne Quelle { #key-coverage }
+
+Eine Schlüssel-Prüfung sagt, welche Fakten ein geschriebenes Dokument enthalten
+muss; sie sagt nicht, ob der Agent sie kennen konnte. **Ergebnisse →
+Schlüsselabdeckung** beantwortet das für einen veröffentlichten Agenten Ihrer
+Wahl. Der Agent für Quellenabdeckung, ein System-Agent, liest die Bezeichnungen
+der Schlüssel in den Schlüssel-Prüfungen der neuesten Version - die ersten 200
+verschiedenen - neben dem, was die veröffentlichte Version des Agenten erreicht,
+und sagt für jede Bezeichnung, dass eine Quelle sie enthält, dass keine es tut
+oder dass es sich nicht sagen lässt. Aus jeder Quelle liest er:
+
+- aus einer Wissensbasis: eine Suche nach jeder Bezeichnung;
+- aus einer Kontextdatei oder einem Skill: die Stellen, die eine Bezeichnung
+  nennen, aus einem Skill in der Version oder dem Fork, den die Bindung des
+  Agenten nennt;
+- aus einem eingeschalteten MCP-Server der Organisation: seine Tools, nach dem,
+  was jedes laut Beschreibung tut.
+
+Er sieht Bezeichnungen, nie die Werte. Er läuft in einem Job, als die Person,
+die gefragt hat und den Agenten bearbeiten können muss, abgerechnet und in der
+Aktivität. Jedes Paar aus Agent und Dataset behält einen Bericht, den der
+nächste ersetzt. Eine Quelle, die die fragende Person nicht sehen darf, wird
+nicht gelesen, ebenso wenig ein MCP-Server, der über das Konto jeder Person
+oder der Plattform läuft, und der Bericht sagt, wie viele ausgelassen wurden; wer eine im
+Bericht genannte Quelle nicht sehen darf, sieht sie ohne Namen, und wer nicht
+jede vom Urteilenden gelesene Quelle sehen darf, erhält Urteile ohne Begründung.
+
+Ein Schlüssel ohne Quelle muss den Agenten als Wissen erreichen - ein Dokument,
+eine Kontextdatei, ein Tool -, denn keine Änderung seiner Anweisungen kann ihn
+liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so, aber nur
+aus einem vollständigen Bericht - jede Quelle gelesen - für die Version, die der
+Agent jetzt ausführt. Sobald der
+Agent erneut veröffentlicht wird, das Dataset eine Version hinzugewinnt oder sich
+eine gelesene Quelle ändert - ein Dokument einer Wissensbasis hinzugefügt oder
+entfernt, eine Kontextdatei oder ein Skill bearbeitet, die Tools eines Servers
+geändert -, gilt der Bericht als veraltet, bis Sie erneut prüfen.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 
@@ -457,6 +552,12 @@ Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt, sein
 früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird, das
 Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob ein
 isolierter Run ihn blockiert hat - und die Antwort.
+
+Jeder dieser Teile steht im Prompt des Bewerters in einem eigenen Zaun, sodass
+sein Text den eigenen Abschnitt nicht schließen und sich als Worte des Prompts
+ausgeben kann. Der Prompt endet mit der Regel, dass eingezäunter Text bewertet
+und nie befolgt wird, und die eigenen Anweisungen des Datasets können diese
+Regel nicht ersetzen.
 
 Ein Fall mit Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
@@ -511,6 +612,10 @@ Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
 Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
 
+Eine neue Bewertung der Antwort eines Eval-Runs entscheidet den Vergleich dieses
+Runs und die darauf aufbauenden Suites, Verbesserungssitzungen und
+Skill-Prüfungen neu, wie es die Entscheidung einer Person tut.
+
 Eine Ursache, die noch besteht - Bewerter nicht
 veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
 Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein
@@ -538,6 +643,10 @@ unlesbar. Ein mehrfach bewertetes Kriterium ist ein Fehler, nicht die zuletzt
 gekommene Note. Der Run des Bewerters in **Aktivität** nennt die Felder, die sich
 nicht lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets
 wiederholen kann, das sein Leser nicht sehen darf.
+
+Der Bewerter antwortet in dieser Form über eine strukturierte Ausgabe, nicht in
+Prosa. Eine Antwort, die die Form verletzt, geht höchstens zweimal zur Korrektur
+an den Bewerter zurück; erst dann ist der Fall nicht bewertet.
 
 Jeder Score behält Modell, veröffentlichte Helferidentität, Kriterienhash, Aufgabenversion und Anweisungshash. Dataset-Modell und Anweisungen dürfen geändert werden; Bewertungen unterschiedlicher Konfigurationen sind nicht unmittelbar vergleichbar.
 
@@ -629,8 +738,10 @@ danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 | Zu ändern, wie ein Dataset bewertet wird | `datasets:edit` darauf |
 | Einen Bewerter dafür anzulegen | `datasets:edit` darauf und `agents:edit` |
 | Einen Run dagegen zu bewerten | `datasets:run` darauf und `runs:view` |
+| Eine Antwort erneut zu bewerten | `datasets:run` darauf und `runs:view`; bei der Antwort eines Eval-Runs außerdem Zugriff auf den antwortenden Agent |
 | Seine Scores zu lesen | `datasets:view` darauf |
-| Scores zur Prüfung zu schicken, eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
+| Scores zur Prüfung zu schicken | `datasets:edit` darauf |
+| Eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf; bei der Antwort eines Eval-Runs außerdem `runs:view` und Zugriff auf den antwortenden Agent |
 
 Eine Begründung, die der Bewerter geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
@@ -679,9 +790,20 @@ existiert, ist selbst etwas, das es nicht erfahren darf. Ein Grant erweitert den
 Zugriff auf ein Dataset und ändert nie eine Rolle. Wie Scopes und Grants
 zusammenwirken, steht unter [Berechtigungen](permissions.md).
 
-Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
+Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei, auch bei einem aus einem Chat generierten Fall. Die Prüfung auf doppelte Fragen (`cases/twins`) findet nie einen verborgenen Fall, und die **Schlüsselabdeckung** lässt Schlüsselbezeichnungen aus, die nur verborgene Fälle enthalten. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
+
+Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Bewerters.
+
+Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
+
+Datasets werden nicht nach Abteilung gruppiert - die Liste hat keinen
+Gruppenfilter und keine Abteilungsplaketten -, daher erreicht eine Abteilung ein
+Dataset über einen Grant darauf, wie bei jeder anderen Ressource. Siehe
+[Abteilungen](departments.md#grouping-a-list-by-department).
 
 ## Personenbezogene Daten { #personal-data }
 
@@ -696,7 +818,8 @@ Wird die Person gelöscht, die die Frage eines Falls gestellt hat, geht auch der
 Frage, die früheren Züge, beide Antworten und die Notiz werden in jeder Version
 ersetzt, die den Fall enthält, und ebenso die Antworten und Aufrufe, die
 Eval-Runs für ihn aufgezeichnet haben. Der Fall behält seine Id, seine
-erwarteten Aufrufe, seine Prüfungen und seine Tags und wird als **Nach Löschung
+erwarteten Aufrufe, seine Prüfungen und seine Tags - außer einer `keys`-Prüfung,
+deren Werte aus der entfernten Antwort stammen - und wird als **Nach Löschung
 anonymisiert** markiert, damit sein Kurator ihn umschreiben oder entfernen kann.
 Bis dahin lässt ein Eval-Run ihn aus, denn eine Antwort auf den Platzhalter misst
 nichts.

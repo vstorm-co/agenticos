@@ -20,6 +20,7 @@ export {
 } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversationSearch, useConversations } from "./use-conversations";
+export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
@@ -98,7 +99,7 @@ export {
 } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
-export { useTables, useTable, useAllTables } from "./use-tables";
+export { useTables, useTable, useAllTables, useTableRecord } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
 export { useTableViews, useTableDefaultView } from "./use-table-views";
@@ -163,7 +164,7 @@ export { useChannelBots } from "./use-channel-bots";
 export { useBindingRequests, useChannelBindingRequests } from "./use-binding-requests";
 export { useWhatsAppCustomers } from "./use-whatsapp-customers";
 export { useAgentEnvironments } from "./use-agent-environments";
-export { useExposures } from "./use-exposures";
+export { useBotBindings, useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";
 export { useResizablePanel, type ResizablePanel } from "./use-resizable-panel";
 export {
@@ -176,6 +177,7 @@ export {
 } from "./use-workflows";
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
+export { useWorkflowTableDrift } from "./use-workflow-table-drift";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowChatRun, useWorkflowRunQuestions } from "./use-workflow-questions";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
@@ -209,9 +211,17 @@ export { useRoutineActions } from "./use-routine-actions";
 export { useNotificationRoutes } from "./use-notification-routes";
 
 export { useRoutineLocalWork } from "./use-routine-local-work";
+export { useRoutinesReadiness } from "./use-routine-readiness";
 
 export { useWikiGraph } from "./use-wiki-graph";
 
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
+
+export * from "./use-event-sources";
+
+export { usePersonalModelKeys } from "./use-personal-model-keys";
+
+export { useMuseAccount } from "./use-muse-account";
+export { useSubscriptionAccounts } from "./use-subscription-accounts";

@@ -1,5 +1,9 @@
 "use client";
 
+import { canonicalParts, mergeToolCall } from "@/lib/turn-timeline";
+
+import { retainQuestionAnswerResult } from "@/lib/question-answers";
+import { toolLookupName } from "@/lib/tool-identity";
 import { retainNextSteps } from "@/lib/next-step-events";
 
 import { create, createStore, type StateCreator } from "zustand";
@@ -42,8 +46,12 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (answer?.role !== "assistant" || !answer.isTemporaryId) return;
     const suffix = history.slice(savedIndex + 1);
     const boundary = suffix.findIndex((item) => item.role === "user");
-    const responses = answer.runId
-      ? history.filter((item) => item.role === "assistant" && item.runId === answer.runId)
+    // The saved prompt carries its run too, and the run is what an answer belongs
+    // to: another turn's answer saved after this prompt - one asked earlier and
+    // still being written - is not this one's, however close it sits.
+    const run = answer.runId ?? saved.runId;
+    const responses = run
+      ? history.filter((item) => item.role === "assistant" && item.runId === run)
       : (boundary < 0 ? suffix : suffix.slice(0, boundary)).filter(
           (item) => item.role === "assistant",
         );
@@ -72,6 +80,24 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (match) aliases.set(message.id, match.id);
   }
   return aliases;
+}
+
+/** Replayed partial receipts retain choices by invocation id, never by question wording. */
+function retainQuestionReceipts(saved: ChatMessage, previous: ChatMessage): ChatMessage {
+  const known = new Map((previous.toolCalls ?? []).map((call) => [call.id, call]));
+  const retain = (call: ToolCall): ToolCall => {
+    const before = known.get(call.id);
+    return before && toolLookupName(call) === "ask_user_question"
+      ? { ...call, result: retainQuestionAnswerResult(call.args, before.result, call.result) }
+      : call;
+  };
+  return {
+    ...saved,
+    toolCalls: saved.toolCalls?.map(retain),
+    parts: saved.parts?.map((part) =>
+      part.toolCall ? { ...part, toolCall: retain(part.toolCall) } : part,
+    ),
+  };
 }
 
 export interface ChatState {
@@ -161,7 +187,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
           ? {
               ...msg,
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,
@@ -204,8 +230,15 @@ const chatState: StateCreator<ChatState> = (set) => ({
         msg.id === messageId
           ? {
               ...msg,
-              parts: [...(msg.parts ?? []), { id: clientId(), type: "tool", toolCall }],
-              toolCalls: [...(msg.toolCalls || []), toolCall],
+              parts: canonicalParts([
+                ...(msg.parts ?? []),
+                { id: clientId(), type: "tool", toolCall },
+              ]),
+              toolCalls: msg.toolCalls?.some((call) => call.id === toolCall.id)
+                ? msg.toolCalls.map((call) =>
+                    call.id === toolCall.id ? mergeToolCall(call, toolCall) : call,
+                  )
+                : [...(msg.toolCalls ?? []), toolCall],
             }
           : msg,
       ),
@@ -219,11 +252,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
               ...msg,
               parts: msg.parts?.map((p) =>
                 p.type === "tool" && p.toolCall && p.toolCall.id === toolCallId
-                  ? { ...p, toolCall: { ...p.toolCall, ...update } }
+                  ? { ...p, toolCall: mergeToolCall(p.toolCall, update) }
                   : p,
               ),
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,
@@ -242,6 +275,27 @@ const chatState: StateCreator<ChatState> = (set) => ({
       const savedId = (message: ChatMessage): string =>
         aliases.get(message.id) ?? message.persistedId ?? message.id;
       const anchor = state.messages.findLastIndex((message) => incoming.has(savedId(message)));
+      // Runs with a saved answer this client has not drawn yet. A dropped bubble
+      // of one has landed under those rows - including a continuation streamed
+      // after a question card, which has no prompt beside it to be matched through.
+      const drawn = new Set(state.messages.map(savedId));
+      const landedRuns = new Set(
+        history
+          .filter(
+            (message) => message.role === "assistant" && message.runId && !drawn.has(message.id),
+          )
+          .map((message) => message.runId),
+      );
+      // The run of the question each dropped bubble answers: its own when it has
+      // one, the saved question's before it otherwise - wherever another turn's
+      // answer has landed between them since.
+      const droppedRuns = new Map<string, string | undefined>();
+      let questionRun: string | undefined;
+      for (const message of state.messages) {
+        if (message.role === "user")
+          questionRun = incoming.get(savedId(message))?.runId ?? message.runId;
+        else if (message.socketDropped) droppedRuns.set(message.id, message.runId ?? questionRun);
+      }
       const before = new Map<string | undefined, ChatMessage[]>();
       let nextPersisted: string | undefined;
       // The server's ordinal order is authoritative, including tied timestamps.
@@ -254,9 +308,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
           nextPersisted = id;
           const previous = state.messages[index - 1];
           // An acknowledged question still has a live answer until message_saved
-          // renames it. A recovered, unacknowledged question instead uses history.
+          // renames it. A recovered, unacknowledged question instead uses history,
+          // and so does an answer whose socket dropped: the rename was due on it.
           const awaitingSave =
             message.role === "assistant" &&
+            !message.socketDropped &&
             message.isTemporaryId &&
             aliases.has(message.id) &&
             previous?.role === "user" &&
@@ -267,10 +323,16 @@ const chatState: StateCreator<ChatState> = (set) => ({
             message.isStreaming || awaitingSave
               ? { ...message, persistedId: id }
               : {
-                  ...retainNextSteps(persisted, message),
+                  ...retainNextSteps(retainQuestionReceipts(persisted, message), message),
                   renderKey: message.renderKey ?? message.id,
                 },
           );
+        } else if (
+          message.socketDropped &&
+          message.isTemporaryId &&
+          landedRuns.has(droppedRuns.get(message.id))
+        ) {
+          // Replaced by its run's saved rows, which the transcript draws.
         } else if (
           message.isStreaming ||
           (message.role === "assistant" && message.isTemporaryId) ||

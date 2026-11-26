@@ -170,6 +170,7 @@ def _read_bot_token(token: str | None, token_file: TextIO | None) -> str:
             "mattermost",
             "teams",
             "discord",
+            "matrix",
             "sms",
             "email",
             "imessage",
@@ -201,7 +202,10 @@ def _read_bot_token(token: str | None, token_file: TextIO | None) -> str:
 @click.option(
     "--api-base-url",
     default=None,
-    help="The bot's own Mattermost or BlueBubbles server URL. Required for self-hosted channels.",
+    help=(
+        "The bot's own Mattermost, Matrix homeserver or BlueBubbles server URL. "
+        "Required for self-hosted channels."
+    ),
 )
 @click.option(
     "--webhook-secret",

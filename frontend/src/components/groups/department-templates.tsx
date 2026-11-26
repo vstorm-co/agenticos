@@ -79,8 +79,13 @@ export function DepartmentTemplates({
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className={DIALOG_COLUMN}>
+    <Dialog
+      open
+      onOpenChange={() => {
+        if (!add.isPending) onClose();
+      }}
+    >
+      <DialogContent className={DIALOG_COLUMN} dismissible={!add.isPending}>
         <DialogHeader>
           <DialogTitle>{t("addDepartments")}</DialogTitle>
           <DialogDescription>{t("addDepartmentsWhy")}</DialogDescription>
@@ -97,6 +102,7 @@ export function DepartmentTemplates({
               className="hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg p-2"
             >
               <Checkbox
+                disabled={add.isPending}
                 checked={picked.has(department.key)}
                 onCheckedChange={() => toggle(department.key)}
               />
@@ -113,7 +119,7 @@ export function DepartmentTemplates({
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={add.isPending}>
             {t("cancel")}
           </Button>
           <Button onClick={submit} disabled={picked.size === 0 || add.isPending}>

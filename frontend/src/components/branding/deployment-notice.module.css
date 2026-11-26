@@ -1,0 +1,125 @@
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  color: var(--color-foreground);
+  background: var(--color-card);
+  flex-shrink: 0;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: var(--color-brand);
+  background: color-mix(in oklab, var(--color-brand) 8%, transparent);
+}
+.notice[data-level="warning"] {
+  border-color: color-mix(in oklab, var(--color-warning) 30%, var(--color-border));
+  background: color-mix(in oklab, var(--color-warning) 4%, var(--color-card));
+}
+.notice[data-level="warning"] .mark {
+  color: var(--color-warning-ink);
+  background: color-mix(in oklab, var(--color-warning) 12%, transparent);
+}
+.notice[data-level="critical"] {
+  border-color: color-mix(in oklab, var(--color-destructive) 30%, var(--color-border));
+  background: color-mix(in oklab, var(--color-destructive) 4%, var(--color-card));
+}
+.notice[data-level="critical"] .mark {
+  color: var(--color-destructive-ink);
+  background: color-mix(in oklab, var(--color-destructive) 10%, transparent);
+}
+.content {
+  min-width: 0;
+  flex: 1;
+}
+.label {
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--color-muted-foreground);
+}
+.message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.65;
+  align-self: center;
+}
+.dismiss {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+}
+.dismiss:hover {
+  background: var(--color-accent);
+  color: var(--color-foreground);
+}
+.dismiss:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.maintenance {
+  min-height: 60dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+.maintenanceCard {
+  width: min(100%, 560px);
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-card);
+  text-align: center;
+}
+.maintenanceMark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+.eyebrow {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.maintenanceCard h1 {
+  color: var(--color-foreground);
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 550;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.maintenanceMessage {
+  margin-top: 16px;
+  color: var(--color-muted-foreground);
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (pointer: coarse) {
+  .dismiss {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

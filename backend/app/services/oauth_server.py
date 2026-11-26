@@ -26,7 +26,7 @@ from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, AuthContext, Perm
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -177,10 +177,16 @@ class OAuthServerService:
             organization_id=ctx.organization_id,
             organization_name=organization.name if organization else "",
             catalog=ApiKeyService(self.db).scope_catalog(ctx),
+            deployment_admin_available=ctx.is_app_admin,
         )
 
     async def approve(
-        self, ctx: AuthContext, request_id: UUID, scopes: list[Perm]
+        self,
+        ctx: AuthContext,
+        request_id: UUID,
+        scopes: list[Perm],
+        *,
+        deployment_admin: bool = False,
     ) -> OAuthConsentAnswer:
         """Grant the client the chosen permissions, as the caller, in their organization.
 
@@ -188,6 +194,12 @@ class OAuthServerService:
             BadRequestError: A permission the caller does not hold, named on the field.
         """
         self._refuse_impersonation()
+        if deployment_admin and not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="Only an application administrator may grant deployment:admin"
+            )
+        if not scopes and not deployment_admin:
+            raise refused_field("scopes", "Choose at least one permission")
         grantable = set(ApiKeyService(self.db).scope_catalog(ctx).scopes)
         refused = sorted(scope.value for scope in scopes if scope.value not in grantable)
         if refused:
@@ -203,7 +215,10 @@ class OAuthServerService:
             client_id=client.client_id,
             user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
-            scopes=sorted({scope.value for scope in scopes}),
+            scopes=sorted(
+                {scope.value for scope in scopes}
+                | ({DEPLOYMENT_ADMIN_SCOPE} if deployment_admin else set())
+            ),
         )
         code = secrets.token_urlsafe(32)
         params = request.params

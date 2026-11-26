@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Button,
   EntityAvatar,
   Select,
   SelectContent,
@@ -15,6 +16,7 @@ import {
 import { useGroups, useMembers, useSharing } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { SharingResourceType, Visibility } from "@/types/sharing";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { AddShare } from "./add-share";
 import { GrantRow } from "./grant-row";
 
@@ -74,6 +76,8 @@ const LEGACY_TEAM = { value: "team" as Visibility, words: "visibilityTeam" };
 const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
   secret: "secretRuntimeNote",
   collection: "collectionRuntimeNote",
+  workflow: "workflowRuntimeNote",
+  event_source: "eventSourceRuntimeNote",
 };
 
 /**
@@ -100,14 +104,27 @@ export function SharingPanel({
 }: SharingPanelProps) {
   const t = useTranslations("sharing");
   const ts = useTranslations("states");
+  const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const activeOrgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { members } = useMembers(activeOrgId);
   const { groups } = useGroups(activeOrgId);
-  const { sharing, isLoading, share, revoke, setVisibility } = useSharing(
+  const { sharing, isLoading, error, refetch, share, revoke, setVisibility } = useSharing(
     resourceType,
     resourceId,
     { onConsentRequired },
   );
+
+  const readFailure = error ? (
+    <div role="alert" className="border-destructive/25 space-y-2 rounded-xl border p-3 text-sm">
+      <p>{getErrorMessage(error, tErrors, t("failedLoadShares"))}</p>
+      <Button type="button" variant="outline" onClick={() => void refetch()}>
+        {tc("retry")}
+      </Button>
+    </div>
+  ) : null;
+  const accessRefused = error instanceof ApiError && [401, 403, 404].includes(error.status);
+  if (error && (!sharing || accessRefused)) return readFailure;
 
   if (isLoading || !sharing)
     return (
@@ -143,12 +160,18 @@ export function SharingPanel({
   const groupCandidates = groups.filter((group) => !shared.has(group.id));
   const owner = members.find((member) => member.user_id === sharing.owner_user_id);
   const runtimeNote = RUNTIME_NOTE[resourceType];
+  const payloadNotice = resourceType === "workflow" || resourceType === "event_source";
+  const audienceNotice = runtimeNote && (
+    <p className="text-muted-foreground text-xs">{t(runtimeNote)}</p>
+  );
   const options = [...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])];
   const current = options.find((option) => option.value === sharing.visibility) ?? options[0]!;
   const AccessIcon = sharing.visibility === "private" ? Lock : Building2;
 
   return (
     <div className="space-y-5">
+      {readFailure}
+      {payloadNotice && audienceNotice}
       {canManage && (
         <AddShare
           resourceType={resourceType}
@@ -216,7 +239,7 @@ export function SharingPanel({
             >
               <SelectTrigger
                 aria-label={t("generalAccess")}
-                className="-ml-2.5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2.5 font-medium shadow-none"
+                className="-ml-2.5 h-10 w-auto gap-1.5 border-transparent bg-transparent px-2.5 font-medium shadow-none pointer-coarse:h-11"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -229,13 +252,15 @@ export function SharingPanel({
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              {t(`${current.words}Reaches`, { resource: resourceType })}
+              {resourceType === "workflow" && sharing.visibility === "private"
+                ? t("workflowPrivateReaches")
+                : t(`${current.words}Reaches`, { resource: resourceType })}
             </p>
           </div>
         </div>
       </section>
 
-      {runtimeNote && <p className="text-muted-foreground text-xs">{t(runtimeNote)}</p>}
+      {!payloadNotice && audienceNotice}
     </div>
   );
 }

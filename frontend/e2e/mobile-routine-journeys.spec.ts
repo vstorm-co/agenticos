@@ -170,6 +170,7 @@ test("phone event wizard preserves back navigation and a refused draft before cr
     await page.getByRole("option", { name: agent.name, exact: true }).click();
     await dialog.getByLabel(/^Name/).fill(name);
     await dialog.locator('[data-tour="routine-advanced"]').click();
+    await dialog.getByRole("checkbox", { name: /Review access before enabling/ }).check();
     await dialog.getByRole("checkbox", { name: /^Run as me/ }).check();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await dialog

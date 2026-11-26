@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
+import { StartActions, StartBack } from "./start-navigation";
+import { StartStageArtwork } from "./start-stage-artwork";
+import layout from "./administration.module.css";
+import { useStartVariant } from "./start-experience";
 import { StartGuide } from "./start-guide";
 import styles from "./guided-start.module.css";
 
 export function StartQuestion({
+  stage,
   index,
-  total,
   title,
   message,
   children,
@@ -19,8 +23,8 @@ export function StartQuestion({
   onContinue,
   onSkip,
 }: {
+  stage: "deployment" | "organization";
   index: number;
-  total: number;
   title: string;
   message: string;
   children: ReactNode;
@@ -30,40 +34,38 @@ export function StartQuestion({
   onSkip?: () => void;
 }) {
   const t = useTranslations("start.guided");
+  const studio = useStartVariant() === "studio";
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
   }, [index]);
   return (
     <div className={styles.journey}>
+      <h2 ref={heading} tabIndex={-1} className={styles.questionTitle}>
+        {title}
+      </h2>
       <StartGuide message={message} />
-      <section key={index} className={styles.question} aria-label={title}>
-        <div className={styles.questionMeta}>
-          <span>{t("question", { current: index + 1, total })}</span>
-          <span>{t("changeLater")}</span>
-        </div>
-        <h2 ref={heading} tabIndex={-1}>
-          {title}
-        </h2>
-        <div className={styles.answer}>{children}</div>
-        <footer className={styles.actions}>
-          {onBack && (
-            <Button variant="ghost" disabled={pending} onClick={onBack}>
-              <ArrowLeft size={15} aria-hidden />
-              {t("back")}
+      <div className={studio ? styles.studioLayout : layout.stageStudio}>
+        <section
+          key={index}
+          className={studio ? styles.studioQuestion : styles.question}
+          aria-label={title}
+        >
+          <div className={styles.answer}>{children}</div>
+          <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
+            {onSkip && (
+              <Button variant="ghost" disabled={pending} onClick={onSkip}>
+                {t("keepCurrent")}
+              </Button>
+            )}
+            <Button disabled={pending} onClick={onContinue}>
+              {pending ? t("saving") : t("continue")}
+              <ArrowRight size={15} aria-hidden />
             </Button>
-          )}
-          {onSkip && (
-            <Button variant="ghost" disabled={pending} onClick={onSkip}>
-              {t("keepCurrent")}
-            </Button>
-          )}
-          <Button disabled={pending} onClick={onContinue}>
-            {pending ? t("saving") : t("continue")}
-            <ArrowRight size={15} aria-hidden />
-          </Button>
-        </footer>
-      </section>
+          </StartActions>
+        </section>
+        {!studio && <StartStageArtwork stage={stage} />}
+      </div>
     </div>
   );
 }
@@ -80,18 +82,10 @@ export function StartStepPending({
   children: ReactNode;
   onBack?: () => void;
 }) {
-  const t = useTranslations("start.guided");
   return (
     <div>
       {children}
-      {onBack && (
-        <div className="flex justify-center">
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft size={15} aria-hidden />
-            {t("back")}
-          </Button>
-        </div>
-      )}
+      <StartActions back={onBack && <StartBack onClick={onBack} />} />
     </div>
   );
 }

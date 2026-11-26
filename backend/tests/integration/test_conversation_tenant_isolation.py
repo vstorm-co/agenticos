@@ -17,6 +17,7 @@ So these run against a real `ConversationService` and a real database, and
 assert the consequence: the row is reported missing, and nothing is written.
 """
 
+import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
@@ -33,7 +34,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.repositories import conversation_share as conversation_share_repo
-from app.schemas.conversation import MessageCreate
+from app.schemas.conversation import HistoryCheckpoint, HistoryProvenance, MessageCreate
 from app.services.conversation import ConversationService
 from app.services.conversation_share import ConversationShareService
 
@@ -87,14 +88,21 @@ async def _conversation(db, organization: Organization, owner: User) -> Conversa
 
 
 @pytest.mark.parametrize("include_messages", [False, True])
+@pytest.mark.parametrize("legacy", [False, True])
 async def test_normal_reads_leave_model_summary_unloaded_but_the_run_can_read_it(
-    db: AsyncSession, include_messages: bool
+    db: AsyncSession, include_messages: bool, legacy: bool
 ) -> None:
     organization = await _org(db, name="Summary")
     owner = await _member(db)
     conversation = await _conversation(db, organization, owner)
     content = "x" * 500_000
     summary = [{"kind": "request", "parts": [{"part_kind": "user-prompt", "content": content}]}]
+    if not legacy:
+        summary = HistoryCheckpoint(
+            version=1,
+            provenance=HistoryProvenance(agent_id=uuid.uuid4(), configuration_digest="a" * 64),
+            messages=summary,
+        ).model_dump(mode="json")
     conversation.summary_messages = summary
     conversation.summary_ordinal = 1
     await db.flush()
@@ -121,13 +129,23 @@ async def test_normal_reads_leave_model_summary_unloaded_but_the_run_can_read_it
     # load its summary explicitly instead of triggering async implicit I/O.
     full = await conversation_repo.get_conversation_by_id(db, conversation_id, include_summary=True)
     assert full is light
-    assert full.summary_messages == summary
+    stored_digest = hashlib.sha256(
+        json.dumps(full.summary_messages, sort_keys=True).encode()
+    ).digest()
+    summary_digest = hashlib.sha256(json.dumps(summary, sort_keys=True).encode()).digest()
+    assert stored_digest == summary_digest
     assert full.summary_ordinal == 1
     db.expire(full, ["summary_messages"])
     history = await ConversationService(db).model_history(conversation_id, limit=50)
     assert isinstance(history[0], ModelRequest)
     assert isinstance(history[0].parts[0], UserPromptPart)
-    assert history[0].parts[0].content == content
+    received = history[0].parts[0].content
+    expected = "secret" if legacy else content
+    assert isinstance(received, str)
+    assert len(received) == len(expected)
+    received_digest = hashlib.sha256(received.encode()).digest()
+    expected_digest = hashlib.sha256(expected.encode()).digest()
+    assert received_digest == expected_digest
 
 
 class TestReadingAnotherOrganizationsTranscript:

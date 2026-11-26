@@ -12,7 +12,7 @@ export default function ApiReferencePage() {
   return (
     <div className="flex flex-1 flex-col space-y-4">
       <Link
-        href={ROUTES.SETTINGS_API_KEYS}
+        href={{ pathname: ROUTES.SETTINGS_API_KEYS, query: { access: "api" } }}
         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
       >
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />

@@ -21,7 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
 from app.services.workflow_execution import context
 from app.workflows import files
 from app.workflows.contracts.definition import RetryGuarantee
@@ -42,6 +41,7 @@ from app.workflows.nodes._http import (
     private_allowlist_for,
     read_capped,
     response_output,
+    send_request,
 )
 
 
@@ -110,13 +110,17 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     if not isinstance(config, HttpUploadConfig) or not isinstance(node_input, HttpUploadInput):
         return failed("REQUEST_NOT_CONFIGURED", "This upload has no URL or no file to send")
     if not is_http_url(config.url):
-        return failed("URL_REFUSED", "The URL must be an http or https URL with a host")
+        return failed(
+            "URL_REFUSED",
+            "The URL must be an http or https URL with a host",
+            effect_not_started=True,
+        )
     secret = await credential(config.auth, config.url)
     if isinstance(secret, Failed):
         return secret
     opened = await files.open_stream(node_input.file)
     if isinstance(opened, Failed):
-        return opened
+        return opened.model_copy(update={"effect_not_started": True})
     stored, chunks = opened
 
     headers = dict(config.headers)
@@ -138,15 +142,13 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 headers=headers,
                 content=chunks,
             )
-            response = await client.send(request, stream=True)
+            response = await send_request(client, request, first_request=True)
+            if isinstance(response, Failed):
+                return response
             try:
                 raw = await read_capped(response, config.max_response_bytes)
             finally:
                 await response.aclose()
-    except UrlRefusedError as exc:
-        return failed("URL_REFUSED", str(exc))
-    except httpx2.ConnectError, httpx2.ConnectTimeout:
-        return failed("HTTP_UNREACHABLE", "The server could not be reached", retryable=True)
     except httpx2.HTTPError:
         if safe_to_retry:
             return failed(

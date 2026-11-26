@@ -26,7 +26,7 @@ async def get(
 
 
 async def get_pending_for_context(
-    db: AsyncSession, *, organization_id: UUID, context_id: UUID
+    db: AsyncSession, *, organization_id: UUID, context_id: UUID, library: bool = False
 ) -> ContextProposal | None:
     """The waiting proposal a newer one replaces, so a file has one waiting at a time."""
     result = await db.execute(
@@ -34,12 +34,32 @@ async def get_pending_for_context(
         .where(
             ContextProposal.organization_id == organization_id,
             ContextProposal.context_id == context_id,
+            ContextProposal.library_revision.is_not(None)
+            if library
+            else ContextProposal.library_revision.is_(None),
             ContextProposal.status == ProposalStatus.PENDING.value,
         )
         .order_by(ContextProposal.created_at.desc(), ContextProposal.id)
         .execution_options(populate_existing=True)
     )
     return result.scalars().first()
+
+
+async def has_library_revision(
+    db: AsyncSession, *, organization_id: UUID, context_id: UUID, revision: str
+) -> bool:
+    return (
+        await db.scalar(
+            select(ContextProposal.id)
+            .where(
+                ContextProposal.organization_id == organization_id,
+                ContextProposal.context_id == context_id,
+                ContextProposal.library_revision == revision,
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 async def list_for_organization(

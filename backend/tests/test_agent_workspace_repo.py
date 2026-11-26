@@ -9,7 +9,8 @@ the files in it are whatever somebody uploaded to a chat.
 """
 
 import uuid
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -130,19 +131,21 @@ class TestWhoAListingIsFor:
     between them is whether that clause is there at all.
     """
 
-    async def test_an_operator_gets_the_organization_and_nothing_narrower(self):
-        organization_id = uuid.uuid4()
+    async def test_an_operator_still_cannot_list_other_peoples_personal_sessions(self):
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
         session = _RecordingSession(_scalars([]))
 
         await agent_workspace_repo.list_for_reader(
-            session, organization_id=organization_id, user_id=uuid.uuid4(), see_all=True
+            session, organization_id=organization_id, user_id=user_id, see_all=True
         )
 
-        # The model's own columns are in the SELECT either way, so the question is
-        # what is in the WHERE: one predicate, the tenant, and no `OR` narrowing it.
+        # Operator access widens ordinary workspace visibility, while personal
+        # account files retain their separate owner boundary.
         where = str(session.statements[-1]).split("WHERE", 1)[1]
         assert organization_id in _filters(session).values()
-        assert " OR " not in where
+        assert "agent_workspaces.coding_account_id IS NULL" in where
+        assert "coding_accounts.user_id" in where
+        assert user_id in _filters(session).values()
         assert "last_used_at" in where
 
     async def test_a_member_gets_their_own_files_their_chats_and_their_agents(self):
@@ -277,3 +280,44 @@ async def test_project_file_mutations_refresh_the_snapshot_under_a_tenant_scoped
     assert "project" in compiled.params.values()
     assert "FOR UPDATE" in str(compiled)
     assert statement.get_execution_options()["populate_existing"] is True
+
+
+@pytest.mark.security
+async def test_project_origin_inventory_keeps_newest_row_and_excludes_unbound_rows() -> None:
+    organization_id, project_id = uuid.uuid4(), uuid.uuid4()
+    newest, older = _workspace(project_id=project_id), _workspace(project_id=project_id)
+    unbound = _workspace(project_id=None)
+    session = _RecordingSession(SimpleNamespace(scalars=lambda: [newest, unbound, older]))
+    found = await agent_workspace_repo.active_for_projects(
+        session, organization_id=organization_id, project_ids=[project_id]
+    )
+    assert found == {project_id: newest}
+    params = _filters(session)
+    assert organization_id in params.values()
+    assert [project_id] in params.values()
+
+
+async def test_project_chat_without_active_project_workspace_retains_its_conversation_files() -> (
+    None
+):
+    organization_id, conversation_id, project_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    own = _workspace()
+    session = SimpleNamespace(scalar=AsyncMock(return_value=project_id))
+    with (
+        patch.object(
+            agent_workspace_repo, "get_for_project", new=AsyncMock(return_value=None)
+        ) as project,
+        patch.object(
+            agent_workspace_repo, "list_for_conversation", new=AsyncMock(return_value=[own])
+        ) as conversation,
+    ):
+        found = await agent_workspace_repo.kept_for_conversation(
+            session, organization_id=organization_id, conversation_id=conversation_id
+        )
+    assert found is own
+    project.assert_awaited_once_with(
+        session, organization_id=organization_id, project_id=project_id
+    )
+    conversation.assert_awaited_once_with(
+        session, organization_id=organization_id, conversation_id=conversation_id
+    )

@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, EvalSuiteSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.eval_suite import (
     EvalSuiteCreate,
@@ -36,12 +37,18 @@ async def list_visible_eval_suites(service: EvalSuiteSvc, ctx: Auth) -> Any:
     return await service.list_visible(ctx)
 
 
-@router.get("/agents/{agent_id}/eval-suites", response_model=EvalSuiteList)
+@router.get(
+    "/agents/{agent_id}/eval-suites", dependencies=[ASSISTANT], response_model=EvalSuiteList
+)
 async def list_eval_suites(agent_id: UUID, service: EvalSuiteSvc, ctx: Auth) -> Any:
     return await service.list_for_agent(ctx, agent_id)
 
 
-@router.post("/agents/{agent_id}/eval-suites/estimate", response_model=EvalSuiteEstimate)
+@router.post(
+    "/agents/{agent_id}/eval-suites/estimate",
+    dependencies=[ASSISTANT],
+    response_model=EvalSuiteEstimate,
+)
 async def estimate_eval_suite(
     agent_id: UUID, data: EvalSuiteEstimateRequest, service: EvalSuiteSvc, ctx: Auth
 ) -> Any:
@@ -54,6 +61,7 @@ async def estimate_eval_suite(
 
 @router.post(
     "/agents/{agent_id}/eval-suites",
+    dependencies=[ASSISTANT],
     response_model=EvalSuiteRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -69,7 +77,11 @@ async def get_eval_suite(agent_id: UUID, suite_id: UUID, service: EvalSuiteSvc, 
     return await service.get(ctx, agent_id, suite_id)
 
 
-@router.patch("/agents/{agent_id}/eval-suites/{suite_id}", response_model=EvalSuiteRead)
+@router.patch(
+    "/agents/{agent_id}/eval-suites/{suite_id}",
+    dependencies=[ASSISTANT],
+    response_model=EvalSuiteRead,
+)
 async def update_eval_suite(
     agent_id: UUID, suite_id: UUID, data: EvalSuiteUpdate, service: EvalSuiteSvc, ctx: Auth
 ) -> Any:

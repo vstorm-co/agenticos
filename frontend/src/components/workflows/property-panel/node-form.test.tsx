@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +11,7 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { NodeForm } from "./node-form";
 import type { Schema } from "./schema-model";
 
@@ -152,11 +154,23 @@ vi.mock("@/components/workflows/pickers", () => ({
       {error !== undefined && <span>{error}</span>}
     </div>
   ),
-  TableColumnPicker: ({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) => (
+  TableColumnPicker: ({
+    value,
+    onChange,
+    pinsColumns,
+    requiresReview,
+  }: {
+    value: unknown;
+    onChange: (v: unknown) => void;
+    pinsColumns: boolean;
+    requiresReview?: boolean;
+  }) => (
     <div>
+      {pinsColumns && <span>pins-columns</span>}
       <button
         type="button"
         aria-label="set-table"
+        data-requires-review={requiresReview}
         onClick={() =>
           onChange({ kind: "table", table_id: "t", column_ids: null, schema_version: 1 })
         }
@@ -188,13 +202,16 @@ vi.mock("@/components/workflows/pickers", () => ({
   CollectionPicker: ({
     selectedIds,
     onToggle,
+    excludeAppScoped,
   }: {
     selectedIds: string[];
     onToggle: (id: string) => void;
+    excludeAppScoped?: boolean;
   }) => (
     <div>
       <button type="button" aria-label="toggle-kb-a" onClick={() => onToggle("kb-a")} />
       <span>{`collections:${selectedIds.join(",") || "none"}`}</span>
+      <span>{`app-scoped:${excludeAppScoped ? "left out" : "offered"}`}</span>
     </div>
   ),
 }));
@@ -334,6 +351,7 @@ function renderForm(
     bindings?: Binding[];
     errors?: Map<string, string>;
     definition?: NodeDefinition;
+    catalogEntries?: NodeDefinition[];
     disabled?: boolean;
     /** Leave the optional settings folded, as a step first opens. */
     folded?: boolean;
@@ -351,7 +369,7 @@ function renderForm(
       definition={def}
       node={instance}
       graph={workflow}
-      catalog={makeCatalog([def])}
+      catalog={makeCatalog([def, ...(options.catalogEntries ?? [])])}
       bindings={bindings}
       errors={options.errors ?? new Map()}
       disabled={options.disabled}
@@ -447,14 +465,39 @@ describe("NodeForm sections", () => {
     expect(screen.getByLabelText("The branch that ran")).toBeChecked();
   });
 
+  it("says a Data step's value is set once, and takes it as JSON", () => {
+    const { upsertBinding } = renderForm({
+      definition: makeDefinition({
+        id: "data.value",
+        input_schema: {
+          type: "object",
+          properties: { value: { title: "Value" } },
+          required: ["value"],
+        } as Schema,
+      }),
+      folded: true,
+    });
+    expect(screen.getByText(/Set once per run and never overwritten/)).toBeVisible();
+    const field = screen.getByRole("textbox", { name: /^Value/ });
+    fireEvent.change(field, { target: { value: '{"limit": 10, "tags": ["a"]}' } });
+    fireEvent.blur(field);
+    expect(upsertBinding).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_node_id: "N",
+        target_field: "value",
+        source: { kind: "literal", value: { limit: 10, tags: ["a"] } },
+      }),
+    );
+  });
+
   it("shows an empty message when a node has no fields", () => {
     renderForm({ definition: makeDefinition({ id: "bare" }) });
     expect(screen.getByText("This node has no configurable fields.")).toBeVisible();
   });
 
   it("says how a trigger with nothing to set starts a run, in place of the empty message", () => {
-    renderForm({ definition: makeDefinition({ id: "trigger.webhook", category: "triggers" }) });
-    expect(screen.getByText(/its own address and signing secret/)).toBeVisible();
+    renderForm({ definition: makeDefinition({ id: "trigger.manual", category: "triggers" }) });
+    expect(screen.getByText(/Start it with Run/)).toBeVisible();
   });
 
   it("edits an agent step's answer shape as the Builder edits an agent's own", async () => {
@@ -736,6 +779,296 @@ describe("NodeForm sections", () => {
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
   });
 
+  it("binds one versioned action and uses Python, not another form, for every call", async () => {
+    const script = makeDefinition({
+      id: "code.python.actions",
+      config_schema: {
+        type: "object",
+        properties: {
+          actions: { type: "object", propertyNames: { not: { enum: ["print"] } } },
+          code: { type: "string", "x-code": "python" },
+        },
+        required: ["code"],
+      },
+    });
+    const mcp = makeDefinition({
+      id: "mcp.call",
+      name: "Call a tool",
+      version: 2,
+      python_callable: true,
+      config_schema: {
+        type: "object",
+        properties: {
+          connection_id: { type: "string" },
+          tool: { type: "string" },
+        },
+        required: ["connection_id", "tool"],
+      },
+      input_schema: { type: "object", properties: { arguments: { type: "object" } } },
+      output_schema: { type: "object", properties: { text: { type: "string" } } },
+    });
+    const catalog = makeCatalog([
+      script,
+      mcp,
+      makeDefinition({ id: "trigger.manual" }),
+      makeDefinition({ id: "debug.echo", name: "Echo", category: "debug", python_callable: true }),
+    ]);
+    const save = vi.fn();
+    function Form() {
+      const [config, setConfig] = useState<Record<string, unknown>>({
+        code: "answer = None",
+      });
+      const instance = node("N", script.id, config);
+      return (
+        <NodeForm
+          definition={script}
+          node={instance}
+          graph={graph({ entry: "N", nodes: [instance] })}
+          catalog={catalog}
+          bindings={[]}
+          errors={new Map()}
+          upsertBinding={vi.fn()}
+          removeBinding={vi.fn()}
+          updateNodeConfig={(_, next) => {
+            save(next);
+            setConfig(next);
+          }}
+        />
+      );
+    }
+    render(<Form />);
+    const choices = screen.getByLabelText("Available functions");
+    expect(screen.queryByRole("option", { name: /Echo/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /trigger.manual/ })).toBeNull();
+    await userEvent.selectOptions(choices, "mcp.call@2");
+    const name = screen.getByLabelText("Python function name");
+    expect(name).toHaveValue("mcp_call");
+    await userEvent.clear(name);
+    await userEvent.type(name, "print");
+    expect(screen.getByRole("button", { name: "Bind action" })).toBeDisabled();
+    await userEvent.clear(name);
+    await userEvent.type(name, "lookup");
+    await userEvent.click(screen.getByRole("button", { name: "Bind action" }));
+    const code = screen.getByRole("textbox", { name: "Code" }) as HTMLTextAreaElement;
+    code.focus();
+    code.setSelectionRange(9, 13);
+    await userEvent.selectOptions(
+      screen.getByLabelText("Insert function call"),
+      "lookup(arguments=...)",
+    );
+    expect(code).toHaveValue("answer = lookup(arguments=...)");
+    expect(code).toHaveFocus();
+    expect(code.value.slice(code.selectionStart, code.selectionEnd)).toBe("...");
+    await userEvent.keyboard("args");
+    expect(screen.getByText("Result fields: text")).toBeVisible();
+    expect(screen.queryByLabelText("Arguments")).toBeNull();
+    mcpTool.schema = {
+      type: "object",
+      properties: { host: { type: "string" }, limit: { type: "integer" } },
+      required: ["host"],
+    };
+    await userEvent.click(screen.getByRole("button", { name: "pick-tool" }));
+    expect(save).toHaveBeenLastCalledWith({
+      code: "answer = lookup(arguments=args)",
+      actions: {
+        lookup: { type: "mcp.call", version: 2, config: { connection_id: "c1", tool: "find" } },
+      },
+    });
+    fireEvent.click(screen.getByText("Tool argument schema"));
+    expect(screen.getByRole("option", { name: 'lookup(arguments={"host": ...})' })).toBeVisible();
+    mcpTool.schema = null;
+    await userEvent.selectOptions(choices, "mcp.call@2");
+    await userEvent.click(screen.getByRole("button", { name: "Bind action" }));
+    await userEvent.selectOptions(choices, "mcp.call@2");
+    expect(screen.getByLabelText("Python function name")).toHaveValue("mcp_call_2");
+    await userEvent.clear(screen.getByLabelText("Python function name"));
+    await userEvent.type(screen.getByLabelText("Python function name"), "lookup");
+    expect(screen.getByRole("button", { name: "Bind action" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /lookup\(arguments/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove lookup" }));
+    expect(save).toHaveBeenLastCalledWith({
+      code: "answer = lookup(arguments=args)",
+      actions: { mcp_call: { type: "mcp.call", version: 2, config: {} } },
+    });
+  });
+
+  it("opens an imported function with default version and config, even at the binding limit", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: makeDefinition({
+        id: "code.python.actions",
+        config_schema: {
+          type: "object",
+          properties: { actions: { type: "object", maxProperties: 2 } },
+        },
+      }),
+      config: { actions: { lookup: { type: "mcp.call" }, damaged: null } },
+      catalogEntries: [
+        makeDefinition({
+          id: "mcp.call",
+          python_callable: true,
+          config_schema: {
+            type: "object",
+            properties: { connection_id: { type: "string" }, tool: { type: "string" } },
+            required: ["connection_id", "tool"],
+          },
+        }),
+      ],
+      errors: new Map([["config.actions.lookup.config.tool", "Tool was removed"]]),
+    });
+    expect(screen.getByLabelText("Available functions")).toBeDisabled();
+    const settings = screen.getByRole("button", { name: /lookup\(/ });
+    await userEvent.click(settings);
+    expect(screen.getByText("mcp-tool:null:null:Tool was removed")).toBeVisible();
+    expect(screen.queryByText(/Result fields:/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "pick-tool" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      actions: {
+        lookup: { type: "mcp.call", config: { connection_id: "c1", tool: "find" } },
+        damaged: null,
+      },
+    });
+    await userEvent.click(settings);
+    expect(settings).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("offers plain calls and includes optional arguments for a known MCP tool with no required keys", () => {
+    mcpTool.schema = { type: "object", properties: { query: { type: "string" } } };
+    try {
+      renderForm({
+        definition: makeDefinition({
+          id: "code.python.actions",
+          config_schema: {
+            type: "object",
+            properties: {
+              actions: { type: "object" },
+              code: { type: "string", "x-code": "python" },
+            },
+            required: ["code"],
+          },
+        }),
+        config: {
+          actions: {
+            poll: { type: "test.poll" },
+            find: { type: "mcp.call", config: { connection_id: "c", tool: "search" } },
+          },
+          code: "1",
+        },
+        catalogEntries: [
+          makeDefinition({
+            id: "test.poll",
+            python_callable: true,
+            input_schema: { type: "object", properties: { query: { type: "string" } } },
+            config_schema: {
+              type: "object",
+              properties: {
+                query: { type: "string", "x-bindable": true },
+                skip: { type: "integer", "x-bindable": true },
+                pin: { type: "string", "x-resource": "secret", "x-bindable": true },
+                limit: { type: "integer" },
+              },
+            },
+          }),
+          makeDefinition({ id: "mcp.call", python_callable: true }),
+        ],
+      });
+      expect(screen.getByRole("option", { name: "poll(query=..., skip=...)" })).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: /poll\(query/ }));
+      expect(screen.getByText(/Optional overrides: skip/)).toBeVisible();
+      expect(screen.getByRole("option", { name: 'find(arguments={"query": ...})' })).toBeVisible();
+    } finally {
+      mcpTool.schema = null;
+    }
+  });
+
+  it("pins the bound email sender to the chosen vault SMTP account", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: makeDefinition({
+        id: "code.python.actions",
+        config_schema: { type: "object", properties: { actions: { type: "object" } } },
+      }),
+      config: {
+        actions: { notify: { type: "email.send", config: { reply_to: "ops@example.com" } } },
+      },
+      catalogEntries: [
+        makeDefinition({
+          id: "email.send",
+          python_callable: true,
+          config_schema: {
+            type: "object",
+            properties: {
+              smtp_secret_id: {
+                anyOf: [{ type: "string" }, { type: "null" }],
+                "x-resource": "secret",
+                "x-secret-kind": "smtp_account",
+              },
+            },
+          },
+        }),
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /notify\(/ }));
+    expect(screen.getByText("secret-kind:smtp_account")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "set-secret" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      actions: {
+        notify: {
+          type: "email.send",
+          config: { reply_to: "ops@example.com", smtp_secret_id: "sec" },
+        },
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "clear-secret" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      actions: { notify: { type: "email.send", config: { reply_to: "ops@example.com" } } },
+    });
+  });
+
+  it("explains which required settings must be passed in code when no default is bound", async () => {
+    const definition = makeDefinition({
+      id: "code.python.actions",
+      config_schema: { type: "object", properties: { actions: { type: "object" } } },
+    });
+    const http = makeDefinition({
+      id: "http.request",
+      python_callable: true,
+      config_schema: {
+        type: "object",
+        properties: { url: { type: "string", "x-bindable": true } },
+        required: ["url"],
+      },
+    });
+    renderForm({
+      definition,
+      config: {
+        actions: {
+          fetch_data: { type: "http.request" },
+          with_default: { type: "http.request", config: { url: "https://example.com" } },
+        },
+      },
+      catalogEntries: [http],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /fetch_data\(/ }));
+    expect(screen.getByText("Supply url in each call, or set a default below.")).toBeVisible();
+    expect(screen.queryByText(/Optional overrides:/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /with_default\(/ }));
+    expect(screen.getByText(/Optional overrides: url/)).toBeVisible();
+    expect(screen.queryByText(/Supply url in each call/)).toBeNull();
+  });
+
+  it("preserves unavailable imported bindings and disables editing in a run view", () => {
+    renderForm({
+      definition: makeDefinition({
+        id: "code.python.actions",
+        config_schema: { type: "object", properties: { actions: { type: "object" } } },
+      }),
+      config: { actions: { legacy: { type: "removed.test", config: {} } } },
+      disabled: true,
+    });
+    expect(screen.getByText("Action unavailable")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Remove legacy" })).toBeDisabled();
+    expect(screen.getByLabelText("Available functions")).toBeDisabled();
+  });
+
   it("pins a channel step's bot through the bot picker, and clears it", async () => {
     const channelStep = makeDefinition({
       id: "channel.send",
@@ -868,6 +1201,11 @@ describe("config leaves", () => {
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { collections: ["kb-b", "kb-a"] });
   });
 
+  it("offers a step app-scoped collections, which it reads though an agent cannot bind them", () => {
+    renderForm({ config: { collections: [] } });
+    expect(screen.getByText("app-scoped:offered")).toBeVisible();
+  });
+
   it("removes a collection already chosen, and ignores what is not an id", async () => {
     const { updateNodeConfig } = renderForm({ config: { collections: ["kb-a", 7] } });
     await userEvent.click(screen.getByLabelText("toggle-kb-a"));
@@ -922,6 +1260,14 @@ describe("a code field", () => {
       required: ["code"],
     },
     input_schema: null,
+  });
+
+  it("points Python script authors to the step that can call tools", () => {
+    renderForm({
+      definition: { ...code, id: "code.python.simple" },
+      config: { code: "42" },
+    });
+    expect(screen.getByText(/To call MCP tools, use tables or search knowledge/)).toBeVisible();
   });
 
   it("is edited in the code editor, with its help and its error", async () => {
@@ -1457,6 +1803,113 @@ describe("record values from a table's columns", () => {
   });
 });
 
+describe("a record filter's column", () => {
+  const filterStep = (id = "table.record.exists") =>
+    makeDefinition({
+      id,
+      config_schema: {
+        type: "object",
+        properties: {
+          table: { type: "object", title: "Table", "x-resource": "table" },
+          filters: {
+            type: "array",
+            title: "Filters",
+            items: {
+              type: "object",
+              properties: {
+                column_id: { type: "string", format: "uuid", title: "Column Id" },
+                op: { type: "string", enum: ["eq", "ne"], title: "Op" },
+                value: { type: "string", title: "Typed value" },
+              },
+              required: ["column_id", "op"],
+            },
+          },
+        },
+      },
+    });
+
+  it("offers a select column's options as the value, and leaves any other column typed", async () => {
+    tableColumns.columns = [
+      { id: "email-col", label: "Email", type: "text", archived: false, options: [] },
+      {
+        id: "status-col",
+        label: "Status",
+        type: "single_select",
+        archived: false,
+        options: [{ id: "o2", label: "Not worth sharing", archived: false }],
+      },
+    ];
+    const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+    const { updateNodeConfig } = renderForm({
+      config: {
+        table,
+        filters: [
+          { column_id: "status-col", op: "eq" },
+          { column_id: "email-col", op: "eq" },
+        ],
+      },
+      definition: filterStep(),
+    });
+
+    expect(screen.getAllByLabelText("Typed value")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("combobox", { name: "Value" }));
+    await userEvent.click(screen.getByRole("option", { name: "Not worth sharing" }));
+
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      table,
+      filters: [
+        { column_id: "status-col", op: "eq", value: "o2" },
+        { column_id: "email-col", op: "eq" },
+      ],
+    });
+  });
+
+  it.each([
+    ["Email", { column_id: "email-col", op: "contains" }],
+    ["Done", { column_id: "done-col", op: "eq", value: true }],
+  ])(
+    "is chosen by name, saved as the column's id, and starts the row afresh for %s",
+    async (label, row) => {
+      tableColumns.columns = [
+        { id: "email-col", label: "Email", type: "text", archived: false },
+        { id: "done-col", label: "Done", type: "boolean", archived: false },
+      ];
+      const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+      const { updateNodeConfig } = renderForm({
+        config: { table, filters: [{ column_id: "status-col", op: "in", value: ["o1"] }] },
+        definition: filterStep(),
+      });
+
+      expect(screen.queryByLabelText("Column Id")).toBeNull();
+      await userEvent.click(screen.getByRole("combobox", { name: "Column" }));
+      await userEvent.click(screen.getByRole("option", { name: label }));
+
+      expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { table, filters: [row] });
+    },
+  );
+
+  it("waits for a table before offering any column", () => {
+    renderForm({
+      config: { filters: [{ op: "eq" }] },
+      errors: new Map([["filters/0/column_id", "Not a live column of this table"]]),
+      definition: filterStep(),
+    });
+
+    expect(screen.getByRole("combobox", { name: "Column" })).toBeDisabled();
+    expect(screen.getByText("Choose a table first")).toBeInTheDocument();
+    expect(screen.getByText("Not a live column of this table")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["table.record.exists", false],
+    ["table.record.query", false],
+    ["trigger.table_record", true],
+  ])("%s offers the table's column list: %s", (id, pins) => {
+    renderForm({ definition: filterStep(id) });
+    expect(screen.queryByText("pins-columns") !== null).toBe(pins);
+  });
+});
+
 it("offers the notification channels a notification step sends through", () => {
   renderForm({
     definition: makeDefinition({
@@ -1564,4 +2017,87 @@ it("uses group selection for an approval audience and saves group ids", () => {
   expect(screen.getByText("approval-groups:finance")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "pick-approval-group" }));
   expect(updateNodeConfig).toHaveBeenCalledWith("N", { approver_group_ids: ["engineering"] });
+});
+
+it.each([
+  { nodeId: "N", binding: null, requiresReview: true, expected: true },
+  { nodeId: "other", binding: null, requiresReview: true, expected: false },
+  { nodeId: "N", binding: 0, requiresReview: true, expected: false },
+  { nodeId: "N", binding: null, requiresReview: false, expected: false },
+])(
+  "routes the matching config-table review to its picker: %j",
+  ({ nodeId, binding, requiresReview, expected }) => {
+    useWorkflowEditorStore.getState().setTableDrift([
+      {
+        nodeId,
+        field: binding === null ? null : "rows",
+        site: { nodeId, binding },
+        requiresReview,
+        rebound: { kind: "table", table_id: "t", column_ids: null, schema_version: 2 },
+      },
+    ]);
+    try {
+      renderForm({ config: { table: { table_id: "t", column_ids: null, schema_version: 1 } } });
+      expect(screen.getByRole("button", { name: "set-table" })).toHaveAttribute(
+        "data-requires-review",
+        String(expected),
+      );
+    } finally {
+      act(() => useWorkflowEditorStore.getState().setTableDrift([]));
+    }
+  },
+);
+
+it("replaces legacy decision credentials with the selected decision model profile", async () => {
+  const { updateNodeConfig } = renderForm({
+    definition: makeDefinition({
+      id: "decide.yes_no",
+      config_schema: {
+        type: "object",
+        properties: {
+          model_profile_id: {
+            type: "string",
+            "x-resource": "model_profile",
+            "x-model-purpose": "decision",
+            title: "Model",
+          },
+          secret_id: { type: "string", "x-resource": "secret", title: "Legacy key" },
+          model: { type: "string", title: "Legacy model" },
+        },
+      },
+    }),
+    config: { secret_id: "old-key", model: "old-model" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "pick-model" }));
+  expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { model_profile_id: "m1" });
+});
+
+it("opens a saved condition and retains it when switching to its expression with help", async () => {
+  renderForm({
+    definition: makeDefinition({
+      id: "data.filter",
+      config_schema: {
+        type: "object",
+        properties: {
+          condition: {
+            type: "string",
+            title: "Condition",
+            "x-condition": "item",
+            description: "Keep only active rows.",
+          },
+        },
+        required: ["condition"],
+      },
+    }),
+    config: { condition: "item.active" },
+  });
+  expect(screen.getByLabelText("Field of condition 1")).toHaveValue("active");
+  await userEvent.click(screen.getByRole("button", { name: "Write it as an expression" }));
+  expect(screen.getByRole("textbox", { name: /^Condition/ })).toHaveValue("item.active");
+  expect(screen.getByText("Keep only active rows.")).toBeVisible();
+});
+
+it("explains the input contract of a workflow called by another workflow", () => {
+  renderForm({ definition: makeDefinition({ id: "trigger.workflow_call" }) });
+  expect(screen.getByText(/Another workflow's Run a workflow step starts this one/)).toBeVisible();
 });

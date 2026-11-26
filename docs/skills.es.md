@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc0bd6a3c5a"
+source_sha: "4f9850e16b2b"
 ---
 
 # Skills { #skills }
@@ -287,14 +287,19 @@ questions** - a partir de respuestas recientes que cargaron el skill, o vacío -
 través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir preguntas de
 prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
 editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
-skill.
+skill. El conjunto lleva el nombre del skill, numerado cuando un dataset ya tiene ese
+nombre - por ejemplo, uno que dejó un skill borrado del mismo nombre.
 
 Un juez califica el conjunto, comparando cada respuesta con la que las personas
 valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
 vez: una respuesta que alguien valoró gana a una que solo falló, así que una
 pregunta nunca pide una respuesta y a la vez la prohíbe.
 
-Después, las preguntas del propio agent:
+Después, las preguntas del propio agent, del dataset con el que mide su
+[sesión de Improve](authoring.md#the-improve-wizard) más reciente cuando ese
+dataset lo prueba, y si no, del primer dataset que lo prueba. Así, un conjunto
+reservado para una medición final nunca lo pregunta una comprobación de skill
+mientras el agent mejora con otro.
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
   preguntas held-out del propio skill no llegan a las cinco que necesita un
@@ -332,10 +337,30 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
 - Al menos un agent tiene que quedar **mejor**.
 - Una diferencia que la comprobación no pudo confirmar está **dentro del
   ruido**: un aviso, no un bloqueo.
+- Un agent para el que no cambió ninguna pregunta entera, pero con un criterio
+  que volver a preguntar confirmó mejor y ninguno peor, está **mejor en
+  criterios**; uno con un criterio confirmado peor está **peor en criterios**.
+  Ninguno cambia la regla de arriba, que trata de preguntas enteras: en la barra
+  cuentan con los agents mejores y peores, y los detalles del agent enumeran cada
+  [familia](evals.md#a-flip-is-confirmed-before-it-counts) de criterios con sus
+  aciertos antes y después - la comprobación de una cosa en cada caso en una
+  fila - o cada criterio, para un agent comprobado antes de que se guardaran las
+  familias.
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación
-  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar.
+  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar. Lo
+  mismo uno cuyos runs calificaron cada respuesta en menos preguntas apartadas de
+  las que necesita un resultado: su fila dice cuántas salieron mejor y peor, y que
+  son demasiado pocas para estar seguros.
+- Un agent cuyas propias preguntas no terminaron - su run falló o se detuvo, se
+  rechazó, o la comprobación caducó - después de que las preguntas del skill
+  confirmaran una regresión sigue **peor**: el cambio aún tiene que fijarse o
+  rodearse con un fork. Uno en el que las preguntas del skill no confirmaron
+  regresión es **desconocido**: su fila dice que sus propias preguntas no
+  terminaron y que las del skill no confirmaron regresión - o, cuando no pudieron
+  empezar, por qué - y sus detalles conservan lo que dieron las preguntas del
+  skill, así que reconocerlo es una decisión tomada sobre media comprobación.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo
@@ -347,7 +372,8 @@ Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
 juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
 regresión que una etapa confirmó por sí sola cuenta, sea lo que sea que halló la
 otra. Todas las
-preguntas del conjunto del skill son held-out, y una comprobación rápida solo
+preguntas del conjunto del skill son held-out - su proporción se queda en uno,
+y una pregunta añadida es held-out en todo caso - y una comprobación rápida solo
 toma preguntas held-out del agent.
 
 Una comprobación envía sus regresiones confirmadas, y las respuestas que el juez
@@ -545,7 +571,11 @@ modelo propone un texto para ella. En **Changes** una persona puede reescribir
 cualquier parte, también la del modelo (`GET …/improvements/{run_id}/merge`, y luego
 `PATCH …/merge/description` o `…/merge/parts/{index}`). En un archivo que ambos lados
 cambiaron de forma distinta, una persona se queda con un lado
-(`PATCH …/merge/files`); el modelo nunca escribe un archivo. La comprobación empieza
+(`PATCH …/merge/files`); el modelo nunca escribe un archivo. Cada archivo muestra la
+descripción y el tamaño que le da cada lado y, al abrirlo, lo que cambió cada lado
+respecto a la versión de la que partieron ambos, leído de la versión de ese lado
+(`GET …/versions/{version_id}/resources/{name}`). Un archivo de más de 200 KB, o que
+no es texto, se ofrece en su lugar como descarga de cada lado. La comprobación empieza
 solo cuando no queda nada sin resolver. Pregunta a los agents del fork por la
 combinación y, salvo que se desactive `main_alone` al poner precio a la
 comprobación en Changes, por la versión más reciente de main sola. Esa segunda
@@ -859,6 +889,26 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
+Un paso que no puede ejecutarse - su ayudante está archivado o fuera de alcance,
+o la evidencia que recibió ya no está - falla con el motivo en la sesión, y
+**Retry this step within the spending limit** lo vuelve a ejecutar, como quien lo
+reintenta, una vez corregido. Un paso que supera el límite de gasto se detiene en
+su presupuesto. Ninguno se vuelve a pedir solo.
+
+Una sesión abierta desde el Improve de un agente empieza con los problemas que
+esa sesión informó. Solo un problema que cita una línea del skill con el valor o
+la regla equivocados se lleva los criterios del agente; cuando el skill solo
+calla, el problema es un consejo y el agente sigue respondiendo de esos
+criterios - consulta [Cuando el fallo está en un
+skill](authoring.md#when-the-fault-is-in-a-skill).
+
+Lo que escribe una sesión - el título y el resumen de cada problema, y el texto
+que propone - sale de todas las respuestas que pudo leer la persona como la que se ejecuta
+(quien la empezó, o quien dio su último paso), y lo lee
+todo el que puede leer la sesión (`runs:view` y acceso al skill). Solo las citas
+y los nombres de agents siguen el acceso de quien lee: una cita de un agent que no
+ve, y el nombre de ese agent, se cuentan en lugar de mostrarse.
+
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto
 cuesta llegar a la primera propuesta y cada intento posterior. El límite de gasto
@@ -872,8 +922,8 @@ que no pudo calificar todas las respuestas. Los agents que no puedes ver se
 cuentan.
 
 El resultado empieza con una barra que cuenta los agents que salieron mejor, sin
-cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, sin cambios,
-dentro del ruido, peor o desconocido, con los que hay que mirar primero arriba. Cada
+cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, mejor en criterios,
+sin cambios, dentro del ruido, peor en criterios, peor o desconocido, con los que hay que mirar primero arriba. Cada
 fila tiene una pequeña barra de las preguntas que arregló frente a las que estropeó.
 
 Una fila entera se abre a sus detalles con un clic en cualquier parte o con Intro

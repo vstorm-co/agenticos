@@ -145,6 +145,7 @@ async function start() {
     }
   });
   await listen("local:progress", ({ payload }) => {
+    checkLocal.progress(payload);
     if (typeof payload.instance_id === "string")
       localForm.querySelector("[name=instance-id]").value = payload.instance_id;
     const detail = document.querySelector("[data-progress-detail]");
@@ -159,6 +160,17 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
+  if (typeof state.desktop_version === "string") {
+    const label = document.createElement("span");
+    label.textContent = "Desktop app";
+    document
+      .querySelector("[data-desktop-version]")
+      .replaceChildren(label, ` ${state.desktop_version}`);
+  }
+  if (new URLSearchParams(location.search).get("local") === "update") {
+    show("local");
+    return;
+  }
   if (state.local_setup_pending) {
     show("local");
     await checkLocal.prepare();

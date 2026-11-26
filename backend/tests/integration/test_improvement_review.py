@@ -6,14 +6,16 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from app.core.exceptions import AuthorizationError, RateLimitError
 from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.organization import OrganizationMember
 from app.repositories import improvement_repo
-from app.schemas.scoring import CaseVerdict
+from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.eval_run import EvalRunService
 from app.services.improvement_pipeline import ImprovementPipelineService
-from app.services.scoring import ScoringService
+from app.services.scoring import ScoringService, ungraded
+from tests.integration.test_authoring import _another_request_comparing
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_pipeline import _ready_proposal
 
@@ -140,3 +142,85 @@ async def test_review_lookup_is_tenant_scoped_and_ignores_unrelated_checks(db):
         )
         == []
     )
+
+
+@pytest.mark.security
+async def test_eval_verdict_admission_precedes_writes_and_a_dataset_grant_alone_decides_nothing(
+    db,
+):
+    from app.core.permissions import OrgRoleName
+    from app.db.models.resource_grant import GrantLevel
+    from app.repositories import resource_grant_repo
+    from app.services.access import DATASET
+    from tests.integration.test_authoring import _member
+
+    ctx, agent, ready = await _ready_proposal(db)
+    check_id = ready.iterations[0].eval_run_ids[-1]
+    score = next(score for role, _, score in await _scores(db, check_id) if role == "candidate")
+    before = score.human_passed
+    child = await db.get(EvalRun, check_id)
+    cached = child.outcome
+    service = ScoringService(db)
+    async with _another_request_comparing(ctx):
+        with pytest.raises(RateLimitError):
+            await service.set_verdict(ctx, ready.dataset_id, score.id, CaseVerdict(passed=False))
+        await db.refresh(score)
+        await db.refresh(child)
+        assert score.human_passed is before and child.outcome == cached
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=ctx.organization_id,
+        subject_user_id=member.user_id,
+        resource_type=DATASET.key,
+        resource_id=ready.dataset_id,
+        level=GrantLevel.EDIT,
+        created_by_user_id=ctx.user_id,
+    )
+    with pytest.raises(AuthorizationError):
+        await service.set_verdict(member, ready.dataset_id, score.id, CaseVerdict(passed=False))
+    with pytest.raises(AuthorizationError):
+        await service.rescore(member, ready.dataset_id, RescoreRequest(score_ids=[score.id]))
+    await db.refresh(score)
+    await db.refresh(child)
+    assert score.human_passed is before and child.outcome == cached
+    current = await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)
+    assert current.iterations[0].verdict == ready.iterations[0].verdict
+    assert current.iterations[0].verdict_detail == ready.iterations[0].verdict_detail
+
+
+async def _ungraded_candidate(db, check_id, *, answer: str) -> list[CaseScore]:
+    """One case's candidate answers, now saying `answer`, each waiting to be graded again."""
+    rows = await _scores(db, check_id)
+    case_id = next(case for role, case, _ in rows if role == "candidate")
+    scores = [score for role, case, score in rows if role == "candidate" and case == case_id]
+    for score in scores:
+        attempt = await db.scalar(select(EvalRunCase).where(EvalRunCase.case_score_id == score.id))
+        assert attempt is not None
+        attempt.answer = answer
+        score.results = [{**result, "status": "error"} for result in score.results]
+    await db.flush()
+    return scores
+
+
+async def test_grading_an_eval_answer_again_takes_admission_and_settles_the_session_again(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    check_id = ready.iterations[0].eval_run_ids[-1]
+    assert ready.iterations[0].verdict_detail["fixed"] == 5
+    scores = await _ungraded_candidate(db, check_id, answer="Returns are not accepted.")
+    wanted = RescoreRequest(score_ids=[score.id for score in scores])
+    service = ScoringService(db)
+    async with _another_request_comparing(ctx):
+        with pytest.raises(RateLimitError):
+            await service.rescore(ctx, ready.dataset_id, wanted)
+    for score in scores:
+        await db.refresh(score)
+        assert ungraded(score)
+
+    result = await service.rescore(ctx, ready.dataset_id, wanted)
+
+    assert [score.passed for score in result.rescored] == [False] * len(scores)
+    current = await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)
+    assert current.iterations[0].verdict_detail["fixed"] == 4
+    assert current.iterations[0].verdict_detail["broken"] == 0
+    assert any(event.action == "improvement.review_recomputed" for event in current.timeline)

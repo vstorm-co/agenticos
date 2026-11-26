@@ -58,6 +58,23 @@ function headers(nth = 0): Record<string, string> {
   return init(nth).headers as Record<string, string>;
 }
 
+it("preserves Retry-After as a deadline on a refused API request", async () => {
+  const before = Date.now();
+  fetchMock.mockResolvedValue(
+    new Response(JSON.stringify({ detail: "Busy" }), {
+      status: 429,
+      headers: { "Retry-After": "17", "Content-Type": "application/json" },
+    }),
+  );
+  const error: unknown = await apiClient
+    .get("/eval-runs/r/comparison")
+    .catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(ApiError);
+  if (!(error instanceof ApiError)) throw new Error("Expected ApiError");
+  expect(error.retryAt).toBeGreaterThanOrEqual(before + 17_000);
+  expect(error.retryAt).toBeLessThanOrEqual(Date.now() + 17_000);
+});
+
 describe("apiClient", () => {
   it("addresses this app's own proxy, never the platform", () => {
     // The whole reason the client exists: the backend URL is a server secret.
@@ -699,4 +716,13 @@ describe("uploading with progress", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(FakeXhr.instances).toHaveLength(0);
   });
+});
+
+it("sends ZIP bytes without JSON encoding and keeps organization authority", async () => {
+  useOrgStore.setState({ activeOrgId: "organization" });
+  const file = new File([new Uint8Array([0, 255, 1])], "agent.zip", { type: "application/zip" });
+  await apiClient.put("/portability/id/upload", file);
+  expect(fetchMock.mock.calls[0]?.[1].body).toBe(file);
+  expect(fetchMock.mock.calls[0]?.[1].headers["Content-Type"]).toBe("application/zip");
+  expect(fetchMock.mock.calls[0]?.[1].headers["X-Organization-Id"]).toBe("organization");
 });

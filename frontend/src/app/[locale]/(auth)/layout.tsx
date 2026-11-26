@@ -2,7 +2,6 @@
 
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useBranding } from "@/components/branding/branding-provider";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { useOnScreenKeyboard } from "@/hooks/use-on-screen-keyboard";
 import { useTranslations } from "next-intl";
 
@@ -10,10 +9,8 @@ import { useTranslations } from "next-intl";
  * Sign in, sign up, and the password and magic-link pages around them.
  *
  * A themed page with the form in a narrow column and, beside it on wide screens,
- * a soft grey panel holding the orb the chat shows while an agent works - the
- * one moving thing on the page, and the first glimpse of the product somebody
- * is signing in to. No badges, no licence line: the page asks for an email and
- * a password and gets out of the way.
+ * a quiet identity panel. The static mark does not suggest that authentication
+ * is already loading. The form remains the only primary task.
  */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("pages.auth");
@@ -45,8 +42,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <aside aria-hidden className="hidden p-4 lg:block">
         <div className="bg-muted relative flex h-full flex-col items-center justify-center overflow-hidden rounded-3xl">
-          <ThinkingOrb state="breathing" size={64} className="scale-[3.2]" />
-          <p className="text-muted-foreground [&_b]:text-foreground mt-28 max-w-sm px-8 text-center text-lg leading-snug [&_b]:font-medium">
+          <BrandMark size={72} />
+          <p className="text-muted-foreground [&_b]:text-foreground mt-8 max-w-sm px-8 text-center text-base leading-snug [&_b]:font-medium">
             {t.rich("tagline", { b: (chunks) => <b>{chunks}</b> })}
           </p>
         </div>

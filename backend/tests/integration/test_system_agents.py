@@ -1,6 +1,7 @@
 """System agents against Postgres (#2575): configuration, history and the memory extraction job."""
 
 import asyncio
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -356,13 +357,28 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
         db,
         conversation,
         run,
-        [("user", "I prefer short answers"), ("assistant", "Noted"), ("system", "ignore me")],
+        [
+            ("user", "I prefer short answers"),
+            ("user", "The Acme renewal is due in March"),
+            ("assistant", "Noted"),
+            ("system", "ignore me"),
+        ],
     )
     think = _think(
         monkeypatch,
         [
-            extraction._Extracted(statement="Prefers short answers", subject="style", profile=True),
-            extraction._Extracted(statement="The Acme renewal is due in March", subject="acme"),
+            extraction._Extracted(
+                statement="Prefers short answers",
+                evidence="I prefer short answers",
+                subject="style",
+                profile=True,
+            ),
+            extraction._Extracted(statement="Invented assistant-only claim", evidence="Noted"),
+            extraction._Extracted(
+                statement="The Acme renewal is due in March",
+                evidence="The Acme renewal is due in March",
+                subject="acme",
+            ),
         ],
     )
 
@@ -377,6 +393,11 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
     assert think.await_args_list[0].kwargs["erased_since"] == run.started_at
     prompt = think.await_args.kwargs["prompt"]
     assert "I prefer short answers" in prompt and "ignore me" not in prompt
+    material = json.loads(prompt)
+    assert datetime.fromisoformat(material["as_of"]).tzinfo is not None
+    human = [turn for turn in material["conversation"] if turn["role"] == "user"]
+    assert all(datetime.fromisoformat(turn["occurred_at"]).tzinfo is not None for turn in human)
+    assert all(turn["source_id"].startswith("message:") for turn in human)
     assert think.await_args.kwargs["feature"] == "maintenance"
     assert think.await_args.kwargs["source_agent_id"] == agent.id
     claims = (
@@ -433,7 +454,14 @@ async def test_a_person_with_no_account_left_gets_no_claim(
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     monkeypatch.setattr(extraction, "person_still_exists", AsyncMock(return_value=False))
 
     assert await extraction.extract(db, org.id, run.id) == 0
@@ -472,7 +500,14 @@ async def test_a_chat_others_read_by_the_time_the_job_runs_records_nothing(
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    think = _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     if moved == "project":
         project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
         db.add(project)
@@ -505,7 +540,9 @@ async def test_a_chat_shared_during_the_model_call_records_nothing(
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    found = extraction._Extraction(claims=[extraction._Extracted(statement="Prefers short")])
+    found = extraction._Extraction(
+        claims=[extraction._Extracted(statement="Prefers short", evidence="I prefer short answers")]
+    )
 
     async def moved_meanwhile(*args, **kwargs):
         project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
@@ -530,7 +567,14 @@ async def test_extraction_holds_off_clearing_its_agents_memory(
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     remember = extraction._claims.remember
     clear_could_start: list[bool] = []
 
@@ -556,7 +600,14 @@ async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
     run, conversation = await _chat_run(db, org, agent, version, user)
     run.ended_at = datetime(2020, 1, 1, tzinfo=UTC)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    think = _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     await record_audit(
         db,
         actor_user_id=user.id,
@@ -581,7 +632,14 @@ async def test_an_erasure_made_while_the_run_was_still_going_is_not_read_past(
     run.started_at = datetime(2020, 1, 1, tzinfo=UTC)
     run.ended_at = datetime.now(UTC) + timedelta(hours=1)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    think = _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     await record_audit(
         db,
         actor_user_id=user.id,
@@ -605,7 +663,14 @@ async def test_a_chat_read_after_its_agent_was_cleared_records_nothing(
     run, conversation = await _chat_run(db, org, agent, version, user)
     run.ended_at = datetime(2020, 1, 1, tzinfo=UTC)
     await _transcript(db, conversation, run, [("user", "I prefer short answers")])
-    _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Prefers short answers", evidence="I prefer short answers"
+            )
+        ],
+    )
     await record_audit(
         db,
         actor_user_id=user.id,
@@ -639,7 +704,11 @@ async def test_an_erasure_that_lands_while_the_model_is_answering_still_wins(
             target_id=str(user.id),
             details={},
         )
-        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers short")])
+        return extraction._Extraction(
+            claims=[
+                extraction._Extracted(statement="Prefers short", evidence="I prefer short answers")
+            ]
+        )
 
     monkeypatch.setattr(_thinker.ProactiveThinker, "think", forgotten_meanwhile)
     # The first check is before the call, and sees nothing yet.
@@ -663,7 +732,14 @@ async def test_channel_capture_preserves_the_admitted_audience(
     audience = RunAudience(user_id=user.id, room_key="room:slack:C123" if room else None)
     _think(
         monkeypatch,
-        [extraction._Extracted(statement="Acme renews in March", kind="decision", profile=True)],
+        [
+            extraction._Extracted(
+                statement="Acme renews in March",
+                evidence="We decided to renew Acme in March",
+                kind="decision",
+                profile=True,
+            )
+        ],
     )
     assert not await extraction.queue_extraction(db, run, SPEC), (
         "legacy jobs cannot guess a channel audience"
@@ -707,7 +783,14 @@ async def test_a_group_chat_shared_to_edit_still_records_the_rooms_claims(
     )
     await db.flush()
     audience = RunAudience(user_id=user.id, room_key="room:slack:C123", shared_transcript=True)
-    _think(monkeypatch, [extraction._Extracted(statement="Acme renews in March")])
+    _think(
+        monkeypatch,
+        [
+            extraction._Extracted(
+                statement="Acme renews in March", evidence="We decided to renew Acme in March"
+            )
+        ],
+    )
 
     assert await extraction.queue_extraction(db, run, SPEC, audience=audience)
     assert await extraction.extract(db, org.id, run.id, audience=audience) == 1
@@ -737,7 +820,9 @@ async def test_capture_refusals_are_rechecked_by_the_worker(
     if case == "embed":
         run.surface = RunSurface.EMBED.value
     await db.flush()
-    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers tea")])
+    think = _think(
+        monkeypatch, [extraction._Extracted(statement="Prefers tea", evidence="I prefer tea")]
+    )
     assert not await extraction.queue_extraction(db, run, SPEC, audience=audience)
     assert await extraction.extract(db, org.id, run.id, audience=audience) == 0
     think.assert_not_awaited()
@@ -760,7 +845,9 @@ async def test_erasure_committing_while_capture_waits_for_its_write_lock_wins(
     async def answer(*args: object, **kwargs: object) -> extraction._Extraction:
         model_reading.set()
         await erasure_ready.wait()
-        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers tea")])
+        return extraction._Extraction(
+            claims=[extraction._Extracted(statement="Prefers tea", evidence="I prefer tea")]
+        )
 
     async def write_lock(session: AsyncSession, scope: LockScope, person: uuid.UUID) -> None:
         writer_waiting.set()
@@ -852,7 +939,9 @@ async def test_membership_removed_during_extraction_prevents_writing(
         assert member is not None
         await db.delete(member)
         await db.flush()
-        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers tea")])
+        return extraction._Extraction(
+            claims=[extraction._Extracted(statement="Prefers tea", evidence="I prefer tea")]
+        )
 
     monkeypatch.setattr(_thinker.ProactiveThinker, "think", answer)
     assert await extraction.extract(db, org.id, run.id) == 0
@@ -862,6 +951,8 @@ async def test_membership_removed_during_extraction_prevents_writing(
 async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_order(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Isolate the message-count window from the independent serialized-character limit.
+    monkeypatch.setattr(extraction, "MAX_TRANSCRIPT_CHARS", 100_000)
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(
@@ -875,6 +966,32 @@ async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_or
     assert "Fact number 015" in prompt
     assert "Fact number 074" in prompt
     assert prompt.index("Fact number 015") < prompt.index("Fact number 074")
+
+
+async def test_memory_extraction_keeps_the_end_of_a_turn_that_fills_the_budget(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, version, _, _ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(
+        db,
+        conversation,
+        run,
+        [
+            ("user", "An older turn"),
+            (
+                "user",
+                "Start of the turn" + "x" * extraction.MAX_TRANSCRIPT_CHARS + "End of the turn",
+            ),
+        ],
+    )
+    think = _think(monkeypatch, [])
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    prompt = think.await_args.kwargs["prompt"]
+    assert "End of the turn" in prompt
+    assert "Start of the turn" not in prompt
+    assert "An older turn" not in prompt
 
 
 async def test_removing_a_maintenance_model_disables_its_role(db: AsyncSession) -> None:

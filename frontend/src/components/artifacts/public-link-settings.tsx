@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { ChevronRight, KeyRound } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -147,7 +149,7 @@ export function PublicLinkSettings({
           )}
         </div>
       )}
-      <details className="group/link-options border-t pt-3">
+      <NativeDisclosure className="group/link-options border-t pt-3">
         <summary
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-md text-[13px] font-medium outline-none focus-visible:ring-2 aria-disabled:cursor-wait [&::-webkit-details-marker]:hidden"
           aria-disabled={saving || undefined}
@@ -273,7 +275,7 @@ export function PublicLinkSettings({
             </div>
           </div>
         </fieldset>
-      </details>
+      </NativeDisclosure>
       <ConfirmDialog
         open={removingPassword}
         onOpenChange={setRemovingPassword}

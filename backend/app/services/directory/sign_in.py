@@ -22,7 +22,6 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.db.models.user import User
 from app.services.directory.contract import (
     AcceptedTicket,
     Directory,
@@ -30,7 +29,7 @@ from app.services.directory.contract import (
     TicketAcceptor,
 )
 from app.services.directory.sync import DirectorySyncService
-from app.services.user import UserService
+from app.services.user import OAuthAccount, UserService
 
 #: The provider name directory accounts are stored under, for both ways in.
 DIRECTORY_PROVIDER = "ldap"
@@ -73,7 +72,7 @@ class DirectorySignInService:
 
     async def sign_in_with_password(
         self, username: str, password: str, *, invitation_token: str | None = None
-    ) -> User:
+    ) -> OAuthAccount:
         """The account behind these directory credentials, created on first sign-in.
 
         Raises:
@@ -90,7 +89,7 @@ class DirectorySignInService:
 
     async def sign_in_with_ticket(
         self, token: bytes, *, invitation_token: str | None = None
-    ) -> tuple[User, bytes | None]:
+    ) -> tuple[OAuthAccount, bytes | None]:
         """The account behind a Kerberos ticket, and the token to answer the browser with.
 
         Raises:
@@ -105,14 +104,14 @@ class DirectorySignInService:
         directory = self._require_directory()
         ticket: AcceptedTicket = await asyncio.to_thread(acceptor.accept, token)
         identity = await asyncio.to_thread(directory.lookup_principal, ticket.principal)
-        user = await self._account_for(identity, invitation_token=invitation_token)
-        return user, ticket.response_token
+        account = await self._account_for(identity, invitation_token=invitation_token)
+        return account, ticket.response_token
 
     async def _account_for(
         self, identity: DirectoryIdentity, *, invitation_token: str | None
-    ) -> User:
+    ) -> OAuthAccount:
         sync = DirectorySyncService(self.db)
-        user = await UserService(self.db).get_or_create_oauth_user(
+        account = await UserService(self.db).get_or_create_oauth_account(
             provider=DIRECTORY_PROVIDER,
             provider_id=identity.subject,
             email=identity.email,
@@ -120,7 +119,8 @@ class DirectorySignInService:
             invitation_token=invitation_token,
             admitted_by_directory=await sync.admits(identity.groups),
         )
+        user = account.user
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
         await sync.apply(user.id, identity.groups, provider=DIRECTORY_PROVIDER)
-        return user
+        return account

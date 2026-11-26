@@ -45,6 +45,13 @@ A model the package does not know is recorded at zero cost **with a flag**,
 because a total that quietly under-reports is worse than one visibly marked
 incomplete.
 
+LLMTR is deliberately stricter when a dollar ceiling is active: its model wrapper
+checks the selected model, including fallbacks and auxiliary calls, against the
+reviewed snapshot before sending a request. An unknown price, or an already
+incomplete run ledger, refuses the call. Uncapped runs retain partial accounting.
+The runner binds the budget context around the complete run, before streaming
+tasks are created.
+
 One ledger per run, and a run can contain several agents: a delegation runs a
 second agent's whole conversation inside a turn of the first, against this ledger,
 which is what makes the parent's cap bind on it. So each entry is stamped with two

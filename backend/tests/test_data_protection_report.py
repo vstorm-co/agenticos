@@ -105,12 +105,15 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        db = _db([], counts=[3] + [0] * (SEALED_IN_PLACE - 1))
+        counts = {"channel_bots": 3, "event_source_credentials": 2}
+        db = _db([])
+        db.scalar.side_effect = lambda query: counts.get(query.get_final_froms()[0].name, 0)
 
         section = await _credentials(db)
 
         counted = {row[1].split(" (")[0]: row[3] for row in section.rows}
         assert counted["channel_bots"] == 3
+        assert counted["event_source_credentials"] == 2
         assert "organization_secrets" not in counted
 
     async def test_collections_report_an_off_site_parse_only_with_its_own_key(self) -> None:
@@ -267,6 +270,27 @@ class TestCapabilityDestinations:
         ]
         assert "directly from that computer" in row[3]
         assert "not evidence" in section.note
+
+    async def test_external_acp_reports_device_owned_destinations(self) -> None:
+        db = _db(
+            [
+                (
+                    "external",
+                    1,
+                    {"capabilities": [{"id": "external_acp", "config": {"agent_id": "my-agent"}}]},
+                )
+            ],
+            [],
+        )
+        section = await _capability_destinations(db)
+        row = section.rows[0]
+        assert row[:3] == ["agent external", "default v1", "external_acp"]
+        assert "directly from the person's computer" in row[3]
+        assert "CLI-owned modes use that program's endpoint and sign-in" in row[3]
+        assert "Selected Pi vault-key modes" in row[3]
+        assert "fixed provider endpoints" in row[3]
+        assert "independently authorized" in row[3]
+        assert "sandbox" not in row[3]
 
     def test_every_registered_capability_is_classified(self) -> None:
         """A new capability fails here rather than leaving the inventory short."""

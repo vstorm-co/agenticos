@@ -85,6 +85,7 @@ const DOC: KBDocument = {
   vector_document_id: "vec-1",
   chunk_count: 4,
   has_file: true,
+  has_parsed_content: true,
   created_at: "2026-07-01T00:00:00Z",
   completed_at: "2026-07-01T00:00:10Z",
   parser: "pymupdf",
@@ -259,6 +260,9 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     // its failure takes the whole page rather than reading as "no documents".
     await waitFor(() => expect(screen.getByText("Bad gateway")).toBeInTheDocument());
     expect(screen.queryByText("pages.kb.noDocumentsYet")).not.toBeInTheDocument();
+    mockApi({ documents: [DOC] });
+    await userEvent.click(screen.getByRole("button", { name: "pages.kb.retry" }));
+    expect(await screen.findByText("onboarding.md")).toBeVisible();
   });
 });
 

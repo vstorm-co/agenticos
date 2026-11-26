@@ -145,7 +145,7 @@ def test_shards_preserve_required_contexts_and_isolation() -> None:
             assert (result.returncode == 0) is (statuses == ("success", "success"))
     assert set(jobs["e2e-shards"]["services"]) == {"postgres", "redis"}
     assert "build-frontend" in jobs["e2e-shards"]["needs"]
-    for name in ("test", "e2e-shards"):
+    for name in ("backend-shards", "e2e-shards"):
         postgres = jobs[name]["services"]["postgres"]
         assert postgres["image"] == "pgvector/pgvector:pg16"
         assert "--tmpfs /var/lib/postgresql/data" in postgres["options"]

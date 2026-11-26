@@ -47,7 +47,7 @@ export function NeedsAttentionWidget({ title, hint, period, options }: Dashboard
             <li key={item.agent_id} className="flex items-center justify-between gap-3 py-2">
               <span className="min-w-0 space-y-0.5">
                 <Link
-                  href={ROUTES.AGENT_DETAIL(item.agent_id)}
+                  href={`${ROUTES.AGENT_DETAIL(item.agent_id)}?tab=evals`}
                   className="block truncate font-medium"
                 >
                   {item.name}

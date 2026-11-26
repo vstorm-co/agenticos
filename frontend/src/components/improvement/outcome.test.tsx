@@ -36,6 +36,9 @@ const state = vi.hoisted(() => ({
   topics: [] as Topic[],
   topicsError: null as Error | null,
   topicsLoading: false,
+  skipped: 0,
+  /** The ids each read of topics asked for. */
+  readIds: [] as string[][],
   evidenceTopics: ["t1", "t2", "t3"] as (string | null)[],
   compared: null as EvalComparison | null,
   comparisonError: null as Error | null,
@@ -51,12 +54,16 @@ const state = vi.hoisted(() => ({
   draft: vi.fn(),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
-  useKnowledgeGaps: () => ({
-    topics: state.topics,
-    error: state.topicsError,
-    isLoading: state.topicsLoading,
-    refetch: state.refetchTopics,
-  }),
+  useKnowledgeGapTopics: (ids: string[]) => {
+    state.readIds.push(ids);
+    return {
+      topics: state.topics.filter((item) => ids.includes(item.id)),
+      skipped: state.skipped,
+      error: state.topicsError,
+      isLoading: state.topicsLoading,
+      refetch: state.refetchTopics,
+    };
+  },
   useDraftKnowledgeGap: () => ({ mutate: state.draft, isPending: false }),
   useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
 }));
@@ -124,6 +131,8 @@ beforeEach(() => {
   state.topicsLoading = false;
   state.topics = [topic("t1"), topic("t2"), topic("t3", { can_edit: false }), topic("t9")];
   state.topicsError = null;
+  state.skipped = 0;
+  state.readIds = [];
   state.evidenceTopics = ["t1", "t2", "t3", null];
   state.environments = [];
   state.suites = [];
@@ -132,6 +141,66 @@ beforeEach(() => {
     baseline_summary: { ...SUMMARY, cases: 5, cost_usd: "0.05" },
     candidate_summary: { ...SUMMARY, cases: 5, cost_usd: "0.051" },
   });
+});
+
+it("shows how often the criteria passed before and after, and what a skill still holds back", () => {
+  state.compared = comparison({});
+  const family = {
+    criteria: 1,
+    settled: true,
+    worse: false,
+  };
+  render(
+    <ResultSummary
+      session={SESSION}
+      round={{
+        ...ROUND,
+        verdict: "criteria_better",
+        verdict_detail: {
+          fixed: 0,
+          broken: 0,
+          families: [
+            {
+              ...family,
+              family: "price break",
+              cases: 28,
+              before: 3,
+              after: 28,
+              fixed: 25,
+              broken: 0,
+              better: true,
+            },
+            {
+              ...family,
+              family: "valid for 14 days",
+              cases: 22,
+              before: 0,
+              after: 0,
+              fixed: 0,
+              broken: 0,
+              better: false,
+              skill: "fernhill-quote-format",
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  const passed = screen.getByText("Criteria passed").closest("div")!;
+  expect(passed).toHaveTextContent("6% → 56%");
+  expect(passed).toHaveTextContent("1 criterion better");
+  const held = screen.getByText("Still held back by a skill").closest("div")!;
+  expect(held).toHaveTextContent("1");
+  expect(held).toHaveTextContent("fernhill-quote-format");
+});
+
+it("shows no criteria tiles for an attempt measured before criteria were kept", () => {
+  state.compared = comparison({});
+  render(<ResultSummary session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: 1 } }} />);
+
+  expect(screen.queryByText("Criteria passed")).toBeNull();
+  expect(screen.queryByText("Still held back by a skill")).toBeNull();
 });
 
 it("counts confirmed changes large, unconfirmed ones beside them, and links the topics", () => {
@@ -146,10 +215,10 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   const tiles = screen.getByRole("group", {
     name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 3 topics missing.",
   });
-  const fixed = within(tiles).getByText("Newly fixed").closest("div.flex-col")!;
+  const fixed = within(tiles).getByText("Improved answers").closest("div")!;
   expect(fixed).toHaveTextContent("3");
   expect(fixed).toHaveTextContent("+2 not confirmed");
-  expect(within(tiles).getByText("Newly broken").closest("div.flex-col")).not.toHaveTextContent(
+  expect(within(tiles).getByText("Answers that got worse").closest("div")).not.toHaveTextContent(
     "not confirmed",
   );
   expect(
@@ -158,7 +227,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
     ),
   ).toBeInTheDocument();
   // Every open topic of the session counts, drafted or not, whoever may change it.
-  const topics = within(tiles).getByText("Topics missing knowledge").closest("a")!;
+  const topics = within(tiles).getByRole("link")!;
   expect(topics).toHaveTextContent("3");
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   view.rerender(
@@ -171,7 +240,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(screen.queryByText(/^Not confirmed:/)).toBeNull();
   state.topics = [];
   view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
-  expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();
+  expect(screen.queryByText("Topics missing knowledge")).toBeNull();
 });
 
 it("counts only what is still missing, and says how much was added since", () => {
@@ -186,7 +255,7 @@ it("counts only what is still missing, and says how much was added since", () =>
       name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: nothing missing, 2 added since.",
     }),
   ).toBeInTheDocument();
-  const tile = screen.getByText("Topics missing knowledge").closest<HTMLElement>("div.flex-col")!;
+  const tile = screen.getByText("Topics missing knowledge").closest<HTMLElement>("div")!;
   expect(tile).toHaveTextContent("0");
   expect(tile).toHaveTextContent("2 already added");
   expect(within(tile).queryByRole("link")).not.toBeInTheDocument();
@@ -226,14 +295,59 @@ it("lists only this session's topics beside the changes and opens a draft inside
   expect(screen.queryByRole("button", { name: /Close draft/ })).not.toBeInTheDocument();
 });
 
-it("says nothing is missing, and offers to read the drafts again after a failure", async () => {
+it("says the topics could not be read, never that nothing is missing, and reads them again", async () => {
   state.topics = [];
-  state.topicsError = new Error("Forbidden");
+  state.topicsError = new Error("Server error");
   render(<KnowledgeDocuments session={SESSION} />);
-  expect(screen.getByText("Nothing is missing from the knowledge base.")).toBeInTheDocument();
+  expect(screen.getByText("Server error")).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.refetchTopics).toHaveBeenCalled();
   expect(state.refetchEvidence).toHaveBeenCalled();
+});
+
+it("says the knowledge base could not be read in the summary, not that nothing is missing", () => {
+  state.topics = [];
+  state.topicsError = new Error("Server error");
+  render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByRole("group", {
+      name: /In the knowledge base: what is missing could not be read\./,
+    }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/nothing missing/)).not.toBeInTheDocument();
+});
+
+it("counts the session's topics it could not read, and points to the ones past what it reads", () => {
+  state.skipped = 2;
+  state.evidenceTopics = Array.from({ length: 55 }, (_, index) => `t${index + 1}`);
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(state.readIds.at(-1)).toHaveLength(50);
+  expect(
+    screen.getByText(
+      "2 topics this session found could not be read: they were removed, or you cannot see them.",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/5 more topics this session found are listed in the/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "agent's knowledge gaps" })).toHaveAttribute(
+    "href",
+    "/agents/a1?tab=gaps",
+  );
+});
+
+it("never says nothing is missing when none of the session's topics could be read", () => {
+  state.topics = [];
+  state.skipped = 2;
+  state.evidenceTopics = ["gone1", "gone2"];
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(
+    screen.getByText(
+      "2 topics this session found could not be read: they were removed, or you cannot see them.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).not.toBeInTheDocument();
 });
 
 it("keeps a document set aside with Not now off the list, and says when that fails", async () => {
@@ -384,7 +498,9 @@ it("finds the session's open topics, drafted or not, and nobody else's", () => {
     topic("t9", { has_draft: false }),
   ];
   const { result } = renderHook(() => useSessionTopics(SESSION));
+  expect(state.readIds.at(-1)).toEqual(["t1", "t2", "t3"]);
   expect(result.current.topics.map((item) => item.id)).toEqual(["t1", "t2"]);
+  expect(result.current.added.map((item) => item.id)).toEqual(["t3"]);
   expect(result.current.error).toBeNull();
 });
 
@@ -421,8 +537,8 @@ it("keeps invalid result and acceptance summaries from reusing a previous verdic
   state.compared = comparison({ verdict: "invalid", fixed_confirmed: 3, cases: [FLIP] });
   const view = render(<ResultSummary session={SESSION} round={ROUND} />);
   expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
-  expect(screen.queryByText("Newly fixed")).toBeNull();
-  expect(screen.queryByText("Newly broken")).toBeNull();
+  expect(screen.queryByText("Improved answers")).toBeNull();
+  expect(screen.queryByText("Answers that got worse")).toBeNull();
   expect(
     screen.queryByRole("group", { name: /^In the agent: 3 questions newly fixed/ }),
   ).toBeNull();
@@ -442,4 +558,25 @@ it("does not state stored improvements until the comparison is read, and offers 
   expect(screen.getByRole("alert")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.comparisonRetry).toHaveBeenCalled();
+});
+
+it("omits an empty knowledge section from historical changes while preserving loading, errors and an open editor", async () => {
+  state.topics = [];
+  const view = render(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.queryByText("Missing from the knowledge base")).toBeNull();
+  state.topicsLoading = true;
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("status", { name: "Loading the topics…" })).toBeVisible();
+  state.topicsLoading = false;
+  state.topicsError = new Error("Unavailable knowledge");
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Unavailable knowledge")).toBeVisible();
+  state.topicsError = null;
+  state.topics = [topic("t1")];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Topic t1")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: /Review the draft/ }));
+  state.topics = [];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("button", { name: "Close draft t1 in the wizard" })).toBeVisible();
 });

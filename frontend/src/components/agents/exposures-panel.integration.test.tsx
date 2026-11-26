@@ -190,7 +190,7 @@ describe("ExposuresPanel", () => {
 
     expect(await screen.findByRole("button", { name: "Connect a Slack bot" })).toBeDisabled();
     // One per supported platform without a bot.
-    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(9);
+    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(10);
   });
 
   it("does not offer a bot the agent already answers on", async () => {
@@ -655,4 +655,13 @@ describe("asking for a public line", () => {
       channel_bot_id: "b2",
     });
   });
+});
+
+it("does not offer channel connections for an agent requiring personal model keys", async () => {
+  serve([], []);
+  render(<ExposuresPanel agentId={AGENT_ID} canManage hasWorkspace={false} personalModel />, {
+    wrapper,
+  });
+  expect(await screen.findByText("Chat apps")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Connect a .* bot/ })).not.toBeInTheDocument();
 });

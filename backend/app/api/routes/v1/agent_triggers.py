@@ -33,6 +33,7 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerCreateRead,
     TriggerDispatchRead,
+    TriggerFilteredEventRead,
     TriggerList,
     TriggerRead,
     TriggerUpdate,
@@ -43,7 +44,9 @@ from app.schemas.portal import (
     PortalTargetRead,
 )
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_readiness import TriggerReadinessList, TriggerReadinessRequest
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
+from app.schemas.routine_tools import RoutineToolOptions, RoutineToolSettings
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
 
@@ -132,6 +135,24 @@ async def list_org_triggers(
     """Every schedule and trigger in the organization the caller may see."""
     items, total = await service.list_for_organization(ctx, skip=skip, limit=limit)
     return TriggerList(items=items, total=total)
+
+
+@org_router.post(
+    "/triggers/readiness",
+    response_model=TriggerReadinessList,
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_VIEW))],
+)
+async def org_trigger_readiness(
+    body: TriggerReadinessRequest, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """What would stop each routine's next activation, as bounded reason codes.
+
+    A read, sent as a POST because it names up to 100 routines - every row one
+    screen shows. Each is evaluated as its creator with the checks a fire makes,
+    a paused routine as well. A routine the caller cannot see is left out of
+    `items`; no answer names a source, account or credential.
+    """
+    return TriggerReadinessList(items=await service.readiness(ctx, body.trigger_ids))
 
 
 @router.get("/{agent_id}/triggers", response_model=TriggerList, dependencies=[PUBLIC])
@@ -281,6 +302,35 @@ async def replace_routine_action_consents(
     return await service.set_action_consents(ctx, agent_id, trigger_id, data)
 
 
+@router.get("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
+async def routine_tool_options(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Every tool the routine's agent version gives it, with the agent's and the routine's setting.
+
+    The agent decides which tools run freely and which ask first; the routine's
+    owner can only narrow that, per tool, to `ask` or `off`.
+    """
+    return await service.tool_options(ctx, agent_id, trigger_id)
+
+
+@router.put("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
+async def replace_routine_tool_settings(
+    agent_id: UUID,
+    trigger_id: UUID,
+    data: RoutineToolSettings,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+) -> Any:
+    """Replace the routine's tool narrowing; an empty list follows the agent.
+
+    Console session of the routine's owner only. Saving moves the routine to the
+    agent's own approval settings and clears its standing action consent, which
+    a narrowing makes redundant.
+    """
+    return await service.set_tool_settings(ctx, agent_id, trigger_id, data)
+
+
 @router.get("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)
 async def routine_source_options(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
@@ -320,3 +370,17 @@ async def trigger_attempts(
     credentials. Reading delegates to the agent's resource access checks.
     """
     return await service.attempts(ctx, agent_id, trigger_id, skip=skip, limit=limit)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/filtered-event", response_model=TriggerFilteredEventRead
+)
+async def read_filtered_event(
+    ctx: Auth, agent_id: UUID, trigger_id: UUID, service: AgentTriggerSvc
+) -> Any:
+    """The owner's latest filtered GitHub delivery: time, reason and author policy.
+
+    Only verified deliveries are recorded. One snapshot replaces the previous
+    one; no payload, signing secret or artificial agent run is retained.
+    """
+    return await service.filtered_event(ctx, agent_id, trigger_id)

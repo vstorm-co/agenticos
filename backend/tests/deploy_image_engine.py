@@ -137,6 +137,18 @@ class Engine(BaseModel):
                 if option.startswith("label=com.docker.compose.service="):
                     selected = [c for c in selected if c.service == option.split("=", 2)[2]]
             return "\n".join(c.id for c in selected)
+        if args[:3] == ["stop", "--timeout", "60"] and len(args) > 3:
+            for identifier in args[3:]:
+                container = next(c for c in self.containers if c.id == identifier)
+                if (
+                    container.service not in {"app", "worker"}
+                    or container.working_dir != os.environ["APP_DIR"]
+                ):
+                    raise RuntimeError(
+                        "refusing to stop a container outside the current writer stack"
+                    )
+                container.running = False
+            return "\n".join(args[3:])
         if args[0] == "inspect":
             if args[2] == "{{.Image}}":
                 return "\n".join(
@@ -159,6 +171,9 @@ class Engine(BaseModel):
                 image = self.image(f"ghcr.io/vstorm-co/agenticos-{repo}:sha-{self.target[:7]}")
                 self.containers = [c for c in self.containers if c.service != service]
                 self.containers.append(Container(id=service, image=image.id, service=service))
+                if service == "app":
+                    self.containers = [c for c in self.containers if c.service != "worker"]
+                    self.containers.append(Container(id="worker", image=image.id, service="worker"))
             return ""
         raise RuntimeError(f"unexpected Docker command: {args}")
 

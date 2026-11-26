@@ -1,5 +1,5 @@
 ---
-source_sha: "fc26a8af977d"
+source_sha: "531cae3a8bfb"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -40,8 +40,7 @@ Las inserciones públicas conservan su ámbito independiente de visitante.
 llamadas: un agent publicado con una voz atiende llamadas, acotado por su propia
 llamada más larga y por los budgets, como cualquier run.
 
-**El agent.** Su tarjeta Voice en el Builder tiene una pestaña **Voice calls**,
-que se escribe en el [campo `voice`](reference/spec.md#voice) de la spec. Nombra
+**El agent.** Su tarjeta Voice en el Builder muestra **Voice calls** y **Dictation** en una sola lista vertical, sin pestañas internas. Cada sección tiene su propio interruptor. Los ajustes de transcripción siguen disponibles con el dictado desactivado porque también se aplican a las notas de voz de los canales. La sección de llamadas se escribe en el [campo `voice`](reference/spec.md#voice) de la spec. Nombra
 el provider, el modelo (o, para Azure, el nombre del deployment y el modelo base
 que ejecuta), la clave del vault con la que se mantienen las llamadas, la voz,
 un idioma opcional, una llamada más larga opcional (10 minutos si no se fija, 50
@@ -59,7 +58,7 @@ idioma.
 de Enviar mientras el cuadro está vacío, y Enviar vuelve en cuanto se escribe algo,
 en cada agent. Para uno sin voz, o con una clave que ya no puede
 mantener una llamada, aparece tachado, y su motivo lleva a quien puede editar el
-agent a la pestaña de llamadas de su tarjeta Voice. La ventana del Architect y el
+agent a la sección de llamadas de su tarjeta Voice. La ventana del Architect y el
 panel de pruebas del Builder lo ofrecen igual; en el panel de pruebas la llamada
 ejecuta la versión publicada, no el borrador que se prueba, y el botón lo dice.
 

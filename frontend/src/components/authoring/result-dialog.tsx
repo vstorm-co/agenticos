@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -19,6 +21,7 @@ import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
 import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
+import { leadingContext, trailingContext } from "@/lib/diff";
 import type {
   AuthoringRequest,
   EvidenceSource,
@@ -207,11 +210,16 @@ export function ChangePreview({
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
         {wizard ? (
-          <ConversationEvidence items={hunk.evidence} sources={sources} />
+          <ConversationEvidence
+            items={hunk.evidence}
+            sources={sources}
+            hidden={hunk.evidence_hidden}
+          />
         ) : (
           <EvidenceList
             items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
             dropped={hunk.evidence_dropped}
+            hidden={hunk.evidence_hidden}
           />
         )}
       </div>
@@ -231,16 +239,16 @@ export function ChangePreview({
         <DiffView
           before={before}
           after={after}
-          context={hunk.kind === "instructions" ? hunk.context_before : ""}
-          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
+          context={hunk.kind === "instructions" ? leadingContext(hunk.context_before) : ""}
+          trailing={hunk.kind === "instructions" ? trailingContext(hunk.context_after) : ""}
           emptyLabel={t("emptyPassage")}
         />
       )}
       {wizard ? (
-        <details>
+        <NativeDisclosure>
           <summary className="cursor-pointer text-sm font-medium">{tWidgets("reasons")}</summary>
           <div className="mt-2 space-y-3">{reasons}</div>
-        </details>
+        </NativeDisclosure>
       ) : (
         reasons
       )}

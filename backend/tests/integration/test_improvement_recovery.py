@@ -78,7 +78,7 @@ async def test_boundary_failure_is_recorded_before_a_paid_child_can_start(
     assert (read.status, read.stop_reason) == expected
     assert read.iterations[0].authoring_request_id is None
     if boundary == "provider":
-        assert read.error == "Provider refused this request"
+        assert (read.error, read.error_code) == ("Provider refused this request", "refused")
 
 
 @pytest.mark.parametrize("running", [False, True])

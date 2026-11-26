@@ -3,7 +3,7 @@
  *
  * Route handlers, in the environment they actually run in.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as adminBackgroundJobs from "./admin/background-jobs/[[...path]]/route";
 import * as adminConversations from "./admin/conversations/route";
@@ -13,6 +13,7 @@ import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as adminStats from "./admin/stats/route";
 import * as adminSystem from "./admin/system/route";
+import * as adminUserPasswordReset from "./admin/users/[userId]/password-reset/route";
 import * as adminUserDetail from "./admin/users/[userId]/detail/route";
 import * as adminUser from "./admin/users/[userId]/route";
 import * as adminUsers from "./admin/users/route";
@@ -26,13 +27,16 @@ import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as personalModelKeys from "./personal-model-keys/[[...path]]/route";
 import * as codingAccounts from "./coding-accounts/[[...path]]/route";
+import * as subscriptionAccounts from "./subscription-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
 import * as authoring from "./authoring/[[...path]]/route";
 import * as evalRuns from "./eval-runs/[[...path]]/route";
 import * as evalSuites from "./eval-suites/[[...path]]/route";
+import * as eventSources from "./event-sources/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
 import * as improvements from "./improvements/[[...path]]/route";
@@ -48,6 +52,7 @@ import * as outcomes from "./outcomes/[[...path]]/route";
 import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
+import * as portability from "./portability/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
@@ -108,6 +113,8 @@ import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
+import * as userPreferences from "./users/me/preferences/route";
+import * as consoleExperience from "./users/me/console-experience/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -149,6 +156,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["datasets", datasets],
   ["eval-runs", evalRuns],
   ["eval-suites", evalSuites],
+  ["event-sources", eventSources],
   ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
@@ -170,6 +178,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
   ["projects", projects],
+  ["portability", portability],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],
@@ -227,6 +236,14 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("requires a session before issuing an administrator recovery link", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(adminUserPasswordReset)).toEqual(["POST"]);
+    const response = await adminUserPasswordReset.POST(
+      new NextRequest("http://localhost/api/admin/users/user-1/password-reset", { method: "POST" }),
+    );
+    expect(response.status).toBe(401);
+  });
   it("limits received invitations to session-authenticated reads and acceptance", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(receivedInvitations)).toEqual(["GET"]);
@@ -315,4 +332,115 @@ it.each([
     new NextRequest(`http://localhost:3000/api/${name}/setup/google`),
   );
   expect(response.status).toBe(401);
+});
+
+it("subscription accounts forwards list, sign-in and disconnect only, behind a session", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(subscriptionAccounts).sort()).toEqual(["DELETE", "GET", "POST"]);
+  for (const method of ["GET", "POST", "DELETE"] as const) {
+    const response = await subscriptionAccounts[method](
+      new NextRequest("http://localhost:3000/api/subscription-accounts/sign-ins", { method }),
+    );
+    expect(response.status).toBe(401);
+  }
+});
+
+it("personal model keys require a signed-in session for every exposed verb", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "POST", "PUT"]);
+  for (const method of ["GET", "POST", "PUT", "DELETE"] as const) {
+    const response = await personalModelKeys[method](
+      new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
+    );
+    expect(response.status).toBe(401);
+  }
+});
+
+it("mounts self-only preferences reads and edits behind the authenticated forwarder", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(userPreferences).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const request = new NextRequest("http://localhost/api/users/me/preferences", {
+        method,
+        ...(method === "PATCH"
+          ? {
+              body: JSON.stringify({ theme: "dark" }),
+              headers: { "Content-Type": "application/json" },
+            }
+          : {}),
+      });
+      expect((await userPreferences[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ theme: "dark", look: null, locale: "en" }));
+      const response = await userPreferences[method](request);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ theme: "dark", look: null, locale: "en" });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/preferences$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({ Authorization: "Bearer own-session" }),
+        }),
+      );
+      if (method === "PATCH") {
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual({
+          theme: "dark",
+        });
+      }
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+it("forwards only authenticated console-experience reads and partial edits with their organization", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(consoleExperience).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const body = { preferences: { inbox: false }, reminders: { snooze_days: 7 } };
+      const request = new NextRequest("http://localhost/api/users/me/console-experience", {
+        method,
+        headers: { "X-Organization-Id": "org-one", "Content-Type": "application/json" },
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ effective: { inbox: false } }));
+      expect((await consoleExperience[method](request)).status).toBe(200);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/console-experience$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({
+            Authorization: "Bearer own-session",
+            "X-Organization-Id": "org-one",
+          }),
+        }),
+      );
+      if (method === "PATCH")
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual(body);
+      fetch.mockClear();
+      fetch.mockResolvedValueOnce(
+        Response.json({ error: { message: "Membership not found" } }, { status: 403 }),
+      );
+      const refused = new NextRequest(request.url, {
+        method,
+        headers: request.headers,
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](refused)).status).toBe(403);
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
+  }
 });

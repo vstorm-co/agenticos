@@ -38,7 +38,7 @@ export type RunSource = "conversation" | "evaluation" | "system";
 
 /** Which platform agent a run was, and where its work is read. */
 export interface RunOrigin {
-  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions";
+  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions" | "key_drafts" | "key_coverage";
   agent_name: string;
   /** The agent an assistant request was about. */
   agent_id?: string | null;
@@ -446,6 +446,12 @@ export interface ToolApproval {
    */
   always_asks?: boolean;
   /**
+   * Whether the server would accept an approval from this reader. False with
+   * `content_hidden` on a call that always asks, and for a platform call that
+   * always asks on somebody else's run: only that run's person may approve it.
+   */
+  may_approve?: boolean;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */
@@ -629,6 +635,10 @@ export interface ParkedCall {
   content_hidden?: boolean;
   /** As `ToolApproval.always_asks`. */
   always_asks?: boolean;
+  /** Whether the caller may answer this call at all. */
+  may_decide?: boolean;
+  /** As `ToolApproval.may_approve`. */
+  may_approve?: boolean;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */
@@ -694,14 +704,14 @@ export interface ResumedRun {
   /** The questions the run is now waiting on its person to answer, if it asked again. */
   questions?: ParkedQuestion[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
-  cost_usd: string;
+  cost_usd?: string | null;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
    * A resumed turn draws its cost from here, so without it a continuation would
    * report an exact-looking figure where the parked half reported a caveat.
    */
-  cost_is_partial: boolean;
+  cost_is_partial?: boolean | null;
   input_tokens: number;
   output_tokens: number;
   /** Of `input_tokens`, those read from the provider's cache. */
@@ -712,10 +722,20 @@ export interface ResumedRun {
 
 /** One question as the server carries it, before the card's own shape (#2064). */
 export interface WireQuestion {
+  multiline?: boolean;
+  initial_value?: string;
+  allow_empty?: boolean;
+  max_answer_length?: number;
   question: string;
   header?: string | null;
-  options?: { label: string; description?: string | null }[];
+  options?: {
+    label: string;
+    description?: string | null;
+    label_key?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
+  }[];
   multi_select?: boolean;
+  min_selections?: number;
+  max_selections?: number;
   allow_custom: boolean;
 }
 

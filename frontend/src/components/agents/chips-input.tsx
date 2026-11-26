@@ -87,7 +87,7 @@ export function ChipsInput({
         className={cn(
           // The height and edge of every other field: a 36px row with the same
           // 1.5px border, ringed when anything inside it has focus.
-          "border-input focus-within:ring-ring flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border-[1.5px] px-1.5 py-0.5 focus-within:ring-1",
+          "border-input bg-field hover:border-foreground/30 focus-within:outline-ring flex min-h-10 flex-wrap items-center gap-1.5 rounded-xl border px-3 py-1.5 focus-within:outline-2 focus-within:outline-offset-[-2px]",
           disabled && "opacity-50",
         )}
       >
@@ -120,6 +120,7 @@ export function ChipsInput({
             commit();
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter") {
               event.preventDefault();
               commit();
@@ -128,7 +129,7 @@ export function ChipsInput({
               if (last !== undefined) removeAt(last);
             }
           }}
-          className="h-7 w-32 flex-1 border-0 focus-visible:ring-0"
+          className="h-7 w-auto min-w-24 flex-1 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-none enabled:hover:bg-transparent disabled:opacity-100"
         />
       </div>
       {focused && !full && offered.length > 0 && (

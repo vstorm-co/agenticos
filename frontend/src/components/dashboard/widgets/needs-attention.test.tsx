@@ -60,7 +60,10 @@ describe("NeedsAttentionWidget", () => {
     widget();
 
     expect(state.asked[0]).toEqual([{ from: PERIOD.from, to: PERIOD.to }]);
-    expect(screen.getByRole("link", { name: "Refund desk" })).toHaveAttribute("href", "/agents/a1");
+    expect(screen.getByRole("link", { name: "Refund desk" })).toHaveAttribute(
+      "href",
+      "/agents/a1?tab=evals",
+    );
     expect(screen.getByText("5 answers rated down · 1 failing suite")).toBeInTheDocument();
     expect(screen.getByText("2 failed runs")).toBeInTheDocument();
     const improve = screen.getAllByRole("link", { name: "Improve" });

@@ -148,6 +148,7 @@ export function ArtifactViewerBar({
           </>
         )}
       </div>
+      <RestartTourButton />
       {live !== undefined && (
         <span className="max-sm:bg-background/95 shrink-0 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-2 max-sm:shadow-sm">
           <LiveBadge health={live} />
@@ -189,7 +190,6 @@ export function ArtifactViewerBar({
           </p>
           {children}
           <ArtifactActionsMenu actions={actions} />
-          <RestartTourButton />
           {waitingRequests > 0 && (
             <Button
               size="sm"

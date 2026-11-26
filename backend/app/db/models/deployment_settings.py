@@ -21,8 +21,10 @@ serves whichever one a query happened to order first.
 """
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, Text
+from pydantic import JsonValue
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import text
@@ -50,6 +52,18 @@ class DeploymentSettings(Base, TimestampMixin):
         Boolean, nullable=False, unique=True, default=True, server_default=text("true")
     )
     """Always true. The unique constraint on it is what makes this table a singleton."""
+
+    onboarding_reminders_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    announcement_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    maintenance_planned_end_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    chat_home_available: Mapped[dict[str, bool | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     app_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tagline: Mapped[str | None] = mapped_column(String(160), nullable=True)
@@ -131,6 +145,18 @@ class DeploymentSettings(Base, TimestampMixin):
     under it a delete - which takes its version history and its run attribution
     with it.
     """
+
+    console_availability: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    chat_costs_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Deployment disclosure ceiling; null retains chat cost visibility."""
+
+    password_sign_in_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    """Local passwords and email sign-in links; directory sign-in is independent."""
 
     signup_mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default="open", server_default=text("'open'")

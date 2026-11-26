@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ab63f0a753"
+source_sha: "ce4c6fc377c9"
 ---
 
 # La API HTTP { #the-http-api }
@@ -81,9 +81,11 @@ tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, pued
 crear y cambiar tus propias [rutinas](triggers.md) que actúan como tú
 (`runs_as_creator`) y tus [watches](console.md), revisar las fuentes de una rutina
 y publicar un agente sin retirar el consentimiento de las rutinas que actúan como
-tú. La ejecución de esa rutina sigue sujeta a sus fuentes revisadas y su
+tú. La ejecución de esa rutina sigue sujeta a su política de fuentes elegida, sus permisos vigentes y su
 presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
 chat privado, ni un administrador que te suplante.
+
+En rutinas, `source_mode=follow_agent` automatiza la configuración inicial dentro de la autoridad del creador; no autoriza ampliaciones posteriores de fuentes o comportamiento. El propietario puede consentir explícitamente la configuración actual mediante el endpoint de fuentes protegido por un token de revisión. Los metadatos separan `required_unavailable_sources` de las ausencias MCP opcionales de `unavailable_sources`. Una política antigua de seguimiento sin prueba de comportamiento requiere revisión; las políticas restringidas existentes conservan sus reglas.
 
 Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
 chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y
@@ -189,6 +191,36 @@ run o en la petición.
 
 La caducidad solo limita lo que una clave puede iniciar: el trabajo que inició siendo
 válida sigue después de que caduque.
+
+
+### Delegación explícita de conexiones MCP personales { #explicit-personal-mcp-delegation }
+
+En **Settings → API → Create key → Custom**, selecciona `agents:run` y
+`mcp:personal:use` para que los runs externos usen las cuentas MCP del propietario
+de la clave. Los clientes OAuth requieren la misma selección explícita. Ningún
+conjunto predefinido, incluido Full access, contiene este permiso. Las credenciales
+existentes no lo obtienen automáticamente.
+
+Solo afecta a los enlaces MCP publicados con `account: personal`. Los enlaces de
+la organización conservan su cuenta configurada. Si falta una conexión personal,
+nunca se sustituye por una cuenta de la organización o del publicador. Conecta o
+repara la cuenta en la consola antes de repetir la solicitud. Este permiso no abre
+la memoria personal, chats anteriores, sesiones de navegador iniciadas, terminales
+personales ni workspaces del usuario. Las credenciales internas del agent no
+pueden transmitir esta delegación.
+
+Se comprueban las credenciales originales, su propietario y el acceso al agent al
+admitir el run, reanudarlo y antes de las llamadas MCP, incluidos los delegados.
+La caducidad o revocación impide nuevas llamadas; una solicitud ya enviada a la
+fuente no se cancela. Desconectar, reemplazar o limitar una cuenta MCP también
+bloquea sus herramientas en caché; vuelve a conectarla e inicia otro run.
+
+Un run pausado sigue vinculado a las credenciales originales,
+incluida la caducidad del token OAuth, y no puede usar las cuentas de quien lo
+aprueba. El cliente puede iniciar otro run con credenciales nuevas. Los runs antiguos
+pausados no obtienen delegación MCP. La auditoría conserva la atribución de usuario,
+clave e identificadores de conexión; los secretos no entran en prompts ni auditoría.
+
 
 ## La cabecera de organización { #the-organization-header }
 
@@ -321,6 +353,39 @@ el mismo cuerpo con el que responde la llamada síncrona - o `failed` con
 puede enviar un mensaje de seguimiento antes de que termine el run. Lo ejecuta
 un worker, con el mismo runner, budget y aprobaciones que cualquier otra
 superficie.
+
+**Corrige un run en curso.** Envía un mensaje sin adjuntos al mismo endpoint,
+con `Prefer: respond-async`, el `conversation_id` de la primera respuesta y
+`"steer": true`. Usa un `Idempotency-Key` distinto para cada entrega del
+webhook y conserva el mismo al reintentar esa entrega. No necesitas consultar
+antes el estado del run.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Antes de cada petición al modelo, el agent puede recoger hasta ocho
+correcciones por orden de llegada. Las demás permanecen en la cola. No se
+interrumpe una llamada en curso a una herramienta o al modelo.
+
+Solo puede recoger una corrección una petición asíncrona de la API en curso
+para la misma conversación, agent y entorno. Debe usar la versión publicada
+seleccionada en ese momento y la misma clave de API (o el mismo usuario
+autenticado sin clave). Si ningún run de ese tipo recibe el mensaje, el worker
+lo procesa como un turno aparte. Omite `steer` para poner siempre un turno
+aparte en la cola.
+
+Consulta la petición del propio mensaje de seguimiento. El estado final
+`steered` indica que el run identificado por `steered_into_run_id` ha recogido
+la corrección para una petición al modelo, no que el run haya terminado. No
+hay un `result` aparte. Si ese run falla más tarde, la corrección no vuelve a
+la cola. Si el mensaje se procesa
+como turno independiente, devuelve el estado y el resultado habituales del run.
+Usa un turno normal para adjuntar archivos o hacer una petición síncrona.
 
 Lo que se puede comprobar al momento se comprueba al momento: una conversación
 o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que

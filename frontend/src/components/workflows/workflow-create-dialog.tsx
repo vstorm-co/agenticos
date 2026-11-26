@@ -46,6 +46,7 @@ import {
   WEBHOOK_TRIGGER,
   WORKFLOW_CALL_TRIGGER,
   WORKFLOW_FAILED_TRIGGER,
+  initialNodeConfig,
 } from "@/lib/workflows/triggers";
 
 /** The ways a new workflow can start, in the order a builder reaches for them. */
@@ -75,7 +76,7 @@ export function startingGraph(definitionId: string): WorkflowGraph {
         id,
         definition_id: definitionId,
         definition_version: 1,
-        config: {},
+        config: initialNodeConfig(definitionId),
         layout: { x: 0, y: 0 },
       },
     ],
@@ -132,7 +133,7 @@ export function WorkflowCreateDialog({
         if (!busy) onOpenChange(next);
       }}
     >
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent data-workflow-fields className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("createDialogTitle")}</DialogTitle>
           <DialogDescription>{agent("startsAsDraftNothing")}</DialogDescription>
@@ -166,6 +167,7 @@ export function WorkflowCreateDialog({
               <Label htmlFor="workflow-create-name">{t("createName")}</Label>
               <Input
                 id="workflow-create-name"
+                data-initial-focus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={128}

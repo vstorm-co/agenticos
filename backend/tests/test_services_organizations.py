@@ -410,8 +410,18 @@ class TestOrganizationService:
                 new=AsyncMock(return_value=False),
             ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
+            patch(
+                "app.services.subscription_accounts.member_repo.list_user_ids",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(return_value=0),
+            ) as purge_coding,
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
+
+        purge_coding.assert_awaited_once_with(organization_id=mock_org.id)
 
     @pytest.mark.anyio
     async def test_update_requires_admin_or_owner(self, service, mock_db):
@@ -1757,12 +1767,16 @@ def test_every_setting_the_row_holds_reaches_the_response():
     the schema but not to the builder reads as its default forever - watches were
     switched on in the database and off in every console (#2301)."""
     row = _org_row(name="Acme")
+    row.chat_cost_visibility = "spend_privileged"
+    row.console_role_defaults = {}
+    row.console_notices = {"desktop_install_prompt": False, "product_notices": False}
     read = _org_read(row, member_count=1, role="owner", is_default=False)
     columns = set(Organization.__table__.columns.keys())
     shared = [name for name in OrganizationRead.model_fields if name in columns]
 
     assert shared
-    assert {name: getattr(read, name) for name in shared} == {
+    serialized = read.model_dump()
+    assert {name: serialized[name] for name in shared} == {
         name: getattr(row, name) for name in shared
     }
 

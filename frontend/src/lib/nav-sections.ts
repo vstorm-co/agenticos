@@ -98,6 +98,20 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    labelKey: "projects",
+    domain: "use",
+    items: [
+      {
+        labelKey: "allProjects",
+        href: ROUTES.PROJECTS,
+        icon: FolderKanban,
+        permission: Perm.projectsView,
+        dataTour: "nav-projects",
+        exact: true,
+      },
+    ],
+  },
+  {
     labelKey: "build",
     domain: "build",
     items: [
@@ -122,6 +136,12 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
       },
       {
+        labelKey: "eventSources",
+        href: ROUTES.EVENT_SOURCES,
+        icon: Plug,
+        permission: Perm.eventSourcesView,
+      },
+      {
         labelKey: "datasets",
         href: ROUTES.DATASETS,
         icon: FlaskConical,
@@ -132,20 +152,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ARTIFACTS,
         icon: PanelsTopLeft,
         permission: Perm.artifactsView,
-      },
-    ],
-  },
-  {
-    labelKey: "projects",
-    domain: "use",
-    items: [
-      {
-        labelKey: "allProjects",
-        href: ROUTES.PROJECTS,
-        icon: FolderKanban,
-        permission: Perm.projectsView,
-        dataTour: "nav-projects",
-        exact: true,
       },
     ],
   },
@@ -319,4 +325,24 @@ export function navSectionFor(
     }
   }
   return null;
+}
+
+/** Presentation first, permissions last. Identity/admin switcher entries stay reachable. */
+export function presentedNavigation(
+  groups: readonly NavGroup[],
+  allowed: readonly string[] | null,
+): NavGroup[] {
+  if (allowed === null) return [...groups];
+  const selected = new Set(allowed);
+  return groups
+    .map((group) => {
+      if (group.adminOnly || group.switcherOnly) return group;
+      const items = group.items.filter((item) => selected.has(item.labelKey));
+      return {
+        ...group,
+        items,
+        collapsible: group.collapsible && (items.length === group.items.length || items.length > 1),
+      };
+    })
+    .filter((group) => group.items.length > 0);
 }

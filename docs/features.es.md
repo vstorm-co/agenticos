@@ -1,5 +1,5 @@
 ---
-source_sha: "6308658dc6b3"
+source_sha: "8cc9c6583fa2"
 ---
 
 # Funciones { #features }
@@ -173,14 +173,14 @@ Publica una vez. El mismo runner responde en todas estas:
 - **Una página alojada** cuyo enlace puedes mandarle a alguien
 - **Un widget embebible** para tu propio sitio
 - **La API HTTP**, y un WebSocket en crudo para streaming
-- **Slack**, **Telegram**, **Mattermost** y **Discord**, donde una `@mention` se ejecuta como
+- **Slack**, **Telegram**, **Mattermost**, **Discord** y **Matrix**, donde una `@mention` se ejecuta como
   la persona que la envió — no como el bot
 - **WhatsApp**, en chats directos, con respuestas en texto y un miembro vinculado con
   un código enviado desde el chat
 
 La transcripción de voz también funciona en ellas con el propio provider de la
 organización: dictado en el chat web, en una página alojada y en el widget, y
-notas de voz transcritas en Slack, Telegram, Mattermost y Discord.
+notas de voz transcritas en Slack, Telegram, Mattermost, Discord y Matrix.
 
 **Las llamadas de voz** permiten a una persona hablar con un agent publicado e
 interrumpirlo, en el chat web, en una página alojada o en el widget. El agent

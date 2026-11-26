@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useMemo, useState } from "react";
 import { Check, ArrowRight, BookOpen, GitPullRequest, Users, X } from "lucide-react";
 
@@ -35,10 +37,7 @@ import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
-import {
-  useSkillProposalBaseline,
-  useSkillProposalFile,
-} from "@/hooks/use-skill-proposal-baseline";
+import { useSkillProposalBaseline, useSkillVersionFile } from "@/hooks/use-skill-proposal-baseline";
 import { FileTree } from "./skill-files";
 import { buildTree } from "@/lib/file-tree";
 import { UsedBy } from "@/components/agents/used-by";
@@ -127,7 +126,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const current = useSkillProposalBaseline(open ? change.skill_id : null, change.fork_id);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const oldFile = current.data?.resources.find((file) => file.name === selectedFile);
-  const originalFile = useSkillProposalFile(
+  const originalFile = useSkillVersionFile(
     open ? change.skill_id : null,
     current.data?.id ?? null,
     oldFile?.name ?? null,
@@ -252,7 +251,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                 </p>
               )}
               {(change.rationale || change.expected_effect || change.authoring_request_id) && (
-                <details className="mt-2">
+                <NativeDisclosure className="mt-2">
                   <summary className="cursor-pointer">{t("reviewUpdates.impact")}</summary>
                   {change.rationale && (
                     <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
@@ -264,7 +263,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                       dropped={change.evidence_dropped ?? 0}
                     />
                   )}
-                </details>
+                </NativeDisclosure>
               )}
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">

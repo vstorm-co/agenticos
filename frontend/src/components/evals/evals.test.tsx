@@ -17,7 +17,6 @@ import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
-import { EvalRunVerdict } from "./eval-run-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
 import { RunsTable } from "./runs-table";
@@ -35,13 +34,11 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
     <p>{`drawn: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
   ),
 }));
-const oneRun = vi.hoisted(() => ({ run: undefined as unknown }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: (...args: unknown[]) => {
     evalRuns.asked.push(args);
     return evalRuns.value;
   },
-  useEvalRun: () => ({ run: oneRun.run }),
 }));
 const datasets = vi.hoisted(() => ({
   items: [] as unknown[],
@@ -86,38 +83,6 @@ describe("format", () => {
     expect(percent(null, "en")).toBe("—");
     expect(seconds(1500, "en")).toBe("1.5s");
     expect(seconds(null, "en")).toBe("—");
-  });
-});
-
-describe("EvalRunVerdict", () => {
-  it("shows the run's verdict chip once it is read, and nothing before", () => {
-    oneRun.run = undefined;
-    const { container, rerender } = render(<EvalRunVerdict runId="run-1" />);
-    expect(container).toBeEmptyDOMElement();
-
-    oneRun.run = worse();
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Breaks 4")).toBeInTheDocument();
-  });
-
-  it("calls a run with a case left undecided inconclusive unless something broke", () => {
-    const run = worse();
-    const undecided = (verdict: "better" | "worse" | null) => ({
-      ...run,
-      outcome: { ...run.outcome!, verdict, regressions_confirmed: 0, candidate_undecided: 3 },
-    });
-    oneRun.run = undecided("better");
-    const { rerender } = render(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
-    expect(screen.queryByText(/Fixes/)).toBeNull();
-
-    oneRun.run = undecided(null);
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
-
-    oneRun.run = undecided("worse");
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.queryByText("Inconclusive")).toBeNull();
   });
 });
 
@@ -336,6 +301,17 @@ describe("PassRateChart", () => {
     expect(screen.queryByText("refunds")).toBeNull();
   });
 
+  it("lists fewer than three runs instead of drawing a line through them", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 1), line("b", "draft", 1, 1)]} />);
+    expect(screen.getByText(/^2 runs so far\./)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(screen.getAllByText("Pass rate 50%")).toHaveLength(2);
+
+    render(<PassRateChart lines={[line("a", "refunds", 3)]} />);
+    expect(await drawn()).toHaveTextContent("drawn: a×3");
+  });
+
   it("reads a range from the address, and the newest ten from anything else", () => {
     expect(trendRange("30")).toBe(30);
     expect(trendRange("all")).toBe("all");
@@ -374,6 +350,7 @@ describe("EvalsPanel", () => {
           created_at: "2026-10-13T10:00:00Z",
           outcome: { ...worse().outcome!, verdict: null, baseline: null },
         }),
+        evalRun({ id: "run-00", created_at: "2026-10-12T10:00:00Z" }),
       ],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
@@ -406,7 +383,10 @@ describe("EvalsPanel", () => {
   it("says one run is not yet a trend, and draws none while nothing has finished", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
     const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
-    expect(screen.getByText("One run so far. Run another to see a trend.")).toBeInTheDocument();
+    expect(
+      screen.getByText("One run so far. A trend needs at least three; run two more to see one."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
@@ -417,7 +397,11 @@ describe("EvalsPanel", () => {
   it("keys each line when runs of several datasets finished", () => {
     evalRuns.value = {
       ...evalRuns.value,
-      runs: [evalRun(), evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" })],
+      runs: [
+        evalRun(),
+        evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" }),
+        evalRun({ id: "run-3", dataset_id: "ds-2", dataset_name: "shipping" }),
+      ],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
@@ -593,8 +577,8 @@ describe("EstimateSummary", () => {
         "Graded by expected tool calls, the reference answer, and Eval judge on Policy and Tone.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("20 cases in total")).toBeInTheDocument();
-    expect(screen.getByText(/can add up to \$0.60/)).toBeInTheDocument();
+    expect(screen.getByText("20 cases, most likely")).toBeInTheDocument();
+    expect(screen.getByText(/would cost at most \$0.90/)).toBeInTheDocument();
     expect(screen.getByText("$9.80")).toBeInTheDocument();
     expect(screen.getByText("$99.70")).toBeInTheDocument();
     expect(screen.queryByText(/more than a budget has left/)).not.toBeInTheDocument();
@@ -638,6 +622,40 @@ describe("ComparisonCard", () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("tables each family of criteria over the whole run, and none under a tag", () => {
+    const move = {
+      family: "price break",
+      criteria: ["Points out 1,000"],
+      cases: 28,
+      baseline_passed: 3,
+      candidate_passed: 28,
+      fixed: 25,
+      broken: 0,
+      fixed_confirmed: 0,
+      broken_confirmed: 0,
+      p_value: 0,
+      settled: true,
+      better: true,
+      worse: false,
+    };
+    const { rerender } = render(
+      <ComparisonCard agentId="agent-1" comparison={comparison({ families: [move] })} tag={null} />,
+    );
+
+    const row = screen.getByText("price break").closest("tr")!;
+    expect(row).toHaveTextContent("3 of 28");
+    expect(row).toHaveTextContent("28 of 28");
+    expect(row).toHaveTextContent("+25 fixed");
+    rerender(
+      <ComparisonCard
+        agentId="agent-1"
+        comparison={comparison({ families: [move] })}
+        tag="refunds"
+      />,
+    );
+    expect(screen.queryByText("price break")).toBeNull();
   });
 
   it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
@@ -729,7 +747,25 @@ describe("ArmsTable", () => {
       "href",
       "/agents/agent-1/evals/run-0",
     );
-    expect(baseline.getAllByText("—")).toHaveLength(2);
+    // No pass rate, no criteria, no cost per pass on a side with nothing decided.
+    expect(baseline.getAllByText("—")).toHaveLength(3);
+  });
+
+  it("shows each side's criteria passed beside its pass rate", () => {
+    const candidate = arm({ summary: { ...SUMMARY, pass_rate: 0.25, partial_credit: 0.875 } });
+    render(
+      <ArmsTable
+        agentId="agent-1"
+        tag={null}
+        live={false}
+        baseline={null}
+        baselineSummary={null}
+        arms={[candidate, arm({ id: "arm-2", role: "baseline", version_number: 6 })]}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Criteria passed" })).toBeInTheDocument();
+    expect(screen.getByText("88%")).toBeInTheDocument();
   });
 
   it("says a reused result was reused when its run has not finished", () => {
@@ -777,6 +813,23 @@ describe("VerdictChip", () => {
     unmount();
     render(<VerdictChip run={overall("better")} />);
     expect(screen.getByText("Better overall · 4 broke, 1 fixed")).toBeInTheDocument();
+  });
+
+  it("calls a run with a case left undecided inconclusive unless something broke", () => {
+    const run = worse();
+    const undecided = (verdict: "better" | "worse" | null) => ({
+      ...run,
+      outcome: { ...run.outcome!, verdict, regressions_confirmed: 0, candidate_undecided: 3 },
+    });
+    const { rerender } = render(<VerdictChip run={undecided("better")} />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+    expect(screen.queryByText(/Fixes/)).toBeNull();
+
+    rerender(<VerdictChip run={undecided(null)} />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+
+    rerender(<VerdictChip run={undecided("worse")} />);
+    expect(screen.queryByText("Inconclusive")).toBeNull();
   });
 });
 
@@ -1021,3 +1074,36 @@ it.each([
     expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
   },
 );
+
+it("keeps dataset identity on sparse run links with the same candidate", () => {
+  evalRuns.value = {
+    ...evalRuns.value,
+    runs: [evalRun(), evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" })],
+  };
+  render(<EvalsPanel agentId="agent-1" canStart />);
+  expect(screen.getByRole("link", { name: /refunds.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/run-1",
+  );
+  expect(screen.getByRole("link", { name: /shipping.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/other",
+  );
+  expect(
+    screen.getByText("2 runs so far. A trend needs at least three; run another to see one."),
+  ).toBeInTheDocument();
+});
+
+it("does not show numeric quality metrics when the entire execution failed", () => {
+  const { container } = render(
+    <ArmsTable
+      agentId="agent-1"
+      arms={[arm({ failed_alike: "Workspace unavailable" })]}
+      tag={null}
+      live={false}
+      baseline={null}
+      baselineSummary={null}
+    />,
+  );
+  expect(container).toBeEmptyDOMElement();
+});

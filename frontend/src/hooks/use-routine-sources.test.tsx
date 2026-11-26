@@ -31,14 +31,53 @@ it("refreshes a rejected review before a person can submit another consent", asy
   await waitFor(() => expect(result.current.data?.review_token).toBe("old"));
   await act(async () => {
     await expect(
-      result.current.replace.mutateAsync(result.current.data!.review_token),
+      result.current.replace.mutateAsync({
+        review_token: result.current.data!.review_token,
+        mode: "follow_agent",
+      }),
     ).rejects.toBe(stale);
   });
   await waitFor(() => expect(result.current.data?.review_token).toBe("new"));
   await act(async () => {
-    await result.current.replace.mutateAsync(result.current.data!.review_token);
+    await result.current.replace.mutateAsync({
+      review_token: result.current.data!.review_token,
+      mode: "follow_agent",
+    });
   });
-  expect(api.replace).toHaveBeenNthCalledWith(1, "agent", "routine", "old");
-  expect(api.replace).toHaveBeenNthCalledWith(2, "agent", "routine", "new");
+  expect(api.replace).toHaveBeenNthCalledWith(1, "agent", "routine", {
+    review_token: "old",
+    mode: "follow_agent",
+  });
+  expect(api.replace).toHaveBeenNthCalledWith(2, "agent", "routine", {
+    review_token: "new",
+    mode: "follow_agent",
+  });
   expect(api.get).toHaveBeenCalledTimes(3);
+});
+
+it("reads the review again on every opening, past the console's cache", async () => {
+  const review = (token: string): RoutineSourceReview => ({
+    current: true,
+    review_token: token,
+    version_id: "v1",
+    resources: [],
+    accounts: [],
+    unavailable_sources: [],
+  });
+  api.get.mockReset();
+  api.get.mockResolvedValueOnce(review("before")).mockResolvedValue(review("after"));
+  // The console's own default: five minutes before a cached answer is stale.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+  });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const first = renderHook(() => useRoutineSources("agent", "routine"), { wrapper: Wrapper });
+  await waitFor(() => expect(first.result.current.data?.review_token).toBe("before"));
+  first.unmount();
+
+  const again = renderHook(() => useRoutineSources("agent", "routine"), { wrapper: Wrapper });
+  await waitFor(() => expect(again.result.current.data?.review_token).toBe("after"));
+  expect(api.get).toHaveBeenCalledTimes(2);
 });

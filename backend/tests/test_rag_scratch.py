@@ -241,6 +241,8 @@ class TestTheSweep:
     async def test_the_worker_sweeps_hourly_on_a_session_of_its_own(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        from app.db.session import get_worker_db_context
+
         session = MagicMock()
 
         @asynccontextmanager
@@ -248,16 +250,22 @@ class TestTheSweep:
             yield session
 
         sweep = AsyncMock(return_value=rag_scratch.ScratchSweep(removed=3, kept=1))
-        monkeypatch.setattr("app.db.session.get_worker_db_context", worker_db)
-        monkeypatch.setattr(rag_scratch, "sweep_stale", sweep)
-
-        counts = await teardown_tasks.sweep_rag_scratch()
+        with monkeypatch.context() as scoped:
+            scoped.setattr("app.db.session.get_worker_db_context", worker_db)
+            scoped.setattr(rag_scratch, "sweep_stale", sweep)
+            counts = await teardown_tasks.sweep_rag_scratch()
 
         assert counts == {"removed": 3, "kept": 1}
         assert sweep.await_args.args == (session,)
         [schedule] = [s for s in SCHEDULES if s.task is jobs.SWEEP_RAG_SCRATCH]
         assert schedule.every == timedelta(hours=1)
+        # Building the registry lazily imports other task modules. Do it only
+        # after restoring the factory, or they retain this test's fake session.
         assert jobs.SWEEP_RAG_SCRATCH.kind in production()
+        from app.worker.tasks import authoring_tasks, eval_tasks
+
+        assert authoring_tasks.get_worker_db_context is get_worker_db_context
+        assert eval_tasks.get_worker_db_context is get_worker_db_context
 
 
 class TestTheIngestJob:

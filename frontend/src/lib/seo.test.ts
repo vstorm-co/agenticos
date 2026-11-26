@@ -38,6 +38,9 @@ describe("pageMetadata", () => {
       pl: `${siteOrigin()}/pl/legal/terms`,
       de: `${siteOrigin()}/de/legal/terms`,
       tr: `${siteOrigin()}/tr/legal/terms`,
+      fr: `${siteOrigin()}/fr/legal/terms`,
+      nl: `${siteOrigin()}/nl/legal/terms`,
+      pt: `${siteOrigin()}/pt/legal/terms`,
     });
   });
 
@@ -50,6 +53,9 @@ describe("pageMetadata", () => {
       pl: `${siteOrigin()}/pl`,
       de: `${siteOrigin()}/de`,
       tr: `${siteOrigin()}/tr`,
+      fr: `${siteOrigin()}/fr`,
+      nl: `${siteOrigin()}/nl`,
+      pt: `${siteOrigin()}/pt`,
     });
   });
 
@@ -112,7 +118,14 @@ describe("pageMetadata", () => {
     const meta = pageMetadata({ title: "Regulamin", description: "…", locale: "pl" });
 
     expect(meta.openGraph?.locale).toBe(OG_LOCALE.pl);
-    expect(meta.openGraph?.alternateLocale).toEqual([OG_LOCALE.en, OG_LOCALE.de, OG_LOCALE.tr]);
+    expect(meta.openGraph?.alternateLocale).toEqual([
+      OG_LOCALE.en,
+      OG_LOCALE.de,
+      OG_LOCALE.tr,
+      OG_LOCALE.fr,
+      OG_LOCALE.nl,
+      OG_LOCALE.pt,
+    ]);
   });
 
   it("falls back to the dynamic OG image, and takes an override", () => {

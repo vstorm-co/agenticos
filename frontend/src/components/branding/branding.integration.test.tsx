@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import { DeploymentGate } from "./deployment-gate";
 import { MaintenanceScreen } from "./maintenance-screen";
 import { apiClient } from "@/lib/api-client";
 import { BUILT_IN_BRANDING, type Branding, type NoticeResponse } from "@/lib/branding";
+import { qk } from "@/lib/query-keys";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 
 /**
@@ -178,6 +179,93 @@ describe("a maintenance window", () => {
     expect(screen.getByText("the dashboard")).toBeInTheDocument();
   });
 
+  it("updates and clears the maintenance message from the live authenticated notice", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(apiClient.get).mockResolvedValue(
+      notice({ maintenance_mode: true, maintenance_message: "First live update" }),
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <BrandingProvider
+          branding={{
+            ...BUILT_IN_BRANDING,
+            maintenanceMode: true,
+            maintenanceMessage: "Original server message",
+          }}
+        >
+          <DeploymentGate>
+            <p>the dashboard</p>
+          </DeploymentGate>
+        </BrandingProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("Original server message")).toBeInTheDocument();
+    expect(await screen.findByText("First live update")).toBeInTheDocument();
+    expect(screen.queryByText("Original server message")).toBeNull();
+    vi.mocked(apiClient.get).mockResolvedValue(
+      notice({ maintenance_mode: true, maintenance_message: "Changed while this tab stays open" }),
+    );
+    await act(async () => {
+      await client.refetchQueries({ queryKey: qk.branding.notice() });
+    });
+    expect(await screen.findByText("Changed while this tab stays open")).toBeInTheDocument();
+    expect(screen.queryByText("First live update")).toBeNull();
+    vi.mocked(apiClient.get).mockResolvedValue(
+      notice({ maintenance_mode: true, maintenance_message: null }),
+    );
+    await act(async () => {
+      await client.refetchQueries({ queryKey: qk.branding.notice() });
+    });
+    expect(await screen.findByText(/Try again shortly/i)).toBeInTheDocument();
+    expect(screen.queryByText("Changed while this tab stays open")).toBeNull();
+    expect(screen.queryByText("Original server message")).toBeNull();
+    expect(screen.queryByText("the dashboard")).toBeNull();
+  });
+
+  it("keeps the initial public maintenance message without an authenticated notice request", () => {
+    authState.user = null;
+    render(
+      <DeploymentGate>
+        <p>the dashboard</p>
+      </DeploymentGate>,
+      {
+        wrapper: branded({
+          maintenanceMode: true,
+          maintenanceMessage: "Public maintenance fallback",
+        }),
+      },
+    );
+    expect(screen.getByText("Public maintenance fallback")).toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("does not replace the public fallback with a notice cached by an authenticated session", () => {
+    authState.user = null;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(
+      qk.branding.notice(),
+      notice({ maintenance_mode: true, maintenance_message: "Authenticated cached update" }),
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <BrandingProvider
+          branding={{
+            ...BUILT_IN_BRANDING,
+            maintenanceMode: true,
+            maintenanceMessage: "Public maintenance fallback",
+          }}
+        >
+          <DeploymentGate>
+            <p>the dashboard</p>
+          </DeploymentGate>
+        </BrandingProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("Public maintenance fallback")).toBeInTheDocument();
+    expect(screen.queryByText("Authenticated cached update")).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("says what the operator wrote, when they wrote something", () => {
     render(<MaintenanceScreen />, {
       wrapper: branded({ maintenanceMode: true, maintenanceMessage: "Back at 22:00, ping ops." }),
@@ -272,4 +360,36 @@ describe("the announcement banner", () => {
     expect(screen.queryByText("Upgrade at 22:00")).not.toBeInTheDocument();
     setItem.mockRestore();
   });
+});
+
+it("keeps a multiline announcement literal, labelled, and dismissible", async () => {
+  const message = "New workspace\n<script>not executable</script>";
+  render(<AnnouncementBanner notice={notice({ message, level: "critical" })} />, {
+    wrapper: branded(),
+  });
+  const banner = screen.getByRole("status");
+  expect(banner).toHaveAttribute("data-level", "critical");
+  expect(screen.getByText("Announcement")).toBeVisible();
+  expect(banner.querySelector("script")).toBeNull();
+  expect(banner.textContent).toContain(message);
+  await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("shows a planned end as information and keeps maintenance closed after that time", async () => {
+  const end = "2026-01-01T10:00:00Z";
+  vi.mocked(apiClient.get).mockResolvedValue(
+    notice({ maintenance_mode: true, maintenance_planned_end_at: end }),
+  );
+  const result = render(
+    <DeploymentGate>
+      <p>the dashboard</p>
+    </DeploymentGate>,
+    { wrapper: branded({ maintenanceMode: true }) },
+  );
+  await waitFor(() =>
+    expect(result.container.querySelector("time")).toHaveAttribute("datetime", end),
+  );
+  expect(screen.getByText(/This is an estimate/)).toBeVisible();
+  expect(screen.queryByText("the dashboard")).toBeNull();
 });

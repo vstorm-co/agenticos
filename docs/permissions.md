@@ -89,9 +89,19 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+The explicit `mcp:personal:use` scope lets external API or OAuth runs use the credential issuer's personal MCP connections. Select it under **Custom** and confirm this delegation; no preset, including **Full access**, includes it, and existing credentials keep organization-only access. It grants no personal memory, conversation search or routine consent. Approval resumes retain the original owner and credential; connected accounts, live key scopes and access to the root and discovered delegates are rechecked before personal tool calls.
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
+
+`approvals:decide` answers the organization's approvals queue. A platform call that
+always asks - the Architect accepting an improvement or publishing an agent - is the
+exception: it runs with the platform authority of the person its run acts for, so
+only that person, signed in as themselves, may approve it, and they need no
+permission to do so. Anybody else holding `approvals:decide` may reject it, and an
+API key or an impersonated session may not approve it. The queue marks such a call
+with who may approve it.
 
 `promotions:override` promotes a version onto an
 [environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
@@ -629,7 +639,7 @@ A run that acts as its agent is the one case where no member's role is read:
 
 | Endpoint | Answers |
 | --- | --- |
-| `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
+| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and, for an agent's run credential, `run_agent_id` |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
 
 Both are **a convenience for the UI and nothing more**. The server re-checks every
@@ -658,3 +668,5 @@ these APIs gains nothing.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installation administration through MCP requires the live application-admin flag and a separately approved OAuth `deployment:admin` scope. It is not a `Perm`, role permission or preset. Organization administration alone cannot grant it. Only an explicitly authorized external client receives it; internal agents, routines and ordinary API keys never inherit it. Reauthorize existing connections to opt in. See [MCP administration](mcp.md#administration-through-mcp).

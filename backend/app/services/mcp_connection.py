@@ -52,6 +52,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
+    AuthorityChecked,
     LeftOutOnClash,
     McpServerSpec,
     McpSourceIdentity,
@@ -196,12 +197,11 @@ def _revealed(value: SecretStr | None) -> str | None:
 def _refuse_a_client_this_server_will_not_authenticate(server: mcp_oauth.DiscoveredServer) -> None:
     """Refuse a pre-registered confidential client this flow cannot authenticate.
 
-    Dynamic registration states `client_secret_post` in `client_metadata`, so the
-    server is told how the secret will arrive. A client registered by hand was
-    not, and `exchange_code` and `refresh_tokens` only ever put `client_secret`
-    in the form body - a client configured for `client_secret_basic` would pass
-    consent and then fail every token request, which is the worst moment to find
-    out. Refused here instead, while there is still a form to say it on.
+    Dynamic registration tells the server how the client will authenticate.
+    For a client registered by hand with a secret, `exchange_code` and
+    `refresh_tokens` put `client_secret` in the form body. A client configured
+    for `client_secret_basic` would pass consent and then fail every token
+    request. Checking here lets the operator correct the client before consent.
 
     Silence is taken as consent: RFC 8414 makes
     `token_endpoint_auth_methods_supported` optional and defaults it to
@@ -583,7 +583,7 @@ async def _rotate_token(
     payload = _decode_payload(locked, locked.oauth_payload)
     if payload is None or not payload.access_token:
         return None
-    if locked.purpose == "account" and (
+    if (locked.purpose == "account" or payload.organization_oauth_client) and (
         payload.account_source_organization_id is None
         or not await McpConnectionService(db)._account_source_current(
             locked, payload, payload.account_source_organization_id
@@ -662,6 +662,12 @@ async def _oauth_access_token(connection: McpConnection) -> str | None:
     payload = _decode_payload(connection, connection.oauth_payload)
     if payload is None or not payload.access_token:
         return None  # not authorized yet, or an unreadable payload
+    if payload.organization_oauth_client:
+        async with get_worker_db_context() as db:
+            if payload.account_source_organization_id is None or not await McpConnectionService(
+                db
+            )._account_source_current(connection, payload, payload.account_source_organization_id):
+                return None
     if _token_is_fresh(payload):
         return _revealed(payload.access_token)
     if not payload.refresh_token:
@@ -1149,7 +1155,7 @@ class McpConnectionService:
         await record_reachability(self.db, db_connection, reachable=error is None)
         return db_connection, tools, error
 
-    async def probe_sign_in(self, url: str) -> McpSignInProbeResult:
+    async def probe_sign_in(self, url: str, ctx: AuthContext | None = None) -> McpSignInProbeResult:
         """Whether a server added by its address lets people sign in with OAuth (#2073).
 
         The discovery `oauth_start` runs before it registers anything - RFC 9728
@@ -1162,8 +1168,24 @@ class McpConnectionService:
             server = await mcp_oauth.discover(checked)
         except OAuthError:
             return McpSignInProbeResult(sign_in=False, registers_clients=False)
+        from app.core.secret_kinds import normalized_mcp_server
+        from app.repositories import organization_secret_repo
+
+        try:
+            identity = normalized_mcp_server(checked)
+        except ValueError:
+            identity = None
+        shared = (
+            None
+            if ctx is None or server.registration_endpoint is not None or identity is None
+            else await organization_secret_repo.mcp_oauth_client(
+                self.db, organization_id=ctx.organization_id, server_url=identity
+            )
+        )
         return McpSignInProbeResult(
-            sign_in=True, registers_clients=server.registration_endpoint is not None
+            sign_in=True,
+            registers_clients=server.registration_endpoint is not None,
+            organization_client_available=shared is not None,
         )
 
     async def _refuse_an_unnamed_second_org_account(
@@ -1251,12 +1273,14 @@ class McpConnectionService:
             existing=existing,
             vault_scope=VaultScope.organization(ctx.organization_id),
             create=create,
+            ctx=ctx,
         )
 
     async def oauth_start(
         self,
         *,
         user_id: UUID,
+        ctx: AuthContext | None = None,
         name: str,
         url: str,
         catalog_key: str | None = None,
@@ -1283,6 +1307,10 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {catalog_key}",
                 details={"catalog_key": catalog_key},
             )
+        if ctx is not None and ctx.user_id != user_id:
+            raise AuthorizationError(
+                message="Connect using your own active organization", details={}
+            )
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name)
         # Only a new row: authorizing an existing account again is not a second one.
         if existing is None and catalog_key is not None:
@@ -1300,6 +1328,7 @@ class McpConnectionService:
             client_secret=client_secret,
             existing=existing,
             vault_scope=VaultScope.user(user_id),
+            ctx=ctx,
             create=lambda **kwargs: mcp_connection_repo.create(
                 self.db,
                 user_id=user_id,
@@ -1319,6 +1348,7 @@ class McpConnectionService:
         existing: McpConnection | None,
         vault_scope: VaultScope,
         create: Callable[..., Awaitable[McpConnection]],
+        ctx: AuthContext | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
     ) -> str:
@@ -1341,19 +1371,36 @@ class McpConnectionService:
         url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
-        if client_id is None:
-            # The common case: the server registers this app on the spot. A
-            # server with no registration endpoint (HubSpot) refuses here, and the
-            # only way past is a client the operator registered by hand and passed
-            # in - its redirect URL must be `redirect_uri` exactly.
+        shared_client = None
+        explicit_client = client_id is not None
+        if client_id is None and server.registration_endpoint is None:
+            shared_client = (
+                await OrganizationSecretService(self.db).mcp_oauth_client_identity(ctx, url)
+                if ctx is not None
+                else None
+            )
+            if shared_client is None:
+                raise OAuthError(
+                    "This server needs a registered OAuth application. Ask an administrator to add an organization-visible MCP OAuth client for this server in Vault, or enter your own registered client under More options."
+                )
+            credentials, _, _ = shared_client
+            client_id = credentials.client_id
+            client_secret = credentials.client_secret
+        elif client_id is None:
             registered_id, registered_secret = await mcp_oauth.register_client(server, redirect_uri)
             client_id = registered_id
             client_secret = SecretStr(registered_secret) if registered_secret else None
-        elif client_secret is not None:
+        if client_secret is not None and (explicit_client or shared_client is not None):
             _refuse_a_client_this_server_will_not_authenticate(server)
         pkce = mcp_oauth.new_pkce()
         state = secrets.token_urlsafe(32)
         payload = McpOAuthPayload(
+            organization_oauth_client=shared_client is not None,
+            account_source_organization_id=ctx.organization_id
+            if ctx is not None and shared_client is not None
+            else None,
+            account_source_secret_id=shared_client[1] if shared_client is not None else None,
+            account_source_generation=shared_client[2] if shared_client is not None else None,
             server_url=url,
             started_at=_now_epoch(),
             authorization_endpoint=server.authorization_endpoint,
@@ -1458,6 +1505,11 @@ class McpConnectionService:
                 auth_type="oauth",
                 oauth_state=state,
                 oauth_pending_payload=sealed.ciphertext,
+                **(
+                    {"account_source_organization_id": payload.account_source_organization_id}
+                    if payload.organization_oauth_client
+                    else {}
+                ),
             )
 
     async def oauth_start_for_org_github(self, ctx: AuthContext, *, portal_key: str) -> str:
@@ -2984,6 +3036,19 @@ class McpConnectionService:
             )
         if payload.account_source_secret_id is None or payload.account_source_generation is None:
             return False
+        if payload.organization_oauth_client:
+            from app.core.secret_kinds import normalized_mcp_server
+
+            source = await organization_secret_repo.mcp_oauth_client(
+                self.db,
+                organization_id=organization_id,
+                server_url=normalized_mcp_server(payload.server_url),
+            )
+            return (
+                source is not None
+                and source.id == payload.account_source_secret_id
+                and source.authorization_generation == payload.account_source_generation
+            )
         return (
             await organization_secret_repo.authorization_generation(
                 self.db, payload.account_source_secret_id, organization_id=organization_id
@@ -3155,9 +3220,10 @@ class McpConnectionService:
                     raise OAuthError(
                         "Your organization access changed; start account consent again."
                     )
-        if connection.purpose == "account" and (
+        if (connection.purpose == "account" or payload.organization_oauth_client) and (
             (
-                connection.scope == "user"
+                connection.purpose == "account"
+                and connection.scope == "user"
                 and connection.account_source_organization_id
                 != payload.account_source_organization_id
             )
@@ -3300,6 +3366,11 @@ class McpConnectionService:
                 "auth_type": "oauth",
                 "auth_token": None,
                 "oauth_payload": _seal_for(connection, payload.model_dump_json()).ciphertext,
+                **(
+                    {"account_source_organization_id": payload.account_source_organization_id}
+                    if connection.purpose == "mcp"
+                    else {}
+                ),
                 "oauth_pending_payload": None,
                 "oauth_state": None,
                 # The scopes the provider actually granted, mirrored out of the
@@ -4087,6 +4158,7 @@ async def build_toolsets_for_agent(
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     taken_names: Mapping[str, str] | None = None,
+    recheck_sources: bool = False,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -4101,7 +4173,7 @@ async def build_toolsets_for_agent(
     reached, and it is reached on purpose: the spec says every person speaks to
     this service as themselves. `sender_user_id` is who is talking - the author
     of this message, never the thread's first speaker - and `None` where nobody
-    is: an API key, the widget, a schedule, a channel sender with no linked
+    is: a key without personal MCP delegation, the widget, a schedule, a channel sender with no linked
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
@@ -4129,6 +4201,9 @@ async def build_toolsets_for_agent(
     inside :class:`~app.agents.mcp.LeftOutOnClash`, which leaves it out of a step
     where one of its tool names is taken (#2890).
 
+    `recheck_sources` guards delegated external runs against connected-account
+    revocation or narrowing before each tool call, using a fresh session.
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
@@ -4154,13 +4229,16 @@ async def build_toolsets_for_agent(
             # This platform's own server, as whoever the run is for. Nobody to
             # act as - a visitor, a schedule - is no credential and no server.
             if platform_credential is not None:
-                # Never below `writes`: the credential is the asker's own authority,
-                # an Admin's included, and an agent anybody published must not
-                # invite, revoke or reconfigure with it without asking them first.
+                # Never below `writes` as a default: the credential is the asker's
+                # own authority, an Admin's included, and an agent anybody published
+                # must not invite, revoke or reconfigure with it without asking them
+                # first. A change runs unasked only where the spec names that one
+                # tool `never`, an explicit decision published with the agent.
                 spec = platform_spec(
                     platform_credential,
                     allowed_tools=ref.allowed_tools,
                     approval="all" if ref.approval == "all" else "writes",
+                    tool_approval=ref.tool_approval,
                 )
                 specs.append(spec)
                 bindings[id(spec)] = "this platform's own server"
@@ -4169,7 +4247,11 @@ async def build_toolsets_for_agent(
             continue
         if isinstance(ref, PersonalMcpServerRef):
             own, gap = await _personal_specs(
-                db, ref, sender_user_id=sender_user_id, approved_sources=personal_sources
+                db,
+                ref,
+                sender_user_id=sender_user_id,
+                approved_sources=personal_sources,
+                organization_id=organization_id,
             )
             for account in own:
                 specs.append(account.spec)
@@ -4184,6 +4266,15 @@ async def build_toolsets_for_agent(
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
         if ref.connection_id in overrides:
+            production = found.get(ref.connection_id)
+            if (
+                recheck_sources
+                and overrides[ref.connection_id] is not None
+                and (production is None or not production.is_enabled)
+            ):
+                raise AuthorizationError(
+                    message="The production MCP account is no longer available"
+                )
             spec = await _test_spec(
                 ref,
                 production=found.get(ref.connection_id),
@@ -4221,7 +4312,13 @@ async def build_toolsets_for_agent(
                 connection.name,
             )
             continue
+        payload = (
+            _decode_payload(connection, connection.oauth_payload)
+            if connection.auth_type == "oauth"
+            else None
+        )
         spec = McpServerSpec(
+            recheck_source=payload is not None and payload.organization_oauth_client,
             name=(organization_sources[connection.id].tool_prefix or connection.name)
             if organization_sources is not None
             else connection.name,
@@ -4308,6 +4405,13 @@ async def build_toolsets_for_agent(
     toolsets: list[Any] = []
     for spec, toolset in attached:
         guarded = _guarded(toolset, spec, binding=bindings[id(spec)], taken=taken_names)
+        if (recheck_sources or spec.recheck_source) and spec.source_connection_id is not None:
+            guarded = AuthorityChecked(
+                wrapped=guarded,
+                check=_delegated_source_check(
+                    spec, organization_id=organization_id, user_id=sender_user_id
+                ),
+            )
         toolsets.append(
             guarded
             if spec.connection_id is None
@@ -4330,6 +4434,81 @@ async def build_toolsets_for_agent(
             if spec.source_connection_id is not None and spec.authorization_generation is not None
         },
     )
+
+
+def _delegated_source_check(
+    spec: McpServerSpec, *, organization_id: UUID, user_id: UUID | None
+) -> Callable[[], Awaitable[None]]:
+    """Keep a cached toolset from outliving its connected account's authority."""
+
+    async def check() -> None:
+        assert spec.source_connection_id is not None
+        async with get_db_context() as db:
+            connection = await mcp_connection_repo.get_by_id(db, spec.source_connection_id)
+            if (
+                connection is None
+                or not connection.is_enabled
+                or connection.purpose != "mcp"
+                or connection.url != spec.url
+                or connection.authorization_generation != spec.authorization_generation
+                or (spec.include_instructions and not connection.include_instructions)
+                or (spec.trust_read_only_hints and not connection.trust_read_only_hints)
+                or (
+                    connection.scope == "user"
+                    and (user_id is None or connection.user_id != user_id)
+                )
+                or (connection.scope == "org" and connection.organization_id != organization_id)
+                or (
+                    connection.allowed_tools is not None
+                    and (
+                        spec.allowed_tools is None
+                        or not set(spec.allowed_tools).issubset(connection.allowed_tools)
+                    )
+                )
+            ):
+                raise AuthorizationError(
+                    message="An MCP account changed or was disconnected. Reconnect it and start a new run."
+                )
+            payload = (
+                _decode_payload(connection, connection.oauth_payload)
+                if connection.auth_type == "oauth"
+                else None
+            )
+            if (
+                payload is not None
+                and payload.organization_oauth_client
+                and not await McpConnectionService(db)._account_source_current(
+                    connection, payload, organization_id
+                )
+            ):
+                raise AuthorizationError(
+                    message="The organization's MCP OAuth client changed. Reconnect this account.",
+                    details={},
+                )
+            if spec.ceiling_source is not None:
+                ceiling_id, identity = spec.ceiling_source
+                ceiling = await mcp_connection_repo.get_by_id(db, ceiling_id)
+                if (
+                    ceiling is None
+                    or not ceiling.is_enabled
+                    or ceiling.purpose != "mcp"
+                    or ceiling.scope != "org"
+                    or ceiling.organization_id != organization_id
+                    or hashlib.sha256(ceiling.url.encode()).hexdigest() != identity.endpoint_hash
+                    or ceiling.authorization_generation != identity.authorization_generation
+                    or (
+                        ceiling.allowed_tools is not None
+                        and (
+                            spec.allowed_tools is None
+                            or not set(spec.allowed_tools).issubset(ceiling.allowed_tools)
+                        )
+                    )
+                ):
+                    raise AuthorizationError(
+                        message="The production MCP account changed. Start a new run."
+                    )
+
+    return check
 
 
 def _guarded(
@@ -4385,7 +4564,9 @@ async def _test_spec(
     ceiling = _narrowed_tools(
         production.allowed_tools if production is not None else None, ref.allowed_tools
     )
+    payload = _decode_payload(test, test.oauth_payload) if test.auth_type == "oauth" else None
     return McpServerSpec(
+        recheck_source=payload is not None and payload.organization_oauth_client,
         name=production.name if production is not None else test.name,
         url=test.url,
         headers=headers,
@@ -4397,6 +4578,17 @@ async def _test_spec(
         include_instructions=test.include_instructions,
         account=test.label,
         connection_id=test.id,
+        source_connection_id=test.id,
+        authorization_generation=test.authorization_generation,
+        ceiling_source=(
+            production.id,
+            McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(production.url.encode()).hexdigest(),
+                authorization_generation=production.authorization_generation,
+            ),
+        )
+        if production is not None
+        else None,
     )
 
 
@@ -4419,12 +4611,19 @@ async def _personal_specs(
     ref: PersonalMcpServerRef,
     *,
     sender_user_id: UUID | None,
+    organization_id: UUID | None = None,
     approved_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> tuple[list[_OwnAccount], PersonalServiceGapKind | None]:
     """The sender's own accounts on this service as servers, or why there are none."""
     if sender_user_id is None:
         return [], "nobody_to_speak_as"
-    own = await _own_specs(db, ref, user_id=sender_user_id, approved_sources=approved_sources)
+    own = await _own_specs(
+        db,
+        ref,
+        user_id=sender_user_id,
+        approved_sources=approved_sources,
+        organization_id=organization_id,
+    )
     return (own, None) if isinstance(own, list) else ([], own)
 
 
@@ -4433,6 +4632,7 @@ async def _own_specs(
     ref: PersonalMcpServerRef,
     *,
     user_id: UUID,
+    organization_id: UUID | None = None,
     approved_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> list[_OwnAccount] | OwnAccountGap:
     """One person's own accounts on this service as servers, or why there are none.
@@ -4461,6 +4661,22 @@ async def _own_specs(
     accounts: list[_OwnAccount] = []
     taken: set[str] = set()
     for account in [primary, *(other for other in owned if other is not primary)]:
+        payload = (
+            _decode_payload(account, account.oauth_payload)
+            if account.auth_type == "oauth"
+            else None
+        )
+        if (
+            payload is not None
+            and payload.organization_oauth_client
+            and (
+                organization_id is None
+                or not await McpConnectionService(db)._account_source_current(
+                    account, payload, organization_id
+                )
+            )
+        ):
+            continue
         headers = await resolve_auth_headers(account)
         if headers is None:
             logger.info(
@@ -4481,6 +4697,7 @@ async def _own_specs(
             name = f"{name[:55]}-{account.id.hex[:8]}"
         taken.add(name)
         spec = McpServerSpec(
+            recheck_source=payload is not None and payload.organization_oauth_client,
             name=name,
             url=account.url,
             headers=headers,

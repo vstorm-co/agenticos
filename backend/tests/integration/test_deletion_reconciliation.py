@@ -75,7 +75,7 @@ def _run_queued_cleanups_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> No
     from app.core.background import spawn_after_commit
     from app.db.session import get_worker_db_context
     from app.repositories import background_job as job_repo
-    from app.worker.jobs import CLEANUP_EXTERNAL_STATE
+    from app.worker.jobs import CLEANUP_EXTERNAL_STATE, WIPE_SUBSCRIPTION_ACCOUNTS
     from app.worker.tasks import teardown_tasks
 
     queue = teardown_tasks.queue_external_state_cleanup
@@ -85,6 +85,17 @@ def _run_queued_cleanups_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> No
             while job := await job_repo.claim(
                 db, pool="system", worker_id="test", lease=timedelta(minutes=5)
             ):
+                if job.kind == WIPE_SUBSCRIPTION_ACCOUNTS.kind:
+                    # This test worker serves storage cleanup only; account deletion remains pending.
+                    outcome = await job_repo.fail(
+                        db,
+                        job.id,
+                        fence=job.attempts,
+                        error="Subscription cleanup requires its own handler",
+                        retry_in=timedelta(minutes=5),
+                    )
+                    assert outcome is job_repo.FailOutcome.RETRYING
+                    continue
                 await teardown_tasks.run_external_state_cleanup(
                     CLEANUP_EXTERNAL_STATE.load(job.payload)
                 )

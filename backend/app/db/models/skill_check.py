@@ -48,6 +48,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
+SKILL_CHECK_VERDICT_VERSION = 1
+"""Stored verdicts older than this are eligible for the operator rejudge sweep."""
+
 
 class CheckMode(StrEnum):
     """How much of each agent's own questions a check asks."""
@@ -101,7 +104,13 @@ class AgentState(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     BETTER = "better"
+    CRITERIA_BETTER = "criteria_better"
+    """No question flipped, and criteria the re-asks confirmed got better while none got worse."""
+
     NO_CHANGE = "no_change"
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, and a criterion the re-asks confirmed got worse."""
+
     WITHIN_NOISE = "within_noise"
     """No confirmed change, but flips or wobble the check could not tell from noise."""
     WORSE = "worse"
@@ -132,6 +141,9 @@ class UnknownReason(StrEnum):
     OWN_NOT_ASKED = "own_not_asked"
     """A quick check left its own questions unasked once the skill's made it worse, and a
     person's verdict has since taken that back: its own questions would decide it."""
+    TOO_FEW_QUESTIONS = "too_few_questions"
+    """Its runs graded every answer, but its held-out questions fell short of the
+    minimum a result needs, so whatever they showed cannot make it better."""
 
 
 class SampleKind(StrEnum):
@@ -341,6 +353,21 @@ class SkillCheckAgent(Base):
     `kind`, `dataset_id` and `eval_run_id`, and how many were `compared`, `fixed`,
     `broken`, `unchanged` and left `unknown`. Empty until then, and for a check judged
     before these were kept."""
+    criteria: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Each criterion over the stages' held-out questions taken together: its `scorer`
+    and `name`, how many `graded`, passed `before` and `after`, and the flips the
+    re-asks confirmed, `fixed` and `broken`. Empty until judged."""
+    verdict_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    families: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Each family of criteria over the stages' held-out questions taken together, as
+    an improvement attempt's verdict keeps them (`FamilyDetail`). Empty until judged,
+    and for an agent judged before families were kept."""
 
     __table_args__ = (
         ForeignKeyConstraint(

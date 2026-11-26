@@ -6,6 +6,7 @@ of are what is tested - not a string compared with itself.
 """
 
 import base64
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -163,17 +164,92 @@ class TestTheSnapshot:
         assert changes is not None
         assert [entry.path for entry in changes.files] == ["clone/lib.py"]
 
-    async def test_a_file_past_the_ceiling_is_left_out(
-        self, project: Path, store_root: Path
+    @pytest.mark.security
+    @pytest.mark.parametrize("operation", ["create", "modify", "delete", "shrink", "unchanged"])
+    @pytest.mark.parametrize("filename", ["dump.bin", "notes.*"])
+    async def test_an_excluded_large_file_prevents_undo_of_the_captured_edit(
+        self, project: Path, store_root: Path, operation: str, filename: str
     ) -> None:
+        large = project / filename
+        if operation != "create":
+            large.write_bytes(b"a" * (_changes.MAX_FILE_BYTES + 1))
+
         def edit(root: Path) -> None:
-            (root / "dump.bin").write_bytes(b"a" * (_changes.MAX_FILE_BYTES + 1))
             (root / "small.txt").write_text("fits\n")
+            if operation in {"create", "modify"}:
+                large.write_bytes(b"b" * (_changes.MAX_FILE_BYTES + 1))
+            elif operation == "delete":
+                large.unlink()
+            elif operation == "shrink":
+                large.write_text("small now\n")
 
         changes = await _task(project, edit)
 
         assert changes is not None
+        assert "small.txt" in {entry.path for entry in changes.files}
+        assert changes.revert_patch is None
+        assert list(store_root.iterdir()) == []
+
+    @pytest.mark.security
+    async def test_an_unsupported_file_type_cannot_be_silently_excluded_from_undo(
+        self, project: Path, store_root: Path
+    ) -> None:
+        def edit(root: Path) -> None:
+            (root / "small.txt").write_text("fits\n")
+            os.mkfifo(root / "pipe")
+
+        changes = await _task(project, edit)
+        assert changes is not None and changes.revert_patch is None
         assert [entry.path for entry in changes.files] == ["small.txt"]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("when", ["before", "after"])
+    async def test_an_unreadable_file_cannot_leave_an_undoable_partial_snapshot(
+        self, project: Path, store_root: Path, when: str
+    ) -> None:
+        hidden = project / "hidden.txt"
+        hidden.write_text("before\n")
+        if when == "before":
+            hidden.chmod(0)
+
+        def edit(root: Path) -> None:
+            (root / "small.txt").write_text("fits\n")
+            hidden.chmod(0o600)
+            hidden.write_text("after\n")
+            if when == "after":
+                hidden.chmod(0)
+
+        try:
+            ctx = _ctx(Workspace(LocalWorkspaceBackend(project)))
+            baseline = await _changes.begin(ctx)
+            edit(project)
+            changes = await _changes.finish(ctx, baseline) if baseline is not None else None
+            assert changes is None or changes.revert_patch is None
+        finally:
+            hidden.chmod(0o600)
+
+    @pytest.mark.security
+    async def test_an_unreadable_directory_cannot_hide_changes_from_undo(
+        self, project: Path, store_root: Path
+    ) -> None:
+        hidden = project / "hidden"
+        hidden.mkdir()
+        (hidden / "file.txt").write_text("before\n")
+        hidden.chmod(0)
+
+        def edit(root: Path) -> None:
+            (root / "small.txt").write_text("fits\n")
+            hidden.chmod(0o700)
+            (hidden / "file.txt").unlink()
+
+        try:
+            ctx = _ctx(Workspace(LocalWorkspaceBackend(project)))
+            baseline = await _changes.begin(ctx)
+            edit(project)
+            changes = await _changes.finish(ctx, baseline) if baseline is not None else None
+            assert changes is None or changes.revert_patch is None
+        finally:
+            hidden.chmod(0o700)
 
 
 @needs_git

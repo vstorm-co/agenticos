@@ -1053,3 +1053,10 @@ describe("voice calls on an embed", () => {
     expect(screen.queryByRole("switch", { name: "Voice calls" })).toBeNull();
   });
 });
+
+it("does not offer publishing new public surfaces with personal model keys", () => {
+  render(<EmbedsPanel agentId="a-1" canManage personalModel />);
+  expect(
+    screen.queryByRole("button", { name: /Hosted page|Website widget|WebSocket/i }),
+  ).not.toBeInTheDocument();
+});

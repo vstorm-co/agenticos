@@ -51,7 +51,24 @@ describe("signing in with a directory account", () => {
       headers: { Authorization: "Bearer at" },
     });
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ user: { id: "u-1" }, access_token: "at" });
+    await expect(response.json()).resolves.toEqual({
+      user: { id: "u-1" },
+      access_token: "at",
+      is_new_user: false,
+    });
+  });
+
+  it.each([false, true])("forwards only the backend's new-account flag (%s)", async (isNewUser) => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt", is_new_user: isNewUser })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const response = await ldapLogin(request({ ...CREDENTIALS, is_new_user: !isNewUser }));
+    expect(await response.json()).toMatchObject({ is_new_user: isNewUser });
+    expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/auth/ldap/login", {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify(CREDENTIALS),
+    });
   });
 
   it("stores both tokens where no script can read them", async () => {

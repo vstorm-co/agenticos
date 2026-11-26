@@ -5,10 +5,10 @@ name and a sentence saying when to reach for it is *data*, so it lives in
 `app/core/catalog/text_to_speech_models.json` and a model released this morning is
 one entry with no code (#2259).
 
-**Three API shapes, named per entry.** OpenAI's `POST /audio/speech`, ElevenLabs'
-`POST /text-to-speech/{voice}` and Gemini's Interactions endpoint have nothing in
-common past "text in, audio out", so an entry says which one it speaks and an
-entry naming a shape with no client is dropped rather than offered and failed.
+**API shapes, named per provider or model.** OpenAI's `POST /audio/speech`, ElevenLabs'
+`POST /text-to-speech/{voice}`, Eleven v4's dialogue endpoint and Gemini's Interactions endpoint have nothing in
+common past "text in, audio out", so the catalog names the transport and a model can override
+its provider default. A provider naming a shape with no client is dropped.
 
 **A provider is a purpose, not a model provider.** ElevenLabs runs no chat model,
 so it is not in `model_resolver.PROVIDERS`; what the catalog has to agree with is
@@ -89,6 +89,9 @@ class SpeechModel:
     """The most text one request takes. Longer text is sent in parts."""
 
     prices: tuple[SpeechPrice, ...]
+    api: Literal["elevenlabs_dialogue"] | None = None
+    """A model-specific transport when it differs from its provider's default."""
+
     takes_instructions: bool = False
     """Whether the model reads a direction on how to speak - tone, pace, accent."""
 
@@ -117,7 +120,9 @@ CATALOG: tuple[TextToSpeechEntry, ...] = catalog.load(
     "text_to_speech_models.json", TypeAdapter(tuple[TextToSpeechEntry, ...])
 )
 
-SUPPORTED_APIS = frozenset({"openai_speech", "elevenlabs", "gemini_interactions"})
+SUPPORTED_APIS = frozenset(
+    {"openai_speech", "elevenlabs", "elevenlabs_dialogue", "gemini_interactions"}
+)
 """API shapes there is a client for. An entry naming another one is dropped."""
 
 

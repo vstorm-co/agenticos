@@ -49,6 +49,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.eval_suite import EvalSuite
+from app.db.models.event_source import EventSource
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -75,7 +76,7 @@ from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.db.updates import cleared, writable
-from app.schemas.agent import AgentDraftUpdate
+from app.schemas.agent import AgentDraftUpdate, ApplyShippedAgentUpdate, ShippedAgentUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
@@ -89,6 +90,9 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_dashboard import OrganizationDashboardUpdate
+from app.schemas.console_experience import ConsoleExperienceUpdate
+from app.schemas.console_presentation import RoleConsoleUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.conversation_share import ConversationShareUpdate
@@ -96,6 +100,7 @@ from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.eval_suite import EvalSuiteUpdate
+from app.schemas.event_source import EventSourceUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -111,6 +116,7 @@ from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
+from app.schemas.project_resource import ProjectEntrypointUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
@@ -148,8 +154,16 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # A diff response and a revision precondition, not partial row updates.
+    ShippedAgentUpdate: None,
+    ApplyShippedAgentUpdate: None,
     # Coding account and task updates merge credential/config or typed record cells, not row columns.
     CodingAccountUpdate: None,
+    # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
+    ConsoleExperienceUpdate: OrganizationMember,
+    # Nested role policies replace or clear typed JSONB values, not individual row columns.
+    OrganizationDashboardUpdate: None,
+    RoleConsoleUpdate: None,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
@@ -168,6 +182,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     DatasetScoringUpdate: None,
     DatasetUpdate: Dataset,
     EvalSuiteUpdate: EvalSuite,
+    EventSourceUpdate: EventSource,
     JudgeScorerUpdate: None,
     ConversationUpdate: Conversation,
     # Sets `permission` on one share (`conversation_share.change_permission`).
@@ -193,6 +208,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
+    # Selects or clears a flag across the project's workflow membership rows.
+    ProjectEntrypointUpdate: None,
     RecordUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
     PushFocusUpdate: None,
@@ -234,6 +251,13 @@ _DUMP_EXEMPT = {
     # columns. Explicit null clears a secret reference; omitted fields must
     # preserve it. The draft API owns validation and persistence of the spec.
     "app/services/platform_mcp/_tools.py",
+    # HTTP transport must preserve omitted versus explicit null fields. The
+    # target API services apply writable before changing database columns.
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_administration.py",
+    # This route projects the narrow preferences DTO into UserUpdate, preserving
+    # omitted fields. UserService.update applies writable before persistence.
+    "app/api/routes/v1/users.py",
     "app/services/ingestion_config.py",
     "app/services/scoring.py",
     # Dataset helper patches merge a nested JSON document after writable filters
@@ -308,6 +332,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "ShippedAgentUpdate",
+            "ApplyShippedAgentUpdate",
             "DatasetScoringUpdate",
             "JudgeScorerUpdate",
             "CodingAccountUpdate",
@@ -320,6 +346,9 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "VisibilityUpdate",
             "WorkflowDraftUpdate",
             "WorkflowActiveUpdate",
+            "ProjectEntrypointUpdate",
+            "OrganizationDashboardUpdate",
+            "RoleConsoleUpdate",
         }
 
 

@@ -1,11 +1,20 @@
 ---
-source_sha: "56831f51be08"
+source_sha: "0965548d0e5c"
 ---
 
 # Configuración { #configuration }
 
-Toda la configuración se gestiona con variables de entorno, cargadas desde
+La configuración de los servicios usa variables de entorno, cargadas desde
 `backend/.env` con [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+La presentación de la consola y los plazos de avisos se guardan en la base de datos
+desde la interfaz. La disponibilidad de la instalación limita los elementos del
+inicio del chat y los recordatorios; los valores de la organización y las
+preferencias personales de cada pertenencia eligen entre los disponibles. El
+aplazamiento dura 1, 3 o 7 días. El servidor aplica la caducidad del anuncio; el fin
+previsto del mantenimiento solo informa y no vuelve a abrir la instalación.
+[La experiencia de la consola](console.es.md#console-experience) describe los
+controles y la herencia.
 
 Los ajustes se definen en `app/core/config.py` y se leen a través del objeto
 global `settings`:
@@ -90,7 +99,11 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 
-La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Configure `browser_use.cdp_url` del agent como `http://browser:9222` y publique su borrador. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Los agentes con **Built in** usan `BROWSER_SIGN_IN_CDP_URL` cuando su propio `cdp_url` está vacío. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+
+AgenticOS usa por defecto **Built in**, con hasta 100 pasos por llamada, y **Computer use → Docker / Sandbox** con el entorno `desktop`. Este incluye también las herramientas de workbench para código y documentos. Sin conexión a contenedores, el escritorio y las herramientas personales de código en la nube permanecen desactivados. Un endpoint de navegador ausente o un contenedor inaccesible solo afecta a sus llamadas; el agente puede publicarse y responder con sus otras herramientas. Los endpoints configurados siguen sujetos a la lista de hosts permitidos del operador.
+
+AgenticOS trabaja directamente salvo que el usuario solicite explícitamente subagentes o trabajo paralelo de agentes. En Delegates se habilitan todos los agentes publicados accesibles de la organización actual. Se mantienen los permisos y las versiones fijadas explícitamente; las rutinas sin usuario no reciben este catálogo. La creación dinámica de especialistas está desactivada.
 
 El renderizador no publica puertos ni tiene acceso a Internet, sirve a la API y al worker y tiene un límite de 1 CPU y 1 GiB de RAM. Las imágenes publicadas del backend incluyen el extra `browser`; una imagen propia necesita `EXTRAS="--extra browser"`. Si falla la renderización, la respuesta del canal indica expresamente que no se pudo adjuntar la imagen. Cada renderizado permite como máximo 256 solicitudes y 32 respuestas pendientes; las teselas también comparten `RATE_LIMIT_MAP_TILES_PER_MINUTE` entre renderizadores.
 
@@ -103,18 +116,23 @@ cuerpo ya se ha volcado a un archivo temporal y se ha leído en memoria. Detrás
 una sesión eso no es gran riesgo; en `POST /api/v1/embed/{key}/files`, que puede
 alcanzar un desconocido con un enlace, sí lo es.
 
-Por eso una petición que declara un `Content-Length` mayor que
-`MAX_UPLOAD_SIZE_MB` más un margen de 5 MiB para el sobre multipart se responde con
-**413** antes de leer su cuerpo. No hay ajuste: sigue a `MAX_UPLOAD_SIZE_MB`,
-porque un segundo número que hay que mantener a la par del primero es un número que
-acaba por debajo de él.
+Una petición con `Content-Length` superior al mayor de
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
+`ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart, recibe **413** antes
+de leer su cuerpo. Este límite sigue automáticamente los ajustes de carga.
 
-**Es la mitad barata de la respuesta, no la respuesta entera.** El `Content-Length`
-lo pone quien llama, y una petición chunked no declara ninguno — esas pasan y
-quedan acotadas por los topes por ruta, que miden bytes reales. Un despliegue que
-quiera la garantía y no la cortesía fija `client_max_body_size` (nginx) o el
-equivalente en lo que termine sus conexiones; los archivos compose ejecutan uvicorn
-sin un límite propio.
+El cliente proporciona `Content-Length`; las peticiones chunked no declaran
+longitud y quedan sujetas a los límites por ruta que miden los bytes reales.
+Fija también un límite en el proxy para esas peticiones. En Nginx es necesario
+además para permitir cargas por encima del valor predeterminado de 1 MiB:
+la plantilla fija `client_max_body_size 55m;` en el host de la API y las rutas
+multipart de la consola. Las páginas de la consola, la autenticación y el JSON
+ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumentar
+el mayor ajuste. Consulta el
+[despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
+un límite de cuerpo propio.
+
+Las cargas de ZIP portables tienen un límite independiente de 512 MiB en ambos hosts. La consola transmite `/api/portability/{id}/upload` a la API sin almacenar todo el archivo en Next.js. Las solicitudes de control admiten 4 MiB y las de importación de texto 25 MiB para el envoltorio de cadena JSON; el documento decodificado mantiene el límite de 4 MiB. Conserva estas ubicaciones específicas al sustituir la configuración del proxy.
 
 ## Autenticación { #authentication }
 
@@ -153,6 +171,12 @@ ciphertext es por tanto inútil fuera del tenant para el que se selló.
 
 Validación en producción: `API_KEY` no puede usar el valor por defecto con
 `ENVIRONMENT=production`.
+
+El acceso local se controla en **Admin → Despliegue → Acceso y cuentas**,
+independientemente del filtro de proveedores. Consulte
+[Acceso solo mediante el proveedor](deployment.md#provider-only-sign-in) para la
+política, su aplicación en la API y la anulación de recuperación del operador
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -240,7 +264,7 @@ Dos botones en el frontend, configurados allí:
 
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO. `ldap` añade el formulario del directorio y `kerberos` el botón de inicio de sesión de Windows, más abajo |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Orden y filtro de proveedores configurados en el backend. Vacío oculta los botones. Las contraseñas locales se controlan por separado en Admin → Despliegue → Acceso y cuentas. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
 
@@ -248,7 +272,7 @@ Dónde vive cada issuer, y qué registrar:
 
 | Proveedor | Issuer | Registra la redirect URI como |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions. En **Token configuration**, añade los claims opcionales `email` y `xms_edov` al token **ID** |
 | **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
 
@@ -264,6 +288,13 @@ Dos cosas que la plataforma exige del proveedor al que se la apunte:
   que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
   persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
   dirección signifique algo.
+  En Entra el claim tiene que ir en el **token ID**: su endpoint UserInfo solo
+  devuelve `sub`, `name`, `family_name`, `given_name`, `picture` y `email`.
+  `OIDC_VERIFIED_CLAIM` tiene que nombrar un claim cuyo *valor* sea verdadero para
+  una dirección confirmada; uno que lleva todo token, como `sub`, no confirma nada
+  y no se acepta. Un acceso rechazado registra `oauth_callback_claims_rejected` con
+  la condición que falló (`reason`) y los nombres, nunca los valores, de los
+  claims recibidos.
 - **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
   quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
   el siguiente titular de una dirección liberada no la hereda. Se guarda **con el
@@ -952,6 +983,8 @@ Los casos de prueba sobre los que corren los evals. Consulta [Datasets](datasets
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas revisiones de casos pueden guardar juntos los datasets de una organización. Cada caso añadido y cada edición es una revisión, guardada para las versiones que la contienen; una versión guarda solo lo que cambió, así que un dataset de 10.000 casos editado 500 veces guarda 10.500, no 5 millones. Añadir o editar por encima del límite se rechaza indicando cuántas hay guardadas; quitar un caso no guarda nada y siempre está permitido, y borrar los datasets que nadie necesita libera sus revisiones. El nombre es anterior a este significado: contaba cada caso de cada versión mientras las versiones copiaban sus casos. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | El archivo más grande que lee una importación de dataset (10 MB). Un archivo mayor se lee solo un byte más allá del límite y se rechaza por demasiado grande, nombrando el campo del archivo; divídelo en varias importaciones |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Cuántas filas puede tener una importación de dataset. El archivo se lee fila a fila y se rechaza en la primera fila que supera el límite, así que un archivo de muchas filas pequeñas no cuesta más que uno en el límite. El techo propio de un dataset, 10.000 casos, sigue aplicándose a lo que añade una importación |
 
 ## Workspaces de los agents { #agent-workspaces }
 
@@ -1378,7 +1411,7 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. El [formulario](workflows.md#from-a-form) de un workflow se lee en un contador de este tamaño por formulario. Ver más abajo |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Entregas que admite un [webhook](workflows.md) de un workflow o un disparador de GitHub, **por webhook**, contadas cuando la firma se verifica y la entrega iniciaría un run, así que desconocidos y entregas omitidas no gastan nada: cada una es una ejecución |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones que una dirección puede enviar a las direcciones de webhook y de disparador de GitHub de los workflows en un minuto, sea cual sea su contenido, contadas antes de leer nada. Amplio, porque remitentes como GitHub entregan para muchos hooks desde pocas direcciones |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones por minuto desde una dirección IP, contadas en conjunto para los webhooks de los workflows, sus disparadores de GitHub y las URL de las fuentes de eventos reutilizables. El límite se aplica antes de leer el cuerpo de la petición. El valor predeterminado tiene en cuenta a proveedores como GitHub, que envían muchos webhooks desde unas pocas direcciones |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Destinatarios únicos por usuario, abarcando claves y organizaciones; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Destinatarios únicos por organización; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Destinatarios únicos en todo el despliegue; [email.send](reference/workflow-nodes.md#email-send) |
@@ -1705,3 +1738,37 @@ permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba 
 restauración en un despliegue desechable antes de producción. Varios hosts,
 superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
 `UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.
+
+## Cuentas de suscripción { #subscription-accounts }
+
+El servicio `subscription-gateway` ejecuta los inicios de sesión de las personas
+en sus propias suscripciones ([cuentas de suscripción](models.md#subscription-accounts)).
+Usa la imagen del backend con `python -m app.subscription_gateway`, no publica
+ningún puerto y guarda los inicios de sesión en el volumen
+`subscription_accounts`.
+
+| Variable | La lee | Significado |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | La dirección de la pasarela, `http://subscription-gateway:8400` en compose. Sin valor, las cuentas de suscripción se desactivan. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, pasarela | El token compartido, de 32 caracteres como mínimo. La pasarela rechaza cualquier petición sin él, y la API no arranca con una URL pero sin ese token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | pasarela | Cuánto puede estar inactivo el proceso de una persona antes de detenerse. Por defecto 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | pasarela | Cuántos procesos de personas pueden ejecutarse a la vez. Por defecto 64; por encima, se detiene el proceso inactivo usado hace más tiempo. |
+
+El token se genera solo. `make dev` y `scripts/deploy.sh` escriben un
+`SUBSCRIPTION_GATEWAY_TOKEN` aleatorio en `backend/.env` la primera vez que se
+ejecutan y lo conservan después; `make dev` se lo pasa a `docker-compose.yml`.
+Para elegir el tuyo, escríbelo ahí antes (`openssl rand -hex 32`).
+
+En `docker-compose-prod.yml` y `docker-compose-dev.yml` el servicio está en el
+perfil `subscriptions`. `scripts/deploy.sh` y el actualizador del host activan
+ese perfil y definen `SUBSCRIPTION_GATEWAY_URL` cuando `backend/.env` contiene un
+token, así que un servidor ejecuta la pasarela por defecto. Para mantenerla
+apagada, deja la línea vacía en `backend/.env`: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` arrancado por sí solo, sin un clon, usa un token local
+fijo. Define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
+despliegue así al que lleguen otras personas.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).

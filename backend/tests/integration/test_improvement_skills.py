@@ -48,6 +48,7 @@ async def _session(db: AsyncSession, ctx: AuthContext, agent: Agent) -> Improvem
         base_draft_hash="a" * 64,
         dataset_id=dataset.id,
         dataset_version=1,
+        holdout_share=Decimal("0.5"),
         suite_id=None,
         suite_hash=None,
         scoring_hash="s" * 64,
@@ -241,6 +242,22 @@ class TestTheSeed:
         assert seed.problems == ["It says ninety days"]
         assert seed.quotes == ["Quoted for It says ninety days"]
 
+    @pytest.mark.security
+    async def test_a_kept_problem_reaches_the_card_and_the_seed_redacted(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _serving(db, ctx, "Clerk", _spec(skill))
+        run = await _session(db, ctx, agent)
+        await _found(db, ctx, run, skill, "Fails on postgres://app:Kanar3kSeed@db/app")
+        service = ImprovementPipelineService(db)
+
+        card = await service.skills(ctx, agent.id, run.id)
+        seed = await service.skill_seed(ctx, run.id, skill.id)
+
+        shown = card.model_dump_json() + " ".join([*seed.problems, *seed.quotes])
+        assert "Kanar3kSeed" not in shown
+        assert shown.count("[redacted:url_credentials]") == 4
+
     async def test_the_line_is_the_one_the_sessions_version_read_after_a_republish(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
@@ -327,3 +344,32 @@ async def test_an_erased_persons_quotes_leave_the_problems_and_the_seed(db):
     }
     seed = await service.skill_seed(ctx, run.id, skill.id)
     assert (seed.run_ids, seed.quotes) == ([kept], ["Quoted for It skips the order number"])
+
+
+@pytest.mark.security
+async def test_criterion_metadata_owner_ids_respect_tenants_and_explicit_grants(db):
+    from app.db.models.resource_grant import GrantLevel
+    from app.repositories import resource_grant_repo
+    from app.services.access import SKILL
+    from app.services.criterion_access import readable_criterion_skill_ids
+
+    owner = await _owner(db)
+    other = await _owner(db)
+    skill = await _skill(db, owner, name="local-owner")
+    skill.visibility = "private"
+    foreign = await _skill(db, other, name="foreign-owner")
+    member = await _member(db, owner, OrgRoleName.MEMBER)
+    await db.flush()
+    ids = {skill.id, foreign.id, uuid.uuid4()}
+    assert await readable_criterion_skill_ids(db, owner, ids) == {skill.id}
+    assert await readable_criterion_skill_ids(db, member, ids) == set()
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=owner.organization_id,
+        subject_user_id=member.user_id,
+        resource_type=SKILL.key,
+        resource_id=skill.id,
+        level=GrantLevel.READ,
+        created_by_user_id=owner.user_id,
+    )
+    assert await readable_criterion_skill_ids(db, member, ids) == {skill.id}

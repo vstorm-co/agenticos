@@ -18,6 +18,7 @@ interface UseExternalAgentsResult {
   agents: ExternalAgent[];
   isLoading: boolean;
   error: string | null;
+  retry: () => Promise<void>;
   register: (input: ExternalAgentCreate) => Promise<ExternalAgent>;
   refresh: (id: string) => Promise<ExternalAgent>;
   remove: (id: string) => Promise<void>;
@@ -39,6 +40,7 @@ export function useExternalAgents(enabled = true): UseExternalAgentsResult {
     data: agents = [],
     isLoading,
     error: queryError,
+    refetch,
   } = useQuery({
     queryKey: qk.externalAgents.list(),
     queryFn: listExternalAgents,
@@ -79,6 +81,9 @@ export function useExternalAgents(enabled = true): UseExternalAgentsResult {
     agents,
     isLoading: enabled && isLoading,
     error: queryError ? getErrorMessage(queryError, tErrors, t("failedToLoad")) : null,
+    retry: async () => {
+      await refetch();
+    },
     register,
     refresh,
     remove,

@@ -37,7 +37,7 @@ embeds keep their separate visitor scope.
 a published agent with a voice takes calls, bounded by its own longest call and
 by the budgets, as any run is.
 
-**The agent.** Its Voice card in the Builder has a **Voice calls** tab, written
+**The agent.** Its Voice card in the Builder lists **Voice calls** and **Dictation** vertically, without inner tabs. Each has its own switch. Transcription settings remain editable when Dictation is off because they also apply to channel voice notes. The calls section is written
 to the spec's [`voice` field](reference/spec.md#voice). It names the provider,
 the model (or, for Azure, the deployment name and the base model it runs), the
 vault key calls are held with, the voice, an optional language, an optional
@@ -55,7 +55,7 @@ language.
 **Every agent offers the button.** In `/chat` the call button stands in Send's
 place while the box is empty, and Send comes back once something is typed. For one with no voice, or a key that can no longer
 hold a call, it is crossed out, and its reason links whoever may edit the agent
-to the Calls tab of its Voice card. The Architect's window and the Builder's
+to the calls section of its Voice card. The Architect's window and the Builder's
 test panel offer it the same way; in the test panel the call runs the published
 version, not the draft being tested, and the button says so.
 

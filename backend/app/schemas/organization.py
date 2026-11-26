@@ -8,10 +8,13 @@ from uuid import UUID
 
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
+from app.core.chat_costs import ChatCostVisibility
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
+from app.db.models.organization import MembershipSourceLiteral, OnboardingStep, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
+from app.schemas.console_presentation import ConsoleNotices, RoleConsoleChanges, StoredRoleConsole
 from app.schemas.user import UserRead
 
 _ID = UUID
@@ -21,6 +24,16 @@ _ID = UUID
 # how the cap is *removed*, and a `gt=0` applied to the whole field would
 # reject the one request that lifts the limit.
 MonthlyBudgetUsd = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=6)]
+
+
+class OrganizationTextToSpeech(BaseSchema):
+    """The organization-wide voice and key inherited only by agents opting in."""
+
+    enabled: bool = True
+    provider: str = Field(min_length=1, max_length=32)
+    model: str = Field(min_length=1, max_length=255)
+    voice: str | None = Field(default=None, max_length=255)
+    secret_id: UUID
 
 
 class OrganizationCreate(BaseSchema):
@@ -49,6 +62,11 @@ class OrganizationUpdate(BaseSchema):
     service keys on whether the client named the field rather than on its value.
     """
 
+    console_role_defaults: RoleConsoleChanges | None = None
+    console_notices: ConsoleNotices | None = None
+    chat_cost_visibility: ChatCostVisibility | None = None
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
     avatar_url: str | None = Field(default=None, max_length=500)
     avatar_color: int | None = Field(
@@ -171,6 +189,7 @@ class OrganizationUpdate(BaseSchema):
             "Needs 'org:settings' (Owner or Admin), signed in as themselves."
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -199,6 +218,11 @@ class OrganizationUpdate(BaseSchema):
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
+    console_role_defaults: dict[str, StoredRoleConsole] = Field(default_factory=dict)
+    console_notices: ConsoleNotices = Field(default_factory=ConsoleNotices)
+    chat_cost_visibility: ChatCostVisibility = ChatCostVisibility.EVERYONE
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID
     name: str
     slug: str
@@ -247,6 +271,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "embeds, where the page's owner has confirmed it"
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
     speech_to_text_secret_id: UUID | None = Field(
@@ -266,6 +291,9 @@ class OrganizationList(BaseSchema):
 
 
 class OrganizationMemberRead(BaseSchema):
+    onboarding_completed_at: datetime | None = None
+    onboarding_current_step: OnboardingStep | None = None
+    onboarding_updated_at: datetime | None = None
     last_action_at: datetime | None = None
     """Latest non-impersonated audited action in this organization; not a visit timestamp."""
     id: _ID

@@ -1,4 +1,7 @@
 "use client";
+import { cn } from "@/lib/utils";
+
+import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 
 import { useTranslations } from "next-intl";
 
@@ -123,7 +126,10 @@ export function PageFields({
               value={config.accent}
               disabled={disabled}
               onChange={(event) => onChange({ ...config, accent: event.target.value })}
-              className="border-input h-9 w-12 cursor-pointer rounded-md border bg-transparent"
+              className={cn(
+                CONTROL_FOCUS,
+                "border-input bg-field touch:min-h-11 h-10 w-12 cursor-pointer rounded-xl border",
+              )}
             />
             <Input
               value={config.accent}

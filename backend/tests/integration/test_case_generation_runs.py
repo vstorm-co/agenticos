@@ -415,6 +415,14 @@ async def test_an_unreadable_answer_keeps_why_on_the_generator_s_run(db, monkeyp
     assert run.error == "Not valid JSON"
 
 
+def _answering(answer: dict[str, object], run: AgentRun):
+    async def execute(*args: object, structured: list[dict[str, object]], **kwargs: object):
+        structured.append(answer)
+        return json.dumps(answer), run
+
+    return execute
+
+
 def _model_answers(monkeypatch, agent, run: AgentRun, cases: list[dict]) -> None:
     """Stand in for the model under the real runner, which reads the answer itself."""
     monkeypatch.setattr(
@@ -429,7 +437,7 @@ def _model_answers(monkeypatch, agent, run: AgentRun, cases: list[dict]) -> None
     monkeypatch.setattr(
         agent_runner.AgentRunnerService,
         "execute",
-        AsyncMock(return_value=(json.dumps({"cases": cases}), run)),
+        AsyncMock(side_effect=_answering({"cases": cases}, run)),
     )
 
 

@@ -236,3 +236,14 @@ describe("ChipsInput", () => {
     });
   });
 });
+
+it("does not commit an IME candidate on Enter", () => {
+  const changed = vi.fn();
+  render(<Harness onChange={changed} />);
+  fireEvent.change(box(), { target: { value: "営業" } });
+  fireEvent.keyDown(box(), { key: "Enter", isComposing: true });
+  expect(changed).not.toHaveBeenCalled();
+  expect(box()).toHaveValue("営業");
+  fireEvent.keyDown(box(), { key: "Enter", isComposing: false });
+  expect(changed).toHaveBeenCalledWith(["営業"]);
+});

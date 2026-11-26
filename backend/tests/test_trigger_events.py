@@ -13,6 +13,7 @@ import hmac
 
 import pytest
 
+from app.schemas.agent_trigger import GithubAuthors, GithubTriggerConfig
 from app.services import trigger_events
 
 pytestmark = pytest.mark.anyio
@@ -695,7 +696,9 @@ class TestGithubEvents:
         ids=["main", "other-branch", "tag", "deleted"],
     )
     def test_a_push_fires_on_its_branches_only(self, payload, fires):
-        assert _github("push", payload, {"event": "push", "branches": ["main"]}) is fires
+        stored = GithubTriggerConfig(event="push", branches=["main"]).model_dump(mode="json")
+        assert stored["actions"] == []  # The shape already stored on existing routines.
+        assert _github("push", payload, stored) is fires
 
 
 class TestGithubConfigRefusals:
@@ -704,6 +707,7 @@ class TestGithubConfigRefusals:
         [
             {"event": "pull_request", "actions": ["published"]},
             {"event": "push", "actions": ["opened"]},
+            {"event": "issues", "actions": []},
             {"event": "issues", "mention": "@agent"},
             {"event": "release", "branches": ["main"]},
             {"event": "issues", "conclusions": ["failure"]},
@@ -711,6 +715,7 @@ class TestGithubConfigRefusals:
         ids=[
             "foreign-action",
             "push-action",
+            "empty-issue-actions",
             "mention-on-issues",
             "branches-on-release",
             "conclusion-on-issues",
@@ -909,3 +914,126 @@ class TestLinearWebhook:
         assert one != trigger_events.delivery_id(
             "linear", {}, {**payload, "webhookTimestamp": 1000001}
         )
+
+
+class TestGithubAuthorPolicies:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "event,object_key,action",
+        [
+            ("issues", "issue", "opened"),
+            ("pull_request", "pull_request", "opened"),
+            ("issue_comment", "comment", "created"),
+        ],
+    )
+    @pytest.mark.parametrize("policy", ["members", "contributors", "anyone"])
+    @pytest.mark.parametrize(
+        "association",
+        [
+            "OWNER",
+            "MEMBER",
+            "COLLABORATOR",
+            "CONTRIBUTOR",
+            "FIRST_TIME_CONTRIBUTOR",
+            "FIRST_TIMER",
+            "NONE",
+            "MANNEQUIN",
+            None,
+        ],
+    )
+    def test_only_the_selected_author_associations_are_admitted(
+        self,
+        event: str,
+        object_key: str,
+        action: str,
+        policy: GithubAuthors,
+        association: str | None,
+    ) -> None:
+        payload = {"action": action, object_key: {"author_association": association}}
+        config = {"event": event, "authors": policy}
+        expected = (
+            policy == "anyone"
+            or association in {"OWNER", "MEMBER", "COLLABORATOR"}
+            or (policy == "contributors" and association == "CONTRIBUTOR")
+        )
+        assert _github(event, payload, config) is expected
+        assert trigger_events.github_filter_reason({"x-github-event": event}, payload, config) == (
+            None if expected else "author"
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("policy", ["members", "contributors", "anyone"])
+    def test_widening_authors_does_not_allow_bots_or_the_excluded_account(
+        self, policy: str
+    ) -> None:
+        payload = {"action": "opened", "issue": _BY_MEMBER, "sender": {"type": "Bot"}}
+        config = {"authors": policy, "ignore_login": "agent-account"}
+        assert not _github("issues", payload, config)
+        payload["sender"] = {"type": "User", "login": "Agent-Account"}
+        assert not _github("issues", payload, config)
+
+    def test_old_stored_config_still_uses_members(self) -> None:
+        assert GithubTriggerConfig.model_validate({"actions": ["opened"]}).authors == "members"
+
+    @pytest.mark.parametrize(
+        "event,payload,config,reason",
+        [
+            ("ping", {}, {}, "event"),
+            ("issues", {"action": "closed"}, {}, "action"),
+            ("issues", {"action": "opened", "sender": {"type": "Bot"}}, {}, "bot"),
+            (
+                "issues",
+                {"action": "opened", "sender": {"login": "bot-account"}},
+                {"ignore_login": "bot-account"},
+                "ignored_login",
+            ),
+            (
+                "pull_request",
+                {"action": "opened", "pull_request": {**_BY_MEMBER, "draft": True}},
+                {"event": "pull_request"},
+                "draft",
+            ),
+            (
+                "pull_request",
+                {"action": "opened", "pull_request": {**_BY_MEMBER, "base": {"ref": "other"}}},
+                {"event": "pull_request", "branches": ["main"]},
+                "branch",
+            ),
+            (
+                "issue_comment",
+                {"action": "created", "comment": {**_BY_MEMBER, "body": "hello"}},
+                {"event": "issue_comment", "mention": "@agent"},
+                "mention",
+            ),
+            (
+                "workflow_run",
+                {"action": "completed", "workflow_run": {"conclusion": "success"}},
+                {"event": "workflow_run"},
+                "conclusion",
+            ),
+            (
+                "workflow_run",
+                {
+                    "action": "completed",
+                    "workflow_run": {"conclusion": "failure", "head_branch": "other"},
+                },
+                {"event": "workflow_run", "branches": ["main"]},
+                "branch",
+            ),
+            ("push", {"ref": "refs/tags/v1"}, {"event": "push"}, "not_branch"),
+            (
+                "push",
+                {"ref": "refs/heads/other"},
+                {"event": "push", "branches": ["main"]},
+                "branch",
+            ),
+        ],
+    )
+    def test_filter_diagnostics_report_the_actual_refusal(
+        self, event: str, payload: dict[str, object], config: dict[str, object], reason: str
+    ) -> None:
+        assert (
+            trigger_events.github_filter_reason({"x-github-event": event}, payload, config)
+            == reason
+        )
+        assert not _github(event, payload, config)

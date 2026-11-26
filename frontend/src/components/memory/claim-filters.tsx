@@ -40,8 +40,9 @@ export function ClaimFilters({
         {KINDS.map((value) => (
           <Button
             key={value}
-            variant={kind === value ? "secondary" : "ghost"}
+            variant="ghost"
             size="sm"
+            className="text-muted-foreground hover:bg-foreground/4 active:bg-foreground/6 aria-pressed:border-border aria-pressed:bg-foreground/4 aria-pressed:text-foreground border border-transparent"
             aria-pressed={kind === value}
             onClick={() => onKindChange(value)}
           >

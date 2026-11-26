@@ -1,5 +1,5 @@
 ---
-source_sha: "83febbc993f8"
+source_sha: "f5e5bc352d66"
 ---
 
 # Berechtigungen { #permissions }
@@ -101,9 +101,20 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Der ausdrückliche Scope `mcp:personal:use` erlaubt externen API- oder OAuth-Runs, persönliche MCP-Verbindungen des Zugangsausstellers zu verwenden. Wählen Sie ihn unter **Custom** und bestätigen Sie die Delegation; keine Voreinstellung, auch **Full access** nicht, enthält ihn. Bestehende Zugänge behalten ausschließlich Organisationszugriff. Er gewährt weder persönlichen Speicher noch Gesprächssuche oder Zustimmung zu Routinen. Fortsetzungen nach einer Genehmigung behalten den ursprünglichen Eigentümer und Zugang bei; vor persönlichen Tool-Aufrufen werden verbundene Konten, aktuelle Schlüssel-Scopes sowie der Zugriff auf den Hauptagent und automatisch ausgewählte Subagents erneut geprüft.
 
 Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
+
+`approvals:decide` beantwortet die Freigabe-Warteschlange der Organisation. Die
+Ausnahme ist ein Plattform-Aufruf, der jedes Mal fragt - der Architect nimmt eine
+Verbesserung an oder veröffentlicht einen Agent: Er läuft mit den Plattform-Rechten
+der Person, für die sein Run handelt, also gibt ihn nur diese Person frei,
+angemeldet als sie selbst, und sie braucht dafür keine Berechtigung. Alle anderen
+mit `approvals:decide` können ihn ablehnen, und ein API-Schlüssel oder eine Sitzung
+per Impersonierung kann ihn nicht freigeben. Die Warteschlange zeigt bei so einem
+Aufruf, wer ihn freigeben kann.
 
 `promotions:override` promotet eine Version auf eine
 [Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),
@@ -715,7 +726,7 @@ gelesen wird:
 
 | Endpunkt | Antwortet |
 | --- | --- |
-| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin` und jede Berechtigung samt ihrem Scope |
+| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und, für die Zugangsdaten eines Agent-Laufs, `run_agent_id` |
 | `GET /roles/catalog` | den ganzen Katalog und was jede Rolle bündelt |
 
 Beide sind **eine Bequemlichkeit für die Oberfläche und nichts weiter**. Der
@@ -748,3 +759,5 @@ ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installationsadministration über MCP erfordert das aktuelle Anwendungsadministrator-Flag und den separat genehmigten OAuth-Bereich `deployment:admin`. Dieser ist weder `Perm` noch Rollenberechtigung oder Vorgabe. Organisationsadministration kann ihn nicht verleihen. Nur ausdrücklich autorisierte externe Clients erhalten ihn; interne Agenten, Routinen und normale API-Schlüssel erben ihn nicht. Bestehende Verbindungen benötigen eine erneute Autorisierung. Siehe [MCP-Administration](mcp.de.md#administration-through-mcp).

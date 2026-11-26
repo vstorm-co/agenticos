@@ -18,6 +18,7 @@ export function PairDevice() {
 
 function ConfirmPairing({ code }: { code: string | null }) {
   const t = useTranslations("mobile.pair");
+  const auth = useTranslations("auth");
   const router = useRouter();
   const adoptSession = useAdoptSession();
   const [identity, setIdentity] = useState<{ code: string; user: PairingIdentity } | null>(null);
@@ -61,11 +62,17 @@ function ConfirmPairing({ code }: { code: string | null }) {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
+    <main
+      id="main"
+      className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center"
+    >
       {!code || failed ? (
         <>
           <h1 className="text-lg font-semibold">{t("failed")}</h1>
           <p className="text-muted-foreground max-w-xs text-sm">{t("failedHint")}</p>
+          <Button type="button" variant="outline" onClick={() => router.replace("/login")}>
+            {auth("backSign")}
+          </Button>
         </>
       ) : identity?.code === code ? (
         <>
@@ -76,19 +83,21 @@ function ConfirmPairing({ code }: { code: string | null }) {
             <p>{identity.user.email}</p>
           </div>
           <p className="text-muted-foreground max-w-sm text-sm">{t("confirmHint")}</p>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <Button variant="outline" disabled={busy} onClick={() => router.replace("/login")}>
               {t("cancel")}
             </Button>
-            <Button disabled={busy} onClick={() => void confirm()}>
-              {busy ? <Spinner /> : t("confirm")}
+            <Button loading={busy} onClick={() => void confirm()}>
+              {t("confirm")}
             </Button>
           </div>
         </>
       ) : (
         <>
           <Spinner />
-          <p className="text-muted-foreground text-sm">{t("loading")}</p>
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("loading")}
+          </p>
         </>
       )}
     </main>

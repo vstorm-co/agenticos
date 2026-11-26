@@ -1,5 +1,5 @@
 ---
-source_sha: "be356456bbcc"
+source_sha: "1b7c73e09d28"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -381,6 +381,20 @@ zamienić, kończy się błędem `MAPPING_COERCION_FAILED` z nazwą pola.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.value { #data-value }
+
+**Data** przechowuje jedną wartość dla kolejnych kroków: obiekt, listę albo
+pojedynczą liczbę, tekst lub wartość logiczną. Wpisz ją jako JSON albo podepnij
+w całości pod wynik wcześniejszego kroku. Krok przekazuje ją bez zmian jako
+`value`, a kolejny krok podpina całą wartość albo ścieżkę w niej, na przykład
+`value.customer.email`.
+
+Wartość jest ustawiana raz na run i nigdy nie jest nadpisywana. Wynik kroku jest
+ustalony w chwili jego zakończenia, więc żaden kolejny krok nie może go zmienić:
+Data to nazwana stała, a nie zmienna. Aby zmienić wartość, dodaj krok, który
+zbuduje z niej nową. Aby zebrać wartości z elementów pętli, użyj `loop.yield`.
+Testowy run kroku Data bez wartości kończy się błędem `DATA_NOT_SET`.
+
 ## data.filter i data.combine { #data-filter-and-data-combine }
 
 **Filter a list** zostawia te elementy powiązanej listy, dla których spełniony jest
@@ -656,6 +670,12 @@ typowane źródła, od najlepszego. Pusty wynik to udane wyszukiwanie. Kolekcja,
 której już nie ma albo której principal runa nie może już czytać, kończy krok
 błędem `COLLECTION_NOT_ACCESSIBLE`. Krok nigdy nie przeszukuje mniej kolekcji,
 niż wskazuje graf.
+
+Kolekcje o tej samej nazwie kolekcji są przeszukiwane razem, każda w obrębie
+własnej bazy. Kolekcji, która dzieli nazwę z inną o innym zakresie - kolekcją
+całego wdrożenia i kolekcją organizacji - nie da się tak przeszukać, więc
+publikacja odrzuca krok, a run kończy go błędem `COLLECTIONS_SHARE_STORAGE`.
+Przeszukaj je w osobnych krokach.
 
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
@@ -1138,6 +1158,8 @@ odpowiada, mógł kontynuować przebieg. Każdy przebieg ma własny, zrobiony z 
 sekretem wdrożenia i nikomu innemu niepokazywany: to jego posiadanie pozwala wznowić
 przebieg, więc wysyła się go tylko tam, skąd ma przyjść odpowiedź.
 
+Ponowienie uruchamia nowy przebieg. Krok Resume link generuje dla niego nowy adres, także przy wywołaniu z Pythona. Stary adres nie przekierowuje do nowego przebiegu, a wysłana wcześniej wiadomość z adresem nie jest wysyłana ponownie.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Obsługa błędów { #error-handling }
@@ -1292,6 +1314,8 @@ może utworzyć swoją tabelę przy pierwszym uruchomieniu, a potem jej używać
 pytania wychodzą dokładnie jednym portem, a `logic.merge` może z powrotem
 połączyć gałęzie.
 
+`table.record.exists` i `table.record.query` przyjmują w zapisanych filtrach etykiety opcji select obok identyfikatorów. Rozwiązują etykiety według bieżącej tabeli przed zapytaniem; nieznane lub niejednoznaczne etykiety nadal powodują błąd walidacji.
+
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 
 ::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
@@ -1363,7 +1387,37 @@ Wyniki sandboxa są ograniczane także podczas strumieniowego pobierania z hosta
 
 ## Python { #python }
 
-Dwa węzły uruchamiają Pythona, do dwóch rodzajów pracy.
+**Python z akcjami** (`code.python.actions`) uruchamia skrypt bez modelu. Powiąż każdą akcję raz z nazwą w Pythonie i skonfiguruj jej zasoby. Przekaż pola wejściowe jako argumenty nazwane; funkcja zwróci taki sam obiekt jak odpowiedni krok na kanwie. Możesz też przekazać pola danych, które akcja pozwala powiązać, np. nazwę pliku lub adres URL. Pole wymagane przez akcję, które można powiązać, np. adres URL żądania HTTP, wolno pominąć przy konfiguracji. Wtedy podaj je przy każdym wywołaniu. Dane uwierzytelniające i uprawnienia pozostają bez zmian.
+
+Jeśli na przykład powiążesz porównywanie tekstów z nazwą `compare`, wyrażenie `compare(a=args["expected"], b=args["actual"])["score"]` przekaże do następnego kroku tylko wynik podobieństwa jako `result`.
+
+Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funkcja ma nazwę `lookup`, wywołaj `lookup(arguments={"hostname": "leaf-01"})` i odczytaj pole `structured` lub `text`. Jeśli akcja się nie powiedzie, obowiązują zasady obsługi błędów kroku Pythona, a nie klauzula `except` w skrypcie. Do przewidzianych rozgałęzień użyj wyniku, na przykład decyzji o zatwierdzeniu.
+
+Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
+
+Odczyt zapisanego wyniku nie rezerwuje budżetu. Jeśli przy ponowieniu zmienią się argumenty tej samej akcji bez skutków ubocznych lub tego samego żądania HTTP GET, wywołanie wykona się ponownie z nowymi wartościami. Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
+
+Limit czasu obejmuje łączny czas wykonywania kodu Pythona we wszystkich częściach skryptu. Oczekiwanie na akcję, zatwierdzenie lub odpowiedź nie wlicza się do limitu. Limit pamięci ogranicza rozmiar sterty interpretera podczas wykonywania kodu.
+
+Wstrzymany krok **Python z akcjami** można wznowić tylko przy użyciu wersji Monty, która zapisała jego stan. Przed wdrożeniem wydania zmieniającego przypiętą wersję `pydantic-monty` poczekaj, aż wstrzymane skrypty zakończą się na starej wersji. Jeśli skrypt nadal jest wstrzymany w chwili zmiany, zakończy się błędem `PYTHON_CHECKPOINT_INVALID`. W widoku runa użyj opcji ponowienia od nieudanego kroku.
+
+| Co się stało | Wynik |
+|---|---|
+| Wywołanie używa niepowiązanej funkcji lub metody obiektu | `PYTHON_ACTION_UNKNOWN` |
+| Wywołanie używa argumentów pozycyjnych lub wartości, które nie są danymi JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Argumenty nazwane nie pasują do powiązanej akcji | `INVALID_BINDING` |
+| Skrypt czeka na kilka wywołań naraz | `PYTHON_ACTION_ASYNC` |
+| Skrypt wykonuje 101. wywołanie | `PYTHON_ACTION_LIMIT` |
+| Argumenty wywołania przekraczają limit bajtów danych osadzonych | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| Stan interpretera przy wywołaniu przekracza 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| Interpreter nie może przywrócić zapisanego stanu | `PYTHON_CHECKPOINT_INVALID`, nie można pominąć |
+| Powiązana akcja lub jej zasoby nie są już dostępne dla tego uruchomienia | `SCRIPT_ACTION_UNAVAILABLE`, uruchomienie się kończy |
+| Ponowienie nie może wykazać, że wcześniejszy zapis nie został wysłany | `SCRIPT_ACTION_RETRY_UNSAFE`, uruchomienie się kończy |
+| Skrypt wyczerpuje limit czasu lub pamięci Pythona | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

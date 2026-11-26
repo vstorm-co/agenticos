@@ -158,6 +158,18 @@
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
   },
+  "llmtr": {
+    "url": "https://llmtr.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "name_field": "name",
+    "context_field": "context_length",
+    "modalities_path": "architecture.output_modalities",
+    "operations_path": "supported_operations",
+    "required_operation": "CHAT_COMPLETIONS",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
   "stav": {
     "url": "https://api.stav.ai/v1/models",
     "array_path": "data",
@@ -178,5 +190,94 @@
     "name_field": "name",
     "context_field": "context_window",
     "modalities_path": "architecture.output_modalities"
+  },
+  "kimi_code": {
+    "url": "https://api.kimi.ai/coding/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "alibaba_coding_plan": {
+    "url": "https://coding-intl.dashscope.aliyuncs.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "opencode_go": {
+    "url": "https://opencode.ai/inference/go/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "ollama_cloud": {
+    "url": "https://ollama.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "cliproxyapi": {
+    "url": "http://cliproxyapi:8317/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "nous_portal": {
+    "url": "https://inference-api.nousresearch.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "inception": {
+    "url": "https://api.inceptionlabs.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "cline": {
+    "url": "https://api.cline.bot/api/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "chutes": {
+    "url": "https://llm.chutes.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "synthetic": {
+    "url": "https://api.synthetic.new/openai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "openai_compatible": {
+    "url": "",
+    "array_path": "data",
+    "id_field": "id",
+    "context_field": "max_model_len",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "anthropic_compatible": {
+    "url": "",
+    "array_path": "data",
+    "id_field": "id",
+    "name_field": "display_name",
+    "auth_header": "x-api-key",
+    "auth_template": "{key}",
+    "extra_headers": {
+      "anthropic-version": "2023-06-01"
+    }
   }
 }

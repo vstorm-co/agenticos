@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Network, Plus } from "lucide-react";
+import { Network, Plus, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RegisterRemoteAgentDialog } from "@/components/remote-agents/register-remote-agent-dialog";
 import { RemoteAgentList } from "@/components/remote-agents/remote-agent-list";
-import { ErrorState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useExternalAgents, usePermissions } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -21,8 +22,16 @@ import { Perm } from "@/types/permissions";
  */
 export default function RemoteAgentsPage() {
   const t = useTranslations("remoteAgents");
-  const { agents, isLoading, error, register, refresh, remove } = useExternalAgents();
-  const { can } = usePermissions();
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
+  const canRead = can(Perm.agentsView);
+  const { agents, isLoading, error, retry, register, refresh, remove } = useExternalAgents(canRead);
   const canManage = can(Perm.agentsEdit);
   const [registering, setRegistering] = useState(false);
 
@@ -53,7 +62,7 @@ export default function RemoteAgentsPage() {
         }
         contentClassName="p-0"
       >
-        {isLoading ? (
+        {permissionsLoading || isLoading ? (
           <div
             role="status"
             aria-busy="true"
@@ -73,8 +82,20 @@ export default function RemoteAgentsPage() {
               </div>
             ))}
           </div>
+        ) : permissionsError ? (
+          <ErrorState
+            description={getErrorMessage(permissionsError, errors)}
+            cta={{ label: common("retry"), onClick: () => void retryPermissions() }}
+            className="m-5"
+          />
+        ) : !canRead ? (
+          <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
         ) : error !== null ? (
-          <ErrorState description={error} className="m-5" />
+          <ErrorState
+            description={error}
+            cta={{ label: common("retry"), onClick: () => void retry() }}
+            className="m-5"
+          />
         ) : agents.length === 0 ? (
           <ListCardEmpty
             icon={Network}
@@ -86,11 +107,13 @@ export default function RemoteAgentsPage() {
         )}
       </ListCard>
 
-      <RegisterRemoteAgentDialog
-        open={registering}
-        onOpenChange={setRegistering}
-        onSubmit={register}
-      />
+      {canManage && (
+        <RegisterRemoteAgentDialog
+          open={registering}
+          onOpenChange={setRegistering}
+          onSubmit={register}
+        />
+      )}
     </div>
   );
 }

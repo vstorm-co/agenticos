@@ -1,6 +1,6 @@
 # Media offload
 
-Keeps a compacted conversation's pictures out of the database and off the wire.
+Keeps a conversation checkpoint's pictures out of the database and off the wire.
 Contributes no tools: it rewrites what is *stored*, not what the model can do,
 so there is nothing here for a model to call or a person to approve.
 
@@ -12,18 +12,12 @@ bytes go, and when the walk runs.
 
 ## The one place media actually piles up
 
-An attachment reaches the model **once**, on the turn it was attached.
-`AttachmentRouter` inlines a small image as `BinaryContent` and writes a larger
-one to the workspace with a path reference; the next turn's history is rebuilt
-from the transcript's *text* (`build_message_history`), so the picture is not
-re-sent. There is nothing to offload there.
-
-The exception is a conversation that has been **compacted**. Then the library's
-own dump of `all_messages()` is stored in `conversations.summary_messages` and
-replayed exactly as the model last saw it — base64 and all — until the next
-summary replaces it. That blob is rows in Postgres and bytes on the wire, every
-turn in between, and it is what this capability is for. `PausedRunState.messages`
-has the same shape for a run parked on an approval.
+Completed turns checkpoint their model messages, including retained images,
+within the shared history limits. The library's dump is stored in the existing
+`conversations.summary_messages` column even when no compaction ran. This
+capability offloads large media in those checkpoints; ephemeral desktop
+screenshots are removed by the shared serializer before storage.
+`PausedRunState.messages` remains the separate state for a run parked on approval.
 
 ## Where the bytes go, and how long they live
 

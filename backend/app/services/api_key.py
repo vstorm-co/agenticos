@@ -19,13 +19,19 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
-from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    InternalError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, AuthContext, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.repositories import agent as agent_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -124,6 +130,7 @@ class KeyCaller:
     """Which kind of client holds the key - what a change it makes is attributed to."""
 
     name: str = ""
+    deployment_admin_granted: bool = False
 
 
 class ApiKeyService:
@@ -151,7 +158,11 @@ class ApiKeyService:
             presets.append(ApiKeyPreset(id="knowledge_ingest", scopes=sorted(_KNOWLEDGE_INGEST)))
         # Standing personal consent is a separate, informed opt-in, including
         # when the person chooses the broad organization-access preset.
-        ordinary = [perm.value for perm in held if perm is not Perm.PERSONAL_CONSENT]
+        ordinary = [
+            perm.value
+            for perm in held
+            if perm not in {Perm.PERSONAL_CONSENT, Perm.MCP_PERSONAL_USE}
+        ]
         if ordinary:
             presets.append(ApiKeyPreset(id="full_access", scopes=ordinary))
         return ApiKeyScopeCatalog(scopes=[perm.value for perm in held], presets=presets)
@@ -169,6 +180,8 @@ class ApiKeyService:
             raise refused_field(
                 "scopes", f"You cannot grant what you do not hold: {', '.join(refused)}"
             )
+        if Perm.MCP_PERSONAL_USE in data.scopes and current_impersonator() is not None:
+            raise AuthorizationError(message="Personal MCP delegation requires your own session")
         now = datetime.now(UTC)
         if data.expires_at is not None and data.expires_at <= now:
             raise refused_field("expires_at", "The expiry has to be in the future")
@@ -270,7 +283,13 @@ class ApiKeyService:
         return key
 
     async def issue_for_run(
-        self, ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID | None = None,
+        conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
+        reporting_only: bool = False,
     ) -> str | None:
         """A short-lived credential carrying `ctx`, for the in-app assistant (#1798).
 
@@ -294,12 +313,14 @@ class ApiKeyService:
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
             name="Platform assistant",
-            scopes=[perm.value for perm in self._grantable(ctx)],
+            scopes=[] if reporting_only else [perm.value for perm in self._grantable(ctx)],
             expires_at=now + _RUN_CREDENTIAL_LIFETIME,
             oauth_grant_id=None,
             internal=True,
         )
         provenance: dict[str, UUID] = {}
+        if run_id is not None:
+            provenance["source_run_id"] = run_id
         if agent_id is not None:
             provenance["source_agent_id"] = agent_id
         if (
@@ -351,6 +372,23 @@ class ApiKeyService:
         issuer = await user_repo.get_by_id(self.db, key.user_id)
         return _read(key, issuer.email if issuer is not None else "", now)
 
+    async def run_agent_id(self, ctx: AuthContext) -> UUID | None:
+        """The agent a platform-minted run credential was issued for, if it is in the organization.
+
+        `None` for a session, a key a person issued, an OAuth token, or an agent
+        that is gone or belongs elsewhere. A default for tools to suggest, never
+        authority: the endpoint that acts on the agent authorizes it again.
+        """
+        if ctx.api_key_id is None or not ctx.key_internal:
+            return None
+        key = await api_key_repo.get(self.db, ctx.api_key_id, organization_id=ctx.organization_id)
+        if key is None or not key.internal or key.source_agent_id is None:
+            return None
+        agent = await agent_repo.get(
+            self.db, key.source_agent_id, organization_id=ctx.organization_id
+        )
+        return None if agent is None else agent.id
+
     async def authenticate(self, raw: str) -> KeyCaller:
         """The issuer and narrowed context a presented key stands for.
 
@@ -393,6 +431,22 @@ class ApiKeyService:
             raise AuthenticationError(message=_REFUSED)
         return (await self._caller(key, datetime.now(UTC), started_earlier=True)).context
 
+    async def personal_mcp_context(
+        self, key_id: UUID, *, organization_id: UUID, user_id: UUID
+    ) -> AuthContext:
+        """Recheck the original credential before using delegated personal MCP.
+
+        Owner and organization come from trusted run state, never tool arguments.
+        Expiry, revocation, active membership and current role are checked anew.
+        """
+        key = await api_key_repo.get(self.db, key_id, organization_id=organization_id)
+        if key is None:
+            raise AuthenticationError(message=_REFUSED)
+        ctx = (await self._caller(key, datetime.now(UTC))).context
+        if ctx.user_id != user_id or not ctx.may_delegate_personal_mcp:
+            raise AuthorizationError(message="Personal MCP delegation is no longer authorized")
+        return ctx
+
     async def _caller(
         self, key: ApiKey, now: datetime, *, started_earlier: bool = False
     ) -> KeyCaller:
@@ -406,6 +460,11 @@ class ApiKeyService:
         organization = await organization_repo.get_by_id(self.db, key.organization_id)
         if membership is None or issuer is None or not issuer.is_active or organization is None:
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
+        deployment_admin_granted = bool(
+            key.oauth_grant_id is not None
+            and not key.internal
+            and DEPLOYMENT_ADMIN_SCOPE in key.scopes
+        )
         return KeyCaller(
             user=issuer,
             organization=organization,
@@ -413,13 +472,16 @@ class ApiKeyService:
             prefix=key.prefix,
             name=key.name,
             surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
+            deployment_admin_granted=deployment_admin_granted,
             context=AuthContext(
                 user_id=key.user_id,
                 organization_id=key.organization_id,
                 role=membership.role,
+                is_app_admin=bool(issuer.is_app_admin and deployment_admin_granted),
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
                 key_internal=key.internal,
+                source_run_id=key.source_run_id if key.internal else None,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )
@@ -478,7 +540,12 @@ async def job_context(
 
 
 async def mint_for_run(
-    ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+    ctx: AuthContext,
+    *,
+    agent_id: UUID | None = None,
+    conversation_id: UUID | None = None,
+    run_id: UUID | None = None,
+    reporting_only: bool = False,
 ) -> str | None:
     """:meth:`ApiKeyService.issue_for_run`, committed before it returns.
 
@@ -489,5 +556,9 @@ async def mint_for_run(
     """
     async with get_db_context() as db:
         return await ApiKeyService(db).issue_for_run(
-            ctx, agent_id=agent_id, conversation_id=conversation_id
+            ctx,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
+            run_id=run_id,
+            reporting_only=reporting_only,
         )

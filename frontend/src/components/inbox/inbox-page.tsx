@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   CheckCheck,
   CircleAlert,
@@ -42,7 +42,10 @@ import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { ApprovalsWaiting } from "./approvals-waiting";
+import styles from "./inbox-row.module.css";
+import { QuestionsWaiting } from "./questions-waiting";
 import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
@@ -78,6 +81,7 @@ function initialFilter(param: string | null): Filter {
 export function InboxPage() {
   const t = useTranslations("inbox");
   const ts = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const suggested = useSuggestions();
   const { suggestions } = suggested;
   const [asked, setFilter] = useUrlState("filter");
@@ -86,12 +90,14 @@ export function InboxPage() {
   // A step or a tool call standing still until somebody decides is as urgent as
   // anything here, so it leads the list wherever urgent things are shown.
   const pending = usePendingApprovals();
+  const questions = useWaitingChatQuestions();
   const approvals = pending.count;
   const isLoading = suggested.isLoading || pending.isLoading;
   const error = suggested.error ?? pending.error;
   const refetch = () => Promise.all([suggested.refetch(), pending.refetch()]);
-  const showsApprovals =
-    (filter === "all" || filter === "urgent") && !isLoading && !error && approvals > 0;
+  const showsUrgent = filter === "all" || filter === "urgent";
+  const showsApprovals = showsUrgent && !isLoading && !error && approvals > 0;
+  const showsQuestions = showsUrgent && (questions.items.length > 0 || !!questions.error);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -117,11 +123,15 @@ export function InboxPage() {
         }
       />
       <ListCard
-        fill={!showsApprovals && open.length === 0}
+        fill
         namedByPage
         title={t("title")}
         counted={
-          isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length + approvals })
+          isLoading || questions.isLoading
+            ? null
+            : error || questions.error
+              ? "—"
+              : t("waiting", { count: suggestions.length + approvals + questions.count })
         }
         contentClassName="p-0"
         headerTour="inbox-filters"
@@ -184,18 +194,20 @@ export function InboxPage() {
           </>
         }
       >
-        {showsApprovals && <ApprovalsWaiting />}
+        {showsQuestions && <QuestionsWaiting questions={questions} />}
+        {showsApprovals && <ApprovalsWaiting tools={pending.tools} steps={pending.steps} />}
         {filter === "done" ? (
           <Decided />
-        ) : isLoading ? (
+        ) : isLoading || (showsUrgent && questions.isLoading) ? (
           <LoadingState variant="skeleton-list" rows={3} className="p-5" />
         ) : error ? (
           <ErrorState
             className="m-5 flex-1"
+            description={getErrorMessage(error, tErrors)}
             cta={{ label: ts("retry"), onClick: () => void refetch() }}
           />
         ) : open.length === 0 ? (
-          !showsApprovals && <Nothing filter={filter} />
+          !showsApprovals && !showsQuestions && <Nothing filter={filter} />
         ) : (
           <SuggestionRows items={open} expandedDetails />
         )}
@@ -239,6 +251,7 @@ function Decided() {
     return (
       <ErrorState
         className="m-5 flex-1"
+        description={getErrorMessage(error, tErrors)}
         cta={{ label: ts("retry"), onClick: () => void refetch() }}
       />
     );
@@ -257,21 +270,31 @@ function Decided() {
   return (
     <ul className="divide-border divide-y">
       {decided.map((item) => (
-        <li key={item.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
-          <SuggestionMark suggestion={item} className="bg-muted opacity-60 shadow-none" />
-          <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground truncate text-sm">{item.title}</p>
-            {item.detail && <p className="text-muted-foreground truncate text-xs">{item.detail}</p>}
+        <li key={item.id} aria-label={item.title} className={styles.row}>
+          <SuggestionMark suggestion={item} className={`bg-muted shadow-none ${styles.mark}`} />
+          <div className="min-w-0">
+            <p className={styles.title}>{item.title}</p>
+            <span className={styles.metadata}>
+              {t("sourceAt", {
+                source: t(`source.${item.kind}`),
+                when: timeAgo(item.created_at, tTime, locale),
+              })}
+            </span>
+            {item.detail && <p className={styles.detail}>{item.detail}</p>}
           </div>
-          <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
-            {timeAgo(item.created_at, tTime, locale)}
-          </span>
-          <Badge variant="secondary">{tStatus(`status.${item.status}`)}</Badge>
-          {item.status === "dismissed" && (
-            <Button size="sm" variant="outline" onClick={() => bringBack(item.id)}>
-              {tStatus("restore")}
-            </Button>
-          )}
+          <div className={styles.actions}>
+            <Badge variant="secondary">{tStatus(`status.${item.status}`)}</Badge>
+            {item.status === "dismissed" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => bringBack(item.id)}
+              >
+                {tStatus("restore")}
+              </Button>
+            )}
+          </div>
         </li>
       ))}
     </ul>

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Button, Input } from "@/components/ui";
@@ -13,11 +13,14 @@ export function CreateOrgForm({
   onCreated,
   onCancel,
   onNameChange,
+  renderActions,
 }: {
   onCreated: (id: string) => void;
   onCancel?: () => void;
   onNameChange?: (name: string) => void;
+  renderActions?: (actions: ReactNode) => ReactNode;
 }) {
+  const formId = useId();
   const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
   const [name, setName] = useState("");
@@ -27,7 +30,7 @@ export function CreateOrgForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
       const org = await createOrg({ name: name.trim() });
@@ -46,8 +49,21 @@ export function CreateOrgForm({
     }
   };
 
+  const actions = (
+    <>
+      {onCancel && (
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {t("cancel")}
+        </Button>
+      )}
+      <Button type="submit" form={formId} disabled={!name.trim() || isSubmitting}>
+        {isSubmitting ? t("creating2") : t("create2")}
+      </Button>
+    </>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
       <FormField label={t("organizationName")} htmlFor="org-name" error={nameError}>
         <Input
           id="org-name"
@@ -63,16 +79,7 @@ export function CreateOrgForm({
           maxLength={MAX_NAME}
         />
       </FormField>
-      <DialogFooter>
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            {t("cancel")}
-          </Button>
-        )}
-        <Button type="submit" disabled={!name.trim() || isSubmitting}>
-          {isSubmitting ? t("creating2") : t("create2")}
-        </Button>
-      </DialogFooter>
+      {renderActions ? renderActions(actions) : <DialogFooter>{actions}</DialogFooter>}
     </form>
   );
 }

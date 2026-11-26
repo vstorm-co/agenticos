@@ -1991,7 +1991,7 @@ class TestSettleWaiting:
         # The wake is scheduled: a row due once the backoff has passed, not a
         # parked node nothing ever looks at again.
         repo.create_outbox.assert_awaited_once()
-        assert repo.create_outbox.await_args.kwargs["available_at"] > datetime.now(UTC)
+        assert repo.create_outbox.await_args.kwargs["delay"] > timedelta(0)
 
     async def test_an_external_event_wait_escalates_because_nothing_can_deliver_one(
         self, repo, event_log, test_node
@@ -3238,10 +3238,11 @@ class TestLoopsWithoutADatabase:
 async def test_a_successful_retry_step_with_lost_output_is_never_silently_reexecuted(repo, output):
     from app.services.workflow_execution.exceptions import InvalidBindingError
 
-    run = _run(retry_of_run_id=uuid.uuid4())
+    original_run_id = uuid.uuid4()
+    run = _run(retry_of_run_id=original_run_id)
     step = _node_run(workflow_run_id=run.id, node_instance_id=uuid.uuid4())
     original = _node_run(
-        workflow_run_id=run.retry_of_run_id,
+        workflow_run_id=original_run_id,
         node_instance_id=step.node_instance_id,
         status="succeeded",
     )
@@ -3250,7 +3251,9 @@ async def test_a_successful_retry_step_with_lost_output_is_never_silently_reexec
         node_run_id=original.id, result={"output": output}
     )
     with pytest.raises(InvalidBindingError):
-        await dispatcher._reused_output(MagicMock(), run=run, node_run=step)
+        await dispatcher._reused_output(
+            MagicMock(), run=run, original_run_id=original_run_id, node_run=step
+        )
 
 
 @pytest.mark.parametrize("cycle", [False, True])

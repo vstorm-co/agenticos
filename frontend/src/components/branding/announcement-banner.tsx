@@ -5,7 +5,7 @@ import { AlertTriangle, Info, Megaphone, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { NoticeLevel, NoticeResponse } from "@/lib/branding";
-import { cn } from "@/lib/utils";
+import styles from "./deployment-notice.module.css";
 
 /**
  * What the deployment's administrator wants everyone using it to read.
@@ -81,13 +81,10 @@ function remember(message: string): boolean {
   return true;
 }
 
-const TONE: Record<NoticeLevel, { wrapper: string; icon: typeof Info }> = {
-  info: { wrapper: "border-border bg-muted/60 text-foreground", icon: Info },
-  warning: { wrapper: "border-warning/40 bg-warning/10 text-foreground", icon: Megaphone },
-  critical: {
-    wrapper: "border-destructive/40 bg-destructive/10 text-foreground",
-    icon: AlertTriangle,
-  },
+const ICON: Record<NoticeLevel, typeof Info> = {
+  info: Info,
+  warning: Megaphone,
+  critical: AlertTriangle,
 };
 
 /**
@@ -98,6 +95,7 @@ const TONE: Record<NoticeLevel, { wrapper: string; icon: typeof Info }> = {
  */
 export function AnnouncementBanner({ notice }: { notice: NoticeResponse | undefined }) {
   const t = useTranslations("common");
+  const noticeText = useTranslations("pages.maintenance");
   const message = notice?.message ?? null;
   const dismissed = useSyncExternalStore(subscribe, readDismissed, noneDismissed);
   // The dismissal a browser refusing storage cannot be told to remember. Held here
@@ -107,23 +105,25 @@ export function AnnouncementBanner({ notice }: { notice: NoticeResponse | undefi
 
   if (!message || dismissed === message || unstorable === message) return null;
 
-  const tone = TONE[notice?.level ?? "info"];
-  const Icon = tone.icon;
+  const level = notice?.level ?? "info";
+  const Mark = ICON[level];
 
   return (
-    <div
-      role="status"
-      className={cn("flex items-start gap-3 rounded-xl border px-4 py-3 text-sm", tone.wrapper)}
-    >
-      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <p className="min-w-0 flex-1 break-words">{message}</p>
+    <div role="status" className={styles.notice} data-level={level}>
+      <span className={styles.mark} aria-hidden>
+        <Mark className="size-4" />
+      </span>
+      <div className={styles.content}>
+        <p className={styles.label}>{noticeText("announcementTitle")}</p>
+        <p className={styles.message}>{message}</p>
+      </div>
       <button
         type="button"
         onClick={() => {
           if (!remember(message)) setUnstorable(message);
         }}
         aria-label={t("dismiss")}
-        className="text-muted-foreground hover:text-foreground -mr-1 shrink-0 rounded p-0.5 transition-colors"
+        className={styles.dismiss}
       >
         <X className="h-3.5 w-3.5" aria-hidden />
       </button>

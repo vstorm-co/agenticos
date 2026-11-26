@@ -53,6 +53,7 @@ export { AvatarColorPicker, type AvatarColorPickerProps } from "./avatar-color-p
 export { Skeleton } from "./skeleton";
 export { Separator } from "./separator";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
+export { ActionTooltip } from "./action-tooltip";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export {
   Select,
@@ -129,3 +130,14 @@ export { MoreOptions } from "./more-options";
 export { SwipeToDecide } from "./swipe-to-decide";
 
 export { NativeSelect } from "./native-select";
+
+export { ChoiceGroup, type Choice } from "./choice-group";
+
+export { NativeDisclosure } from "./native-disclosure";
+
+export {
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
+} from "./resource-card";

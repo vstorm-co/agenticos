@@ -1,5 +1,5 @@
 ---
-source_sha: "e7cfdf5d9e23"
+source_sha: "212655200686"
 ---
 
 # Glossar { #glossary }
@@ -47,7 +47,7 @@ nicht bricht.
 | In der Konsole | Was es ist | In API und Spec |
 |---|---|---|
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
-| Kanal | Slack, Telegram, Mattermost, Teams, Discord oder WhatsApp, wo Menschen einen Agent erreichen | `channel_bot` |
+| Kanal | Slack, Telegram, Mattermost, Teams, Discord, Matrix oder WhatsApp, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
 | Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
@@ -91,6 +91,8 @@ nicht bricht.
 | Rauschen | Antworten, die beim erneuten Fragen anders bewertet werden, obwohl sich nichts geändert hat; ein Ergebnis, das es erklären kann, liegt im Rauschen, und **Jede Frage zweimal stellen** misst es | `measurement_noise`, `purpose: stability` |
 | Prüfung | Scores, die darauf warten, dass ein Mensch sie bestätigt oder ändert | `review_state` |
 | Fallgenerator | Der System-Agent, der Fälle aus einem Agent, seinem Wissen, echten Chats und Red Teaming entwirft | `kind: generator` |
+| Schlüssel-Extraktor | Der System-Agent, der die Fakten der Referenzantwort eines Falls für seine Schlüssel-Prüfung auflistet | `kind: extractor` |
+| Quellenabdeckung | Der System-Agent, der sagt, welche Schlüssel eines Datasets keine Quelle eines Agenten enthält | `kind: coverage` |
 | Vorgeschlagener Fall | Ein entworfener Fall, der unter **Generiert** wartet, bis ein Mensch ihn annimmt oder verwirft | `case_proposal` |
 | Red Teaming | Fälle, die prüfen, ob ein Agent ablehnt, was er ablehnen muss | Tag `red-team` |
 
@@ -153,6 +155,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Datum und Uhrzeit | `clock` |
 | Berechnungen | `code_execution` |
 | Coding Agent | `coding_agent` |
+| Externer ACP-Agent | `external_acp` |
 | Lange Gespräche | `compaction` |
 | Computer-Bedienung | `computer_use` |
 | Kontext | `context` |
@@ -165,6 +168,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Gedächtnis | `memory_files` |
 | Mirage (virtuelles Terminal) | `mirage` |
 | Planung | `planning` |
+| Projekte | `projects` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
 | Hintergrundthemen | `background_tasks` |
 | Einen Befehl beobachten | `monitor` |

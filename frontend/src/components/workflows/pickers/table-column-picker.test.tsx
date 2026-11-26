@@ -40,7 +40,7 @@ beforeEach(() => {
 
 function mount(
   value: TableIORef | null,
-  props: Partial<{ disabled: boolean; error: string }> = {},
+  props: Partial<{ disabled: boolean; error: string; requiresReview: boolean }> = {},
 ) {
   const onChange = vi.fn();
   const view = render(<TableColumnPicker value={value} onChange={onChange} {...props} />);
@@ -81,19 +81,64 @@ describe("TableColumnPicker", () => {
     expect(screen.queryByText("Columns")).toBeNull();
   });
 
-  it("shows the schema-drift banner and rebinds to the current schema", async () => {
+  it("shows the schema-drift banner and rebinds keeping the chosen columns", async () => {
     const onChange = mount(ref({ schema_version: 1, column_ids: ["c1"] }));
 
-    expect(screen.getByText("This table's schema changed since this was bound.")).toBeVisible();
+    expect(
+      screen.getByText(
+        "This table's schema changed since this was bound. Updating keeps the columns you chose.",
+      ),
+    ).toBeVisible();
     expect(screen.queryByRole("checkbox", { name: "Email" })).toBeNull();
+    expect(screen.queryByText(/no longer exist/)).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Rebind to the current schema" }));
+    await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
     expect(onChange).toHaveBeenCalledWith({
       kind: "table",
       table_id: "t1",
-      column_ids: null,
+      column_ids: ["c1"],
       schema_version: 2,
     });
+  });
+
+  it("requires dependent settings to be edited before rebinding", async () => {
+    const onChange = mount(ref({ schema_version: 1 }), { requiresReview: true });
+    expect(
+      screen.getByText(/Remove or replace changed filter, sort and value bindings/),
+    ).toBeVisible();
+    const action = screen.getByRole("button", { name: "Update to the current schema" });
+    expect(action).toBeDisabled();
+    await userEvent.click(action);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("rebinding drops only the chosen columns the current schema no longer offers", async () => {
+    const onChange = mount(ref({ schema_version: 1, column_ids: ["c1", "c3", "gone"] }));
+
+    expect(screen.getByText("2 chosen columns no longer exist and will be dropped.")).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ column_ids: ["c1"], schema_version: 2 }),
+    );
+  });
+
+  it("rebinding with no chosen column left keeps the choice empty, never all", async () => {
+    const onChange = mount(ref({ schema_version: 1, column_ids: ["gone"] }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ column_ids: [], schema_version: 2 }),
+    );
+  });
+
+  it("rebinding an all-columns ref keeps it all columns", async () => {
+    const onChange = mount(ref({ schema_version: 1, column_ids: null }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ column_ids: null, schema_version: 2 }),
+    );
   });
 
   it("renders the current schema's live columns, archived ones excluded", () => {
@@ -195,6 +240,22 @@ describe("TableColumnPicker", () => {
     rerender(<TableColumnPicker value={ref()} onChange={onChange} />);
     expect(screen.getByRole("checkbox", { name: /Total/ })).toBeInTheDocument();
   });
+});
+
+it("leaves out the column list where the step reads no columns, until a stored ref narrows it", () => {
+  const { rerender } = render(
+    <TableColumnPicker value={ref()} onChange={vi.fn()} pinsColumns={false} />,
+  );
+  expect(screen.queryByText("Columns", { exact: true })).toBeNull();
+
+  rerender(
+    <TableColumnPicker
+      value={ref({ column_ids: ["c1"] })}
+      onChange={vi.fn()}
+      pinsColumns={false}
+    />,
+  );
+  expect(screen.getByRole("checkbox", { name: "Email" })).toBeVisible();
 });
 
 it("keeps optional column selection folded until requested", async () => {

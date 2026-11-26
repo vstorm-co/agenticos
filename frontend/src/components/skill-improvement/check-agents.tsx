@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CriteriaTable, verdictRows } from "@/components/improvement/criteria";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
-import { Checkbox, Input, Label } from "@/components/ui";
+import { Checkbox, SearchInput, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
+import { knownReason } from "@/lib/skill-check-reasons";
 import { cn } from "@/lib/utils";
 import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
-import { bucketOf, CheckSummary, FixBreakBar, shownState, type Bucket } from "./check-summary";
+import { bucketOf, CheckSummary, shownState, type Bucket } from "./check-summary";
 import { SetUpGrading } from "./set-up-grading";
 import { StageBreakdown } from "./stage-breakdown";
 
@@ -20,37 +22,26 @@ const TONE: Record<ReturnType<typeof shownState>, Tone> = {
   queued: "neutral",
   running: "neutral",
   better: "good",
+  criteria_better: "good",
   no_change: "neutral",
+  criteria_worse: "bad",
   worse: "bad",
   unknown: "warn",
 };
 
 /** The groups in the order a person reads them: what blocks a decision first. */
 const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
-/** Groups open from the start; the others are counted until somebody opens them. */
-const OPEN_FIRST = new Set<Bucket>(["worse", "unknown", "pending"]);
-/** Below this many agents every group is open: there is nothing to scroll past. */
-const COLLAPSE_FROM = 8;
-const REASONS: (UnknownReason | "other" | null)[] = [
-  "no_questions",
-  "no_budget",
-  "no_access",
-  "no_published_version",
-  "inconclusive",
-  "failed",
-  "unscorable",
-  "all_evidence",
-  "own_not_asked",
-  "cancelled",
-  "other",
-  null,
-];
-
 /** A reason this page does not know by name is still a reason: it reads as "other". */
 const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
-  row.unknown_reason === null || REASONS.includes(row.unknown_reason)
-    ? row.unknown_reason
-    : "other";
+  row.unknown_reason === null || knownReason(row.unknown_reason) ? row.unknown_reason : "other";
+
+/** Unknown because its own questions did not finish after the skill's were judged - a stage
+ * carries counts only once judged - without a regression: acknowledging it applies a change
+ * only part of its check has seen. */
+const unfinished = (row: SkillCheckAgent): boolean =>
+  row.state === "unknown" &&
+  row.unknown_reason === "failed" &&
+  row.stages.some((stage) => stage.kind === "skill_set" && stage.counts !== null);
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
@@ -101,12 +92,10 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
   const t = useTranslations("skillImprovement.agents");
   const rows = check.agents;
   const hidden = check.hidden + check.hidden_unknown;
-  const most = Math.max(0, ...rows.map((row) => row.fixed + row.broken));
   const [seen, mark] = useSeen(check.id);
   // Writing test questions edits the skill, which a reader who may only view cannot.
   const readOnly = useReadOnly();
   const [active, setActive] = useState<ReadonlySet<Bucket>>(new Set());
-  const [toggled, setToggled] = useState<ReadonlySet<Bucket>>(new Set());
   // Who had been looked at when the filter went on: a row opened under the filter
   // stays, so its details can be read.
   const [unseenFrom, setUnseenFrom] = useState<ReadonlySet<string> | null>(null);
@@ -126,15 +115,10 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
       (needle === "" ||
         `${row.agent.name} ${row.via_specialist ?? ""}`.toLocaleLowerCase().includes(needle)),
   );
-  const isOpen = (bucket: Bucket) =>
-    active.has(bucket) ||
-    needle !== "" ||
-    (OPEN_FIRST.has(bucket) || rows.length < COLLAPSE_FROM) !== toggled.has(bucket);
   const row = (item: SkillCheckAgent) => (
     <AgentRow
       key={keyOf(item)}
       row={item}
-      most={most}
       seen={seen.has(keyOf(item))}
       onOpen={() => mark(keyOf(item))}
     />
@@ -161,66 +145,37 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
               {t("onlyUnseen")}
             </Label>
           </span>
-          <Input
-            type="search"
+          <SearchInput
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label={t("search")}
+            onChange={setQuery}
+            label={t("search")}
             placeholder={t("search")}
-            className="h-7 w-48 text-xs"
+            className="sm:w-64"
           />
         </div>
       )}
       {shown.length === 0 && rows.length > 0 && (
         <p className="text-muted-foreground text-sm">{t("noMatch")}</p>
       )}
-      {GROUPS.map((bucket) => {
-        const members = shown.filter((item) => bucketOf(item.state) === bucket);
-        if (members.length === 0) return null;
-        const open = isOpen(bucket);
-        return (
-          <section key={bucket} className="space-y-1.5">
-            <button
-              type="button"
-              aria-expanded={open}
-              className="flex items-center gap-1 text-sm font-medium"
-              onClick={() => setToggled(flip(toggled, bucket))}
-            >
-              <ChevronDown
-                aria-hidden
-                className={cn("h-4 w-4 transition-transform", !open && "-rotate-90")}
-              />
-              {t(`group.${bucket}`, { count: members.length })}
-            </button>
-            {bucket === "worse" && <WhereItBroke worse={members} />}
-            {open &&
-              (bucket === "unknown" ? (
-                REASONS.map((reason) => {
-                  const why = members.filter((item) => reasonOf(item) === reason);
-                  if (why.length === 0) return null;
-                  return (
-                    <div key={reason ?? "other"} className="space-y-1.5 pl-5">
-                      {reason !== null && (
-                        <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
-                      )}
-                      {(reason === "no_questions" || reason === "all_evidence") && !readOnly && (
-                        <AddTestQuestions skillId={check.skill_id} />
-                      )}
-                      {reason === "unscorable" && !readOnly && <SetUpGrading agents={why} />}
-                      <ul className="divide-border divide-y rounded-xl border">
-                        {sortWithin(bucket, why).map(row)}
-                      </ul>
-                    </div>
-                  );
-                })
-              ) : (
-                <ul className="divide-border divide-y rounded-xl border">
-                  {sortWithin(bucket, members).map(row)}
-                </ul>
-              ))}
-          </section>
-        );
-      })}
+      {shown.some((item) => bucketOf(item.state) === "worse") && (
+        <WhereItBroke worse={shown.filter((item) => bucketOf(item.state) === "worse")} />
+      )}
+      <ul className="bg-card divide-border divide-y rounded-xl border">
+        {GROUPS.flatMap((bucket) =>
+          sortWithin(
+            bucket,
+            shown.filter((item) => bucketOf(item.state) === bucket),
+          ),
+        ).map(row)}
+      </ul>
+      {!readOnly &&
+        shown.some(
+          (item) =>
+            item.unknown_reason === "no_questions" || item.unknown_reason === "all_evidence",
+        ) && <AddTestQuestions skillId={check.skill_id} />}
+      {!readOnly && shown.some((item) => item.unknown_reason === "unscorable") && (
+        <SetUpGrading agents={shown.filter((item) => item.unknown_reason === "unscorable")} />
+      )}
       {hidden > 0 && (
         <p className="text-muted-foreground text-xs">
           {t("hidden", { count: check.hidden, unknown: check.hidden_unknown })}
@@ -249,32 +204,48 @@ function WhereItBroke({ worse }: { worse: SkillCheckAgent[] }) {
 
 function AgentRow({
   row,
-  most,
   seen,
   onOpen,
 }: {
   row: SkillCheckAgent;
-  most: number;
   seen: boolean;
   onOpen: () => void;
 }) {
   const t = useTranslations("skillImprovement.agents");
   const [open, setOpen] = useState(false);
+  const id = useId();
   const measured = !["queued", "running", "unknown"].includes(row.state);
+  const described = [
+    row.unknown_reason !== null && `${id}-reason`,
+    measured && `${id}-counts`,
+    `${id}-state`,
+  ].filter(Boolean);
   return (
     <li>
       <button
         type="button"
         aria-expanded={open}
         aria-label={t("details", { name: row.agent.name })}
+        aria-describedby={described.join(" ")}
         className="hover:bg-muted/40 flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left"
         onClick={() => {
           setOpen(!open);
           onOpen();
         }}
       >
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1 basis-48">
           <span className="block truncate text-sm font-medium">{row.agent.name}</span>
+          {row.unknown_reason !== null && (
+            <span id={`${id}-reason`} className="text-muted-foreground mt-1 block max-w-xl text-xs">
+              {unfinished(row)
+                ? t("unknown.unfinished")
+                : t(`unknown.${reasonOf(row)}`, {
+                    fixed: row.fixed,
+                    broken: row.broken,
+                    heldOut: row.held_out,
+                  })}
+            </span>
+          )}
           {row.via_specialist !== null && (
             <span className="text-muted-foreground block text-xs">
               {t("viaSpecialist", { name: row.via_specialist })}
@@ -282,14 +253,21 @@ function AgentRow({
           )}
         </span>
         <span className="flex items-center gap-3">
-          {measured && <FixBreakBar fixed={row.fixed} broken={row.broken} most={most} />}
+          {measured && (
+            <span id={`${id}-counts`} className="text-muted-foreground text-xs tabular-nums">
+              {t(row.state === "within_noise" ? "fixedBrokenUnconfirmed" : "fixedBroken", {
+                fixed: row.fixed,
+                broken: row.broken,
+              })}
+            </span>
+          )}
           {seen && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
               <Eye className="h-3.5 w-3.5" aria-hidden />
               {t("seen")}
             </span>
           )}
-          <StateBadge tone={TONE[shownState(row.state)]}>
+          <StateBadge id={`${id}-state`} tone={TONE[shownState(row.state)]}>
             {t(`state.${shownState(row.state)}`)}
           </StateBadge>
           <ChevronDown
@@ -301,27 +279,17 @@ function AgentRow({
           />
         </span>
       </button>
-      {open && <AgentDetails row={row} measured={measured} />}
+      {open && <AgentDetails row={row} />}
     </li>
   );
 }
 
-function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boolean }) {
+function AgentDetails({ row }: { row: SkillCheckAgent }) {
   const t = useTranslations("skillImprovement.agents");
   const ran = row.stages.filter((stage) => stage.eval_run_id !== null);
   return (
     <div className="space-y-2 px-4 pb-3">
-      {measured && (
-        <p className="text-sm">
-          {t(row.state === "within_noise" ? "fixedBrokenUnconfirmed" : "fixedBroken", {
-            fixed: row.fixed,
-            broken: row.broken,
-          })}
-        </p>
-      )}
-      {row.unknown_reason !== null && (
-        <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
-      )}
+      <CriteriaTable criteria={verdictRows(row.criteria ?? [], row.families ?? [])} />
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
       )}

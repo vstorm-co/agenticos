@@ -26,7 +26,7 @@ export function ReadOnlyNote() {
   const reason = useContext(ReadOnlyContext);
   if (reason === null) return null;
   return (
-    <p role="status" className="bg-muted/50 flex items-start gap-2 rounded-xl border p-4 text-sm">
+    <p role="status" className="text-muted-foreground flex items-start gap-2 text-xs">
       <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
       {t(reason)}
     </p>

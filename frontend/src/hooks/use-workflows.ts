@@ -75,18 +75,29 @@ const WORKFLOWS_MAX_PAGE = 100;
  * Mutations invalidate rather than patch: a create returns a fresh draft row and
  * guessing the list's new shape is how a stale registry shows.
  */
-export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
+export function useWorkflows({
+  enabled = true,
+  projectId = null,
+}: { enabled?: boolean; projectId?: string | null } = {}) {
   const t = useTranslations("workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.workflows.list(),
+    queryKey: projectId ? [...qk.workflows.list(), { projectId }] : qk.workflows.list(),
     queryFn: async () => {
-      const first = await listWorkflows({ skip: 0, limit: WORKFLOWS_MAX_PAGE });
+      const first = await listWorkflows({
+        skip: 0,
+        limit: WORKFLOWS_MAX_PAGE,
+        ...(projectId ? { projectId } : {}),
+      });
       const items = [...first.items];
       while (items.length < first.total && items.length > 0) {
-        const next = await listWorkflows({ skip: items.length, limit: WORKFLOWS_MAX_PAGE });
+        const next = await listWorkflows({
+          skip: items.length,
+          limit: WORKFLOWS_MAX_PAGE,
+          ...(projectId ? { projectId } : {}),
+        });
         // A page that answers nothing ends the walk rather than looping: a
         // workflow deleted between two requests makes `total` larger than what is
         // left to read, and a `while` trusting the count alone would spin.
@@ -176,19 +187,21 @@ export function useWorkflow(workflowId: string | null) {
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.detail(workflowId ?? ""),
     queryFn: () => getWorkflow(workflowId as string),
     enabled: !!workflowId,
   });
 
-  // A publish changes this workflow's detail and its row in the
-  // list — invalidate just those two keys, never the whole `workflows` subtree,
-  // so the immutable node catalog and the frozen version graphs stay cached
-  // (#1787 F2). The published-version list rides `detail`'s key prefix.
+  // Detail also covers the workflow's live exposures and published-version list.
+  // Republishing may move subscriptions between sources, including removing the
+  // last binding to a source that the new graph no longer names.
   const invalidate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId as string) });
-    await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId as string) }),
+      queryClient.invalidateQueries({ queryKey: qk.workflows.list() }),
+      queryClient.invalidateQueries({ queryKey: qk.eventSources.usage() }),
+    ]);
   }, [queryClient, workflowId]);
 
   const saveDraft = useMutation({
@@ -225,7 +238,7 @@ export function useWorkflow(workflowId: string | null) {
     },
   });
 
-  return { workflow: data, isLoading, error, saveDraft, publish, restore };
+  return { workflow: data, isLoading, error, refetch, saveDraft, publish, restore };
 }
 
 /** Every published version of a workflow, newest first. Lean — no graphs. */
@@ -281,7 +294,7 @@ export function useWorkflowVersion(workflowId: string, versionId: string | null)
  */
 export function useNodeCatalog() {
   const t = useTranslations("workflowNodes");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.nodeCatalog(),
     queryFn: () => getNodeCatalog(),
     staleTime: Infinity,
@@ -334,7 +347,7 @@ export function useNodeCatalog() {
       }),
     [data, t],
   );
-  return { nodes, isLoading };
+  return { nodes, isLoading, error, refetch };
 }
 
 /**

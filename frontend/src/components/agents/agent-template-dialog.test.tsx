@@ -32,6 +32,7 @@ const CATALOG = {
         {
           key: "healthcare/procedure-assistant",
           name: "Procedure Assistant",
+          slug: "procedure-assistant",
           description: "Answers staff from your SOPs.",
           capabilities: ["knowledge", "clock", "future_cap"],
           skills: ["healthcare/clinical-procedure-lookup"],
@@ -101,7 +102,11 @@ describe("AgentTemplateDialog", () => {
     open();
     await userEvent.click(await screen.findByText("Healthcare"));
 
-    expect(screen.getByText("Procedure Assistant")).toBeInTheDocument();
+    const name = screen.getByText("Procedure Assistant");
+    const card = name.closest(".grid");
+    expect(
+      card?.querySelector('[aria-hidden="true"] svg.mo-avatar, [aria-hidden="true"] svg .mo-root'),
+    ).toBeInTheDocument();
     // A capability by the name the Toolbox gives it, never its registry id.
     expect(screen.getByText("Knowledge search")).toBeInTheDocument();
     expect(screen.queryByText("knowledge")).not.toBeInTheDocument();

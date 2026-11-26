@@ -13,7 +13,11 @@ from app.core.exceptions import ConflictError
 
 @asynccontextmanager
 async def account_lease(
-    key: str, timeout_seconds: int, *, redis: RedisClient | None = None
+    key: str,
+    timeout_seconds: int,
+    *,
+    redis: RedisClient | None = None,
+    wait_seconds: float = 0,
 ) -> AsyncGenerator[None]:
     owned = redis is None
     client = redis if redis is not None else RedisClient(str(settings.REDIS_URL))
@@ -21,10 +25,14 @@ async def account_lease(
     try:
         if owned:
             await client.connect()
-        if not await client.set(key, token, ttl=timeout_seconds + 1800, nx=True):
-            raise ConflictError(
-                message="This coding account already has a task running. Try again when it finishes."
-            )
+        deadline = anyio.current_time() + wait_seconds
+        while not await client.set(key, token, ttl=timeout_seconds + 1800, nx=True):
+            remaining = deadline - anyio.current_time()
+            if remaining <= 0:
+                raise ConflictError(
+                    message="This coding account already has a task running. Try again when it finishes."
+                )
+            await anyio.sleep(min(0.25, remaining))
         try:
             yield
         finally:

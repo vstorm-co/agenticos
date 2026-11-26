@@ -21,6 +21,7 @@ export type ExposureSurface =
   | "sms"
   | "email"
   | "discord"
+  | "matrix"
   | "imessage"
   | "whatsapp";
 

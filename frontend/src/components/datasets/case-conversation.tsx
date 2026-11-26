@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { BookCheck, Bot, ChevronRight, UserRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -52,7 +54,7 @@ export function CaseConversation({
   return (
     <section aria-label={t("conversationTitle")} className="space-y-6">
       {content.history.length > 0 && (
-        <details className="group border-border border-b pb-4">
+        <NativeDisclosure className="group border-border border-b pb-4">
           <summary className="text-muted-foreground flex min-h-11 cursor-pointer items-center gap-2 text-sm">
             <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
             {t("turnsBefore", { count: content.history.length })}
@@ -67,7 +69,7 @@ export function CaseConversation({
               />
             ))}
           </ol>
-        </details>
+        </NativeDisclosure>
       )}
       <ol className="space-y-7">
         <CaseTurn kind="user" label={t("field.input")} text={content.input} />

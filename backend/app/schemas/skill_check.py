@@ -18,7 +18,15 @@ from app.db.models.skill_check import (
     UnknownReason,
 )
 from app.schemas.base import BaseSchema
+from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.skill_version import SkillForkRead, SkillVersionRead, VersionRef
+
+
+class RejudgedChecks(BaseSchema):
+    """Agent rows actually judged again, and rows their original authority could not read."""
+
+    judged: int = 0
+    skipped: int = 0
 
 
 class CandidateText(BaseSchema):
@@ -77,6 +85,17 @@ class SkillUpdateCheck(BaseSchema):
         default=CheckMode.QUICK,
         description="As for a change; a newer description is always checked thoroughly",
     )
+    base_version_id: UUID | None = Field(
+        default=None,
+        description="The estimate's `base_version`; a start that would check another "
+        "version is refused, and omitted it is not checked",
+    )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `at_most_usd` the person agreed to; a start that would "
+        "now cost more is refused, and omitted it is not checked",
+    )
 
 
 class AgentRef(BaseSchema):
@@ -106,7 +125,7 @@ class StageCounts(BaseSchema):
 
 class CheckStage(BaseSchema):
     kind: StageKind
-    dataset_id: UUID
+    dataset_id: UUID | None = Field(description="Null for a dataset the reader may not see")
     dataset_name: str | None = Field(description="Null for a dataset the reader may not see")
     cases: int = Field(
         description=(
@@ -115,7 +134,11 @@ class CheckStage(BaseSchema):
         )
     )
     eval_run_id: UUID | None = Field(
-        default=None, description="The eval run that asked them, once the stage started"
+        default=None,
+        description=(
+            "The eval run that asked them, once the stage started; null for a dataset the "
+            "reader may not see"
+        ),
     )
     counts: StageCounts | None = Field(
         default=None,
@@ -147,6 +170,14 @@ class SkillCheckAgentRead(BaseSchema):
     fixed_confirmed: int = 0
     regressions_confirmed: int = 0
     noisy: bool = False
+    criteria: list[VerdictCriterion] = Field(
+        default_factory=list,
+        description="Each criterion over the held-out questions, both stages together",
+    )
+    families: list[VerdictFamily] = Field(
+        default_factory=list,
+        description="Each family of criteria over the held-out questions, both stages together",
+    )
     expected_usd: Decimal
     at_most_usd: Decimal
 
@@ -182,7 +213,8 @@ class SkillCheckRead(SkillCheckEstimate):
         "agent with `PUT .../agents/{agent_id}/binding`, never by applying it"
     )
     agent_id: UUID | None = Field(
-        default=None, description="The pinned agent an update is checked on"
+        default=None,
+        description="The pinned agent an update is checked on; null for one the reader may not see",
     )
     candidate_version_id: UUID | None = Field(
         default=None, description="The main version that update would move it to"

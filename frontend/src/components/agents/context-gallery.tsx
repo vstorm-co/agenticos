@@ -131,17 +131,11 @@ export function ContextGallery({
         </div>
       )}
 
-      <div className="space-y-2">
+      <ul className="divide-border divide-y">
         {list.visible.map((file) => {
           const isOn = chosen.has(file.id);
           return (
-            <div
-              key={file.id}
-              className={cn(
-                "min-w-0 overflow-hidden rounded-xl border transition-colors",
-                isOn ? "border-foreground/20 bg-foreground/[0.025]" : "border-border",
-              )}
-            >
+            <li key={file.id} className="min-w-0">
               <button
                 type="button"
                 role="checkbox"
@@ -150,7 +144,8 @@ export function ContextGallery({
                 disabled={disabled}
                 onClick={() => onToggle(file.id)}
                 className={cn(
-                  "hover:bg-muted/40 flex w-full min-w-0 items-start gap-3 px-3 py-3 text-left transition-colors",
+                  "focus-visible:outline-ring flex min-h-12 w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                  !disabled && "hover:bg-muted/60",
                   disabled && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -198,7 +193,7 @@ export function ContextGallery({
                 </span>
               </button>
               {isOn && onSettingsChange && (
-                <div className="border-foreground/10 space-y-2 border-t px-3 py-3">
+                <div className="space-y-2 px-3 pt-1 pb-3 sm:pl-10">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex shrink-0 items-center justify-between gap-3">
                       <Label htmlFor={`use-context-${file.id}`}>{tContext("useForAgent")}</Label>
@@ -249,10 +244,10 @@ export function ContextGallery({
                   </p>
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       <Pager
         page={list.page}

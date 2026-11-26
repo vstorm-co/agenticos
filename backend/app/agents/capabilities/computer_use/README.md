@@ -180,3 +180,11 @@ person's paired session and passes `local_computer_session` as an internal UUID
 resource. The capability uses that device without requiring a filesystem workspace.
 It retains the author's action limits and approval settings; native consent and OS
 permissions still apply. Screen selection grants neither files nor shell access.
+
+
+The shipped AgenticOS selects Docker / Sandbox with the `desktop` runtime.
+The runtime includes the workbench's Python/document packages, Node, Claude Code
+and Codex in addition to XFCE and Firefox, so enabling the desktop does not
+remove its coding or document tools. Compose must rebuild the cached desktop
+image to receive these added packages. New ordinary agents still use the lighter
+workbench unless their author selects a desktop.

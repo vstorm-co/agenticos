@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
 import { VoicePreviewButton } from "@/components/agents/voice-preview-button";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   FormField,
@@ -166,10 +167,7 @@ function BlockFields({
                   value={candidate.provider}
                   textValue={candidate.name}
                 >
-                  <span className="flex items-center gap-2">
-                    <ProviderIcon provider={candidate.provider} className="h-3.5 w-3.5" />
-                    {candidate.name}
-                  </span>
+                  <ProviderRow provider={candidate.provider} name={candidate.name} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -285,8 +283,8 @@ function ModelField({ entry, block, disabled, write }: PartProps & { entry: Real
         </SelectTrigger>
         <SelectContent>
           {entry.models.map((candidate) => (
-            <SelectItem key={candidate.id} value={candidate.id}>
-              {candidate.name}
+            <SelectItem key={candidate.id} value={candidate.id} textValue={candidate.name}>
+              <ModelLabel model={candidate.id} provider={entry.provider} label={candidate.name} />
             </SelectItem>
           ))}
         </SelectContent>

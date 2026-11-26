@@ -26,7 +26,7 @@ const SELECTED = "ring-ring ring-offset-background ring-2 ring-offset-2";
  * colour back to the hash of the id - the same finite palette the avatar draws
  * from, so a choice can never land off the design system or on an unreadable
  * fill. It renders no preview of its own; the caller shows a live avatar beside
- * it.
+ * it. Padding keeps checked and focus rings inside clipping disclosure panels.
  */
 export function AvatarColorPicker({
   value,
@@ -40,7 +40,7 @@ export function AvatarColorPicker({
     <div
       role="radiogroup"
       aria-label={t("label")}
-      className={cn("flex flex-wrap items-center gap-2", className)}
+      className={cn("flex flex-wrap items-center gap-2 p-1", className)}
     >
       <label className="relative grid place-items-center">
         <input

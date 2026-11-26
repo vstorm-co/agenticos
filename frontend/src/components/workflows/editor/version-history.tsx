@@ -259,7 +259,7 @@ export function VersionHistory({
       )}
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
+        <DialogContent data-workflow-fields className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
           {selected !== null && (
             <VersionPreviewDialog
               workflowId={workflowId}

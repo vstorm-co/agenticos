@@ -1,10 +1,12 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { NativeSelect } from "@/components/ui/native-select";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Checkbox } from "@/components/ui";
+import { Button, Card, Checkbox } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { usd } from "@/components/evals/format";
 import { useDatasetCases } from "@/hooks/use-datasets";
@@ -89,7 +91,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   }
   if (!draftCheckShown(session, topics) && !topicsError) return null;
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6">
+    <Card className="space-y-4 p-4 sm:p-6">
       <h3 className="font-medium">{t("knowledgeTitle")}</h3>
       <p className="text-muted-foreground text-sm">{t("knowledgeSeparate")}</p>
       {session.timeline.some((event) => event.action === "improvement.drafting_failed") && (
@@ -268,7 +270,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
       {(session.knowledge_eval_run_ids ?? []).map((id) => (
         <KnowledgeResult key={id} runId={id} agentId={session.agent_id} refresh={actions.refetch} />
       ))}
-    </section>
+    </Card>
   );
 }
 
@@ -295,10 +297,10 @@ function DraftFacts({
           {!(supported ?? topic.draft.sources.some((source) => source.kind === "document")) && (
             <p className="text-warning-ink">{t("unsupportedDraft")}</p>
           )}
-          <details className="rounded-lg border p-3">
+          <NativeDisclosure className="rounded-lg border p-3">
             <summary className="cursor-pointer font-medium">{topic.draft.title}</summary>
             <p className="mt-3 break-words whitespace-pre-wrap">{topic.draft.content}</p>
-          </details>
+          </NativeDisclosure>
         </>
       )}
       {!readOnly && (

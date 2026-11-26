@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert, SlidersHorizontal, Wrench } from "lucide-react";
@@ -200,6 +202,8 @@ interface CapabilityDetailProps {
    * the same for every capability and is not worth a second implementation.
    */
   hideConfigForm?: boolean;
+  /** An inherited credential is configured by its organization rather than this binding. */
+  hideSecret?: boolean;
   /**
    * What publish validation said about the inputs on these forms.
    *
@@ -307,6 +311,7 @@ export function CapabilityDetail({
   onChange,
   disabled,
   hideConfigForm,
+  hideSecret,
   configProblems,
   onToggleEnabled,
   readOnly,
@@ -359,6 +364,7 @@ export function CapabilityDetail({
           disabled={disabled}
           errors={configErrors}
           copyFor={copyFor}
+          rememberConditionalValues={binding.id === CODING_AGENT_ID}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
@@ -367,7 +373,8 @@ export function CapabilityDetail({
             free provider and a paid one declares the requirement once and
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
-      {definition.requires_secret !== null &&
+      {!hideSecret &&
+        definition.requires_secret !== null &&
         secretIsOffered(definition.requires_secret, keyed.config) && (
           <SecretField
             binding={keyed}
@@ -379,7 +386,7 @@ export function CapabilityDetail({
           />
         )}
 
-      {definition.requires_secret === null && binding.secret_id !== null && (
+      {!hideSecret && definition.requires_secret === null && binding.secret_id !== null && (
         <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
       )}
 
@@ -524,7 +531,7 @@ export function CapabilityDetail({
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
   const t = useTranslations("agents");
   return (
-    <details className="group">
+    <NativeDisclosure className="group">
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
         {t("configurationSchema")}
@@ -532,7 +539,7 @@ function SchemaPreview({ schema }: { schema: JsonSchema }) {
       <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-64 overflow-auto rounded-md p-3 text-xs">
         {JSON.stringify(schema, null, 2)}
       </pre>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -1249,7 +1256,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
   return (
     <div className="space-y-1.5">
       {names.length > 0 && (
-        <details className="group">
+        <NativeDisclosure className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("argumentsCount", { count: names.length })}
@@ -1267,7 +1274,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
               </li>
             ))}
           </ul>
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );

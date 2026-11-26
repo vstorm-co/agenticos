@@ -545,7 +545,7 @@ async def test_removing_a_responsibility_closes_its_run_and_delivery_incidents(
         routine_kind="trigger",
         reason="delivery",
         name="Report",
-        detail="Chat unavailable",
+        detail="chat_unavailable",
         observed_at=NOW + timedelta(minutes=2),
         run=run,
     )
@@ -882,7 +882,7 @@ async def test_end_cleanup_ignores_cadence_and_pause(
         routine_kind="trigger" if kind == "trigger" else "watch",
         reason="delivery",
         name="Report",
-        detail="The chat is unavailable.",
+        detail="chat_unavailable",
         observed_at=NOW - timedelta(minutes=1),
     )
     routine_id = routine.id

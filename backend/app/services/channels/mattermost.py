@@ -533,15 +533,20 @@ class MattermostAdapter(ChannelAdapter):
             response.raise_for_status()
 
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question with the bot's chosen emoji, as the bot (#2084)."""
-        base_url = self._base_urls.get(incoming.bot_id)
+        base_url = (api_base_url or self._base_urls.get(incoming.bot_id) or "").rstrip("/")
         if not base_url or not incoming.message_id:
             return
-        own = self._own_ids.get(incoming.bot_id) or await self._own_user_id(
-            incoming.bot_id, bot_token
-        )
+        # A durable message runs in a worker that may never own this bot's stream.
+        # Resolve identity from the current token as well, including after rotation.
+        own = await self._own_user_id(incoming.bot_id, bot_token, api_base_url=base_url)
         if own is None:
             return
         async with self._client() as client:
@@ -1319,7 +1324,9 @@ class MattermostAdapter(ChannelAdapter):
             ),
         )
 
-    async def _own_user_id(self, bot_id: str, bot_token: str) -> str | None:
+    async def _own_user_id(
+        self, bot_id: str, bot_token: str, *, api_base_url: str | None = None
+    ) -> str | None:
         """Which Mattermost account this bot *is*, so a mention of it is legible.
 
         Resolved once per stream session rather than per message, and stored beside
@@ -1328,7 +1335,7 @@ class MattermostAdapter(ChannelAdapter):
         is the behaviour a bot had before this existed - answering too much is a
         worse failure than answering too little only where somebody chose it.
         """
-        base_url = self._base_urls.get(bot_id)
+        base_url = api_base_url or self._base_urls.get(bot_id)
         if not base_url:
             return None
         try:

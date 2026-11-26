@@ -1,5 +1,5 @@
 ---
-source_sha: "fc26a8af977d"
+source_sha: "531cae3a8bfb"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -39,8 +39,7 @@ Publiczne osadzenia zachowują odrębny zakres odwiedzającego.
 opublikowany agent z głosem odbiera rozmowy, ograniczony własną najdłuższą
 rozmową i budżetami, jak każdy run.
 
-**Agent.** Jego karta Głos (Voice) w Builderze ma zakładkę **Rozmowy głosowe**,
-zapisywaną w [polu `voice`](reference/spec.md#voice) spec. Wskazuje providera,
+**Agent.** Jego karta Głos (Voice) w Builderze pokazuje **Rozmowy głosowe** i **Dyktowanie** w jednej pionowej liście, bez wewnętrznych zakładek. Każda sekcja ma własny przełącznik. Ustawienia transkrypcji pozostają dostępne także przy wyłączonym dyktowaniu, bo dotyczą również wiadomości głosowych z kanałów. Sekcja rozmów jest zapisywana w [polu `voice`](reference/spec.md#voice) spec. Wskazuje providera,
 model (albo, dla Azure, nazwę deploymentu i model bazowy, na którym działa),
 klucz z vaulta, którym prowadzi się rozmowy, głos, opcjonalny język,
 opcjonalną najdłuższą rozmowę (10 minut, gdy nieustawiona, najwyżej 50) i
@@ -57,7 +56,7 @@ głos i język.
 **Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi w miejscu
 „Wyślij”, dopóki pole jest puste, a „Wyślij” wraca, gdy coś wpiszesz. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
 rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
-agenta, do zakładki Rozmowy na jego karcie Głos (Voice). Okno Architekta i panel
+agenta, do sekcji rozmów na jego karcie Głos (Voice). Okno Architekta i panel
 testowy Buildera oferują go tak samo; w panelu testowym rozmowa uruchamia
 opublikowaną wersję, nie testowany draft, i przycisk to mówi.
 

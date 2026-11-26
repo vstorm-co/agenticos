@@ -162,6 +162,27 @@ async def count_user_sessions(
     return (await db.execute(query)).scalar_one()
 
 
+async def admin_activity_for(
+    db: AsyncSession, user_ids: list[UUID]
+) -> dict[UUID, tuple[datetime, int]]:
+    """Last real sign-in activity and live session count for one page of users."""
+    if not user_ids:
+        return {}
+    now = datetime.now(UTC)
+    result = await db.execute(
+        _own(
+            select(
+                Session.user_id,
+                func.max(Session.last_used_at),
+                func.count(Session.id).filter(
+                    Session.is_active.is_(True), Session.expires_at > now
+                ),
+            ).where(Session.user_id.in_(user_ids))
+        ).group_by(Session.user_id)
+    )
+    return {user_id: (last_seen, active) for user_id, last_seen, active in result.all()}
+
+
 async def create(
     db: AsyncSession,
     *,

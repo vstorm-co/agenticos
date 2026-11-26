@@ -715,3 +715,42 @@ describe("the other voices the agent may choose", () => {
     });
   });
 });
+
+it("offers inheritance without mixing the old agent key into the organization default", async () => {
+  const changed = mount(
+    {
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voices: [{ id: "alloy" }],
+      output_format: "mp3",
+    },
+    DEFINITION,
+    [],
+    "agent-key",
+  );
+  await userEvent.click(screen.getByRole("switch", { name: "Use organization defaults" }));
+  expect(changed).toHaveBeenCalledWith(
+    expect.objectContaining({
+      secret_id: null,
+      config: { provider: "openai", model: "gpt-4o-mini-tts", use_organization_defaults: true },
+    }),
+  );
+});
+
+it("hides agent provider and credential controls while using the organization voice", () => {
+  mount(
+    { use_organization_defaults: true },
+    {
+      ...DEFINITION,
+      requires_secret: {
+        kind: "api_key",
+        description: "Speech key",
+        required_when: { field: "provider", equals: ["openai"] },
+        purpose: null,
+      },
+    },
+  );
+  expect(screen.getByRole("switch", { name: "Use organization defaults" })).toBeChecked();
+  expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+  expect(screen.queryByLabelText("Secret")).toBeNull();
+});

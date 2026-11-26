@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import type { JsonSchema } from "@/types/agents";
 
 /** A provider and the models a capability may choose on it - the server's catalog. */
@@ -120,10 +121,7 @@ export function ProviderModelFields<P extends ProviderOffering>({
           <SelectContent>
             {providers.map((entry) => (
               <SelectItem key={entry.provider} value={entry.provider}>
-                <span className="flex items-center gap-2">
-                  <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                  {entry.name}
-                </span>
+                <ProviderRow provider={entry.provider} name={entry.name} />
               </SelectItem>
             ))}
           </SelectContent>
@@ -146,15 +144,19 @@ export function ProviderModelFields<P extends ProviderOffering>({
                 middle of it. Explicit children keep the sentence in the list,
                 which is the only place it means anything. */}
             <SelectValue placeholder={copy.modelPlaceholder}>
-              <span className="truncate">{selected?.name ?? model}</span>
+              <ModelLabel
+                model={model}
+                provider={current?.provider}
+                label={selected?.name ?? model}
+              />
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {(current?.models ?? []).map((entry) => (
-              <SelectItem key={entry.id} value={entry.id}>
+              <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
                 <span className="flex flex-col gap-0.5">
-                  <span>{entry.name}</span>
-                  <span className="text-muted-foreground text-xs">{entry.description}</span>
+                  <ModelLabel model={entry.id} provider={current?.provider} label={entry.name} />
+                  <span className="text-muted-foreground pl-8 text-xs">{entry.description}</span>
                 </span>
               </SelectItem>
             ))}

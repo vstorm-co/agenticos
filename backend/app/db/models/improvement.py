@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from pydantic import JsonValue
 from sqlalchemy import (
@@ -121,6 +121,18 @@ class ImprovementStage(StrEnum):
     FILTERING = "filtering"
     EVALUATING = "evaluating"
     JUDGING = "judging"
+    SEARCHING = "searching"
+    """Trying many variants of the instructions on training questions, before Changes."""
+
+
+class ImprovementMode(StrEnum):
+    """How a session's attempt reaches its candidate."""
+
+    STEPS = "steps"
+    """One proposal per attempt, checked on held-out questions."""
+
+    SEARCH = "search"
+    """Many variants scored on training questions; the best one is then checked as usual."""
 
 
 class StopReason(StrEnum):
@@ -155,12 +167,24 @@ class StopReason(StrEnum):
     EXPIRED = "expired"
     """Nobody took the next step or decided for seven days."""
 
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, but a criterion the check confirmed got worse."""
+
+    NO_VARIANT = "no_variant"
+    """A search found no variant that did better than the instructions on training questions."""
+
 
 class ImprovementVerdict(StrEnum):
     """How a round's candidate compared with the base on the pinned dataset."""
 
     BETTER = "better"
+    CRITERIA_BETTER = "criteria_better"
+    """No question flipped, and criteria the check confirmed got better while none got worse."""
+
     NO_CHANGE = "no_change"
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, and a criterion the check confirmed got worse."""
+
     REGRESSION = "regression"
     INCONCLUSIVE = "inconclusive"
 
@@ -182,10 +206,48 @@ class DroppedHunk(TypedDict):
     reason: str
 
 
+class CriterionDetail(TypedDict):
+    """One criterion's counts on a round's held-out questions, and who it was put down to."""
+
+    scorer: str
+    name: str
+    graded: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    skill: NotRequired[str]
+    skill_id: NotRequired[str]
+    """The skill the session's improver put a criterion that still fails down to."""
+
+
+class FamilyDetail(TypedDict):
+    """One family of criteria's counts on a round's held-out questions.
+
+    `fixed` and `broken` count the cases that hold: every flipped one when the
+    family is settled by its own spread, else those the re-asks confirmed.
+    """
+
+    family: str
+    criteria: int
+    cases: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    settled: bool
+    better: bool
+    worse: bool
+    skill: NotRequired[str]
+    skill_id: NotRequired[str]
+    """The skill the session's improver put the family down to."""
+
+
 class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
     fixed: int | None
+    criterion_change: float
     crashed: int
     gradable_holdout: int
     held_out: int | None
@@ -198,6 +260,67 @@ class VerdictDetail(TypedDict, total=False):
     baseline_pass_rate: float | None
     suite: str | None
     reason: str | None
+    criteria: list[CriterionDetail]
+    families: list[FamilyDetail]
+
+
+class SearchSettings(TypedDict):
+    """What a search attempt may spend and try, frozen when the session starts."""
+
+    budget_usd: str
+    grading_model_profile_id: str | None
+    max_variants: int
+    per_generation: int
+    minibatch: int
+    patience: int
+
+
+class PartialAnswer(TypedDict):
+    """One question a variant was asked and graded on, before its unit ran out of time."""
+
+    share: float
+    failed: list[str]
+    counted: bool
+
+
+class PartialScore(TypedDict):
+    """The answers one variant was scored on so far, for the unit that finishes it.
+
+    Bound to the variant's text and to how it is graded: a different text or grading
+    makes these answers say nothing about it, and they are asked again.
+    """
+
+    variant_id: str
+    text_hash: str
+    scoring_hash: str
+    answers: dict[str, PartialAnswer]
+
+
+class SearchProgress(TypedDict, total=False):
+    """Where a search attempt is: its settings, what it spent and what it found.
+
+    `spent_before_usd` is the session's spend when the search began, so the
+    search's own cost is the session's spend now less it. `best_before` is the
+    best score a round of proposals started from, and `stale_generations` counts
+    the rounds in a row that found nothing better. `proposal_attempts` counts the
+    times the current round of proposals was claimed without an answer recorded.
+    """
+
+    settings: SearchSettings
+    case_ids: list[str]
+    """The training questions every variant is scored on, so their scores compare."""
+
+    spent_before_usd: str
+    generation: int
+    closed_generation: int
+    stale_generations: int
+    proposal_attempts: int
+    seed_score: float | None
+    best_before: float | None
+    cost_usd: str
+    stop_reason: str | None
+    chosen_variant_id: str | None
+    partial: PartialScore | None
 
 
 class ImprovementRun(Base):
@@ -242,6 +365,12 @@ class ImprovementRun(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ImprovementStatus.QUEUED.value
     )
+    mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=ImprovementMode.STEPS.value,
+        server_default=ImprovementMode.STEPS.value,
+    )
     stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
@@ -256,6 +385,9 @@ class ImprovementRun(Base):
     base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The dataset's held-out share when the session started: every attempt draws with
+    # it, so a change to the dataset's setting cannot move what the session measures.
+    holdout_share: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     chat_evidence_run_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
@@ -287,6 +419,9 @@ class ImprovementRun(Base):
     )
     stop_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """`error` as a code from `ImprovementFailure`; null on a session failed before codes."""
+    error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -305,6 +440,7 @@ class ImprovementRun(Base):
             f"stage IS NULL OR stage IN ({_values(ImprovementStage)})",
             name="ck_improvement_run_stage",
         ),
+        CheckConstraint(f"mode IN ({_values(ImprovementMode)})", name="ck_improvement_run_mode"),
         CheckConstraint(
             f"stop_reason IS NULL OR stop_reason IN ({_values(StopReason)})",
             name="ck_improvement_run_stop_reason",
@@ -421,6 +557,7 @@ class ImprovementIteration(Base):
         ForeignKey("background_jobs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    search: Mapped[SearchProgress | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -428,6 +565,7 @@ class ImprovementIteration(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_improvement_iterations_tenant"),
         # A round belongs to its session's organization, held by the schema rather
         # than by every writer passing the matching pair.
         ForeignKeyConstraint(
@@ -448,4 +586,100 @@ class ImprovementIteration(Base):
         return (
             f"<ImprovementIteration(id={self.id}, run={self.run_id}, number={self.number}, "
             f"verdict={self.verdict})>"
+        )
+
+
+class VariantFailure(TypedDict):
+    """A training question a variant's answer failed, and the criteria it failed on."""
+
+    case_id: str
+    failed: list[str]
+
+
+class SearchVariantStatus(StrEnum):
+    """Where one variant of a search is."""
+
+    PENDING = "pending"
+    SCORED = "scored"
+    FAILED = "failed"
+    """Its answers could not be graded; it takes no part in the ranking."""
+
+
+class ImprovementSearchVariant(Base):
+    """One variant of an agent's instructions a search attempt tried on training questions.
+
+    Holds the variant's text and its score - the share of required checks its
+    answers passed - never a question's or an answer's text. The text and its
+    rationale are written from the dataset's training questions and reference
+    answers, so they can repeat what a case holds: erasing a person whose words
+    are in that dataset empties both and keeps the score.
+    """
+
+    __tablename__ = "improvement_search_variants"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    iteration_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_search_variants.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    instructions: Mapped[str] = mapped_column(Text, nullable=False)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=SearchVariantStatus.PENDING.value
+    )
+    train_score: Mapped[float | None] = mapped_column(Numeric(6, 5, asdecimal=False), nullable=True)
+    cases_scored: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cases_passed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failures: Mapped[list[VariantFailure]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    """How often scoring this variant began; one that never finishes is given up on."""
+    estimate_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal(0)
+    )
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["iteration_id", "organization_id"],
+            ["improvement_iterations.id", "improvement_iterations.organization_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("iteration_id", "text_hash", name="uq_improvement_search_variant_text"),
+        CheckConstraint(
+            f"status IN ({_values(SearchVariantStatus)})", name="ck_search_variant_status"
+        ),
+        CheckConstraint(
+            "train_score IS NULL OR train_score BETWEEN 0 AND 1",
+            name="ck_search_variant_score",
+        ),
+        CheckConstraint(
+            "generation >= 0 AND cases_scored >= 0 AND cases_passed BETWEEN 0 AND cases_scored "
+            "AND attempts >= 0 AND estimate_usd >= 0 AND cost_usd >= 0",
+            name="ck_search_variant_counts",
+        ),
+        Index("ix_improvement_search_variants_rank", "iteration_id", "status", "train_score"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ImprovementSearchVariant(id={self.id}, iteration={self.iteration_id}, "
+            f"generation={self.generation}, status={self.status}, score={self.train_score})>"
         )

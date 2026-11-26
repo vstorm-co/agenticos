@@ -1,5 +1,8 @@
 "use client";
 
+import { SourceSelector } from "@/components/event-sources/source-selector";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -17,6 +20,12 @@ import {
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
 import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
+import {
+  type ActionEditorSelection,
+  PythonActions,
+  PythonActionsGuide,
+  pythonCallOptions,
+} from "./python-actions";
 import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import type { CodeLanguage } from "@/lib/workflows/code-editing";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -74,6 +83,9 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { newFilter } from "@/components/tables/record-filters";
+import { FilterColumnField } from "./filter-column-field";
+import { FilterValueField } from "./filter-value-field";
 import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
@@ -94,6 +106,7 @@ import {
   classify,
   defsOf,
   isBindable,
+  isPythonConfigInput,
   isRecord,
   labelOf,
   ownTitle,
@@ -122,6 +135,8 @@ const TRIGGER_HINTS: Record<string, string> = {
 /** `agent.run`'s answer-shape override, edited as the Builder edits an agent's own. */
 const AGENT_RUN = "agent.run";
 const HTTP_REQUEST = "http.request";
+/** The Data step: its value is a constant for the run, which the form says up front. */
+const DATA_VALUE = "data.value";
 const STRUCTURED_OUTPUT = "structured_output_schema";
 /**
  * The fields that hold an answer's JSON Schema, edited as the Builder edits an
@@ -142,9 +157,15 @@ const MERGE = "logic.merge";
 const MCP_SERVER = "connection_id";
 const MCP_TOOL = "tool";
 const MCP_ARGUMENTS = "arguments";
+/** Table steps that only filter: they never read the table ref's `column_ids`. */
+const FILTER_ONLY_TABLE_STEPS: ReadonlySet<string> = new Set([
+  "table.record.exists",
+  "table.record.query",
+]);
 
 /** Optional in the API does not mean secondary in a person's task. */
 const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
+  "code.python.actions": ["actions"],
   "http.request": ["method", "auth", "headers"],
   "http.upload": ["method", "auth", "headers"],
   "http.download": ["auth", "headers"],
@@ -176,6 +197,7 @@ const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
   "html.parse": ["html", "file"],
   "debug.echo": ["message"],
   "data.map": ["source"],
+  "data.value": ["value"],
   "logic.if": ["value"],
   "logic.switch": ["value"],
   "transform.crypto": ["text"],
@@ -187,6 +209,8 @@ const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
+  /** Static configuration for one function called by Python, never a graph binding. */
+  actionAlias?: string;
   node: NodeInstance;
   graph: WorkflowGraph;
   catalog: NodeCatalog;
@@ -337,14 +361,19 @@ function MemberPin({
 
 /** A static config leaf whose value is a pinned resource, edited through a picker. */
 function ResourcePin({
+  nodeId,
+  actionAlias,
   kind,
   schema,
   label,
   value,
   error,
   disabled,
+  pinsColumns,
   onChange,
 }: {
+  nodeId: Uuid;
+  actionAlias?: string;
   kind: ResourceKind;
   schema: Schema;
   /** The field's own title, for a picker that labels its control; its own label when none. */
@@ -352,8 +381,19 @@ function ResourcePin({
   value: unknown;
   error?: string;
   disabled?: boolean;
+  /** For a table: whether the step reads the columns its ref narrows to. */
+  pinsColumns: boolean;
   onChange: (value: unknown) => void;
 }) {
+  const requiresReview = useWorkflowEditorStore((state) =>
+    state.tableDrift.some(
+      (entry) =>
+        entry.nodeId === nodeId &&
+        entry.site.binding === null &&
+        entry.site.action === actionAlias &&
+        entry.requiresReview,
+    ),
+  );
   if (kind === "group") {
     return <GroupPicker selected={idList(value)} onChange={onChange} disabled={disabled} />;
   }
@@ -386,6 +426,8 @@ function ResourcePin({
         disabled={disabled}
         error={error}
         storedOnly={schema["x-columns"] === "stored"}
+        pinsColumns={pinsColumns}
+        requiresReview={requiresReview}
       />
     );
   }
@@ -493,12 +535,15 @@ function ConfigLeaf({
       <div className="space-y-1.5">
         {!labelled && <Label>{label}</Label>}
         <ResourcePin
+          nodeId={ctx.node.id}
+          actionAlias={ctx.actionAlias}
           kind={resource}
           schema={schema}
           label={ownTitle(schema, name)}
           value={value}
           error={error}
           disabled={ctx.disabled}
+          pinsColumns={!FILTER_ONLY_TABLE_STEPS.has(ctx.node.definition_id)}
           onChange={onChange}
         />
       </div>
@@ -536,7 +581,7 @@ function ConfigLeaf({
     );
   }
 
-  if (isBindable(schema)) {
+  if (!ctx.actionAlias && isBindable(schema)) {
     return (
       <BindingField
         targetNodeId={ctx.node.id}
@@ -559,7 +604,7 @@ function ConfigLeaf({
     <SchemaForm
       schema={singleFieldSchema(name, schema, required)}
       value={value === undefined ? {} : { [name]: value }}
-      idPrefix={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
+      idPrefix={`cfg-${ctx.actionAlias ? ctx.actionAlias + "-" : ""}${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
       disabled={ctx.disabled}
       errors={error === undefined ? undefined : { [name]: error }}
       onChange={(next) => onChange(next[name])}
@@ -623,18 +668,27 @@ function ConfigCode({
 }) {
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const field = bindingFieldPath(path);
-  const id = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+  const id = `cfg-${ctx.actionAlias ? ctx.actionAlias + "-" : ""}${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
   const error = ctx.errors.get(field);
   const label = labelOf(schema, name);
   const description = schema["description"];
   // A description that only says the label again is its hover hint instead.
   const hinted = typeof description === "string" && repeatsLabel(label, description);
   const placeholder = schema["x-placeholder"];
+  const pythonActions = ctx.node.definition_id === "code.python.actions";
+  const argKeys = ctx.actionAlias ? [] : argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id);
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} title={hinted ? description : undefined}>
         {label}
       </Label>
+      {pythonActions && (
+        <PythonActionsGuide
+          catalog={ctx.catalog}
+          value={record(ctx.node.config.actions)}
+          argKeys={argKeys}
+        />
+      )}
       <CodeEditor
         id={id}
         language={language}
@@ -643,7 +697,13 @@ function ConfigCode({
         onChange={(next) => onChange(next === "" ? undefined : next)}
         placeholder={typeof placeholder === "string" ? placeholder : undefined}
         disabled={ctx.disabled}
-        argKeys={argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
+        compact={pythonActions}
+        actionCalls={
+          ctx.node.definition_id === "code.python.actions"
+            ? pythonCallOptions(ctx.catalog, record(ctx.node.config.actions))
+            : undefined
+        }
+        argKeys={argKeys}
       />
       {typeof description === "string" && !hinted && (
         <p className="text-muted-foreground text-xs">{description}</p>
@@ -810,21 +870,68 @@ function ConfigArray({
               </Button>
             </div>
           </div>
-          {fields.map((child) => (
-            <ConfigNode
-              key={child.name}
-              schema={child.schema}
-              name={child.name}
-              required={child.required}
-              path={[...path, index, child.name]}
-              defs={defs}
-              ctx={ctx}
-              value={record(row)[child.name]}
-              onChange={(next) =>
-                onChange(replaceAt(rows, index, setKey(record(row), child.name, next)))
-              }
-            />
-          ))}
+          {fields.map((child) => {
+            const childPath = [...path, index, child.name];
+            const childValue = record(row)[child.name];
+            const childChange = (next: unknown) =>
+              onChange(replaceAt(rows, index, setKey(record(row), child.name, next)));
+            const node = (
+              <ConfigNode
+                key={child.name}
+                schema={child.schema}
+                name={child.name}
+                required={child.required}
+                path={childPath}
+                defs={defs}
+                ctx={ctx}
+                value={childValue}
+                onChange={childChange}
+              />
+            );
+            if (prefix.join("/") !== "filters") return node;
+            const field = bindingFieldPath(childPath);
+            const fieldId = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+            const tableId = strOrNull(record(ctx.node.config["table"])["table_id"]);
+            if (child.name === "column_id") {
+              return (
+                <FilterColumnField
+                  key={child.name}
+                  id={fieldId}
+                  tableId={tableId}
+                  value={childValue}
+                  error={ctx.errors.get(field)}
+                  disabled={ctx.disabled}
+                  // Another column starts the row afresh: the old operator or
+                  // operand may not suit it, and would stay where nobody sees it.
+                  onPick={(column) => {
+                    const { value: operand, ...fresh } = newFilter(column);
+                    onChange(
+                      replaceAt(
+                        rows,
+                        index,
+                        operand === null ? fresh : { ...fresh, value: operand },
+                      ),
+                    );
+                  }}
+                />
+              );
+            }
+            if (child.name !== "value") return node;
+            return (
+              <FilterValueField
+                key={child.name}
+                id={fieldId}
+                tableId={tableId}
+                columnId={record(row)["column_id"]}
+                op={record(row)["op"]}
+                value={childValue}
+                error={ctx.errors.get(field)}
+                disabled={ctx.disabled}
+                fallback={node}
+                onChange={childChange}
+              />
+            );
+          })}
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" disabled={ctx.disabled} onClick={add}>
@@ -1102,7 +1209,7 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
           onRemove={ctx.removeBinding}
         />
         {legacy && (
-          <details>
+          <NativeDisclosure>
             <summary className="text-muted-foreground cursor-pointer text-xs">{label}</summary>
             <div className="space-y-3 pt-3">
               {shape.entries.map((child) => (
@@ -1115,7 +1222,7 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
                 />
               ))}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
       </div>
     );
@@ -1162,6 +1269,8 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
 }
 
 export interface NodeFormProps {
+  /** Allows a problem link to open the named Python action. */
+  editingAction?: ActionEditorSelection;
   definition: NodeDefinition;
   node: NodeInstance;
   graph: WorkflowGraph;
@@ -1209,7 +1318,10 @@ function NodeFields({
   upsertBinding,
   removeBinding,
   toolSchema,
+  editingAction,
+  actionAlias,
 }: NodeFormProps & {
+  actionAlias?: string;
   /** An MCP tool's argument schema, drawn as one field per argument; null elsewhere. */
   toolSchema: Record<string, unknown> | null;
 }) {
@@ -1219,6 +1331,7 @@ function NodeFields({
   const [revealed, setRevealed] = useState<ReadonlySet<string> | null>(null);
   const allShown = revealed !== null;
   const ctx: FieldCtx = {
+    actionAlias,
     node,
     graph,
     catalog,
@@ -1230,6 +1343,20 @@ function NodeFields({
     removeBinding,
   };
 
+  if (definition.id === WEBHOOK_TRIGGER) {
+    return (
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm">{t("webhookSourceAudience")}</p>
+        <SourceSelector
+          value={typeof node.config.source_id === "string" ? node.config.source_id : null}
+          allowDedicated
+          unconfigured={node.config.require_source === true}
+          disabled={disabled}
+          onChange={(source) => updateNodeConfig(node.id, { source_id: source?.id ?? null })}
+        />
+      </div>
+    );
+  }
   if (definition.id === SCHEDULE_TRIGGER) {
     return (
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
@@ -1269,7 +1396,7 @@ function NodeFields({
   }
 
   const configSchema = definition.config_schema;
-  const inputSchema = definition.input_schema;
+  const inputSchema = actionAlias ? null : definition.input_schema;
   const configFields =
     configSchema === null ? [] : objectFields(configSchema, defsOf(configSchema));
   // An MCP tool's arguments, once its schema is known, are one field per
@@ -1320,7 +1447,7 @@ function NodeFields({
     (definition.id === "flow.await_reply" && ["provider", "connection_id"].includes(name)) ||
     (agentStep && name === AGENT_INLINE) ||
     (mcpStep && name === MCP_TOOL) ||
-    (definition.id === "email.send" && name === "smtp_secret_id") ||
+    (!actionAlias && definition.id === "email.send" && name === "smtp_secret_id") ||
     (profiledDecision &&
       ["secret_id", "model"].includes(name) &&
       node.config.secret_id === undefined);
@@ -1405,6 +1532,11 @@ function NodeFields({
   return (
     <div className="space-y-6">
       {account !== undefined && <PortalAccount account={account} />}
+      {!actionAlias && definition.id === "code.python.simple" && (
+        <p className="text-muted-foreground text-xs" data-tour="workflow-python-actions">
+          {t("pythonActionsDiscover")}
+        </p>
+      )}
       {definition.id === "flow.await_reply" && (
         <ReplyMailboxPicker
           value={node.config.connection_id}
@@ -1412,7 +1544,10 @@ function NodeFields({
           onChange={(changes) => updateNodeConfig(node.id, { ...node.config, ...changes })}
         />
       )}
-      {definition.id === HTTP_REQUEST && (
+      {definition.id === DATA_VALUE && (
+        <p className="text-muted-foreground text-xs">{t("dataValueSetOnce")}</p>
+      )}
+      {!actionAlias && definition.id === HTTP_REQUEST && (
         <CurlImport
           node={node}
           disabled={disabled ?? false}
@@ -1433,8 +1568,55 @@ function NodeFields({
           />
         ) : (
           // Named for the dialog, which says a missing value once its field was left.
-          <div key={`config:${entry.name}`} data-field={entry.name}>
-            {agentStep && entry.name === AGENT_SOURCE ? (
+          <div
+            key={`config:${entry.name}`}
+            data-field={actionAlias ? `actions/${actionAlias}/config/${entry.name}` : entry.name}
+          >
+            {definition.id === "code.python.actions" && entry.name === "actions" ? (
+              <PythonActions
+                editingAction={editingAction}
+                schema={entry.schema}
+                catalog={catalog}
+                value={record(node.config.actions)}
+                disabled={disabled}
+                onChange={(actions) => updateNodeConfig(node.id, { ...node.config, actions })}
+                renderConfig={(alias, action, config, change) => (
+                  <NodeFields
+                    key={alias}
+                    definition={action}
+                    node={{
+                      ...node,
+                      definition_id: action.id,
+                      definition_version: action.version,
+                      config,
+                    }}
+                    graph={graph}
+                    catalog={catalog}
+                    bindings={[]}
+                    errors={
+                      new Map(
+                        [...errors]
+                          .map(
+                            ([key, error]) =>
+                              [key.replace(/^config[./]/, "").replaceAll(".", "/"), error] as const,
+                          )
+                          .filter(([key]) => key.startsWith(`actions/${alias}/config/`))
+                          .map(([key, error]) => [
+                            key.slice(`actions/${alias}/config/`.length),
+                            error,
+                          ]),
+                      )
+                    }
+                    disabled={disabled}
+                    updateNodeConfig={(_, next) => change(next)}
+                    upsertBinding={upsertBinding}
+                    removeBinding={removeBinding}
+                    toolSchema={null}
+                    actionAlias={alias}
+                  />
+                )}
+              />
+            ) : agentStep && entry.name === AGENT_SOURCE ? (
               <AgentSourceField
                 config={node.config}
                 error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
@@ -1481,7 +1663,13 @@ function NodeFields({
               <ConfigNode
                 schema={entry.schema}
                 name={entry.name}
-                required={entry.required}
+                required={
+                  entry.required &&
+                  !(
+                    actionAlias &&
+                    isPythonConfigInput(entry.schema, entry.name, definition.input_schema)
+                  )
+                }
                 path={[entry.name]}
                 defs={configDefs}
                 ctx={ctx}

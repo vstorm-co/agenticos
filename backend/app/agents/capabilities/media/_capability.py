@@ -139,7 +139,7 @@ async def restore_stored_media(
 async def offloaded_history(
     capabilities: list[Any], messages: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """The compacted history to store, offloaded if the agent asked for it.
+    """A model-history checkpoint to store, offloaded if the agent asked for it.
 
     Read off the built agent's capability list rather than passed down, the way
     the context gauge already is: the surface that persists the turn is the one

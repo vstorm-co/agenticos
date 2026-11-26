@@ -70,6 +70,13 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-revoke",
             "allow-local-files",
             "allow-local-file",
+            "allow-external-agents",
+            "allow-external-save-agent",
+            "allow-external-muse-account",
+            "allow-external-cli-account",
+            "allow-external-cancel-muse-account",
+            "allow-external-remove-agent",
+            "allow-external-agent-options",
             "allow-local-agents",
             "allow-local-agent-prepare",
             "allow-local-agent-options",
@@ -352,6 +359,7 @@ mod tests {
             "allow-download-docker",
             "allow-open-docker",
             "allow-local-instances",
+            "allow-update-local",
             "allow-set-up-local",
         ] {
             assert!(permissions.iter().any(|value| value.as_str() == Some(permission)));
@@ -406,6 +414,13 @@ mod tests {
     #[test]
     fn local_agent_and_skill_commands_are_available_only_to_the_main_console() {
         for permission in [
+            "allow-external-agents",
+            "allow-external-save-agent",
+            "allow-external-muse-account",
+            "allow-external-cli-account",
+            "allow-external-cancel-muse-account",
+            "allow-external-remove-agent",
+            "allow-external-agent-options",
             "allow-local-agents",
             "allow-local-agent-prepare",
             "allow-local-agent-options",

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ListFilter, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -269,8 +269,9 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
     test === "1" ||
     searched !== "";
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListCard
+        fill
         namedByPage
         title={t("logsTitle")}
         // Nothing to count while the read is failing: a number there would be a claim.
@@ -355,6 +356,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
         ) : (
           <>
             <DataTable
+              fillHeight
               columns={columns}
               rows={entries}
               getRowKey={(entry) => entry.id}
@@ -370,13 +372,16 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
                 )
               }
             />
-            <PaginationBar
-              page={page}
-              pageSize={LOG_PAGE}
-              total={total}
-              isLoading={isLoading}
-              onPage={(next) => setPage(next === 0 ? null : String(next))}
-            />
+            <div className="mt-auto shrink-0 pt-4">
+              <PaginationBar
+                showSinglePage
+                page={page}
+                pageSize={LOG_PAGE}
+                total={total}
+                isLoading={isLoading}
+                onPage={(next) => setPage(next === 0 ? null : String(next))}
+              />
+            </div>
           </>
         )}
       </ListCard>

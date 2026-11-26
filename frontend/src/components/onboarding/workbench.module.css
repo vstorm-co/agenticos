@@ -573,24 +573,25 @@
 .primaryAction:active {
   background: color-mix(in oklab, var(--task-colour) 96%, black);
 }
-/* MotionProvider resolves both the app preference and the system preference. */
-:global(html:not([data-motion="reduce"])) .intro {
-  animation: workspace-arrive 280ms ease-out both;
-}
-:global(html:not([data-motion="reduce"])) .canvasHeader,
-:global(html:not([data-motion="reduce"])) .documentBody {
-  animation: workspace-arrive 200ms ease-out both;
-}
-:global(html:not([data-motion="reduce"])) .choice {
-  transition:
-    background 160ms,
-    border-color 160ms;
-}
-:global(html:not([data-motion="reduce"])) .primaryAction svg {
-  transition: transform 160ms ease-out;
-}
-:global(html:not([data-motion="reduce"])) .primaryAction:hover svg:last-child {
-  transform: translateX(3px);
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-motion="reduce"])) .intro {
+    animation: workspace-arrive 280ms ease-out both;
+  }
+  :global(html:not([data-motion="reduce"])) .canvasHeader,
+  :global(html:not([data-motion="reduce"])) .documentBody {
+    animation: workspace-arrive 200ms ease-out both;
+  }
+  :global(html:not([data-motion="reduce"])) .choice {
+    transition:
+      background 160ms,
+      border-color 160ms;
+  }
+  :global(html:not([data-motion="reduce"])) .primaryAction svg {
+    transition: transform 160ms ease-out;
+  }
+  :global(html:not([data-motion="reduce"])) .primaryAction:hover svg:last-child {
+    transform: translateX(3px);
+  }
 }
 :global(html[data-motion="reduce"]) .choice {
   transition: none;

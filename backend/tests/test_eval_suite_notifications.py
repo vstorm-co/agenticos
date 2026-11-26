@@ -1,5 +1,6 @@
 """What the owner of a failing suite is told: which suite, on what, why, and which cases."""
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -11,7 +12,7 @@ from app.db.models.agent import Agent
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.schemas.eval_suite import EvalSuiteSummary, FailingCase, ThresholdReason
 from app.schemas.scoring import ReviewReevaluation
-from app.services.notifications import NotificationService, _suite_summary
+from app.services.notifications import NotificationService, _suite_summary, _suite_wording
 
 pytestmark = pytest.mark.anyio
 
@@ -90,6 +91,42 @@ def test_each_reason_is_said_in_words(reason: ThresholdReason, said: str) -> Non
     suite, result, agent = _rows(status="failed")
 
     assert f": {said}." in _suite_summary(suite, result, agent=agent, summary=summary)
+
+
+def test_a_failure_keeps_its_reasons_and_cases_for_the_console_to_word() -> None:
+    summary = EvalSuiteSummary(
+        pass_rate=0.4,
+        first_pass_rate=0.4,
+        cases=10,
+        reasons=[ThresholdReason(code="pass_rate_below", value=0.4, limit=0.8)],
+        failing_cases=_failing(7),
+    )
+    _suite, result, _agent = _rows(status="failed")
+
+    worded = _suite_wording(result, summary)
+
+    assert worded["wording"] == "eval_suite_failed"
+    assert json.loads(str(worded["reasons"])) == [
+        {"code": "pass_rate_below", "value": 0.4, "limit": 0.8, "detail": None}
+    ]
+    assert worded["version"] == 7
+    assert worded["cases"] == "'Question 0', 'Question 1', 'Question 2', 'Question 3', 'Question 4'"
+    assert worded["more_cases"] == 2
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [("passed", "Ran uncompared."), ("cancelled", None), ("failed", "Below its threshold.")],
+)
+def test_a_line_with_english_of_its_own_is_not_worded_by_the_console(
+    status: str, message: str | None
+) -> None:
+    summary = EvalSuiteSummary(
+        pass_rate=0.4, first_pass_rate=0.4, cases=10, reasons=[], message=message
+    )
+    _suite, result, _agent = _rows(status=status)
+
+    assert _suite_wording(result, summary) == {}
 
 
 def test_an_undecided_result_names_the_cases_left_undecided() -> None:

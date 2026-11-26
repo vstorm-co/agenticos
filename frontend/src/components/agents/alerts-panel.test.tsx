@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,7 +33,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 function mount(value: NotificationSpec | undefined = DEFAULT_NOTIFICATIONS, disabled = false) {
   const onChange = vi.fn();
-  render(<AlertsPanel value={value} onChange={onChange} disabled={disabled} />, { wrapper });
+  renderEditor(<AlertsPanel value={value} onChange={onChange} disabled={disabled} />, { wrapper });
   return { onChange };
 }
 
@@ -71,9 +71,12 @@ describe("the alerts panel", () => {
 
   it("offers a system agent no approval alert, since nothing it runs waits on one", () => {
     const onChange = vi.fn();
-    render(<AlertsPanel value={DEFAULT_NOTIFICATIONS} onChange={onChange} approvals={false} />, {
-      wrapper,
-    });
+    renderEditor(
+      <AlertsPanel value={DEFAULT_NOTIFICATIONS} onChange={onChange} approvals={false} />,
+      {
+        wrapper,
+      },
+    );
 
     expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
@@ -249,4 +252,34 @@ it("saves selected notification groups without changing the people audience", as
   await userEvent.click(screen.getByRole("checkbox", { name: "Finance" }));
   expect(saved(onChange).approvals.group_ids).toEqual(["finance"]);
   expect(saved(onChange).approvals.user_ids).toEqual(["u-1"]);
+});
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}
+
+it("summarizes enabled alerts without exposing the audience matrix initially", () => {
+  renderBase(<AlertsPanel value={DEFAULT_NOTIFICATIONS} onChange={vi.fn()} />, { wrapper });
+  expect(screen.getByText("2 notifications enabled")).toBeVisible();
+  expect(screen.queryByRole("switch", { name: "Budget alerts" })).not.toBeVisible();
+});
+
+it("keeps a removed alert recipient visible and removable", async () => {
+  const { onChange } = mount(withChosen(["removed-user"]));
+  expect(screen.getByText("removed-user")).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Approval requests: remove removed-user" }),
+  );
+  expect(saved(onChange).approvals.user_ids).toEqual([]);
+});
+it("uses the notification defaults for an unsaved spec", () => {
+  renderEditor(<AlertsPanel value={undefined} onChange={vi.fn()} />, { wrapper });
+  expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeChecked();
 });

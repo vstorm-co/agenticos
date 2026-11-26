@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from app.db.models.case_score import CaseScore
     from app.db.models.dataset import Dataset, DatasetCase
     from app.db.models.eval_run import EvalRunArm, EvalRunCase
+    from app.schemas.authoring import AuthoringFailure
 
 
 async def create_request(
@@ -146,7 +147,13 @@ async def update_request(
 
 
 async def fail_unfinished(
-    db: AsyncSession, request_id: UUID, *, organization_id: UUID, error: str, now: datetime
+    db: AsyncSession,
+    request_id: UUID,
+    *,
+    organization_id: UUID,
+    error: str,
+    error_code: AuthoringFailure,
+    now: datetime,
 ) -> bool:
     """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome.
 
@@ -173,7 +180,13 @@ async def fail_unfinished(
                 (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value)
             ),
         )
-        .values(status=AuthoringStatus.FAILED.value, error=error, finished_at=now)
+        .values(
+            status=AuthoringStatus.FAILED.value,
+            error=error,
+            error_code=error_code,
+            error_params=None,
+            finished_at=now,
+        )
         .returning(AuthoringRequest.id)
     )
     return result.scalar_one_or_none() is not None
@@ -778,6 +791,13 @@ async def train_answers(
 ) -> list[TrainAnswer]:
     """Only current, non-erased training revisions; holdout content never enters this result.
 
+    Only answers the agent itself gave, as a version or its draft: a spec an
+    improvement attempt proposed is not what the agent is, and one that was
+    rejected never becomes it. So a check of a proposal gives only its baseline's
+    answers - its candidate ran the proposed change, a suggested spec or a skill or
+    context file body - and a knowledge check gives none: its baseline is an
+    attempt's projected candidate.
+
     `case_ids` are an improvement attempt's own learning questions, in place of the
     dataset's stored partition. `until` leaves out runs from that moment on.
     """
@@ -815,7 +835,15 @@ async def train_answers(
             EvalRun.status == "completed",
             EvalRun.created_at >= since,
             EvalRun.created_at < until if until is not None else true(),
-            EvalRunArm.role == "candidate",
+            or_(
+                and_(EvalRun.proposal_check.is_(None), EvalRunArm.role == "candidate"),
+                and_(
+                    EvalRun.proposal_check.is_not(None),
+                    EvalRun.proposal_check["knowledge"].astext.is_(None),
+                    EvalRunArm.role == "baseline",
+                ),
+            ),
+            EvalRunArm.source != "explicit",
             EvalRunCase.attempt == 0,
         )
         .order_by(EvalRun.created_at.desc(), EvalRunCase.position, EvalRunCase.id)

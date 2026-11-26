@@ -1,3 +1,4 @@
+import type { RoutineSourceMode } from "@/lib/routine-sources-api";
 import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
@@ -85,7 +86,9 @@ export interface Trigger {
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   /** When the routine stops by itself; null runs until stopped (#2575). */
@@ -116,13 +119,14 @@ export interface Trigger {
   event_source: EventSource | null;
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
+  source_id?: string | null;
   prompt: string;
   /** Null on an event trigger, which has no scheduled next fire. */
   next_fire_at: string | null;
   last_fired_at: string | null;
   /** Last console delivery; null until a fire records it. */
   last_delivery_status?:
-    "delivered" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
+    "delivered" | "pending" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
   last_run_id: string | null;
   /** The one run-log conversation every fire appends to, opened eagerly on create. */
   conversation_id: string | null;
@@ -162,14 +166,18 @@ export interface TriggerList {
  * `event_config` and `event_secret`. The secret is sent once, on create, and never
  * returned - the server seals it and only its ciphertext is stored.
  */
-/** Where a fire's answer is delivered to its person: their own chat with the agent, one chosen chat, or only the log. */
+/** Independent editable execution chats or one read-only shared history. */
+export type RoutineChatMode = "per_run" | "shared";
+
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  source_mode?: RoutineSourceMode;
   review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
+  source_id?: string | null;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
   name?: string | null;
@@ -177,7 +185,9 @@ export interface TriggerCreate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
@@ -233,6 +243,7 @@ export interface TriggerCreated extends Trigger {
 export interface TriggerUpdate {
   max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
+  source_id?: string | null;
   prompt?: string;
   name?: string | null;
   schedule_kind?: ScheduleKind;
@@ -244,7 +255,9 @@ export interface TriggerUpdate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
@@ -277,3 +290,24 @@ export interface TriggerAttemptList {
 export interface TriggerActivationStatus {
   state: "pending" | "recorded" | "not_started";
 }
+
+export interface TriggerFilteredEventRead {
+  last_event: {
+    received_at: string;
+    reason:
+      | "event"
+      | "action"
+      | "bot"
+      | "ignored_login"
+      | "author"
+      | "draft"
+      | "branch"
+      | "mention"
+      | "conclusion"
+      | "not_branch";
+    authors: "members" | "contributors" | "anyone";
+  } | null;
+}
+
+/** Legacy stored delivery marker; Inbox publication is now an MCP operation. */
+export type RoutineResultMode = "report" | "inbox";

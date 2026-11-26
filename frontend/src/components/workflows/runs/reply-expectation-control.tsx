@@ -43,7 +43,7 @@ export function ReplyExpectationControl({
         </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent data-workflow-fields>
           <DialogHeader>
             <DialogTitle>{t("replyEdit")}</DialogTitle>
           </DialogHeader>

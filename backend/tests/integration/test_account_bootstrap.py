@@ -38,9 +38,10 @@ async def test_simultaneous_signup_claims_exactly_one_administrator(
                 service = UserService(session)
                 email = f"signup-{index}@example.com"
                 if oauth and index == 0:
-                    user = await service.get_or_create_oauth_user(
+                    account = await service.get_or_create_oauth_account(
                         provider="google", provider_id="first", email=email
                     )
+                    user = account.user
                 else:
                     user = await service.register(UserCreate(email=email, password="password123"))
                 await session.commit()
@@ -74,10 +75,10 @@ async def test_first_oauth_account_gets_bootstrap_authority_on_a_closed_deployme
         patch("app.services.user.OrganizationService.settle_new_account", AsyncMock()),
         patch.object(UserService, "_queue_welcome", AsyncMock()),
     ):
-        user = await UserService(db).get_or_create_oauth_user(
+        account = await UserService(db).get_or_create_oauth_account(
             provider="google", provider_id="first", email="owner@example.com"
         )
-    assert user.is_app_admin
+    assert account.user.is_app_admin
 
 
 async def test_a_rolled_back_bootstrap_leaves_the_next_account_eligible(

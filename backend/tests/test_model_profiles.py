@@ -8,6 +8,7 @@ agent run.
 """
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
@@ -48,12 +49,14 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
     seal_secret,
 )
 from app.core.vault import VaultScope
 from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
+from app.services.chatgpt_plan import VaultChatGPTCredentials
 from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -118,6 +121,13 @@ def secret_for(spec: ProviderSpec):
             aws_secret_access_key="aws-secret",
             region_name="us-east-1",
         )
+    if spec.secret_kind is SecretKind.OPENAI_CHATGPT:
+        return OpenAIChatGPTSecret(
+            client_id="test-client",
+            access_token="test-access-token",
+            refresh_token="test-refresh-token",
+            scope="chatgpt.tokens.use.direct",
+        )
     if spec.secret_kind is SecretKind.OPENAI_CODEX:
         return codex_secret()
     return GcpServiceAccountSecret(service_account_json=service_account_json())
@@ -135,6 +145,7 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
     value = secret if secret is not None else ApiKeySecret(api_key="sk-test-abcd1234")
     credential = MagicMock()
     credential.id = uuid.uuid4()
+    credential.authorization_generation = uuid.uuid4()
     credential.organization_id = ctx.organization_id
     credential.provider = provider
     credential.label = f"{provider} key"
@@ -204,6 +215,174 @@ def _db():
 
 
 class TestProviderCatalog:
+    def test_minimax_does_not_accept_a_keyless_profile(self) -> None:
+        with pytest.raises(BadRequestError, match="MiniMax requires a vault API key"):
+            build_model(ResolvedCredential(provider="minimax", secret=NoSecret()), "MiniMax-M3")
+
+    @pytest.mark.anyio
+    async def test_minimax_completes_a_tool_round_trip_on_its_compatible_api(self) -> None:
+        from pydantic_ai import Agent
+
+        requests: list[httpx2.Request] = []
+
+        def lookup() -> str:
+            return "verified lookup result"
+
+        def respond(request: httpx2.Request) -> httpx2.Response:
+            requests.append(request)
+            message = (
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                }
+                if len(requests) == 1
+                else {"role": "assistant", "content": "Lookup completed"}
+            )
+            return httpx2.Response(
+                200,
+                json={
+                    "id": "minimax-response",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "MiniMax-M3.1-Flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls" if len(requests) == 1 else "stop",
+                            "message": message,
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                },
+            )
+
+        model = build_model(
+            ResolvedCredential(provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")),
+            "MiniMax-M3.1-Flash",
+        )
+        assert isinstance(model, OpenAIChatModel)
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
+            model._provider._client = model.client.with_options(http_client=client, max_retries=0)
+            result = await Agent(model, tools=[lookup]).run("Look up the result")
+        assert result.output == "Lookup completed"
+        assert len(requests) == 2
+        assert all(str(r.url) == "https://api.minimax.io/v1/chat/completions" for r in requests)
+        assert all(r.headers["Authorization"] == "Bearer minimax-plan-key" for r in requests)
+        assert b"verified lookup result" in requests[1].content
+        assert result.response.provider_name == "minimax"
+
+    @pytest.mark.parametrize(
+        ("provider", "default"),
+        [
+            ("kimi_code", "https://api.kimi.ai/coding/v1/"),
+            ("alibaba_coding_plan", "https://coding-intl.dashscope.aliyuncs.com/v1/"),
+            ("opencode_go", "https://opencode.ai/inference/go/openai/v1/"),
+            ("ollama_cloud", "https://ollama.com/v1/"),
+            ("cliproxyapi", "http://cliproxyapi:8317/v1/"),
+            ("nous_portal", "https://inference-api.nousresearch.com/v1/"),
+            ("inception", "https://api.inceptionlabs.ai/v1/"),
+            ("cline", "https://api.cline.bot/api/v1/"),
+            ("chutes", "https://llm.chutes.ai/v1/"),
+            ("synthetic", "https://api.synthetic.new/openai/v1/"),
+        ],
+    )
+    def test_subscription_plan_keys_reach_their_plans_endpoint_under_their_own_identity(
+        self, provider: str, default: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.agents.model_resolver import PROVIDERS
+        from app.services.model_catalog import CUSTOM_LISTINGS, LISTINGS
+
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        model = build_model(
+            ResolvedCredential(provider=provider, secret=ApiKeySecret(api_key="plan-key")), "m"
+        )
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == default and model.client.api_key == "plan-key"
+        assert model.system == provider
+        regional = build_model(
+            ResolvedCredential(
+                provider=provider,
+                secret=ApiKeySecret(api_key="plan-key"),
+                base_url="https://regional.example/v1",
+            ),
+            "m",
+        )
+        assert str(regional.client.base_url) == "https://regional.example/v1/"
+        assert LISTINGS[provider].auth_template == "Bearer {key}"
+        assert CUSTOM_LISTINGS[provider] is True
+        with pytest.raises(
+            BadRequestError, match=re.escape(f"{PROVIDERS[provider].name} requires a vault")
+        ):
+            build_model(ResolvedCredential(provider=provider, secret=NoSecret()), "m")
+
+    def test_plan_usage_is_never_priced_as_metered_api_tokens(self) -> None:
+        from pydantic_ai.usage import RequestUsage
+
+        from app.agents.capabilities.budget._capability import price_request
+
+        usage = RequestUsage(input_tokens=1000, output_tokens=1000)
+        for provider in (
+            "kimi_code",
+            "alibaba_coding_plan",
+            "opencode_go",
+            "ollama_cloud",
+            "cliproxyapi",
+        ):
+            assert price_request(usage, "qwen3-coder-plus", provider) is None
+
+    def test_minimax_uses_its_own_history_identity_and_selected_key(self) -> None:
+        credential = ResolvedCredential(
+            provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimax.io/v1/"
+        assert model.client.api_key == "minimax-plan-key"
+        assert model.system == "minimax"
+        assert model._provider.canonical_system == "minimax"
+
+    def test_minimax_custom_endpoint_is_used_without_openai_credentials(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        credential = ResolvedCredential(
+            provider="minimax",
+            secret=ApiKeySecret(api_key="regional-plan-key"),
+            base_url="https://api.minimaxi.com/v1",
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimaxi.com/v1/"
+        assert model.client.api_key == "regional-plan-key"
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        ["https://api.z.ai/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4"],
+    )
+    def test_zai_coding_plan_keeps_the_selected_endpoint(self, endpoint: str) -> None:
+        assert PROVIDERS["zai"].supports_base_url
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="coding-plan-key"), base_url=endpoint
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == endpoint + "/"
+
+    def test_zai_without_an_endpoint_keeps_pay_per_token_api(self) -> None:
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="regular-api-key")
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.z.ai/api/paas/v4/"
+
     @pytest.mark.parametrize("provider_id", sorted(PROVIDERS))
     def test_every_selectable_provider_actually_builds_a_model(self, provider_id):
         """The invariant a hand-written registry used to give, kept after inference.
@@ -217,13 +396,24 @@ class TestProviderCatalog:
         # OpenRouter is the one provider that rejects a bare model id, and does
         # so in the constructor rather than at request time.
         model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
+        # A subscription-accounts credential reaches a client only once bound
+        # to a person's gateway scope, as a key and an endpoint.
         credential = ResolvedCredential(
             provider=provider_id,
-            secret=secret_for(spec),
-            base_url="https://gateway.example.com" if spec.supports_base_url else None,
+            secret=ApiKeySecret(api_key="gateway-token")
+            if spec.personal_gateway
+            else secret_for(spec),
+            base_url="https://gateway.example.com"
+            if spec.supports_base_url or spec.personal_gateway
+            else None,
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),
+            chatgpt_source=VaultChatGPTCredentials(
+                organization_id=uuid.uuid4(), secret_id=uuid.uuid4(), generation=uuid.uuid4()
+            )
+            if provider_id == "openai_chatgpt"
+            else None,
         )
         assert build_model(credential, model) is not None
 
@@ -362,12 +552,14 @@ class TestProviderCatalog:
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
         assert offering == {
             "openai": ("responses", "chat", "decisions"),
+            "openai_chatgpt": ("responses",),
             "google": ("chat", "decisions"),
             "openrouter": ("chat", "decisions"),
             "typesafe": ("decisions",),
             "system-one": ("decisions",),
             "azure": ("responses", "chat"),
             "stav": ("responses", "chat"),
+            "openai_compatible": ("chat",),
         }
 
     def test_only_stav_takes_its_api_from_the_model(self):
@@ -1318,13 +1510,18 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
-    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+    @pytest.mark.parametrize(
+        "provider,model", [("openai", "gpt-4o-mini-tts"), ("openai_chatgpt", "gpt-account")]
+    )
+    async def test_an_unsupported_fallback_is_left_out_of_the_chain(
+        self, provider: str, model: str
+    ):
         """A provider failure must not hand the conversation to a model that
         cannot hold one (#2487). Publish refuses such a fallback; this covers one
         added to the profile afterwards. A custom endpoint is unknown, so kept."""
         ctx = _ctx()
         secret = _vault_secret(ctx)
-        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        speech = _profile(ctx, secret, provider=provider, model=model)
         custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
         profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
 
@@ -1539,15 +1736,14 @@ class TestProviderLookup:
 
 def _vault_secret(ctx, purpose="openai", value=None):
     """A row of the vault, sealed the way the service will try to unseal it."""
-    sealed = seal_secret(
-        value or ApiKeySecret(api_key="sk-vault-abcd1234"),
-        scope=VaultScope.organization(ctx.organization_id),
-    )
+    value = value or ApiKeySecret(api_key="sk-vault-abcd1234")
+    sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
     secret = MagicMock()
     secret.id = uuid.uuid4()
+    secret.authorization_generation = uuid.uuid4()
     secret.organization_id = ctx.organization_id
     secret.purpose = purpose
-    secret.kind = SecretKind.API_KEY.value
+    secret.kind = value.kind.value
     secret.sealed_secret = sealed.ciphertext
     secret.hint = sealed.hint
     secret.key_version = sealed.key_version
@@ -1949,6 +2145,147 @@ class TestAnEndpointOfItsOwn:
         assert written["base_url"] == "http://localhost:11434/v1"
 
 
+class TestACustomEndpoint:
+    """A provider that is an API shape rather than a vendor.
+
+    The organization's own endpoint, reached at an address somebody types and a
+    key somebody stores. Two shapes are spoken in the wild: OpenAI's Chat
+    Completions and Anthropic's Messages. They are separate entries rather than
+    an `openai` or an `anthropic` profile with an endpoint, because the key is
+    the point - a key filed under a vendor names that vendor's public API, which
+    the organization never talks to.
+    """
+
+    def test_the_chat_completions_one_serves_chat_and_nothing_else(self):
+        spec = PROVIDERS["openai_compatible"]
+        assert spec.apis == ("chat",)
+        assert spec.default_api("https://models.example/v1") == "chat"
+        assert spec.requires_base_url
+        assert spec.keyless is False
+
+    def test_the_messages_one_serves_one_api_and_needs_an_endpoint(self):
+        spec = PROVIDERS["anthropic_compatible"]
+        assert spec.apis == ()
+        assert spec.default_api("https://models.example") is None
+        assert spec.requires_base_url
+        assert spec.keyless is False
+
+    def test_the_endpoint_carries_no_path_the_sdk_adds_itself(self):
+        """Anthropic's SDK posts to `<endpoint>/v1/messages`.
+
+        An endpoint that already ends in `/v1` would ask for `/v1/v1/messages`,
+        and the 404 names the path rather than the cause - so the platform trims
+        it, and an endpoint copied out of a provider's own documentation works as
+        written.
+        """
+        spec = PROVIDERS["anthropic_compatible"]
+        assert spec.endpoint("https://models.example/v1") == "https://models.example"
+        assert spec.endpoint("https://models.example/v1/") == "https://models.example"
+        assert spec.endpoint("https://models.example") == "https://models.example"
+        # A path that ends in something else is the server's own and is kept.
+        assert spec.endpoint("https://models.example/api/v1") == "https://models.example/api"
+
+    def test_the_chat_completions_one_keeps_the_endpoint_as_written(self):
+        """OpenAI's SDK takes the `/v1` root as the endpoint itself."""
+        spec = PROVIDERS["openai_compatible"]
+        assert spec.endpoint("https://models.example/v1") == "https://models.example/v1"
+
+    def test_the_chat_completions_one_runs_on_the_chat_completions_wrapper(self):
+        """The API shape is the whole point: a server that answers
+        `/chat/completions` and nothing else."""
+        credential = ResolvedCredential(
+            provider="openai_compatible",
+            secret=ApiKeySecret(api_key="sk-test-abcd1234"),
+            base_url="https://models.example/v1",
+        )
+        model = build_model(credential, "llama3.3")
+        assert type(model) is OpenAIChatModel
+        assert str(model.base_url) == "https://models.example/v1/"
+
+    @pytest.mark.anyio
+    async def test_a_custom_profile_needs_an_endpoint(self):
+        """There is no public API for it to fall back on."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Our gateway",
+                provider="openai_compatible",
+                model="llama3.3",
+                secret_id=uuid.uuid4(),
+            )
+        assert exc.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_the_endpoint_is_stored_as_the_sdk_will_use_it(self):
+        """The trimming happens on the way in, so what is stored is what the
+        client is built with - and what the form shows afterwards."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="anthropic_compatible")
+
+        with (
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.models_for",
+                new=AsyncMock(return_value=([], "unlisted")),
+            ),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx,
+                label="Our gateway",
+                provider="anthropic_compatible",
+                model="claude-sonnet-4-6",
+                secret_id=secret.id,
+                base_url="https://models.example/v1",
+            )
+
+        assert create.call_args.kwargs["base_url"] == "https://models.example"
+
+    @pytest.mark.anyio
+    async def test_a_custom_profile_is_listed_from_the_endpoint_it_names(self):
+        """The model list is the endpoint's own, read with the profile's key.
+
+        It is the only source of suggestions for a provider nobody else knows,
+        so the listing has to reach the endpoint rather than a vendor's API.
+        """
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="openai_compatible")
+
+        with (
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.models_for",
+                new=AsyncMock(return_value=([], "live")),
+            ) as listing,
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx,
+                label="Our gateway",
+                provider="openai_compatible",
+                model="llama3.3",
+                secret_id=secret.id,
+                base_url="https://models.example/v1",
+            )
+
+        assert listing.await_args.kwargs["base_url"] == "https://models.example/v1"
+        assert listing.await_args.kwargs["api_key"] is not None
+
+
 class TestTheApiAProfileUses:
     """Which of OpenAI's two APIs a profile's requests go to, stored on the profile.
 
@@ -2294,6 +2631,23 @@ class TestStavRegion:
             )
 
 
+class TestLlmtrEndpoint:
+    """LLMTR has no Pydantic AI provider of its own, so its endpoint is the platform's to set."""
+
+    def test_requests_go_to_llmtr_over_chat_completions(self):
+        credential = ResolvedCredential(
+            provider="llmtr", secret=ApiKeySecret(api_key="sk_llmtr_test")
+        )
+        model = build_model(credential, "llmtr/qwen3-8-27b")
+
+        from app.agents.llmtr import LlmtrModel
+
+        assert isinstance(model, LlmtrModel)
+        assert isinstance(model.wrapped, OpenAIChatModel)
+        # Inferred from `openai-chat` alone, the client would point at api.openai.com.
+        assert str(model.wrapped._provider.client.base_url) == "https://llmtr.com/v1/"
+
+
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize("region", ["eu", "eea", "global"])
@@ -2569,3 +2923,131 @@ def test_decision_only_and_google_gateway_defaults_name_their_supported_api():
     assert PROVIDERS["system-one"].default_api("http://localhost:1234") == "decisions"
     assert PROVIDERS["google"].default_api("http://localhost:1234") == "chat"
     assert PROVIDERS["openrouter"].default_api(None) == "chat"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("provider", ["openai", "azure", "bedrock", "google_cloud"])
+async def test_resolved_credentials_pin_identity_generation_and_actual_cloud_routing(
+    provider: str, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    ctx = _ctx()
+    value = secret_for(get_provider(provider))
+    row = _vault_secret(ctx, purpose=provider, value=value)
+    profile = _profile(ctx, row, provider=provider)
+    expected = {
+        "openai": {},
+        "azure": {"azure_endpoint": "https://demo.openai.azure.com", "api_version": "2024-10-21"},
+        "bedrock": {"region_name": "us-east-1"},
+        "google_cloud": {"project": "demo-project", "location": "us-central1"},
+    }[provider]
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        before = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+        assert before.credential_id == row.id
+        assert before.authorization_generation == row.authorization_generation
+        assert before.routing == expected
+        generation = uuid.uuid4()
+        row.authorization_generation = generation
+        after = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert after.credential_id == before.credential_id
+    assert after.authorization_generation == generation != before.authorization_generation
+    assert after.routing == before.routing
+    # Routing metadata must never carry the credential itself.
+    assert not set(after.routing).intersection(
+        {
+            "api_key",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "private_key",
+            "service_account_json",
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_fallback_resolution_keeps_its_own_vault_identity_and_generation():
+    ctx = _ctx()
+    primary_key = _vault_secret(ctx)
+    fallback_key = _vault_secret(ctx)
+    fallback = _profile(ctx, fallback_key, model="gpt-4o-mini")
+    primary = _profile(ctx, primary_key, fallbacks=[fallback.id])
+    secrets = {primary_key.id: primary_key, fallback_key.id: fallback_key}
+    with (
+        patch(
+            "app.services.model_profile.credential_repo.get_profile",
+            AsyncMock(return_value=primary),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={fallback.id: fallback}),
+        ),
+        patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            AsyncMock(side_effect=lambda db, secret_id, **kwargs: secrets[secret_id]),
+        ),
+    ):
+        resolved = await ModelProfileService(_db()).resolve(ctx, profile_id=primary.id)
+    assert resolved.credential.credential_id == primary_key.id
+    [(credential, model)] = resolved.fallbacks
+    assert model == fallback.model
+    assert credential.credential_id == fallback_key.id != resolved.credential.credential_id
+    assert credential.authorization_generation == fallback_key.authorization_generation
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("provider", ["azure", "bedrock", "google_cloud"])
+async def test_cloud_routing_changes_under_the_same_vault_identity_are_resolved(provider: str):
+    ctx = _ctx()
+    value = secret_for(get_provider(provider))
+    row = _vault_secret(ctx, purpose=provider, value=value)
+    profile = _profile(ctx, row, provider=provider)
+    if isinstance(value, AzureOpenAISecret):
+        changed = value.model_copy(update={"azure_endpoint": "https://other.openai.azure.com"})
+        field, destination = "azure_endpoint", "https://other.openai.azure.com"
+    elif isinstance(value, AwsCredentialsSecret):
+        changed = value.model_copy(update={"region_name": "eu-west-1"})
+        field, destination = "region_name", "eu-west-1"
+    else:
+        assert isinstance(value, GcpServiceAccountSecret)
+        changed = value.model_copy(update={"location": "europe-west4"})
+        field, destination = "location", "europe-west4"
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        before = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+        row.sealed_secret = seal_secret(
+            changed, scope=VaultScope.organization(ctx.organization_id)
+        ).ciphertext
+        after = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert before.credential_id == after.credential_id
+    assert before.base_url == after.base_url
+    assert after.routing[field] == destination != before.routing[field]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("stored", "environment", "expected"),
+    [
+        (None, None, "us-central1"),
+        (None, "europe-west4", "europe-west4"),
+        ("europe-west1", "europe-west4", "europe-west1"),
+    ],
+)
+async def test_vertex_routing_records_effective_sdk_location(
+    stored: str | None, environment: str | None, expected: str, monkeypatch: pytest.MonkeyPatch
+):
+    if environment is None:
+        monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", environment)
+    ctx = _ctx()
+    value = GcpServiceAccountSecret(service_account_json=service_account_json(), location=stored)
+    row = _vault_secret(ctx, purpose="google_cloud", value=value)
+    profile = _profile(ctx, row, provider="google_cloud")
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        resolved = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert resolved.routing == {"project": "demo-project", "location": expected}

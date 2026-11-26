@@ -190,6 +190,7 @@ export function Pager({
   onPage,
   counted,
   isLoading,
+  showSinglePage = false,
 }: {
   page: number;
   pageCount: number;
@@ -211,9 +212,10 @@ export function Pager({
    */
   counted: string;
   isLoading?: boolean;
+  showSinglePage?: boolean;
 }) {
   const t = useTranslations("ui");
-  if (matched === 0 || pageCount <= 1) return null;
+  if (!showSinglePage && (matched === 0 || pageCount <= 1)) return null;
 
   return (
     <div className="mt-auto flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -222,7 +224,7 @@ export function Pager({
       </p>
       <PageNavigation
         page={page}
-        pageCount={pageCount}
+        pageCount={Math.max(1, pageCount)}
         hasNext={page < pageCount - 1}
         isLoading={isLoading}
         onPage={onPage}

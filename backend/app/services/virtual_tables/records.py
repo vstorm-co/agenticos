@@ -939,6 +939,7 @@ class RecordOperations(Operations):
                 payload={"table_id": table_id, **data.model_dump(mode="json")},
                 outcome_type=RecordBatchResult,
                 action=lambda: self.create_records(ctx, table_id, data),
+                table_id=table_id,
             )
             # The stored outcome counts toward storage too, and a batch whose rows all
             # failed wrote nothing else that was checked.

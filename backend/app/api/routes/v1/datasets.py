@@ -15,10 +15,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
+from app.api.deps import Auth, CaseKeyDraftSvc, DatasetSvc, KeyCoverageSvc, ScoringSvc, require
 from app.api.public_api import ASSISTANT
 from app.api.responses import csv_response, jsonl_response
+from app.core.config import settings
 from app.core.permissions import Perm
+from app.schemas.case_key_draft import CaseKeyDraftRead
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
@@ -36,6 +38,7 @@ from app.schemas.dataset import (
     DatasetVersionList,
     DatasetVersionRead,
 )
+from app.schemas.key_coverage import KeyCoverageReportRead, KeyCoverageRequest
 from app.schemas.scoring import (
     CaseScoreCreate,
     CaseScoreList,
@@ -53,7 +56,6 @@ from app.schemas.scoring import (
     ReviewWithdrawn,
     ScoreOutcome,
 )
-from app.services.dataset_files import MAX_IMPORT_BYTES
 
 router = APIRouter()
 
@@ -147,7 +149,7 @@ async def list_review_queue(
     "",
     response_model=DatasetRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.DATASETS_EDIT))],
+    dependencies=[ASSISTANT, Depends(require(Perm.DATASETS_EDIT))],
 )
 async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) -> Any:
     """An empty dataset, visible to the organization unless it asks to start private.
@@ -157,7 +159,7 @@ async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) ->
     return await service.create(ctx, data)
 
 
-@router.get("/{dataset_id}", response_model=DatasetRead)
+@router.get("/{dataset_id}", dependencies=[ASSISTANT], response_model=DatasetRead)
 async def get_dataset(dataset_id: UUID, service: DatasetSvc, ctx: Auth) -> Any:
     return await service.read(ctx, dataset_id)
 
@@ -187,7 +189,7 @@ async def list_dataset_versions(
     return await service.list_versions(ctx, dataset_id, skip=skip, limit=limit)
 
 
-@router.get("/{dataset_id}/cases", response_model=DatasetCaseList)
+@router.get("/{dataset_id}/cases", dependencies=[ASSISTANT], response_model=DatasetCaseList)
 async def list_dataset_cases(
     dataset_id: UUID,
     service: DatasetSvc,
@@ -217,7 +219,10 @@ async def find_dataset_case_twins(
 
 
 @router.post(
-    "/{dataset_id}/cases", response_model=DatasetCaseRead, status_code=status.HTTP_201_CREATED
+    "/{dataset_id}/cases",
+    dependencies=[ASSISTANT],
+    response_model=DatasetCaseRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_dataset_case(
     dataset_id: UUID, data: DatasetCaseCreate, service: DatasetSvc, ctx: Auth
@@ -242,7 +247,9 @@ async def add_dataset_case_from_message(
     return await service.add_from_message(ctx, dataset_id, data)
 
 
-@router.get("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
+@router.get(
+    "/{dataset_id}/cases/{case_id}", dependencies=[ASSISTANT], response_model=DatasetCaseRead
+)
 async def get_dataset_case(
     dataset_id: UUID,
     case_id: UUID,
@@ -260,6 +267,70 @@ async def update_dataset_case(
 ) -> Any:
     """Edit a case in the newest version. The edit is a new version; the old one is kept."""
     return await service.update_case(ctx, dataset_id, case_id, data)
+
+
+@router.post(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    response_model=CaseKeyDraftRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def draft_case_keys(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """List the facts the case's reference answer holds, for its keys check.
+
+    The key extractor runs as the caller, metered and in Activity, in a job; poll
+    the draft until it is `ready` or `failed`. The case's earlier draft is
+    replaced. Only a value the answer states as written is kept, and nothing
+    reaches the case until a person saves it into the keys check.
+    """
+    return await service.start(ctx, dataset_id, case_id)
+
+
+@router.get("/{dataset_id}/cases/{case_id}/key-draft", response_model=CaseKeyDraftRead)
+async def get_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """The keys drafted for the case, while they are listed and once they are."""
+    return await service.get(ctx, dataset_id, case_id)
+
+
+@router.delete(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def dismiss_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> None:
+    """Delete the case's drafted keys, once used or when they are not wanted."""
+    await service.dismiss(ctx, dataset_id, case_id)
+
+
+@router.post(
+    "/{dataset_id}/key-coverage",
+    response_model=KeyCoverageReportRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def report_key_coverage(
+    dataset_id: UUID, data: KeyCoverageRequest, service: KeyCoverageSvc, ctx: Auth
+) -> Any:
+    """Judge which of the dataset's keys none of the agent's published sources covers.
+
+    Needs edit access to the agent. The source coverage agent runs as the caller,
+    metered and in Activity, in a job; poll the report until it is `ready` or
+    `failed`. It is shown key labels and what the sources hold for them, never a
+    key's value, and the pair's earlier report is replaced.
+    """
+    return await service.start(ctx, dataset_id, data.agent_id)
+
+
+@router.get("/{dataset_id}/key-coverage", response_model=KeyCoverageReportRead)
+async def get_key_coverage(
+    dataset_id: UUID, service: KeyCoverageSvc, ctx: Auth, agent_id: UUID = Query(...)
+) -> Any:
+    """The agent's coverage report for the dataset. A source the caller may not see is unnamed."""
+    return await service.get(ctx, dataset_id, agent_id)
 
 
 @router.delete(
@@ -287,7 +358,7 @@ async def import_dataset_cases(
     ),
 ) -> Any:
     """Append every case in a CSV or JSONL file as one new version - all rows or none."""
-    content = await file.read(MAX_IMPORT_BYTES + 1)
+    content = await file.read(settings.DATASET_IMPORT_MAX_BYTES + 1)
     return await service.import_cases(
         ctx, dataset_id, content=content, filename=file.filename, fmt=fmt
     )

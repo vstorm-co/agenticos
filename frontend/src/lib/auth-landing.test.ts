@@ -1,12 +1,45 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { goToDestination, postSignInDestination } from "./auth-landing";
+import {
+  goToDestination,
+  isSignInPage,
+  postRegistrationDestination,
+  postSignInDestination,
+} from "./auth-landing";
 import { ROUTES } from "./constants";
 
 describe("postSignInDestination", () => {
   it("defaults to the conversation workspace", () => {
     expect(postSignInDestination()).toBe(ROUTES.CHAT);
     expect(postSignInDestination(null)).toBe(ROUTES.CHAT);
+  });
+
+  // Signing out and in again in the same tab: the guard had already moved to
+  // the login page and handed it `returnTo=/login`, and a fresh session sent
+  // back there waited on "Logging in..." until the app was restarted.
+  it.each([
+    "/login",
+    "/lo%67in",
+    "/%72egister",
+    "/%70l/login",
+    "/pl/reset%2dpassword",
+    "/login?returnTo=%2Flogin",
+    "/login/",
+    "/vi/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password?token=t",
+    "/magic-link-sent",
+  ])("never sends a fresh session back to a sign-in page: %s", (path) => {
+    expect(isSignInPage(path)).toBe(true);
+    expect(postSignInDestination(path)).toBe(ROUTES.CHAT);
+  });
+
+  it("still honours pages that only look alike", () => {
+    expect(isSignInPage("/settings/sign-ins")).toBe(false);
+    expect(isSignInPage("/%E0%A4%A")).toBe(false);
+    expect(postSignInDestination("/agents/%6cogin-helper")).toBe("/agents/%6cogin-helper");
+    expect(postSignInDestination("/agents/login-helper")).toBe("/agents/login-helper");
   });
 
   it("honours a same-origin path, query and fragment included", () => {
@@ -62,5 +95,47 @@ describe("getting to where a fresh session lands", () => {
 
     expect(assign).toHaveBeenCalledWith("/agents/a-1#tools");
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+it("replaces browser history for a signed-in fragment redirect", () => {
+  const replace = vi.fn();
+  const assign = vi.fn();
+  vi.spyOn(window, "location", "get").mockReturnValue({
+    ...window.location,
+    assign,
+    replace,
+  } as Location);
+  const navigate = vi.fn();
+  goToDestination("/agents/a-1#tools", navigate, true);
+  expect(replace).toHaveBeenCalledWith("/agents/a-1#tools");
+  expect(assign).not.toHaveBeenCalled();
+  expect(navigate).not.toHaveBeenCalled();
+});
+
+describe("postRegistrationDestination", () => {
+  it.each([
+    undefined,
+    null,
+    "/chat?id=123",
+    "https://evil.example",
+    "/invitations/raw-token",
+    "/\\[",
+    "/\t\\[",
+  ])("starts new accounts in onboarding instead of %j", (returnTo) => {
+    expect(postRegistrationDestination(returnTo)).toBe("/onboarding?welcome=1&entry=account");
+  });
+
+  it("carries only a valid staged invitation flow into onboarding", () => {
+    const flow = "0123456789abcdef0123456789abcdef";
+    expect(postRegistrationDestination(`/invitations/pending?flow=${flow}`)).toBe(
+      `/onboarding?welcome=1&entry=account&flow=${flow}`,
+    );
+    expect(postRegistrationDestination(`/de/invitations/pending?flow=${flow}`)).toContain(
+      `flow=${flow}`,
+    );
+    expect(postRegistrationDestination("/invitations/pending?flow=invalid")).toBe(
+      "/onboarding?welcome=1&entry=account",
+    );
   });
 });

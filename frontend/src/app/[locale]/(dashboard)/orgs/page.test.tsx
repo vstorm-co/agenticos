@@ -2,11 +2,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import OrgsPage from "./page";
+import { Perm, type Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
   fetchOrgs: vi.fn().mockResolvedValue(undefined),
   switchOrg: vi.fn(),
   push: vi.fn(),
+  pending: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+  held: [] as Permission[],
 }));
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
@@ -15,6 +20,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/orgs",
 }));
 vi.mock("@/hooks", () => ({
+  usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
+  useOrganizationList: () => ({
+    isPending: state.pending,
+    error: state.error,
+    refetch: state.refetch,
+  }),
   useOrganizations: () => ({
     ...state,
     activeOrgId: "personal",
@@ -24,8 +35,16 @@ vi.mock("@/hooks", () => ({
     ],
   }),
 }));
-vi.mock("@/components/teams", () => ({ CreateOrgDialog: () => null }));
-beforeEach(() => vi.clearAllMocks());
+vi.mock("@/components/teams", () => ({
+  CreateOrgDialog: ({ open, onCreated }: { open: boolean; onCreated: () => void }) =>
+    open ? <button onClick={onCreated}>Finish organization creation</button> : null,
+}));
+beforeEach(() => {
+  vi.clearAllMocks();
+  state.error = null;
+  state.pending = false;
+  state.held = [];
+});
 
 it("filters memberships by name or slug without requesting other organizations", async () => {
   render(<OrgsPage />);
@@ -39,7 +58,7 @@ it("filters memberships by name or slug without requesting other organizations",
   await userEvent.type(input, "jordan");
   expect(screen.getByRole("link", { name: "Open Personal" })).toBeVisible();
   expect(screen.queryByRole("link", { name: "Open Northwind Labs" })).toBeNull();
-  expect(state.fetchOrgs).toHaveBeenCalledOnce();
+  expect(state.fetchOrgs).not.toHaveBeenCalled();
 });
 
 it("clears an unmatched query without treating memberships as empty", async () => {
@@ -60,4 +79,36 @@ it("retains switching for a filtered organization", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Switch" }));
   expect(state.switchOrg).toHaveBeenCalledWith("company");
   expect(state.push).toHaveBeenCalledWith("/dashboard");
+});
+
+it("distinguishes a failed membership read from an empty organization list and offers retry", async () => {
+  state.error = new Error("Unavailable");
+  render(<OrgsPage />);
+  expect(screen.queryByText("No organizations yet")).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open Personal" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
+});
+it("keeps the workspace grid loading until memberships resolve", () => {
+  state.pending = true;
+  render(<OrgsPage />);
+  expect(screen.queryByText("No organizations yet")).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open Personal" })).not.toBeInTheDocument();
+});
+
+it("refreshes memberships after the create dialog reports a new organization", async () => {
+  render(<OrgsPage />);
+  await userEvent.click(screen.getByRole("button", { name: "New organization" }));
+  await userEvent.click(screen.getByRole("button", { name: "Finish organization creation" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
+});
+
+it("keeps organization switch actions aligned without workspace settings shortcuts", () => {
+  state.held = [Perm.orgSettings, Perm.approvalsDecide];
+  render(<OrgsPage />);
+  expect(screen.queryByText("Settings for this workspace")).toBeNull();
+  expect(screen.queryByRole("link", { name: "AI & services" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Budget and approvals" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Current" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Switch" })).toBeEnabled();
 });

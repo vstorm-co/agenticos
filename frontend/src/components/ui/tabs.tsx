@@ -1,7 +1,9 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { TAB_TRIGGER } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 import { SCROLL_FADE, useScrollFade } from "./scroll-fade";
@@ -14,6 +16,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  useTabIndicator(strip);
   React.useEffect(() => {
     const list = strip.current;
     if (!list) return;
@@ -41,6 +44,7 @@ const TabsList = React.forwardRef<
   }, []);
   return (
     <TabsPrimitive.List
+      data-tab-indicator="line"
       ref={(node) => {
         strip.current = node;
         if (typeof ref === "function") ref(node);
@@ -74,7 +78,8 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
       // foreground colour, with a quiet surface to make the selected area legible.
-      "focus-visible:ring-ring touch:min-h-11 inline-flex min-h-9 touch-manipulation items-center justify-center gap-2 rounded-t-lg border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
+      TAB_TRIGGER,
+      "focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
       "hover:bg-foreground/[0.04] hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-foreground/[0.055] data-[state=active]:text-foreground",
       className,
     )}
@@ -90,7 +95,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset data-[state=inactive]:hidden",
+      "tab-panel focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset data-[state=inactive]:hidden",
       className,
     )}
     {...props}

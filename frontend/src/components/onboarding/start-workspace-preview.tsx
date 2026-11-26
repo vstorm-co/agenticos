@@ -4,6 +4,7 @@ import type { Organization } from "@/types";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { Building2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useStartVariant } from "./start-experience";
 import { StartCompanions } from "./start-companions";
 import styles from "./administration.module.css";
 
@@ -15,7 +16,9 @@ export function StartWorkspacePreview({
   name: string;
   organization?: Organization;
 }) {
+  const variant = useStartVariant();
   const t = useTranslations("start.administration");
+  if (variant === "studio") return null;
   return (
     <aside className={styles.workspacePreview} aria-label={t("preview")}>
       <p className={styles.previewLabel}>{t("preview")}</p>
@@ -30,7 +33,10 @@ export function StartWorkspacePreview({
           <path d="M50 75V90Q50 105 40 105H15V135M50 90Q50 105 60 105H85V135" />
         </svg>
         <div className={styles.previewOrganization}>
-          <span className={styles.workspaceMonogram} aria-hidden="true">
+          <span
+            className={organization ? styles.workspaceLogo : styles.workspaceMonogram}
+            aria-hidden="true"
+          >
             {organization ? (
               <EntityAvatar
                 seed={organization.id}

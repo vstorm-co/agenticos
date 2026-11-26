@@ -6,9 +6,9 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select, true
+from sqlalchemy import ColumnElement, DateTime, and_, cast, false, func, literal, or_, select, true
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -18,6 +18,7 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
 from app.db.models.resource_grant import Visibility
 from app.schemas.agent_trigger import (
+    GithubFilteredEvent,
     TriggerAttemptReason,
     TriggerAttemptStage,
     TriggerAttemptStatus,
@@ -36,6 +37,47 @@ _NON_TERMINAL_STATUSES = (
 # worker crash that skipped its `finally` - and the schedule is freed rather than
 # parked for ever.
 FIRE_LEASE = timedelta(hours=1)
+
+
+async def record_filtered_event(
+    db: AsyncSession, *, trigger: AgentTrigger, diagnostic: GithubFilteredEvent
+) -> None:
+    """Sample at most one verified rejection per minute without spending run admission.
+
+    The predicate skips row writes for a burst and rechecks after concurrent
+    updates, so neither stale configuration nor an older event can replace the
+    owner's current diagnostic.
+    """
+    received_at = cast(
+        AgentTrigger.last_filtered_event["received_at"].astext, DateTime(timezone=True)
+    )
+    recorded_at = cast(
+        AgentTrigger.last_filtered_event["recorded_at"].astext, DateTime(timezone=True)
+    )
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.id == trigger.id,
+            AgentTrigger.organization_id == trigger.organization_id,
+            AgentTrigger.is_active.is_(True),
+            AgentTrigger.event_source == trigger.event_source,
+            AgentTrigger.source_id.is_not_distinct_from(trigger.source_id),
+            AgentTrigger.event_config == trigger.event_config,
+            AgentTrigger.approved_sources.is_not_distinct_from(trigger.approved_sources),
+            or_(received_at.is_(None), received_at < diagnostic.received_at),
+            or_(
+                recorded_at.is_(None),
+                recorded_at <= func.clock_timestamp() - timedelta(minutes=1),
+            ),
+        )
+        .values(
+            last_filtered_event=literal(diagnostic.model_dump(mode="json"), type_=JSONB).op("||")(
+                func.jsonb_build_object("recorded_at", func.clock_timestamp())
+            )
+        )
+        .execution_options(synchronize_session=False)
+    )
+    await db.flush()
 
 
 async def get(
@@ -218,6 +260,21 @@ async def routine_prompts_for_screening(
     return [RoutinePrompt(row.prompt, row.spec) for row in rows.all()]
 
 
+def _visible_agent(
+    *, user_id: UUID | None, see_all: bool, shared_ids: list[UUID]
+) -> list[ColumnElement[bool]]:
+    """The agent listing's own visibility predicate, applied to a trigger's agent."""
+    if see_all:
+        return []
+    return [
+        or_(
+            Agent.owner_user_id == user_id,
+            Agent.visibility == Visibility.ORG.value,
+            AgentTrigger.agent_id.in_(shared_ids) if shared_ids else false(),
+        )
+    ]
+
+
 async def list_for_organization(
     db: AsyncSession,
     *,
@@ -240,15 +297,11 @@ async def list_for_organization(
     surfaces must not disagree with it. The join onto `agents` also supplies the
     name each surface shows beside a row displayed away from its agent's page.
     """
-    where = [AgentTrigger.organization_id == organization_id, AgentTrigger.one_shot.is_(False)]
-    if not see_all:
-        where.append(
-            or_(
-                Agent.owner_user_id == user_id,
-                Agent.visibility == Visibility.ORG.value,
-                AgentTrigger.agent_id.in_(shared_ids) if shared_ids else false(),
-            )
-        )
+    where = [
+        AgentTrigger.organization_id == organization_id,
+        AgentTrigger.one_shot.is_(False),
+        *_visible_agent(user_id=user_id, see_all=see_all, shared_ids=shared_ids),
+    ]
     total = (
         await db.execute(
             select(func.count())
@@ -266,6 +319,35 @@ async def list_for_organization(
         .limit(limit)
     )
     return [(trigger, agent) for trigger, agent in result.all()], total
+
+
+async def list_visible_by_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    see_all: bool,
+    shared_ids: list[UUID],
+    trigger_ids: list[UUID],
+) -> list[AgentTrigger]:
+    """The named triggers the caller may see, by the org listing's visibility.
+
+    A one-shot trigger is its creator's alone, as on the agent's own page; ids the
+    caller cannot see, or that name nothing, are left out rather than refused.
+    """
+    if not trigger_ids:
+        return []
+    result = await db.execute(
+        select(AgentTrigger)
+        .join(Agent, Agent.id == AgentTrigger.agent_id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.id.in_(trigger_ids),
+            or_(AgentTrigger.one_shot.is_(False), AgentTrigger.created_by_user_id == user_id),
+            *_visible_agent(user_id=user_id, see_all=see_all, shared_ids=shared_ids),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def create(
@@ -295,6 +377,8 @@ async def create(
     teams_conversation_id: UUID | None = None,
     time_zone: str | None = None,
     result_mode: str = "report",
+    chat_mode: str = "shared",
+    action_mode: str | None = None,
     answer_to: str = "run_log",
     delivery_conversation_id: UUID | None = None,
     ends_at: datetime | None = None,
@@ -305,6 +389,7 @@ async def create(
     one_shot: bool = False,
     is_active: bool = True,
     project_id: UUID | None = None,
+    source_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         project_id=project_id,
@@ -315,6 +400,7 @@ async def create(
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,
         prompt=prompt,
+        source_id=source_id,
         name=name,
         trigger_type=trigger_type,
         schedule_kind=schedule_kind,
@@ -336,6 +422,8 @@ async def create(
         teams_conversation_id=teams_conversation_id,
         time_zone=time_zone,
         result_mode=result_mode,
+        chat_mode=chat_mode,
+        action_mode=action_mode,
         answer_to=answer_to,
         delivery_conversation_id=delivery_conversation_id,
         ends_at=ends_at,
@@ -520,12 +608,22 @@ async def claim_due(
 
 
 async def withdraw_creator_consent(
-    db: AsyncSession, *, agent_id: UUID, kept_for: UUID | None
+    db: AsyncSession,
+    *,
+    agent_id: UUID,
+    kept_for: UUID | None,
+    environment_ids: Sequence[UUID],
+    include_unscoped: bool,
 ) -> int:
-    """Switch "run as me" off on an agent's triggers, except those `kept_for` made.
+    """Switch "run as me" off on an agent's triggers that run in `environment_ids`,
+    except those `kept_for` made.
 
-    Returns how many triggers lost it.
+    A trigger naming no environment runs the default one, so `include_unscoped`
+    says whether the default is among them. Returns how many triggers lost it.
     """
+    reached = [AgentTrigger.environment_id.in_(environment_ids)]
+    if include_unscoped:
+        reached.append(AgentTrigger.environment_id.is_(None))
     result = await db.execute(
         sql_update(AgentTrigger)
         .where(
@@ -533,6 +631,7 @@ async def withdraw_creator_consent(
             AgentTrigger.runs_as_creator.is_(True),
             AgentTrigger.pinned_version_id.is_(None),
             AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
+            or_(*reached),
         )
         .values(runs_as_creator=False)
     )

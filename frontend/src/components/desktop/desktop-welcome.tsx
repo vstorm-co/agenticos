@@ -41,12 +41,15 @@ function StepFrame({
   children?: ReactNode;
 }) {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col items-center gap-2 text-center duration-300">
+    <div
+      data-direction="forward"
+      className="wizard-step-in flex flex-col items-center gap-2 text-center"
+    >
       <div className="bg-accent text-foreground mb-2 flex size-11 items-center justify-center rounded-full">
         {icon}
       </div>
-      <h1 className="font-display text-2xl font-bold">{title}</h1>
-      <p className="text-muted-foreground max-w-md text-sm">{body}</p>
+      <h1 className="text-2xl font-medium tracking-tight wrap-anywhere">{title}</h1>
+      <p className="text-muted-foreground max-w-md text-sm wrap-anywhere">{body}</p>
       {children ? <div className="mt-5 w-full">{children}</div> : null}
     </div>
   );
@@ -93,7 +96,7 @@ function Steps({ state, step }: { state: DesktopState; step: Step }) {
             {state.shortcuts.map((binding) => (
               <div
                 key={binding.action}
-                className="flex w-full max-w-sm items-center justify-between gap-4"
+                className="flex w-full max-w-sm flex-wrap items-center justify-between gap-3"
               >
                 <span className="text-sm font-medium">{t(`shortcuts.${binding.action}`)}</span>
                 {binding.accelerator ? (
@@ -208,8 +211,8 @@ export function DesktopWelcome() {
               <span
                 key={name}
                 className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  name === step ? "bg-foreground w-5" : "bg-border w-1.5",
+                  "h-1.5 w-5 rounded-full transition-[transform,background-color]",
+                  name === step ? "bg-foreground scale-x-100" : "bg-border scale-x-[0.3]",
                 )}
               />
             ))}

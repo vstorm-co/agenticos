@@ -1,9 +1,9 @@
 """Only the owner sees coding-account metadata; credentials never leave the vault."""
 
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
 
@@ -44,8 +44,15 @@ class CodingAccountUpdate(BaseSchema):
 
 class CodingAccountOAuthComplete(BaseSchema):
     label: str = Field(min_length=1, max_length=120)
-    callback_url: SecretStr = Field(min_length=1, max_length=8192)
+    callback_url: SecretStr | None = Field(default=None, min_length=1, max_length=8192)
+    device_state: str | None = Field(default=None, min_length=1, max_length=128)
     enabled: bool = False
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> Self:
+        if (self.callback_url is None) == (self.device_state is None):
+            raise ValueError("Send either callback_url or device_state")
+        return self
 
 
 class CodingAccountOAuthStart(BaseSchema):

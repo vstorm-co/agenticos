@@ -10,6 +10,7 @@ import { TriggerRow } from "@/components/triggers/trigger-row";
 import { LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useTriggers } from "@/hooks/use-triggers";
+import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
 import { WatchesCard, useCanWatch } from "@/components/watches/watches-card";
 import { WatchDialog } from "@/components/watches/watch-dialog";
 
@@ -48,6 +49,7 @@ export function TriggersPanel({ agentId, canCreate, reachesPersonal = false }: T
   const tw = useTranslations("watches");
   const canWatch = useCanWatch();
   const { triggers, isLoading } = useTriggers(agentId);
+  const readiness = useRoutinesReadiness(triggers);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [creatingWatch, setCreatingWatch] = useState(false);
@@ -71,7 +73,7 @@ export function TriggersPanel({ agentId, canCreate, reachesPersonal = false }: T
           )}
 
           {triggers.map((trigger) => (
-            <TriggerRow key={trigger.id} trigger={trigger} />
+            <TriggerRow key={trigger.id} trigger={trigger} blockers={readiness(trigger)} />
           ))}
 
           {canCreate && (

@@ -35,7 +35,8 @@ class TestMemberService:
         return db
 
     @pytest.fixture
-    def service(self, mock_db):
+    def service(self, mock_db, monkeypatch):
+        monkeypatch.setattr("app.services.member.user_repo.get_by_ids", AsyncMock(return_value=[]))
         return MemberService(mock_db)
 
     @pytest.mark.anyio
@@ -298,7 +299,7 @@ class TestMemberService:
                 new=AsyncMock(return_value=MagicMock(email="a@example.com", avatar_color=7)),
             ),
         ):
-            member, _, _, _, avatar_color = await service.change_role(
+            member, _, _, _, avatar_color, _ = await service.change_role(
                 uuid.uuid4(), uuid.uuid4(), "admin", requester_id=uuid.uuid4()
             )
 

@@ -26,6 +26,7 @@ from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunStatus
 from app.schemas.virtual_table import (
     ColumnInput,
+    OptionInput,
     RecordCreate,
     SchemaUpdate,
     TableCreate,
@@ -724,3 +725,108 @@ async def test_a_record_that_matches_every_filter_takes_the_yes_branch(
 
     taken = yes if port == "yes" else no
     assert statuses[str(taken.id)] == "succeeded"
+
+
+@pytest.mark.parametrize("by_label", [True, False])
+async def test_record_exists_resolves_a_saved_select_operand_by_label_or_id(
+    engine: AsyncEngine,
+    by_label: bool,
+) -> None:
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        member = await seed_member(db)
+        ctx = AuthContext(user_id=member[0].id, organization_id=member[1].id, role="owner")
+        service = VirtualTableService(db)
+        table = await service.create_table(
+            ctx,
+            TableCreate(
+                name="Selected leads",
+                columns=[
+                    ColumnInput(
+                        label="Status",
+                        type="single_select",
+                        options=[OptionInput(label="Worth sharing")],
+                    )
+                ],
+            ),
+        )
+        column = table.columns[0]
+        option = column.options[0]
+        await service.create_record(
+            ctx, table.id, RecordCreate(values={str(column.id): str(option.id)})
+        )
+        await db.commit()
+    entry, exists, output = (
+        _node("core.input"),
+        _node(
+            "table.record.exists",
+            {
+                **_pin(table),
+                "filters": [
+                    {
+                        "column_id": str(column.id),
+                        "op": "eq",
+                        "value": option.label if by_label else str(option.id),
+                    }
+                ],
+            },
+        ),
+        _node("core.output"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, exists, output),
+        edges=(
+            *_chain(entry, exists),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=exists.id,
+                source_port="yes",
+                target_node_id=output.id,
+                target_port="in",
+            ),
+        ),
+        bindings=(
+            _bind(
+                output, "structured", NodeOutputRef(node_id=exists.id, port="yes", field_path=())
+            ),
+        ),
+    )
+    run = await drive(await _run(engine, member, graph))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output is not None and run.output["structured"]["exists"] is True
+
+
+async def test_python_loop_writes_and_reads_two_distinct_records(engine: AsyncEngine):
+    member, table = await _world(engine)
+    entry, output = _node("core.input"), _node("core.output")
+    script = _node(
+        "code.python.actions",
+        {
+            "actions": {
+                "save_lead": {"type": "table.record.create", "config": _pin(table)},
+                "find_lead": {"type": "table.record.get", "config": _pin(table)},
+            },
+            "code": (
+                "scores = []\n"
+                "for lead in args['leads']:\n"
+                "    record = save_lead(values=lead, external_id=lead['Email'])\n"
+                "    found = find_lead(record_id=record['record_id'])\n"
+                "    scores.append(found['record']['fields']['Score'])\n"
+                "scores"
+            ),
+        },
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, script, output),
+        edges=_chain(entry, script, output),
+        bindings=(
+            _bind(script, "args", _ref(entry, "payload")),
+            _bind(output, "structured", _ref(script)),
+        ),
+    )
+    leads = [{"Email": "one@example.org", "Score": 13}, {"Email": "two@example.org", "Score": 27}]
+    run = await drive(await _run(engine, member, graph, {"leads": leads}))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output["structured"]["result"] == [13, 27]
+    assert {row.external_id for row in await _records(engine)} == {lead["Email"] for lead in leads}

@@ -37,6 +37,8 @@ export interface QueuedMessage {
    * held, marked, until the person sends it again or drops it.
    */
   refused?: string;
+  /** Stop holds follow-ups, including a sealed native outbox, until Resume queue. */
+  paused?: boolean;
 }
 
 /** The earlier message a turn answers, quoted above it. */
@@ -65,6 +67,12 @@ export interface ChatMessage {
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
   persistedId?: string;
+  /**
+   * The live answer of a turn whose socket went away. Its `message_saved`
+   * was due on that socket and will not come, so a re-read replaces it with the
+   * saved row, and a replay of the same turn replaces it on attachment.
+   */
+  socketDropped?: boolean;
   id: string;
   role: MessageRole;
   content: string;
@@ -308,7 +316,9 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "runtime_question_closed"
   | "user_question_required"
+  | "ask_user_answered"
   | "run_answer_result"
   | "steer_applied"
   | "steer_unapplied"
@@ -447,7 +457,7 @@ export interface TurnUsage {
   /** Of `input_tokens`, those written to the provider's cache - priced above it. */
   cache_write_tokens?: number | null;
   /** The turn's cost as a Decimal string, the shape every REST surface uses. */
-  cost_usd: string;
+  cost_usd?: string | null;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -456,7 +466,7 @@ export interface TurnUsage {
    * as a caveat rather than dropped - a number nobody can act on is still worth
    * more than nothing, provided it does not claim to be exact.
    */
-  cost_is_partial: boolean;
+  cost_is_partial?: boolean | null;
   budget_percent: number | null;
   /** This agent's own monthly cap, which is the one an author can raise. */
   agent_budget_percent: number | null;
@@ -536,6 +546,10 @@ export interface ActionRequest {
   content_hidden?: boolean;
   /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
   always_asks?: boolean;
+  /** Whether this person may answer the call at all: `approvals:decide`, or it is their own platform call. */
+  may_decide?: boolean;
+  /** Whether an approval from this person would be accepted. */
+  may_approve?: boolean;
 }
 
 export interface ReviewConfig {
@@ -547,6 +561,8 @@ export interface ReviewConfig {
 }
 
 export interface PendingApproval {
+  savedDecisions?: { request: ActionRequest; approved: boolean }[];
+  continuesInChat?: boolean;
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
   /** The run to continue once every call has been decided. */
@@ -567,6 +583,7 @@ export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
   remember_scope?: "conversation" | "agent";
+  note?: string;
   type: DecisionType;
   editedAction?: {
     id: string;
@@ -576,11 +593,19 @@ export interface Decision {
 }
 
 export interface AskUserChoice {
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   label: string;
   description?: string | null;
 }
 
 export interface AskUserQuestion {
+  requestId?: string;
+  minSelections?: number;
+  maxSelections?: number;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip (#2064). */
   header?: string | null;
@@ -685,7 +710,7 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * Set when the worker is Claude Code or Codex, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
-  harness?: CodingHarness | null;
+  harness?: CodingHarness | "custom" | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
@@ -770,7 +795,7 @@ export interface ConversationCost {
   input_tokens: number;
   output_tokens: number;
   /** A string on the wire, because money is `Numeric`. */
-  cost_usd: string | number;
+  cost_usd?: string | number | null;
   /** Null where no turn recorded the flag - "nobody knows", not "exact". */
   cost_is_partial: boolean | null;
 }
@@ -833,7 +858,7 @@ export interface Delegation {
    */
   specialist: SpecialistDefinition | null;
   /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
-  harness: CodingHarness | null;
+  harness: CodingHarness | "custom" | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

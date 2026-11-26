@@ -148,24 +148,18 @@ function allText(body: ChatRequest): string {
   return parts.join(" ");
 }
 
-/** How `system_agent_runner.output_contract` closes a system agent's prompt; the schema follows. */
-const OUTPUT_CONTRACT = "It must validate against this JSON schema:\n";
+/** The output tool declared by the pinned Pydantic AI SDK, apart from business tools. */
+function outputTool(body: ChatRequest): NonNullable<ChatTool["function"]> | null {
+  for (const tool of body.tools ?? []) {
+    const fn = tool.function;
+    if (fn?.name === "final_result" || fn?.name?.startsWith("final_result_")) return fn;
+  }
+  return null;
+}
 
 /** The top-level properties of the answer a system agent was asked for, or `null`. */
-function contractProperties(body: ChatRequest): Record<string, object> | null {
-  const prompt = allText(body);
-  const at = prompt.lastIndexOf(OUTPUT_CONTRACT);
-  if (at < 0) return null;
-  // The contract closes the prompt, so the schema is what follows it up to its last brace.
-  const tail = prompt.slice(at + OUTPUT_CONTRACT.length);
-  try {
-    const schema: { properties?: Record<string, object> } = JSON.parse(
-      tail.slice(0, tail.lastIndexOf("}") + 1),
-    );
-    return schema.properties ?? null;
-  } catch {
-    return null;
-  }
+function contractProperties(body: ChatRequest): Record<string, unknown> | null {
+  return outputTool(body)?.parameters?.properties ?? null;
 }
 
 /** The marker `improvement.mobile.spec.ts` writes in its note to the helper; it is answered differently. */
@@ -613,13 +607,17 @@ const server = createServer((request, response) => {
 
     const model = body.model ?? "gpt-4.1-mini";
     const subagent = delegateFor(body);
-    const call =
+    let call =
       discoveryCallFor(body) ?? (subagent === null ? toolCallFor(body) : delegationCall(subagent));
+    const scripted = call === null ? (skillSessionReply(body) ?? improvementReply(body)) : null;
+    const output = outputTool(body);
+    if (call === null && scripted !== null && output?.name !== undefined) {
+      call = { name: output.name, arguments: scripted };
+    }
     // Empty on a tool-calling turn, which is what a provider sends beside a tool
     // call: the agent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
-    const answer =
-      call === null ? (skillSessionReply(body) ?? improvementReply(body) ?? replyFor(body)) : "";
+    const answer = call === null ? (scripted ?? replyFor(body)) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {
@@ -646,5 +644,7 @@ const server = createServer((request, response) => {
 server.listen(PORT, BIND, () => {
   // Playwright waits on /health rather than on this line, but a server that
   // says nothing is one nobody can tell apart from a port already taken.
-  console.log(`stub model server listening on http://${BIND}:${PORT}`);
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("Missing listening port");
+  console.log(`stub model server listening on http://${BIND}:${address.port}`);
 });

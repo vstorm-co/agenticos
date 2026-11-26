@@ -17,8 +17,10 @@ import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
+import { appearanceChosenBy } from "@/lib/account-appearance";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { isPlatformTool } from "@/lib/approval-view";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -35,6 +37,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   BrowserFrame,
+  ChatMessage,
   ChatMessageFile,
   ChatPerson,
   Compaction,
@@ -61,6 +64,7 @@ import type {
   ToolApproval,
   WireQuestion,
 } from "@/types/runs";
+import { questionAnswerResult, retainQuestionAnswerResult } from "@/lib/question-answers";
 import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import {
   applyDelegationFrame,
@@ -95,6 +99,7 @@ interface ConversationRef {
 
 interface UseChatOptions {
   conversationId?: string | null;
+  requestedQuestionRunId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
   /**
    * An assistant turn reached the database.
@@ -133,6 +138,13 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   const next = new Set(threads);
   next.delete(id);
   return next;
+}
+
+/** Finished answers the transcript holds - saved ones, not a local bubble still to be renamed. */
+function savedAnswers(messages: readonly ChatMessage[]): number {
+  return messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+  ).length;
 }
 
 /** How often a person still writing says so, and how long a room shows it after. */
@@ -178,8 +190,14 @@ class RunAnswerInterrupted extends Error {}
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted, testing } =
-    options;
+  const {
+    conversationId,
+    requestedQuestionRunId,
+    onConversationCreated,
+    onTurnSaved,
+    onTurnInterrupted,
+    testing,
+  } = options;
   // Read at send time, like the model and the approval mode below.
   const testingRef = useRef<ChatTesting | undefined>(testing);
   useEffect(() => {
@@ -255,6 +273,7 @@ export function useChat(options: UseChatOptions = {}) {
   // "pending" entries above the input. The ref is the source of truth for the
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
+  const queueStopVersion = useRef(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [sentTurnId, setSentTurnId] = useState<string | null>(null);
   // In the apps the queue is also the outbox: kept sealed on the device under the
@@ -276,6 +295,18 @@ export function useChat(options: UseChatOptions = {}) {
   // which changes anything else the drainer watches.
   const [drainTick, setDrainTick] = useState(0);
   const queuedSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pauseQueued = useCallback(() => {
+    queueStopVersion.current += 1;
+    if (queuedSendTimer.current !== null) clearTimeout(queuedSendTimer.current);
+    queuedSendTimer.current = null;
+    setQueue(messageQueueRef.current.map((message) => ({ ...message, paused: true })));
+  }, [setQueue]);
+
+  const resumeQueued = useCallback(() => {
+    setQueue(messageQueueRef.current.map(({ paused: _paused, ...message }) => message));
+    setDrainTick((tick) => tick + 1);
+  }, [setQueue]);
+
   const sessionReadyRef = useRef(true);
   const [sessionReady, setSessionReady] = useState(true);
   // Corrections sent into the running turn, until `steer_applied` says the model
@@ -331,6 +362,7 @@ export function useChat(options: UseChatOptions = {}) {
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
   const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
+  const parkedApprovalReadsRef = useRef(new Map<string, Promise<ParkedCall[]>>());
   const decidedApprovalIdsRef = useRef(new Set<string>());
   const terminalRunIdsRef = useRef(new Set<string>());
   const decidingApprovalRef = useRef<object | null>(null);
@@ -339,6 +371,7 @@ export function useChat(options: UseChatOptions = {}) {
     () => new Set(),
   );
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  const [submittingQuestions, setSubmittingQuestions] = useState(false);
   // A durable question resumes its parked run on this live socket. Delegate
   // questions belong to that running turn and use ask_user_response (#2064).
   // A run can park on several `ask_user` calls at once; their questions share
@@ -351,9 +384,24 @@ export function useChat(options: UseChatOptions = {}) {
   // Runs this hook has already put a parked question up for, as the approvals
   // ref above does for the same reason.
   const questionOfferedForRef = useRef<Set<string>>(new Set());
+  const [questionRestoreTick, setQuestionRestoreTick] = useState(0);
   const parkedQuestionRunRef = useRef<string | null>(null);
   const answeringQuestionRef = useRef<object | null>(null);
   const liveQuestionRef = useRef(false);
+  const runtimeQuestionIdRef = useRef<string | null>(null);
+  const liveQuestionBatchId = useRef<string | null>(null);
+  const [liveQuestionTarget, setLiveQuestionTarget] = useState<{
+    id: string;
+    messageId: string | null;
+    toolCallIds: string[];
+  } | null>(null);
+  const liveQuestionSubmission = useRef<{
+    requestId: string;
+    messageId: string | null;
+    questions: AskUserQuestion[];
+    answers: AskUserAnswer[];
+    toolCallIds: string[];
+  } | null>(null);
   const pendingRunAnswerRef = useRef<{
     requestId: string;
     runId: string;
@@ -462,10 +510,14 @@ export function useChat(options: UseChatOptions = {}) {
   // because reaching for state inside a setter's updater is how a side effect
   // ends up running twice.
   const interruptedForRef = useRef<ConversationRef | null>(null);
-  // How many answers the interrupted thread had finished at the moment its
-  // socket went. The turn landing takes it past this, which is the only signal
-  // this client has that the turn it lost is over.
+  // A new saved segment must land after the drop. A run may already have saved
+  // an ask_user segment before its continuation loses the socket.
   const finishedWhenInterrupted = useRef(0);
+  const savedBeforeDropRef = useRef<ReadonlySet<string>>(new Set());
+  // The question of the turn the drop interrupted. Its saved row carries the
+  // turn's run, and an answer of that run is what lands it - not any answer in
+  // the thread, which another turn still being written can save first.
+  const droppedPromptRef = useRef<string | null>(null);
   // Both notices belong to the thread the turn was interrupted in. Opening
   // another one while a reconnect is in flight used to draw the notice over a
   // thread that was never interrupted, and re-read that thread instead of the
@@ -570,13 +622,39 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Put an agent's unanswered question back in front of its person (#2064). */
   const offerParkedQuestion = useCallback(
-    (asked: ParkedQuestion[], runId: string, messageId: string) => {
+    (asked: ParkedQuestion[], runId: string, messageId: string | null) => {
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       // Every call the run is waiting on, not the first: the backend answers a
       // call left out as declined, so offering one put words the person never
       // chose into the others.
+      const anchorId = messageId ?? `question-run:${runId}`;
+      if (
+        messageId === null &&
+        !chatApi.getState().messages.some((message) => message.id === anchorId)
+      ) {
+        // A linked older question owns its own turn; never borrow the latest
+        // answer's identity. The normal continuation reconciliation replaces
+        // this anchor by the real saved turn when older history is loaded.
+        addMessage({
+          id: anchorId,
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+          conversationId: activeConversationId ?? undefined,
+          runId,
+          runWaitingFor: "answer",
+          isLocalContinuation: true,
+          toolCalls: asked.map((question) => ({
+            id: question.tool_call_id,
+            name: "ask_user_question",
+            args: { questions: question.questions },
+            status: "awaiting_answer",
+          })),
+        });
+      }
       setPendingQuestions(asked.flatMap((question) => toAskUserQuestions(question.questions)));
       setParkedQuestion({
         runId,
@@ -584,10 +662,10 @@ export function useChat(options: UseChatOptions = {}) {
           toolCallId: question.tool_call_id,
           count: question.questions.length,
         })),
-        messageId,
+        messageId: anchorId,
       });
     },
-    [],
+    [activeConversationId, addMessage, chatApi],
   );
 
   // A turn that ended is running nothing, so every call still out ends with it.
@@ -704,17 +782,26 @@ export function useChat(options: UseChatOptions = {}) {
           declinedRef.current = null;
           followingRef.current = conversation_id;
           // Attachment replays the turn from its beginning. A local bubble left
-          // by the previous socket is that same unsaved stream, not another answer.
+          // by the previous socket is that same unsaved stream, not another answer
+          // - still streaming when another chat was opened, or ended on screen by
+          // a drop (`socketDropped`) when this socket is the one coming back.
           for (const message of chatApi.getState().messages) {
             if (
               message.conversationId === conversation_id &&
               message.role === "assistant" &&
               message.isTemporaryId &&
-              message.isStreaming &&
+              (message.isStreaming || message.socketDropped) &&
               !message.isLocalContinuation
             ) {
               chatApi.getState().removeMessage(message.id);
             }
+          }
+          // Following the turn again: its end re-reads the transcript like any
+          // followed turn's, so there is nothing left to say about the drop.
+          if (interruptedForRef.current?.id === conversation_id) {
+            interruptedForRef.current = null;
+            droppedPromptRef.current = null;
+            setInterruptedFor(null);
           }
           resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
@@ -943,6 +1030,9 @@ export function useChat(options: UseChatOptions = {}) {
             setParkedQuestion((question) =>
               question?.messageId === target ? { ...question, messageId: message_id } : question,
             );
+            setLiveQuestionTarget((question) =>
+              question?.messageId === target ? { ...question, messageId: message_id } : question,
+            );
             updateMessage(target, (msg) => ({
               ...msg,
               id: message_id,
@@ -1134,11 +1224,17 @@ export function useChat(options: UseChatOptions = {}) {
             const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
-              ?.toolCalls?.some((call) => call.id === tool_call_id);
+              ?.toolCalls?.find((call) => call.id === tool_call_id);
             // The step `part_start` drew while the arguments streamed, when there
             // was one. Adding a second would draw the call twice.
             if (drawn) {
-              updateToolCallPart(currentMessageIdRef.current, tool_call_id, toolCall);
+              updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+                ...toolCall,
+                status:
+                  drawn.status === "awaiting_answer" || drawn.status === "awaiting_approval"
+                    ? drawn.status
+                    : toolCall.status,
+              });
             } else {
               addToolCallPart(currentMessageIdRef.current, toolCall);
             }
@@ -1169,6 +1265,7 @@ export function useChat(options: UseChatOptions = {}) {
             const name = owner?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
             const chosen = name ? localeChosenBy(name, content) : null;
             if (chosen) adoptAccountLocale(chosen);
+            if (name) appearanceChosenBy(name, content);
             const saved = name ? contextSavedBy(name, content) : null;
             if (saved) adoptAccountContext(saved);
           }
@@ -1280,6 +1377,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (parkedQuestionRunRef.current === null) {
             setPendingQuestions(null);
             liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
           }
           setPendingConnection(null);
           setPendingComputerAccess(null);
@@ -1484,12 +1582,53 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "runtime_question_closed": {
+          const data: unknown = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("runtime_question_id" in data) ||
+            typeof data.runtime_question_id !== "string" ||
+            data.runtime_question_id !== runtimeQuestionIdRef.current
+          )
+            break;
+          runtimeQuestionIdRef.current = null;
+          liveQuestionRef.current = false;
+          liveQuestionSubmission.current = null;
+          setSubmittingQuestions(false);
+          setPendingQuestions(null);
+          break;
+        }
+
         case "ask_user": {
           liveQuestionRef.current = true;
-          const { questions } = wsEvent.data as { questions: WireQuestion[] };
-          setPendingQuestions(toAskUserQuestions(questions ?? []));
+          liveQuestionBatchId.current = clientId();
+          liveQuestionSubmission.current = null;
+          setSubmittingQuestions(false);
+          const { questions, runtime_question_id } = wsEvent.data as {
+            questions: WireQuestion[];
+            runtime_question_id?: unknown;
+          };
+          runtimeQuestionIdRef.current =
+            typeof runtime_question_id === "string" && runtime_question_id.length <= 128
+              ? runtime_question_id
+              : null;
+          setPendingQuestions(
+            toAskUserQuestions(questions ?? [], runtimeQuestionIdRef.current ?? undefined),
+          );
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
+          setLiveQuestionTarget({
+            id: liveQuestionBatchId.current,
+            messageId,
+            toolCallIds: (message?.toolCalls ?? [])
+              .filter(
+                (call) =>
+                  toolLookupName(call) === "ask_user_question" &&
+                  ["running", "awaiting_answer"].includes(call.status),
+              )
+              .map((call) => call.id),
+          });
           for (const call of message?.toolCalls ?? []) {
             if (
               toolLookupName(call) === "ask_user_question" &&
@@ -1498,6 +1637,62 @@ export function useChat(options: UseChatOptions = {}) {
             ) {
               updateToolCallPart(messageId, call.id, { status: "awaiting_answer" });
             }
+          }
+          break;
+        }
+
+        case "ask_user_answered": {
+          const { request_id, asked_by } = wsEvent.data as {
+            request_id?: unknown;
+            asked_by?: unknown;
+          };
+          const submitted = liveQuestionSubmission.current;
+          if (!submitted || submitted.requestId !== request_id) break;
+          liveQuestionSubmission.current = null;
+          setPendingQuestions(null);
+          setSubmittingQuestions(false);
+          const message = chatApi
+            .getState()
+            .messages.find(
+              (message) =>
+                message.id === submitted.messageId || message.renderKey === submitted.messageId,
+            );
+          if (!message) break;
+          const questionCalls = (message.toolCalls ?? []).filter(
+            (call) =>
+              submitted.toolCallIds.includes(call.id) &&
+              toolLookupName(call) === "ask_user_question",
+          );
+          if (questionCalls.length > 0) {
+            for (const call of questionCalls)
+              updateToolCallPart(message.id, call.id, {
+                status: "completed",
+                result: retainQuestionAnswerResult(
+                  { questions: submitted.questions },
+                  questionAnswerResult(submitted.questions, submitted.answers),
+                  call.result ?? "{}",
+                ),
+              });
+          } else {
+            updateMessage(message.id, (message) => ({
+              ...message,
+              parts: [
+                ...(message.parts ?? []),
+                ...submitted.questions.map((question, index) => {
+                  const answer = submitted.answers[index];
+                  return {
+                    id: index === 0 ? submitted.requestId : `${submitted.requestId}:${index}`,
+                    type: "ask_user" as const,
+                    question: question.question,
+                    answer:
+                      !answer || answer.skipped
+                        ? "(skipped)"
+                        : answer.selected?.join(", ") || answer.answer,
+                    askedBy: typeof asked_by === "string" ? asked_by : undefined,
+                  };
+                }),
+              ],
+            }));
           }
           break;
         }
@@ -1511,6 +1706,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "complete": {
+          if ((wsEvent.data as { stopped?: boolean }).stopped) pauseQueued();
           if (
             continueAfterComputerRef.current &&
             !(wsEvent.data as { stopped?: boolean }).stopped &&
@@ -1636,6 +1832,7 @@ export function useChat(options: UseChatOptions = {}) {
       activeConversationId,
       refreshConversationCost,
       setQueue,
+      pauseQueued,
       t,
     ],
   );
@@ -1869,6 +2066,11 @@ export function useChat(options: UseChatOptions = {}) {
         }
       }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
+      const execution = useWorkOnStore.getState().executionFor(conversationId || null, projectId);
+      // Local folder consent has its own executor; a remembered cloud selection
+      // is used again only when the person returns to the cloud.
+      if (!scoped && execution !== null && local === null)
+        payload.project_execution_target = execution;
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
       const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
@@ -1937,11 +2139,13 @@ export function useChat(options: UseChatOptions = {}) {
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
       tenantId,
+      scoped,
     ],
   );
 
   const sendChatMessage = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+      const paused = messageQueueRef.current.some((message) => message.paused);
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -1953,12 +2157,18 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
       ) {
         const id = clientId();
-        setQueue([...messageQueueRef.current, { id, content, fileIds, files, mentions }]);
+        setQueue([
+          ...messageQueueRef.current,
+          { id, content, fileIds, files, mentions, ...(paused ? { paused: true } : {}) },
+        ]);
         return;
       }
       setSentTurnId(doSend(content, fileIds, files, mentions));
@@ -1979,6 +2189,7 @@ export function useChat(options: UseChatOptions = {}) {
       // carries text alone, so one sent now would lose what it pointed at.
       if (
         !queued ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
@@ -2045,11 +2256,15 @@ export function useChat(options: UseChatOptions = {}) {
       return;
     }
     let current = true;
+    const stoppedAt = queueStopVersion.current;
     void keptOutbox(activeConversationId).then((kept) => {
       if (!current || kept.length === 0) return;
       const onScreen = messageQueueRef.current.filter((q) => !kept.some((k) => k.id === q.id));
-      messageQueueRef.current = [...kept, ...onScreen];
-      setQueuedMessages([...messageQueueRef.current]);
+      const restored =
+        stoppedAt === queueStopVersion.current
+          ? kept
+          : kept.map((message) => ({ ...message, paused: true }));
+      setQueue([...restored, ...onScreen]);
       // Nothing else the drainer watches moved: with a connection up and the
       // agent idle, it is this that sends them.
       setDrainTick((tick) => tick + 1);
@@ -2057,7 +2272,7 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       current = false;
     };
-  }, [activeConversationId]);
+  }, [activeConversationId, setQueue]);
 
   // A queued message belongs to the organization it was typed in. It sits in
   // this hook's own state until the socket comes back, so neither dropping the
@@ -2082,6 +2297,8 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setSubmittingQuestions(false);
+    liveQuestionSubmission.current = null;
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
@@ -2095,6 +2312,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -2168,6 +2386,8 @@ export function useChat(options: UseChatOptions = {}) {
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setSubmittingQuestions(false);
+    liveQuestionSubmission.current = null;
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
@@ -2198,11 +2418,9 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
-  // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2227,11 +2445,15 @@ export function useChat(options: UseChatOptions = {}) {
   // `sendResumeDecisions` clears the panel before the steps stop reading
   // `awaiting_approval`, which is exactly the state this effect would otherwise
   // read as a reloaded parked run. Empty rows are left alone - a run decided
-  // elsewhere but not yet resumed has nothing left to offer - and a fetch that
-  // failed is left alone too: the approvals queue holds the same rows, and an
-  // error toast over a transcript somebody is reading buys nothing.
+  // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || !canDecide || decidingApprovalRef.current) return;
+    if (
+      pendingApproval !== null ||
+      continuingApproval ||
+      !permissionsLoaded ||
+      decidingApprovalRef.current
+    )
+      return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
       if (
@@ -2239,6 +2461,11 @@ export function useChat(options: UseChatOptions = {}) {
         !message.runId ||
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
+        return [];
+      // Without `approvals:decide` a person answers only their own platform call, so
+      // a turn showing only other calls is not asked about. One showing none - a
+      // delegated child's approval - is, and the rows say whose it is.
+      if (!canDecide && calls.length > 0 && !calls.some((call) => isPlatformTool(call.name)))
         return [];
       const key = JSON.stringify([
         message.runId,
@@ -2254,16 +2481,27 @@ export function useChat(options: UseChatOptions = {}) {
       for (const { message, key, runId } of candidates) {
         if (disposed || panelsBelongTo.current !== conversation) return;
         if (terminalRunIdsRef.current.has(runId)) continue;
-        offeredApprovalBatchesRef.current.add(key);
+        // The transcript can be hydrated again while the read is in flight.
+        // Share that read and only mark it handled when the current effect can
+        // apply the response.
+        const reads = parkedApprovalReadsRef.current;
+        let request = reads.get(runId);
+        if (request === undefined) {
+          request = apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+          reads.set(runId, request);
+        }
         try {
-          const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current) {
-            offeredApprovalBatchesRef.current.delete(key);
+          const parked = await request;
+          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current)
             return;
-          }
-          if (terminalRunIdsRef.current.has(runId)) continue;
+          if (terminalRunIdsRef.current.has(runId) || offeredApprovalBatchesRef.current.has(key))
+            continue;
+          offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
+          // Without `approvals:decide` the only call a person answers is their own
+          // platform call; a run holding none of those stays with its Stop.
+          if (!canDecide && !actionable.some((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2277,6 +2515,8 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              may_decide: call.may_decide,
+              may_approve: call.may_approve,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2286,24 +2526,38 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: message.id,
           });
           return;
-        } catch {
-          offeredApprovalBatchesRef.current.delete(key);
+        } catch (error) {
+          // Another person's run in a shared chat is refused for good; anything else
+          // stays eligible for a later transcript refresh.
+          if (error instanceof ApiError && error.status === 403) {
+            offeredApprovalBatchesRef.current.add(key);
+          }
+        } finally {
+          if (reads.get(runId) === request) reads.delete(runId);
         }
       }
     })();
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, canDecide, activeConversationId]);
+  }, [
+    messages,
+    pendingApproval,
+    continuingApproval,
+    permissionsLoaded,
+    canDecide,
+    activeConversationId,
+  ]);
 
   const queryClient = useQueryClient();
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
-    (approvalId: string, approved: boolean, rememberScope?: Decision["remember_scope"]) =>
+    (approvalId: string, decision: Decision) =>
       apiClient.post<ToolApproval>(`/approvals/${approvalId}`, {
-        approved,
-        ...(rememberScope ? { remember_scope: rememberScope } : {}),
+        approved: decision.type === "approve",
+        ...(decision.remember_scope ? { remember_scope: decision.remember_scope } : {}),
+        ...(decision.type === "reject" && decision.note ? { note: decision.note } : {}),
       }),
     [],
   );
@@ -2385,7 +2639,7 @@ export function useChat(options: UseChatOptions = {}) {
         output_tokens: resumed.output_tokens,
         cache_read_tokens: resumed.cache_read_tokens ?? null,
         cache_write_tokens: resumed.cache_write_tokens ?? null,
-        cost_usd: resumed.cost_usd ?? "0",
+        cost_usd: resumed.cost_usd ?? null,
         cost_is_partial: resumed.cost_is_partial,
         // A resume is not told where the run stands against its budget, and
         // an invented percentage is worse than a bar that is not drawn.
@@ -2474,6 +2728,8 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            may_decide: call.may_decide,
+            may_approve: call.may_approve,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,
@@ -2520,39 +2776,82 @@ export function useChat(options: UseChatOptions = {}) {
       answeringQuestionRef.current !== null
     )
       return;
+    const conversation = activeConversationId;
     const askedMessage = [...messages]
       .reverse()
       .find(
         (message) =>
           message.role === "assistant" &&
+          message.runId !== undefined &&
+          !questionOfferedForRef.current.has(message.runId) &&
+          !terminalRunIdsRef.current.has(message.runId) &&
           (message.conversationId === undefined ||
             message.conversationId === activeConversationId) &&
           (message.runWaitingFor === "answer" ||
             (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer")),
       );
-    if (askedMessage === undefined || askedMessage.runId === undefined) return;
-    const runId = askedMessage.runId;
-    if (questionOfferedForRef.current.has(runId) || terminalRunIdsRef.current.has(runId)) return;
+    const linked = conversation ? requestedQuestionRunId : null;
+    const requested =
+      linked && !questionOfferedForRef.current.has(linked) && !terminalRunIdsRef.current.has(linked)
+        ? linked
+        : null;
+    const runId = requested ?? askedMessage?.runId;
+    if (runId === undefined) return;
     questionOfferedForRef.current.add(runId);
-    const conversation = activeConversationId;
+    let settled = false;
+    let cancelled = false;
+    const account = useAuthStore.getState().user?.id;
+    const organization = useOrgStore.getState().activeOrgId;
     void (async () => {
       try {
-        const asked = await apiClient.get<ParkedQuestion[]>(`/runs/${runId}/questions`);
-        if (asked.length === 0 || panelsBelongTo.current !== conversation) return;
-        offerParkedQuestion(asked, runId, askedMessage.id);
+        // An Inbox link works even when that run is outside the loaded transcript.
+        const path = `/runs/${encodeURIComponent(runId)}/questions`;
+        const asked =
+          requested && conversation
+            ? await apiClient.get<ParkedQuestion[]>(path, {
+                params: { conversation_id: conversation },
+              })
+            : await apiClient.get<ParkedQuestion[]>(path);
+        if (
+          cancelled ||
+          panelsBelongTo.current !== conversation ||
+          useAuthStore.getState().user?.id !== account ||
+          useOrgStore.getState().activeOrgId !== organization
+        )
+          return;
+        settled = true;
+        if (asked.length === 0) {
+          // A stale explicit link must not suppress a different saved question.
+          setQuestionRestoreTick((tick) => tick + 1);
+          return;
+        }
+        const message =
+          askedMessage?.runId === runId
+            ? askedMessage
+            : chatApi
+                .getState()
+                .messages.findLast((item) => item.role === "assistant" && item.runId === runId);
+        offerParkedQuestion(asked, runId, message?.id ?? null);
       } catch {
         // Quiet, like the approval restore above: the transcript still says the
         // step is waiting, and a toast over it buys nothing. Unmarked so the next
         // render - or reopening the conversation - tries again.
-        questionOfferedForRef.current.delete(runId);
+        if (!cancelled) questionOfferedForRef.current.delete(runId);
       }
     })();
+    return () => {
+      cancelled = true;
+      if (!settled) questionOfferedForRef.current.delete(runId);
+    };
   }, [
+    questionRestoreTick,
     messages,
     pendingQuestions,
     isProcessing,
     isConnected,
     activeConversationId,
+    requestedQuestionRunId,
+    chatApi,
     offerParkedQuestion,
   ]);
 
@@ -2594,13 +2893,15 @@ export function useChat(options: UseChatOptions = {}) {
     ) ?? null;
 
   const sendResumeDecisions = useCallback(
-    async (decisions: Decision[]) => {
+    async (decisions: Decision[], requests?: ActionRequest[]) => {
       if (stoppingRef.current !== null || decidingApprovalRef.current) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null) return;
+      // `requests` is the part of the batch this person may answer, when not all of it.
+      const deciding = requests ?? parked?.actionRequests ?? [];
+      if (parked === null || decisions.length !== deciding.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -2619,37 +2920,45 @@ export function useChat(options: UseChatOptions = {}) {
       // so the panel reported "3 approved" and nothing whatsoever happened.
       // Recording the decision on the row is also what keeps the queue, the
       // audit entry and the email honest about what was decided.
+      const savedDecisions = [...(parked.savedDecisions ?? [])];
+      let continuesInChat = parked.continuesInChat ?? false;
+      const recordDecision = (request: ActionRequest, approved: boolean) => {
+        savedDecisions.push({ request, approved });
+        decidedApprovalIdsRef.current.add(request.id);
+        // The parked turn has already ended, so the live message ref is null.
+        if (parked.messageId !== null) {
+          updateToolCallPart(parked.messageId, request.tool_call_id, {
+            status: approved ? "running" : "error",
+            result: approved ? undefined : "Refused",
+          });
+        }
+      };
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        let continuesInChat = false;
-        for (const [index, request] of parked.actionRequests.entries()) {
-          const decision = decisions[index];
-          if (decision === undefined) continue;
-          const decided = await decideApproval(
-            request.id,
-            decision.type === "approve",
-            decision.remember_scope,
-          );
-          decidedApprovalIdsRef.current.add(request.id);
+        for (const [index, request] of deciding.entries()) {
+          const decision = decisions[index]!;
+          const decided = await decideApproval(request.id, decision);
+          recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
-          // `parked.messageId`, never the live ref: the turn ended at `complete`
-          // the moment the run parked, so the ref is null by now and every one of
-          // these updates was being skipped - which is why the step stayed at
-          // "waiting for approval" after an approval that had actually worked.
-          if (parked.messageId !== null) {
-            updateToolCallPart(parked.messageId, request.tool_call_id, {
-              status: decision.type === "approve" ? "running" : "error",
-              result: decision.type === "approve" ? undefined : "Refused",
+        }
+        const waiting = parked.actionRequests.filter(
+          (request) => !decidedApprovalIdsRef.current.has(request.id),
+        );
+        if (waiting.length > 0) {
+          // The rest is for somebody who may decide it; the run continues after them.
+          if (decidingApprovalRef.current === decisionToken) {
+            setPendingApproval({
+              ...parked,
+              actionRequests: waiting,
+              savedDecisions,
+              continuesInChat,
             });
           }
+          return;
         }
-        if (
-          parked.actionRequests.every((request) => decidedApprovalIdsRef.current.has(request.id))
-        ) {
-          await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
-          void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-        }
+        await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
+        void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
         if (continuesInChat) {
           // Approval queues the continuation; it does not complete the tool.
           // Persisted run updates replace these pending steps with their actual
@@ -2700,8 +3009,8 @@ export function useChat(options: UseChatOptions = {}) {
         const settled = new Map((resumed.settled ?? []).map((call) => [call.tool_call_id, call]));
         if (parked.messageId !== null) {
           const id = parked.messageId;
-          for (const [index, request] of parked.actionRequests.entries()) {
-            if (decisions[index]?.type === "approve") {
+          for (const { request, approved } of savedDecisions) {
+            if (approved) {
               updateToolCallPart(id, request.tool_call_id, {
                 status: "completed",
                 result: settled.get(request.tool_call_id)?.result,
@@ -2713,7 +3022,7 @@ export function useChat(options: UseChatOptions = {}) {
           showContinuation(
             resumed,
             parked.runId,
-            new Set(parked.actionRequests.map((request) => request.tool_call_id)),
+            new Set(savedDecisions.map(({ request }) => request.tool_call_id)),
           );
         }
       } catch (error) {
@@ -2730,11 +3039,28 @@ export function useChat(options: UseChatOptions = {}) {
           toast.error(getErrorMessage(error, tErrors));
           return;
         }
+        // A concurrent reviewer (or a POST whose reply was lost) may have saved
+        // a different choice. Show that outcome before letting anyone continue.
+        const details = error instanceof ApiError && error.status === 400 ? error.details : null;
+        const alreadyDecided = parked.actionRequests.find(
+          (request) => request.id === details?.approval_id,
+        );
+        if (alreadyDecided && (details?.status === "approved" || details?.status === "rejected")) {
+          recordDecision(alreadyDecided, details.status === "approved");
+          continuesInChat = details.continues_in_chat === true;
+        }
         // The decision failed to record, or the resume could not be built (a secret
         // deleted since the park): the run is still parked, so put the approval back
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
-        setPendingApproval(parked);
+        setPendingApproval({
+          ...parked,
+          actionRequests: parked.actionRequests.filter(
+            (request) => !decidedApprovalIdsRef.current.has(request.id),
+          ),
+          savedDecisions,
+          continuesInChat,
+        });
         toast.error(getErrorMessage(error, tErrors));
       } finally {
         if (decidingApprovalRef.current === decisionToken) {
@@ -2768,6 +3094,7 @@ export function useChat(options: UseChatOptions = {}) {
   const answerParkedQuestion = useCallback(
     async (parked: NonNullable<typeof parkedQuestion>, answers: AskUserAnswer[]) => {
       const ticket = {};
+      const questionBatch = liveQuestionBatchId.current;
       answeringQuestionRef.current = ticket;
       const conversation = activeConversationId;
       const tenant = queueBelongsTo.current;
@@ -2783,16 +3110,23 @@ export function useChat(options: UseChatOptions = {}) {
         useAuthStore.getState().user?.id === account;
       const asked = pendingQuestions;
       const stream = { started: false };
-      setPendingQuestions(null);
-      setParkedQuestion(null);
-      parkedQuestionRunRef.current = null;
+      const messageId = () =>
+        chatApi
+          .getState()
+          .messages.findLast(
+            (message) =>
+              message.runId === parked.runId &&
+              message.toolCalls?.some((call) =>
+                parked.calls.some((asked) => asked.toolCallId === call.id),
+              ),
+          )?.id ?? parked.messageId;
+      // Keep the question and choices on screen until the server accepts them.
+      setSubmittingQuestions(true);
       const setStatus = (status: "running" | "awaiting_answer") => {
-        const messageId = parked.messageId;
         for (const call of parked.calls) {
-          updateToolCallPart(messageId, call.toolCallId, { status });
+          updateToolCallPart(messageId(), call.toolCallId, { status });
         }
       };
-      setStatus("running");
       // The card's answers are in the order of its questions, which is the
       // order of the calls; each call takes its own slice back.
       const responses: Record<string, AskUserAnswer[]> = {};
@@ -2816,15 +3150,27 @@ export function useChat(options: UseChatOptions = {}) {
             reject,
             accepted: () => {
               if (!stillHere()) return;
+              void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
               // This marker arrives only after the runner admits the answers.
               // The correlated result follows the whole continuation, which may
               // run for minutes or ask another question in a different message.
-              updateMessage(parked.messageId, (message) => ({
+              if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
+              setParkedQuestion(null);
+              parkedQuestionRunRef.current = null;
+              updateMessage(messageId(), (message) => ({
                 ...message,
                 runWaitingFor: undefined,
               }));
+              let answerOffset = 0;
               for (const call of parked.calls) {
-                updateToolCallPart(parked.messageId, call.toolCallId, { status: "completed" });
+                updateToolCallPart(messageId(), call.toolCallId, {
+                  status: "completed",
+                  result: questionAnswerResult(
+                    (asked ?? []).slice(answerOffset, answerOffset + call.count),
+                    answers.slice(answerOffset, answerOffset + call.count),
+                  ),
+                });
+                answerOffset += call.count;
               }
             },
           };
@@ -2836,15 +3182,31 @@ export function useChat(options: UseChatOptions = {}) {
           });
         });
         if (!stillHere()) return;
-        updateMessage(parked.messageId, (message) => ({ ...message, runWaitingFor: undefined }));
+        void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
+        // A continuation can ask again before the previous answer result arrives.
+        // That result owns the parked card, not the newer live question batch.
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(null);
+          setSubmittingQuestions(false);
+        }
+        setParkedQuestion(null);
+        parkedQuestionRunRef.current = null;
+        updateMessage(messageId(), (message) => ({ ...message, runWaitingFor: undefined }));
+        let settledOffset = 0;
         for (const call of parked.calls) {
           const settled = (resumed.settled ?? []).find(
             (settledCall) => settledCall.tool_call_id === call.toolCallId,
           );
-          updateToolCallPart(parked.messageId, call.toolCallId, {
+          updateToolCallPart(messageId(), call.toolCallId, {
             status: "completed",
-            result: settled?.result,
+            result:
+              settled?.result ??
+              questionAnswerResult(
+                (asked ?? []).slice(settledOffset, settledOffset + call.count),
+                answers.slice(settledOffset, settledOffset + call.count),
+              ),
           });
+          settledOffset += call.count;
         }
         showContinuation(
           resumed,
@@ -2857,6 +3219,9 @@ export function useChat(options: UseChatOptions = {}) {
         if (error instanceof RunAnswerInterrupted) {
           // Acceptance is unknown. Reconnect restores only what the persisted
           // run is still waiting on; submitted answers are never resent.
+          if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
           questionOfferedForRef.current.delete(parked.runId);
           return;
         }
@@ -2866,14 +3231,22 @@ export function useChat(options: UseChatOptions = {}) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalRunIdsRef.current.has(parked.runId) || terminalStatus !== null) {
           terminalRunIdsRef.current.add(parked.runId);
-          setPendingQuestions(null);
-          liveQuestionRef.current = false;
-          setPendingConnection(null);
-          abandonOpenCalls(parked.messageId);
-          const messageId = stream.started ? currentMessageIdRef.current : null;
-          if (messageId !== null) {
-            updateMessage(messageId, (message) => ({ ...message, isStreaming: false }));
-            abandonOpenCalls(messageId);
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          if (liveQuestionBatchId.current === questionBatch || currentRun === parked.runId) {
+            setPendingQuestions(null);
+            liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
+            setPendingConnection(null);
+          }
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
+          abandonOpenCalls(messageId());
+          const streamedMessageId = stream.started ? currentMessageIdRef.current : null;
+          if (streamedMessageId !== null) {
+            updateMessage(streamedMessageId, (message) => ({ ...message, isStreaming: false }));
+            abandonOpenCalls(streamedMessageId);
           }
           if (stream.started)
             setDelegations((current) =>
@@ -2886,19 +3259,32 @@ export function useChat(options: UseChatOptions = {}) {
         }
         // An acknowledged refusal before execution leaves the run parked, so
         // its question can be answered again after the server becomes ready.
-        setPendingQuestions(asked);
-        setParkedQuestion(parked);
-        parkedQuestionRunRef.current = parked.runId;
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(asked);
+          setParkedQuestion(parked);
+          parkedQuestionRunRef.current = parked.runId;
+        } else {
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
+        }
         setStatus("awaiting_answer");
       } finally {
         if (answeringQuestionRef.current === ticket) {
           answeringQuestionRef.current = null;
-          const following = !stream.started && followingRef.current !== null;
-          processingRef.current = following;
-          setIsProcessing(following);
-          if (stream.started) {
-            setCurrentMessageId(null);
-            resumedRunIdRef.current = undefined;
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          const terminalQuestion =
+            terminalRunIdsRef.current.has(parked.runId) && currentRun === parked.runId;
+          if (liveQuestionBatchId.current === questionBatch || terminalQuestion) {
+            setSubmittingQuestions(false);
+            const following = !stream.started && followingRef.current !== null;
+            processingRef.current = following;
+            setIsProcessing(following);
+            if (stream.started) {
+              setCurrentMessageId(null);
+              resumedRunIdRef.current = undefined;
+            }
           }
           setDrainTick((tick) => tick + 1);
         }
@@ -2915,6 +3301,8 @@ export function useChat(options: UseChatOptions = {}) {
       updateMessage,
       showContinuation,
       abandonOpenCalls,
+      queryClient,
+      chatApi,
       onTurnInterrupted,
       tErrors,
       t,
@@ -2924,24 +3312,40 @@ export function useChat(options: UseChatOptions = {}) {
   const sendAskUserResponses = useCallback(
     (answers: AskUserAnswer[]) => {
       if (stoppingRef.current !== null || !isConnected) return;
-      if (parkedQuestion !== null) {
+      if (parkedQuestion !== null && !liveQuestionRef.current) {
         if (answeringQuestionRef.current !== null) return;
         void answerParkedQuestion(parkedQuestion, answers);
         return;
       }
-      if (!liveQuestionRef.current) return;
+      if (!liveQuestionRef.current || liveQuestionSubmission.current !== null) return;
       liveQuestionRef.current = false;
-      setPendingQuestions(null);
-      const messageId = currentMessageIdRef.current;
-      const message = chatApi.getState().messages.find((message) => message.id === messageId);
-      for (const call of message?.toolCalls ?? []) {
-        if (call.status === "awaiting_answer" && messageId) {
-          updateToolCallPart(messageId, call.id, { status: "running" });
-        }
-      }
-      sendMessage({ type: "ask_user_response", answers });
+      const requestId = liveQuestionBatchId.current ?? clientId();
+      liveQuestionSubmission.current = {
+        requestId,
+        messageId: currentMessageIdRef.current,
+        questions: pendingQuestions ?? [],
+        answers,
+        toolCallIds: (
+          chatApi.getState().messages.find((message) => message.id === currentMessageIdRef.current)
+            ?.toolCalls ?? []
+        )
+          .filter(
+            (call) =>
+              call.status === "awaiting_answer" && toolLookupName(call) === "ask_user_question",
+          )
+          .map((call) => call.id),
+      };
+      setSubmittingQuestions(true);
+      sendMessage({
+        type: "ask_user_response",
+        request_id: requestId,
+        answers,
+        ...(runtimeQuestionIdRef.current
+          ? { runtime_question_id: runtimeQuestionIdRef.current }
+          : {}),
+      });
     },
-    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, chatApi, updateToolCallPart],
+    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions, chatApi],
   );
 
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
@@ -2993,6 +3397,7 @@ export function useChat(options: UseChatOptions = {}) {
         abandonRunAnswer();
       }
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       processingRef.current = false;
       if (currentMessageIdRef.current) {
         updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
@@ -3023,6 +3428,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const stopGeneration = useCallback(() => {
     if (stoppingRef.current !== null) return;
+    pauseQueued();
     continueAfterComputerRef.current = null;
     computerRequestRef.current = null;
     const submittedAnswer = pendingRunAnswerRef.current;
@@ -3062,6 +3468,7 @@ export function useChat(options: UseChatOptions = {}) {
         useAuthStore.getState().user?.id === account;
       const dismiss = () => {
         queryClient.setQueryData(qk.runs.canStop(tenantId, stopAccountId, parked.runId), false);
+        void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
         if (parkedQuestion?.runId === parked.runId) {
           setParkedQuestion(null);
           parkedQuestionRunRef.current = null;
@@ -3159,6 +3566,7 @@ export function useChat(options: UseChatOptions = {}) {
     updateMessage,
     tErrors,
     onTurnInterrupted,
+    pauseQueued,
   ]);
 
   const acknowledgeDetachedTurn = useCallback(() => {
@@ -3257,16 +3665,29 @@ export function useChat(options: UseChatOptions = {}) {
       const thread = { id: activeConversationId };
       interruptedRef.current = thread;
       interruptedForRef.current = thread;
+      // The half-written answer will never be renamed: its `message_saved` was
+      // due on this socket. Marked, so the transcript's saved row replaces it
+      // when the turn lands, and a replay of the turn replaces it on attachment.
+      droppedPromptRef.current =
+        chatApi.getState().messages.findLast((message) => message.role === "user")?.id ?? null;
+      if (currentMessageIdRef.current) {
+        updateMessage(currentMessageIdRef.current, (message) =>
+          message.isTemporaryId ? { ...message, socketDropped: true } : message,
+        );
+      }
       endTurnLocally(true);
       setInterruptedFor(thread);
-      // The baseline the effect below watches. Taken here, after
-      // `endTurnLocally` has stopped the half-written answer streaming: that
-      // stop makes it *finished* by the count's own definition, so a baseline
-      // read a moment earlier would be one short and the notice would clear
-      // itself immediately.
-      finishedWhenInterrupted.current = chatApi
+      // The baseline the effect below watches: the saved answers the thread had
+      // when its socket went. The half-written one is not among them - it is
+      // replaced, not joined, by the saved row it becomes.
+      const saved = chatApi
         .getState()
-        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
+        .messages.filter(
+          (message) =>
+            message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+        );
+      finishedWhenInterrupted.current = saved.length;
+      savedBeforeDropRef.current = new Set(saved.map((message) => message.id));
     }
     const thread = interruptedRef.current;
     if (!returned || thread === null) return;
@@ -3281,6 +3702,7 @@ export function useChat(options: UseChatOptions = {}) {
     onTurnInterrupted,
     chatApi,
     abandonRunAnswer,
+    updateMessage,
   ]);
 
   // Coming back to the chat with a turn still drawn as streaming. The store
@@ -3366,7 +3788,11 @@ export function useChat(options: UseChatOptions = {}) {
       !sessionReady ||
       decidingApprovalRef.current ||
       answeringQuestionRef.current !== null ||
-      parkedQuestionRunRef.current !== null
+      parkedQuestionRunRef.current !== null ||
+      liveQuestionRef.current ||
+      liveQuestionSubmission.current !== null ||
+      stoppingRef.current !== null ||
+      messageQueueRef.current.some((message) => message.paused)
     )
       return;
     const next = messageQueueRef.current[0];
@@ -3385,6 +3811,10 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !sessionReadyRef.current
       )
         return;
@@ -3422,19 +3852,32 @@ export function useChat(options: UseChatOptions = {}) {
   //
   // Counted rather than matched on an id: the turn was interrupted before it
   // had one, and the count is the same question asked in a way this client can
-  // answer.
-  const finishedTurns = messages.filter(
-    (message) => message.role === "assistant" && !message.isStreaming,
-  ).length;
+  // answer. Saved answers only: counting the half-written bubble the drop left
+  // made a baseline that the saved answer replacing it could never pass.
+  const finishedTurns = savedAnswers(messages);
   useEffect(() => {
     const thread = interruptedForRef.current;
     // Only for the thread it happened in: `messages` is replaced wholesale on a
     // switch, so a busier thread would otherwise read as this one's answer.
     if (thread === null || thread.id !== activeConversationId) return;
     if (finishedTurns <= finishedWhenInterrupted.current) return;
+    const run = messages.find((message) => message.id === droppedPromptRef.current)?.runId;
+    if (
+      run &&
+      !messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          message.runId === run &&
+          !savedBeforeDropRef.current.has(message.id),
+      )
+    )
+      return;
     interruptedForRef.current = null;
+    droppedPromptRef.current = null;
     setInterruptedFor(null);
-  }, [finishedTurns, activeConversationId]);
+  }, [finishedTurns, activeConversationId, messages]);
 
   const displayedDelegations = useMemo(
     () =>
@@ -3529,6 +3972,7 @@ export function useChat(options: UseChatOptions = {}) {
     sentTurnId,
     cancelQueued,
     retryQueued,
+    resumeQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,
@@ -3548,6 +3992,17 @@ export function useChat(options: UseChatOptions = {}) {
       controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,
     sendResumeDecisions,
     pendingQuestions,
+    submittingQuestions,
+    questionTarget: pendingQuestions
+      ? {
+          id: parkedQuestion?.calls[0]?.toolCallId ?? liveQuestionTarget?.id ?? "question",
+          messageId: parkedQuestion?.messageId ?? liveQuestionTarget?.messageId ?? null,
+          toolCallIds:
+            parkedQuestion?.calls.map((call) => call.toolCallId) ??
+            liveQuestionTarget?.toolCallIds ??
+            [],
+        }
+      : null,
     sendAskUserResponses,
     /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
     pendingConnection,

@@ -141,7 +141,7 @@ describe("the filter bar", () => {
   it("switches to the archive from behind the button", async () => {
     const { onViewChange } = mount();
     await openFilters();
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Archived" }));
     expect(onViewChange).toHaveBeenCalledWith("archived");
   });
 
@@ -188,4 +188,14 @@ it("opens a compact header filter below the trigger rather than outside a phone 
     "data-side",
     "bottom",
   );
+});
+
+it("moves between active and archived with one keyboard radio-group stop", async () => {
+  const { onViewChange } = mount();
+  await openFilters();
+  const active = screen.getByRole("radio", { name: "Active" });
+  active.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(onViewChange).toHaveBeenCalledWith("archived");
+  expect(screen.getByRole("radio", { name: "Archived" })).toHaveFocus();
 });

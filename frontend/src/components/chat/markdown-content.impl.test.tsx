@@ -283,6 +283,7 @@ describe("rendering an answer", () => {
     const link = screen.getByRole("link", { name: /the docs/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).not.toHaveAttribute("data-console-link");
   });
 
   it.each([
@@ -324,6 +325,7 @@ describe("rendering an answer", () => {
     const link = screen.getByRole("link", { name: /settings/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveAttribute("data-console-link");
   });
 
   it("leaves an in-app link in this tab", () => {
@@ -331,6 +333,7 @@ describe("rendering an answer", () => {
 
     const link = screen.getByRole("link", { name: "settings" });
     expect(link).not.toHaveAttribute("target");
+    expect(link).toHaveAttribute("data-console-link");
   });
 });
 

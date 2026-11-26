@@ -112,9 +112,9 @@ describe("ConflictBanner", () => {
   it("overwrite resends against the server revision and keeps local edits", async () => {
     renderBanner();
     act(() => useWorkflowEditorStore.getState().setConflict(9));
-    expect(await screen.findByText("This draft changed elsewhere")).toBeVisible();
+    expect(await screen.findByText("Someone else also edited this workflow")).toBeVisible();
 
-    await userEvent.click(screen.getByRole("button", { name: "Overwrite" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep my changes" }));
 
     const store = useWorkflowEditorStore.getState();
     expect(store.conflict).toBeNull();
@@ -129,7 +129,7 @@ describe("ConflictBanner", () => {
     renderBanner();
     act(() => useWorkflowEditorStore.getState().setConflict(9));
 
-    await userEvent.click(await screen.findByRole("button", { name: "Reload" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Load their version" }));
 
     await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
     const store = useWorkflowEditorStore.getState();
@@ -164,7 +164,7 @@ describe("ConflictBanner", () => {
     render(<ConflictBanner workflowId="w1" />, { wrapper });
     act(() => useWorkflowEditorStore.getState().setConflict(9));
 
-    await userEvent.click(await screen.findByRole("button", { name: "Reload" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Load their version" }));
 
     await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
     // The server was actually read, not served the client's stale cache.
@@ -180,7 +180,7 @@ describe("ConflictBanner", () => {
     renderBanner();
     act(() => useWorkflowEditorStore.getState().setConflict(9));
 
-    await userEvent.click(await screen.findByRole("button", { name: "Reload" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Load their version" }));
 
     await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
     expect(useWorkflowEditorStore.getState().getGraph()?.entry_node_id).toBe("");
@@ -192,17 +192,17 @@ describe("ConflictBanner", () => {
     renderBanner();
     act(() => useWorkflowEditorStore.getState().setConflict(9));
 
-    await userEvent.click(await screen.findByRole("button", { name: "Reload" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Load their version" }));
 
-    expect(screen.getByRole("button", { name: "Reload" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Overwrite" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Load their version" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Keep my changes" })).toBeDisabled();
 
     await act(async () => {
       resolve(serverDetail());
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(screen.queryByText("This draft changed elsewhere")).not.toBeInTheDocument(),
+      expect(screen.queryByText("Someone else also edited this workflow")).not.toBeInTheDocument(),
     );
   });
 });
@@ -220,7 +220,7 @@ it.each(["resolved", "refused"] as const)(
     );
     renderBanner();
     act(() => useWorkflowEditorStore.getState().setConflict(9));
-    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+    await userEvent.click(screen.getByRole("button", { name: "Load their version" }));
 
     act(() => {
       const store = useWorkflowEditorStore.getState();
@@ -248,16 +248,16 @@ it("a refused reload keeps local changes and offers another try with its error v
   vi.mocked(getWorkflow).mockRejectedValueOnce(new Error("Connection lost"));
   renderBanner();
   act(() => useWorkflowEditorStore.getState().setConflict(9));
-  await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+  await userEvent.click(screen.getByRole("button", { name: "Load their version" }));
 
   expect(await screen.findByText("Connection lost")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Reload" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Load their version" })).toBeEnabled();
   expect(useWorkflowEditorStore.getState().getGraph()).toBe(LOCAL_GRAPH);
   expect(useWorkflowEditorStore.getState().isDirty).toBe(true);
   expect(useWorkflowEditorStore.getState().conflict?.currentRevision).toBe(9);
 
   vi.mocked(getWorkflow).mockResolvedValue(serverDetail());
-  await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+  await userEvent.click(screen.getByRole("button", { name: "Load their version" }));
   await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
   expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
 });

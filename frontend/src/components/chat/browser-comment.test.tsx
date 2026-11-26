@@ -4,7 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
+import { toast } from "sonner";
 import { BrowserCommentLayer, ringedPicture } from "./browser-comment";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const IMAGE = "data:image/png;base64,AAA";
 
@@ -30,7 +33,10 @@ function fakeCanvas(blob: Blob | null = new Blob(["png"], { type: "image/png" })
   return context;
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
 function renderLayer(url: string | null = "https://example.test/pricing") {
   const onComment = vi.fn();
@@ -97,6 +103,28 @@ describe("a comment pointed at the browser's page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await userEvent.type(screen.getByLabelText("What about it?"), "{Escape}");
     expect(onDone).toHaveBeenCalledTimes(2);
+  });
+  it("preserves the note and lets the reader retry if creating its screenshot fails", async () => {
+    fakeCanvas(null);
+    const { onComment, onDone, layer } = renderLayer();
+    fireEvent.click(layer, { clientX: 100, clientY: 100 });
+    await userEvent.type(screen.getByLabelText("What about it?"), "Keep this note");
+    await userEvent.click(screen.getByRole("button", { name: "Add to message" }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
+    expect(screen.getByLabelText("What about it?")).toHaveValue("Keep this note");
+    expect(screen.getByRole("button", { name: "Add to message" })).toBeEnabled();
+    expect(onComment).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+  it("does not submit Enter while a note is being composed with an IME", () => {
+    fakeCanvas();
+    const { layer, onComment } = renderLayer();
+    fireEvent.click(layer, { clientX: 100, clientY: 100 });
+    const input = screen.getByLabelText("What about it?");
+    fireEvent.change(input, { target: { value: "日本語" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onComment).not.toHaveBeenCalled();
   });
 });
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useAuthStore } from "@/stores";
 import { readSession, sessionUnavailable, stayOffline, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
+import { isSignInPage } from "@/lib/auth-landing";
 import { invitationTokenFrom, pendingLandingFor } from "@/lib/invitation-links";
 import { stageInvitation } from "@/lib/invitation-staging";
 import type { User } from "@/types";
@@ -55,7 +56,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (invitationToken) {
       await stageAndGo(invitationToken);
     } else {
-      router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`);
+      // Already on a sign-in page - the login page a sign-out just opened - there
+      // is nowhere to come back to: a returnTo of the login page itself sent the
+      // next sign-in back to the form.
+      router.replace(
+        isSignInPage(pathname)
+          ? ROUTES.LOGIN
+          : `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`,
+      );
     }
   }, [router, stageAndGo]);
 
@@ -96,7 +104,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (checking && !isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
+      <div className="flex h-dvh items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
         <span className="sr-only">{t("checkingAuthentication")}</span>
       </div>
@@ -105,7 +113,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unavailable && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("sessionUnavailable")}
@@ -126,7 +134,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unstagedToken && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("invitationNotStaged")}

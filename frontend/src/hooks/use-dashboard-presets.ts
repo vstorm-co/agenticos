@@ -29,12 +29,12 @@ interface UseDashboardPresetsResult {
  * duplicate name or at the per-person cap, so the authoritative list is the one
  * the server returns, not one this layer guesses at.
  */
-export function useDashboardPresets(): UseDashboardPresetsResult {
+export function useDashboardPresets(enabled = true): UseDashboardPresetsResult {
   const queryClient = useQueryClient();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const queryKey = qk.dashboard.presets(activeOrgId ?? "current");
 
-  const { data, isLoading } = useQuery({ queryKey, queryFn: listPresets });
+  const { data, isLoading } = useQuery({ queryKey, queryFn: listPresets, enabled });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 

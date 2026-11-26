@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ConsolePresentationContext } from "@/components/settings/console-experience-provider";
 import { scrollWithin } from "@/lib/scroll-within";
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 
@@ -32,6 +33,10 @@ const approvals = vi.fn<() => number>(() => 0);
 vi.mock("@/hooks/use-pending-approvals", () => ({
   usePendingApprovals: () => ({ count: approvals() }),
 }));
+const questions = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({
+  useWaitingChatQuestions: () => ({ count: questions() }),
+}));
 const sidebar = {
   openGroups: [] as string[],
   closedGroups: [] as string[],
@@ -45,6 +50,7 @@ vi.mock("@/stores", () => ({
 beforeEach(() => {
   sidebar.closedGroups = [];
   approvals.mockReturnValue(0);
+  questions.mockReturnValue(0);
 });
 
 function renderNav() {
@@ -165,10 +171,7 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
-  it("keeps the admin group for platform admins only", () => {
-    // The flag, and only the flag. There used to be a `role === "admin"`
-    // fallback in `isAppAdmin`; while it existed this group appeared for
-    // accounts whose every request behind it was refused.
+  it("leaves deployment administration in the account menu for every account", () => {
     can.mockReturnValue(true);
     currentUser.mockReturnValue({ is_app_admin: false });
 
@@ -178,7 +181,7 @@ describe("SidebarNav", () => {
 
     currentUser.mockReturnValue({ is_app_admin: true });
     renderNav();
-    expect(screen.getByRole("link", { name: "adminOverview" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "adminOverview" })).not.toBeInTheDocument();
   });
 
   it("marks the current page for assistive technology", () => {
@@ -374,12 +377,13 @@ describe("the inbox count (#2301)", () => {
     expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
   });
 
-  it("counts the approvals waiting on the reader with everything else", () => {
+  it("counts questions and approvals waiting on the reader with everything else", () => {
     can.mockReturnValue(true);
     waiting.mockReturnValue([{ id: "s1" }]);
     approvals.mockReturnValue(2);
+    questions.mockReturnValue(1);
     const { unmount } = render(<SidebarNav />);
-    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("3");
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("4");
     unmount();
 
     waiting.mockReturnValue([]);
@@ -402,10 +406,11 @@ describe("daily-work navigation", () => {
     sidebar.openGroups = [];
     renderNav();
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(hrefs.slice(0, 6)).toEqual([
+    expect(hrefs.slice(0, 7)).toEqual([
       "/dashboard",
       "/chat",
       "/inbox",
+      "/projects",
       "/agents",
       "/workflows",
       "/routines",
@@ -415,22 +420,18 @@ describe("daily-work navigation", () => {
       "aria-expanded",
       "false",
     );
-    expect(hrefs.indexOf("/documents")).toBeGreaterThan(hrefs.indexOf("/rag"));
+    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(screen.queryByRole("button", { name: "build" })).not.toBeInTheDocument();
   });
 
-  it("opens knowledge by default but respects an explicit saved closure", () => {
+  it("folds knowledge until opened and always reveals its active destination", () => {
     can.mockReturnValue(true);
     currentPath.mockReturnValue("/chat");
     sidebar.openGroups = [];
     const { rerender } = renderNav();
-    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByRole("link", { name: "skills" })).toBeInTheDocument();
-    sidebar.closedGroups = ["knowledge"];
-    rerender(<SidebarNav />);
     expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -439,10 +440,14 @@ describe("daily-work navigation", () => {
     const hiddenLink = screen.getByRole("link", { name: "skills", hidden: true });
     expect(hiddenLink.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
     sidebar.openGroups = ["knowledge"];
-    sidebar.closedGroups = [];
     rerender(<SidebarNav />);
     expect(screen.getByRole("link", { name: "skills" })).toBe(hiddenLink);
     expect(hiddenLink.closest("[inert]")).toBeNull();
+    sidebar.openGroups = [];
+    currentPath.mockReturnValue("/skills");
+    rerender(<SidebarNav />);
+    expect(screen.getByRole("link", { name: "skills" })).toBe(hiddenLink);
+    expect(screen.getByRole("button", { name: "knowledge" })).toBeDisabled();
   });
 });
 
@@ -458,4 +463,27 @@ it("keeps the active destination in view when collapsing the navigation", () => 
     "instant",
   );
   currentPath.mockReturnValue("/dashboard");
+});
+
+it("reports a failed navigation policy and lets the reader retry", () => {
+  const retry = vi.fn();
+  render(
+    <ConsolePresentationContext.Provider
+      value={{
+        navigation: [],
+        dashboardDefault: null,
+        pending: false,
+        desktopInstallPrompt: false,
+        productNotices: false,
+        problem: true,
+        retry,
+      }}
+    >
+      <SidebarNav />
+    </ConsolePresentationContext.Provider>,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("loadError");
+  expect(screen.queryByRole("link", { name: "chat" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "retry" }));
+  expect(retry).toHaveBeenCalledOnce();
 });

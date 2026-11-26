@@ -94,3 +94,21 @@ it("reports a queue that failed to load, and reads both again on a retry", async
   expect(state.get).toHaveBeenCalledTimes(2);
   expect(state.decidable).toHaveBeenCalledTimes(2);
 });
+
+it("reuses both approval queues across mounts without a second loading state", async () => {
+  state.get.mockResolvedValue({ items: [], total: 2 });
+  state.decidable.mockResolvedValue({ items: [], total: 1 });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const shared = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+  const first = renderHook(() => usePendingApprovals(), { wrapper: shared });
+  await waitFor(() => expect(first.result.current.count).toBe(3));
+  first.unmount();
+  const second = renderHook(() => usePendingApprovals(), { wrapper: shared });
+  expect(second.result.current.isLoading).toBe(false);
+  expect(second.result.current.count).toBe(3);
+  expect(state.get).toHaveBeenCalledOnce();
+  expect(state.decidable).toHaveBeenCalledOnce();
+  second.unmount();
+  client.clear();
+});

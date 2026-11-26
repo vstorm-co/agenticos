@@ -19,7 +19,7 @@ TOOLS = frozenset(
     }
 )
 CROSS_CHANNEL_PLATFORMS = frozenset({"mattermost", "slack"})
-REACTION_PLATFORMS = frozenset({"mattermost", "slack", "telegram", "discord", "imessage"})
+REACTION_PLATFORMS = frozenset({"mattermost", "slack", "telegram", "discord", "imessage", "matrix"})
 PLATFORMS = CROSS_CHANNEL_PLATFORMS | REACTION_PLATFORMS
 
 

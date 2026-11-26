@@ -24,6 +24,7 @@ const PLATFORMS: readonly ExposureSurface[] = [
   "imessage",
 
   "discord",
+  "matrix",
   "whatsapp",
 ];
 
@@ -40,6 +41,7 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
   // i18n-exempt: a product\'s own name, written the same in every language
   whatsapp: "WhatsApp",
 };

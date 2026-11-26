@@ -43,6 +43,7 @@ describe("the tool catalog", () => {
       "generate_image",
       "generate_speech",
       "generate_video",
+      "run_acp_agent",
       "run_coding_agent",
       "run_python",
       "write_file",

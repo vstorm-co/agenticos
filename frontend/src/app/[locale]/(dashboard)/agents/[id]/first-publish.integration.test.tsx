@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
 import type { SpecRefusal } from "@/hooks/use-agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
@@ -44,7 +44,9 @@ const MODEL_PROFILE = {
 };
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
+const saveDraft = vi.hoisted(() =>
+  vi.fn(async ({ spec }: AgentDraftUpdate) => ({ draft_spec: spec, draft_revision: "saved" })),
+);
 
 const state = {
   permissions: [] as Permission[],
@@ -75,6 +77,7 @@ vi.mock("@/hooks", async () => {
         has_avatar: false,
         can_edit: true,
         can_publish: true,
+        draft_revision: "base",
         draft_spec: {
           name: "Support",
           instructions: "Be helpful.",
@@ -259,8 +262,8 @@ describe("a refusal that offers a fix", () => {
       await screen.findByRole("button", { name: "Switch the workspace to Files" }),
     );
 
-    const saved = saveDraft.mock.lastCall?.[0] as AgentSpec;
-    expect(saved.capabilities[0]?.config).toMatchObject({
+    const saved = saveDraft.mock.lastCall?.[0]?.spec;
+    expect(saved?.capabilities[0]?.config).toMatchObject({
       backend: "state",
       runtime: null,
       connection_id: null,

@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import anyio
 import pytest
 from fastapi import WebSocketException
 
@@ -267,3 +268,176 @@ async def test_a_presence_without_a_live_socket_refuses_the_call(monkeypatch):
     with pytest.raises(_hub.DeviceUnavailable, match="closed or offline"):
         await _hub.call(session_id, "fs.read", {}, timeout=1)
     pubsub.aclose.assert_awaited_once()
+
+
+async def test_cancellation_during_dispatch_still_tells_the_app_to_stop(monkeypatch):
+    device = _hub.Device(user_id=uuid4(), session_id=uuid4(), platform="linux")
+    redis = MagicMock()
+    redis.get = AsyncMock(return_value=device.model_dump_json())
+    pubsub = MagicMock(subscribe=AsyncMock(), aclose=AsyncMock())
+    redis.raw.pubsub.return_value = pubsub
+    monkeypatch.setattr(_hub, "_require", AsyncMock(return_value=redis))
+    frames: list[_hub.Call | _hub.Cancel] = []
+    with anyio.CancelScope() as scope:
+
+        async def publish(channel: str, message: str) -> int:
+            frame = _hub._server_frame.validate_json(message)
+            frames.append(frame)
+            if isinstance(frame, _hub.Call):
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+            return 1
+
+        redis.raw.publish = AsyncMock(side_effect=publish)
+        await _hub.call(device.session_id, "shell.run", {}, timeout=30)
+    assert [frame.type for frame in frames] == ["call", "cancel"]
+    assert frames[0].id == frames[1].id
+    pubsub.aclose.assert_awaited_once()
+
+
+def _rpc_fake(monkeypatch: pytest.MonkeyPatch) -> tuple[_hub.Device, MagicMock, MagicMock]:
+    device = _hub.Device(user_id=uuid4(), session_id=uuid4(), platform="linux")
+    redis = MagicMock()
+    redis.get = AsyncMock(return_value=device.model_dump_json())
+    redis.raw.publish = AsyncMock(return_value=1)
+    pubsub = MagicMock(subscribe=AsyncMock(), aclose=AsyncMock())
+    redis.raw.pubsub.return_value = pubsub
+    monkeypatch.setattr(_hub, "_require", AsyncMock(return_value=redis))
+    return device, redis, pubsub
+
+
+async def test_dispatch_timeout_sends_cancel_and_closes_the_reply_channel(monkeypatch):
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+    frames: list[_hub.Call | _hub.Cancel] = []
+
+    async def publish(channel: str, message: str) -> int:
+        frame = _hub._server_frame.validate_json(message)
+        frames.append(frame)
+        if isinstance(frame, _hub.Call):
+            await anyio.sleep_forever()
+        return 1
+
+    redis.raw.publish = AsyncMock(side_effect=publish)
+    with pytest.raises(_hub.DeviceCallTimedOut, match="within"):
+        await _hub.call(device.session_id, "shell.run", {}, timeout=0.01)
+    assert [frame.type for frame in frames] == ["call", "cancel"]
+    assert frames[0].id == frames[1].id
+    pubsub.aclose.assert_awaited_once()
+
+
+@pytest.mark.parametrize("failure", ["transport", "deadline"])
+async def test_failed_cancel_delivery_preserves_the_callers_cancellation(
+    monkeypatch, caplog, failure
+):
+    from redis.exceptions import RedisError
+
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+    monkeypatch.setattr(_hub, "CLEANUP_TIMEOUT_SECONDS", 0.01)
+    frames: list[str] = []
+    returned = False
+    with anyio.CancelScope() as scope:
+
+        async def publish(channel: str, message: str) -> int:
+            frame = _hub._server_frame.validate_json(message)
+            frames.append(frame.type)
+            if isinstance(frame, _hub.Call):
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+            elif failure == "transport":
+                raise RedisError("offline")
+            else:
+                await anyio.sleep_forever()
+            return 1
+
+        redis.raw.publish = AsyncMock(side_effect=publish)
+        await _hub.call(
+            device.session_id, "shell.run", {"secret": "private-command-data"}, timeout=30
+        )
+        returned = True
+    assert not returned and frames == ["call", "cancel"]
+    assert "cancellation delivery" in caplog.text
+    assert "private-command-data" not in caplog.text
+    pubsub.aclose.assert_awaited_once()
+
+
+async def test_cancelled_subscription_still_closes_its_partially_open_channel(monkeypatch):
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+    with anyio.CancelScope() as scope:
+
+        async def subscribe(channel: str) -> None:
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+
+        pubsub.subscribe = AsyncMock(side_effect=subscribe)
+        await _hub.call(device.session_id, "fs.read", {}, timeout=30)
+    pubsub.aclose.assert_awaited_once()
+    redis.raw.publish.assert_not_awaited()
+
+
+@pytest.mark.parametrize("failure", ["transport", "deadline"])
+async def test_channel_cleanup_failure_keeps_the_completed_result(monkeypatch, caplog, failure):
+    from redis.exceptions import RedisError
+
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+    monkeypatch.setattr(_hub, "CLEANUP_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        _hub,
+        "_first_result",
+        AsyncMock(
+            return_value=_hub.Result(type="result", id="done", ok=True, value={"done": True})
+        ),
+    )
+
+    async def close() -> None:
+        if failure == "transport":
+            raise RedisError("offline")
+        await anyio.sleep_forever()
+
+    pubsub.aclose = AsyncMock(side_effect=close)
+    assert await _hub.call(device.session_id, "fs.read", {}, timeout=1) == {"done": True}
+    assert "channel cleanup" in caplog.text
+    pubsub.aclose.assert_awaited_once()
+
+
+async def test_a_stop_during_channel_cleanup_is_not_swallowed(monkeypatch):
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+    monkeypatch.setattr(
+        _hub,
+        "_first_result",
+        AsyncMock(
+            return_value=_hub.Result(type="result", id="done", ok=True, value={"done": True})
+        ),
+    )
+    returned = False
+    with anyio.CancelScope() as scope:
+
+        async def close() -> None:
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+
+        pubsub.aclose = AsyncMock(side_effect=close)
+        await _hub.call(device.session_id, "fs.read", {}, timeout=1)
+        returned = True
+    assert not returned
+    redis.raw.publish.assert_awaited_once()
+    pubsub.aclose.assert_awaited_once()
+
+
+@pytest.mark.parametrize("phase", ["presence", "subscription"])
+async def test_the_call_deadline_also_bounds_connection_setup(monkeypatch, phase):
+    device, redis, pubsub = _rpc_fake(monkeypatch)
+
+    async def blocked(*args: object, **kwargs: object) -> None:
+        await anyio.sleep_forever()
+
+    if phase == "presence":
+        redis.get = AsyncMock(side_effect=blocked)
+    else:
+        pubsub.subscribe = AsyncMock(side_effect=blocked)
+    with anyio.fail_after(1), pytest.raises(_hub.DeviceCallTimedOut):
+        await _hub.call(device.session_id, "fs.read", {}, timeout=0.01)
+    redis.raw.publish.assert_not_awaited()
+    if phase == "presence":
+        pubsub.aclose.assert_not_awaited()
+    else:
+        pubsub.aclose.assert_awaited_once()

@@ -68,7 +68,7 @@ from itertools import islice
 from typing import Any, Union, get_args, get_origin
 from uuid import UUID
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -111,7 +111,8 @@ from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, Workflo
 from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
 from app.workflows.nodes.control_foreach._handler import DONE_PORT
-from app.workflows.triggers import UNATTENDED, entry_graph, entry_nodes
+from app.workflows.python_actions import PYTHON_ACTIONS
+from app.workflows.triggers import UNATTENDED, WEBHOOK, answers_webhook, entry_graph, entry_nodes
 
 Problems = list[tuple[str, str]]
 DefinitionMap = dict[UUID, NodeDefinition | None]
@@ -135,7 +136,13 @@ def graph_size_problems(graph: WorkflowGraph) -> Problems:
     persisted, not only here at publish.
     """
     problems: Problems = []
-    if len(graph.nodes) > settings.WORKFLOW_GRAPH_MAX_NODES:
+    action_count = sum(
+        len(actions)
+        for node in graph.nodes
+        if node.definition_id == PYTHON_ACTIONS
+        and isinstance(actions := node.config.get("actions"), dict)
+    )
+    if len(graph.nodes) + action_count > settings.WORKFLOW_GRAPH_MAX_NODES:
         problems.append(
             ("nodes", f"A graph holds at most {settings.WORKFLOW_GRAPH_MAX_NODES} nodes")
         )
@@ -220,6 +227,7 @@ def _structure_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Pro
     problems += _rule_8_one_port(graph, definitions)
     problems += _shared_error_handler_problems(analysis)
     problems += _answering_step_problems(analysis)
+    problems += _shared_webhook_response_problems(graph)
     problems += _split_problems(graph, definitions)
     problems += _merge_setting_binding_problems(graph, definitions)
     problems += _rule_9_required_inputs_bound(graph, definitions)
@@ -230,6 +238,25 @@ def _structure_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Pro
     problems += _quick_log_problems(graph, ports)
 
     return problems
+
+
+def _shared_webhook_response_problems(graph: WorkflowGraph) -> Problems:
+    """A shared source acknowledges receipt before any subscriber starts running."""
+    entry = graph.node_by_id.get(graph.entry_node_id)
+    if (
+        entry is not None
+        and entry.definition_id == WEBHOOK
+        and entry.config.get("source_id") is not None
+        and answers_webhook(graph)
+    ):
+        return [
+            (
+                f"nodes.{entry.id}.config.source_id",
+                "A reusable event source acknowledges deliveries asynchronously; "
+                "remove Respond to webhook from this entry's branch or use a dedicated webhook",
+            )
+        ]
+    return []
 
 
 # Scope derivation
@@ -970,7 +997,18 @@ def _binding_target_field_problems(graph: WorkflowGraph, definitions: Definition
         target_definition = definitions.get(binding.target_node_id)
         if target_definition is None:
             continue
-        if _field_type(target_definition, binding.target_field) is _UNKNOWN:
+        if (
+            target_definition.id == PYTHON_ACTIONS
+            and target_path(binding.target_field)[0] != "args"
+        ):
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "A Python actions step binds data through args only; "
+                    "its code and actions are fixed in the workflow version",
+                )
+            )
+        elif _field_type(target_definition, binding.target_field) is _UNKNOWN:
             problems.append((f"bindings.{index}", "This field does not exist on the target node"))
     return problems
 
@@ -1058,14 +1096,14 @@ def _resolve_field_path(ports: tuple[Port, ...], port_id: str, field_path: tuple
 def _is_dynamic(annotation: Any) -> bool:
     """Whether a path may reach into `annotation` with no schema to follow.
 
-    `Any`, or a `dict` whose values are such (optionally `| None`): a
+    `Any`, `JsonValue`, or a `dict` whose values are such (optionally `| None`): a
     trigger's payload, a mapped record, an agent's structured answer. What
     such a path finds is only known once the run has it, so it resolves to
     `Any` here and is validated against the target field when the node is
     dispatched - `_resolve_io` refuses a value that does not fit, which fails
     the run rather than handing a handler the wrong type.
     """
-    if annotation is Any:
+    if annotation is Any or annotation is JsonValue:
         return True
     origin = get_origin(annotation)
     if origin in (Union, types.UnionType):
@@ -1085,8 +1123,14 @@ def _members(annotation: Any) -> list[Any]:
 
 
 def _types_compatible(source: Any, target: Any) -> bool:
-    # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
-    if source is target or source is Any or target is Any:
+    # An opaque JSON value is checked against its concrete target at dispatch.
+    if (
+        source is target
+        or source is Any
+        or target is Any
+        or source is JsonValue
+        or target is JsonValue
+    ):
         return True
     # A free-form object field takes any structured value: a model's output
     # reaches it as the dict it is stored as.

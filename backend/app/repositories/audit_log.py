@@ -42,6 +42,23 @@ async def has_skill_installation(
     return found is not None
 
 
+async def has_bundled_context_installation(
+    db: AsyncSession, *, organization_id: UUID, key: str
+) -> bool:
+    return (
+        await db.scalar(
+            select(AppAdminAuditLog.id)
+            .where(
+                AppAdminAuditLog.organization_id == organization_id,
+                AppAdminAuditLog.action == "context.library_installed",
+                AppAdminAuditLog.details["key"].astext == key,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 async def list_for_org(
     db: AsyncSession,
     *,

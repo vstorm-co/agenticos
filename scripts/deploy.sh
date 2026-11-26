@@ -43,7 +43,7 @@ set -euo pipefail
 
 release_repository() {
   case "$1" in
-    ghcr.io/vstorm-co/agenticos-backend|ghcr.io/vstorm-co/agenticos-frontend|ghcr.io/vstorm-co/agenticos-browser) return 0 ;;
+    "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend"|"${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend"|"${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser") return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -95,7 +95,7 @@ remember_release_images() {
   local app_dir="$1" prefix repo aliases current containers cid details id reference service health
   prefix=$(release_pin_prefix "$app_dir") || return
   containers=$(docker ps -q --filter "label=com.docker.compose.project.working_dir=$app_dir") || return
-  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+  for repo in "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser"; do
     aliases=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo") || return
     if image_in_list "$repo:$prefix-current" "$aliases"; then
       current=$(docker image inspect -f '{{.Id}}' "$repo:$prefix-current") || return
@@ -153,7 +153,7 @@ prune_release_images() {
   done
   # Two additional unused image IDs per repository, not two aliases of one ID.
   # Union the keep sets: an image shared by repositories stays if either keeps it.
-  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+  for repo in "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend" "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser"; do
     newest=$(printf '%s' "$eligible" | LC_ALL=C sort -r | awk -F'|' -v repo="$repo" '$3 == repo && ++n <= 2 { print $2 }') || return
     retained+="$newest"$'\n'
   done
@@ -198,9 +198,9 @@ check_image_space() {
     *"Docker Desktop"*)
       # DockerRootDir is inside Desktop's VM. Query its backing filesystem using
       # an already-cached backend image; never pull an image to measure capacity.
-      probe=$(printf '%s\n' "${1:-}" | awk -F'|' '$1 == "ghcr.io/vstorm-co/agenticos-backend" {image=$2} END {print image}') || return
+      probe=$(printf '%s\n' "${1:-}" | awk -F'|' -v repo="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" '$1 == repo {image=$2} END {print image}') || return
       if [ -z "$probe" ]; then
-        probe=$(docker image ls --quiet --no-trunc ghcr.io/vstorm-co/agenticos-backend | awk 'NR == 1 {first=$0} END {print first}') || return
+        probe=$(docker image ls --quiet --no-trunc "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend" | awk 'NR == 1 {first=$0} END {print first}') || return
       fi
       if ! [[ "$probe" =~ ^sha256:[0-9a-f]{64}$ ]]; then
         echo "Docker Desktop capacity check needs a cached AgenticOS backend image. Complete the initial installation before using this update procedure." >&2
@@ -229,7 +229,7 @@ record_release_images() {
   prefix=$(release_pin_prefix "$3") || return
   shift 3
   for image in "$@"; do
-    repo="ghcr.io/vstorm-co/$image"
+    repo="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-${image#agenticos-}"
     id=$(docker image inspect -f '{{.Id}}' "$repo:$target") || return
     prior=""
     while IFS='|' read -r prior_repo prior_id; do
@@ -240,6 +240,20 @@ record_release_images() {
       docker image tag "$prior" "$repo:$prefix-rollback" || return
     fi
     docker image tag "$id" "$repo:$prefix-current" || return
+  done
+}
+
+stop_api_writers() {
+  local service containers
+  # Use the running stack's labels: a rollback target can predate its worker.
+  for service in app worker; do
+    containers=$(docker ps -q \
+      --filter "label=com.docker.compose.project.working_dir=$APP_DIR" \
+      --filter "label=com.docker.compose.service=$service")
+    if [ -n "$containers" ]; then
+      # Docker returns one opaque container ID per line.
+      docker stop --timeout 60 $containers
+    fi
   done
 }
 
@@ -270,6 +284,15 @@ env_value() {
 # converted on its next deploy - and since the overlay declares
 # `traefik_webgateway` external, on a host that never created it compose fails
 # outright, which is the better of the two outcomes.
+AGENTICOS_IMAGE_PREFIX="${AGENTICOS_IMAGE_PREFIX:-$(env_value AGENTICOS_IMAGE_PREFIX)}"
+AGENTICOS_IMAGE_PREFIX="${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}"
+if ! [[ "$AGENTICOS_IMAGE_PREFIX" =~ ^[a-z0-9][a-z0-9._-]*(:[0-9]+)?(/[a-z0-9][a-z0-9._-]*)+$ ]] || [[ "$AGENTICOS_IMAGE_PREFIX" = *://* ]]; then
+  echo "AGENTICOS_IMAGE_PREFIX must be a lowercase registry/repository prefix, without a tag or URL scheme." >&2
+  exit 1
+fi
+AGENTICOS_SOURCE_REPOSITORY="${AGENTICOS_SOURCE_REPOSITORY:-$(env_value AGENTICOS_SOURCE_REPOSITORY)}"
+AGENTICOS_SOURCE_REPOSITORY="${AGENTICOS_SOURCE_REPOSITORY:-vstorm-co/agenticos}"
+export AGENTICOS_IMAGE_PREFIX
 PROXY="$(env_value PROXY)"
 case "${PROXY:-nginx}" in
   traefik)
@@ -285,6 +308,34 @@ case "${PROXY:-nginx}" in
     exit 1
     ;;
 esac
+
+
+# The supervisor must prove a binding through the same gateway the private
+# filesystem helper reaches. Keep it off the proxy network and opt in to an
+# otherwise empty outbound bridge only when both filesystem settings are set.
+FILESYSTEM_GATEWAY="$(env_value SANDBOXD_FILESYSTEM_GATEWAY_URL)"
+FILESYSTEM_EXPORT_IMAGE="$(env_value SANDBOXD_FILESYSTEM_EXPORT_IMAGE)"
+if [ -n "$FILESYSTEM_GATEWAY" ] || [ -n "$FILESYSTEM_EXPORT_IMAGE" ]; then
+  if [ -z "$FILESYSTEM_GATEWAY" ] || [ -z "$FILESYSTEM_EXPORT_IMAGE" ]; then
+    echo "Configure both SANDBOXD_FILESYSTEM_GATEWAY_URL and SANDBOXD_FILESYSTEM_EXPORT_IMAGE before deploying." >&2
+    exit 1
+  fi
+  # The procedure travels independently of the target checkout. In particular,
+  # 1.94.0 supports these settings but predates the operator overlay file.
+  FILESYSTEM_OVERLAY=$(mktemp "${TMPDIR:-/tmp}/agenticos-projectfs.XXXXXX")
+  trap 'rm -f "$FILESYSTEM_OVERLAY"' EXIT
+  cat > "$FILESYSTEM_OVERLAY" <<'PROJECTFS_COMPOSE'
+services:
+  sandboxd:
+    networks:
+      - projectfs_gateway
+networks:
+  projectfs_gateway:
+    driver: bridge
+    internal: false
+PROJECTFS_COMPOSE
+  BACKEND+=(-f "$FILESYSTEM_OVERLAY")
+fi
 
 # The sandbox service is behind a compose profile, so it is opt-in - and a
 # profile compose is not told about is a service compose treats as nothing to do
@@ -315,6 +366,25 @@ if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
     fi
   fi
   export DOCKER_GID
+fi
+
+# Subscription accounts are on by default: a host whose `backend/.env` does not
+# name SUBSCRIPTION_GATEWAY_TOKEN gets one generated, once, and keeps it -
+# changing it would only make the API and the gateway disagree until both
+# restart. A bare `SUBSCRIPTION_GATEWAY_TOKEN=` in the file is the way to keep
+# the gateway off, and is left alone.
+if ! grep -q '^SUBSCRIPTION_GATEWAY_TOKEN=' "$COMPOSE_ENV"; then
+  printf '\n# Shared by the API, the worker and the subscription gateway. Generated by\n# scripts/deploy.sh; an empty value turns subscription accounts off.\nSUBSCRIPTION_GATEWAY_TOKEN=%s\n' \
+    "$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')" >> "$COMPOSE_ENV"
+  echo "generated SUBSCRIPTION_GATEWAY_TOKEN in backend/.env"
+fi
+
+# A token in `backend/.env` is this host running the gateway, and the API and
+# worker are pointed at it unless the file names another address.
+if [ -n "$(env_value SUBSCRIPTION_GATEWAY_TOKEN)" ]; then
+  PROFILES+=(--profile subscriptions)
+  SUBSCRIPTION_GATEWAY_URL="${SUBSCRIPTION_GATEWAY_URL:-$(env_value SUBSCRIPTION_GATEWAY_URL)}"
+  export SUBSCRIPTION_GATEWAY_URL="${SUBSCRIPTION_GATEWAY_URL:-http://subscription-gateway:8400}"
 fi
 
 # Keep the isolated visual renderer running across deploys, like the sandbox.
@@ -364,7 +434,7 @@ if "$VISUAL_RENDERER" || "$INTERACTIVE_BROWSER"; then
   IMAGES+=(agenticos-browser)
 fi
 for image in "${IMAGES[@]}"; do
-  ref="ghcr.io/vstorm-co/$image:$AGENTICOS_VERSION"
+  ref="$AGENTICOS_IMAGE_PREFIX-${image#agenticos-}:$AGENTICOS_VERSION"
   for attempt in $(seq 1 80); do
     if docker manifest inspect "$ref" >/dev/null 2>&1; then
       echo "  $ref"
@@ -375,7 +445,7 @@ for image in "${IMAGES[@]}"; do
         echo "  $ref is not in the registry after 20 minutes."
         echo "  If the Images workflow never ran for $SHA - a commit older than it, or a run that was lost -"
         echo "  publish it first, then deploy again:"
-        echo "    gh workflow run images.yml --repo vstorm-co/agenticos --ref main -f sha=$SHA"
+        echo "    gh workflow run images.yml --repo $AGENTICOS_SOURCE_REPOSITORY --ref main -f sha=$SHA"
       } >&2
       exit 1
     fi
@@ -477,6 +547,8 @@ compose "${FRONTEND[@]}" pull --quiet
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 check_image_space "$PREVIOUS_RELEASE_IMAGES"
 retire_services
+say "Stopping the old API and worker before migrations"
+stop_api_writers
 say "Starting the API"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
@@ -530,6 +602,7 @@ wait_healthy() {
 
 say "Waiting for health"
 wait_healthy app "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+wait_healthy worker "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 wait_healthy frontend "${FRONTEND[@]}"
 if "$VISUAL_RENDERER"; then
   wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"

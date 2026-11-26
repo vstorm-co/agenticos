@@ -1,13 +1,15 @@
 "use client";
 
-import { createElement, useState } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
+import { TableCallReadout } from "@/components/chat/tool-results/table-call";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
-import { serviceAction, spokenArgs } from "@/lib/approval-view";
+import { usd } from "@/components/evals/format";
+import { quotedPrice, serviceAction, spokenArgs } from "@/lib/approval-view";
 import { Badge } from "@/components/ui/badge";
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
 import { toolIcon } from "@/lib/step-icons";
@@ -165,20 +167,35 @@ function Fields({ args, nested = false }: { args: Record<string, unknown>; neste
 export function ApprovalDetails({
   toolName,
   args,
+  fallback,
+  context,
 }: {
   toolName: string;
   args: Record<string, unknown>;
+  /** What a table write leads with instead while its table cannot be read. */
+  fallback?: ReactNode;
+  context?: Record<string, string> | null;
 }) {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const fields = spokenArgs(args);
+  const price = quotedPrice(toolName, args, context);
   return (
     <div className="space-y-2">
+      {price !== null && (
+        <p className="text-foreground text-xs font-medium">
+          {t("approvalQuotedPrice", { price: usd(price, locale) })}
+        </p>
+      )}
+      {/* A table write in the table's own labels, above the ids it will run with. */}
+      <TableCallReadout toolName={toolName} args={args} fallback={fallback} />
       <button
         type="button"
         onClick={() => setOpen((shown) => !shown)}
         aria-expanded={open}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center gap-1 rounded-md text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+        data-press-feedback="quiet"
+        className="text-muted-foreground hover:bg-muted/45 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
       >
         <ChevronRight
           className={cn("size-3.5 transition-transform", open && "rotate-90")}

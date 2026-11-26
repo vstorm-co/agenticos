@@ -79,11 +79,18 @@ class PersonalExecutor:
         self.workspace = workspace
         self.sign_in = sign_in
         self.closed = False
+        self.harnesses: list[Harness] = []
 
     @asynccontextmanager
     async def session(
-        self, ctx: RunContext[AgentDeps], *, harness: Harness, timeout_seconds: int
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        harness: Harness,
+        timeout_seconds: int,
+        session: str = "main",
     ) -> AsyncGenerator[PersonalCodingTask]:
+        self.harnesses.append(harness)
         try:
             yield PersonalCodingTask(
                 workspace=self.workspace,
@@ -155,10 +162,13 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
         toolset = FunctionToolset[AgentDeps]()
 
         async def run(
-            ctx: RunContext[AgentDeps], task: str, fresh_session: bool = False
+            ctx: RunContext[AgentDeps],
+            task: str,
+            fresh_session: bool = False,
+            session: str = "main",
         ) -> str | dict[str, str]:
             assert ctx.workspace is isolated and ctx.deps.subagent_events is None
-            assert fresh_session
+            assert not fresh_session and session == "main"
             await ctx.workspace.write_bytes("result.txt", b"private result")
             if outcome == "non-text":
                 return {"invalid": "result"}
@@ -264,3 +274,321 @@ async def test_personal_coding_requires_a_nonempty_task_before_opening_the_accou
     result = await outer.tools["run_coding_agent"].function(ctx, "  ")
     assert "Describe the coding task first" in result
     assert not executor.closed
+
+
+@pytest.mark.security
+async def test_both_personal_harnesses_can_work_concurrently_without_sharing_accounts_or_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_path = tmp_path / "source"
+    parent_path.mkdir()
+    workspaces: dict[Harness, Workspace] = {}
+    for harness in ("claude_code", "codex"):
+        folder = tmp_path / harness
+        folder.mkdir()
+        workspaces[harness] = Workspace(LocalWorkspaceBackend(folder))
+    entered: set[Harness] = set()
+    closed: set[Harness] = set()
+    both_started = anyio.Event()
+    keys = {"claude_code": "private-claude-key", "codex": "private-codex-key"}
+
+    class Executor:
+        @asynccontextmanager
+        async def session(
+            self,
+            ctx: RunContext[AgentDeps],
+            *,
+            harness: Harness,
+            timeout_seconds: int,
+            session: str = "main",
+        ) -> AsyncGenerator[PersonalCodingTask]:
+            entered.add(harness)
+            if len(entered) == 2:
+                both_started.set()
+            await both_started.wait()
+            try:
+                yield PersonalCodingTask(
+                    workspace=workspaces[harness],
+                    account_id=uuid4(),
+                    label=harness,
+                    base_revision=harness,
+                    result_archive=f"{harness}.zip",
+                    api_key=SecretStr(keys[harness]),
+                    redactions=(SecretStr(keys[harness]),),
+                )
+            finally:
+                closed.add(harness)
+
+    outer = _toolset.build_coding_toolset(
+        harness="claude_code",
+        access="edit",
+        model="claude-opus-5-5",
+        effort="high",
+        base_url=None,
+        api_key="organization-key-must-not-be-used",
+        timeout_seconds=60,
+        runs_on="personal_sandbox",
+        personal_executor=Executor(),
+    )
+
+    def build_inner(**options: object) -> FunctionToolset[AgentDeps]:
+        selected = options["harness"]
+        assert selected in ("claude_code", "codex")
+        chosen: Harness = "codex" if selected == "codex" else "claude_code"
+        assert options["api_key"] == keys[chosen]
+        assert options["model"] == ("claude-opus-5-5" if chosen == "claude_code" else None)
+        assert options["effort"] == ("high" if chosen == "claude_code" else None)
+        toolset = FunctionToolset[AgentDeps]()
+
+        async def run(
+            ctx: RunContext[AgentDeps],
+            task: str,
+            fresh_session: bool = False,
+            session: str = "main",
+        ) -> str:
+            assert ctx.workspace is workspaces[chosen] and not fresh_session and session == "main"
+            await ctx.workspace.write_bytes("result.txt", chosen.encode())
+            return CodingReport(
+                harness=chosen, access="edit", outcome="completed", answer=keys[chosen]
+            ).model_dump_json()
+
+        toolset.add_function(run, name="run_coding_agent")
+        return toolset
+
+    monkeypatch.setattr(_toolset, "build_coding_toolset", build_inner)
+    ctx = RunContext(
+        deps=AgentDeps(organization_id=uuid4(), user_id=str(uuid4())),
+        model=TestModel(),
+        usage=RunUsage(),
+        workspace=Workspace(LocalWorkspaceBackend(parent_path)),
+    )
+    reports: dict[Harness, str] = {}
+
+    async def call(harness: Harness) -> None:
+        reports[harness] = await outer.tools["run_coding_agent"].function(
+            ctx, "Implement an independent task", harness=harness
+        )
+
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(call, "claude_code")
+            tasks.start_soon(call, "codex")
+    assert entered == closed == {"claude_code", "codex"}
+    assert not (parent_path / "result.txt").exists()
+    for harness, report in reports.items():
+        assert CodingReport.model_validate_json(report).harness == harness
+        assert all(key not in report for key in keys.values())
+        assert await workspaces[harness].read_bytes("result.txt") == harness.encode()
+
+
+@pytest.mark.security
+async def test_personal_codex_choice_cannot_bypass_read_only_access(tmp_path: Path) -> None:
+    executor = PersonalExecutor(Workspace(LocalWorkspaceBackend(tmp_path)))
+    outer = _toolset.build_coding_toolset(
+        harness="claude_code",
+        access="read_only",
+        model=None,
+        base_url=None,
+        api_key=None,
+        timeout_seconds=60,
+        runs_on="personal_sandbox",
+        personal_executor=executor,
+    )
+    ctx = RunContext(deps=AgentDeps(organization_id=uuid4()), model=TestModel(), usage=RunUsage())
+    result = await outer.tools["run_coding_agent"].function(ctx, "Read the code", harness="codex")
+    assert "Codex cannot run read-only" in result
+    assert not executor.harnesses
+
+
+async def test_a_waiting_account_task_starts_after_its_predecessor_releases() -> None:
+    redis = MemoryRedis()
+    first_started, release_first, waiting, second_started = (anyio.Event() for _ in range(4))
+    order: list[str] = []
+
+    async def first() -> None:
+        async with account_lease("account", 60, redis=redis):
+            order.append("first")
+            first_started.set()
+            await release_first.wait()
+            order.append("first done")
+
+    async def second() -> None:
+        await first_started.wait()
+        waiting.set()
+        async with account_lease("account", 60, redis=redis, wait_seconds=2):
+            order.append("second")
+            second_started.set()
+
+    with anyio.fail_after(3):
+        async with anyio.create_task_group() as group:
+            group.start_soon(first)
+            group.start_soon(second)
+            await waiting.wait()
+            await anyio.sleep(0.05)
+            assert not second_started.is_set()
+            release_first.set()
+    assert order == ["first", "first done", "second"]
+    assert not redis.values
+
+
+async def test_cancelling_or_expiring_a_waiter_never_releases_the_running_account() -> None:
+    redis = MemoryRedis()
+    async with account_lease("account", 60, redis=redis):
+        token = redis.values["account"]
+        with anyio.move_on_after(0.01):
+            async with account_lease("account", 60, redis=redis, wait_seconds=2):
+                pytest.fail("A waiter must not overlap the account's running task")
+        with pytest.raises(ConflictError):
+            async with account_lease("account", 60, redis=redis, wait_seconds=0.01):
+                pytest.fail("A busy queue must expire")
+        assert redis.values["account"] == token
+    assert not redis.values
+
+
+async def test_invalid_session_names_are_refused_before_account_or_workspace_access() -> None:
+    from app.agents.capabilities.sandbox import SandboxConfig
+    from app.agents.spec import AgentSpec
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services.personal_coding import PersonalCodingSessionFactory
+
+    owner, organization = uuid4(), uuid4()
+    factory = PersonalCodingSessionFactory(
+        AuthContext(user_id=owner, organization_id=organization, role="owner"),
+        AgentSpec(name="Test"),
+        SandboxConfig(backend="service"),
+        uuid4(),
+        redis=MemoryRedis(),
+    )
+    ctx = RunContext(
+        deps=AgentDeps(organization_id=organization, user_id=str(owner)),
+        model=TestModel(),
+        usage=RunUsage(),
+        prompt="Task",
+    )
+    with pytest.raises(BadRequestError, match="valid coding session name"):
+        async with factory.session(
+            ctx, harness="claude_code", timeout_seconds=60, session="../private"
+        ):
+            pytest.fail("Invalid names must not reach execution")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("failure", ["transport", "exit"])
+async def test_personal_codex_auth_cleanup_failure_cannot_be_called_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    from pydantic_ai.exceptions import UserError
+    from pydantic_ai.workspaces import CommandResult, WorkspaceError
+
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+    run = (
+        AsyncMock(side_effect=WorkspaceError("transport unavailable"))
+        if failure == "transport"
+        else AsyncMock(return_value=CommandResult(stdout="", stderr="cleanup refused", exit_code=1))
+    )
+    monkeypatch.setattr(workspace, "run", run)
+    ctx = RunContext(
+        deps=AgentDeps(), model=TestModel(), usage=RunUsage(), prompt="Task", workspace=workspace
+    )
+    with pytest.raises(WorkspaceError if failure == "transport" else UserError):
+        await _toolset._keep_rotated(
+            ctx, _Store(), SIGNED_IN, env={"CODEX_HOME": "private"}, strict=True
+        )
+
+
+@pytest.mark.security
+async def test_stopping_personal_codex_finishes_credential_readback_before_cancelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.capabilities.coding_agent._task import Outcome
+    from tests.test_coding_agent import _call, _Shell, _Store
+
+    cleaned = False
+
+    async def cancelled_task(*args: object, **kwargs: object) -> Outcome:
+        scope.cancel()
+        await anyio.sleep_forever()
+
+    async def readback(*args: object, **kwargs: object) -> None:
+        nonlocal cleaned
+        await anyio.lowlevel.checkpoint()
+        cleaned = True
+
+    monkeypatch.setattr(_toolset, "run_detached", cancelled_task)
+    monkeypatch.setattr(_toolset, "_keep_rotated", readback)
+    with anyio.CancelScope() as scope:
+        await _call(
+            _Shell(),
+            harness="codex",
+            api_key=None,
+            sign_in=lambda _org: _Store(),
+            personal_isolated=True,
+        )
+    assert cleaned
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("payload", ["", "not json", "[]", "{}"])
+async def test_personal_codex_rejects_unreadable_auth_even_after_successful_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: str,
+) -> None:
+    from pydantic_ai.exceptions import UserError
+    from pydantic_ai.workspaces import CommandResult
+
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+    monkeypatch.setattr(
+        workspace,
+        "run",
+        AsyncMock(
+            return_value=CommandResult(
+                stdout=payload,
+                stderr="",
+                exit_code=0,
+            )
+        ),
+    )
+    ctx = RunContext(
+        deps=AgentDeps(), model=TestModel(), usage=RunUsage(), prompt="Task", workspace=workspace
+    )
+    store = _Store()
+    with pytest.raises(UserError, match="unreadable sign-in state"):
+        await _toolset._keep_rotated(
+            ctx, store, SIGNED_IN, env={"CODEX_HOME": "private"}, strict=True
+        )
+    assert not store.saved
+
+
+async def test_personal_codex_accepts_valid_unchanged_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.workspaces import CommandResult
+
+    from app.agents.capabilities.coding_agent._harness import codex_auth_file
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+    monkeypatch.setattr(
+        workspace,
+        "run",
+        AsyncMock(
+            return_value=CommandResult(
+                stdout=codex_auth_file(SIGNED_IN),
+                stderr="",
+                exit_code=0,
+            )
+        ),
+    )
+    ctx = RunContext(
+        deps=AgentDeps(), model=TestModel(), usage=RunUsage(), prompt="Task", workspace=workspace
+    )
+    store = _Store()
+    await _toolset._keep_rotated(ctx, store, SIGNED_IN, env={"CODEX_HOME": "private"}, strict=True)
+    assert not store.saved

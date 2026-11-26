@@ -46,8 +46,11 @@ async def list_members(
             source=m.source,
             can_change_role=can_change_role,
             last_action_at=last_action_at,
+            onboarding_completed_at=completed_at,
+            onboarding_current_step=None if completed_at else m.onboarding_current_step,
+            onboarding_updated_at=m.onboarding_updated_at,
         )
-        for m, email, full_name, avatar_url, avatar_color, last_action_at, can_change_role in rows
+        for m, email, full_name, avatar_url, avatar_color, completed_at, last_action_at, can_change_role in rows
     ]
     return OrganizationMemberList(items=items, total=total)
 
@@ -68,7 +71,7 @@ async def update_member_role(
     ctx: PathOrgAuth,
 ) -> Any:
     """Change a member's role. Requires Owner or Admin."""
-    member, email, full_name, avatar_url, avatar_color = await service.change_role(
+    member, email, full_name, avatar_url, avatar_color, completed_at = await service.change_role(
         org_id, target_user_id, data.role, requester_id=ctx.subject_id
     )
     return OrganizationMemberRead(
@@ -82,6 +85,9 @@ async def update_member_role(
         avatar_color=avatar_color,
         joined_at=member.joined_at,
         source=member.source,
+        onboarding_completed_at=completed_at,
+        onboarding_current_step=None if completed_at else member.onboarding_current_step,
+        onboarding_updated_at=member.onboarding_updated_at,
     )
 
 

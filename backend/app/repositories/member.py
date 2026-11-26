@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from pydantic import JsonValue
+from sqlalchemy import and_, cast, func, null, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -326,6 +328,24 @@ async def list_member_ids_for(
     return {row[0] for row in result.all()}
 
 
+async def list_user_ids(db: AsyncSession, *, organization_id: UUID) -> list[UUID]:
+    """Every member's user id, active or not, for teardown that must reach them all."""
+    result = await db.execute(
+        select(OrganizationMember.user_id).where(
+            OrganizationMember.organization_id == organization_id
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_organization_ids(db: AsyncSession, *, user_id: UUID) -> list[UUID]:
+    """Every organization the user is a member of, for teardown that must reach them all."""
+    result = await db.execute(
+        select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
 async def list_member_ids_by_role(
     db: AsyncSession,
     *,
@@ -606,3 +626,112 @@ async def find_active(
         .order_by(User.email)
     )
     return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+async def set_console_preferences(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.chat_home_preferences, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(chat_home_preferences=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_onboarding_reminders(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | int | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.onboarding_reminders, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(onboarding_reminders=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_chat_cost_preference(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, visible: bool | None
+) -> OrganizationMember | None:
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(chat_costs_visible=visible)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one_or_none()
+
+
+async def set_console_presentation(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, JsonValue] | None,
+) -> OrganizationMember | None:
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.console_preferences, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(console_preferences=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one_or_none()

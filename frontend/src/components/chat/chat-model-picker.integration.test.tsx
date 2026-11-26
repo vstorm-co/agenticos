@@ -63,6 +63,14 @@ const SECRETS = {
       hint: "1234",
       purpose: "openai",
     },
+    {
+      id: "s-research",
+      name: "Research account",
+      description: null,
+      kind: "api_key",
+      hint: "5678",
+      purpose: "openai",
+    },
   ],
   total: 1,
 };
@@ -82,7 +90,7 @@ function serve(permissions: Permission[]) {
     // Readable on `agents:view`, so it is populated for both callers below.
     if (path === "/providers/model-profiles") return { items: [PROFILE], total: 1 };
     if (path === "/providers/catalog") return { items: [], total: 0 };
-    if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
+    if (path.startsWith("/providers/openai/models")) return { items: [], total: 0, source: "live" };
     if (path === "/secrets") return SECRETS;
     if (path === "/secrets/kinds") return { items: [], total: 0 };
     if (path === "/secrets/purposes") return PURPOSES;
@@ -125,6 +133,49 @@ beforeEach(() => {
 });
 
 describe("who may move this conversation onto another model", () => {
+  it("refreshes the legacy form catalog using the selected provider and Vault key", async () => {
+    await mount([Perm.agentsView, Perm.connectionsManage, Perm.secretsView]);
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Key" }));
+    await userEvent.click(screen.getByRole("option", { name: /Research account/ }));
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("button", { name: "Refresh models" }));
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/providers/openai/models?secret_id=s-research&refresh=true",
+      ),
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed legacy refresh and retries without changing the chosen model", async () => {
+    const onChange = await mount([Perm.agentsView, Perm.connectionsManage, Perm.secretsView]);
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-5");
+    await userEvent.click(screen.getByText("not in the list"));
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected provider fixture");
+    let failed = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path) => {
+      if (path.includes("refresh=true") && failed) throw new Error("provider offline");
+      return get(path);
+    });
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("catalog could not be refreshed");
+    expect(screen.getByLabelText("Model")).toHaveTextContent("gpt-5");
+    expect(onChange).not.toHaveBeenCalled();
+    failed = false;
+    await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Model")).toHaveTextContent("gpt-5");
+  });
+
   it("offers the whole form to a caller holding connections:manage", async () => {
     await mount([Perm.agentsView, Perm.connectionsManage]);
     await userEvent.click(screen.getByRole("button", { name: "Change model" }));
@@ -169,4 +220,28 @@ describe("who may move this conversation onto another model", () => {
     expect(onChange).toHaveBeenCalledWith("p-1");
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+});
+
+it("opens the requested setup catalog without choosing or creating a model", async () => {
+  serve([Perm.connectionsManage]);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const changed = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <ChatModelPicker
+        presentation="library"
+        defaultProviderId="openai"
+        value={null}
+        agentModel={null}
+        onChange={changed}
+      />
+    </QueryClientProvider>,
+  );
+  const provider = await screen.findByRole("button", { name: "OpenAI" });
+  expect(provider).toHaveAttribute("aria-pressed", "true");
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/providers/openai/models"));
+  expect(changed).not.toHaveBeenCalled();
+  expect(apiClient.post).not.toHaveBeenCalled();
 });

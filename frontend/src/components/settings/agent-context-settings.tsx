@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -26,6 +26,7 @@ export function AgentContextSettings({
   onSaved,
   saveLabel,
   secondaryAction,
+  renderActions,
   disabled = false,
   onSavingChange,
   formId,
@@ -41,9 +42,12 @@ export function AgentContextSettings({
   onSaved?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
+  renderActions?: (actions: ReactNode) => ReactNode;
   disabled?: boolean;
   onSavingChange?: (saving: boolean) => void;
 }) {
+  const generatedFormId = useId();
+  const targetFormId = formId ?? generatedFormId;
   const t = useTranslations("pages.settings.agentContext");
   const tErrors = useTranslations("errors");
   const save = useSaveAgentContext();
@@ -90,10 +94,24 @@ export function AgentContextSettings({
     }
   };
 
+  const actions = (
+    <>
+      {secondaryAction}
+      <Button
+        type="submit"
+        form={targetFormId}
+        loading={saving}
+        disabled={saving || disabled || unchanged}
+        className={renderActions ? undefined : "w-full sm:w-auto"}
+      >
+        {saveLabel ?? t("save")}
+      </Button>
+    </>
+  );
   return (
     <SectionCard title={t("title")} description={t("description")}>
       <form
-        id={formId}
+        id={targetFormId}
         aria-label={t("title")}
         onSubmit={(event) => {
           event.preventDefault();
@@ -139,20 +157,16 @@ export function AgentContextSettings({
           >
             <WorkingHoursField value={hours} onChange={setHours} disabled={saving || disabled} />
           </FormField>
-          <div
-            data-profile-actions
-            className="flex flex-wrap items-center justify-end gap-3 border-t pt-4 sm:col-span-2"
-          >
-            <Button
-              type="submit"
-              loading={saving}
-              disabled={saving || disabled || unchanged}
-              className="w-full sm:w-auto"
+          {renderActions ? (
+            renderActions(actions)
+          ) : (
+            <div
+              data-profile-actions
+              className="flex flex-wrap items-center justify-end gap-3 border-t pt-4 sm:col-span-2"
             >
-              {saveLabel ?? t("save")}
-            </Button>
-            {secondaryAction}
-          </div>
+              {actions}
+            </div>
+          )}
         </fieldset>
       </form>
     </SectionCard>

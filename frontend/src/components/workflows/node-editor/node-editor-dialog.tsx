@@ -38,6 +38,7 @@ import { EmailAccountSetup } from "./email-account-setup";
 import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
 import {
+  actionAliasOfField,
   fieldErrors,
   nodeNames,
   problemText,
@@ -49,7 +50,8 @@ import {
   resourcePin,
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
-import { validateGraph } from "@/components/workflows/validation";
+import { validateGraph, withTableDrift } from "@/components/workflows/validation";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { canSwitchOff } from "@/lib/workflows/switch-off";
@@ -91,6 +93,7 @@ export function NodeEditorDialog({
 }: NodeEditorDialogProps) {
   const t = useTranslations("workflows");
   const store = usePanelStore();
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const graph = store.graph;
   const node = graph?.nodes.find((candidate) => candidate.id === store.editingNodeId) ?? null;
   const catalogIndex: NodeCatalog = useMemo(
@@ -98,11 +101,13 @@ export function NodeEditorDialog({
     [catalog],
   );
   const problems = useMemo(
-    () => (graph === null ? [] : validateGraph(graph, catalogIndex, t)),
-    [graph, catalogIndex, t],
+    () =>
+      graph === null ? [] : withTableDrift(validateGraph(graph, catalogIndex, t), tableDrift, t),
+    [graph, catalogIndex, t, tableDrift],
   );
 
   const [tab, setTab] = useState("parameters");
+  const [editingAction, setEditingAction] = useState<string | null>(null);
   const [phonePane, setPhonePane] = useState<"settings" | "input" | "output">(
     runData ? "output" : "settings",
   );
@@ -110,6 +115,7 @@ export function NodeEditorDialog({
   // them is said at once, not only once a run or a publish was tried.
   const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const close = () => {
+    setEditingAction(null);
     setTab("parameters");
     setPhonePane(runData ? "output" : "settings");
     setLeft(new Set());
@@ -140,15 +146,21 @@ export function NodeEditorDialog({
     setTab("parameters");
     setPhonePane("settings");
     setLeft(new Set([...left, field]));
+    const alias = actionAliasOfField(field);
+    if (alias !== undefined) setEditingAction(alias);
     requestAnimationFrame(() => {
       const target = document.querySelector(`[data-field="${CSS.escape(field)}"]`);
-      target?.scrollIntoView?.({ block: "center" });
+      const header =
+        alias === undefined
+          ? null
+          : document.querySelector<HTMLElement>(`[data-action-header="${CSS.escape(alias)}"]`);
+      (target ?? header)?.scrollIntoView?.({ block: "center" });
       // The box a value is typed into, ahead of the Data menu in the label row
       // above it; a field with no box - a picker, a switch - takes its first control.
       const box =
         target?.querySelector<HTMLElement>("textarea, input, [contenteditable='true']") ??
         target?.querySelector<HTMLElement>("button, [tabindex]");
-      box?.focus();
+      (box && !box.matches(":disabled") ? box : header)?.focus();
     });
   };
   const names = nodeNames(graph, catalogIndex);
@@ -178,6 +190,7 @@ export function NodeEditorDialog({
       }}
     >
       <NodeForm
+        editingAction={[editingAction, setEditingAction]}
         definition={definition}
         node={node}
         graph={graph}
@@ -230,6 +243,7 @@ export function NodeEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
+        data-workflow-fields
         onEscapeKeyDown={(event) => {
           // Radix dismisses in capture, before the inline field can cancel its rename.
           if (event.target instanceof HTMLElement && event.target.closest("[data-step-name]")) {

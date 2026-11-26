@@ -12,6 +12,7 @@ interface DirectoryMappingListProps {
   mappings: DirectoryMapping[];
   isLoading: boolean;
   error: Error | null;
+  onRetry: () => void;
   /** `members:manage` and `roles:manage` both - what adding or deleting one takes. */
   canEdit: boolean;
   onAdd: () => void;
@@ -23,6 +24,7 @@ export function DirectoryMappingList({
   mappings,
   isLoading,
   error,
+  onRetry,
   canEdit,
   onAdd,
   onDelete,
@@ -105,23 +107,29 @@ export function DirectoryMappingList({
       }
     >
       {error ? (
-        <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-      ) : !isLoading && mappings.length === 0 ? (
-        <ListCardEmpty
-          icon={Network}
-          title={t("emptyTitle")}
-          description={t("emptyBody")}
-          cta={
-            canEdit
-              ? {
-                  label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
-                  onClick: onAdd,
-                }
-              : undefined
-          }
+        <ErrorState
+          description={getErrorMessage(error, tErrors)}
+          cta={{ label: tc("retry"), onClick: onRetry }}
+          className="m-5"
         />
       ) : (
         <DataTable<DirectoryMapping>
+          clientPagination
+          empty={
+            <ListCardEmpty
+              icon={Network}
+              title={t("emptyTitle")}
+              description={t("emptyBody")}
+              cta={
+                canEdit
+                  ? {
+                      label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
+                      onClick: onAdd,
+                    }
+                  : undefined
+              }
+            />
+          }
           columns={columns}
           rows={mappings}
           loading={isLoading}

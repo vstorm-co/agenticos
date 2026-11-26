@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { useMotionStore } from "@/stores/motion-store";
+
 import { ADVANCE_MS, DiscoverTips } from "./discover-tips";
 
 const data = vi.hoisted(() => ({ perms: new Set<string>() }));
@@ -10,10 +12,17 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (perm: string) => data.perms.has(perm) }),
 }));
 
-const EVERYTHING = ["agents:edit", "artifacts:view", "channels:manage"];
+const EVERYTHING = [
+  "agents:edit",
+  "artifacts:view",
+  "channels:manage",
+  "projects:view",
+  "mcp:personal:use",
+];
 
 beforeEach(() => {
   window.localStorage.clear();
+  useMotionStore.setState({ motion: "system" });
   data.perms = new Set(EVERYTHING);
 });
 
@@ -42,8 +51,18 @@ describe("the dashboard's discover tips", () => {
       "/chat",
     );
     expect(within(tile("Shortcuts with /")).getByText("/")).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(11);
-    expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(/computer/i);
+    expect(screen.getAllByRole("article")).toHaveLength(16);
+    expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(
+      "Bring your Claude or Codex account",
+    );
+    for (const [name, href] of [
+      ["Bring your Claude or Codex account", "/settings/subscriptions"],
+      ["Start with a real task", "/chat?new=workspace&answerer=agenticos"],
+      ["Bring your everyday tools", "/mcp-servers"],
+      ["Keep a project together", "/projects"],
+      ["Control your personal context", "/settings/memory"],
+    ] as const)
+      expect(within(tile(name)).getByRole("link")).toHaveAttribute("href", href);
   });
 
   it("draws a mark for every chat platform the channels tip names", () => {
@@ -61,8 +80,15 @@ describe("the dashboard's discover tips", () => {
     data.perms = new Set();
     render(<DiscoverTips />);
 
-    // What needs nothing: the chat's two keys, and connecting one's own client.
-    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+    expect(tile("Bring your Claude or Codex account")).toBeInTheDocument();
+    expect(tile("Control your personal context")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("article", { name: "Bring your everyday tools" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("article", { name: "Keep a project together" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes one tip, and remembers it", async () => {
@@ -76,7 +102,7 @@ describe("the dashboard's discover tips", () => {
     unmount();
     render(<DiscoverTips />);
     expect(screen.queryByRole("article", { name: "Turn answers into apps" })).toBeNull();
-    expect(screen.getAllByRole("article")).toHaveLength(10);
+    expect(screen.getAllByRole("article")).toHaveLength(15);
   });
 
   it("goes away once every tip is closed", async () => {
@@ -105,7 +131,7 @@ describe("the dashboard's discover tips", () => {
     window.localStorage.setItem("agenticos:discover-tips:dismissed", JSON.stringify({ apps: 1 }));
     render(<DiscoverTips />);
 
-    expect(screen.getAllByRole("article")).toHaveLength(11);
+    expect(screen.getAllByRole("article")).toHaveLength(16);
   });
 
   it("pages sideways from its arrows", async () => {
@@ -133,7 +159,7 @@ describe("the dashboard's discover tips", () => {
     expect(lit()).toBe(1);
     expect(scrollTo).toHaveBeenLastCalledWith({ left: expect.any(Number), behavior: "smooth" });
 
-    act(() => vi.advanceTimersByTime(ADVANCE_MS * 10));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * (screen.getAllByRole("article").length - 1)));
     expect(lit()).toBe(0);
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
     vi.useRealTimers();
@@ -160,14 +186,57 @@ describe("the dashboard's discover tips", () => {
     vi.useRealTimers();
   });
 
+  it.each(["touchEnd", "touchCancel"] as const)(
+    "pauses during touch and resumes after %s only once focus leaves too",
+    (release) => {
+      vi.useFakeTimers();
+      Element.prototype.scrollTo = vi.fn();
+      render(<DiscoverTips />);
+      const first = screen.getAllByRole("article")[0]!;
+      const strip = first.parentElement!;
+      const link = within(first).getByRole("link");
+      fireEvent.touchStart(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.focus(link);
+      fireEvent[release](strip);
+      fireEvent.mouseEnter(strip);
+      fireEvent.mouseLeave(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      const nextLink = within(screen.getAllByRole("article")[1]!).getByRole("link");
+      fireEvent.blur(link, { relatedTarget: nextLink });
+      fireEvent.focus(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.blur(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+      vi.useRealTimers();
+    },
+  );
+
   it("does not move for a reader who asked for less motion", () => {
     vi.useFakeTimers();
-    const desk = window.matchMedia;
-    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    useMotionStore.setState({ motion: "reduce" });
     render(<DiscoverTips />);
     act(() => vi.advanceTimersByTime(ADVANCE_MS * 3));
     expect(screen.getAllByRole("article").findIndex((tile) => tile.dataset.lit === "true")).toBe(0);
-    window.matchMedia = desk;
+    vi.useRealTimers();
+  });
+
+  it("stops an existing carousel immediately when motion is reduced", () => {
+    vi.useFakeTimers();
+    Element.prototype.scrollTo = vi.fn();
+    render(<DiscoverTips />);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+    act(() => useMotionStore.setState({ motion: "reduce" }));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+    expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+    act(() => useMotionStore.setState({ motion: "full" }));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(screen.getAllByRole("article")[2]).toHaveAttribute("data-lit", "true");
     vi.useRealTimers();
   });
 

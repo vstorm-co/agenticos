@@ -1,7 +1,15 @@
 # Configuration
 
-All configuration is managed via environment variables, loaded from
+Service configuration is managed through environment variables, loaded from
 `backend/.env` using [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+Console presentation and notice timing are saved in the database through the UI.
+Deployment availability limits which chat-home elements and setup reminders may
+appear; organization defaults and personal membership preferences choose among
+those available elements. Reminder dismissal lasts 1, 3 or 7 days. Announcement
+expiry is enforced by the server, while a planned maintenance end is informational
+and does not reopen the installation. See [Console experience](console.md#console-experience)
+for the controls and inheritance rules.
 
 Settings are defined in `app/core/config.py` and accessed via the global
 `settings` object:
@@ -84,7 +92,11 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 
 For production channel pictures, set `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` then enables the `visuals` profile in `docker-compose-prod.yml`; for a manual start, add `--profile visuals`.
 
-Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Configure each agent's `browser_use.cdp_url` as `http://browser:9222` and publish its draft. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Agents using **Built in** inherit `BROWSER_SIGN_IN_CDP_URL` when their own `cdp_url` is empty. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+
+The default AgenticOS uses **Built in** browsing with up to 100 steps per call and **Computer use → Docker / Sandbox** on the `desktop` runtime. That runtime includes the workbench coding and document tools. Without a container connection, desktop and personal cloud coding stay disabled. A missing browser endpoint or unavailable browser container affects browser calls only; it does not prevent the agent from being published or answering with its other tools. Configured endpoints still require the operator allowlist.
+
+AgenticOS works directly unless the user explicitly asks for subagents or parallel agent work. Its Delegates settings enable all accessible published agents in the current organization; permissions still apply, explicit pins retain their versions, and unattended routines do not gain this catalog. Dynamic specialist creation is off.
 
 The renderer has no published port or internet route, is shared by the API and worker, and is capped at 1 CPU and 1 GiB RAM. Published backend images include the `browser` extra; a custom image needs `EXTRAS="--extra browser"`. If rendering fails, the channel reply explicitly says the picture could not be attached. Each render permits at most 256 requests and 32 pending responses; map tiles also share `RATE_LIMIT_MAP_TILES_PER_MINUTE` across renderers.
 
@@ -97,17 +109,22 @@ spooled to a temporary file and read into memory. Behind a session that is not m
 of a risk; on `POST /api/v1/embed/{key}/files`, which a stranger holding a link may
 reach, it is.
 
-So a request declaring a `Content-Length` larger than `MAX_UPLOAD_SIZE_MB` plus a
-5 MiB allowance for the multipart envelope is answered **413** before its body is
-read. There is no setting: it follows `MAX_UPLOAD_SIZE_MB`, because a second number
-to keep in step with the first is a number that ends up below it.
+A request declaring a `Content-Length` larger than the largest of
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
+`ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing, receives **413** before
+its body is read. This ceiling follows the upload settings automatically.
 
-**It is the cheap half of the answer, not the whole one.** `Content-Length` is set
-by the caller, and a chunked request declares none at all — those are let through
-and bounded by the per-route caps, which measure real bytes. A deployment that wants
-the guarantee rather than the courtesy sets `client_max_body_size` (nginx) or the
-equivalent on whatever terminates its connections; the compose files run uvicorn
-with no such limit of its own.
+The caller supplies `Content-Length`; chunked requests declare none and remain
+subject to the per-route limits, which measure actual bytes. Set a body limit on
+the reverse proxy to bound those too. With Nginx this is also necessary to allow
+uploads above its default 1 MiB: the shipped template sets
+`client_max_body_size 55m;` on the API host and the console's multipart upload
+locations. Console pages, authentication and ordinary JSON keep a 1 MiB limit.
+Raise both upload allowances when raising
+the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
+The Compose files run uvicorn without its own body limit.
+
+Portable ZIP uploads have a separate 512 MiB allowance on both hosts. The console streams `/api/portability/{id}/upload` to the API without buffering the archive in Next.js. Transfer control requests allow 4 MiB, and text import requests allow 25 MiB for JSON string framing while the decoded document still has a 4 MiB limit. Keep these scoped locations when replacing the proxy configuration.
 
 ## Authentication
 
@@ -146,6 +163,12 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 Production validation: `API_KEY` cannot use the default value in
 `ENVIRONMENT=production`.
+
+Local account admission is controlled in **Admin → Deployment → Access &
+accounts**, independently of the provider-button filter. See
+[Provider-only sign-in](deployment.md#provider-only-sign-in) for the policy,
+its API enforcement and the `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` operator
+recovery override.
 
 ### OAuth2 (Google)
 
@@ -231,7 +254,7 @@ Two buttons on the frontend, configured there:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Display order/filter for configured backend providers. Empty hides provider buttons. Local passwords are controlled separately in Admin → Deployment → Access & accounts. |
 | `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
 
@@ -239,7 +262,7 @@ Where each issuer lives, and what to register:
 
 | Provider | Issuer | Register the redirect URI as |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions. Under **Token configuration**, add the optional claims `email` and `xms_edov` to the **ID** token |
 | **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
 | **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
 
@@ -254,6 +277,13 @@ Two things the platform requires of whatever provider it is pointed at:
     unconfirmed address means anybody at that provider can claim anybody's work
     address, and the domain allow-list below is built on an address meaning
     something.
+  On Entra the claim has to be on the **ID token**: its UserInfo endpoint
+  returns only `sub`, `name`, `family_name`, `given_name`, `picture` and
+  `email`. `OIDC_VERIFIED_CLAIM` has to name a claim whose *value* is true for a
+  confirmed address; naming one every token carries, such as `sub`, confirms
+  nothing and is not accepted. A refused sign-in logs
+  `oauth_callback_claims_rejected` with the failed condition (`reason`) and the
+  names, never the values, of the claims received.
 - **A stable `sub`.** The account is keyed on it, not on the address, so a
   person who changes their name or whose domain is bought keeps their history -
   and the next holder of a freed address does not inherit it. It is stored
@@ -896,6 +926,8 @@ The test cases evals run over. See [Datasets](datasets.md).
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case revisions one organization's datasets may store together. Every case added and every edit is a revision, kept for the versions that hold it; a version stores only what it changed, so a dataset of 10,000 cases edited 500 times stores 10,500, not 5 million. An add or an edit past the limit is refused, naming how many are stored; removing a case stores nothing and is always allowed, and deleting datasets nobody needs frees their revisions. The name is older than this meaning: it counted every case of every version until versions stopped copying their cases. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | The largest file one dataset import reads (10 MB). A larger upload is read only one byte past the limit and refused as too large, naming the file; split it into several imports |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | The rows one dataset import may hold. The file is read row by row and refused at the first row past the limit, so a file of many tiny rows costs no more than one at the limit. The dataset's own ceiling of 10,000 cases still applies to what an import adds |
 
 **With `ARTIFACT_ORIGIN` empty, the frontend's `PUBLIC_API_URL` must equal the
 backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs
@@ -1325,7 +1357,7 @@ whole API should carry a ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. A workflow's [form](workflows.md#from-a-form) is read on a counter of this size per form. See below |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Answers one workflow [form](workflows.md#from-a-form) takes, **per form**: each one is a run its publisher pays for, and the console's server forwards them all, so an address would count nobody |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Deliveries one workflow [webhook](workflows.md) or GitHub trigger takes, **per webhook**, counted once the signature has verified and the delivery would start a run, so strangers and skipped deliveries spend nothing of it: each one is a run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests one address may send the workflow webhook and GitHub trigger addresses in a minute, whatever they carry, counted before anything is read. Wide, because senders such as GitHub deliver for many hooks from a few addresses |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests per minute from one IP address across workflow webhooks, workflow GitHub triggers and reusable event source URLs. The limit applies before the request body is read. The default accommodates providers such as GitHub that deliver many hooks from a few addresses |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unique workflow email recipients per issuer, across keys and organizations; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unique workflow email recipients per organization; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unique workflow email recipients across the deployment; [email.send](reference/workflow-nodes.md#email-send) |
@@ -1643,3 +1675,36 @@ operator removes them and do not replace off-host backups. Test restoration on a
 disposable deployment before enabling production updates. Multiple hosts, custom
 Compose overlays and external storage use your own pipeline instead:
 `UPDATE_PIPELINE_URL` exposes its HTTPS link without triggering a deployment.
+
+## Subscription accounts { #subscription-accounts }
+
+The `subscription-gateway` service runs people's own subscription sign-ins
+([Subscription accounts](models.md#subscription-accounts)). It uses the backend
+image with `python -m app.subscription_gateway`, publishes no port and keeps
+sign-ins in the `subscription_accounts` volume.
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | The gateway's address, `http://subscription-gateway:8400` in compose. Unset turns subscription accounts off. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, gateway | The shared token, at least 32 characters. The gateway refuses every request without it, and the API refuses to start with a URL but no such token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | gateway | How long a person's process may stay idle before it stops. Default 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | gateway | How many people's processes may run at once. Default 64; past it, the least recently used idle one stops. |
+
+The token is generated for you. `make dev` and `scripts/deploy.sh` each write a
+random `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` the first time they run
+and keep it afterwards; `make dev` hands it to `docker-compose.yml`. To choose
+your own, write it there first (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` and `docker-compose-dev.yml` the service is in the
+`subscriptions` profile. `scripts/deploy.sh` and the host updater enable that
+profile and set `SUBSCRIPTION_GATEWAY_URL` whenever `backend/.env` holds a
+token, so a server runs the gateway by default. To keep it off, leave the line
+in `backend/.env` empty: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` started on its own, without a clone, falls back to a fixed
+local token. Set your own `SUBSCRIPTION_GATEWAY_TOKEN` in `.env` for any such
+deployment other people reach.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).

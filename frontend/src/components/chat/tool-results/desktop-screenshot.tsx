@@ -1,4 +1,5 @@
 "use client";
+import { generatedMediaUrl, SESSION_SURFACE, type MediaSurface } from "@/lib/generated-media";
 import { Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -15,13 +16,16 @@ export interface DesktopScreenshotPayload {
 
 /** Parse a `computer_save_screenshot` result, or null if it isn't one
  *  (an error sentence or another tool's result → the default renderer). */
-export function parseDesktopScreenshot(result: string): DesktopScreenshotPayload | null {
+export function parseDesktopScreenshot(
+  result: string,
+  surface: MediaSurface = SESSION_SURFACE,
+): DesktopScreenshotPayload | null {
   try {
     const p = JSON.parse(result);
     if (p && typeof p === "object" && p.kind === "desktop_screenshot") {
       return {
         caption: typeof p.caption === "string" ? p.caption : "",
-        url: typeof p.filename === "string" ? `/api/generated/${p.filename}` : null,
+        url: generatedMediaUrl(p, surface),
       };
     }
   } catch {

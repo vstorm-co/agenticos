@@ -1,5 +1,5 @@
 ---
-source_sha: "f824a1c79a78"
+source_sha: "54da4f204aeb"
 ---
 
 # Begriffe { #concepts }
@@ -30,6 +30,19 @@ validiert.
 
 Ein Agent hat genau einen _Draft_-Spec, den der Builder laufend bearbeitet und
 speichert.
+
+Jeder Speichervorgang prüft den Draft, auf dem die Bearbeitung beruht. Hat
+ein anderer Tab oder eine Serveraktion ihn geändert, pausiert das Speichern;
+deine lokalen Eingaben bleiben sichtbar. Kopiere alles, was du behalten
+möchtest, bevor du **Neuesten Draft laden** wählst. Übertrage die Änderungen
+danach auf die aktuelle Version; ein veralteter Stand kann sie nicht überschreiben.
+
+Wähle bei einem veröffentlichten Agenten mit Entwurfsänderungen **Mehr →
+Entwurf verwerfen**, um den Entwurf auf die zuletzt veröffentlichte Version
+zurückzusetzen. Unveröffentlichte Änderungen gehen verloren, aber es entsteht
+keine neue Version und keine Umgebung wird umgestellt. Erfolgt vor der
+Bestätigung eine weitere Änderung oder Veröffentlichung, wird das Verwerfen
+abgelehnt. Ein noch nie veröffentlichter Agent hat keine Version zum Zurücksetzen.
 
 Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 
@@ -79,6 +92,38 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
     oder Tags aus, ein Import lässt die vorhandenen Categories und Tags des Ziels
     unverändert (die Datei trägt keine, also löscht und überschreibt er sie
     nicht), und nur ein Klon startet ohne Tags.
+
+## Export und Import { #export-and-import }
+
+Im Aktionsmenü des Agenten wählen Sie mit **Agent exportieren** verknüpfte
+Definitionen und Inhalte aus. YAML und JSON enthalten kleine Konfigurationen;
+ZIP legt Context-Texte und Skill-Dateien in geprüften Archivdateien ab.
+**Agent importieren** im Katalog zeigt die Abhängigkeiten vor dem Erstellen
+eines neuen Entwurfs. Wählen Sie für jede Abhängigkeit Kopieren, vorhandene
+Ressource verwenden oder Überspringen. Vorhandene Ressourcen werden nie
+überschrieben. Überspringen entfernt die Bindungen aus dem Entwurf.
+
+Kopiert werden derzeit Context, exakte Skill-Versionen und Forks, Modellprofile
+und private deaktivierte MCP-Konfigurationen. Wissensdatenbanken,
+Sandbox-Verbindungen und Vault-Geheimnisse bleiben Referenzen, denen ein Ziel
+zugeordnet werden muss. Geheimniswerte, OAuth-Zustimmungen, Freigaben und aktive
+Veröffentlichungen werden nicht übertragen. URLs mit undurchsichtigen Parametern
+und eigene Transportheader erfordern ebenfalls eine Zielkonfiguration. Prüfen
+Sie Anweisungen und Dateiinhalte, bevor Sie einen Export weitergeben.
+
+Textkonfigurationen sind auf 4 MiB begrenzt. ZIP-Uploads erlauben 512 MiB,
+2 GiB entpackt, ein Manifest von 4 MiB und 16 MiB pro Textdatei. ZIP-Vorbereitung
+und geprüfter Import laufen als dauerhafte Worker-Jobs. Uploads, private Archive
+und Transferprotokolle laufen nach 24 Stunden ab und werden vom Worker entfernt.
+
+Die Konsole stellt denselben Transfer nach dem Neuladen für seinen angemeldeten
+Eigentümer und seine Organisation wieder her. Wählen Sie die ursprüngliche ZIP
+erneut, um einen unterbrochenen Upload von vorn zu beginnen; die angegebene
+Uploadgröße bleibt vom Fortschritt getrennt. Das Verwerfen eines inaktiven
+Transfers gibt sofort seinen Platz im Limit frei und lässt seine Dateien bei
+der Ablaufbereinigung entfernen. Eingereihte oder laufende Aufträge müssen
+zuerst enden; bereits importierte Ressourcen bleiben verfügbar. Der Import veröffentlicht nichts, startet keinen Agenten und keine
+kostenpflichtige Wissensindexierung.
 
 ## Version { #version }
 

@@ -375,3 +375,98 @@ async def test_corrections_refuse_invalid_state_and_require_explicit_source_revi
                         await service.edit_reply_expectation(
                             seeded.ctx, seeded.run.id, step.id, reviewed
                         )
+
+
+async def test_mail_expectation_inside_python_is_listed_and_edited_on_the_child(
+    engine: AsyncEngine,
+):
+    now = datetime.now(UTC)
+    body = ReplyExpectationEdit(
+        thread_id="t",
+        expected_sender="alice@example.com",
+        not_before=now - timedelta(hours=1),
+        deadline=now + timedelta(hours=1),
+    )
+    connection = McpConnection(id=uuid4(), is_enabled=True)
+    script = NodeInstance(
+        id=uuid4(),
+        definition_id="code.python.actions",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+        config={
+            "code": "await_reply(**args)",
+            "actions": {
+                "await_reply": {
+                    "type": "flow.await_reply",
+                    "config": {"provider": "google", "connection_id": str(connection.id)},
+                }
+            },
+        },
+    )
+    entry = script.model_copy(update={"id": uuid4(), "definition_id": "core.input", "config": {}})
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, script),
+        edges=(
+            Edge(
+                id=uuid4(),
+                source_node_id=entry.id,
+                source_port="out",
+                target_node_id=script.id,
+                target_port="in",
+            ),
+        ),
+        bindings=(
+            Binding(
+                target_node_id=script.id,
+                target_field="args",
+                source=LiteralValue(
+                    value=body.model_dump(mode="json", exclude={"paused", "review_mailbox"})
+                ),
+            ),
+        ),
+    )
+    seeded = await seed_workflow(engine, graph)
+    generation = uuid4()
+    portal = "app.services.mcp_connection.McpConnectionService"
+    with (
+        patch(f"{portal}.get_org_portal_grant", AsyncMock(return_value=connection)),
+        patch(f"{portal}.get_org_portal_connection", AsyncMock(return_value=connection)),
+        patch(
+            f"{portal}.reply_mailbox_token",
+            AsyncMock(return_value=(generation, SecretStr("token"))),
+        ),
+        patch(
+            "app.services.portals.reply_metadata.MailReplyMetadataClient.read",
+            AsyncMock(return_value=()),
+        ),
+        patch(
+            "app.workflows.nodes.flow_await_reply._handler.get_worker_db_context",
+            lambda: sessions(seeded),
+        ),
+    ):
+        parked = await drive(seeded)
+        assert parked.status == "running", parked.error
+        async with seeded.factory() as db:
+            service = WorkflowExecutionService(db)
+            listing = await service.node_runs(seeded.ctx, seeded.run.id)
+            child = next(row for row in listing.items if row.reply_expectation is not None)
+            parent = next(
+                row
+                for row in listing.items
+                if row.node_instance_id == script.id and not row.scope_path
+            )
+            assert child.scope_path == [{"action": "await_reply", "index": 0}]
+            assert child.reply_expectation.authorization_generation == generation
+            changed = await service.edit_reply_expectation(
+                seeded.ctx, seeded.run.id, child.id, body.model_copy(update={"paused": True})
+            )
+            assert changed.paused
+            with pytest.raises(WorkflowStepNotResolvableError):
+                await service.edit_reply_expectation(seeded.ctx, seeded.run.id, parent.id, body)
+            await db.commit()
+        assert (await drive(seeded)).status == "running"
+        async with seeded.factory() as db:
+            await WorkflowExecutionService(db).cancel(seeded.ctx, seeded.run.id)
+            await db.commit()
+        assert (await drive(seeded)).status == "cancelled"

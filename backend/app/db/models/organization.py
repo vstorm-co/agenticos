@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -48,6 +49,29 @@ class MembershipSource(enum.StrEnum):
 
 
 MembershipSourceLiteral = Literal["manual", "directory", "discord"]
+
+OnboardingStep = Literal[
+    "preferences.language",
+    "preferences.appearance",
+    "admin.workspace",
+    "admin.identity",
+    "admin.profile",
+    "admin.context",
+    "admin.subscriptions",
+    "admin.models",
+    "admin.tools",
+    "admin.team",
+    "admin.deployment",
+    "admin.organization",
+    "admin.task",
+    "member.welcome",
+    "member.profile",
+    "member.context",
+    "member.subscriptions",
+    "member.models",
+    "member.tools",
+    "member.task",
+]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -176,6 +200,9 @@ class Organization(Base, TimestampMixin):
     # A pair from the speech-to-text catalog, both or neither, and the default an
     # agent or a channel bot inherits (#1797). Whether `/chat` dictation uses it
     # is each agent's switch; without one the browser transcribes.
+    text_to_speech: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # The vault key the pair above is sent with: an org-visible `api_key` whose
@@ -207,6 +234,24 @@ class Organization(Base, TimestampMixin):
     # The number here is what the organization *asked for*. What actually sweeps
     # is `app/core/retention.py`'s resolution of it against the deployment's
     # defaults, its ceiling and the audit floor, and no other place resolves it.
+    onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    console_role_defaults: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    console_notices: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    chat_cost_visibility: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    """Null inherits everyone; affects disclosure in chat, never the spend ledger."""
+
+    chat_home_defaults: Mapped[dict[str, bool | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
 
     members: Mapped[list[OrganizationMember]] = relationship(
@@ -221,6 +266,10 @@ class Organization(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "chat_cost_visibility IS NULL OR chat_cost_visibility IN ('everyone', 'spend_privileged', 'nobody')",
+            name="ck_organization_chat_cost_visibility",
+        ),
         # Zero is not a tighter cap, it is an organization whose agents can never
         # answer - and it is one keystroke away from the number somebody meant to
         # type. The same constraint guards `agent_exposures`.
@@ -303,10 +352,31 @@ class OrganizationMember(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    onboarding_current_step: Mapped[OnboardingStep | None] = mapped_column(
+        String(64), nullable=True
+    )
+    onboarding_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # The first messages an empty chat with the starter agent offers this person
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.
     # Null until the first look, which the agent's own starters stand in for.
+    onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    console_preferences: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    chat_costs_visible: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Personal display preference, bounded by the organization and deployment."""
+
+    chat_home_preferences: Mapped[dict[str, bool | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     personal_starters_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -319,6 +389,10 @@ class OrganizationMember(Base):
         CheckConstraint(
             "onboarding_goal IS NULL OR onboarding_goal IN ('meeting', 'document', 'compare')",
             name="ck_org_member_onboarding_goal",
+        ),
+        CheckConstraint(
+            "onboarding_current_step IS NULL OR onboarding_current_step IN ('preferences.language', 'preferences.appearance', 'admin.workspace', 'admin.identity', 'admin.profile', 'admin.context', 'admin.subscriptions', 'admin.models', 'admin.tools', 'admin.team', 'admin.deployment', 'admin.organization', 'admin.task', 'member.welcome', 'member.profile', 'member.context', 'member.subscriptions', 'member.models', 'member.tools', 'member.task')",
+            name="ck_org_member_onboarding_step",
         ),
         Index("ix_org_member_org_role", "organization_id", "role"),
         CheckConstraint(

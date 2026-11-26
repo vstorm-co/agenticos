@@ -4,7 +4,7 @@ of all of them."""
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 
 from app.api.deps import (
     ApnsSvc,
@@ -14,7 +14,9 @@ from app.api.deps import (
     DeploymentSettingsSvc,
     PushSvc,
     WebPushSvc,
+    require_deployment_mcp_scope,
 )
+from app.api.public_api import ASSISTANT
 from app.schemas.push import (
     ApnsDeviceCreate,
     ApnsKeyUpdate,
@@ -62,7 +64,11 @@ async def unsubscribe(
     await push.unsubscribe(current_user.id, endpoint)
 
 
-@router.get("/apns", response_model=ApnsRead)
+@router.get(
+    "/apns",
+    response_model=ApnsRead,
+    dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)],
+)
 async def apns_status(_user: CurrentUser, apns: ApnsSvc) -> Any:
     """Whether iPhones can be pushed to, and with whose key: the iOS app offers
     push only when they can. Never the key."""
@@ -78,7 +84,11 @@ async def set_apns_key(
     return await deployment.set_apns_key(actor_user_id=user.id, data=data)
 
 
-@router.delete("/apns", response_model=ApnsRead)
+@router.delete(
+    "/apns",
+    response_model=ApnsRead,
+    dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)],
+)
 async def clear_apns_key(user: CurrentAppAdmin, deployment: DeploymentSettingsSvc) -> Any:
     """Stop pushing to iPhones."""
     return await deployment.clear_apns_key(actor_user_id=user.id)

@@ -1,12 +1,13 @@
 "use client";
 
 import { use, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   ArrowLeft,
   ClipboardCheck,
   FlaskConical,
   ListChecks,
+  SearchCheck,
   Settings2,
   Sparkles,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { EmptyCases } from "@/components/datasets/empty-cases";
 import { HelperSettings } from "@/components/datasets/helper-settings";
 import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
 import { GeneratePanel } from "@/components/datasets/generate-panel";
+import { KeyCoveragePanel } from "@/components/datasets/key-coverage-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-panel";
 import { UnsavedCopiesBanner } from "@/components/datasets/unsaved-copies-banner";
@@ -62,13 +64,23 @@ import { useOrgStore } from "@/stores/org-store";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 /** Existing deep links remain valid within the three workspace sections. */
-const TABS = ["cases", "generated", "grading", "evals", "review", "settings", "results"];
+const TABS = [
+  "cases",
+  "generated",
+  "grading",
+  "evals",
+  "review",
+  "coverage",
+  "settings",
+  "results",
+];
 
 /**
  * What the case dialog is showing: a new case, or one from the list - picked up
@@ -112,9 +124,19 @@ export default function DatasetPage({ params }: PageProps) {
   const [gradingRestore, setGradingRestore] = useState<{ value: GradingCopy; at: number }>();
   const [restoring, setRestoring] = useState<UnsavedCopy | null>(null);
   const restoringCase = useDatasetCase(id, restoring?.place.slice("case:".length) ?? null);
-  const { dataset, error: datasetError, update, remove } = useDataset(id);
+  const {
+    dataset,
+    fetchedAt,
+    error: datasetError,
+    refetch: refetchDataset,
+    update,
+    remove,
+  } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
-  const canViewRuns = usePermissions().can(Perm.runsView);
+  const { can } = usePermissions();
+  const canViewRuns = can(Perm.runsView);
+  // The key extractor runs as the person who asks, so it needs `agents:run`.
+  const canRunAgents = can(Perm.agentsRun);
   const { versions } = useDatasetVersions(id);
   const linkedCase = useDatasetCase(id, linked);
   // A link to one case opens it once it arrives, as reading it from the list would;
@@ -152,6 +174,7 @@ export default function DatasetPage({ params }: PageProps) {
     setCopies(dataset.can_edit ? readCopies(organization, id) : []);
   }
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
+  const editedCase = useDatasetCase(id, version === null ? (editing?.item?.case_id ?? null) : null);
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
   // Removing the last case of the last page leaves that page empty; step back to
   // the page that still exists, the adjust-state-while-rendering way.
@@ -161,7 +184,12 @@ export default function DatasetPage({ params }: PageProps) {
     return <ResourceUnavailable back={ROUTES.DATASETS} label={tc("back")} />;
   }
   if (datasetError) {
-    return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
+    return (
+      <ErrorState
+        description={getErrorMessage(datasetError, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refetchDataset() }}
+      />
+    );
   }
   if (dataset === undefined) {
     return <DatasetLoading />;
@@ -180,7 +208,7 @@ export default function DatasetPage({ params }: PageProps) {
       ? "cases"
       : shown === "grading" || shown === "settings"
         ? "settings"
-        : shown === "evals" || shown === "review"
+        : shown === "evals" || shown === "review" || shown === "coverage"
           ? "results"
           : "cases";
   const keep = (place: string) => ({
@@ -205,7 +233,7 @@ export default function DatasetPage({ params }: PageProps) {
       : cases.add.mutateAsync(content);
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <DatasetHeader
         dataset={dataset}
         version={version}
@@ -237,14 +265,15 @@ export default function DatasetPage({ params }: PageProps) {
         aria-modal={expanded || undefined}
         aria-label={dataset.name}
         className={cn(
-          "flex min-w-0 flex-1 flex-col",
+          "flex min-h-0 min-w-0 flex-1 flex-col",
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
+          expanded && FULLSCREEN_SAFE_PADDED,
         )}
       >
         <Tabs
           value={primaryTab}
           onValueChange={(next) => showTab(next === "results" ? "review" : next)}
-          className="flex flex-1 flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
         >
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
@@ -271,7 +300,7 @@ export default function DatasetPage({ params }: PageProps) {
             </TabsList>
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
           </div>
-          <TabsContent value="cases" className="flex flex-1 flex-col gap-4">
+          <TabsContent value="cases" className="flex min-h-0 flex-1 flex-col gap-4">
             {shown === "generated" && dataset.can_edit ? (
               <>
                 <div className="flex flex-wrap items-center gap-3">
@@ -318,6 +347,7 @@ export default function DatasetPage({ params }: PageProps) {
                         <CasesToolbar
                           datasetId={id}
                           disabled={!editable}
+                          importMaxBytes={dataset.import_max_bytes}
                           onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                           onImport={(file) => cases.importFile.mutateAsync(file)}
                           onGenerate={() => setGenerating(true)}
@@ -326,11 +356,22 @@ export default function DatasetPage({ params }: PageProps) {
                   </div>
                 }
               >
-                {linkedCase.error && (
+                {linkedCase.error instanceof ApiError && linkedCase.error.status === 404 ? (
                   <p role="alert" className="text-muted-foreground mb-3 text-sm">
                     {t("linkedCaseGone")}
                   </p>
-                )}
+                ) : linkedCase.error ? (
+                  <div role="alert" className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-destructive min-w-0 flex-1 text-sm">
+                      {t("linkedCaseUnread", {
+                        reason: getErrorMessage(linkedCase.error, tErrors),
+                      })}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => void linkedCase.refetch()}>
+                      {tc("retry")}
+                    </Button>
+                  </div>
+                ) : null}
                 {cases.isLoading ? (
                   <CasesTable cases={[]} loading onOpen={openCase} />
                 ) : cases.error ? (
@@ -341,6 +382,7 @@ export default function DatasetPage({ params }: PageProps) {
                 ) : cases.cases.length === 0 ? (
                   <EmptyCases
                     datasetId={id}
+                    importMaxBytes={dataset.import_max_bytes}
                     onAddCase={
                       editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                     }
@@ -348,7 +390,7 @@ export default function DatasetPage({ params }: PageProps) {
                     onGenerate={editable ? () => setGenerating(true) : undefined}
                   />
                 ) : (
-                  <div className="flex flex-1 flex-col gap-4">
+                  <div className="flex min-h-0 flex-1 flex-col gap-4">
                     <CasesTable
                       cases={cases.cases}
                       offset={page * PAGE_SIZE}
@@ -357,6 +399,7 @@ export default function DatasetPage({ params }: PageProps) {
                       onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
                     />
                     <Pager
+                      showSinglePage
                       page={page}
                       pageCount={pageCount}
                       matched={cases.total}
@@ -374,31 +417,37 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsContent
             value="settings"
             forceMount
-            className="flex flex-1 flex-col data-[state=inactive]:hidden"
+            className="flex w-full max-w-5xl flex-1 flex-col gap-6 data-[state=inactive]:hidden"
           >
-            <GradingPanel
-              dataset={dataset}
-              onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
-              onDirtyChange={setGradingUnsaved}
-              localCopy={dataset.can_edit ? keep("grading") : undefined}
-              restore={gradingRestore}
-            />
+            <section className="space-y-3" aria-labelledby="dataset-grading-heading">
+              <h2 id="dataset-grading-heading" className="text-sm font-medium">
+                {t("scoring.title")}
+              </h2>
+              <GradingPanel
+                dataset={dataset}
+                fetchedAt={fetchedAt}
+                onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
+                onDirtyChange={setGradingUnsaved}
+                localCopy={dataset.can_edit ? keep("grading") : undefined}
+                restore={gradingRestore}
+              />
+            </section>
             {dataset.can_edit && (
-              <section className="mt-6 space-y-4">
+              <section className="space-y-3 border-t pt-6">
                 <div>
-                  <h2 className="text-base font-semibold">{t("workspace.helpers")}</h2>
+                  <h2 className="text-sm font-medium">{t("workspace.helpers")}</h2>
                   <p className="text-muted-foreground mt-1 text-sm">{t("workspace.helpersHint")}</p>
                 </div>
-                <div className="grid items-stretch gap-4 xl:grid-cols-2">
+                <div className="grid items-start gap-4 lg:grid-cols-2">
                   <HelperSettings dataset={dataset} kind="generator" />
                   <HelperSettings dataset={dataset} kind="improver" />
                 </div>
               </section>
             )}
           </TabsContent>
-          <TabsContent value="results" className="flex flex-1 flex-col gap-4">
-            {canViewRuns && (
-              <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+              {canViewRuns && (
                 <Button
                   size="sm"
                   variant={shown === "evals" ? "secondary" : "ghost"}
@@ -408,24 +457,36 @@ export default function DatasetPage({ params }: PageProps) {
                   <FlaskConical className="size-4" aria-hidden />
                   {t("workspace.testRuns")}
                 </Button>
-                <Button
-                  size="sm"
-                  variant={shown === "review" ? "secondary" : "ghost"}
-                  aria-pressed={shown === "review"}
-                  data-tour="datasets-review-tab"
-                  onClick={() => showTab("review")}
-                >
-                  <ClipboardCheck className="size-4" aria-hidden />
-                  {t("workspace.reviewAnswers")}
-                </Button>
-              </div>
-            )}
+              )}
+              <Button
+                size="sm"
+                variant={shown === "review" ? "secondary" : "ghost"}
+                aria-pressed={shown === "review"}
+                data-tour="datasets-review-tab"
+                onClick={() => showTab("review")}
+              >
+                <ClipboardCheck className="size-4" aria-hidden />
+                {t("workspace.reviewAnswers")}
+              </Button>
+              <Button
+                size="sm"
+                variant={shown === "coverage" ? "secondary" : "ghost"}
+                aria-pressed={shown === "coverage"}
+                data-tour="datasets-coverage-tab"
+                onClick={() => showTab("coverage")}
+              >
+                <SearchCheck className="size-4" aria-hidden />
+                {t("workspace.keyCoverage")}
+              </Button>
+            </div>
             {shown === "evals" && canViewRuns ? (
               <DatasetEvalsPanel
                 datasetId={id}
                 title={t("workspace.testRuns")}
                 onReview={() => showTab("review")}
               />
+            ) : shown === "coverage" ? (
+              <KeyCoveragePanel datasetId={id} />
             ) : (
               <ReviewPanel dataset={dataset} />
             )}
@@ -481,7 +542,25 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
+          keyDraft={
+            editable && canRunAgents && editing.item && !editing.item.masked
+              ? { datasetId: id, caseId: editing.item.case_id }
+              : undefined
+          }
           startFrom={editing.startFrom}
+          remote={
+            editing.item && version === null
+              ? {
+                  datasetId: id,
+                  stored: editedCase.kase && draftOf(editedCase.kase),
+                  fetchedAt: editedCase.fetchedAt,
+                  error: editedCase.error,
+                  retry: () => {
+                    void editedCase.refetch();
+                  },
+                }
+              : undefined
+          }
           localCopy={
             editable && !editing.item?.masked
               ? keep(editing.item === null ? "case:new" : `case:${editing.item.case_id}`)

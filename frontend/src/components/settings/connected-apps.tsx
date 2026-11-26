@@ -82,32 +82,33 @@ export function ConnectedApps() {
       {/* Nothing connected is the usual state, and the card says so in a line
           rather than inside a table frame inside the card - a box in a box with
           a screen of empty space under the instructions above it. */}
-      {!isLoading && !error && apps.length === 0 ? (
-        <EmptyState
-          icon={PlugZap}
-          title={t("emptyTitle")}
-          description={t("emptyWhy")}
-          className="flex-1 border-0 bg-transparent py-8"
+      <div className="flex min-h-0 flex-1 flex-col px-5 py-5">
+        <DataTable
+          fillHeight
+          clientPagination
+          className="rounded-none border-0"
+          columns={columns}
+          rows={apps}
+          getRowKey={(app) => app.id}
+          loading={isLoading}
+          empty={
+            <EmptyState
+              icon={PlugZap}
+              title={t("emptyTitle")}
+              description={t("emptyWhy")}
+              className="border-0 bg-transparent py-8"
+            />
+          }
+          error={
+            error ? (
+              <ErrorState
+                title={t("couldNotLoad")}
+                cta={{ label: tc("retry"), onClick: () => void refetch() }}
+              />
+            ) : undefined
+          }
         />
-      ) : (
-        <div className="px-5 py-5">
-          <DataTable
-            className="rounded-none border-0"
-            columns={columns}
-            rows={apps}
-            getRowKey={(app) => app.id}
-            loading={isLoading}
-            error={
-              error ? (
-                <ErrorState
-                  title={t("couldNotLoad")}
-                  cta={{ label: tc("retry"), onClick: () => void refetch() }}
-                />
-              ) : undefined
-            }
-          />
-        </div>
-      )}
+      </div>
       {leaving && (
         <ConfirmDialog
           open

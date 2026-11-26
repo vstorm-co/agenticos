@@ -1,10 +1,71 @@
 ---
-source_sha: "2225d063f6ba"
+source_sha: "d9973864c59a"
 ---
+
+**Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
+
+La biblioteca de modelos del chat oculta inicialmente la búsqueda tras la lupa junto a Models y Account o Key. Escape vacía y cierra primero la búsqueda y después el selector. Actualizar y el contador compacto comparten la fila de pestañas; la fuente del catálogo está disponible con el contador y los datos de cuenta permanecen en Account. Los modelos de suscripción guardados restauran el servicio, la cuenta y el modelo concretos en vez de una selección conjunta de suscripciones.
+
+
+La tabla de suscripciones muestra los dos primeros límites informados en una vista compacta. **Detalles** despliega todas las ventanas, las fechas de restablecimiento y la hora de observación. Las acciones de la cuenta comparten una fila; Desconectar está en el menú de acciones.
+
+El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
+
+Los títulos, los controles de listas y los encabezados de tablas comparten una jerarquía compacta. Las tablas dentro de listas tienen un marco exterior y conservan la altura de sus filas al cargar. Las tarjetas abren Build incluso cuando Evals requiere atención; su indicador sigue visible. El historial permanece en Actividad, en lugar de encima del Builder. La inspección muestra el motivo registrado del fallo y conserva los eventos completos en secciones desplegables. El chat sitúa el nombre del modelo sobre su proveedor o cuenta personal. Proyectos aparece antes de Build en la navegación; Conocimiento empieza plegado y se abre para su página activa o por elección explícita.
 
 # La consola { #the-console }
 
+Las nuevas propuestas generadas de Inbox incluyen una solicitud de acción lista para enviar, en lugar de una pregunta con el ID del elemento. El trabajo repetido conserva las solicitudes originales y sus fechas locales, días de la semana y zona horaria para basar el horario sugerido en pruebas. Seleccionar una propuesta prepara un borrador editable y nunca lo envía automáticamente. El chat del teléfono muestra dos mensajes iniciales; las pantallas más anchas conservan cuatro.
+
+Los operadores pueden consultar un plan con `agenticos cmd refresh-inbox --organization-id UUID` y añadir `--queue` para encolarlo. Se mantienen el modelo configurado y los presupuestos existentes. Solo se sustituyen propuestas generadas abiertas tras una lectura válida; un error o rechazo las conserva. No se modifican decisiones aceptadas o descartadas, hallazgos, casos vinculados ni aprobaciones. Una decisión tomada durante la generación cancela la sustitución para esa persona.
+
+Los temas predeterminados distinguen el fondo, la barra lateral, las tarjetas y los paneles flotantes. El azul identifica enlaces y foco del teclado; los interruptores activados son verdes. Las etiquetas de navegación usan peso normal y la activa un peso medio. Los resúmenes del Builder muestran modelo, variables, estado de voz y primeros mensajes antes de abrir sus editores. El acceso y la recuperación de cuenta comparten un estilo de título conciso y un panel de marca estático.
+
+Los agregados de uso y gasto del dashboard reutilizan la misma respuesta en memoria para el mismo periodo durante un máximo de 30 minutos. No son contadores en directo: los eventos de ejecución no actualizan estos agregados después de cada ejecución. Una recarga completa del navegador parte de una caché vacía y consulta de nuevo la API. Los diseños guardados solo se solicitan en la vista de organización, donde están disponibles los controles de distribución.
+
+Si el onboarding de tu organización actual no está terminado, **Completar configuración** vuelve a su guía. Descartar el recordatorio lo pausa durante el intervalo efectivo de 1, 3 o 7 días (un día de forma predeterminada). La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta.
+
+**Ajustes → Perfil** conserva siempre un enlace manual a la configuración, también cuando los recordatorios están desactivados. El recordatorio tiene una acción clara y una ilustración breve y limitada; el movimiento reducido la mantiene quieta. No se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para esta cuenta y organización sin guardar valores del formulario.
+
+La configuración guiada guarda el paso actual y la fecha de actualización en tu pertenencia a la organización. La tabla de miembros indica si no se ha iniciado, está en curso o se ha completado, con un nombre de paso legible. El progreso corresponde a cada pertenencia; completar una organización no completa las demás. Las finalizaciones ya registradas siguen siendo válidas, pero el contenido del perfil nunca implica progreso ni finalización.
+
+Un paso mostrado antes de elegir una organización o unirte a ella no se registra como progreso de pertenencia. El idioma y la apariencia de la cuenta se guardan por separado. En la pestaña Asistente de la organización, Architect y los demás servicios aparecen antes de la página de inicio del chat; los iconos y encabezados uniformes facilitan recorrer los servicios.
+
+Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
+
+Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. Si el chat acoplado es demasiado estrecho para cambiar el ancho del panel, elige **Maximize** en su encabezado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
+
+Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos. En el chat, un enlace de archivo con un resultado satisfactorio coincidente de la herramienta abre el visor del espacio de trabajo. Las rutas no verificadas siguen como enlaces normales; un origen privado no disponible no se convierte en enlace.
+
+Al empezar el chat, Inbox muestra hasta dos prioridades sin fechas ni otro icono de chat. Al seleccionar una fila, su solicitud de acción pasa al cuadro de mensaje para editarla; no se envía. **Abrir Inbox** lleva a la lista completa. **Workspace — projects** es el diseño predeterminado de la lista de conversaciones; `?sidebar=compact` y `?sidebar=comfortable` siguen disponibles para compararlos.
+
+El chat público y el widget integrado aceptan mensajes multilínea: Enter envía, Mayús+Enter añade una línea y la composición IME no envía antes de tiempo. En el chat principal, el público y el widget, leer mensajes anteriores pausa el seguimiento automático. El streaming y los cambios de tamaño conservan esa posición; volver al final o enviar deliberadamente otro mensaje reanuda el seguimiento. Reconectar o cargar el historial no desplaza al lector hacia abajo.
+
+Las ejecuciones y los registros de workflows usan el mismo marco: filtros sobre las filas desplazables y navegación debajo. Las plantillas de workflows siguen el mismo recorrido de categoría a biblioteca que las de agentes. Una prueba con el panel Run confirma allí su inicio en lugar de repetir el éxito en una notificación; los errores siguen siendo explícitos. Los campos de texto de workflows conservan su color al pasar el cursor, con foco y validación visibles.
+
+Las tablas principales ocupan el espacio restante; filtros, encabezados y pie siguen disponibles mientras se desplazan las filas. Las listas locales completas se ordenan antes de dividirse en páginas de 50 registros. El pie permanece en **1 / 1**, con las direcciones no disponibles desactivadas. Las listas del servidor conservan su paginación. Tablas virtuales, chats de proyectos y documentos de conocimiento mantienen la carga incremental y sus cifras reales, sin inventar un total de páginas. Informes integrados y matrices de configuración conservan su diseño.
+
+Las categorías, los iconos y las etiquetas de datasets usan estilos neutros; los errores mantienen su color de aviso. Los ajustes separan la evaluación de la generación y mejora. Cambiar un modelo auxiliar mantiene Guardar y Cancelar en su sitio, desactivados sin cambios, con una explicación estable del modelo alternativo.
+
+Compartir usa los mismos campos, menús y filas compactos que el resto de la consola. Un primer fallo de lectura muestra un error y Reintentar. Un fallo posterior de servicio o red puede conservar las personas ya cargadas; una denegación de autorización o un recurso eliminado oculta las filas de acceso en caché y la edición. Una búsqueda de miembros fallida ofrece su propio reintento en lugar de sugerir que no hay personas.
+
+Apps resuelve los destinos disponibles del recorrido antes del primer paso; el contador excluye los controles ausentes. El último paso visible ofrece Finalizar. La ayuda permanece en la cabecera fija del visor incluso con las demás opciones plegadas.
+
+Las galerías de agentes muestran la publicación mediante un punto y texto. Un indicador ámbar pequeño señala lo que requiere atención y permite consultar el motivo al pasar el cursor, enfocar con el teclado o tocar. Las tarjetas de workflow se centran en nombre, descripción, acceso, publicación y acciones existentes; los disparadores, nodos, etiquetas y estadísticas siguen en el editor, los filtros o el historial. Las etiquetas se introducen en un solo campo, conservando el teclado y la prevención de duplicados.
+
+Los catálogos usan espaciado discreto, metadatos neutros y acciones coherentes. Proyectos, bases de conocimiento, tablas y datasets conservan acceso, tamaño y vínculos relevantes sin fechas en las tarjetas. En Build, Instrucciones tiene su propia superficie de escritura; Modelo y las opciones Variables, Voz y Primeros mensajes comparten un panel con separadores. El modelo principal permanece visible. Thinking y Answer format siguen en los ajustes del modelo; la configuración obligatoria pendiente y los errores de validación siguen accesibles.
+
+En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Los modelos utilizados siguen visibles en una única lista Models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
+
+Variables, Voice, First messages, Run reviewers, Alerts y Tracing empiezan plegados; sus resúmenes muestran la configuración actual. Abre la sección que quieras cambiar. Los ajustes necesarios y los errores de validación siguen accesibles. Model permanece abierto y los enlaces de configuración de Voice abren la pestaña correspondiente.
+
+El editor de instrucciones adapta su altura a la ventana y puede ampliarse para editar textos largos. Para un modelo existente, Proveedor y Modelo permanecen visibles; **Configuración de conexión** agrupa endpoint, autorización, API y región. Una configuración obligatoria pendiente o un campo rechazado abre la sección.
+
+Al crear un proyecto, primero eliges nombre, espacio de trabajo y destinatarios. **Instrucciones y valores predeterminados** contiene la descripción, las instrucciones y el agente inicial opcionales. Un error de esos campos abre la sección. En tablas con muchas columnas, **Añadir registro** mantiene visibles los primeros campos, los obligatorios, el contenido de documentos y los valores rellenados desde la cuadrícula. Abre **Más campos** para completar las demás propiedades opcionales.
+
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
+
+La tarjeta AI Architect enlaza directamente al Builder junto al interruptor, sin otra sección desplegable. Los demás servicios de IA conservan formularios desplegables cuando tienen ajustes que editar.
 
 La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 
@@ -50,7 +111,7 @@ Las introducciones de páginas y explicaciones de ajustes están en el icono de 
 
 En Agentes, Skills, Context y el historial, **Filtros** despliega opciones adicionales en cualquier tamaño de pantalla e indica cuántos filtros están activos.
 
-Las tarjetas de agentes muestran directamente estado, acceso y fecha de edición. Las tarjetas de Skills y Context mantienen visibles la vista previa, el resumen, **Used by** con retratos y **Add to an agent**. Categoría y audiencia están en una fila compacta junto a la acción. No hay un desplegable Detalles. Para borrar un skill o archivo de contexto, abre su editor y el menú de tres puntos junto a **Share**; se sigue pidiendo confirmación y solo quien puede editar tiene acceso a esta acción.
+Las tarjetas de agentes muestran publicación y acceso directamente. Las tarjetas de Skills y Context mantienen visibles la vista previa, el resumen, **Used by** con retratos y **Add to an agent**. Categoría y destinatarios están junto a la acción. Para borrar un skill o archivo de contexto, abre su editor y el menú de tres puntos junto a **Share**; se requiere confirmación y permiso de edición.
 
 Los nombres, la navegación y los valores de formularios usan texto destacado; los
 metadatos siguen en segundo plano. Las acciones principales tienen un relleno neutro
@@ -74,7 +135,11 @@ Cuando **Approve everything** no está disponible, los ajustes del chat distingu
 
 El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
 
-Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
+Los diálogos centrados mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
+
+La opción de compartir se abre junto al borde inferior del teléfono y se ajusta al espacio disponible sobre el teclado. El encabezado permanece visible mientras se desplaza el contenido. La lista móvil permite editar títulos en su sitio; compartir sustituye el contenido de la lista y **Atrás** la restaura. La búsqueda sustituye temporalmente la lista. Escape cancela primero la edición del título antes de cerrar la lista. Los campos y selectores normales miden al menos 44 px de alto en el teléfono; el texto de entrada usa 16 px. La búsqueda de comandos mantiene visibles el campo y el botón de cierre al desplazar los resultados.
+
+Los campos de búsqueda de los catálogos siguen visibles y editables mientras cargan las listas; los filtros escritos se conservan. Una vista previa vacía de Inbox en el chat nuevo no muestra mensaje ni enlace y mantiene el espacio reservado encima del cuadro de mensaje.
 
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes usan pestañas horizontales desplazables; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
 
@@ -88,13 +153,15 @@ Los botones secundarios y los filtros comparten un relleno más visible, etiquet
 
 Los ajustes personales usan pestañas horizontales desplazables en escritorio y teléfono. Las explicaciones se abren desde los botones de información; los requisitos de los campos, los errores de validación y las advertencias de eliminación siguen visibles. Cuenta contiene los cambios de contraseña y las sesiones activas.
 
-Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. Las ilustraciones decorativas cambian sin controles de reproducción y respetan la preferencia de movimiento reducido.
+Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. El saludo del chat principal muestra el agente activo.
+
+Si queda espacio en la lista de conversaciones, se abren grupos de fechas anteriores hasta llenar el panel. Los grupos de proyectos también respetan las decisiones guardadas: un grupo contraído manualmente permanece cerrado hasta que lo abras, incluso al cambiar la conversación activa.
 
 Los campos del perfil comparten fila cuando hay espacio; **Guardar cambios** solo está disponible tras editar. Cada tarjeta de capacidad tiene una zona para abrir los ajustes y un interruptor independiente para activarla. Los ejemplos aparecen detrás del icono de información en los ajustes, sin repetir la ilustración de la galería.
 
 Los diálogos de categorías de plantillas se ajustan al contenido; elegir un sector de agentes o habilidades abre la biblioteca más amplia. En el teléfono, los estilos se muestran en filas compactas con miniaturas.
 
-Las instrucciones de agentes y proyectos tienen una barra compacta con título, ayuda, código/vista previa y ampliación. El Markdown ampliado conserva el modo seleccionado. Las variables de prompt sin usar empiezan plegadas; las variables propias existentes o una zona horaria personalizada mantienen abierto el panel. Los editores ampliados de texto y archivos conservan márgenes uniformes en el teléfono. Los campos de texto usan allí una letra mayor sin ampliar los campos de escritorio.
+Las instrucciones de agentes y proyectos tienen una barra compacta con título, ayuda, código/vista previa y ampliación. El Markdown ampliado conserva el modo seleccionado. Las variables de prompt empiezan plegadas con un resumen de la configuración; abrir y cerrar la sección conserva el borrador. Los editores ampliados de texto y archivos conservan márgenes uniformes en el teléfono. Los campos de texto usan allí una letra mayor sin ampliar los campos de escritorio.
 
 En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
 
@@ -112,17 +179,65 @@ Los metadatos de enlaces guardan solo un identificador opaco del origen para los
 
 El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reiniciar la conversación ni el texto sin enviar. Comparar dos versiones abre este espacio automáticamente; el botón de pantalla completa o Escape devuelve al editor. Los selectores de versión tienen su propia fila para mantener accesibles los controles en paneles estrechos. En el teléfono, los botones de versión alternan entre los chats comparados; ambas conversaciones siguen funcionando y conservan sus borradores. El prompt compartido sigue llegando a ambas a la vez.
 
-La navegación conserva los layouts compartidos al cambiar de sección y usa una transición breve en lugar de reiniciar el marco. El movimiento reducido desactiva la transición. Las tarjetas del dashboard esperan la disposición guardada, las páginas con permisos esperan su lectura y la lista administrativa de usuarios comienza cargando, sin afirmar que está vacía. Los filtros de grupos y autores de Apps reservan espacio durante la carga. Las fuentes del Inbox esperan los metadatos del catálogo; los enlaces a conversaciones de trabajo usan la misma ruta que la barra lateral.
+La navegación conserva los diseños compartidos sin fundidos ni animaciones de entrada en secciones estáticas de ajustes. La barra superior de progreso cubre también la navegación iniciada por botones de acción. El subrayado de las pestañas se mueve entre sus etiquetas reales; el movimiento reducido lo mantiene estático. Los widgets esperan la disposición guardada y las páginas con permisos esperan su lectura. Las listas administrativas empiezan cargando, sin afirmar que están vacías. Los filtros de grupos y autores de Apps reservan espacio durante la carga.
 
 En el móvil, los mensajes enviados se detienen debajo de los botones flotantes del chat para mantener visible el avatar del usuario. El inicio de la conversación y el espacio reservado para la respuesta usan la misma separación; los chats de escritorio e integrados conservan un margen menor.
 
 Los agentes predeterminados terminan una solicitud puntual sin mantener abierta la respuesta con una pregunta sobre automatización opcional. Las preguntas resuelven decisiones necesarias para la tarea actual o una automatización solicitada o aceptada. Las tarjetas opcionales de configuración siguen siendo propuestas que no bloquean la finalización.
 
-El botón compacto bajo una respuesta abre Sources junto a la conversación y ocupa todo el ancho en el móvil. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
+El botón compacto bajo una respuesta alterna Sources junto a la conversación y ocupa todo el ancho en el móvil. Pulsarlo otra vez cierra el panel; elegir otra respuesta cambia sus fuentes. Las citas abren el panel y enfocan el fragmento citado. Las tarjetas del navegador también alternan su panel lateral; elegir una pestaña dentro del panel lo mantiene abierto. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
 
 Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
 
 Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
+
+Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
+
+Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del editor, en dos columnas cuando hay espacio. Al seleccionar una, se añade al borrador editable. Al escribir se ocultan sin mover el editor; borrar el borrador las restaura. La indicación fija de comandos `/` y recursos `@` sigue visible al enfocar el campo vacío. Confirmar un carácter con IME no envía el mensaje.
+
+La cronología muestra hasta dos elementos de la bandeja, incluido el enlace a aprobaciones pendientes, y enlaza con la bandeja completa. Durante la carga se reserva espacio para la vista previa. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+
+El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, con una única lista Models y una pestaña separada para la cuenta o clave. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
+
+La búsqueda de conversaciones revisa títulos y texto indexado de mensajes, incluidos los chats archivados que puedes leer. Los resultados muestran fragmentos de texto, coincidencias resaltadas y el número de mensajes coincidentes. Usa las flechas y Enter para abrir un resultado. Los errores ofrecen reintentar en lugar de simular una lista vacía.
+
+## Experiencia de la consola { #console-experience }
+
+Los administradores de la instalación eligen la disponibilidad en **menú de cuenta → Admin → Deployment → Identity**. Los administradores de la organización establecen valores iniciales en sus **AI & services**. Cada miembro puede cambiarlos en **Ajustes → Perfil**, solo para el espacio actual. **Vista previa de la bandeja**, **Sugerencias de mensajes**, **Saludo** e **Indicaciones de funciones** son independientes. Un elemento desactivado para toda la instalación sigue sin estar disponible; los miembros sí pueden cambiar los valores predeterminados de su organización. El tema, el estilo y el idioma siguen siendo de toda la cuenta.
+
+Ocultar la vista previa no retira la bandeja completa ni la cola de aprobaciones. Los espacios del saludo y las sugerencias conservan su altura para que el campo del mensaje no se desplace al cambiar su visibilidad. Las indicaciones de funciones abarcan textos generales de descubrimiento y la indicación de `/` y `@`; las etiquetas esenciales y las ayudas siguen disponibles. Estos ajustes cambian la presentación, no los permisos de recursos ni el comportamiento del agente.
+
+Los **Recordatorios de configuración** siguen la misma jerarquía: disponibilidad de la instalación, valores de la organización y preferencias personales. Elige si aparecen y si el aplazamiento dura 1, 3 o 7 días. El valor predeterminado es un día. El servidor calcula cuándo pueden volver para esta pertenencia; no crea un programa de notificaciones ni una tarea correcta. El enlace manual de configuración del Perfil permanece cuando los recordatorios están desactivados.
+
+Los ajustes de instalación también ofrecen una fecha opcional de **Caducidad del anuncio**. Después del plazo el servidor deja de devolverlo, y las páginas abiertas lo reciben mediante su consulta periódica de avisos. El **Fin previsto del mantenimiento** solo es informativo: nunca vuelve a abrir la aplicación automáticamente. Un administrador termina el mantenimiento expresamente. Los campos muestran la zona horaria del dispositivo y guardan instantes con zona horaria en UTC.
+
+La administración se abre desde el menú de cuenta. Sus ajustes usan pestañas comunes y conservan borradores al cambiar de sección. Memorias y Notas llenan el espacio restante, desplazan sus propias filas y mantienen el pie **1 / 1**. El Architect normal usa la misma familia de retratos generados que otros agentes; las imágenes personales subidas se conservan. Las vistas de la bandeja comparten el diseño de filas, y al arrastrar Kanban se ve la tarjeta real. Los últimos pasos de configuración mantienen el mismo diseño de título, formulario e ilustración; continuar un perfil sin cambios no anuncia que se haya guardado.
+
+### Navegación y sugerencias del producto { #console-presentation }
+
+En **Admin → Deployment → Identidad → Disponibilidad de la consola**, el operador elige la navegación y las sugerencias opcionales que pueden ofrecer las organizaciones. En **IA y servicios → Consola por rol**, la organización elige un rol integrado, prepara su navegación, revisa la vista previa y guarda. **Asistente sencillo** selecciona Chat, Inbox, Proyectos y Documentos. Es una plantilla opcional, no un nuevo valor predeterminado para las cuentas existentes.
+
+Los miembros pueden reducir esa selección en **Ajustes → Perfil → Mi navegación**. Una selección vacía oculta intencionadamente todas las entradas principales; una heredada sigue la organización y el despliegue. Los borradores de navegación requieren **Guardar** y avisan antes de salir con cambios pendientes. Los ajustes de cuenta, el cambio de organización y el acceso del administrador siguen disponibles. Ocultar una página no revoca permisos: una persona autorizada aún puede abrir su URL. La comprobación normal de permisos se aplica después del filtro de presentación.
+
+La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. No suplanta a nadie ni carga contenido privado. **Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
+
+
+### Catálogos y paneles por rol { #console-catalogs }
+
+**Consola para cada rol** también controla las galerías MCP y de Skills. Se pueden ofrecer todas las entradas disponibles, una lista explícita o solo servidores conectados por la organización / Skills instalados visibles. Los límites de la organización se aplican a roles sin gestión del catálogo; quienes lo gestionan siguen sujetos a los límites del despliegue y personales. Cada miembro puede restringir sus galerías en **Ajustes → Perfil → Catálogos**. Una lista vacía no ofrece entradas de forma intencionada.
+
+Los límites del catálogo cambian el descubrimiento, no los permisos de herramientas. Las cuentas existentes accesibles siguen gestionándose en **Conectadas**, y los enlaces de agentes publicados conservan sus controles de acceso. El servidor filtra antes de contar y paginar. Un Skill privado de otra persona nunca se anuncia como copia instalada a quien no puede verlo. Al actualizar la política de la consola se invalidan los resultados de galería almacenados.
+
+Para el **Panel predeterminado** de un rol, primero organiza y guarda tu panel personal y después cópialo en los ajustes del rol. Revisa la vista previa de la disposición sin datos y guarda por separado. Antes de compartir se deben quitar los filtros fijados a una persona o agente, para no distribuir identificadores privados mediante los ajustes de la organización. Se conservan anchos, alturas, secciones y opciones compatibles; no se copian vectores ni datos de widgets.
+
+La disposición configurada del rol pasa a ser su página inicial. Una disposición personal guardada tiene prioridad, incluso si está vacía intencionadamente. Restablecerla vuelve a heredar la del rol. Sin una configuración del rol se mantiene la página inicial estándar. Los permisos de widgets se comprueban al final para cada persona. Un fallo al leer la disposición o política muestra error y reintento en lugar de otra disposición durante la carga.
+
+### Costes en el chat { #chat-cost-visibility }
+
+**Costes del chat** sigue una jerarquía más estricta: disponibilidad del despliegue → audiencia de la organización → elección personal. El despliegue puede ocultar costes en todo el chat. En **IA y servicios** de la organización, elige **Todos** (predeterminado), **Personas con acceso a gastos** (`budgets:manage` o `runs:view`) o **Nadie en el chat**. En **Ajustes → Perfil**, los miembros pueden ocultarlos para sí mismos, pero no superar una restricción superior.
+
+La regla cubre precios de respuestas, costes de delegaciones, totales de conversaciones y porcentajes de budget, incluidos historiales guardados, streams reconectados, chats compartidos y continuaciones Q&A. Los metadatos financieros ocultos se omiten de la respuesta del chat; los datos de tokens y contexto siguen disponibles. No se reescriben respuestas del agente ni contenidos arbitrarios de herramientas. La contabilidad y los límites de budget permanecen iguales. Los costes de Activity y del panel conservan sus permisos actuales.
+
 
 ## El dashboard { #the-dashboard }
 
@@ -139,27 +254,27 @@ vacía.
 Un selector arriba dice de quién es el dashboard, y ofrece solo las vistas que
 puedes abrir. Todos empiezan en **Me**:
 
-| Vista | Responde a |
-| --- | --- |
-| **Me** | Tu período, Briefing y consejos Discover; conversaciones recientes, proyectos, tus agentes, agentes más usados y visualizaciones recientes. Esta vista personal predeterminada omite las tarjetas de decisiones, temas en segundo plano y recursos compartidos. |
-| **Organization** | La página que se ordena, descrita abajo |
-| **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
-| **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
+| Vista            | Responde a                                                                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | Tu período, Briefing y consejos Discover; conversaciones recientes, proyectos, tus agentes, agentes más usados y visualizaciones recientes. Esta vista personal predeterminada omite las tarjetas de decisiones, temas en segundo plano y recursos compartidos.                             |
+| **Organization** | La página que se ordena, descrita abajo                                                                                                                                                                                                                                                     |
+| **Group**        | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
+| **Deployment**   | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones                                                                                                                                                         |
 
 El Briefing personal alinea cada título y origen con sus acciones. Discover aparece justo debajo. Las visualizaciones recientes encajan sus imágenes en vistas previas centradas. Las preguntas respondidas dejan de esperar cuando el servidor inicia la continuación admitida. Un clic cierra los avisos descartables con una salida breve; los avisos de operaciones en curso siguen visibles.
 
-Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal solo incluye aprobaciones propias de herramientas y propuestas abiertas de Inbox.
+Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal incluye aprobaciones propias de herramientas, preguntas pendientes del chat y propuestas abiertas de Inbox.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
 de conocimiento, departamentos, miembros, sandboxes - espera en el catálogo, a un
 clic bajo **Customize**:
 
-| Banda | Responde a |
-| --- | --- |
-| _(sin título, arriba del todo)_ | El resumen, los runs en el tiempo y cómo terminaron |
-| **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
-| **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
+| Banda                           | Responde a                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| _(sin título, arriba del todo)_ | El resumen, los runs en el tiempo y cómo terminaron                                                                                                                            |
+| **Needs attention**             | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes                              |
+| **Usage & cost**                | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
 La tarjeta **Approval outcomes** espera en el catálogo, para quien pueda ver workflows.
 Muestra cómo decidieron las personas los [pasos de aprobación](workflows.md#running-a-workflow)
@@ -186,12 +301,14 @@ del equipo y - quien pueda - poner un agent en una app de chat. Cada paso se
 marca a partir de lo que existe, se haya hecho donde se haya hecho, no de un
 clic en la tarjeta; cerrar la tarjeta la oculta en ese navegador.
 
-Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
-fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
-Code, Codex o Cursor, subagents, sandboxes, apps, routines, apps de chat, el
-navegador web, bases de conocimiento y skills -, cada una lleva a donde se activa,
-y solo las que puedes usar. Cierra una tarjeta o todas; también se guarda en el
-navegador.
+Tu propia vista muestra además **Discover AgenticOS**. Empieza con suscripciones
+personales de Claude Code, ChatGPT (Codex) y Antigravity, una primera tarea en el
+chat y el uso desde un cliente de programación existente. Otras tarjetas muestran
+conexiones personales a herramientas, proyectos y memoria, seguidas de sandboxes,
+subagents, apps, routines, canales, navegador, conocimiento y skills. Cada una
+lleva a su configuración o vista de trabajo; las acciones que requieren permisos
+solo aparecen para quienes pueden usarlas. Cierra una tarjeta o todas; también
+se guarda en el navegador.
 
 Los gráficos en el tiempo eligen su propio paso. El tramo desde el primer run del
 periodo hasta ahora se dibuja en 48 puntos como mucho, con el paso más fino que
@@ -217,7 +334,9 @@ instantánea que querías conservar.
 
 ## Rutinas y seguimientos { #routines-and-watches }
 
-Las programaciones y los disparadores de API nuevos se guardan en pausa y muestran **Review routine access**. Revisa las fuentes y selecciona las acciones que pueden ejecutarse sin preguntar; **Enable routine** guarda ambas decisiones y activa la rutina. **Finish later** la deja en pausa. Las aprobaciones explícitas del agente siguen siendo obligatorias. Reanudar una configuración pendiente vuelve a abrir esta revisión; la activación comprueba de nuevo las fuentes.
+Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
+
+Las nuevas rutinas usan automáticamente las herramientas permitidas según las reglas de aprobación del agente y reúnen ejecuciones en un chat de solo lectura. Un chat separado por ejecución permite continuar directamente; el historial compartido se puede bifurcar. En **Herramientas de la rutina**, **Seguir al agente**, **Preguntar siempre** y **Desactivada** conservan o restringen las reglas del agente; siguen vigentes las aprobaciones requeridas. Guardar restricciones de una rutina antigua elimina sus aprobaciones permanentes anteriores, con advertencia explícita del diálogo. Consulta [Herramientas de la rutina](governance.md#routine-action-consent).
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 
@@ -231,18 +350,24 @@ a la bandeja privada. Cada pestaña tiene sus acciones de creación.
 30 solicitudes al modelo y recorta los resultados largos, así que seguir un
 workspace grande sigue siendo barato.
 
-Organización → IA y servicios → Sugerencias y monitorización separa sugerencias, seguimiento, límites compartidos, horarios de entrega y mensajes de bienvenida. Los cambios sin guardar se pueden descartar. Los servicios en segundo plano muestran estado y consumo; los ajustes de modelo y presupuesto se despliegan por servicio.
+Organización → IA y servicios muestra tarjetas individuales con interruptores y ajustes desplegables. El informe diario y las sugerencias comparten modelo, presupuesto y horario; la monitorización y los mensajes de bienvenida tienen sus propias tarjetas. Los cambios sin guardar se pueden descartar.
 
 Las rutinas programadas, por eventos y de seguimiento usan el mismo marco de diálogo, con encabezado y navegación fijos y un formulario desplazable. Crear un seguimiento recorre Configuración, Mensaje y Frecuencia; Atrás conserva el borrador. El selector de agentes muestra los mismos avatares que el chat. Las opciones de ejecución y entrega del seguimiento están reunidas en un solo panel de opciones avanzadas.
 
-Discover comienza con capacidades ilustradas en el dashboard. Al pasar el puntero
+Discover comienza con cuentas personales y tareas cotidianas en el dashboard. Al pasar el puntero
 por una curva de _Your period_ aparecen el intervalo y el valor; los costes se
 muestran como importes. Los proyectos muestran descripciones y los agentes usan
 los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
-El chat vacío saluda según la hora local y muestra primero el campo de mensaje, seguido de hasta cuatro sugerencias. Tienen prioridad los mensajes publicados del agente; AgenticOS puede usar sugerencias personales, guardadas durante cinco minutos en la caché de la sesión actual de la cuenta. Los marcadores reservan espacio hasta conocer la fuente. La bienvenida no muestra vistas previas de la bandeja, trabajo en segundo plano ni atajos de teclado; abre Inbox o Background work desde la navegación.
+Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo.
+
+La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su origen, sin fecha. Al seleccionar una fila se prepara una solicitud de acción editable en el cuadro de mensaje; Abrir Inbox lleva a la lista completa. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+
+Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
+
+Los campos, las filas de menú, los selectores, las pestañas y las secciones de ajustes comparten el mismo estilo compacto en toda la consola. Al plegar un formulario opcional se conserva el borrador; un campo obligatorio no válido puede volver a abrir su sección. Los desplegables nativos comparten espaciado y se animan donde se admiten tamaños intrínsecos; en los demás navegadores se abren de forma nativa sin animación. Se mantienen el movimiento reducido y las áreas táctiles más grandes.
 
 Los chats guardados muestran directamente marcadores del historial, sin destellos de bienvenida; la barra lateral y el historial cargan de forma independiente. Los envíos manuales desplazan suavemente el mensaje hacia arriba; la cola no mueve al lector. El desplazamiento, el tacto y el teclado cancelan el movimiento. Los menús y diálogos compartidos usan transiciones pequeñas y suaves; la preferencia Motion desactiva el movimiento.
 
@@ -254,6 +379,8 @@ te trajo por iniciativa propia: lo que tus
 que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
 como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
 cuándo, y las respuestas en la fila.
+
+**Preguntas pendientes de tu respuesta** aparece en **Todo** y **Urgente** cuando un agente del chat web espera que respondas. Cada fila muestra la conversación, el agente y cuándo caduca la pregunta. Ábrela para responder en el chat original; abrirla no la elimina. La pregunta cuenta como pendiente hasta que la ejecución se reanuda, se cancela o la pregunta caduca. Solo la persona a quien el agente preguntó ve la fila en la bandeja, independientemente de sus permisos de aprobación.
 
 Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
 descartaste y recuperar algo descartado. **What they found** en la tarjeta de
@@ -401,7 +528,7 @@ El Architect es un agente como cualquier otro, así que su nombre, su modelo, su
 conocimiento y el resto de su spec se editan en el Agent Builder - lo hace quien
 puede cambiar los ajustes de la organización, porque todos en la organización lo
 usan. La página de la organización tiene una tarjeta que lo apaga para todos y
-fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
+enlaza al Agent Builder. **Settings → Assistant** guarda solo tus propios consejos.
 
 ## Agentes incluidos { #shipped-agent-defaults }
 
@@ -475,6 +602,12 @@ todos los runs, los bots de canal a los roles que los gestionan, y
 tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
 
 ## Chat { #chat }
+
+Las salas compartidas, los chats de proyecto y las conversaciones compartidas para edición usan los turnos visibles en vez de checkpoints internos del modelo. Otro participante no hereda resultados privados de herramientas ni razonamiento de un autor anterior; si hace falta, el agente consulta de nuevo con las conexiones de la persona actual. La bifurcación de una fuente compartida también omite sus checkpoints internos. Los chats web privados y los mensajes directos conservan el historial estructurado del modelo.
+
+Los checkpoints privados quedan vinculados al agente, a los destinos resueltos de los modelos, incluidas las conexiones de respaldo, y a las cuentas, endpoints y generaciones de autorización MCP usados en el turno. Cambiar de agente, endpoint o conexión reconstruye el historial desde los mensajes visibles en lugar de enviar resultados ocultos anteriores a otro destinatario.
+
+Los checkpoints antiguos sin esta información también usan la transcripción visible. Una ejecución en espera no puede reanudarse si cambia su destino: restaure la configuración original o inicie un turno nuevo. Las ejecuciones pausadas antes de registrar el destinatario deben reiniciarse.
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
 run se comporta exactamente igual que en Slack o detrás de la API — mismo budget,
@@ -550,9 +683,11 @@ La reversión se ejecuta como un trabajo duradero en un workspace aislado de con
 
 Los snapshots para revertir tienen un límite de 2 MiB por archivo y 16 MiB entre los datos anteriores y posteriores; los cambios mayores siguen visibles sin reversión. La verificación también limita las lecturas de snapshots antiguos. Se admiten seis solicitudes por persona y veinte por organización por minuto, con un límite local durante fallos de Redis. Cada organización ejecuta como máximo una reversión a la vez.
 
-Mientras trabaja el agente, los mensajes de progreso y las llamadas a herramientas que les siguen aparecen en orden de llegada dentro de un historial desplegado. Al terminar la ejecución, todo ese historial se contrae bajo un único control «Worked for…» o «Thought for…», dejando debajo solo la respuesta final. Al abrirlo se recupera el mismo orden de mensajes y grupos de herramientas. El razonamiento conserva su desplegable opcional; sus encabezados no generan fases. Las preguntas y aprobaciones mantienen el estado de espera hasta resolverse, también al delegar. Las tarjetas de aprobación activas y los resultados visuales permanecen fuera del historial terminado.
+El chat utiliza la misma cronología en directo y al abrir el historial. Las herramientas habituales y el razonamiento permanecen detrás de controles contraídos. Los mensajes de progreso, respuestas, resúmenes de preguntas y resultados visuales conservan su posición cuando termina una ejecución. Al desplegar el trabajo se muestran las llamadas sin abrir automáticamente sus argumentos. Las preguntas y aprobaciones mantienen su estado de espera hasta resolverse.
 
-Las herramientas consecutivas entre mensajes forman un grupo contraído; ábrelo para ver las llamadas individuales.
+Los pasos de herramientas desplegados muestran los argumentos y resultados sin procesar. Los gráficos, medios generados, archivos producidos e informes de cambios de código aparecen una sola vez en la conversación, fuera de los detalles del trabajo. Las vistas previas utilizan el mismo acceso autenticado o integrado que la conversación.
+
+Las preguntas aparecen dentro de la conversación, fuera del editor fijo. Al enviar respuestas, las opciones siguen visibles y deshabilitadas hasta que el servidor las confirma. Después, la tarjeta muestra un resumen compacto; basta desplegarlo una vez para leer todas las preguntas y respuestas. Un botón sobre el editor permite volver a la pregunta pendiente. Leer mensajes anteriores conserva la posición y las nuevas preguntas no roban el foco.
 
 Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
 
@@ -560,11 +695,11 @@ Al volver a abrir un chat también se restauran las aprobaciones y preguntas de 
 
 El texto recibido sigue siendo legible mientras carga el módulo de formato Markdown. El editor tiene una superficie opaca y un foco discreto, sin borde animado ni desenfoque del fondo.
 
-El historial en vivo sigue el flujo de la página; el historial terminado y desplegado tiene altura limitada y desplazamiento propio. Los segmentos consecutivos de una misma ejecución y agente comparten resumen y hora de inicio, incluidos los mensajes entre herramientas y las continuaciones tras una aprobación. Otro agente o un mensaje del usuario intermedio inicia un turno separado. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación; abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
+Los detalles del trabajo desplegado tienen altura limitada y desplazamiento propio tanto en directo como en el historial. Los segmentos consecutivos de una misma ejecución y agente comparten resumen y hora de inicio, incluidos los mensajes entre herramientas y las continuaciones tras una aprobación. Otro agente o un mensaje del usuario intermedio inicia un turno separado. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación; abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
 
 Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 
-Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible o el chat está trabajando, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. En los demás casos, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
+Los avisos de resultados aparecen junto al editor. Al volver a abrir o actualizar una conversación, las aprobaciones de herramientas pendientes aparecen como tarjetas con detalles y los botones Aprobar y Rechazar para quienes pueden decidir. Inbox y la campana también muestran notificaciones de aprobación. Una solicitud individual aparece en una barra compacta con detalles desplegables. En Inbox queda visible la acción para hablar con el agente y las demás están en el menú de la fila. En el chat se resaltan los enlaces a recursos de la consola y el código en línea tiene un fondo neutro.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
@@ -596,17 +731,33 @@ entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
 configurar - una rutina, un servicio que conectar, un agent propio - cada una con
 un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
 
-**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
-día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
-tarea en segundo plano: una
-petición que repites se convierte en una rutina propuesta, lo que un agent supo
-de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
-mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
-chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
-todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
-propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
-que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
-Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+**Asistencia personal.** Cuando la organización la activa, la plataforma combina
+conversaciones accesibles con memoria del ámbito permitido, perfil, proyectos visibles,
+tareas privadas o asignadas, rutinas actuales, metadatos de tablas visibles y decisiones anteriores del Inbox. Los registros de tablas solo se leen como tareas con un esquema definido.
+Los cambios relevantes programan una actualización en segundo plano; la revisión
+matinal permanece como respaldo. El historial se indexa por fragmentos con citas
+vinculadas a sus fuentes. Los fragmentos sin cambios reutilizan sus puntos de control;
+una lectura sin cambios no llama al modelo. Los historiales grandes continúan en
+varios trabajos, sin recortarlos a siete días o a los primeros 400 caracteres.
+Se mantienen los permisos, la exclusión voluntaria y los límites de gasto.
+
+Cada propuesta necesita pruebas y una comprobación independiente del modelo. Puede
+ofrecer un agent bajo demanda, trabajo periódico, una tarea existente o una función
+disponible y relevante. Una respuesta autenticada a una pregunta nativa cuenta como
+evidencia humana; un resultado externo arbitrario no. Las decisiones de horario que
+faltan siguen siendo preguntas. Las propuestas aparecen en **Suggestions** y los
+hallazgos de rutinas en **Routine results**. Abrirlas inicia una conversación concreta,
+sin ejecutar ni activar trabajo. El trabajo de pago, los horarios y las publicaciones
+conservan sus aprobaciones. Una rutina eliminada no está pausada; una intención
+descartada no se vuelve a proponer.
+
+Las listas limitadas se marcan como incompletas
+cuando corresponde; la ausencia de un elemento no demuestra que no exista.
+
+El mantenimiento de memoria prioriza los mensajes humanos en el presupuesto de contexto
+e incluye cronológicamente las respuestas autenticadas a preguntas nativas. Mantiene
+las reglas de duración y ámbito: una tarea temporal no es un cargo permanente.
+Un enlace `?agent=<slug>` abre ese agent.
 
 **El horario laboral** en **Settings → Profile** dice a los agents cuándo
 trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
@@ -722,22 +873,20 @@ la pestaña Dictado de [su tarjeta Voice](#an-agents-voice-card):
   [Dictado en el chat](ml-services.md#dictation-in-chat).
 - Apagado, o sin clave con la que enviarla — el reconocimiento de voz del propio
   navegador, así que el audio va al fabricante del navegador (Google, Apple) y no
-  cuesta nada. Firefox no tiene: su micrófono lo dice al pulsarlo. Mientras
-  escucha, una nota sobre el compositor dice que el Dictado del agent está
-  apagado, y enlaza a su pestaña Dictado para quien puede editar el agent.
+  cuesta nada.
+  Firefox no cuenta con reconocimiento de voz integrado. El editor avisa si el micrófono o el reconocimiento no están disponibles.
 
-Con un provider, al pulsar el micrófono flota sobre el compositor, que no
-cambia, una **píldora de grabación**: Cancel, el nivel, un temporizador y Stop.
+Con un proveedor, el chat principal muestra los controles de cancelación, nivel de audio, temporizador y parada dentro del editor.
 **Enter** detiene y transcribe, **Escape** cancela, y nada de lo que se escriba
 o pulse mientras una grabación está en curso o transcribiéndose se envía. La
 grabación se detiene sola en el dictado más largo de la organización y se
 transcribe, y un micrófono desconectado a mitad la termina igual, en vez de
 descartarla. Si la subida tarda más de un segundo, la píldora muestra cuánto se
-ha subido; después dice **Transcribing** hasta que llega el texto. El
-reconocimiento del navegador tiene su propia píldora, con **Done dictating**.
+ha subido; después dice **Transcribing** hasta que llega el texto.
 
-Todo lo que el dictado tiene que decir aparece en una franja sobre el
-compositor, junto a la píldora: la petición de permiso, un micrófono bloqueado o
+El reconocimiento del navegador muestra **Listening** y **Done dictating**. Escribir o enviar pone fin al dictado. El botón principal cambia a Enviar cuando hay un borrador.
+
+Los avisos del dictado aparecen sobre el editor: la petición de permiso, un micrófono bloqueado o
 ausente, los últimos 30 segundos, cinco segundos sin sonido, una grabación de
 menos de un segundo (no se envía), una grabación detenida en el límite y cada
 fallo. Cuántas palabras se insertaron se anuncia al lector de pantalla en lugar
@@ -747,9 +896,9 @@ pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
 El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
 **Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
-cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
+cuánto se mueve toda la consola: **System** sigue el ajuste de
 movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
-él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
+él y **Full** (predeterminado en un navegador nuevo) lo mantiene diga lo que diga el sistema operativo. Mientras el
 movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
 y el nivel es un indicador de cinco pasos.
 
@@ -911,7 +1060,7 @@ Una conversación con una lista de tareas guardada solo puede bifurcarse en su �
 
 Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
 
-La barra **Temas en segundo plano**, encima del cuadro de mensaje, muestra tareas en cola, en marcha y pendientes. Abre el tema independiente para revisar el trabajo o responder a una aprobación o pregunta habitual. **Detener** cancela el trabajo posterior; no revierte cambios de archivos ni acciones externas ya realizadas. El panel muestra las mismas tareas. Cada persona puede tener cuatro tareas activas; una tarea y su respuesta de resultado no pueden crear más temas en segundo plano.
+Abre **Trabajo en segundo plano** en la barra lateral para ver las tareas activas y anteriores. Abre el tema independiente para revisar el trabajo o responder a una aprobación o pregunta habitual. **Detener** cancela el trabajo posterior; no revierte cambios de archivos ni acciones externas ya realizadas. El panel también tiene un widget de trabajo en segundo plano. Cada persona puede tener cuatro tareas activas; una tarea y su respuesta de resultado no pueden crear más temas en segundo plano.
 
 Al terminar, el agente original responde con el historial actual de la conversación. Espera a que terminen las respuestas en curso y resume sin herramientas: el resultado de una tarea no concede permiso para otra acción.
 
@@ -943,6 +1092,8 @@ borrador o una sesión a su run llega a una fila que la lista muestra.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 
+**Fuentes de eventos** sigue disponible en `/event-sources`, pero no aparece en la barra lateral predeterminada. Abre su administración desde el selector de fuente de una rutina o workflow. Puedes añadirla al personalizar la navegación; se conservan las selecciones explícitas por rol de organización y las personales.
+
 **Overview** (Dashboard), **Chat** e **Inbox** encabezan la barra lateral.
 **Build & manage** muestra Agents, Workflows, Routines y Apps sin desplegar;
 después aparecen los Projects.
@@ -955,27 +1106,27 @@ Context y Documents. Se recuerda la elección manual de abrirlo o cerrarlo.
 **Organization** (Organizations, Groups) siguen siendo plegables y recuerdan la
 elección. Un grupo que contiene la página actual siempre se abre para mantenerla visible.
 
-| Área | Contiene | Lee |
-| --- | --- | --- |
-| **Agents** | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad | [Tu primer agent](first-agent.md) |
-| **Chat** | Hablar con un agent publicado | [Superficies](channels.md) |
-| **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
-| **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
-| **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
-| **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
-| **Workflows** | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo | [Workflows](workflows.md) |
-| **Datasets** | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada | [Datasets](datasets.md) |
-| **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
-| **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
-| **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
-| **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
-| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
-| **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
-| **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
-| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md) |
+| Área              | Contiene                                                                                          | Lee                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Agents**        | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad              | [Tu primer agent](first-agent.md)                                           |
+| **Chat**          | Hablar con un agent publicado                                                                     | [Superficies](channels.md)                                                  |
+| **Knowledge**     | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta                            | [Procesamiento de archivos](file-processing.md)                             |
+| **Skills**        | Procedimientos escritos que un agent carga cuando hacen falta                                     | [Skills](skills.md)                                                         |
+| **Context**       | Conocimiento permanente ligado a muchos agents                                                    | [Archivos de contexto](context.md)                                          |
+| **Tables**        | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista                       | [Virtual Tables](virtual-tables.md)                                         |
+| **Workflows**     | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo                | [Workflows](workflows.md)                                                   |
+| **Datasets**      | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada       | [Datasets](datasets.md)                                                     |
+| **Routines**      | Horarios y disparadores por evento                                                                | [Disparadores](triggers.md)                                                 |
+| **Runs**          | Qué se ejecutó, cuánto costó, qué tocó, si falló                                                  | [Governance](governance.md#audit)                                           |
+| **Documents**     | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron         | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Dónde ejecutan código los agents: hosts, sesiones en curso, política                              | [La sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Conexiones a herramientas externas, personales y de toda la organización                          | [MCP](mcp.md)                                                               |
+| **Channels**      | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas                            | [Superficies](channels.md)                                                  |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents  | [Capabilities](reference/capabilities.md#remote-agents)                     |
+| **Vault**         | Credenciales, selladas por organización                                                           | [Secretos](secrets.md)                                                      |
+| **Organizations** | Miembros, roles, invitaciones                                                                     | [Permisos](permissions.md)                                                  |
+| **Settings**      | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil                       | [Configuración](configuration.md)                                           |
+| **Admin**         | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md)                                              |
 
 El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
 etiquetas editables y locales a la organización que se muestran en la tarjeta de
@@ -992,7 +1143,7 @@ abre su asistente solo para leer, con lo decidido en su último paso; consulte e
 
 Los detalles de organización tienen tres pestañas: **Miembros**, **Presupuesto y aprobaciones** e **IA y servicios**. Miembros ofrece búsqueda por nombre/correo, filtro de rol y la última acción registrada en este espacio. Es una acción de auditoría, no una visita ni un inicio de sesión; se excluyen las acciones por suplantación y se muestra un guion si no hay historial.
 
-El informe diario se configura directamente en Servicios en segundo plano; actualiza el mismo modelo de organización y límite por persona que usan las sugerencias. El mantenimiento de memoria comienza desactivado; los perfiles antiguos sin modelo también se muestran desactivados. Selecciona un modelo antes de activar cada servicio. Los servicios desactivados no muestran avisos de configuración. Los nombres de proveedores de voz no incluyen sufijos sobre credenciales; las claves conservan su selector y validación propios.
+El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect mantiene visibles el interruptor y el enlace directo al Agent Builder, sin editor de saludo ni un despliegue adicional. Los demás servicios comparten el encabezado y la disposición de iconos; solo se despliegan cuando contienen ajustes editables.
 
 **Editar espacio** abre un diálogo para nombre, avatar y color que protege los cambios sin guardar. IA y servicios comienza con servicios en segundo plano, seguido del Arquitecto de IA, sugerencias y monitorización, y Voz. Desplegar la configuración conserva los borradores. Cada control mantiene sus permisos. Los enlaces antiguos `?tab=profile` abren el diálogo del espacio; `?tab=voice` y `?tab=proactivity` abren sus ajustes en IA y servicios.
 
@@ -1006,13 +1157,13 @@ Los accesos guardados del navegador usan un panel compacto de ancho completo, si
 
 ## Idiomas { #languages }
 
-La consola habla inglés, polaco, alemán y turco. La primera tarjeta del recorrido
-ofrece los cuatro, y
+La consola habla inglés, polaco, alemán, turco, francés, neerlandés y portugués de Brasil. La primera
+tarjeta del recorrido ofrece los siete, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
 página cambia mientras responde, sin recargar. Todos los agents responden en él
-salvo que escribas en otro idioma.
+salvo que pidas explícitamente otro idioma.
 
 Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
@@ -1087,21 +1238,15 @@ Los pies de lista permanecen en el borde inferior del panel, con espaciado unifo
 
 El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.
 
-**Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
+**Chat controls → Tools & files** muestra las conexiones de Claude Code y Codex cuando un agente usa **Private cloud task with my account**, cada una con su logotipo y estado de consentimiento. Puedes gestionar ambas sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Cada tarea usa solo la cuenta habilitada de quien la inicia para el harness elegido. El harness predeterminado es una opción inicial, no un proveedor exclusivo. Conectar no cambia el modo de ejecución; el coding de escritorio sigue usando inicios de sesión locales separados.
 
 ## Tu primera tarea { #your-first-task }
 
 En una organización nueva se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
 
-Si no hay un agente publicado disponible, el onboarding ofrece a quien puede preparar un agente **Connect a model**, que elige un modelo y prepara el agente. A los demás les permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
+El recorrido Studio presenta los agentes instalados AgenticOS y Architect. Si AgenticOS sigue siendo un borrador de configuración accesible, su acción abre el chat de configuración; la publicación y la ejecución normal conservan sus controles habituales. Los usuarios autorizados pueden configurar Architect cuando necesita un modelo. Los borradores ordinarios y los agentes inaccesibles no se vuelven ejecutables mediante el onboarding.
 
-Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
-según la hora del servidor. Después puede reaparecer si la configuración no se ha
-completado y la organización aún necesita el primer inicio. Tras recorrer las preguntas,
-**Finalizar la configuración y abrir la aplicación** registra la finalización para esta
-membresía. No son obligatorios los campos opcionales, las invitaciones, un modelo, un
-agente ni una ejecución de IA. Completar el onboarding y ejecutar una tarea correctamente
-son estados distintos.
+Cerrar la propuesta inicial la pausa durante el intervalo efectivo de 1, 3 o 7 días de esta pertenencia, según la hora del servidor. Puede volver si la configuración sigue incompleta y los recordatorios están activados. Tras las preguntas, **Completar configuración y abrir la app** registra la finalización para esta pertenencia. No hacen falta campos opcionales, invitaciones, un modelo, un agente ni un run de IA. Completar el onboarding y realizar una tarea correctamente son estados separados.
 
 Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
 En escritorio, el aviso del chat flota como una capa translúcida sobre la consola.
@@ -1113,12 +1258,12 @@ conserva el destino y la cuenta ya creada.
 
 El inicio respeta los permisos y el trabajo que ya existe:
 
-| Persona | Inicio guiado |
-| --- | --- |
-| Administrador de la aplicación | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
-| Administrador de organización | Preparar la organización y su límite de gasto, sin controles del despliegue. |
-| Cuenta nueva de miembro | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea. |
-| Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada. |
+| Persona                               | Inicio guiado                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Administrador de la aplicación        | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
+| Administrador de organización         | Preparar la organización y su límite de gasto, sin controles del despliegue.                                                    |
+| Cuenta nueva de miembro               | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea.                                           |
+| Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada.                                          |
 
 Un acompañante AgenticOS explica cada decisión con mensajes preparados de la interfaz.
 No son respuestas de un modelo ni llamadas de IA. El perfil y el contexto acompañan
@@ -1197,6 +1342,29 @@ Ajustes ofrece pestañas horizontales desplazables en escritorio y teléfono. La
 
 Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos ocultos no reciben el foco y, al contraer la barra, el destino actual sigue visible. Las animaciones respetan los ajustes de apariencia; el movimiento reducido mantiene estos controles estáticos.
 
-Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; la vista interna se guarda en la URL. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
+Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; MCP se abre de forma predeterminada y la URL puede seleccionar cualquiera de las pestañas. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
 
 Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.
+
+La selección de modelo se aplica directamente sin notificación de éxito. **Volver al modelo del agente** elimina la selección de la conversación. Las suscripciones tienen un paso propio después del contexto personal durante la configuración: cada servicio ofrece **Conectar** directamente en su tarjeta. **Settings → Subscriptions** muestra una fila por cuenta con búsqueda, paginación y ventanas de uso comunicadas por el proveedor; los límites desconocidos se indican expresamente.
+
+Se pueden comparar tres diseños de incorporación en `/onboarding?variant=conversation`, `?variant=studio` y `?variant=launchpad`: una columna de conversación, un estudio con navegación lateral y un launchpad amplio. Comparten formularios, permisos y guardado. El cambio de diseño conserva el paso actual y los borradores de los formularios montados. Los mensajes de guía aparecen progresivamente; el lector de pantalla recibe el mensaje completo y la preferencia de movimiento reducido muestra texto estático.
+
+Estas variantes añaden un paso de selección de modelo con el catálogo habitual de proveedores, claves existentes del Vault y formularios de conexión, seguido del catálogo MCP con cuentas personales y compartidas. El modelo elegido se recuerda para los chats nuevos de la persona, sin cambiar el modelo publicado de un agente compartido. Conectar MCP no concede sus herramientas a todos los agentes.
+
+Los administradores pueden revisar los ajustes del equipo y del despliegue o ir directamente a los agentes instalados AgenticOS y Architect. Abrirlos no envía solicitudes de IA; los agentes no disponibles conservan sus indicaciones de configuración.
+
+Studio es el diseño predeterminado en `/onboarding`; los otros diseños siguen disponibles mediante parámetros de vista previa. Studio utiliza una columna de formulario y una navegación compacta sin personajes decorativos repetidos. El aspecto se elige en un carrusel de los colores reales del avatar de la cuenta: explorar no guarda una selección; elegir utiliza el guardado habitual de la cuenta. El movimiento respeta las preferencias de la aplicación y del sistema.
+
+Studio mantiene el encabezado y las acciones inferiores en su sitio al cambiar de paso. La galería de avatares centra la vista previa al arrastrar o usar las flechas; solo elegirla guarda la selección. El movimiento reducido desactiva el resorte y las transiciones entre pasos. La configuración pendiente se recuerda únicamente en la barra lateral, sin un segundo banner sobre el espacio de trabajo.
+
+Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o iniciar sesión por primera vez mediante OAuth o directorio, incluido el registro desde una invitación. El idioma y la apariencia preceden a la configuración del espacio; aquí también se pueden revisar y aceptar invitaciones. Unirse requiere una decisión explícita. El idioma se guarda en la cuenta y se entrega a los agentes mediante `{{language}}` y el contexto de la persona. Una petición explícita de otro idioma tiene prioridad.
+
+Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
+
+Cuando un agente hace una pregunta, su tarjeta y el editor normal permanecen visibles juntos. El editor conserva el borrador y los adjuntos; los mensajes nuevos esperan en la cola mientras respondes mediante la tarjeta. Detener una respuesta pausa los mensajes pendientes hasta que reanudes la cola explícitamente. La finalización normal sigue procesando la cola.
+
+
+## Lista plana de chats recientes { #flat-recent-chat-list }
+
+La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina chats de proyectos y normales en una lista ordenada por última actividad, sin encabezados de proyectos, no leídos o favoritos. Los favoritos conservan sus estrellas, pero no se fijan por encima de actividad más reciente. La paginación utiliza este orden en el servidor, de modo que los favoritos antiguos no desplazan los chats recientes de la primera página. Se mantienen los filtros existentes de agente, archivo y API. La elección se guarda en este navegador por separado para cada usuario; **Agrupar chats por proyecto** restaura la vista agrupada predeterminada.

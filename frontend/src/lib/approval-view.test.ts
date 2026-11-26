@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { callSummary, serviceAction, spokenArgs } from "./approval-view";
+import { callSummary, quotedPrice, serviceAction, spokenArgs } from "./approval-view";
 
 describe("serviceAction", () => {
   it("reads an MCP tool as its service and the action, without the service twice", () => {
@@ -30,6 +30,71 @@ describe("serviceAction", () => {
 });
 
 describe("callSummary", () => {
+  it("summarizes structured CRM searches instead of exposing serialized requests", () => {
+    const request = { filterGroups: [{ filters: [{ propertyName: "name", value: "Oasis*" }] }] };
+    expect(callSummary({ query: JSON.stringify(request) })).toBe("Oasis*");
+    expect(callSummary(request)).toBe("Oasis*");
+    expect(callSummary({ request: JSON.stringify(request) })).toBe("Oasis*");
+  });
+
+  it("preserves bracketed subjects and shell conditions as readable text", () => {
+    for (const query of [
+      "[Action required] Contract",
+      "[Q4]",
+      "[2026] Annual report",
+      "{Draft} Contract",
+      "[ -f README.md ] && cat README.md",
+      '[ "$READY" = yes ] && deploy',
+      "{ curl https://example.com; }",
+      '{ printf "%s" ok; }',
+    ]) {
+      expect(callSummary({ query })).toBe(query);
+    }
+  });
+
+  it("does not decode or hide a literal command even when it resembles JSON or an ID", () => {
+    for (const command of ["[]", '{"query":"delete"}', "ed7b79b6-02bf-4303-a08c-9b95e37af56f"]) {
+      expect(callSummary({ command }, { omitOpaqueIds: true })).toBe(command);
+    }
+    expect(callSummary({ cmd: "[]" })).toBe("[]");
+  });
+
+  it("leaves opaque IDs and uninterpretable serialized requests to the details", () => {
+    const target = "ed7b79b6-02bf-4303-a08c-9b95e37af56f";
+    expect(callSummary({ record_id: target }, { omitOpaqueIds: true })).toBeNull();
+    expect(callSummary({ record_id: target })).toBe(target);
+    for (const query of ["[]", '{"token":"private"}', "{".repeat(8193)]) {
+      expect(callSummary({ query })).toBeNull();
+    }
+    expect(callSummary({ payload: { payload: { query: '{"query":"too deep"}' } } })).toBeNull();
+  });
+
+  it("keeps a bounded, distinct set of meaningful search terms", () => {
+    expect(
+      callSummary({
+        filterGroups: [
+          null,
+          {},
+          {
+            filters: [
+              null,
+              {},
+              { value: 4 },
+              { value: "" },
+              { value: "A" },
+              { value: "A" },
+              { value: "B" },
+              { value: "C" },
+              { value: "D" },
+            ],
+          },
+        ],
+      }),
+    ).toBe("A · B · C");
+    expect(callSummary({ filterGroups: [{}] })).toBeNull();
+    expect(callSummary({ query: "", title: "Readable title" })).toBe("Readable title");
+  });
+
   it("picks the argument that says what the call is about", () => {
     expect(callSummary({ page_url: "", query: "what's new", sort: "relevance" })).toBe(
       "what's new",
@@ -91,4 +156,38 @@ it("names a platform operation and its nested task before opaque IDs", () => {
   expect(callSummary({ payload: { data: { title: "Prepare the report" } } })).toBe(
     "Prepare the report",
   );
+});
+
+describe("quotedPrice", () => {
+  it("reads the price a paid platform call carries", () => {
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" }, { platform_tool: "true" }),
+    ).toBe("0.40");
+    expect(
+      quotedPrice("agenticos_improve_again", { estimate_usd: 0.2 }, { platform_tool: "true" }),
+    ).toBe("0.2");
+    expect(
+      quotedPrice(
+        "agenticos_run_next_improvement_step",
+        { total_usd: "1.5" },
+        { platform_tool: "true" },
+      ),
+    ).toBe("1.5");
+  });
+
+  it("reads nothing from another tool or an argument that is not an amount", () => {
+    expect(quotedPrice("send_email", { quoted_usd: "0.40" })).toBeNull();
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: "soon" }, { platform_tool: "true" }),
+    ).toBeNull();
+    expect(quotedPrice("agenticos_publish_agent", {}, { platform_tool: "true" })).toBeNull();
+  });
+});
+
+it("does not present a lookalike MCP service's argument as an enforced platform quote", () => {
+  expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" })).toBeNull();
+  for (const value of [" ", "-1", -1, Infinity, NaN, null, {}])
+    expect(
+      quotedPrice("agenticos_start_eval_run", { quoted_usd: value }, { platform_tool: "true" }),
+    ).toBeNull();
 });

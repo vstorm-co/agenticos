@@ -370,7 +370,9 @@ class TestClassification:
         tools = capability_tools(spec)
 
         assert tools["look_up_note"] == ToolClass("capability:memory_files.read_memory", True)
+        assert tools["recall"].read_only is True
         assert tools["write_memory"].read_only is False
+        assert tools["correct_memory"].read_only is False
 
     def test_a_swapped_key_reaches_a_test_system_only_where_the_capability_says_so(
         self, monkeypatch

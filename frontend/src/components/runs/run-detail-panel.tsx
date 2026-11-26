@@ -34,7 +34,10 @@ export function RunDetailPanel({
     // What a reader presses to put a panel away. It was free while this was a
     // dialog; a panel in the page layout has to say so itself.
     function dismiss(event: KeyboardEvent) {
-      if (event.key === "Escape") onFocusRun(null);
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"]'))
+        return;
+      onFocusRun(null);
     }
     window.addEventListener("keydown", dismiss);
     return () => window.removeEventListener("keydown", dismiss);

@@ -91,10 +91,14 @@ class ContextFile(Base, TimestampMixin):
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="md")
     mode: Mapped[str] = mapped_column(String(16), nullable=False, default=ContextMode.INJECT.value)
 
+    library_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    library_revision: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         UniqueConstraint("organization_id", "name", name="uq_context_file_org_name"),
+        UniqueConstraint("organization_id", "library_key", name="uq_context_file_org_library"),
         CheckConstraint(
             "visibility IN ('private', 'team', 'org')", name="ck_context_file_visibility"
         ),

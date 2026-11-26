@@ -8,6 +8,7 @@ import type { Dataset } from "@/types/datasets";
 import type { DatasetScoring } from "@/types/scoring";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { announceChange } from "@/lib/live-updates";
 import { GradingPanel } from "./grading-panel";
 
 const state = vi.hoisted(() => ({
@@ -87,6 +88,7 @@ const JUDGED: DatasetScoring = {
 function dataset(scoring: DatasetScoring, overrides: Partial<Dataset> = {}): Dataset {
   return {
     id: "d1",
+    import_max_bytes: 10_485_760,
     name: "Refunds",
     description: "Returns and refunds",
     visibility: "org",
@@ -171,6 +173,38 @@ describe("GradingPanel", () => {
     expect(saved().reference.enabled).toBe(true);
     rerender(<GradingPanel dataset={dataset(saved())} />);
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+  });
+
+  it("asks before taking grading saved elsewhere over unsaved changes, and adopts it otherwise", async () => {
+    const elsewhere = () =>
+      act(() =>
+        announceChange({
+          organization_id: "org-1",
+          resource: "dataset",
+          id: "d1",
+          action: "updated",
+          surface: "mcp",
+          actor_user_id: "someone-else",
+          actor_name: "Ada",
+          origin_tab: "another-tab",
+        }),
+      );
+    const { rerender } = render(<GradingPanel dataset={dataset(DEFAULT_SCORING)} fetchedAt={1} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Reference answer" }));
+
+    elsewhere();
+    rerender(<GradingPanel dataset={dataset(JUDGED)} fetchedAt={2} />);
+    expect(screen.getByText(/Ada changed this over MCP/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "What the criterion asks" })).toHaveValue("Polite");
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+
+    // Nothing edited here: the change is taken as it is, with nothing to ask.
+    elsewhere();
+    rerender(<GradingPanel dataset={dataset(DEFAULT_SCORING)} fetchedAt={3} />);
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "What the criterion asks" })).toBeNull();
   });
 
   it("discards every card's changes at once", async () => {
@@ -544,6 +578,26 @@ it("writes a length check: what it counts, its bounds and where", async () => {
   ]);
 });
 
+it("writes a keys check: a label and a value per fact", async () => {
+  panel(JUDGED);
+  await userEvent.click(screen.getByRole("combobox", { name: "Check 1: type" }));
+  await userEvent.click(screen.getByRole("option", { name: "Keys covered" }));
+  await userEvent.click(screen.getByRole("button", { name: "Add key" }));
+  await userEvent.click(saveAll());
+  expect(await screen.findByText("Say what each check checks, or remove it.")).toBeInTheDocument();
+  expect(state.save).not.toHaveBeenCalled();
+  await userEvent.type(screen.getByRole("textbox", { name: "Key 1 of check 1" }), "Company");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Value of key 1 of check 1" }),
+    "Fernhill Ltd",
+  );
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().checks.defaults).toEqual([
+    { type: "keys", keys: [{ key: "Company", value: "Fernhill Ltd" }] },
+  ]);
+});
+
 it("edits named criteria, required status and numeric grading thresholds", async () => {
   panel(JUDGED);
   const name = screen.getByRole("textbox", { name: "Criterion name" });
@@ -572,4 +626,38 @@ it("offers a way to evals after grading is configured, but keeps it off unsaved 
   expect(onContinue).toHaveBeenCalledOnce();
   await userEvent.click(screen.getByRole("checkbox", { name: "Expected tool calls" }));
   expect(screen.queryByRole("button", { name: "Open evals" })).toBeNull();
+});
+
+it("holds both save paths from the remote event until a conflict is decided", async () => {
+  const view = (scoring: DatasetScoring, at: number) => (
+    <GradingPanel dataset={dataset(scoring)} fetchedAt={at} />
+  );
+  const { rerender } = render(view(DEFAULT_SCORING, 1));
+  await userEvent.click(screen.getByRole("checkbox", { name: "Expected tool calls" }));
+  act(() =>
+    announceChange({
+      organization_id: "org-1",
+      resource: "dataset",
+      id: "d1",
+      action: "updated",
+      surface: "console",
+      actor_user_id: "other",
+      actor_name: "Ada",
+      origin_tab: "another-tab",
+    }),
+  );
+  expect(saveAll()).toBeDisabled();
+  expect(
+    Object.values(useUnsavedChangesStore.getState().sources).every(
+      (source) => source.save === undefined,
+    ),
+  ).toBe(true);
+  rerender(
+    view({ ...DEFAULT_SCORING, reference: { ...DEFAULT_SCORING.reference, enabled: true } }, 2),
+  );
+  expect(screen.getByText(/Ada changed this/)).toBeInTheDocument();
+  expect(saveAll()).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Keep my changes" }));
+  await userEvent.click(saveAll());
+  expect(state.save).toHaveBeenCalledTimes(1);
 });

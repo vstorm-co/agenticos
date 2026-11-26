@@ -23,11 +23,13 @@ const actions = vi.hoisted(() => ({
   deferTopic: { mutateAsync: vi.fn(), isPending: false },
   estimateAttribution: { mutateAsync: vi.fn(), isPending: false },
   attribute: { mutateAsync: vi.fn(), isPending: false },
+  chooseVariant: { mutateAsync: vi.fn(), isPending: false },
 }));
 const state = vi.hoisted(() => ({
   comparison: null as EvalComparison | null,
   agentLoading: false,
   agentError: null as Error | null,
+  agentRefetch: vi.fn(),
   sessionLoading: false,
   sessionError: null as Error | null,
   authoringLoading: false,
@@ -36,6 +38,9 @@ const state = vi.hoisted(() => ({
   sessionRefetch: vi.fn(),
   edit: true,
   runs: true,
+  permissionsLoaded: true,
+  permissionsError: null as Error | null,
+  permissionsRefetch: vi.fn(),
   publish: true,
   session: null as Improvement | null,
   hunks: [] as Hunk[],
@@ -66,10 +71,18 @@ vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
     isLoading: state.agentLoading,
     error: state.agentError,
+    refetch: state.agentRefetch,
     agent: { id: "a1", name: "Refund desk", can_edit: state.edit, can_publish: state.publish },
   }),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => state.runs }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: () => state.runs,
+    isLoaded: state.permissionsLoaded,
+    error: state.permissionsError,
+    refetch: state.permissionsRefetch,
+  }),
+}));
 vi.mock("@/hooks/use-authoring", () => ({
   useAgentAuthoring: () => ({
     authoring: { batch: { id: "b1", hunks: state.hunks } },
@@ -106,6 +119,13 @@ vi.mock("./knowledge-drafts", async (actual) => ({
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
+  useKnowledgeGapTopics: (ids: string[]) => ({
+    topics: state.topics.filter((topic) => ids.includes(topic.id)),
+    skipped: 0,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/components/knowledge-gaps/knowledge-gap-draft-status", () => ({
   KnowledgeGapDraftStatus: () => null,
@@ -143,6 +163,8 @@ beforeEach(() => {
   state.authoringError = null;
   state.edit = true;
   state.runs = true;
+  state.permissionsLoaded = true;
+  state.permissionsError = null;
   state.publish = true;
   state.hunks = [];
   state.topics = [];
@@ -203,6 +225,64 @@ it("says an attempt that did not do better finished, and what under a cent cost"
   expect(line).toHaveTextContent("$0.0037 of $0.85");
 });
 
+it("shows a running search's progress at Changes, and why an ended one found nothing", () => {
+  const search = {
+    budget_usd: "3",
+    cost_usd: "0.5",
+    grading_model_profile_id: null,
+    max_variants: 40,
+    per_generation: 4,
+    patience: 3,
+    questions: 12,
+    generation: 1,
+    tried: 3,
+    pending: 2,
+    seed_score: 0.5,
+    best_score: 0.5,
+    stop_reason: null,
+    chosen_variant_id: null,
+    top: [],
+  };
+  Object.assign(state.session!, {
+    status: "running",
+    stage: "searching",
+    mode: "search",
+    best_iteration_id: null,
+    iterations: [
+      {
+        ...state.session!.iterations[0],
+        batch_id: null,
+        eval_run_ids: [],
+        verdict: null,
+        variant_search: search,
+      },
+    ],
+  });
+  const { unmount } = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/Searching for better instructions/)).toBeInTheDocument();
+  expect(screen.getByText(/3 of up to 40 variants tried/)).toBeInTheDocument();
+  unmount();
+
+  Object.assign(state.session!, {
+    status: "stopped",
+    stop_reason: "no_variant",
+    iterations: [
+      { ...state.session!.iterations[0], variant_search: { ...search, stop_reason: "patience" } },
+    ],
+  });
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    screen.getByText(
+      /The search found no variant that did better than the current instructions on the training questions\./,
+    ),
+  ).toBeInTheDocument();
+  // Changes is skipped without a candidate, so what the search tried stays on Result.
+  expect(
+    screen.getByText("The search stopped after rounds that found nothing better."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/3 of up to 40 variants tried/)).toBeInTheDocument();
+});
+
 it("blocks finishing when a selected new skill requires missing access", async () => {
   state.hunks = [hunk({ kind: "create_skill", blocked: "create_skill_permission" })];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -217,7 +297,9 @@ it("blocks finishing when a selected new skill requires missing access", async (
 });
 it("reopens the result and requires confirmation before publishing", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   const publish = screen.getByRole("button", { name: "Accept and publish" });
@@ -311,7 +393,7 @@ it("retries a failed step from another step too, and then follows the session ag
   state.session!.stage = "evaluating";
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
-  expect(screen.queryByText("What this session came to")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Result" })).toBeNull();
   actions.estimateContinuation.mutateAsync.mockResolvedValue({
     mode: "retry",
     number: 1,
@@ -328,7 +410,7 @@ it("retries a failed step from another step too, and then follows the session ag
     await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
   );
   expect(actions.continueSession.mutateAsync).toHaveBeenCalled();
-  expect(await screen.findByText("What this session came to")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Result" })).toBeInTheDocument();
 });
 
 vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p> }));
@@ -383,7 +465,9 @@ it("lets the person inspect a done step directly without claiming it published",
   expect(screen.getByText("Pinned questions fixture")).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Result" }));
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
 });
 
 it("reopens the publication link without offering another publish", () => {
@@ -397,7 +481,7 @@ it("reopens the publication link without offering another publish", () => {
   );
   expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
 });
-it("ends on what was decided, and offers nothing that would change the session", () => {
+it("ends on a result, keeps the decision accessible, and offers no writes", async () => {
   state.session!.status = "published";
   state.session!.published_version = 4;
   state.session!.timeline = [
@@ -411,15 +495,17 @@ it("ends on what was decided, and offers nothing that would change the session",
     },
   ];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Decision" }));
   const decided = screen.getByRole("region", { name: "What was decided" });
   expect(decided).toHaveTextContent("Published as version 4");
   expect(decided).toHaveTextContent(/By Ada/);
-  expect(screen.getByText(/This improvement is finished/)).toBeInTheDocument();
+  expect(screen.queryByText(/This improvement is finished/)).toBeNull();
   for (const name of ["Stop the session", "Keep as draft", "Discard", /Improve again/]) {
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
   // The step bar still opens every step; only the decision is gone.
-  expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(1);
+  expect(screen.getByRole("tab", { name: "Decision" })).toHaveAttribute("aria-selected", "true");
 });
 it("lets a reader of the agent and its runs read an open session without changing it", () => {
   state.edit = false;
@@ -561,6 +647,8 @@ it("shows loading, refusal and retry states for actual resource reads", async ()
   state.agentError = new Error("agent unavailable");
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByText("agent unavailable")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.agentRefetch).toHaveBeenCalled();
   state.agentError = null;
   state.sessionLoading = true;
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -586,7 +674,9 @@ it("returns to the actual working step after confirming a selected check", async
     await screen.findByRole("button", { name: "Confirm and check selected changes" }),
   );
   expect(actions.checkSelection.mutateAsync).toHaveBeenCalled();
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
 });
 
 it.each([
@@ -677,6 +767,34 @@ it("keeps a provider failure and recorded round visible without a selected best 
   expect(screen.getByText("Attempt 1 of 3")).toBeInTheDocument();
 });
 
+it("words a failed step by its code and keeps the refusal's own sentence", () => {
+  state.session!.status = "failed";
+  state.session!.stage = "evaluating";
+  state.session!.error = "The provider could not complete this check";
+  state.session!.error_code = "run_failed";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent(
+    "A run this step needed failed, or its model provider did not answer.",
+  );
+  expect(screen.getByText("The provider could not complete this check")).toHaveAttribute(
+    "lang",
+    "en",
+  );
+});
+
+it("words a stop for want of data with its count, not the server's sentence", () => {
+  state.session!.status = "stopped";
+  state.session!.stop_reason = "no_data";
+  state.session!.error = "Two more are needed";
+  state.session!.error_code = "too_few_held_out";
+  state.session!.error_params = { missing: 2 };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent("Add 2 more held-out test questions to measure a change.");
+  expect(details).not.toHaveTextContent("Two more are needed");
+});
+
 it("says how many more questions a session needs, in words rather than the server's message", () => {
   state.session!.status = "stopped";
   state.session!.stop_reason = "no_data";
@@ -723,11 +841,36 @@ it("tells someone who may not publish why, and still lets them keep a draft", as
 it("refuses with a reason and a way back to the agent", () => {
   state.runs = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("alert")).toHaveTextContent(/viewing runs are required/);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Reading an Improve session needs runs:view, which this role does not hold.",
+  );
   expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
     "href",
     "/agents/a1",
   );
+});
+it("waits for the permission set before refusing", () => {
+  state.runs = false;
+  state.permissionsLoaded = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
+});
+it("says the permission read failed instead of refusing, and reads it again", async () => {
+  state.runs = false;
+  state.permissionsLoaded = false;
+  state.permissionsError = new Error("permissions unavailable");
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("permissions unavailable");
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.permissionsRefetch).toHaveBeenCalled();
+});
+it("keeps a granted permission while the set is read again", () => {
+  state.permissionsLoaded = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
 });
 it("announces why a step failed, and lists attempts that were never tested", async () => {
   state.session!.status = "failed";
@@ -940,7 +1083,26 @@ describe("every step's state matches what its panel shows", () => {
       within(screen.getByRole("region", { name: "Session" })).getByRole("status"),
     ).toHaveTextContent(running ? "Working" : /^(?!Working)/);
     for (const id of STEPS) {
-      const trigger = screen.getByRole("button", { name: LABELS[id] });
+      const recordLabels = {
+        understand: "Analysis",
+        changes: "Changes",
+        check: "Test questions",
+        result: "Result",
+        accept: "Decision",
+      };
+      if (status === "accepted" && !isReachable(views[id])) continue;
+      if (status === "accepted" && (id === "understand" || id === "accept"))
+        await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+      const trigger = screen.getByRole(
+        status === "accepted" && (id === "understand" || id === "accept")
+          ? "menuitem"
+          : status === "accepted"
+            ? "tab"
+            : "button",
+        {
+          name: status === "accepted" ? recordLabels[id] : LABELS[id],
+        },
+      );
       if (!isReachable(views[id])) {
         expect(trigger, id).toHaveAttribute("aria-disabled", "true");
         continue;
@@ -1004,4 +1166,51 @@ it("lists every attempt on a finished session's Changes, not the selection it de
   expect(screen.getByRole("heading", { name: "What each attempt tried" })).toBeVisible();
   expect(screen.getByText("Reworded by you")).toBeInTheDocument();
   expect(screen.queryByRole("checkbox", { name: /Include change/ })).toBeNull();
+});
+
+it("opens attempts from a finished result and restores the attempt tab from its URL", async () => {
+  state.session!.status = "published";
+  state.session!.published_version = 4;
+  state.session!.iterations.push({ ...state.session!.iterations[0]!, id: "r2", number: 2 });
+  state.session!.iteration = 2;
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("tab", { name: "Result" })).toHaveAttribute("aria-selected", "true");
+  const navigation = screen.getByRole("tablist");
+  expect(navigation).toBeVisible();
+  expect(
+    navigation.compareDocumentPosition(document.querySelector("[data-step-panel]")!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await userEvent.click(screen.getByRole("tab", { name: "Attempts" }));
+  expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByText("Attempt 1 of 3")).toBeVisible();
+  expect(screen.getByText("Attempt 1 of 3").closest("details")).toHaveAttribute("open");
+  expect(screen.getByText("Attempt 2 of 3").closest("details")).not.toHaveAttribute("open");
+  expect(new URLSearchParams(window.location.search).get("step")).toBe("attempts");
+  view.unmount();
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
+});
+
+it("keeps the full test link on a finished session's question tab", async () => {
+  state.session!.status = "published";
+  state.session!.iterations[0]!.eval_run_ids = ["run-final"];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("tab", { name: "Test questions" }));
+  expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
+    "href",
+    "/agents/a1/evals/run-final",
+  );
+});
+
+it("keeps the agent reachable from a published result for a reader without edit access", () => {
+  state.session!.status = "published";
+  state.edit = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+    "href",
+    "/agents/a1",
+  );
+  expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
 });

@@ -4,7 +4,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -19,7 +19,9 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConfigurationError,
     ConflictError,
+    ExternalServiceError,
     NotFoundError,
     RateLimitError,
 )
@@ -119,6 +121,14 @@ async def _welcome_email(
         )
     except Exception:
         logger.exception("welcome_email_failed", extra={"user_id": str(user_id)})
+
+
+@dataclass(frozen=True)
+class OAuthAccount:
+    """The authenticated account and whether this request created it."""
+
+    user: User
+    is_new_user: bool
 
 
 class UserService:
@@ -268,18 +278,23 @@ class UserService:
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
-        items = [
-            AdminUserRead(
-                id=user.id,
-                email=user.email,
-                full_name=user.full_name,
-                is_active=user.is_active,
-                is_app_admin=user.is_app_admin,
-                conversation_count=conv_count,
-                created_at=user.created_at,
+        activity = await session_repo.admin_activity_for(self.db, [user.id for user, _ in rows])
+        items = []
+        for user, conv_count in rows:
+            last_seen, sessions = activity.get(user.id, (None, 0))
+            items.append(
+                AdminUserRead(
+                    id=user.id,
+                    email=user.email,
+                    full_name=user.full_name,
+                    is_active=user.is_active,
+                    is_app_admin=user.is_app_admin,
+                    conversation_count=conv_count,
+                    created_at=user.created_at,
+                    last_seen_at=last_seen,
+                    active_sessions=sessions,
+                )
             )
-            for user, conv_count in rows
-        ]
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
@@ -336,7 +351,7 @@ class UserService:
         await self._queue_welcome(user)
         return user
 
-    async def get_or_create_oauth_user(
+    async def get_or_create_oauth_account(
         self,
         *,
         provider: str,
@@ -345,7 +360,7 @@ class UserService:
         full_name: str | None = None,
         invitation_token: str | None = None,
         admitted_by_directory: bool = False,
-    ) -> User:
+    ) -> OAuthAccount:
         """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
 
         `invitation_token` is the one the sign-in was started with, carried through
@@ -362,7 +377,7 @@ class UserService:
         """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
-            return existing
+            return OAuthAccount(existing, False)
 
         by_email = await user_repo.get_by_email(self.db, email)
         if by_email is not None:
@@ -371,7 +386,7 @@ class UserService:
                 db_user=by_email,
                 update_data={"oauth_provider": provider, "oauth_id": provider_id},
             )
-            return by_email
+            return OAuthAccount(by_email, False)
 
         # The second path that mints an account, and the reason the policy is not
         # simply a check inside `register`: a deployment with Google sign-in and a
@@ -402,7 +417,7 @@ class UserService:
             admitted_by_policy=admission == "policy",
         )
         await self._queue_welcome(user)
-        return user
+        return OAuthAccount(user, True)
 
     async def authenticate(self, email: str, password: str) -> User:
         user = await user_repo.get_by_email(self.db, email)
@@ -414,7 +429,9 @@ class UserService:
         stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
         ok = await asyncio.to_thread(verify_password, password, stored)
         if not user or not user.hashed_password or not ok:
-            raise AuthenticationError(message="Invalid email or password")
+            raise AuthenticationError(
+                message="Invalid email or password", details={"reason": "invalid_credentials"}
+            )
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
         return user
@@ -754,8 +771,13 @@ class UserService:
         # cascade would leave those rows with no conversation and the bytes
         # readable by the organization. After `_release_owned_rows`, so a project
         # chat the person started - kept for the team - keeps its media too.
+        await conversation_repo.invalidate_author_checkpoints(self.db, user_id=user_id)
         await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
+        # Memberships go by cascade, which `end_membership` never sees.
+        from app.services.subscription_accounts import queue_wipe_person
+
+        await queue_wipe_person(self.db, user_id)
         await user_repo.delete(self.db, user_id)
         if attachments:
             # After the commit, for the reason #1293 gives: an unlink undone by
@@ -956,7 +978,9 @@ class UserService:
            documents, the order `OrganizationService.purge` locks them in, and
            deleting the documents first inverted it (#2638);
         3. the user rows (`_lock_user_rows`), `NOWAIT`;
-        4. the names of bases created while this waited (`_hold_late_names`).
+        4. conversations the person owns or authored, `NOWAIT`, before their checkpoints
+           are invalidated and their author references disappear;
+        5. the names of bases created while this waited (`_hold_late_names`).
 
         The user rows are never waited for while the organization is held, nor
         the organization while a user row is. A write for this person takes both
@@ -1008,6 +1032,9 @@ class UserService:
                     for org in sorted(personal_orgs, key=lambda org: org.id):
                         await organization_repo.get_by_id_for_update(self.db, org.id)
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
+                    # A message insert locks its conversation before its author FK.
+                    # Never wait for that history while holding the user row.
+                    await conversation_repo.lock_authored_histories(self.db, user_id=user_id)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
                 if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
@@ -1171,8 +1198,54 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_password_reset_token(subject=str(user.id))
+        token = create_password_reset_token(
+            subject=str(user.id), credential_version=user.credential_version
+        )
         return user, token
+
+    @staticmethod
+    def password_reset_url(token: str) -> str:
+        return f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+
+    async def admin_password_reset(
+        self,
+        user_id: UUID,
+        *,
+        actor_id: UUID,
+        delivery: Literal["email", "link"],
+        ip_address: str | None,
+    ) -> str | None:
+        """Issue recovery for an active account and record the administrator's action."""
+        user = await self.get_by_id(user_id)
+        if not user.is_active:
+            raise ConflictError(message="Reactivate this account before issuing a reset link.")
+        url = self.password_reset_url(
+            create_password_reset_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+        )
+        if delivery == "email":
+            mail = get_email_service()
+            if not mail.delivers:
+                raise ConfigurationError(message="Email delivery is unavailable. Use a reset link.")
+            app_name = await DeploymentSettingsService(self.db).effective_app_name()
+            result = await mail.send_password_reset(
+                to=user.email, name=user.full_name or user.email, reset_url=url, app_name=app_name
+            )
+            if not result.accepted:
+                raise ExternalServiceError(
+                    message="Reset email was not accepted. Use a reset link."
+                )
+        await record_audit(
+            self.db,
+            actor_user_id=actor_id,
+            action="admin.user.password_reset",
+            target_type="user",
+            target_id=str(user.id),
+            details={"delivery": delivery},
+            ip_address=ip_address,
+        )
+        return url if delivery == "link" else None
 
     async def confirm_password_reset(self, token: str, new_password: str) -> User:
         payload = verify_special_token(token, expected_type="password_reset")
@@ -1183,7 +1256,9 @@ class UserService:
         except (TypeError, ValueError) as exc:
             raise AuthenticationError(message="Reset link is invalid or has expired") from exc
 
-        user = await self.get_by_id(user_id)
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if user is None or payload.get("cv") != user.credential_version:
+            raise AuthenticationError(message="Reset link is invalid or has expired")
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
 

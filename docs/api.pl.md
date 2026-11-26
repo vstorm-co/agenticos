@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ab63f0a753"
+source_sha: "ce4c6fc377c9"
 ---
 
 # API HTTP { #the-http-api }
@@ -79,9 +79,11 @@ który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworz
 zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
 twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
 cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
-podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+podlega wybranej polityce źródeł, aktualnym uprawnieniom i budżetowi. Nie może tego zrobić credential
 uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
 ciebie podszywa.
+
+Dla rutyn `source_mode=follow_agent` automatyzuje początkową konfigurację w granicach uprawnień twórcy; nie zatwierdza późniejszych rozszerzeń źródeł lub zmian zachowania. Właściciel może jawnie zatwierdzić bieżącą konfigurację przez endpoint źródeł chroniony tokenem przeglądu. Metadane rozdzielają wymagane braki `required_unavailable_sources` od opcjonalnych braków MCP w `unavailable_sources`. Starsza polityka podążania bez dowodu zachowania wymaga przeglądu; istniejące polityki ograniczone zachowują swoje zasady.
 
 Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
 klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
@@ -182,6 +184,34 @@ runie albo żądaniu.
 
 Wygaśnięcie ogranicza tylko to, co klucz może rozpocząć: praca rozpoczęta, gdy był
 ważny, trwa dalej po jego wygaśnięciu.
+
+### Jawne delegowanie osobistych połączeń MCP { #explicit-personal-mcp-delegation }
+
+W **Settings → API → Create key → Custom** wybierz `agents:run` i
+`mcp:personal:use`, aby zewnętrzny run korzystał z kont MCP właściciela klucza.
+Klient OAuth wymaga tego samego jawnego wyboru. Żaden zestaw uprawnień, również
+Full access, nie zawiera tego zakresu. Istniejące dane dostępowe nie zyskują go automatycznie.
+
+Dotyczy to tylko opublikowanych powiązań MCP `account: personal`. Powiązania
+organizacji zachowują swoje konto. Brak osobistego połączenia nigdy nie powoduje
+użycia konta organizacji lub wydawcy. Przed ponowieniem żądania połącz lub napraw
+konto w konsoli. Zakres nie otwiera osobistej pamięci, dawnych czatów, zalogowanych
+sesji przeglądarki, osobistych terminali ani przestrzeni użytkownika. Wewnętrzne
+dane dostępowe agenta nie mogą przekazać tego uprawnienia dalej.
+
+Oryginalny klucz, jego właściciel i dostęp do agenta są sprawdzane przy przyjęciu,
+wznowieniu i przed wywołaniami MCP, również u delegatów. Wygaśnięcie lub odwołanie
+blokuje kolejne wywołania; trwające żądanie do źródła nie jest anulowane. Odłączenie, podmiana lub zawężenie
+konta MCP blokuje też jego wcześniej przygotowane narzędzia; połącz konto ponownie
+i rozpocznij nowy run.
+
+Wstrzymany
+run pozostaje związany z pierwotnymi danymi dostępowymi, także terminem ważności
+tokenu OAuth, i nie może użyć kont osoby zatwierdzającej. Klient może rozpocząć
+nowy run z nowymi danymi. Stare wstrzymane runy nie zyskują delegowania MCP.
+Dotychczasowy audyt zachowuje użytkownika, klucz i identyfikatory połączeń;
+sekrety nie trafiają do promptów ani audytu.
+
 
 ## Nagłówek organizacji { #the-organization-header }
 
@@ -308,6 +338,39 @@ ciałem, którym odpowiada wywołanie synchroniczne - albo `failed` z `error`. J
 `conversation_id` jest znane od pierwszej odpowiedzi, więc kolejną wiadomość
 można wysłać, zanim run się skończy. Wykonuje je worker, przez ten sam runner,
 budżet i zatwierdzenia co na każdej innej powierzchni.
+
+**Skoryguj trwający run.** Wyślij wiadomość bez załączników na ten sam endpoint,
+z nagłówkiem `Prefer: respond-async`, identyfikatorem `conversation_id` z
+pierwszej odpowiedzi i polem `"steer": true`. Każdemu zdarzeniu webhooka nadaj
+osobny `Idempotency-Key`; ponawiając wysyłkę tego zdarzenia, użyj tego samego
+klucza. Nie musisz wcześniej sprawdzać stanu runa.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Przed każdym żądaniem do modelu agent może pobrać do ośmiu korekt, w kolejności
+ich nadejścia. Pozostałe czekają w kolejce. Trwające wywołanie narzędzia lub
+modelu nie zostaje przerwane.
+
+Korektę może pobrać tylko trwające asynchroniczne żądanie API dla tej samej
+rozmowy, tego samego agenta i środowiska. Musi korzystać z aktualnie wybranej
+opublikowanej wersji oraz z tego samego klucza API (lub pochodzić od tej samej
+zalogowanej osoby, bez klucza). Jeśli żaden taki run nie odbierze wiadomości,
+worker przetworzy ją jako osobną turę. Pomiń `steer`, aby zawsze kolejkować
+osobną turę.
+
+Odpytuj żądanie przypisane do wiadomości uzupełniającej. Końcowy stan
+`steered` oznacza, że run wskazany przez `steered_into_run_id` pobrał
+korektę do żądania wysyłanego do modelu, a nie że zakończył pracę. Wiadomość
+nie ma osobnego `result`. Jeśli run później zakończy się błędem, korekta nie
+wróci do kolejki. Jeśli zostanie
+przetworzona jako osobna tura, otrzymasz zwykły stan i wynik runa. W przypadku
+załączników lub żądań synchronicznych użyj zwykłej tury.
 
 To, co da się sprawdzić od razu, jest sprawdzane od razu: nieznana rozmowa albo
 załącznik to `404` na `POST`, a nie błąd, na który trzeba czekać. Uprawnienia

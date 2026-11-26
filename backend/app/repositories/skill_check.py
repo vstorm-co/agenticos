@@ -5,13 +5,14 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.eval_run import ArmRole, EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
 from app.db.models.skill_check import (
+    SKILL_CHECK_VERDICT_VERSION,
     AgentState,
     CheckSource,
     CheckStatus,
@@ -246,6 +247,44 @@ async def agents_for_runs(
     return list(result.scalars().all())
 
 
+async def judged_before_families(
+    db: AsyncSession, *, check_ids: Collection[UUID] = ()
+) -> list[tuple[UUID, UUID, list[UUID]]]:
+    """Finished checks with an agent judged by an older rule, and that agent's stage runs.
+
+    An agent judged before families were kept holds none, and one judged before
+    `too_few_questions` existed reads `inconclusive`; both are judged again from
+    the runs they kept. Unscoped by organization: an operator's sweep, narrowed to
+    `check_ids` when given. Each as (organization, check, stage runs), by check.
+    """
+    statement = (
+        select(
+            SkillCheckAgent.organization_id,
+            SkillCheckAgent.check_id,
+            SkillCheckAgent.skill_set_run_id,
+            SkillCheckAgent.dataset_run_id,
+        )
+        .join(SkillCheck, SkillCheck.id == SkillCheckAgent.check_id)
+        .where(
+            SkillCheck.status.notin_([CheckStatus.RUNNING.value, CheckStatus.CANCELLED.value]),
+            or_(
+                SkillCheckAgent.skill_set_run_id.is_not(None),
+                SkillCheckAgent.dataset_run_id.is_not(None),
+            ),
+            SkillCheckAgent.verdict_version < SKILL_CHECK_VERDICT_VERSION,
+        )
+    )
+    if check_ids:
+        statement = statement.where(SkillCheckAgent.check_id.in_(list(check_ids)))
+    found: dict[tuple[UUID, UUID], list[UUID]] = {}
+    for organization_id, check_id, *runs in (await db.execute(statement)).all():
+        found.setdefault((organization_id, check_id), []).extend(r for r in runs if r is not None)
+    return [
+        (organization_id, check_id, runs)
+        for (organization_id, check_id), runs in sorted(found.items(), key=lambda i: str(i[0][1]))
+    ]
+
+
 class CheckAnswer(NamedTuple):
     """An answer a check's agent gave, with the skill text one side of its stage served.
 
@@ -302,14 +341,53 @@ async def check_answers(
     return answers
 
 
-async def running(db: AsyncSession, *, limit: int) -> list[tuple[UUID, UUID]]:
-    """Checks still running in every organization, as `(organization_id, id)`, oldest first.
+async def needing_advance(
+    db: AsyncSession, *, settled: Collection[str], stale_before: datetime, limit: int
+) -> list[tuple[UUID, UUID]]:
+    """Running checks in every organization that have something to do, as
+    `(organization_id, id)`, oldest first: an agent whose current stage's run settled
+    or is gone, no run left to wait for - its agents queued, finished or deleted - or
+    the check old enough to expire.
 
-    The sweep's own read: it re-reads each one in its organization before acting.
+    The sweep's own read: it re-reads each one in its organization before acting. A
+    check whose runs are all still going waits for them rather than taking a place
+    from one that can move.
     """
+    current = func.coalesce(SkillCheckAgent.dataset_run_id, SkillCheckAgent.skill_set_run_id)
+    movable = (
+        select(SkillCheckAgent.check_id)
+        .outerjoin(
+            EvalRun,
+            and_(EvalRun.id == current, EvalRun.organization_id == SkillCheckAgent.organization_id),
+        )
+        .where(
+            SkillCheckAgent.state == AgentState.RUNNING.value,
+            or_(EvalRun.id.is_(None), EvalRun.status.in_(list(settled))),
+        )
+    )
+    waiting_on_a_run = (
+        select(SkillCheckAgent.id)
+        .join(
+            EvalRun,
+            and_(EvalRun.id == current, EvalRun.organization_id == SkillCheckAgent.organization_id),
+        )
+        .where(
+            SkillCheckAgent.check_id == SkillCheck.id,
+            SkillCheckAgent.state == AgentState.RUNNING.value,
+            EvalRun.status.not_in(list(settled)),
+        )
+        .exists()
+    )
     rows = await db.execute(
         select(SkillCheck.organization_id, SkillCheck.id)
-        .where(SkillCheck.status == CheckStatus.RUNNING.value)
+        .where(
+            SkillCheck.status == CheckStatus.RUNNING.value,
+            or_(
+                SkillCheck.id.in_(movable),
+                ~waiting_on_a_run,
+                SkillCheck.created_at < stale_before,
+            ),
+        )
         .order_by(SkillCheck.created_at)
         .limit(limit)
     )

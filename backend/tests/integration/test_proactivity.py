@@ -44,6 +44,8 @@ from app.repositories.conversation import PersonRequest
 from app.schemas.conversation import MessageCreate
 from app.services.conversation import ConversationService
 from app.services.proactive._nightly import NightlyLook
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 
 pytestmark = pytest.mark.anyio
 
@@ -535,7 +537,9 @@ class TestWhatTheNightlyLookSends:
         await look.look(org.id, person.id)
 
         prompt = thinker.think.await_args.kwargs["prompt"]
-        assert json.loads(prompt)["requests_this_week"] == ["Draft the Monday sales report"]
+        assert [request["text"] for request in json.loads(prompt)["requests_this_week"]] == [
+            "Draft the Monday sales report"
+        ]
         assert "falcon" not in prompt
 
     async def test_a_week_of_only_refused_prompts_is_nothing_new(self, db) -> None:
@@ -617,7 +621,10 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
         await look.look(org.id, person.id)
         if thinker.think.await_args is None:
             return None
-        return json.loads(thinker.think.await_args.kwargs["prompt"])["requests_this_week"]
+        return [
+            item["text"]
+            for item in json.loads(thinker.think.await_args.kwargs["prompt"])["requests_this_week"]
+        ]
 
     @staticmethod
     async def _looked_at(db, org: Organization, person: User, at: datetime) -> None:
@@ -1481,7 +1488,12 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
         return "unreachable"
 
     request = SimpleNamespace(
-        build=lambda: TestModel(), label="Test", model="test", provider="test", secret_id=None
+        build=TestModel,
+        label="Test",
+        model="test",
+        provider="test",
+        secret_id=None,
+        params={},
     )
     with (
         patch.object(ProactiveThinker, "allowance", AsyncMock(return_value=uuid.uuid4())),
@@ -1581,6 +1593,7 @@ async def test_a_failed_proactive_run_is_not_an_unknown_use_of_its_agents_skills
 
     request = SimpleNamespace(
         build=lambda: FunctionModel(broken),
+        params={},
         label="Test",
         model="test",
         provider="test",
@@ -1685,8 +1698,10 @@ async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
     await db.flush()
     from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
 
-    first.summary_messages = ModelMessagesTypeAdapter.dump_python(
-        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    first.summary_messages = _checkpoint(
+        ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+        )
     )
     first.summary_ordinal = message.ordinal
     await db.flush()
@@ -1800,7 +1815,11 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
             loaded.set()
             await finish.wait()
             await ConversationService(writer).keep_summary(
-                chat.id, unsafe, expected_revision=history.revision
+                chat.id,
+                unsafe,
+                expected_revision=history.revision,
+                expected_frontier=history.frontier,
+                provenance=_PROVENANCE,
             )
             await writer.commit()
 
@@ -1823,10 +1842,14 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
         mode="json",
     )
     await ConversationService(db).keep_summary(
-        chat.id, safe_summary, expected_revision=safe_history.revision
+        chat.id,
+        safe_summary,
+        expected_revision=safe_history.revision,
+        expected_frontier=safe_history.frontier,
+        provenance=_PROVENANCE,
     )
     await db.refresh(chat)
-    assert chat.summary_messages == safe_summary
+    assert chat.summary_messages == _checkpoint(safe_summary)
     assert "An accepted summary after the refusal" in str(
         await ConversationService(db).model_history(chat.id, limit=20)
     )

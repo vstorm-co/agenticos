@@ -1,4 +1,4 @@
-import type { EvidenceItem } from "@/types/authoring";
+import type { EvidenceItem, StepFailure } from "@/types/authoring";
 
 /** Durable improvement sessions; question and answer text stays behind runs:view. */
 export type ImprovementStatus =
@@ -14,7 +14,62 @@ export type ImprovementStatus =
   | "published"
   | "rejected";
 export type ImprovementStage =
-  "analyzing" | "classifying" | "drafting" | "proposing" | "filtering" | "evaluating" | "judging";
+  | "analyzing"
+  | "classifying"
+  | "drafting"
+  | "searching"
+  | "proposing"
+  | "filtering"
+  | "evaluating"
+  | "judging";
+/** How a session's attempts reach their candidate: one proposal, or a search of many. */
+export type ImprovementMode = "steps" | "search";
+/** Why a session failed or stopped for want of data, as the code beside its English `error`. */
+export type ImprovementFailure =
+  StepFailure | "too_few_held_out" | "no_evidence" | "search_too_few_training";
+/** How a search attempt tries variants of the agent's instructions. */
+export interface SearchOptions {
+  budget_usd: string;
+  /** Grades variants on training questions; null grades on the dataset's judge model. */
+  grading_model_profile_id?: string | null;
+  max_variants?: number;
+  per_generation?: number;
+  minibatch?: number;
+  patience?: number;
+}
+/** One variant a search tried; its score is on training questions, not a verdict. */
+export interface SearchVariant {
+  id: string;
+  generation: number;
+  parent_id: string | null;
+  status: "pending" | "scored" | "failed";
+  train_score: number | null;
+  cases_scored: number;
+  cases_passed: number;
+  cost_usd: string;
+  rationale: string;
+  instructions: string;
+}
+export type SearchEnd =
+  "budget" | "max_variants" | "patience" | "proposal" | "questions" | "no_variant";
+/** Where an attempt's search is, what it spent and the best variants it found. */
+export interface VariantSearch {
+  budget_usd: string;
+  cost_usd: string;
+  grading_model_profile_id: string | null;
+  max_variants: number;
+  per_generation: number;
+  patience: number;
+  questions: number;
+  generation: number;
+  tried: number;
+  pending: number;
+  seed_score: number | null;
+  best_score: number | null;
+  stop_reason: SearchEnd | null;
+  chosen_variant_id: string | null;
+  top: SearchVariant[];
+}
 /** Why a waiting session's next step cannot be taken; the session's questions are fixed. */
 export interface NextStepBlocked {
   reason: "missing_holdout";
@@ -45,8 +100,22 @@ export interface ImprovementTarget {
   improver_agent_id?: string;
   window_days?: number;
   max_iterations?: number;
+  mode?: ImprovementMode;
+  search?: SearchOptions | null;
 }
+/** The dataset's guidance the improver reads below the platform's rules, and who last changed it. */
+export interface HelperGuidance {
+  text: string;
+  updated_at?: string | null;
+  /** A current member's full name; null when unknown or no longer a member. */
+  updated_by_name?: string | null;
+  /** Whoever last changed it has left the organization. */
+  updated_by_former_member?: boolean;
+}
+
 export interface ImprovementEstimate {
+  /** The dataset's guidance for the improver, when it has any. */
+  guidance?: HelperGuidance | null;
   proposal_usd: string;
   knowledge_usd?: string;
   eval_usd: string;
@@ -57,6 +126,10 @@ export interface ImprovementEstimate {
   /** How many questions the first attempt is measured on, as its analysis will count them. */
   held_out?: number | null;
   evidence_runs: number;
+  /** A search's own budget, counted in the total with the check of the variant it finds. */
+  search_usd?: string;
+  /** How many training questions the first attempt learns from; a search needs ten. */
+  train_questions?: number | null;
   /** About how long the session takes if every round runs. */
   estimated_minutes: number;
   affordable: boolean;
@@ -68,6 +141,49 @@ export interface CheckAnswers {
   total: number;
   reused?: boolean;
 }
+/** One criterion on an attempt's held-out questions, first answers counted. */
+export interface VerdictCriterion {
+  scorer: string;
+  name: string;
+  graded: number;
+  before: number;
+  after: number;
+  /** Questions it went from fail to pass on, confirmed by asking again. */
+  fixed: number;
+  /** Questions it went from pass to fail on, confirmed by asking again. */
+  broken: number;
+  /** The skill the session's improver put this still-failing criterion down to. */
+  skill?: string | null;
+  skill_id?: string | null;
+}
+/**
+ * One family of criteria on an attempt's held-out questions, counted case by case: it
+ * passes in a question when every criterion of it does.
+ */
+export interface VerdictFamily {
+  family: string;
+  /** How many criteria are counted in it. */
+  criteria: number;
+  cases: number;
+  before: number;
+  after: number;
+  /** Questions that hold fixed: every flipped one when settled, else the confirmed ones. */
+  fixed: number;
+  broken: number;
+  /** Its own flipped questions were enough to tell its direction without asking again. */
+  settled: boolean;
+  better: boolean;
+  worse: boolean;
+  /** The skill the session's improver put this family down to. */
+  skill?: string | null;
+  skill_id?: string | null;
+}
+export type ImprovementVerdict =
+  "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";
+export type VerdictDetail = Record<
+  string,
+  string | number | null | VerdictCriterion[] | VerdictFamily[]
+>;
 export interface ImprovementIteration {
   id: string;
   number: number;
@@ -82,14 +198,22 @@ export interface ImprovementIteration {
   attribution_eval_run_ids: Record<string, string>;
   dropped_hunk_ids: string[];
   dropped: { hunk_id: string; reason: string }[];
-  verdict: "better" | "no_change" | "regression" | "inconclusive" | null;
-  verdict_detail: Record<string, string | number | null> | null;
+  verdict: ImprovementVerdict | null;
+  verdict_detail: VerdictDetail | null;
   /** How many questions the attempt is measured on; null until known. */
   held_out?: number | null;
   cost_usd: string;
   started_at: string;
   ended_at: string | null;
+  /** A search attempt's progress and the variants it found. */
+  variant_search?: VariantSearch | null;
 }
+/** A successful stop without permission to read the session's evidence or metadata. */
+export interface ImprovementStopReceipt {
+  id: string;
+  status: ImprovementStatus;
+}
+
 export interface Improvement {
   published_version_id?: string | null;
   published_version?: number | null;
@@ -101,6 +225,8 @@ export interface Improvement {
   agent_id: string;
   /** Set on a skill's session, which improves the skill rather than `agent_id`. */
   skill_id?: string | null;
+  /** A skill's session: what accepting it did to the skill. */
+  outcome?: string | null;
   created_by_user_id: string | null;
   improver_agent_id: string | null;
   status: ImprovementStatus;
@@ -115,12 +241,18 @@ export interface Improvement {
   budget_usd: string;
   spent_usd: string;
   best_iteration_id: string | null;
-  /** What Next step starts at a stop: writing changes, or testing them. */
-  next_step?: "propose" | "check" | null;
+  mode?: ImprovementMode;
+  /** What Next step starts at a stop: writing changes, searching for them, or testing them. */
+  next_step?: "propose" | "search" | "check" | null;
   next_step_blocked?: NextStepBlocked | null;
   try_again_blocked?: TryAgainBlocked | null;
   stop_reason: string | null;
+  /** Why it failed or stopped, in English; null without runs:view. */
   error: string | null;
+  /** Null on a session that failed before codes were recorded, and without runs:view. */
+  error_code?: ImprovementFailure | null;
+  /** The counts `error` names: `missing` for `too_few_held_out`, `minimum` for `search_too_few_training`. */
+  error_params?: Record<string, number> | null;
   created_at: string;
   finished_at: string | null;
   iterations: ImprovementIteration[];

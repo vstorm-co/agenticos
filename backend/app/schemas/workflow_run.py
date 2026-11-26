@@ -117,6 +117,7 @@ class WorkflowRunFilters(BaseSchema):
 
     statuses: tuple[WorkflowRunStatus, ...] = ()
     mode: WorkflowRunMode | None = None
+    step_test: bool | None = None
     triggered_by: WorkflowRunTrigger | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
@@ -127,6 +128,16 @@ class WorkflowResumed(BaseSchema):
 
     run_id: UUID
     resumed: int = Field(description="How many Wait steps waiting for a call it woke")
+
+
+class WorkflowTestedStep(BaseSchema):
+    """The one step a step test ran, as the run's own snapshot names it."""
+
+    node_id: UUID
+    label: str | None = Field(default=None, description="The step's name, if it was given one")
+    definition_id: str | None = Field(
+        default=None, description="The step's node type, for naming an unnamed step"
+    )
 
 
 class WorkflowRunRead(BaseSchema, TimestampSchema):
@@ -154,6 +165,10 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
         description="The run this one retries; its succeeded steps were not run again.",
     )
     depth: int
+    tested_step: WorkflowTestedStep | None = Field(
+        default=None,
+        description="The step a step test ran; null for a whole-draft test and a real run",
+    )
     can_cancel: bool = Field(
         default=False,
         description="Whether the caller may cancel this run and resolve its steps: its "
@@ -201,10 +216,11 @@ class WorkflowStepDecision(BaseSchema):
 
 
 class WorkflowNodeRunRead(BaseSchema):
-    """One step of a run, in one loop iteration - what a run view colours its graph by.
+    """One execution of a graph step or of an action called from Python.
 
     `scope_path` is `[]` at the top level and names the loop and index inside a
-    `control.foreach` body. `error` is the latest failed attempt's typed error, the
+    `control.foreach` body. For a Python call its final segment holds the bound
+    action name and zero-based call index. `error` is the latest failed attempt's typed error, the
     same `WorkflowError` a run's own `error` carries - never a raw exception.
     """
 

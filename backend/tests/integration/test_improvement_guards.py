@@ -31,19 +31,70 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
 
 @pytest.mark.security
-async def test_progress_without_run_access_excludes_errors_but_retains_the_session(
+async def test_a_reader_of_the_agent_without_runs_view_reads_no_session(
     db: AsyncSession,
 ) -> None:
+    """A session holds its attempts' notes and what the runs showed, so reading one
+    asks for `runs:view` as starting one does - a Viewer or a Member who sees the
+    agent reads none of it."""
+    ctx, agent, _, session = await _started(db)
+    limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+    service = ImprovementPipelineService(db)
+
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.list_for_agent(limited, agent.id)
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.read(limited, agent.id, session.id)
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.read_session(limited, session.id)
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.changes(limited, agent.id, session.id)
+
+
+@pytest.mark.security
+async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_status(
+    db: AsyncSession,
+) -> None:
+    """Stopping is always safe, so a creator who has since lost runs:view may still
+    stop their session - and is answered with its status, not what it found."""
     ctx, agent, _, session = await _started(db)
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
-    row.error = "Private provider details"
+    row.error, row.error_code, row.error_params = "Private details", "refused", {"missing": 1}
     await db.flush()
-    limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
-    listed = await ImprovementPipelineService(db).list_for_agent(limited, agent.id)
-    assert [item.id for item in listed] == [session.id]
-    assert listed[0].error is None
-    assert not listed[0].knowledge_eval_run_ids
+    demoted = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+
+    stopped = await ImprovementPipelineService(db).cancel(demoted, agent.id, session.id)
+
+    assert stopped.status == "cancelled"
+    assert stopped.model_dump(mode="json") == {"id": str(session.id), "status": "cancelled"}
+    assert set(stopped.model_dump()).isdisjoint(
+        {
+            "budget_usd",
+            "spent_usd",
+            "estimate_usd",
+            "dataset_id",
+            "dataset_version",
+            "iteration",
+            "iterations",
+            "timeline",
+            "error",
+            "error_code",
+            "error_params",
+        }
+    )
+
+
+@pytest.mark.security
+async def test_a_session_of_another_organization_is_not_found(db: AsyncSession) -> None:
+    ctx, agent, _, session = await _started(db)
+    elsewhere = replace(ctx, organization_id=uuid4())
+    service = ImprovementPipelineService(db)
+
+    with pytest.raises(NotFoundError):
+        await service.read_session(elsewhere, session.id)
+    with pytest.raises(NotFoundError):
+        await service.read(elsewhere, agent.id, session.id)
 
 
 @pytest.mark.security
@@ -191,12 +242,12 @@ async def test_a_knowledge_source_reader_without_run_permission_returns_nothing(
     ctx, agent, _, session = await _started(db)
     limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
     service = ImprovementPipelineService(db)
-    assert await service._knowledge_sources(limited, agent, session.id) == ([], [], [])
+    assert await service._knowledge_sources(limited, agent, session.id) == ([], [], [], [])
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
     row.chat_evidence_run_ids = []
     await db.flush()
-    assert await service.knowledge_sources(ctx, row) == ([], [], [])
+    assert await service.knowledge_sources(ctx, row) == ([], [], [], [])
 
 
 async def test_a_suite_session_pins_check_settings_but_ignores_a_display_name_change(

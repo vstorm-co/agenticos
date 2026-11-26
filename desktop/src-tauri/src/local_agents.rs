@@ -275,6 +275,8 @@ pub async fn local_agent_prepare(app: AppHandle, id: AgentId) -> Result<Agent, S
 /// The agent owns browser OAuth. Its output stays in the native process and no token reaches the console.
 #[tauri::command]
 pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), String> {
+    let _changing = crate::external_agents::CHANGING.lock().await;
+    crate::agent_session::close_builtin(&app, id).await?;
     let runtime = crate::coding_runtime::prepare(&app).await?;
     let (program, prefix) = runtime.cli(id)?;
     let mut command = tokio::process::Command::new(program);
@@ -288,6 +290,8 @@ pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), Stri
 /// Run the agent's own sign-out, then report its state.
 #[tauri::command]
 pub async fn local_agent_sign_out(app: AppHandle, id: AgentId) -> Result<Agent, String> {
+    let _changing = crate::external_agents::CHANGING.lock().await;
+    crate::agent_session::close_builtin(&app, id).await?;
     let spec = spec(id);
     let (program, prefix) = cli(&app, spec)?.ok_or_else(|| format!("{} is not installed.", spec.name))?;
     let args: Vec<&str> = prefix

@@ -63,6 +63,48 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Personal provider accounts and native conversation runtimes. Each person
+    # answers for their own account's terms; these switches let an operator
+    # withhold a runtime or attest plan-usage eligibility.
+    GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
+
+    SUBSCRIPTION_GATEWAY_URL: str | None = None
+    """The bundled subscription gateway (`subscription-gateway` in compose); unset turns
+    subscription accounts off."""
+
+    SUBSCRIPTION_GATEWAY_TOKEN: str = ""
+    """Shared with the gateway container; it accepts nothing without it."""
+
+    @model_validator(mode="after")
+    def subscription_gateway_token(self) -> Settings:
+        if self.SUBSCRIPTION_GATEWAY_URL and len(self.SUBSCRIPTION_GATEWAY_TOKEN) < 32:
+            raise ValueError(
+                "SUBSCRIPTION_GATEWAY_URL is set, so SUBSCRIPTION_GATEWAY_TOKEN must be "
+                "at least 32 characters - the same value the gateway container runs with"
+            )
+        return self
+
+    CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Claude Agent; each person answers for their own account's terms."""
+
+    EXTERNAL_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold registered Desktop ACP agents as conversation runtimes."""
+
+    CODEX_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Codex; each person answers for their own account's terms."""
+
+    OPENAI_CHATGPT_PLAN_USAGE_ENABLED: bool = False
+    OPENAI_CHATGPT_HOST_ID: UUID | None = None
+    """Operator attestation that this deployment is eligible for official ChatGPT plan usage."""
+
+    @model_validator(mode="after")
+    def chatgpt_plan_host(self) -> Settings:
+        if self.OPENAI_CHATGPT_PLAN_USAGE_ENABLED and self.OPENAI_CHATGPT_HOST_ID is None:
+            raise ValueError(
+                "OPENAI_CHATGPT_HOST_ID must be a stable installation UUID when official ChatGPT plan usage is enabled"
+            )
+        return self
+
     PROJECT_NAME: str = "agenticos"
     API_V1_STR: str = "/api/v1"
     UPDATE_AGENT_SOCKET: Path | None = None
@@ -217,6 +259,12 @@ class Settings(BaseSettings):
     # stores only what it changed, and removing a case stores nothing, so only an
     # add or an edit past the limit is refused. The name predates that.
     DATASET_MAX_VERSION_ROWS_PER_ORG: int = Field(default=5_000_000, gt=0)
+    # The largest file a dataset import reads, whole, before parsing a row. Ten
+    # thousand cases of ordinary length fit with room to spare.
+    DATASET_IMPORT_MAX_BYTES: int = Field(default=10 * 1024 * 1024, gt=0)
+    # The rows one import may hold; parsing stops at the first row past it. A dataset's
+    # own ceiling of 10,000 cases still applies to what an import adds.
+    DATASET_IMPORT_MAX_ROWS: int = Field(default=10_000, gt=0)
     # Where artifact content is served from. Unset, it is the API's own public
     # address, and isolation rests on the `sandbox` policy every content
     # response carries, which gives the page an opaque origin. Set to a host on
@@ -458,6 +506,9 @@ class Settings(BaseSettings):
     # model's own price; one with no known price falls back to a flat guess.
     EVAL_FALLBACK_INPUT_TOKENS: int = 2000
     EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
+    # An answer from an agent with tools takes this many requests more than one: each
+    # tool call is answered in another request.
+    EVAL_FALLBACK_TOOL_ROUNDS: int = Field(default=2, ge=0)
     EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
     EVAL_ESTIMATE_SAMPLE: int = 50
     # A running eval run whose worker has not said it is alive, nor started or
@@ -511,6 +562,9 @@ class Settings(BaseSettings):
     # builds a redirect out of it: a scheme a caller could choose would be an open
     # redirect into whatever URL handler that machine has registered.
     DESKTOP_DEEP_LINK_SCHEME: str = "agenticos"
+
+    AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED: bool = False
+    """Operator recovery override; restart API replicas after changing it."""
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

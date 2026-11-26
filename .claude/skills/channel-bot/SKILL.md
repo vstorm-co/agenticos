@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams, Discord or WhatsApp. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams, Discord, Matrix or WhatsApp. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost, Teams, Discord, WhatsApp
+# Channels — Telegram, Slack, Mattermost, Teams, Discord, Matrix, WhatsApp
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -20,6 +20,7 @@ agent pipeline as the web chat.
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
 | `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py`, `whatsapp_nudge.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches queued durably in the webhook transaction and grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers and fixed chat notices in the bot's utility template or held until the customer writes, and a one-button nudge before the window closes on a run awaiting approval |
 
+| `matrix.py`, `matrix_protocol.py` | Matrix over the Client-Server API, no library (#2081): a `/sync` long-poll, threaded replies, `m.replace` edits, numbered prompts; the protocol module holds the pure content, mention and media rules. Unencrypted rooms only |
 | `ingress.py` | Durable normalized admission, per-thread queue and same-sender additions at model boundaries |
 | `reply_receipts.py` | Terminal reply snapshot and single submission fence; never replay model/tool effects |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
@@ -47,7 +48,8 @@ Channel messages persist raw text and `channel_identity_id`; history author labe
 are resolved just before dispatch by `ChannelReference`, so erasure removes the
 labels as well. `build_message_history` carries opaque identity references;
 `PreparedRun.channel_authors` preserves per-user-part attribution across provider
-normalization and approval resumption. `ChannelReferencePart` marks reference-only
+normalization and approval resumption. Completed-turn checkpoints also retain
+opaque per-user-part references, keyed by timestamp, without storing display labels. `ChannelReferencePart` marks reference-only
 parts omitted from run manifests. Screen editable reference values with the input
 policy, keeping fixed transport metadata out of question checks. Keep JSON envelopes out of `Message.content`.
 A decision made outside the chat (console, web chat, session API) continues the run through `app/services/channels/continuation.py`, and the endings made outside it (expiry, stop, a stranded run) post through `handback.post_notice`.
@@ -166,6 +168,11 @@ makes the *other* modes refuse in a channel too (#639).
   never logged. One Meta app has one callback URL for all its numbers, so
   `WhatsAppInbound.route_others` hands a change for another number to the active
   bot registered for it, and only when that bot's own app secret verifies the body.
+- **Matrix is stream only too** - a homeserver has no outgoing webhook; the bot
+  long-polls `/sync`. Its `next_batch` is kept in Redis per bot and account, and an
+  account's first sync skips the backlog. Room ids carry a colon, so the chat id is
+  `room_key(room_id)` (percent-encoded) and every adapter call decodes it with
+  `room_of` - never pass a raw room id to `split_thread`.
 
 ## Adding an adapter
 
@@ -232,3 +239,20 @@ Automatic context is thread-only. `_sync_thread_context` imports a bounded page 
 Personal service diagnostics report missing identity and connection separately. A personal source does not make a group destination private. Readiness is configuration-only, for the current caller; it must not refresh credentials or claim provider authorization was tested.
 
 Durable Mattermost edit admission checks the ignored-original Redis receipt once, then retains eligibility under a unique original-post edit key in PostgreSQL. Never re-check that expiring receipt after the thread queue wait. Resolve Telegram addressing before absorbing queued or in-process steering; slashless commands stay commands. Pending reply snapshots consume message retention quotas, and every terminal queue transition compacts duplicate reply bodies while keeping delivery identities and submission fences.
+
+
+## Matrix private destinations
+
+Matrix room keys are opaque: every native key retains the asserting homeserver; a private key retains the original recipient as well
+as the room, and the thread key retains the root. Pass the complete key through
+jobs, prompts, resumptions and file delivery; decode with `room_of` only at the
+Matrix API boundary. Never rebuild an outgoing private destination from the bare
+room ID. The adapter rechecks both original participants before sending private
+content, so a membership change cannot release a queued or resumed private reply
+into a group. Private and group turns use distinct conversation keys.
+
+Matrix identities and pending `/link` requests are keyed by canonical configured
+homeserver URL and native user ID. Always use `identity_scope(bot)` for identity
+queries, including backfill authors and prompt decisions. Retain the source
+server through durable ingress; reject old-server admission and resumptions after
+a bot changes endpoint. Show that URL before consent and on connected accounts.

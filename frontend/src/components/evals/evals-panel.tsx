@@ -53,7 +53,7 @@ export function EvalsPanel({
   const failed = error ?? (runs.length === 0 ? anyDataset.error : null);
 
   return (
-    <Card data-tour="agent-evals" className="flex flex-1 flex-col">
+    <Card data-tour="agent-evals" className="flex min-h-0 flex-1 flex-col">
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
         <div className="space-y-1.5">
           <CardTitle>{t("title")}</CardTitle>
@@ -69,7 +69,7 @@ export function EvalsPanel({
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-6">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-6">
         {waiting ? (
           <LoadingState variant="skeleton-list" rows={3} />
         ) : failed ? (
@@ -109,8 +109,11 @@ export function EvalsPanel({
                 locale,
               )}
             />
-            <RunsTable runs={runs} />
+            <div className="min-h-0 flex-1 overflow-auto">
+              <RunsTable runs={runs} />
+            </div>
             <Pager
+              showSinglePage
               page={page}
               pageCount={Math.ceil(total / TREND_RUNS)}
               matched={total}

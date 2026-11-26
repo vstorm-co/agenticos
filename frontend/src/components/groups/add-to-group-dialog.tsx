@@ -63,7 +63,8 @@ export function AddToGroupDialog({
 }) {
   const t = useTranslations("groups");
   const tErrors = useTranslations("errors");
-  const { shareable, isLoading, error, share } = useGroupSharing(orgId, group.id);
+  const tc = useTranslations("common");
+  const { shareable, isLoading, error, refetch, share } = useGroupSharing(orgId, group.id);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [level, setLevel] = useState<GrantLevel>("use");
@@ -132,7 +133,10 @@ export function AddToGroupDialog({
           <fieldset disabled={share.isPending} className="min-w-0 space-y-5">
             <legend className="sr-only">{t("addToGroupTitle", { name: group.name })}</legend>
             {error ? (
-              <ErrorState description={getErrorMessage(error, tErrors)} />
+              <ErrorState
+                description={getErrorMessage(error, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void refetch() }}
+              />
             ) : isLoading ? (
               <LoadingState variant="pending" />
             ) : shown.length === 0 ? (

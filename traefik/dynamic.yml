@@ -1,5 +1,5 @@
 # Traefik's dynamic configuration: the parts that can change without a restart.
-# One middleware, applied to the `websecure` entrypoint in `traefik.yml`, so it
+# One middleware, applied to the `websecure` entrypoint in `docker-compose-traefik.yml`, so it
 # covers every service behind this proxy.
 
 http:

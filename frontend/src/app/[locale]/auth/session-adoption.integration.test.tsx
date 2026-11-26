@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -167,9 +167,13 @@ describe("the OAuth callback", () => {
  * half - and read back here.
  */
 describe("where the OAuth callback lands", () => {
-  async function signIn() {
+  async function signIn(isNewUser = false) {
     searchParams.set("code", "one-time");
-    vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      user: arriving,
+      access_token: "t-new",
+      is_new_user: isNewUser,
+    });
     render(
       <QueryClientProvider client={client}>
         <CallbackPage />
@@ -178,6 +182,19 @@ describe("where the OAuth callback lands", () => {
     await waitFor(() => expect(replace).toHaveBeenCalled());
     return vi.mocked(replace).mock.calls[0]?.[0];
   }
+
+  it.each([null, "/invitations/pending?flow=0123456789abcdef0123456789abcdef"])(
+    "starts a newly created OAuth account in onboarding with flow %s",
+    async (returnTo) => {
+      rememberReturnTo(returnTo);
+      expect(await signIn(true)).toBe(
+        returnTo
+          ? "/onboarding?welcome=1&entry=account&flow=0123456789abcdef0123456789abcdef"
+          : "/onboarding?welcome=1&entry=account",
+      );
+      expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
+    },
+  );
 
   it("resumes the deep link the visitor was headed to", async () => {
     rememberReturnTo("/agents/a-1");
@@ -281,4 +298,17 @@ describe("the dashboard guard", () => {
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
+});
+
+it("names password recovery accurately on an incomplete magic link", () => {
+  mountOver(<MagicLinkPage />);
+  expect(screen.getByRole("link", { name: "resetPassword" })).toHaveAttribute(
+    "href",
+    "/forgot-password",
+  );
+  expect(screen.getByRole("link", { name: "signInWithPassword" })).toHaveAttribute(
+    "href",
+    "/login",
+  );
+  expect(apiClient.post).not.toHaveBeenCalled();
 });

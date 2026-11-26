@@ -13,7 +13,7 @@ import uuid
 
 import pytest
 
-from app.api.deps import require
+from app.api.deps import require, require_any
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import (
     RESOURCE_PERMS,
@@ -280,3 +280,20 @@ def test_acts_in_person_is_the_person_or_a_key_they_issued(changes, in_person) -
     """Standing consent needs its explicit key scope; a private chat keeps its live authority."""
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     assert dataclasses.replace(ctx, **changes).acts_in_person is in_person
+
+
+@pytest.mark.anyio
+async def test_any_permission_gate_accepts_workflow_key_but_preserves_key_ceiling() -> None:
+    ctx = AuthContext(
+        user_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        role="owner",
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.WORKFLOWS_CREATE}),
+    )
+    dependency = require_any(Perm.AGENTS_EDIT, Perm.WORKFLOWS_CREATE)
+    assert await dependency(ctx) is ctx
+    narrowed = dataclasses.replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+    with pytest.raises(AuthorizationError) as exc:
+        await dependency(narrowed)
+    assert exc.value.details == {"required_any": ["agents:edit", "workflows:create"]}

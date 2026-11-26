@@ -1,11 +1,19 @@
 ---
-source_sha: "56831f51be08"
+source_sha: "0965548d0e5c"
 ---
 
 # Konfiguracja { #configuration }
 
-Cała konfiguracja jest zarządzana przez zmienne środowiskowe, wczytywane z
+Konfiguracja usług jest zarządzana przez zmienne środowiskowe, wczytywane z
 `backend/.env` przy użyciu [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+Wygląd konsoli i terminy komunikatów są zapisywane w bazie danych przez interfejs.
+Dostępność instalacji ogranicza elementy ekranu nowego czatu i przypomnienia,
+a ustawienia organizacji i osobiste preferencje członkostwa wybierają spośród
+dostępnych elementów. Odroczenie przypomnienia trwa 1, 3 lub 7 dni. Wygaśnięcie
+ogłoszenia egzekwuje serwer, natomiast planowany koniec prac ma charakter
+informacyjny i nie otwiera instalacji. Kontrolki i zasady dziedziczenia opisuje
+[Wygląd i zachowanie konsoli](console.pl.md#console-experience).
 
 Ustawienia są zdefiniowane w `app/core/config.py` i dostępne przez globalny
 obiekt `settings`:
@@ -88,7 +96,11 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
 
-Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Ustaw `browser_use.cdp_url` agenta na `http://browser:9222` i opublikuj jego szkic. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Agenci z opcją **Built in** korzystają z `BROWSER_SIGN_IN_CDP_URL`, gdy ich własne `cdp_url` jest puste. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+
+Domyślny AgenticOS używa przeglądarki **Built in**, z limitem 100 kroków na wywołanie, oraz **Computer use → Docker / Sandbox** w środowisku `desktop`. To środowisko zawiera również narzędzia workbench do kodu i dokumentów. Bez połączenia z kontenerem pulpit i osobiste narzędzia codingowe w chmurze pozostają wyłączone. Brak adresu przeglądarki lub niedostępny kontener przeglądarki powoduje błąd tylko jej wywołań; agent nadal może zostać opublikowany i odpowiadać za pomocą pozostałych narzędzi. Skonfigurowane adresy nadal wymagają listy dozwolonych hostów operatora.
+
+AgenticOS pracuje samodzielnie, chyba że użytkownik wyraźnie poprosi o subagentów lub równoległą pracę agentów. W ustawieniach Delegates ma włączony dostęp do wszystkich dostępnych opublikowanych agentów w bieżącej organizacji. Nadal obowiązują uprawnienia, jawne przypięcia zachowują swoje wersje, a rutyny bez użytkownika nie otrzymują tego katalogu. Tworzenie dynamicznych specjalistów jest wyłączone.
 
 Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i worker oraz ma limit 1 CPU i 1 GiB RAM. Publikowane obrazy backendu zawierają dodatek `browser`; własny obraz wymaga `EXTRAS="--extra browser"`. Jeżeli renderowanie zawiedzie, odpowiedź na kanale wyraźnie informuje, że nie udało się dołączyć grafiki. Każde renderowanie dopuszcza najwyżej 256 żądań i 32 oczekujące odpowiedzi; kafelki map podlegają też wspólnemu limitowi `RATE_LIMIT_MAP_TILES_PER_MINUTE`.
 
@@ -101,18 +113,22 @@ jest już zbuforowana do pliku tymczasowego i wczytana do pamięci. Za sesją ni
 jest to duże ryzyko; na `POST /api/v1/embed/{key}/files`, do którego może sięgnąć
 obcy trzymający link, już jest.
 
-Dlatego żądanie deklarujące `Content-Length` większy niż `MAX_UPLOAD_SIZE_MB` plus
-5 MiB zapasu na kopertę multipart dostaje odpowiedź **413**, zanim jego treść
-zostanie odczytana. Nie ma tu ustawienia: wartość idzie za `MAX_UPLOAD_SIZE_MB`,
-bo druga liczba, którą trzeba trzymać w zgodzie z pierwszą, to liczba, która
-kończy poniżej niej.
+Żądanie deklarujące `Content-Length` większy niż największy z limitów
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` i
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB na opakowanie multipart dostaje **413** przed
+odczytaniem treści. Limit całego żądania automatycznie podąża za tymi ustawieniami.
 
-**To tańsza połowa odpowiedzi, nie całość.** `Content-Length` ustawia wołający, a
-żądanie chunked nie deklaruje go wcale — te są przepuszczane i ograniczane
-limitami per trasa, które mierzą prawdziwe bajty. Wdrożenie, które chce gwarancji,
-a nie uprzejmości, ustawia `client_max_body_size` (nginx) albo odpowiednik na tym,
-co kończy jego połączenia; pliki compose uruchamiają uvicorna bez własnego takiego
-limitu.
+`Content-Length` podaje klient; żądania chunked go nie deklarują i podlegają
+limitom konkretnych tras mierzącym rzeczywiste bajty. Ustaw limit także na proxy,
+aby objąć nim te żądania. W Nginx jest to również konieczne, żeby przyjmować
+uploady powyżej domyślnego 1 MiB: szablon ma `client_max_body_size 55m;` na
+hoście API i w lokalizacjach uploadu multipart konsoli. Strony konsoli,
+uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś oba limity uploadu
+razem z największym ustawieniem.
+Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
+uvicorn bez własnego limitu treści żądania.
+
+Uploady przenośnych pakietów ZIP mają osobny limit 512 MiB na obu hostach. Konsola przesyła `/api/portability/{id}/upload` do API strumieniowo, bez buforowania archiwum w Next.js. Żądania sterujące transferem mają limit 4 MiB, a import tekstu 25 MiB na opakowanie ciągu JSON; zdekodowany dokument nadal ma limit 4 MiB. Zachowaj te osobne lokalizacje przy zmianie konfiguracji proxy.
 
 ## Uwierzytelnianie { #authentication }
 
@@ -151,6 +167,12 @@ Szyfrogram jest więc bezużyteczny poza tenantem, dla którego go zapieczętowa
 
 Walidacja produkcyjna: `API_KEY` nie może używać wartości domyślnej przy
 `ENVIRONMENT=production`.
+
+Logowanie lokalne jest sterowane w **Admin → Wdrożenie → Dostęp i konta**,
+niezależnie od filtra przycisków dostawców. Zobacz
+[logowanie wyłącznie przez dostawcę](deployment.md#provider-only-sign-in):
+zasadę, jej egzekwowanie w API i awaryjne wymuszenie operatora
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -234,7 +256,7 @@ Dwa przyciski po stronie frontendu, konfigurowane tam:
 
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO. `ldap` dodaje formularz katalogowy, a `kerberos` przycisk logowania Windows, opisane niżej |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Kolejność i filtr dostawców skonfigurowanych w backendzie. Pusta wartość ukrywa przyciski. Hasła lokalne są sterowane osobno w Admin → Wdrożenie → Dostęp i konta. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
 
@@ -242,7 +264,7 @@ Gdzie mieszka który issuer i co zarejestrować:
 
 | Dostawca | Issuer | Redirect URI rejestruj jako |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions. W **Token configuration** dodaj opcjonalne claimy `email` i `xms_edov` do tokenu **ID** |
 | **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
 
@@ -257,6 +279,13 @@ Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją sk
   potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
   zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
   adres coś znaczy.
+  W Entra claim musi być w **ID tokenie**: jego endpoint UserInfo zwraca tylko
+  `sub`, `name`, `family_name`, `given_name`, `picture` i `email`.
+  `OIDC_VERIFIED_CLAIM` musi wskazywać claim, którego *wartość* jest prawdą dla
+  potwierdzonego adresu; claim obecny w każdym tokenie, jak `sub`, niczego nie
+  potwierdza i nie jest akceptowany. Odrzucone logowanie zapisuje w logu
+  `oauth_callback_claims_rejected` z warunkiem, który nie przeszedł (`reason`),
+  oraz nazwami, nigdy wartościami, otrzymanych claimów.
 - **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
   która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
   — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest
@@ -928,6 +957,8 @@ Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile rewizji przypadków mogą łącznie przechowywać datasety jednej organizacji. Każdy dodany przypadek i każda edycja to rewizja, przechowywana dla wersji, które ją zawierają; wersja zapisuje tylko to, co zmieniła, więc dataset z 10 000 przypadków edytowany 500 razy przechowuje 10 500, a nie 5 milionów. Dodanie albo edycja ponad limit jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku nic nie zapisuje i jest zawsze dozwolone, a usunięcie niepotrzebnych datasetów zwalnia ich rewizje. Nazwa jest starsza niż to znaczenie: liczyła każdy przypadek każdej wersji, dopóki wersje kopiowały swoje przypadki. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | Największy plik, jaki czyta jeden import datasetu (10 MB). Większy plik jest czytany tylko o bajt ponad limit i odrzucany jako za duży, z nazwą pola pliku; podziel go na kilka importów |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Ile wierszy może mieć jeden import datasetu. Plik jest czytany wiersz po wierszu i odrzucany przy pierwszym wierszu ponad limit, więc plik z wieloma drobnymi wierszami nie kosztuje więcej niż plik na granicy limitu. Własny sufit datasetu, 10 000 przypadków, nadal dotyczy tego, co import dodaje |
 
 ## Workspace'y agentów { #agent-workspaces }
 
@@ -1353,7 +1384,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Liczba żądań na minutę z jednego adresu IP, liczona łącznie dla webhooków workflow, wyzwalaczy GitHub w workflow i adresów URL źródeł zdarzeń wielokrotnego użytku. Limit obowiązuje przed odczytaniem treści żądania. Wartość domyślna uwzględnia dostawców takich jak GitHub, którzy obsługują wiele webhooków z kilku adresów |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unikalni odbiorcy e-maili workflow na użytkownika, łącznie dla kluczy i organizacji; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unikalni odbiorcy e-maili workflow na organizację; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unikalni odbiorcy e-maili workflow w całym deploymencie; [email.send](reference/workflow-nodes.md#email-send) |
@@ -1676,3 +1707,36 @@ nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego u
 i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
 jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
 obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
+
+## Konta subskrypcyjne { #subscription-accounts }
+
+Usługa `subscription-gateway` obsługuje własne logowania osób do subskrypcji
+([Konta subskrypcyjne](models.md#subscription-accounts)). Używa obrazu backendu
+z poleceniem `python -m app.subscription_gateway`, nie publikuje portu i trzyma
+logowania w wolumenie `subscription_accounts`.
+
+| Zmienna | Czyta ją | Znaczenie |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | Adres bramy, w compose `http://subscription-gateway:8400`. Brak wartości wyłącza konta subskrypcyjne. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, brama | Wspólny token, co najmniej 32 znaki. Brama odrzuca bez niego każde żądanie, a API nie wystartuje z adresem, ale bez takiego tokenu. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | brama | Jak długo proces osoby może być bezczynny, zanim się zatrzyma. Domyślnie 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | brama | Ile procesów osób może działać naraz. Domyślnie 64; powyżej tej liczby zatrzymuje się najdawniej używany bezczynny proces. |
+
+Token powstaje sam. `make dev` i `scripts/deploy.sh` przy pierwszym uruchomieniu
+zapisują losowy `SUBSCRIPTION_GATEWAY_TOKEN` w `backend/.env` i potem go
+zachowują; `make dev` przekazuje go do `docker-compose.yml`. Aby wybrać własny,
+wpisz go tam wcześniej (`openssl rand -hex 32`).
+
+W `docker-compose-prod.yml` i `docker-compose-dev.yml` usługa jest w profilu
+`subscriptions`. `scripts/deploy.sh` i aktualizator hosta włączają ten profil i
+ustawiają `SUBSCRIPTION_GATEWAY_URL`, gdy `backend/.env` zawiera token, więc
+serwer domyślnie uruchamia bramę. Aby ją wyłączyć, zostaw w `backend/.env` pustą
+linię: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` uruchomiony samodzielnie, bez klonu repozytorium, używa
+stałego lokalnego tokenu. Dla każdego takiego wdrożenia, do którego dostęp mają
+inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).

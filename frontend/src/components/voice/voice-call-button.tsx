@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
-import { cn } from "@/lib/utils";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
 const REASON_KEYS: Record<VoiceUnavailable, string> = {
@@ -85,7 +84,7 @@ export function VoiceCallButton({
         data-tour="chat-voice-call"
         aria-label={t("start")}
         title={publishedOnly ? t("startPublished") : t("start")}
-        className={cn(BUTTON, prominent && "transition-transform active:scale-90")}
+        className={BUTTON}
       >
         <AudioLines className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />
       </Button>

@@ -112,6 +112,7 @@ export const CHECK_KINDS = {
   max_latency_ms: { key: "value", as: "number" },
   length: { key: "max", as: "length" },
   judge: { key: "criterion", as: "text" },
+  keys: { key: "keys", as: "keys" },
 } as const;
 
 export type LengthUnit = "characters" | "words";
@@ -130,6 +131,35 @@ export function lengthFields(check: CheckDraft): LengthFields {
     min: typeof check.rest.min === "string" ? check.rest.min : "",
     path: typeof check.rest.path === "string" ? check.rest.path : "",
   };
+}
+
+/** One fact a keys check expects, as the editor writes it. */
+export interface KeyRow {
+  key: string;
+  value: string;
+}
+
+/** The facts of a keys check's draft, in their order; a fresh one has none. */
+export function keyRows(check: CheckDraft): KeyRow[] {
+  const rows = check.rest.keys;
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    key: typeof row?.key === "string" ? row.key : "",
+    value: typeof row?.value === "string" ? row.value : "",
+  }));
+}
+
+/**
+ * The checks with `keys` as the facts of their keys check: the first one's facts
+ * are replaced, its other fields kept, or a keys check is added after the rest.
+ */
+export function withKeys(checks: CheckDraft[], keys: KeyRow[]): CheckDraft[] {
+  const rows = keys.map(({ key, value }) => ({ key, value }));
+  const at = checks.findIndex((check) => check.type === "keys");
+  if (at === -1) return [...checks, { type: "keys", value: "", rest: { keys: rows } }];
+  return checks.map((check, index) =>
+    index === at ? { ...check, rest: { ...check.rest, keys: rows } } : check,
+  );
 }
 
 export type CheckType = keyof typeof CHECK_KINDS;
@@ -157,6 +187,7 @@ export function checkDraft(check: CaseCheck): CheckDraft {
   if (!isKnownCheck(type)) return { type, value: "", rest: given };
   const { key, as } = CHECK_KINDS[type];
   const { [key]: main, ...rest } = given;
+  if (as === "keys") return { type, value: "", rest: { ...rest, keys: main ?? [] } };
   if (as === "length") {
     const text = (bound: unknown) => (typeof bound === "number" ? String(bound) : "");
     const fields: LengthFields = {
@@ -177,6 +208,12 @@ export function checkDraft(check: CaseCheck): CheckDraft {
  */
 export function sameCheck(a: CheckDraft, b: CheckDraft): boolean {
   if (a.type !== b.type || a.value.trim() !== b.value.trim()) return false;
+  if (a.type === "keys") {
+    const said = (check: CheckDraft) =>
+      keyRows(check).map((row) => `${row.key.trim()}\u0000${row.value.trim()}`);
+    const [left, right] = [said(a), said(b)];
+    return left.length === right.length && left.every((row, at) => row === right[at]);
+  }
   if (a.type !== "length") return true;
   const [left, right] = [lengthFields(a), lengthFields(b)];
   return (
@@ -253,10 +290,21 @@ function lengthOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
   return { type: "length", unit, min, max, ...(where === "" ? {} : { path: where }) };
 }
 
+function keysOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
+  const rows = keyRows(check)
+    .map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
+    .filter((row) => row.key !== "" || row.value !== "");
+  if (rows.length === 0 || rows.some((row) => row.key === "" || row.value === "")) {
+    return "checkEmpty";
+  }
+  return { type: "keys", ...check.rest, keys: rows };
+}
+
 function checkOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
   if (!isKnownCheck(check.type)) return { type: check.type, ...check.rest };
   const { key, as } = CHECK_KINDS[check.type];
   if (as === "length") return lengthOf(check);
+  if (as === "keys") return keysOf(check);
   const text = check.value.trim();
   if (text === "") return "checkEmpty";
   if (as === "number") {

@@ -202,6 +202,8 @@ work in the same place — which has nothing to do with a response.
 
 Channel admission also commits before run preparation: `ChannelMessageRouter._route_inner` saves the admitted identity, session and conversation after access and rate-limit checks. Platform MCP credentials use an independent transaction and reference that conversation; a flush alone is not visible there. If admission cannot commit, preparation does not start.
 
+Personal coding sessions also cross external-effect boundaries: `PersonalCodingSessionFactory` commits private workspace ownership before opening credential-bearing work, then commits the initial source and admission audit before the native task. Shielded terminal cleanup commits retention or queued remote teardown even when a task raises or is cancelled. Account consent changes and owner deletion queue container cleanup in their own transaction before account/workspace rows cascade. A rollback retains both the session metadata and its remote-cleanup obligation.
+
 ### The run path's two commits
 
 One path deliberately commits earlier than "on the way out": **an agent run.**
@@ -403,6 +405,23 @@ Two entries in that dict are seams to other subsystems rather than plain data:
 |---|---|---|
 | `WORKSPACE_RESOURCE` | the opened workspace, which the run also gets as `ctx.workspace` | `tool_output_limits`, and a delegate that shares `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | the resolved delegation tree | the `subagents` capability |
+
+Live project mounts use a second, deliberately narrow service boundary. The runner
+injects a project-selection port; capabilities never read the database directly.
+The project-filesystem gateway owns fresh membership, grant, lease and workspace
+generation checks for each RPC, in its own transaction. A binding credential names
+one private agent workspace; immutable lease directories name authorized project
+access for a run. Leases expire after 90 seconds, renew every 30 seconds and are
+revoked at run end, pause or selection changes.
+
+The SDK's trusted broker verifies binding identity before opening or executing a
+session, keeps the exporter on a private bridge and mounts only a named NFS volume
+into the existing agent container. Files stay authoritative at the project provider.
+State storage supplies transactional exclusive-create verification; native storage
+requires durable extended attributes and atomic hard links. An unsupported provider
+or scope refuses admission. Exporter epochs are immutable for mounted handles;
+a changed epoch stops the retained agent until explicit recovery, without empty
+replacement or automatic replay of interrupted commands.
 
 Delegation is the sharpest case for the rule. A delegate is a row; so are its pinned
 version, its collections, its skills and its secrets, and every one of them has to

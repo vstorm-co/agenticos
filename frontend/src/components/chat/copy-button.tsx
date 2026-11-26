@@ -8,11 +8,12 @@ import { useTranslations } from "next-intl";
 
 interface CopyButtonProps {
   text: string;
+  label?: string;
   className?: string;
   size?: "sm" | "default";
 }
 
-export function CopyButton({ text, className, size = "sm" }: CopyButtonProps) {
+export function CopyButton({ text, label, className, size = "sm" }: CopyButtonProps) {
   const t = useTranslations("chat.copy");
   const { copy, copied } = useCopyToClipboard();
 
@@ -31,7 +32,7 @@ export function CopyButton({ text, className, size = "sm" }: CopyButtonProps) {
       )}
       onClick={handleCopy}
       title={copied ? t("copied") : t("copy")}
-      aria-label={copied ? t("copiedToClipboard") : t("copyToClipboard")}
+      aria-label={copied ? t("copiedToClipboard") : (label ?? t("copyToClipboard"))}
     >
       {copied ? (
         <Check className="text-success h-3.5 w-3.5" aria-hidden />

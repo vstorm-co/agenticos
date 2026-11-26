@@ -282,6 +282,8 @@ describe("PublishDialog", () => {
 
     // The list starts open, each problem under the step it names.
     expect(await screen.findByText("This node lost its resource")).toBeVisible();
+    // A refusal over a table means the editor's copy of it is stale: read again.
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(1);
 
     await userEvent.click(screen.getByRole("button", { name: /This node lost its resource/ }));
     expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["a"]);

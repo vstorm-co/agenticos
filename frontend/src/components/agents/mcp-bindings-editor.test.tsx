@@ -53,7 +53,6 @@ const specWith = (mcp_servers: McpServerRef[]) =>
   ({ mcp_servers, capabilities: [] }) as unknown as AgentSpec;
 
 vi.mock("@/components/agents/mcp-server-picker", () => ({
-  bindingKey: (binding: McpServerRef) => JSON.stringify(binding),
   McpServerPicker: ({
     onTools,
     onConnect,

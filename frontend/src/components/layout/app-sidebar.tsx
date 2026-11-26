@@ -21,6 +21,7 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useEffect, useRef } from "react";
 import { scrollWithin } from "@/lib/scroll-within";
 import Link, { useLinkStatus } from "next/link";
@@ -32,15 +33,23 @@ import { ProjectRows } from "@/components/layout/project-rows";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
+import { SIDEBAR_NAV_LINK } from "@/components/ui/control-styles";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn, isAppAdmin } from "@/lib/utils";
-import { useAuthStore, useSidebarStore } from "@/stores";
-import { NAV_GROUPS, isActive, type NavGroup, type NavItem } from "@/lib/nav-sections";
+import { cn } from "@/lib/utils";
+import { useSidebarStore } from "@/stores";
+import {
+  NAV_GROUPS,
+  presentedNavigation,
+  isActive,
+  type NavGroup,
+  type NavItem,
+} from "@/lib/nav-sections";
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
@@ -70,16 +79,10 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        SIDEBAR_NAV_LINK,
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
-        // Selected is a neutral raised pill with a dark label. Section hues live
-        // on the page's own tile, not here: a column of coloured pills competed
-        // with the content it points at.
-        active
-          ? "bg-accent text-foreground"
-          : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
+        collapsed ? "touch:min-w-11 w-9 justify-center" : "gap-2.5 px-2.5",
       )}
     >
       <NavIcon icon={item.icon} />
@@ -94,7 +97,8 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   const t = useTranslations("nav");
   const { suggestions } = useSuggestions();
   const approvals = usePendingApprovals();
-  const waiting = suggestions.length + approvals.count;
+  const questions = useWaitingChatQuestions();
+  const waiting = suggestions.length + approvals.count + questions.count;
   if (waiting === 0) return null;
   const label = t("inboxCount", { count: waiting });
   return collapsed ? (
@@ -143,16 +147,26 @@ export function SidebarNav({
     if (active) scrollWithin(active, "nearest", "instant");
   }, [collapsed, pathname]);
   const { can } = usePermissions();
-  const { user } = useAuthStore();
   const t = useTranslations("nav");
-  const admin = isAppAdmin(user);
 
-  const groups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.permission || can(item.permission)),
-  })).filter(
-    (group) => !group.switcherOnly && group.items.length > 0 && (!group.adminOnly || admin),
-  );
+  const { navigation, problem, retry } = useConsolePresentation();
+  const experience = useTranslations("consoleExperience.presentation");
+  const common = useTranslations("common");
+  if (problem)
+    return (
+      <div role="alert" className="space-y-2 px-3 py-4 text-sm">
+        <p>{experience("loadError")}</p>
+        <button type="button" className="text-primary underline underline-offset-4" onClick={retry}>
+          {common("retry")}
+        </button>
+      </div>
+    );
+  const groups = presentedNavigation(NAV_GROUPS, navigation)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.permission || can(item.permission)),
+    }))
+    .filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
 
   return (
     <nav
@@ -185,7 +199,6 @@ function NavGroupBlock({
   const pathname = usePathname();
   const mounted = useMounted();
   const openGroups = useSidebarStore((state) => state.openGroups);
-  const closedGroups = useSidebarStore((state) => state.closedGroups);
   const toggleGroup = useSidebarStore((state) => state.toggleGroup);
   const key = group.labelKey ?? "main";
   // The page you are on is never hidden behind a folded heading. The stored
@@ -194,10 +207,7 @@ function NavGroupBlock({
   // The rail folds too: a group closed in the column is closed on the rail, so
   // the two show the same destinations rather than the rail every one of them.
   const folds = !!group.collapsible;
-  const open =
-    !folds ||
-    holdsActive ||
-    (mounted && (openGroups.includes(key) || (key === "knowledge" && !closedGroups.includes(key))));
+  const open = !folds || holdsActive || (mounted && openGroups.includes(key));
 
   return (
     <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
@@ -299,9 +309,9 @@ export function AppSidebar() {
       className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
     >
       {collapsed ? (
-        <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+        <PanelLeftOpen className="size-[18px]" strokeWidth={1.75} aria-hidden />
       ) : (
-        <PanelLeftClose className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+        <PanelLeftClose className="size-[18px]" strokeWidth={1.75} aria-hidden />
       )}
     </button>
   );

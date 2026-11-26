@@ -153,6 +153,9 @@ _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
+_CONTEXT_CAPABILITY = "context"
+_KNOWLEDGE_CAPABILITY = "knowledge"
+_DELEGATION_CAPABILITY = "subagents"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _TABLES_CAPABILITY = "virtual_tables"
@@ -290,6 +293,7 @@ class CapabilityBindingSpec(BaseModel):
             "git repository. Refused at publish if it does not exist, is the "
             "wrong kind, or belongs to another organization."
         ),
+        json_schema_extra={"x-resource": "secret"},
     )
     enabled: bool = True
 
@@ -498,6 +502,7 @@ class RunReviewerSpec(BaseModel):
             "The model it reviews with - usually a cheaper one than the agent's own. "
             "Optional in a draft, required to publish."
         ),
+        json_schema_extra={"x-resource": "model_profile"},
     )
     instructions: str = Field(
         default="",
@@ -581,11 +586,13 @@ class AlertSpec(BaseModel):
     user_ids: list[UUID] = Field(
         default_factory=list,
         description="Members to mail when `to` includes `chosen`; ignored otherwise",
+        json_schema_extra={"x-resource": "member"},
     )
 
     group_ids: list[UUID] = Field(
         default_factory=list,
         description="Organization groups to notify when `to` includes `chosen`; this grants no approval authority.",
+        json_schema_extra={"x-resource": "group"},
     )
 
     @model_validator(mode="after")
@@ -699,6 +706,7 @@ class ObservabilitySpec(BaseModel):
     token_secret_id: UUID | None = Field(
         default=None,
         description="The organization secret holding a Logfire write token",
+        json_schema_extra={"x-resource": "secret"},
     )
     # A slug, not a length. Both are interpolated into a Logfire URL path when a
     # run's trace link is built, so a value with a slash, a dot-segment or a
@@ -792,6 +800,7 @@ class SpeechToTextSpec(BaseModel):
             "The vault key the pair is sent with: an API key whose purpose is the "
             "provider. Set with the pair, and only with it."
         ),
+        json_schema_extra={"x-resource": "secret"},
     )
     dictation: bool = Field(
         default=False,
@@ -839,6 +848,7 @@ class VoiceSpec(BaseModel):
     secret_id: UUID | None = Field(
         default=None,
         description="The vault key calls are held with: its purpose is the provider, and its kind the provider's",
+        json_schema_extra={"x-resource": "secret"},
     )
     voice: str | None = Field(
         default=None, max_length=64, description="One of the model's voices; null is its default"
@@ -1008,7 +1018,8 @@ class OrgMcpServerRef(BaseModel):
 
     account: Literal["organization"] = "organization"
     connection_id: UUID = Field(
-        description="The organization's MCP connection. A personal one is refused at publish."
+        description="The organization's MCP connection. A personal one is refused at publish.",
+        json_schema_extra={"x-resource": "mcp_connection"},
     )
     allowed_tools: list[str] | None = Field(
         default=None,
@@ -1118,7 +1129,8 @@ class PlatformMcpServerRef(BaseModel):
 
     Its tools carry MCP's read-only hints, so a `writes` policy holds every
     call that changes something for a person's approval - which the Architect's
-    own template asks for.
+    own template asks for. Letting a change run unasked is a decision about one
+    named tool, in `tool_approval`, never the binding's default.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -1134,6 +1146,17 @@ class PlatformMcpServerRef(BaseModel):
             "Which of the platform's tools wait for a person to approve the call: "
             "`writes` (every tool that changes something) or `all`. `none` is held "
             "to `writes`: these tools act with the authority of whoever is asking"
+        ),
+    )
+    tool_approval: McpToolApproval = Field(
+        default_factory=dict,
+        exclude_if=lambda decided: not decided,
+        description=(
+            "Per-tool overrides on top of `approval`, keyed by the platform tool's "
+            "name - the names `allowed_tools` holds. `required` asks before that tool "
+            "and `never` lets it run unasked, a change included. A name the platform "
+            "does not offer is refused at publish. Left out of the stored spec while "
+            "no tool has one."
         ),
     )
 
@@ -1174,9 +1197,13 @@ class SubagentRef(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    agent_id: UUID = Field(description="The delegate. Must be an agent the publisher may run.")
+    agent_id: UUID = Field(
+        description="The delegate. Must be an agent the publisher may run.",
+        json_schema_extra={"x-resource": "agent"},
+    )
     agent_version_id: UUID = Field(
         description="Which published version of it, pinned at publish time",
+        json_schema_extra={"x-resource": "agent_version", "x-resource-parent": "agent_id"},
     )
     preferred_mode: DelegationMode | None = Field(
         default=None,
@@ -1201,7 +1228,10 @@ class ExternalAgentRef(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    external_agent_id: UUID = Field(description="The registered remote agent.")
+    external_agent_id: UUID = Field(
+        description="The registered remote agent.",
+        json_schema_extra={"x-resource": "external_agent"},
+    )
     preferred_mode: DelegationMode | None = Field(
         default=None,
         description="Override the capability's mode for this delegate alone.",
@@ -1220,11 +1250,18 @@ class SkillBindingSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    skill_id: UUID
+    skill_id: UUID = Field(json_schema_extra={"x-resource": "skill"})
     version: int | None = Field(
-        default=None, ge=1, description="A main version to stay on, by its number"
+        default=None,
+        ge=1,
+        description="A main version to stay on, by its number",
+        json_schema_extra={"x-resource": "skill_version", "x-resource-parent": "skill_id"},
     )
-    fork_id: UUID | None = Field(default=None, description="A fork whose newest version to read")
+    fork_id: UUID | None = Field(
+        default=None,
+        description="A fork whose newest version to read",
+        json_schema_extra={"x-resource": "skill_fork", "x-resource-parent": "skill_id"},
+    )
 
     @model_validator(mode="after")
     def _one_line(self) -> SkillBindingSpec:
@@ -1321,6 +1358,7 @@ class SpecialistSpec(BaseModel):
     model_profile_id: UUID | None = Field(
         default=None,
         description="Which model profile it runs on; null runs it on the parent's",
+        json_schema_extra={"x-resource": "model_profile"},
     )
     model_settings: ModelSettingsSpec = Field(
         default_factory=ModelSettingsSpec,
@@ -1342,6 +1380,7 @@ class SpecialistSpec(BaseModel):
             "in a collection nobody may read, precisely because it does not look "
             "like an agent."
         ),
+        json_schema_extra={"x-resource": "collection"},
     )
     skill_ids: list[UUID] = Field(
         default_factory=list,
@@ -1350,6 +1389,7 @@ class SpecialistSpec(BaseModel):
             "access, exactly as `collection_ids` is - a skill is know-how somebody "
             "wrote, and a private one bound here would be read by every run."
         ),
+        json_schema_extra={"x-resource": "skill"},
     )
     skill_bindings: list[SkillBindingSpec] = Field(
         default_factory=list,
@@ -1363,6 +1403,7 @@ class SpecialistSpec(BaseModel):
             "reaches every run, so a specialist can only lend what its publisher "
             "could read."
         ),
+        json_schema_extra={"x-resource": "context"},
     )
     max_steps: int | None = Field(
         default=None,
@@ -1588,6 +1629,10 @@ class AgentSpec(BaseModel):
             "said yet - one click sends one. Up to four; none shows the chat's own"
         ),
     )
+    show_starters: bool = Field(
+        default=True,
+        description="Show suggested first messages in an empty chat, including built-in suggestions.",
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description=(
@@ -1619,10 +1664,23 @@ class AgentSpec(BaseModel):
     model_profile_id: UUID | None = Field(
         default=None,
         description="Which of the organization's model profiles to run on; null uses the default",
+        json_schema_extra={"x-resource": "model_profile"},
     )
     model_settings: ModelSettingsSpec = Field(
         default_factory=ModelSettingsSpec,
         description="Per-agent overrides on top of the profile (temperature, max_tokens...)",
+    )
+    model_credential_mode: Literal["organization", "personal"] = Field(
+        default="organization",
+        description=(
+            "Use the profile's organization credential by default, or each signed-in "
+            "web-chat user's own vault key. Personal mode fixes the model and endpoint, "
+            "has no organization-key fallback, and does not support channels, public "
+            "surfaces, automated runs or voice. Delegates in signed-in web chat resolve "
+            "their own configured credential mode for the original caller. Personal delegates "
+            "require a personal root using that exact model profile; other personal "
+            "destinations need a separate consent flow and are not supported."
+        ),
     )
 
     capabilities: list[CapabilityBindingSpec] = Field(default_factory=list)
@@ -1635,6 +1693,7 @@ class AgentSpec(BaseModel):
     collection_ids: list[UUID] = Field(
         default_factory=list,
         description="Knowledge collections this agent may search",
+        json_schema_extra={"x-resource": "collection"},
     )
     skill_ids: list[UUID] = Field(
         default_factory=list,
@@ -1644,6 +1703,7 @@ class AgentSpec(BaseModel):
             "to every run of the agent, so it can only lend what the publisher "
             "could read themselves."
         ),
+        json_schema_extra={"x-resource": "skill"},
     )
     skill_bindings: list[SkillBindingSpec] = Field(
         default_factory=list,
@@ -1661,6 +1721,7 @@ class AgentSpec(BaseModel):
             "file's body reaches every run, so the agent can only lend what the "
             "publisher could read themselves."
         ),
+        json_schema_extra={"x-resource": "context"},
     )
     mcp_servers: list[McpServerRef] = Field(
         default_factory=list,
@@ -1786,6 +1847,45 @@ class AgentSpec(BaseModel):
         specialist with content on.
         """
         return self.observability.content if self.observability else "full"
+
+    def _serves(self, capability_id: str) -> bool:
+        return any(binding.id == capability_id and binding.enabled for binding in self.capabilities)
+
+    # A selection survives switching its capability off - the Builder keeps it and
+    # publish still checks it - while a run reaches none of it. Every reader that
+    # decides what reaches a run, or what a routine's owner is asked to consent to,
+    # reads these rather than the raw lists.
+
+    @property
+    def served_skill_ids(self) -> list[UUID]:
+        """The bound skills a run serves, as instructions or workspace files.
+
+        None while `skills` is off.
+        """
+        return list(self.skill_ids) if self._serves(_SKILLS_CAPABILITY) else []
+
+    @property
+    def served_context_ids(self) -> list[UUID]:
+        """The bound context files a run reads: none while `context` is off."""
+        return list(self.context_ids) if self._serves(_CONTEXT_CAPABILITY) else []
+
+    @property
+    def served_collection_ids(self) -> list[UUID]:
+        """The bound collections a run searches: none while `knowledge` is off."""
+        return list(self.collection_ids) if self._serves(_KNOWLEDGE_CAPABILITY) else []
+
+    @property
+    def served_subagents(self) -> list[SubagentRef]:
+        """The pinned delegates a run can hand work to: none while `subagents` is off."""
+        return list(self.subagents) if self._serves(_DELEGATION_CAPABILITY) else []
+
+    @property
+    def served_external_agents(self) -> list[ExternalAgentRef]:
+        """The remote agents a run can hand work to.
+
+        Reached only by delegating, so none while `subagents` is off.
+        """
+        return list(self.external_agents) if self._serves(_DELEGATION_CAPABILITY) else []
 
     @model_validator(mode="before")
     @classmethod

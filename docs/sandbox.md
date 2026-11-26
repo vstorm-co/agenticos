@@ -51,6 +51,41 @@ connections, and `state` — are hosted services and a document in Postgres, and
 none of them involves any of the above; neither does the person's own computer
 (see [Beyond sandboxd](#beyond-sandboxd)).
 
+### Live project files in the agent sandbox
+
+An opted-in sandboxd 0.2.40 host exposes selected project files inside a private
+conversation/run agent container at `/project/<immutable lease UUID>`. The agent
+retains its image, packages and own workspace. `PROJECT_DIR` is injected into each
+command; relative paths still use the ordinary agent workspace. Project data is
+served live through the authenticated gateway, including stored-file projects,
+rather than copied into the agent. An explicitly selected project executor remains
+a separate option.
+
+Enable the operator-owned `SANDBOXD_FILESYSTEM_GATEWAY_URL` and
+`SANDBOXD_FILESYSTEM_EXPORT_IMAGE` together, with retained containers and a durable
+workspace root. The exporter image is the same pinned sandboxd version as the SDK.
+The gateway URL ends in `/api/v1/project-filesystem` and must be reachable from both
+sandboxd and its private helper bridge. A reachable HTTPS API origin works; an
+internal Compose hostname such as `api` is not available on that isolated bridge.
+`host.docker.internal:<port>` requires an API bound to an interface reachable from
+Docker; a production loopback-only published port does not meet that condition.
+
+For Compose, add `-f docker-compose.project-filesystem.yml` after the base and proxy files when enabling live mounts. `scripts/deploy.sh` materializes the same overlay outside the checkout when both settings are present, preserving rollback to older targets, and refuses partial configuration. Only sandboxd receives a separate outbound bridge; the private data network, agent isolation and absence of published supervisor ports remain unchanged.
+
+The feature is disabled until configured. Clients cannot choose host paths, images
+or gateway addresses. The helper has no published ports, the agent never joins its
+control bridge and receives no FUSE device or extra mount privileges. Existing
+unmounted sessions require explicit recovery/recreation, preserving their own files.
+Unsupported scopes and providers refuse project commands rather than silently
+using different files. A helper restart makes old NFS handles stale and stops the
+agent until explicit filesystem recovery; it does not start an empty replacement.
+
+Native project storage requires durable extended attributes and atomic hard links;
+verified Linux storage and the database-backed state provider are supported. macOS
+bind mounts can refuse the native requirements. Symlinks and ownership changes are
+not supported. See [Projects](projects.md#what-an-agent-gets-in-a-project) for live
+lease access and the optional explicit project executor.
+
 ### The service and the backend move together
 
 The service and the backend's client come from the same `pydantic-ai-backend`
@@ -739,7 +774,11 @@ Press **Test server and image** to create one disposable sandbox, check its shel
 
 A later turn attaches to its recorded workspace. A missing or unreachable workspace is refused; its ref is retained rather than silently replaced with empty files. Reset explicitly after recovering any files. Closing a turn releases HTTP clients, while the workspace survives according to its scope; explicit cleanup uses the existing durable destroy queue. Keep its connection and vault key until pending cleanup succeeds. AgenticOS does not enumerate all sandboxes on an OpenSandbox server; sandboxd-specific session/limit panels do not describe this provider.
 
-Validation for this integration covered the Docker lifecycle, file persistence, reattachment, missing-workspace refusal and cleanup on server/execd 1.2.0. Kubernetes Secure Access was not validated on a live cluster. Downgrading migration `0317_opensandbox_connections.py` is refused while OpenSandbox connections or runtime names longer than 64 characters remain.
+Validation for this integration covered the Docker lifecycle, file persistence, reattachment, missing-workspace refusal and cleanup on server/execd 1.2.0.
+
+Local OpenShift 5.0.0 validation also exercised Kubernetes BatchSandbox, Secure Access, shell probing and file persistence on server/controller/execd/gateway 1.2.1. Conversation deletion needs the cleanup-order fix described in the [Kubernetes guide](kubernetes.md#oidc-and-sandbox-configuration); released 1.80.0 leaves remote workspaces behind. Agent tools can read/write files, but the console workspace archive API does not browse or download OpenSandbox files.
+
+ Downgrading migration `0317_opensandbox_connections.py` is refused while OpenSandbox connections or runtime names longer than 64 characters remain.
 
 **The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
 a chat can work in a folder on the computer it runs on. The tools reach it
@@ -769,4 +808,4 @@ reap.
 
 The `state` backend counts files and empty directories against its storage ceiling, including the final concurrent merge. If individually accepted snapshots cannot fit together, the shared document stays unchanged and the later snapshot is committed as a recovery copy in **Documents**. The run records a failure with the recovery workspace ID; a project mutation returns a conflict instead of success. Project copies require both view and use access. A source foreign key removes each copy when its source is deleted, including concurrent erasure. Lowering the setting below an existing document still allows that document to shrink.
 
-The workbench briefing tells agents that commands run under POSIX `/bin/sh`, not Bash. For example, `mkdir -p sources inbox notes` creates three folders; `{sources,inbox,notes}` is not expanded by this shell. Project files belong under `/workspace`; the user home (`~`) is outside the shared files. Each command starts a new process, so shell variables and changes of directory do not carry into the next call. Agents are instructed to inspect failures and verify files before reporting success.
+The workbench briefing tells agents that commands run under POSIX `/bin/sh`, not Bash. For example, `mkdir -p sources inbox notes` creates three folders; `{sources,inbox,notes}` is not expanded by this shell. The active executor keeps its own working folder. With live project access, `PROJECT_DIR` points at `/project/<lease UUID>`; use that path for shared project files. The user home (`~`) is outside those files. Each command starts a new process, so shell variables and changes of directory do not carry into the next call. Agents are instructed to inspect failures and verify files before reporting success.

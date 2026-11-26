@@ -32,6 +32,7 @@ interface EmbedsPanelProps {
   agentId: string;
   /** `agents:publish` on this agent - the same permission an exposure needs. */
   canManage: boolean;
+  personalModel?: boolean;
 }
 
 /** What each surface is called, so a row says what it is without reading its URL. */
@@ -50,7 +51,7 @@ const KIND_LABEL: Record<EmbedKind, string> = {
  * different things to configure, which is exactly the shape a picker models and
  * a single form does not.
  */
-export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
+export function EmbedsPanel({ agentId, canManage, personalModel = false }: EmbedsPanelProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const { embeds, isLoading, create, update, remove, uploadLogo } = useEmbeds(agentId);
@@ -121,7 +122,9 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
             onCancel={() => setPicked(null)}
           />
         )}
-        {canManage && picked === null && editing === null && <SurfacePicker onPick={setPicked} />}
+        {canManage && !personalModel && picked === null && editing === null && (
+          <SurfacePicker onPick={setPicked} />
+        )}
       </CardContent>
 
       {pendingDelete !== null && (

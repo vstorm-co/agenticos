@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { ChevronRight, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
@@ -31,7 +33,7 @@ export function CaseView({ content }: { content: DatasetCaseContent & { masked?:
     <div className="min-w-0 space-y-7 wrap-anywhere">
       <CaseConversation content={content} />
       {content.counter_example && (
-        <details className="group border-border border-t pt-4">
+        <NativeDisclosure className="group border-border border-t pt-4">
           <summary className="text-muted-foreground flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
             <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
             {t("field.counter_example")}
@@ -39,7 +41,7 @@ export function CaseView({ content }: { content: DatasetCaseContent & { masked?:
           <div className="pt-3 text-sm">
             <MarkdownContent content={content.counter_example} inertImages />
           </div>
-        </details>
+        </NativeDisclosure>
       )}
       {content.expected_tool_calls.length > 0 && (
         <Section
@@ -47,7 +49,7 @@ export function CaseView({ content }: { content: DatasetCaseContent & { masked?:
         >
           <div className="space-y-2">
             {content.expected_tool_calls.map((call, index) => (
-              <details key={index} className="group border-border rounded-xl border">
+              <NativeDisclosure key={index} className="group border-border rounded-xl border">
                 <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm">
                   <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open:rotate-90" />
                   <Wrench className="text-muted-foreground size-3.5 shrink-0" />
@@ -56,7 +58,7 @@ export function CaseView({ content }: { content: DatasetCaseContent & { masked?:
                 <pre className="bg-muted/40 overflow-x-auto border-t p-3 text-xs break-all whitespace-pre-wrap">
                   {JSON.stringify(call.args, null, 2)}
                 </pre>
-              </details>
+              </NativeDisclosure>
             ))}
           </div>
         </Section>

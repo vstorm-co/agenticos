@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -99,6 +99,65 @@ describe("RunButton", () => {
     taken.preventDefault();
     window.dispatchEvent(taken);
     expect(mutate).toHaveBeenCalledTimes(2);
+  });
+
+  it("says which steps hand on pinned test data instead of running", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const pinned = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    store.getState().seedGraph({ ...graph, nodes: [pinned] });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    expect(indicator).toHaveTextContent("1");
+    expect(indicator).not.toHaveTextContent("step pinned");
+    await userEvent.click(indicator);
+    expect(
+      (await screen.findAllByText(/hand on their pinned test data instead\. Fetch lead/))[0],
+    ).toBeInTheDocument();
+  });
+
+  it("does not count or name pins on switched-off steps", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const active = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    const disabled = { ...active, id: "off", label: "Disabled pin", disabled: true };
+    store.getState().seedGraph({ ...graph, nodes: [active, disabled] });
+    const { rerender } = render(
+      <RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "1 step pinned" }));
+    expect(screen.queryByText(/Disabled pin/)).toBeNull();
+    act(() => store.getState().seedGraph({ ...graph, nodes: [disabled] }));
+    rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /step pinned/ })).toBeNull();
+  });
+
+  it("opens pinned test data from the keyboard even when testing is blocked", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [{ ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } }],
+    });
+    store.setState({ isDirty: true });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Test draft" })).toBeDisabled();
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    indicator.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(
+      await screen.findByText(/hand on their pinned test data instead\. Fetch lead/),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText(/hand on their pinned test data instead\. Fetch lead/)).toBeNull();
+    expect(indicator).toHaveFocus();
+  });
+
+  it("shows no pinned-data badge when nothing is pinned", () => {
+    seed();
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByText(/pinned/)).toBeNull();
   });
 
   it("asks for the declared fields first", async () => {

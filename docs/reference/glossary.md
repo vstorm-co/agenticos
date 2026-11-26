@@ -43,7 +43,7 @@ rename.
 | In the console | What it is | In the API and spec |
 |---|---|---|
 | Chat | The web conversation with an agent | `conversation` |
-| Channel | Slack, Telegram, Mattermost, Teams, Discord or WhatsApp, where people reach an agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost, Teams, Discord, Matrix or WhatsApp, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
 | Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
@@ -87,6 +87,8 @@ rename.
 | Noise | Answers graded differently when asked again with nothing changed; a result it could explain is within noise, and **Ask each question twice** measures it | `measurement_noise`, `purpose: stability` |
 | Review | Scores waiting for a person to confirm or overrule them | `review_state` |
 | Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
+| Key extractor | The system agent that lists the facts of a case's reference answer for its keys check | `kind: extractor` |
+| Source coverage | The system agent that says which of a dataset's keys none of an agent's sources holds | `kind: coverage` |
 | Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
 | Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
 
@@ -149,6 +151,7 @@ in [Capabilities](capabilities.md).
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| External ACP agent | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |
@@ -161,6 +164,7 @@ in [Capabilities](capabilities.md).
 | Memory | `memory_files` |
 | Mirage (virtual terminal) | `mirage` |
 | Planning | `planning` |
+| Projects | `projects` |
 | Work while tools run | `background_tools` |
 | Background topics | `background_tasks` |
 | Watch a command | `monitor` |

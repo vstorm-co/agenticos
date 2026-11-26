@@ -19,7 +19,8 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize(
-    "platform", ["mattermost", "slack", "telegram", "discord", "imessage", "teams", "sms", "email"]
+    "platform",
+    ["mattermost", "slack", "telegram", "discord", "imessage", "matrix", "teams", "sms", "email"],
 )
 async def test_new_binding_defaults_match_actual_platform_actions(platform: str) -> None:
     from app.db.models.agent_exposure import ExposureSurface
@@ -27,7 +28,7 @@ async def test_new_binding_defaults_match_actual_platform_actions(platform: str)
 
     offered = {tool.id for tool in await _lookups_for(ExposureSurface(platform))}
     assert ("react_to_chat_message" in offered) == (
-        platform in {"mattermost", "slack", "telegram", "discord", "imessage"}
+        platform in {"mattermost", "slack", "telegram", "discord", "imessage", "matrix"}
     )
     assert platform_actions(platform) - {"list_chat_connections"} <= offered
 

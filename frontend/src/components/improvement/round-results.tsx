@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -7,6 +9,7 @@ import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
+import { CriteriaTable, GAINS, movedCriteria, rowsOf } from "./criteria";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -46,6 +49,7 @@ export function RoundResults({
           noise={session.measurement_noise}
         />
       )}
+      <CriteriaTable criteria={rowsOf(round)} />
       <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
         {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (
@@ -174,11 +178,7 @@ function MeasuredResult({
       )}
       {comparison && <AnswerCost comparison={comparison} />}
       {comparison && !comparable && (
-        <IncomparableResult
-          agentId={run.agent_id}
-          runId={runId}
-          reason={comparison.invalid_reason}
-        />
+        <IncomparableResult agentId={run.agent_id} runId={runId} comparison={comparison} />
       )}
       {comparison &&
         comparable &&
@@ -188,6 +188,7 @@ function MeasuredResult({
             runId={runId}
             agentId={run.agent_id}
             flips={comparison.cases.filter((c) => c.flip === "regression" || c.flip === "fixed")}
+            baselineRunId={comparison.baseline.run_id}
             baselineId={comparison.baseline.arm_id}
             candidateId={comparison.candidate.arm_id}
             attributions={attributions}
@@ -388,14 +389,20 @@ export function AttemptRow({
   session,
   round,
   extra,
+  initiallyOpen = false,
 }: {
+  initiallyOpen?: boolean;
   session: Improvement;
   round: ImprovementIteration;
   extra?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   return (
-    <details className="rounded-xl border" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <NativeDisclosure
+      className="bg-card rounded-xl border"
+      open={initiallyOpen}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">
         <AttemptSummary session={session} round={round} />
       </summary>
@@ -404,7 +411,7 @@ export function AttemptRow({
           <RoundResults session={session} round={round} extra={extra} />
         </div>
       )}
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -412,9 +419,12 @@ export function AttemptRow({
 export function AttemptSummary({
   session,
   round,
+  verdictId,
 }: {
   session: Improvement;
   round: ImprovementIteration;
+  /** Set on the verdict, for a control named by it. */
+  verdictId?: string;
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
@@ -424,16 +434,18 @@ export function AttemptSummary({
   const heldOut = detail?.held_out;
   const verdict =
     round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
+  const moved = movedCriteria(round);
   return (
     <>
       <span className="font-medium">
         <RoundTitle session={session} round={round} />
       </span>
       <StateBadge
+        id={verdictId}
         tone={
-          verdict === "better"
+          verdict === "better" || verdict === "criteria_better"
             ? "good"
-            : verdict === "worse"
+            : verdict === "worse" || verdict === "criteria_worse"
               ? "bad"
               : verdict === "regression"
                 ? "warn"
@@ -460,8 +472,18 @@ export function AttemptSummary({
           })}
         </span>
       )}
+      {moved.better.length > 0 && (
+        <span className="text-success-ink">
+          {t("attempt.criteriaBetter", { count: moved.better.length })}
+        </span>
+      )}
+      {moved.worse.length > 0 && (
+        <span className="text-destructive-ink">
+          {t("attempt.criteriaWorse", { count: moved.worse.length })}
+        </span>
+      )}
       {round.id === session.best_iteration_id &&
-        (round.verdict === "better" ? (
+        (GAINS.includes(round.verdict) ? (
           <StateBadge tone="good">{t("attempt.best")}</StateBadge>
         ) : (
           personChose(session) && <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>

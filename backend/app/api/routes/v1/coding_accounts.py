@@ -14,6 +14,7 @@ from app.schemas.coding_account import (
     CodingAccountRead,
     CodingAccountUpdate,
 )
+from app.schemas.secret import OpenAICodexDevicePoll, OpenAICodexDeviceSignIn
 from app.services.coding_accounts import account_owner
 
 router = APIRouter()
@@ -38,6 +39,26 @@ async def start_codex(ctx: Auth, service: OpenAICodexSvc) -> Any:
     return {"authorization_url": await service.start_sign_in(ctx)}
 
 
+@router.post("/codex/device", response_model=OpenAICodexDeviceSignIn)
+async def start_codex_device(ctx: Auth, service: OpenAICodexSvc) -> Any:
+    """Start a caller-bound ChatGPT device sign-in; nothing is pasted back."""
+    account_owner(ctx)
+    started = await service.start_device_sign_in(ctx)
+    return OpenAICodexDeviceSignIn(
+        state=started.state,
+        user_code=started.user_code,
+        verification_url=started.verification_url,
+        interval_seconds=started.interval_seconds,
+    )
+
+
+@router.post("/codex/device/{state}", response_model=OpenAICodexDevicePoll)
+async def poll_codex_device(state: str, ctx: Auth, service: OpenAICodexSvc) -> Any:
+    """Whether ChatGPT approved your device code."""
+    account_owner(ctx)
+    return OpenAICodexDevicePoll(authorized=await service.poll_device_sign_in(ctx, state))
+
+
 @router.post(
     "/codex/complete", response_model=CodingAccountRead, status_code=status.HTTP_201_CREATED
 )
@@ -49,7 +70,11 @@ async def complete_codex(
 ) -> Any:
     """Store the new ChatGPT grant under the caller's own vault scope."""
     account_owner(ctx)
-    secret = await oauth.finish_personal_sign_in(ctx, data.callback_url.get_secret_value())
+    secret = await oauth.finish_personal_sign_in(
+        ctx,
+        data.callback_url.get_secret_value() if data.callback_url is not None else None,
+        data.device_state,
+    )
     return await service.save(
         ctx, harness="codex", label=data.label, secret=secret, enabled=data.enabled
     )

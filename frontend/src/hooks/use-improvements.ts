@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { livePolling } from "@/lib/live-polling";
 import type { Hunk } from "@/types/authoring";
 import type { EvalRun } from "@/types/eval-runs";
 import {
@@ -16,6 +17,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
+  ImprovementStopReceipt,
   ImprovementSkills,
   ImprovementAwaiting,
   ImprovementEstimate,
@@ -52,10 +54,12 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
     queryKey: qk.improvements.agent(agentId),
     queryFn: () => apiClient.get<Improvement[]>(base),
     enabled,
-    refetchInterval: (query) =>
-      query.state.data?.some((r) => ["queued", "running", "ready", "accepted"].includes(r.status))
-        ? IMPROVEMENT_FALLBACK_MS
-        : false,
+    ...livePolling(
+      IMPROVEMENT_FALLBACK_MS,
+      (sessions: Improvement[] | undefined) =>
+        sessions?.some((r) => ["queued", "running", "ready", "accepted"].includes(r.status)) ??
+        false,
+    ),
   });
   const estimate = useMutation({
     mutationFn: (body: ImprovementTarget) =>
@@ -119,11 +123,12 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
   const query = useQuery({
     queryKey: qk.improvements.detail(keyOf(subject), runId),
     queryFn: () => apiClient.get<Improvement>(base),
-    refetchInterval: (current) =>
-      current.state.data &&
-      ["queued", "running", "ready", "accepted"].includes(current.state.data.status)
-        ? IMPROVEMENT_FALLBACK_MS
-        : false,
+    ...livePolling(
+      IMPROVEMENT_FALLBACK_MS,
+      (session: Improvement | undefined) =>
+        session !== undefined &&
+        ["queued", "running", "ready", "accepted"].includes(session.status),
+    ),
   });
   const refresh = async () => {
     await Promise.all([
@@ -145,8 +150,15 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
     onSuccess: refresh,
   });
   const cancel = useMutation({
-    mutationFn: () => apiClient.post<Improvement>(`${base}/cancel`, {}),
-    onSuccess: refresh,
+    mutationFn: () => apiClient.post<Improvement | ImprovementStopReceipt>(`${base}/cancel`, {}),
+    onSuccess: async (result) => {
+      if ("agent_id" in result) return refresh();
+      await queryClient.resetQueries({
+        queryKey: qk.improvements.detail(keyOf(subject), runId),
+        exact: true,
+      });
+      await queryClient.invalidateQueries({ queryKey: qk.improvements.all(), refetchType: "none" });
+    },
   });
   const retry = useMutation({
     mutationFn: () => apiClient.post<Improvement>(`${base}/retry`, {}),
@@ -223,6 +235,11 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
       apiClient.put<Improvement>(`${base}/selection`, { hunk_ids: hunkIds }),
     onSuccess: refresh,
   });
+  const chooseVariant = useMutation({
+    mutationFn: (variantId: string) =>
+      apiClient.put<Improvement>(`${base}/search/choice`, { variant_id: variantId }),
+    onSuccess: refresh,
+  });
   const editChange = useMutation({
     mutationFn: ({ hunkId, text }: { hunkId: string; text: string | null }) =>
       apiClient.put<Hunk>(`${base}/changes/${hunkId}`, { edited_text: text }),
@@ -247,6 +264,7 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
   });
   return {
     selectChanges,
+    chooseVariant,
     editChange,
     deferTopic,
     estimateContinuation,
@@ -294,7 +312,7 @@ export function useImprovementEvidence(
         sessionId ? `${root(subject)}/${sessionId}/evidence` : `${root(subject)}/preview`,
         { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
       ),
-    refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
+    ...livePolling<ImprovementEvidence>(IMPROVEMENT_FALLBACK_MS, () => live),
     // A skill's session answers `/evidence` with its problems, which `useSkillProblems`
     // reads; it has no agent evidence for the shared steps to show.
     enabled: typeof subject === "string",
@@ -302,6 +320,7 @@ export function useImprovementEvidence(
   return {
     evidence: query.data,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: query.error,
     refetch: query.refetch,
   };

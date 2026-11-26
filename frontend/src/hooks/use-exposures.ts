@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { DeferredBinding, UsageReporting } from "@/types/channels";
@@ -13,6 +13,18 @@ import type { ChannelObservationConfig } from "@/types/exposures";
 
 const isDeferred = (answer: Exposure | DeferredBinding): answer is DeferredBinding =>
   "request_id" in answer;
+
+/**
+ * Refresh every view of a binding: each agent's bindings and targets, and the
+ * channels listing that names who answers on a bot. A binding is seen from both
+ * sides, so a change made on either page must reach the other.
+ */
+function invalidateBindings(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: qk.exposures.all() }),
+    queryClient.invalidateQueries({ queryKey: qk.channelBots.list() }),
+  ]);
+}
 
 /**
  * Where one agent is available, and where it could be.
@@ -48,6 +60,9 @@ export function useExposures(agentId: string | null) {
     () => queryClient.invalidateQueries({ queryKey: qk.exposures.list(id) }),
     [queryClient, id],
   );
+  // Bind, pause and unbind change what the channels listing shows; the PATCHes
+  // above change nothing it shows, so they keep the narrower key.
+  const invalidateEverywhere = useCallback(() => invalidateBindings(queryClient), [queryClient]);
 
   // A change on a public line may wait for an administrator: the server answers
   // 202 with the request instead of the binding, and nothing is live to re-read.
@@ -64,7 +79,7 @@ export function useExposures(agentId: string | null) {
       }),
     onSuccess: async (answer) => {
       if (isDeferred(answer)) return requested();
-      await invalidate();
+      await invalidateEverywhere();
       toast.success(t("exposureLive", { bot: answer.channel_bot_name }));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -80,7 +95,7 @@ export function useExposures(agentId: string | null) {
       }),
     onSuccess: async (answer) => {
       if (isDeferred(answer)) return requested();
-      await invalidate();
+      await invalidateEverywhere();
       toast.success(
         answer.is_active
           ? t("exposureResumed", { bot: answer.channel_bot_name })
@@ -163,7 +178,7 @@ export function useExposures(agentId: string | null) {
   const revoke = useMutation({
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
-      await invalidate();
+      await invalidateEverywhere();
       toast.success(t("exposureRevoked"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -192,4 +207,54 @@ export function useExposures(agentId: string | null) {
     setObservation,
     revoke,
   };
+}
+
+/**
+ * Bind and unbind agents from the bot's side, on the Channels page.
+ *
+ * The same endpoints as `useExposures`, so the server's `agents:publish` check
+ * on the agent is the only authority. A bind sends the bot alone: the binding
+ * takes the agent's default environment, and the rest is set on the agent's
+ * Availability tab.
+ */
+export function useBotBindings() {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.channels");
+  const queryClient = useQueryClient();
+
+  const bind = useMutation({
+    mutationFn: ({ agentId, botId }: { agentId: string; botId: string; agentSlug: string }) =>
+      apiClient.post<Exposure>(`/agents/${agentId}/exposures`, { channel_bot_id: botId }),
+    onSuccess: async (exposure, { agentSlug }) => {
+      await invalidateBindings(queryClient);
+      toast.success(t("agentBound", { agent: agentSlug, bot: exposure.channel_bot_name }));
+    },
+    onError: async (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      // A conflict means another tab or client bound the bot, so the row the
+      // dialog sits over is stale: show the binding that is really there.
+      if (error instanceof ApiError && error.status === 409) {
+        await queryClient.invalidateQueries({ queryKey: qk.channelBots.list() });
+      }
+    },
+  });
+
+  const unbind = useMutation({
+    mutationFn: ({
+      agentId,
+      exposureId,
+    }: {
+      agentId: string;
+      exposureId: string;
+      agentSlug: string;
+      botName: string;
+    }) => apiClient.delete<void>(`/agents/${agentId}/exposures/${exposureId}`),
+    onSuccess: async (_data, { agentSlug, botName }) => {
+      await invalidateBindings(queryClient);
+      toast.success(t("agentUnbound", { agent: agentSlug, bot: botName }));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return { bind, unbind };
 }

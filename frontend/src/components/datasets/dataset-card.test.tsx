@@ -8,6 +8,7 @@ import { DatasetCard } from "./dataset-card";
 
 const DATASET: Dataset = {
   id: "d1",
+  import_max_bytes: 10_485_760,
   name: "refunds",
   description: "Questions about returns",
   visibility: "private",
@@ -52,7 +53,7 @@ describe("DatasetCard", () => {
     expect(screen.getByText("12 cases")).toBeInTheDocument();
     expect(screen.getByText("Questions about returns")).toBeInTheDocument();
     expect(screen.getByText("Private")).toBeInTheDocument();
-    expect(screen.getByText(/^edited /)).toBeInTheDocument();
+    expect(screen.queryByText(/^edited /)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Delete refunds" }));
     expect(onDelete).toHaveBeenCalled();
   });

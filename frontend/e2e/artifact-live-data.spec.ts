@@ -386,7 +386,17 @@ test.describe("artifact live data", () => {
     await ok(created, "creating the agent");
     const agentId = ((await created.json()) as { id: string }).id;
     fixture.agentId = agentId;
-    await ok(await request.put(`/api/agents/${agentId}/draft`, { data: { spec } }), "the draft");
+    await ok(
+      await request.put(`/api/agents/${agentId}/draft`, {
+        data: {
+          spec,
+          expected_revision: (
+            await json<{ draft_revision: string }>(request, `/api/agents/${agentId}`)
+          ).draft_revision,
+        },
+      }),
+      "the draft",
+    );
     await ok(await request.post(`/api/agents/${agentId}/publish`, { data: {} }), "publishing");
 
     // Two runs, one version each. The signed-in owner is the person behind them,

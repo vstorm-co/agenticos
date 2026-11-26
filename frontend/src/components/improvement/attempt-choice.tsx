@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -8,6 +10,7 @@ import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { useReadOnly } from "./read-only";
+import { GAINS, movedCriteria } from "./criteria";
 import { AttemptSummary } from "./round-results";
 
 /**
@@ -22,6 +25,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
   const readOnly = useReadOnly();
   const [choice, setChoice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ids = useId();
   const measured = session.iterations.filter(
     (round) => round.verdict !== null && round.number <= session.max_iterations,
   );
@@ -55,7 +59,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
     }
   }
   const pending = picked && picked.id !== kept ? picked : undefined;
-  const risky = pending !== undefined && pending.verdict !== "better";
+  const risky = pending !== undefined && !GAINS.includes(pending.verdict);
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{t("title")}</legend>
@@ -73,10 +77,17 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
               setError(null);
               setChoice(round.id);
             }}
-            aria-label={t("option", { number: round.number })}
-            className="accent-foreground"
+            aria-labelledby={`${ids}-${round.id}-keep ${ids}-${round.id}-verdict`}
+            className={NATIVE_CHOICE}
           />
-          <AttemptSummary session={session} round={round} />
+          <span id={`${ids}-${round.id}-keep`} className="sr-only">
+            {t("option", { number: round.number })}
+          </span>
+          <AttemptSummary
+            session={session}
+            round={round}
+            verdictId={`${ids}-${round.id}-verdict`}
+          />
         </label>
       ))}
       {pending && (
@@ -100,15 +111,21 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
   );
 }
 
-/** What keeping an attempt that was not better costs: the questions it broke, or no gain. */
+/**
+ * What keeping an attempt that was not better costs: the questions it broke, the
+ * criteria it made worse, or no gain.
+ */
 export function NotBetterWarning({ round, agent }: { round: ImprovementIteration; agent: string }) {
   const t = useTranslations("improvement.keep");
   const broken = Number(round.verdict_detail?.broken ?? 0);
+  const worse = movedCriteria(round).worse.length;
   return (
     <p role="status" className="text-warning-ink text-sm">
       {round.verdict === "regression" && broken > 0
         ? t("broke", { number: round.number, broken, agent })
-        : t("notBetter", { number: round.number, agent })}
+        : round.verdict === "criteria_worse" && worse > 0
+          ? t("criteriaWorse", { number: round.number, agent, count: worse })
+          : t("notBetter", { number: round.number, agent })}
     </p>
   );
 }

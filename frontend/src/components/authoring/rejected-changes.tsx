@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -35,7 +37,7 @@ export function RejectedChanges({
   const total = rejected.length + more;
   const decide = onCreateSkill ? rejected.filter(creatable).length : 0;
   return (
-    <details>
+    <NativeDisclosure>
       <summary className="cursor-pointer text-sm font-medium">
         {decide === 0
           ? t("title", { count: total })
@@ -63,7 +65,7 @@ export function RejectedChanges({
       {more > 0 && (
         <p className="text-muted-foreground pt-2 text-xs">{t("more", { count: more })}</p>
       )}
-    </details>
+    </NativeDisclosure>
   );
 }
 

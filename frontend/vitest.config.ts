@@ -57,8 +57,19 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/portability/**/*.{ts,tsx}",
+        "src/components/workflows/bundle-import-dialog.tsx",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/settings/service-card.tsx",
+        "src/components/settings/console-experience-provider.tsx",
+        "src/components/settings/chat-cost-controls.tsx",
+        "src/components/settings/console-navigation-controls.tsx",
+        "src/components/settings/console-catalog-controls.tsx",
+        "src/components/settings/console-notice-controls.tsx",
+        "src/components/teams/org-console-navigation.tsx",
+        "src/components/teams/org-console-dashboard.tsx",
+        "src/components/ui/disclosure-content.tsx",
         "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
         "src/components/triggers/action-selection.tsx",
@@ -83,6 +94,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/event-sources.tsx",
         "src/components/dashboard/widgets/background-tasks.tsx",
         // What the nightly look proposed (#2301).
         "src/components/dashboard/widgets/authoring-suggestions.tsx",
@@ -190,6 +202,7 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-appearance.tsx",
         "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
@@ -211,6 +224,7 @@ export default defineConfig({
         "src/components/inbox/approvals-waiting.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-files.tsx",
+        "src/components/chat/turn-file-links.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",
         "src/components/chat/skill-shortcut.tsx",
@@ -233,6 +247,8 @@ export default defineConfig({
         "src/components/chat/browser-comment.tsx",
         "src/components/chat/browser-panel.tsx",
         "src/components/chat/browser-panel-frame.tsx",
+        "src/components/chat/chat-side-panel.tsx",
+        "src/components/chat/turn-produced-outputs.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",
         "src/components/chat/browser-navigation.tsx",
@@ -310,6 +326,7 @@ export default defineConfig({
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
         // the gate and is not in it yet; this file is new, so it starts inside.
         "src/components/auth/directory-login-form.tsx",
+        "src/components/auth/provider-sign-in.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
@@ -354,6 +371,7 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        "src/components/teams/org-text-to-speech-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
         // The link that lands on the AI assistance switch, new and so inside the gate.
@@ -366,6 +384,7 @@ export default defineConfig({
         "src/components/vault/speech-key-field.tsx",
         // Keys and connected accounts share the vault inventory and its coverage gate.
         "src/components/vault/vault-table.tsx",
+        "src/components/onboarding/start-subscriptions.tsx",
       ],
       exclude: [
         "node_modules",

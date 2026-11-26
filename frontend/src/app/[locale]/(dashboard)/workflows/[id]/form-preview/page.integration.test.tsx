@@ -3,9 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DraftFormPreview from "./page";
-const state = vi.hoisted(() => ({ canEdit: true, mutateAsync: vi.fn() }));
+const state = vi.hoisted(() => ({
+  canEdit: true,
+  mutateAsync: vi.fn(),
+  error: false,
+  refetch: vi.fn(),
+}));
 vi.mock("@/hooks", () => ({
   useWorkflow: () => ({
+    error: state.error ? new Error("Unavailable") : null,
+    refetch: state.refetch,
     workflow: {
       can_edit: state.canEdit,
       draft_revision: 1,
@@ -28,6 +35,8 @@ vi.mock("@/hooks", () => ({
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("entry=form1") }));
 beforeEach(() => {
   state.canEdit = true;
+  state.error = false;
+  state.refetch.mockReset();
   state.mutateAsync.mockReset().mockResolvedValue({ id: "run1" });
 });
 async function mount() {
@@ -41,6 +50,13 @@ async function mount() {
   });
 }
 describe("Draft form preview", () => {
+  it("retries a failed saved-draft read without starting a run", async () => {
+    state.error = true;
+    await mount();
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(state.refetch).toHaveBeenCalledOnce();
+    expect(state.mutateAsync).not.toHaveBeenCalled();
+  });
   it("starts the exact saved draft entry with the form's answers", async () => {
     await mount();
     await userEvent.type(screen.getByLabelText("name"), "Ada");

@@ -26,6 +26,17 @@ references, a budget, and who to tell when something happens. It is defined in
 An agent has exactly one *draft* spec, which the Builder edits and saves
 continuously.
 
+Each save checks the draft it started from. If another tab or a server-side
+action changed it, saving pauses and your local edits stay on screen. Copy
+anything you want to keep before choosing **Reload latest draft**. Then
+reapply those edits to the latest version; a stale save cannot overwrite it.
+
+For a published agent with draft changes, choose **More → Discard draft** to
+reset the draft to the latest published version. This discards unpublished
+edits without creating a version or moving any environment. If another edit or
+publish lands before confirmation, the discard is refused. An agent that has
+never been published has no version to reset to.
+
 The spec keeps two rules, and they are what make it useful.
 
 !!! abstract "References, never values"
@@ -71,6 +82,35 @@ The spec keeps two rules, and they are what make it useful.
     importing one leaves the target's existing categories and tags unchanged
     (the file carries none, so it neither clears nor overwrites them), and only a
     clone starts untagged.
+
+## Export and import
+
+In the agent's actions menu, **Export agent** lets you choose linked definitions
+and content. YAML and JSON carry small configurations; ZIP moves Context text
+and Skill files into verified archive assets. **Import agent** on the catalog
+reviews the dependencies before creating a new draft. Choose **Create a copy**,
+**Use an existing resource**, or **Skip** for each dependency. Existing resources
+are never overwritten. Skipping a dependency removes its bindings from the draft.
+
+Copies currently include Context, exact Skill snapshots and forks, model profiles
+and private disabled MCP configurations. Knowledge bases, sandbox connections and
+Vault secrets remain references requiring a destination choice. No secret values,
+OAuth grants, resource sharing or active publication are transferred. URLs with
+opaque parameters and custom transport headers also require destination setup.
+Review instructions and file contents before sharing an export.
+
+Text configuration files are limited to 4 MiB. ZIP uploads are limited to 512 MiB,
+2 GiB expanded, with a 4 MiB manifest and a 16 MiB limit per text asset. ZIP
+preparation and reviewed application run as durable worker jobs. Uploads, private
+archives and transfer journals expire after 24 hours; a worker removes them.
+
+The console restores the same transfer after a reload for its signed-in owner
+and organization. Select the original ZIP again to restart an interrupted upload;
+the declared upload size is kept separately from progress. Discarding an idle
+transfer immediately frees its open-transfer slot and schedules its files for
+expiry cleanup. Queued or running work must finish before it can be discarded;
+already imported resources remain available.
+Imports never publish, run an agent or start paid knowledge indexing.
 
 ## Version
 

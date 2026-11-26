@@ -1,10 +1,10 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   CheckCircle2,
   ChevronRight,
   Circle,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import type { FigureTone } from "@/components/ui/figure";
+import { DeltaChip, FigureCard, type FigureTone } from "@/components/ui/figure";
 import { cn } from "@/lib/utils";
 
 export interface Tile {
@@ -29,20 +29,45 @@ export interface Tile {
   href?: string;
 }
 
-const TONE_INK: Record<FigureTone, string> = {
-  indigo: "var(--series-1)",
-  teal: "var(--series-2)",
-  amber: "var(--series-3)",
-  rose: "var(--series-4)",
-  violet: "var(--series-5)",
-};
-
 /**
- * A row of figures a step leads with, stacked on the narrowest phones. Drawn like the
- * dashboard's figures, except that a label wraps: a phone tile is too narrow for
- * "Answers rated down" on one line, and a cut label is a number nobody can name.
+ * A row of figures a step leads with, stacked on the narrowest phones: the dashboard's
+ * `FigureCard`, with a label that wraps, and a link to where a figure is listed in full.
  */
-export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
+export function Tiles({
+  tiles,
+  label,
+  compact = false,
+}: {
+  tiles: Tile[];
+  label?: string;
+  compact?: boolean;
+}) {
+  if (compact)
+    return (
+      <dl
+        role="group"
+        aria-label={label}
+        className="grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-8"
+      >
+        {tiles.map((tile) => (
+          <div key={tile.label} className="min-w-0 space-y-1">
+            <dt className="text-muted-foreground text-xs">{tile.label}</dt>
+            <dd className="text-xl font-medium tabular-nums">
+              {tile.href ? (
+                <a className="underline underline-offset-4" href={tile.href}>
+                  {tile.value}
+                </a>
+              ) : (
+                tile.value
+              )}
+            </dd>
+            {tile.caption && (
+              <dd className="text-muted-foreground max-w-64 text-xs">{tile.caption}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    );
   return (
     <div
       role="group"
@@ -52,36 +77,27 @@ export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
         tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 && "sm:grid-cols-3",
       )}
     >
-      {tiles.map(({ label: name, value, unit, caption, tone, icon: Icon, href }) => {
-        const Box = href ? "a" : "div";
-        return (
-          <Box
+      {tiles.map(({ label: name, href, ...figure }) => {
+        const card = (
+          <FigureCard
+            {...figure}
+            label={name}
+            wrapLabel
+            className={cn("h-full min-w-0", href && "hover:bg-muted/50 transition-colors")}
+          />
+        );
+        return href ? (
+          <a
             key={name}
             href={href}
-            className={cn(
-              "bg-card flex min-w-0 flex-col rounded-xl border p-3 sm:p-4",
-              href && "hover:bg-muted/50 focus-visible:ring-ring focus-visible:ring-2",
-            )}
+            className="focus-visible:ring-ring min-w-0 rounded-2xl focus-visible:ring-2 focus-visible:outline-none"
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-muted-foreground flex min-w-0 items-start gap-1.5 text-xs leading-snug tracking-wide uppercase">
-                {tone && (
-                  <span
-                    aria-hidden
-                    className="mt-1 size-2 shrink-0 rounded-full"
-                    style={{ background: TONE_INK[tone] }}
-                  />
-                )}
-                <span className="min-w-0 wrap-anywhere">{name}</span>
-              </p>
-              {Icon && <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />}
-            </div>
-            <p className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-1">
-              <span className="text-2xl font-semibold tracking-tight">{value}</span>
-              {unit && <span className="text-muted-foreground text-xs">{unit}</span>}
-            </p>
-            {caption && <p className="text-muted-foreground mt-1 text-xs">{caption}</p>}
-          </Box>
+            {card}
+          </a>
+        ) : (
+          <div key={name} className="min-w-0">
+            {card}
+          </div>
         );
       })}
     </div>
@@ -116,14 +132,18 @@ export function StateBadge({
   tone,
   children,
   className,
+  id,
 }: {
   tone: Tone;
   children: ReactNode;
   className?: string;
+  /** For a control that names or describes itself by this state. */
+  id?: string;
 }) {
   const Icon = MARK[tone];
   return (
     <span
+      id={id}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
         CHIP[tone],
@@ -241,28 +261,21 @@ export function BeforeAfter({
   tone?: "good" | "bad" | "neutral";
 }) {
   const t = useTranslations("improvement");
-  const locale = useLocale();
   const delta = after - before;
   const reads = tone ?? (delta === 0 ? "neutral" : delta > 0 ? "good" : "bad");
-  const Arrow = delta === 0 ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
   const share = (value: number) => `${(value / Math.max(1, total)) * 100}%`;
   return (
     <figure className="space-y-2 rounded-xl border p-4">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-medium">{title}</span>
-        <span
-          className={cn(
-            "inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums",
-            reads === "neutral"
-              ? "text-muted-foreground"
-              : reads === "good"
-                ? "text-success-ink"
-                : "text-destructive-ink",
-          )}
-        >
-          <Arrow className="size-4" aria-hidden />
-          {new Intl.NumberFormat(locale, { signDisplay: "exceptZero" }).format(delta)}
-        </span>
+        <DeltaChip
+          delta={delta}
+          percent={false}
+          // The chip paints a rise as good or bad; a fall that reads well is a rise that would not.
+          rising={
+            reads === "neutral" ? "neutral" : (reads === "good") === delta > 0 ? "good" : "bad"
+          }
+        />
       </figcaption>
       <div role="img" aria-label={label} className="space-y-1.5">
         {[
@@ -357,7 +370,11 @@ export function Details({
   className,
   onToggle,
   tour,
+  initiallyOpen,
+  row = false,
 }: {
+  row?: boolean;
+  initiallyOpen?: boolean;
   summary: ReactNode;
   children: ReactNode;
   className?: string;
@@ -365,21 +382,27 @@ export function Details({
   tour?: string;
 }) {
   return (
-    <details
-      className={cn("group rounded-xl border", className)}
+    <NativeDisclosure
+      className={cn("group", !row && "rounded-xl border", className)}
       data-tour={tour}
+      open={initiallyOpen}
       onToggle={onToggle && ((event) => onToggle(event.currentTarget.open))}
     >
       {/* The browser's own marker sits on a line of its own above a block summary,
           so the arrow is drawn here, in the same row as what it opens. */}
-      <summary className="hover:bg-muted/50 flex cursor-pointer list-none items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+      <summary
+        className={cn(
+          "hover:bg-muted/50 flex cursor-pointer list-none items-start gap-2 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden",
+          row ? "rounded-lg px-2" : "rounded-xl px-4",
+        )}
+      >
         <ChevronRight
           aria-hidden
           className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90"
         />
         <span className="min-w-0 flex-1">{summary}</span>
       </summary>
-      <div className="space-y-4 px-4 pb-4">{children}</div>
-    </details>
+      <div className={cn("space-y-4 pb-4", row ? "px-2" : "px-4")}>{children}</div>
+    </NativeDisclosure>
   );
 }

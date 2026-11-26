@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,9 @@ import { SkillImprovementPage } from "./skill-improvement-page";
 const state = vi.hoisted(() => ({
   step: null as string | null,
   runsView: true,
+  permissionsLoaded: true,
+  permissionsError: null as Error | null,
+  permissionsRefetch: vi.fn(),
   canEdit: true,
   session: null as unknown,
 }));
@@ -30,7 +33,12 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView, isLoading: false }),
+  usePermissions: () => ({
+    can: () => state.runsView,
+    isLoaded: state.permissionsLoaded,
+    error: state.permissionsError,
+    refetch: state.permissionsRefetch,
+  }),
 }));
 vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),
@@ -42,6 +50,7 @@ vi.mock("@/components/improvement/attempt-changes", () => ({
 }));
 vi.mock("@/components/improvement/tried-changes", () => ({
   TriedChanges: () => <p>tried changes</p>,
+  AcceptedChanges: () => <p>measured changes</p>,
 }));
 vi.mock("./skill-start", () => ({ SkillStart: () => <p>start a session</p> }));
 vi.mock("./check-again", () => ({ CheckAgain: () => <p>check again</p> }));
@@ -97,6 +106,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.step = null;
   state.runsView = true;
+  state.permissionsLoaded = true;
+  state.permissionsError = null;
   state.canEdit = true;
   state.session = skillSession();
   serve();
@@ -107,7 +118,7 @@ describe("SkillImprovementPage", () => {
     state.step = "result";
     mount();
 
-    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(await screen.findByText("Impact on agents")).toBeVisible();
     expect(await screen.findByRole("button", { name: "Details of Support" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Decide what to do" }));
 
@@ -162,6 +173,20 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText(/This session is closed/)).toBeVisible();
   });
 
+  it("names what accepting a skill's session did, not an agent's draft", async () => {
+    state.step = "accept";
+    state.session = skillSession({
+      status: "accepted",
+      outcome: "applied",
+      finished_at: "2026-11-02T11:00:00Z",
+    });
+    mount();
+
+    const line = await screen.findByRole("region", { name: "Session" });
+    expect(within(line).getByRole("status")).toHaveTextContent("Applied");
+    expect(screen.queryByText("Kept as draft")).toBeNull();
+  });
+
   it("opens the start of a new session", async () => {
     mount("new");
     expect(await screen.findByText("start a session")).toBeVisible();
@@ -176,6 +201,28 @@ describe("SkillImprovementPage", () => {
       "href",
       "/skills/k1",
     );
+  });
+
+  it("waits for the permission set before refusing", async () => {
+    state.runsView = false;
+    state.permissionsLoaded = false;
+    mount();
+
+    expect(await screen.findByText("returns-policy")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText(/needs edit access/)).toBeNull();
+  });
+
+  it("says the permission read failed instead of refusing, and reads it again", async () => {
+    state.runsView = false;
+    state.permissionsLoaded = false;
+    state.permissionsError = new Error("permissions unavailable");
+    mount();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("permissions unavailable");
+    expect(screen.queryByText(/needs edit access/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.permissionsRefetch).toHaveBeenCalled();
   });
 
   it("refuses to start a session for a reader who may not edit the skill", async () => {
@@ -193,19 +240,15 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText("Gone")).toBeVisible();
     state.session = skillSession();
     await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
-    expect(await screen.findByText("Line: main")).toBeVisible();
+    expect(await screen.findByText("Impact on agents")).toBeVisible();
   });
 
-  it("marks what an ended session wrote and checked as done, and its end as ended", async () => {
+  it("reads an ended session through compact record tabs without wizard decisions", async () => {
     state.session = skillSession({ status: "rejected", best_iteration_id: null });
     mount();
-
-    expect(await screen.findByRole("button", { name: "Changes" })).toHaveAccessibleDescription(
-      "Done",
-    );
-    expect(screen.getByRole("button", { name: "Accept" })).toHaveAccessibleDescription(
-      "Ended without changes",
-    );
+    expect(await screen.findByRole("tab", { name: "Changes" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
   });
 
   it("leaves a result with nothing to accept to improve further or end", async () => {
@@ -218,7 +261,7 @@ describe("SkillImprovementPage", () => {
     });
     mount();
 
-    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(await screen.findByText("Impact on agents")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
     expect(screen.getByRole("button", { name: END })).toBeVisible();
   });
@@ -239,7 +282,7 @@ describe("SkillImprovementPage", () => {
     state.session = skillSession({ status: "stopped", best_iteration_id: null });
     mount();
 
-    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(await screen.findByText("Impact on agents")).toBeVisible();
     expect(screen.queryByRole("button", { name: END })).toBeNull();
   });
 
@@ -289,7 +332,7 @@ describe("SkillImprovementPage", () => {
     state.session = skillSession({ stale: true });
     mount();
 
-    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(await screen.findByText("Impact on agents")).toBeVisible();
     expect(screen.queryByText("check again")).toBeNull();
   });
 
@@ -299,4 +342,63 @@ describe("SkillImprovementPage", () => {
 
     expect(await screen.findByText(/got a newer version since these changes/)).toBeVisible();
   });
+});
+
+it("allows retrying the initial skill read", async () => {
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("skill unavailable"));
+  mount();
+  expect(await screen.findByText("skill unavailable")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByText("Impact on agents")).toBeVisible();
+});
+
+it("opens a finished skill's attempts without offering another decision", async () => {
+  state.session = skillSession({ status: "accepted", outcome: "applied" });
+  mount();
+  const navigation = await screen.findByRole("tablist");
+  expect(navigation).toBeVisible();
+  expect(
+    navigation.compareDocumentPosition(document.querySelector("[data-step-panel]")!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await userEvent.click(await screen.findByRole("tab", { name: "Attempts" }));
+  expect(screen.getByRole("heading", { name: "Attempts" })).toBeVisible();
+  expect(screen.getByText(/^Attempt 1:/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
+});
+
+it("does not offer an empty attempt tab on a cancelled record", async () => {
+  state.session = skillSession({ status: "cancelled", iterations: [], best_iteration_id: null });
+  mount();
+  expect(await screen.findByRole("tab", { name: "Result" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.queryByRole("tab", { name: "Attempts" })).toBeNull();
+});
+
+it("shows the exact checked skill content even when no suggestion batch was stored", async () => {
+  const session = skillSession({ status: "accepted", outcome: "applied" });
+  for (const round of session.iterations) round.batch_id = null;
+  session.check!.candidate = {
+    description: "Reviewed service policy",
+    content: "Returns are accepted within 30 days.",
+  };
+  state.session = session;
+  mount();
+  expect(await screen.findByText("Skill checked in this session")).toBeVisible();
+  expect(screen.getByText("Returns are accepted within 30 days.")).toBeVisible();
+  expect(screen.getByText("Reviewed service policy")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
+});
+
+it("keeps the skill reachable from a completed result without offering edit actions", async () => {
+  state.session = skillSession({ status: "accepted", outcome: "applied" });
+  state.canEdit = false;
+  mount();
+  expect(await screen.findByRole("link", { name: "Open the skill" })).toHaveAttribute(
+    "href",
+    "/skills/k1",
+  );
+  expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
 });

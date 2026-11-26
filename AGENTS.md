@@ -70,6 +70,8 @@ template-inherited subsystems have different coverage gates, described below.
   `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
   single-use media claims before external effects; unknown acceptance is retained
   for signed callbacks and cleanup, never automatic redial.
+  `PersonalCodingSessionFactory` commits private workspace ownership and initial source
+  before credential-bearing work, and retention or queued teardown in shielded cleanup;
   `ChannelMessageRouter._route_inner` commits admitted channel identity/session/conversation
   state before prompt resumption or independent platform MCP credential creation;
   `VoiceCallStarter.start` commits a call's row and its run before the call
@@ -93,6 +95,11 @@ template-inherited subsystems have different coverage gates, described below.
 - Store credentials through `app/core/vault.py`. Connector sources reference vault
   secret IDs; do not put credentials in a connector's `CONFIG_MODEL` or introduce
   deployment-wide Fernet keys, `CHANNEL_ENCRYPTION_KEY` or `app/core/crypto.py`.
+  Maintainer-approved exception (2026-11-23): CLIProxyAPI subscription accounts
+  retain their native token store, refresh journal and process keys on the
+  `subscription_accounts` volume. Preserve its atomic refresh/recovery contract;
+  do not describe it as Vault-encrypted or extend the exception to other keys.
+  See `docs/design/subscription-native-credentials.md` and `docs/secrets.md`.
 - Organization authority comes from membership and the permission catalog. Do not
   restore `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin`,
   `CurrentSuperuser` or the old `users.role` column.
@@ -251,6 +258,7 @@ retranslated is how a stale translation stops being visible.
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | Built-in Google, Microsoft, Slack and IMAP accounts across tools, workflows, triggers and watches | `docs/integrations.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
+| AI client plugin, lifecycle operations and solution bundles | `docs/howto/operate-with-ai.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
@@ -268,6 +276,7 @@ retranslated is how a stale translation stops being visible.
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
+| Planned project file/execution separation and selectable dependency bundles | `docs/design/project-runtime-and-portability.md` (repo only; implementation status recorded there) |
 | Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
 | Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
@@ -339,6 +348,8 @@ retranslated is how a stale translation stops being visible.
 
 ## Releases
 
+Release cadence follows the [maintainer decision in discussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269): merge reviewed, green PRs independently and prepare one manual combined cut per day. Do not restore a one-release-per-PR requirement. Urgent hotfixes may ship separately through the same checks and production approval.
+
 Versions follow [Semantic Versioning](https://semver.org) from 1.0.0 onwards, except
 that the major stays 1 (below); every release before 1.0.0 was `0.0.N`. CHANGELOG.md
 and `docs/release-notes.md` state that exception to operators. A release is numbered by the largest change it ships,
@@ -367,9 +378,19 @@ judged by someone running a deployment, not by the size of the diff:
   section>`. Never push the tag first: it starts `images.yml` at once, and that
   attaches the release SBOMs only to a release that already exists. Production
   deploys wait for approval (`deploy.yml`).
-- One release per merged change, or one for a train merged together, numbered by
-  the largest change in it. Stacked PRs are released in merge order, each with its
-  own number.
+- Merge separate, reviewed PRs throughout the day. Prepare one manual release cut
+  per day when Unreleased contains changes; do not wait for an earlier PR's
+  release before merging the next ready PR. No scheduled release job is needed.
+  Number the release by the largest change in the train. Stacked PRs may share
+  that release after they merge in dependency order. Urgent hotfixes may ship
+  immediately through the same checks, cut and production approval.
+- Draft PRs run lint and dependency/security checks. Backend/frontend suites,
+  builds, E2E, docs builds and CodeQL start on Ready for review and subsequent
+  pushes. Returning to draft cancels the superseded heavy run. Test locally
+  with focused files while iterating; ready PRs retain every existing gate.
+- Before publishing, require successful CI and CodeQL for the cut merge SHA;
+  reuse is permitted only by the existing checked-source proof. Production
+  approval remains separate from publishing a release.
 - An agent asked to release may pick a PATCH or MINOR number by the table above.
   Never propose 2.0.0 or any later major; a number the maintainer has named is
   the maintainer's decision.

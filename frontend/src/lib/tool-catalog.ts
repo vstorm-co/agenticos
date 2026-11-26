@@ -1069,6 +1069,19 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
   // panel of their own while it works; what it read, ran and changed opens under
   // the step afterwards, because that is what a person checks before trusting it.
+  inspect_acp_agent: {
+    kind: "list",
+    render: "generic",
+    captionKey: "readingAcpModels",
+    displayNameKey: "inspectAcpAgent",
+  },
+  run_acp_agent: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningAcpAgent",
+    displayNameKey: "runAcpAgent",
+    opensWhenDone: true,
+  },
   run_coding_agent: {
     kind: "code",
     render: "coding-agent",
@@ -1139,6 +1152,46 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   end_phone_call: { kind: "write", render: "generic", captionKey: "phoneEnding" },
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
+
+  // Projects return scoped metadata/text, not sandbox command output.
+  search_projects: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "lookingFor", done: "lookedFor" },
+  },
+  select_project_context: {
+    kind: "knowledge",
+    render: "generic",
+    captionKey: "selectingProjectContext",
+    displayNameKey: "selectedProjectContext",
+  },
+  list_project_files: {
+    kind: "list",
+    render: "generic",
+    verbs: { now: "listing", done: "listed" },
+  },
+  read_project_file: {
+    kind: "read",
+    render: "generic",
+    verbs: { now: "reading", done: "read" },
+  },
+  write_project_file: {
+    kind: "write",
+    render: "generic",
+    verbs: { now: "writing", done: "wrote" },
+  },
+  transfer_project_file: {
+    kind: "write",
+    render: "generic",
+    captionKey: "transferringProjectFile",
+    displayNameKey: "transferredProjectFile",
+  },
+  select_execution_target: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "selectingExecutionTarget",
+    displayNameKey: "selectedExecutionTarget",
+  },
 
   // drafts - the card draws in the turn; the step stays a line, since opening it
   // would print the draft's arguments as JSON under the card. Not hidden: a hidden

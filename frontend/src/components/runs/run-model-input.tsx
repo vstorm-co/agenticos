@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileText, Search, Wrench, ListFilter, ChevronRight } from "lucide-react";
@@ -183,12 +185,12 @@ function ToolCatalog({ manifest }: { manifest: RunManifest }) {
         </p>
       </div>
       {policy && (
-        <details className="rounded-lg border px-3 py-2 text-xs">
+        <NativeDisclosure className="rounded-lg border px-3 py-2 text-xs">
           <summary className="cursor-pointer font-medium">{t("inputAlwaysVisible")}</summary>
           <p className="text-muted-foreground mt-2 break-words">
             {exceptions.length ? exceptions.join(", ") : t("inputNoExceptions")}
           </p>
-        </details>
+        </NativeDisclosure>
       )}
       <Input
         aria-label={t("inputToolsSearch")}
@@ -259,7 +261,7 @@ function ToolRow({ tool }: { tool: ManifestTool }) {
     .trim();
   return (
     <li className="px-4 py-3">
-      <details className="group">
+      <NativeDisclosure className="group">
         <summary className="cursor-pointer list-none space-y-1.5 [&::-webkit-details-marker]:hidden">
           <div className="flex items-start justify-between gap-3">
             <ChevronRight
@@ -283,7 +285,7 @@ function ToolRow({ tool }: { tool: ManifestTool }) {
         <pre className="bg-muted/40 max-h-60 overflow-auto rounded p-3 text-xs">
           {JSON.stringify(tool.parameters_json_schema, null, 2)}
         </pre>
-      </details>
+      </NativeDisclosure>
     </li>
   );
 }
@@ -299,7 +301,7 @@ function RequestTools({ manifest }: { manifest: RunManifest }) {
         </p>
       </div>
       {manifest.requests.map((request) => (
-        <details key={request.index} className="rounded-lg border p-3">
+        <NativeDisclosure key={request.index} className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm">
             <span className="font-medium">{t("inputRequest", { index: request.index + 1 })}</span>
             <span className="text-muted-foreground ml-2 text-xs">
@@ -322,7 +324,7 @@ function RequestTools({ manifest }: { manifest: RunManifest }) {
               {request.visible_tool_names?.join(", ") ?? t("inputNoVisibleNames")}
             </p>
           </div>
-        </details>
+        </NativeDisclosure>
       ))}
     </section>
   );

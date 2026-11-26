@@ -94,6 +94,11 @@ class DeviceWorkspace:
         self._routine_scope = routine_scope
 
     @property
+    def owner_id(self) -> UUID:
+        """The authenticated member who owns this native connection."""
+        return self._user_id
+
+    @property
     def whole_computer(self) -> bool:
         """Whether this workspace must never be crawled for automatic attachments."""
         return self._target.computer_grant is not None

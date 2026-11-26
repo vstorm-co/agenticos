@@ -7,6 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 
 from app.api.deps import (
+    Auth,
+    ConsoleExperienceSvc,
     CurrentAppAdmin,
     CurrentSessionId,
     CurrentUser,
@@ -22,7 +24,8 @@ from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
-from app.schemas.user import UserAgentContext, UserLocale, UserRead, UserUpdate
+from app.schemas.console_experience import ConsoleExperienceRead, ConsoleExperienceUpdate
+from app.schemas.user import UserAgentContext, UserLocale, UserPreferences, UserRead, UserUpdate
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
@@ -86,6 +89,35 @@ async def update_current_user(
         except Exception:
             logger.exception("email_change_mail_failed", extra={"user_id": str(updated.id)})
     return updated
+
+
+@router.get(
+    "/me/preferences",
+    response_model=UserPreferences,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def read_current_user_preferences(current_user: CurrentUser) -> Any:
+    """Read my console theme, style and language, without exposing account details."""
+    return current_user
+
+
+@router.patch(
+    "/me/preferences",
+    response_model=UserPreferences,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def update_current_user_preferences(
+    data: UserPreferences,
+    current_user: CurrentUser,
+    user_service: UserSvc,
+) -> Any:
+    """Change my reversible console preferences, as Settings or my agent.
+
+    Only supplied fields change; no caller-selected user ID is accepted. Open
+    consoles synchronize theme/style and in-chat changes apply immediately.
+    """
+    changes = UserUpdate.model_validate(data.model_dump(exclude_unset=True))
+    return await user_service.update(current_user.id, changes)
 
 
 @router.put(
@@ -210,3 +242,29 @@ async def delete_user_by_id(
     """Delete user by ID (admin only). Delegates to `admin_users.delete_user`,
     for the same reason `update_user_by_id` above does."""
     await admin_delete_user(user_id, request, admin, db, user_service, reason=reason)
+
+
+@router.get(
+    "/me/console-experience",
+    response_model=ConsoleExperienceRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def read_console_experience(service: ConsoleExperienceSvc, ctx: Auth) -> Any:
+    """Read chat-home presentation for my active organization membership."""
+    return await service.read(ctx)
+
+
+@router.patch(
+    "/me/console-experience",
+    response_model=ConsoleExperienceRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def update_console_experience(
+    data: ConsoleExperienceUpdate, service: ConsoleExperienceSvc, ctx: Auth
+) -> Any:
+    """Change my active membership's presentation; null preferences restores inheritance.
+
+    Deployment availability remains a ceiling. This changes neither resource
+    permissions nor an agent's instructions, autonomy or approval policy.
+    """
+    return await service.update(ctx, data)

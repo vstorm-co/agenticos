@@ -41,14 +41,19 @@ export function limitText(value: string, locale: string): string {
  * The limit a new improvement session is offered: getting to its first stop, then
  * every attempt it may make, rounded up to a cent. The start is priced only to the
  * first stop, but the limit caps the whole session, so it has to leave room for the
- * steps after it.
+ * steps after it. A search session's total already holds its first search; each
+ * later attempt searches again with the same budget.
  */
 export function sessionLimit(quote: {
   total_usd: string;
   per_round_usd: string;
   max_iterations: number;
+  search_usd?: string;
 }): string {
-  const whole = Number(quote.total_usd) + quote.max_iterations * Number(quote.per_round_usd);
+  const whole =
+    Number(quote.total_usd) +
+    quote.max_iterations * Number(quote.per_round_usd) +
+    (quote.max_iterations - 1) * Number(quote.search_usd ?? 0);
   return String(Math.max(0.01, centsUp(whole)));
 }
 

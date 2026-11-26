@@ -21,6 +21,14 @@ describe("PaginationBar", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("keeps an explicit primary-list footer for zero records", () => {
+    renderBar({ total: 0, showSinglePage: true });
+    expect(screen.getByText("0–0 of 0")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+  });
+
   it("says which slice of the whole it is showing", () => {
     renderBar({ page: 1, pageSize: 50, total: 120 });
 

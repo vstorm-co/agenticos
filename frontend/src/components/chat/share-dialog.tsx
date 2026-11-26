@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Link2, Loader2, Lock, X } from "lucide-react";
+import { ArrowLeft, Globe, Loader2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -25,9 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConversationShares, useMembers } from "@/hooks";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { ShareLinkField } from "@/components/sharing/share-link-field";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useOrgStore } from "@/stores";
 import type { ConversationShare } from "@/types";
@@ -36,6 +36,8 @@ interface ShareDialogProps {
   conversationId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Replace the mobile conversation list inside its existing modal surface. */
+  embedded?: boolean;
 }
 
 type Permission = "view" | "edit";
@@ -100,7 +102,12 @@ export function sharedPerson(
  * person: it has no face, no level to read against a name, and putting it in the
  * same row as one made both harder to read.
  */
-export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogProps) {
+export function ShareDialog({
+  conversationId,
+  open,
+  onOpenChange,
+  embedded = false,
+}: ShareDialogProps) {
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const t = useTranslations("chat");
@@ -119,8 +126,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const { members, error: membersError, fetchMembers } = useMembers(activeOrgId ?? "");
   const [picked, setPicked] = useState<string | null>(null);
   const [permission, setPermission] = useState<Permission>("view");
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const { copy, copied } = useCopyToClipboard();
+  const [generatedLink, setGeneratedLink] = useState<ConversationShare | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -167,21 +173,13 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
         permission: "view",
       });
       if (share?.share_token) {
-        const url = `${window.location.origin}/shared/${share.share_token}`;
-        setShareLink(url);
+        setGeneratedLink(share);
         toast.success(t("linkGenerated"));
       }
     } catch (err) {
       toast.error(getErrorMessage(err, tErrors, t("failedToGenerateLink")));
     } finally {
       setIsGeneratingLink(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    if (shareLink) {
-      await copy(shareLink);
-      toast.success(t("copyLink"));
     }
   };
 
@@ -203,6 +201,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     setRevokingId(share.id);
     try {
       await revokeShare(conversationId, share.id);
+      if (share.id === generatedLink?.id) setGeneratedLink(null);
       toast.success(t("accessRevoked"));
     } catch (err) {
       toast.error(getErrorMessage(err, tErrors, t("failedToRevoke")));
@@ -222,14 +221,198 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     const person = sharedPerson(share, members);
     return person ? [{ share, person }] : [];
   });
-  const linkShare = shares.find((share) => share.share_token);
-  const link =
-    shareLink ??
-    (linkShare?.share_token ? `${window.location.origin}/shared/${linkShare.share_token}` : null);
+  const linkShare = shares.find((share) => share.share_token) ?? generatedLink;
+  const link = linkShare?.share_token
+    ? `${window.location.origin}/shared/${linkShare.share_token}`
+    : null;
+
+  const content = (
+    <div className={cn(DIALOG_BODY, "space-y-5")}>
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="col-span-2 min-w-0 sm:col-span-1 [&>button]:min-h-10 [&>button]:w-full [&>button]:justify-start pointer-coarse:[&>button]:min-h-11">
+            <MemberPicker
+              members={candidates}
+              selected={picked === null ? [] : [picked]}
+              onToggle={(userId) => setPicked((current) => (current === userId ? null : userId))}
+              label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
+              scope={t("shareConversationTitle")}
+              disabled={candidates.length === 0 || isSharing}
+            />
+          </div>
+          <Select
+            value={permission}
+            onValueChange={(v) => setPermission(toPermission(v))}
+            disabled={isSharing}
+          >
+            <SelectTrigger
+              className="h-10 w-full sm:w-28 pointer-coarse:h-11"
+              aria-label={t("accessLevel")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEVELS.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {t(level)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            // The narrowing *is* the guard: the button is disabled with
+            // nobody picked, so a handler that re-checked would hold a
+            // branch nothing can reach.
+            onClick={chosen === undefined ? undefined : () => void handleShare(chosen.user_id)}
+            disabled={isLoading || isSharing || chosen === undefined}
+            className="shrink-0"
+          >
+            {isSharing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {tSharing("share")}
+          </Button>
+        </div>
+        {/* What the level actually permits, because "edit" on a thread is not
+                obvious: it is rename, archive, delete and append. */}
+        <p className="text-muted-foreground text-xs">
+          {permission === "edit" ? t("editMeans") : t("viewMeans")}
+        </p>
+        {/* Said, because the picker is the only way to name somebody: a
+                members request that failed would otherwise leave it empty and
+                disabled with no explanation and nothing to press. */}
+        {membersError !== null && (
+          <p className="text-destructive flex flex-wrap items-center gap-2 text-xs">
+            {t("membersCouldNotBeRead")}
+            <Button variant="ghost" size="sm" onClick={() => fetchMembers()}>
+              {tc("retry")}
+            </Button>
+          </p>
+        )}
+      </div>
+
+      {error != null && (
+        <div role="alert" className="text-destructive space-y-1 text-sm">
+          <p>{error}</p>
+          <Button variant="ghost" size="sm" onClick={() => void fetchShares(conversationId)}>
+            {tc("retry")}
+          </Button>
+        </div>
+      )}
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{tSharing("peopleWithAccess")}</h3>
+        <ul className="divide-border divide-y rounded-xl border">
+          {isLoading && people.length === 0 ? (
+            <li
+              role="status"
+              className="text-muted-foreground flex items-center gap-2 px-3 py-2.5 text-sm"
+            >
+              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+              {tc("loading")}
+            </li>
+          ) : error != null && people.length === 0 ? null : people.length === 0 ? (
+            <li className="text-muted-foreground px-3 py-2.5 text-sm">
+              {tSharing("notSharedWithAnyone")}
+            </li>
+          ) : (
+            people.map(({ share, person }) => (
+              <li key={share.id} className="flex items-center gap-3 px-3 py-2">
+                <MemberIdentity member={person} className="min-w-0 flex-1" />
+                {/* Changed in place: revoking and sharing again was the only
+                        way to turn a reader into an editor, or back. */}
+                <Select
+                  value={share.permission}
+                  onValueChange={(v) => void handleChange(share, toPermission(v))}
+                  disabled={changingId !== null || revokingId !== null}
+                >
+                  <SelectTrigger
+                    className="h-10 w-24 shrink-0 pointer-coarse:h-11"
+                    aria-label={t("accessLevelFor", { name: displayName(person) })}
+                    aria-busy={changingId === share.id}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEVELS.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {t(level)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <IconButton
+                  size="icon"
+                  onClick={() => handleRevoke(share)}
+                  disabled={changingId !== null || revokingId !== null}
+                  className="text-muted-foreground hover:text-destructive size-10 shrink-0 pointer-coarse:size-11"
+                  aria-label={t("revokeAccess")}
+                >
+                  {revokingId === share.id ? <Loader2 className="animate-spin" /> : <X />}
+                </IconButton>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
+        <div className="space-y-3 rounded-xl border p-3">
+          <div className="flex items-start gap-3">
+            <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+              <Globe className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{link ? t("anyoneWithLink") : t("restricted")}</p>
+              {!link && <p className="text-muted-foreground mt-1 text-xs">{t("restrictedHint")}</p>}
+            </div>
+          </div>
+          {link && linkShare ? (
+            <>
+              <ShareLinkField
+                label={tSharing("generalAccess")}
+                url={link}
+                copyLabel={t("copyShareLink")}
+              />
+              <Button
+                variant="outline"
+                className="h-10 pointer-coarse:h-11"
+                onClick={() => void handleRevoke(linkShare)}
+                disabled={changingId !== null || revokingId !== null}
+              >
+                {t("revokeAccess")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              className="h-10 pointer-coarse:h-11"
+              loading={isGeneratingLink}
+              disabled={isLoading}
+              onClick={handleGenerateLink}
+            >
+              {t("generateShareLink")}
+            </Button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+  if (embedded)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+        <div className="shrink-0 space-y-2">
+          <Button autoFocus variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <ArrowLeft className="size-4" aria-hidden />
+            {tc("back")}
+          </Button>
+          <h3 className="text-base font-semibold">{t("shareConversationTitle")}</h3>
+          <p className="text-muted-foreground text-sm">{t("shareDescription")}</p>
+        </div>
+        {content}
+      </div>
+    );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+      <DialogContent mobilePresentation="sheet" className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("shareConversationTitle")}</DialogTitle>
           <DialogDescription>{t("shareDescription")}</DialogDescription>
@@ -239,179 +422,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             people already know: add somebody, the people with access, and the
             general access a link gives - the same three parts the agent's
             Share panel has. */}
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <div className="col-span-2 min-w-0 sm:col-span-1 [&>button]:w-full [&>button]:justify-start">
-                <MemberPicker
-                  members={candidates}
-                  selected={picked === null ? [] : [picked]}
-                  onToggle={(userId) =>
-                    setPicked((current) => (current === userId ? null : userId))
-                  }
-                  label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
-                  scope={t("shareConversationTitle")}
-                  disabled={candidates.length === 0}
-                />
-              </div>
-              <Select value={permission} onValueChange={(v) => setPermission(toPermission(v))}>
-                <SelectTrigger className="h-9 w-full sm:w-28" aria-label={t("accessLevel")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LEVELS.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {t(level)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                // The narrowing *is* the guard: the button is disabled with
-                // nobody picked, so a handler that re-checked would hold a
-                // branch nothing can reach.
-                onClick={chosen === undefined ? undefined : () => void handleShare(chosen.user_id)}
-                disabled={isLoading || isSharing || chosen === undefined}
-                className="shrink-0"
-              >
-                {isSharing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                {tSharing("share")}
-              </Button>
-            </div>
-            {/* What the level actually permits, because "edit" on a thread is not
-                obvious: it is rename, archive, delete and append. */}
-            <p className="text-muted-foreground text-xs">
-              {permission === "edit" ? t("editMeans") : t("viewMeans")}
-            </p>
-            {/* Said, because the picker is the only way to name somebody: a
-                members request that failed would otherwise leave it empty and
-                disabled with no explanation and nothing to press. */}
-            {membersError !== null && (
-              <p className="text-destructive flex flex-wrap items-center gap-2 text-xs">
-                {t("membersCouldNotBeRead")}
-                <Button variant="ghost" size="sm" onClick={() => fetchMembers()}>
-                  {tc("retry")}
-                </Button>
-              </p>
-            )}
-          </div>
-
-          {error != null && (
-            <div role="alert" className="text-destructive space-y-1 text-sm">
-              <p>{error}</p>
-              <Button variant="ghost" size="sm" onClick={() => void fetchShares(conversationId)}>
-                {tc("retry")}
-              </Button>
-            </div>
-          )}
-          <section className="space-y-2">
-            <h3 className="text-sm font-medium">{tSharing("peopleWithAccess")}</h3>
-            <ul className="divide-border divide-y rounded-xl border">
-              {isLoading && people.length === 0 ? (
-                <li
-                  role="status"
-                  className="text-muted-foreground flex items-center gap-2 px-3 py-2.5 text-sm"
-                >
-                  <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-                  {tc("loading")}
-                </li>
-              ) : error != null && people.length === 0 ? null : people.length === 0 ? (
-                <li className="text-muted-foreground px-3 py-2.5 text-sm">
-                  {tSharing("notSharedWithAnyone")}
-                </li>
-              ) : (
-                people.map(({ share, person }) => (
-                  <li key={share.id} className="flex items-center gap-3 px-3 py-2">
-                    <MemberIdentity member={person} className="min-w-0 flex-1" />
-                    {/* Changed in place: revoking and sharing again was the only
-                        way to turn a reader into an editor, or back. */}
-                    <Select
-                      value={share.permission}
-                      onValueChange={(v) => void handleChange(share, toPermission(v))}
-                      disabled={changingId !== null || revokingId !== null}
-                    >
-                      <SelectTrigger
-                        className="h-8 w-24 shrink-0"
-                        aria-label={t("accessLevelFor", { name: displayName(person) })}
-                        aria-busy={changingId === share.id}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LEVELS.map((level) => (
-                          <SelectItem key={level} value={level}>
-                            {t(level)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <IconButton
-                      size="icon"
-                      onClick={() => handleRevoke(share)}
-                      disabled={changingId !== null || revokingId !== null}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
-                      aria-label={t("revokeAccess")}
-                    >
-                      {revokingId === share.id ? <Loader2 className="animate-spin" /> : <X />}
-                    </IconButton>
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 sm:flex sm:items-center">
-              <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
-                {link === null ? (
-                  <Lock className="h-4 w-4" aria-hidden />
-                ) : (
-                  <Link2 className="h-4 w-4" aria-hidden />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {link === null ? t("restricted") : t("anyoneWithLink")}
-                </p>
-                {/* A link is read-only whatever the level above says. */}
-                <p className={cn("text-muted-foreground text-xs", link !== null && "truncate")}>
-                  {link === null ? t("restrictedHint") : copied ? t("copied") : link}
-                </p>
-              </div>
-              {link === null ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateLink}
-                  disabled={isLoading || isGeneratingLink}
-                  className="col-start-2 justify-self-start sm:shrink-0"
-                >
-                  {isGeneratingLink && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
-                  {t("generateShareLink")}
-                </Button>
-              ) : (
-                <div className="col-start-2 flex items-center gap-1 sm:shrink-0">
-                  <Button variant="outline" size="sm" onClick={handleCopyLink}>
-                    <Copy className="h-3.5 w-3.5" aria-hidden />
-                    {t("copyShareLink")}
-                  </Button>
-                  {linkShare !== undefined && (
-                    <IconButton
-                      size="icon"
-                      onClick={() => handleRevoke(linkShare)}
-                      disabled={changingId !== null || revokingId !== null}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8"
-                      aria-label={t("revokeAccess")}
-                    >
-                      <X />
-                    </IconButton>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+        {content}
       </DialogContent>
     </Dialog>
   );

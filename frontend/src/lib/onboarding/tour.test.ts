@@ -52,6 +52,7 @@ const BUILDER_STEPS = [
   "agent-instructions",
   "agent-starters",
   "agent-model",
+  "agent-model-credentials",
   "agent-voice",
   "agent-identity",
   "agent-toolbox",
@@ -89,6 +90,9 @@ const KB_STEPS = [
 // AI Architect's card, then the list), then across into the roles matrix. None
 // are inTour — orgs is a "?"-only section.
 const ORG_STEPS = [
+  "organization-console-navigation",
+  "organization-console-notices",
+  "organization-chat-costs",
   "org-profile",
   "org-governance",
   "org-proactivity",
@@ -115,6 +119,7 @@ describe("pageKey", () => {
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-python-actions",
       "workflow-input-contract",
     ]);
   });
@@ -283,7 +288,6 @@ describe("stepsForPage", () => {
       "chat-local-coding",
       "chat-coding-settings",
       "chat-coding-revert",
-      "chat-background-tasks",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",
@@ -357,6 +361,10 @@ describe("stepsForPage", () => {
     // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "personal-console-navigation",
+      "personal-console-catalogs",
+      "personal-console-notices",
+      "personal-chat-costs",
       "phone-contact",
       "phone-dial",
       "settings-tabs",
@@ -484,8 +492,9 @@ describe("stepsForPage", () => {
 
   it("chains the two organization routes into one walk from the Workspaces list", () => {
     expect(stepsForPage(ROUTES.ORGS, () => true).map((step) => step.id)).toEqual([
+      ...ORG_STEPS.slice(0, 3),
       "orgs-new",
-      ...ORG_STEPS,
+      ...ORG_STEPS.slice(3),
     ]);
   });
 
@@ -752,6 +761,7 @@ it("describes the start of an improvement on the page that starts one", () => {
   ).toEqual([
     "improvement-start",
     "improvement-quote",
+    "improvement-mode",
     "improvement-question-set",
     "improvement-details",
   ]);
@@ -796,4 +806,39 @@ describe("the channels page's conditional stops", () => {
     expect(ids).not.toContain("channels-binding-requests");
     expect(ids).not.toContain("channels-customers");
   });
+});
+
+it("spotlights binding on the channels page, optional and gated on channels:manage", () => {
+  const steps = TOUR_STEPS.filter((step) => step.page === ROUTES.CHANNELS);
+  const ids = steps.map((step) => step.id);
+  const binding = steps.find((step) => step.id === "channels-binding");
+
+  expect(binding).toMatchObject({
+    target: "channels-binding",
+    permission: Perm.channelsManage,
+    optional: true,
+  });
+  expect(ids.indexOf("channels-binding")).toBe(ids.indexOf("channels-diagnostics") + 1);
+});
+
+it("gives subscription settings their own help instead of hunting for the old profile card", () => {
+  expect(stepsForPage(ROUTES.SETTINGS_SUBSCRIPTIONS, () => true).map((step) => step.id)).toEqual([
+    "personal-subscription-accounts",
+  ]);
+});
+
+it("opens configuration panels for optional help without expanding the required first-run tour", () => {
+  expect(TOUR_STEPS.find((step) => step.id === "personal-console-navigation")).toMatchObject({
+    activate: "personal-console-navigation-open",
+    optional: true,
+  });
+  expect(stepsForPage("/projects/project-1", () => true)).toContainEqual(
+    expect.objectContaining({
+      id: "project-resources",
+      activate: "project-tab-resources",
+      target: "project-resources",
+      optional: true,
+    }),
+  );
+  expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain("project-resources");
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "06143ef3cbd9"
+source_sha: "e4c7761c96ca"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -9,8 +9,8 @@ Un **trigger de evento** dispara un agent cuando pasa algo en otro sitio.
 Hay dos maneras de que eso nos llegue, y cuál usa una fuente es asunto de la
 fuente y no tuyo:
 
-- **Por envío (push).** Un provider hace POST de una carga firmada: **GitHub**,
-  **HubSpot**, **Zendesk**, o cualquier cosa que pueda enviar JSON firmado (la
+- **Por envío (push).** Un provider hace POST de una carga autenticada: **GitHub**,
+  **HubSpot**, **Zendesk**, **Linear** o cualquier cosa que pueda enviar JSON autenticado (la
   fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
   cadencia: los buzones (**Gmail**, **Outlook**), los archivos (**Google Drive**,
@@ -76,6 +76,11 @@ conversación con el agente, así que todo lo que le dice está en un solo lugar
 sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
 en ningún otro sitio.
 
+Cuando una rutina creada en un chat privado de una aplicación de chat abre un chat nuevo
+para cada ejecución (`chat_mode=per_run`), el bot también publica cada respuesta en ese chat (véase
+[Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat)); el estado es
+`pending` hasta que se envía.
+
 Solo se entrega una ejecución completada con respuesta, y una entrega que no puede
 llegar - el chat se borró - deja la ejecución en el registro en lugar de hacerla fallar. Un chat que no es
 del solicitante es un 404, y si alguien distinto del creador cambia adónde va la respuesta, el trigger
@@ -119,9 +124,46 @@ defecto bajo **Needs attention**. Lee esa misma lista de toda la organización,
 así que quien puede ver los agents ve sus rutinas; el resultado y el coste de
 cada fila necesitan `runs:view` y sin ese permiso sencillamente no aparecen.
 
+## Fuentes de eventos reutilizables { #reusable-event-sources }
+
+La administración de **Fuentes de eventos** sigue en `/event-sources` y está enlazada desde los selectores de fuentes de rutinas y workflows. No es un destino predeterminado de la barra lateral; añádelo al personalizar la navegación si lo usas con frecuencia.
+
+Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuentes a las que tienes acceso están activas o pausadas.
+
+Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Una fuente conserva su URL activa, credenciales y configuración del proveedor. Varias rutinas y entradas publicadas de workflows pueden suscribirse a esa URL, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
+
+Las fuentes son **Privadas** de forma predeterminada. **Organización** comparte la fuente según los permisos de la organización. El permiso de lectura permite ver su configuración. El de uso permite escuchar los datos entrantes antes de que los suscriptores apliquen sus filtros, incluso sin una rutina o un workflow. Solo quien inició la escucha puede leer la muestra y debe conservar el permiso de uso. Para vincular la fuente también se necesitan permisos de edición y ejecución sobre el destino. Los workers vuelven a comprobar los permisos antes de ejecutar el trabajo en cola.
+
+Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o **Webhook personalizado** para uno de estos métodos. El registro sigue siendo manual: copia la URL de la fuente en la configuración del proveedor.
+
+| Autenticación personalizada | Configuración |
+| --- | --- |
+| HMAC personalizado | SHA-256, nombre de cabecera, prefijo de firma opcional y codificación hex, base64 o base64url; también está disponible el formato anterior con marca de tiempo |
+| Basic Auth | Nombre de usuario y contraseña |
+| Clave API | Nombre de cabecera, clave secreta y prefijo opcional |
+| Standard Webhooks | Firmas simétricas `v1` sobre ID, marca de tiempo y cuerpo; listas de firmas, tolerancia de cinco minutos y claves de 24–64 bytes codificadas en Base64 |
+
+En el formulario de la fuente, selecciona una clave de Vault visible para la organización o créala allí mismo. La fuente guarda `credentials.vault_secret_id`, no una copia del valor. La autenticación HMAC, por clave API y de proveedor usa `api_key`; Basic Auth entrante usa `webhook_credentials` con nombre de usuario y contraseña. No combines `vault_secret_id` con campos `secret`, `username` o `password` enviados directamente. Vincular la clave exige `secrets:view`; se rechazan secretos personales, de otra organización o de tipo incompatible.
+
+Cada webhook entrante consulta de nuevo el valor actual de Vault. Rota la clave en Vault sin volver a guardar todas las fuentes que la referencian. Una clave eliminada o sin visibilidad para la organización impide la autenticación; la fuente no recurre a una copia anterior. Las credenciales existentes enviadas directamente por API y las generadas automáticamente para fuentes siguen siendo compatibles.
+
+Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Guárdalas en Vault o en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
+
+La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Al cambiar de fuente, la rutina queda en pausa. Su propietario debe revisar la nueva fuente antes de reanudarla.
+
+Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
+
+**Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
+
+### Escuchar en la URL activa { #listen-on-the-live-url }
+
+Desde la fuente o el editor de webhooks, elige **Escuchar evento** y envía un evento autenticado a la URL activa mostrada en un plazo de dos minutos. La escucha recibe el siguiente evento sin interrumpir el envío: **los suscriptores activos siguen ejecutándose**. La captura no inicia otra ejecución. La muestra se conserva durante diez minutos y respeta el límite existente de 64 KB para datos fijados. Un fallo, exceso de tamaño o vencimiento no cambia el procesamiento en vivo.
+
+En el editor de workflows también puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
+
 ## El mecanismo, una vez { #the-mechanism-once }
 
-Un trigger de evento usa dos cosas: una **URL de webhook** y un **secreto
+Un trigger de evento dedicado usa dos cosas: una **URL de webhook** y un **secreto
 de firma**. Un provider hace POST de su carga a la URL y firma la petición; la
 plataforma recalcula la firma y dispara el agent solo si las dos coinciden.
 

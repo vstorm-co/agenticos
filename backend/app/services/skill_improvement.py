@@ -27,7 +27,7 @@ import json
 import logging
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
@@ -41,6 +41,7 @@ from app.agents.capabilities.skills import SkillBodyFile
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
+    AppException,
     AuthenticationError,
     AuthorizationError,
     BadRequestError,
@@ -49,7 +50,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.authoring import (
     AuthoringKind,
     AuthoringRequest,
@@ -138,6 +139,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.dataset import redact_credentials
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -344,6 +346,12 @@ def filtered(
     return kept, dropped
 
 
+def _handed_from(run: SkillImprovementRun) -> UUID | None:
+    """The agent's improvement session that handed this skill over, when one did."""
+    handed = (run.seed or {}).get("improvement_run_id")
+    return None if handed is None else UUID(handed)
+
+
 class SkillImprovementService:
     """Start, follow and take a session on a skill line, a step at a time."""
 
@@ -384,7 +392,9 @@ class SkillImprovementService:
         line = await self._line(ctx, skill_id, fork_id, Perm.SKILLS_EDIT)
         if line.archived:
             raise refused_field("fork_id", "An archived fork cannot be improved")
-        pack = await self._evidence(ctx, line, target.window_days)
+        pack = await self._evidence(
+            ctx, line, target.window_days, handed_from=None if seed is None else target.from_run
+        )
         priced = await self.authoring.estimate_pack(
             ctx, pack, improver_agent_id=target.improver_agent_id
         )
@@ -471,6 +481,7 @@ class SkillImprovementService:
                     if seed is None
                     else {
                         "agent_id": str(seed.agent_id),
+                        "improvement_run_id": str(data.from_run),
                         "run_ids": [str(run_id) for run_id in seed.run_ids],
                         "problems": list(seed.problems),
                         "quotes": list(seed.quotes),
@@ -736,7 +747,9 @@ class SkillImprovementService:
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
-        shown = {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        shown = await self._without_eval_answers(
+            ctx, {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        )
         problems: list[SkillProblemRead] = []
         for item in found:
             if item.get("cause") != "skill":
@@ -746,8 +759,8 @@ class SkillImprovementService:
             )
             problems.append(
                 SkillProblemRead(
-                    title=str(item.get("title", "")),
-                    summary=str(item.get("summary", "")),
+                    title=redact_credentials(str(item.get("title", "")))[0] or "",
+                    summary=redact_credentials(str(item.get("summary", "")))[0] or "",
                     runs=len(item.get("run_ids", [])),
                     agents=[
                         ProblemAgent(id=agent_id, name=agents[agent_id].name, runs=count)
@@ -756,7 +769,10 @@ class SkillImprovementService:
                     ],
                     hidden_agents=sum(1 for agent_id in per_agent if agent_id not in visible),
                     examples=[
-                        SkillProblemExample(run_id=UUID(quote["run_id"]), quote=quote["quote"])
+                        SkillProblemExample(
+                            run_id=UUID(quote["run_id"]),
+                            quote=redact_credentials(quote["quote"])[0] or "",
+                        )
                         for quote in item.get("evidence", [])
                         if UUID(quote["run_id"]) in shown
                     ],
@@ -1265,7 +1281,11 @@ class SkillImprovementService:
         await skill_improvement_repo.update_run(
             self.db,
             run=run,
-            values={"actor_user_id": ctx.user_id, "actor_api_key_id": ctx.api_key_id},
+            values={
+                "actor_user_id": ctx.user_id,
+                "actor_api_key_id": ctx.api_key_id,
+                "error": None,
+            },
         )
         await self._move(run, rules.Transition(Status.RUNNING, stage), actor_user_id=ctx.subject_id)
         return await self._read(ctx, run, line)
@@ -1411,6 +1431,7 @@ class SkillImprovementService:
                     values={
                         "status": AuthoringStatus.FAILED.value,
                         "error": "The improvement session stopped.",
+                        "error_code": "session_stopped",
                         "finished_at": datetime.now(UTC),
                     },
                 )
@@ -1567,10 +1588,37 @@ class SkillImprovementService:
             await self._stop_check(run)
             await self._move(run, moved)
             return
+        try:
+            await self._step(ctx, run, line, stage)
+        except PaymentRequiredError:
+            await self._stop_check(run)
+            await self._move(run, rules.Transition(Status.STOPPED, stage, StopReason.BUDGET))
+        except AppException as refused:
+            await skill_improvement_repo.update_run(
+                self.db, run=run, values={"error": refused.message}
+            )
+            await self._stop_check(run)
+            await self._move(
+                run,
+                rules.Transition(
+                    Status.FAILED,
+                    stage,
+                    StopReason.EVAL if stage == Stage.EVALUATING else StopReason.PROPOSAL,
+                ),
+            )
+
+    async def _step(
+        self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine, stage: Stage | None
+    ) -> None:
+        """Take the session's next step.
+
+        A step's refusals - its helper or the evidence it reads, a spending limit - come
+        from pricing or reading, before the step writes anything, so `advance` records
+        them on the session as they are.
+        """
         if run.purpose != Purpose.IMPROVE.value:
             await self._advance_merge(ctx, run, line, stage)
-            return
-        if stage in (None, Stage.ANALYZING):
+        elif stage in (None, Stage.ANALYZING):
             await self._analyze(ctx, run, line)
         elif stage == Stage.CLASSIFYING:
             await self._classified(run)
@@ -1582,16 +1630,17 @@ class SkillImprovementService:
             await self._judge(run)
 
     async def _analyze(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
-        pack = await self._evidence(ctx, line, run.window_days)
+        pack = await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
         if not pack.runs:
             await self._move(
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.NO_DATA)
             )
             return
-        price = (
-            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
-        ).estimate_usd
-        if not await self._affordable(run, price):
+        estimate = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=run.improver_agent_id
+        )
+        price = estimate.estimate_usd
+        if not estimate.affordable or not await self._affordable(run, price):
             await self._move(
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.BUDGET)
             )
@@ -1665,12 +1714,11 @@ class SkillImprovementService:
             merge = await self._merge(run)
             if merge.conflicts:
                 prompt = MERGE_ASK + self.merges.conflicts_prompt(merge)
-                price = (
-                    await self.authoring.estimate_call(
-                        ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
-                    )
-                ).estimate_usd
-                if await self._affordable(run, price):
+                estimate = await self.authoring.estimate_call(
+                    ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
+                )
+                price = estimate.estimate_usd
+                if estimate.affordable and await self._affordable(run, price):
                     request = await self.authoring.start_for_skill_session(
                         ctx,
                         kind=AuthoringKind.IMPROVE,
@@ -1746,13 +1794,12 @@ class SkillImprovementService:
     async def _propose(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
         iteration = await self._iteration(run)
         if iteration.authoring_request_id is None:
-            pack = await self._evidence(ctx, line, run.window_days)
-            price = (
-                await self.authoring.estimate_pack(
-                    ctx, pack, improver_agent_id=run.improver_agent_id
-                )
-            ).estimate_usd
-            if not await self._affordable(run, price):
+            pack = await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
+            estimate = await self.authoring.estimate_pack(
+                ctx, pack, improver_agent_id=run.improver_agent_id
+            )
+            price = estimate.estimate_usd
+            if not estimate.affordable or not await self._affordable(run, price):
                 await self._move(
                     run, rules.Transition(Status.STOPPED, Stage.PROPOSING, StopReason.BUDGET)
                 )
@@ -1844,7 +1891,9 @@ class SkillImprovementService:
         *,
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
+        chosen = await self._chosen(ctx, iteration)
+        authoring_hunks.refuse_quoted_credentials(chosen)
+        text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
                 "hunk_ids",
@@ -1938,6 +1987,43 @@ class SkillImprovementService:
             self.db, run=run, values={"best_iteration_id": iteration.id}
         )
         await self._move(run, rules.Transition(Status.READY, Stage.JUDGING))
+
+    async def recount_check_cost(self, organization_id: UUID, iteration_id: UUID) -> bool:
+        """Count the judge's gradings in an attempt that counted only its check's answers.
+
+        An attempt's cost was its checks' answers before the judge was counted. One
+        whose cost is still exactly that, for the checks it names now, takes their
+        gradings too; one that also paid for a check a retry replaced cannot be told
+        apart, and is left. True when the cost changed.
+        """
+        iteration = await skill_improvement_repo.get_iteration_by_id(
+            self.db, iteration_id, organization_id=organization_id
+        )
+        if iteration is None:
+            return False
+        await skill_improvement_repo.get_run(
+            self.db, iteration.run_id, organization_id=organization_id, lock=True
+        )
+        iteration = await skill_improvement_repo.get_iteration_by_id(
+            self.db, iteration_id, organization_id=organization_id
+        )
+        if iteration is None or iteration.ended_at is None:
+            return False
+        parts = [
+            await skill_improvement_repo.check_cost_parts(
+                self.db, check_id, organization_id=organization_id
+            )
+            for check_id in (iteration.skill_check_id, iteration.main_alone_check_id)
+            if check_id is not None
+        ]
+        answers = sum((answer for answer, _ in parts), Decimal(0))
+        gradings = sum((graded for _, graded in parts), Decimal(0))
+        if not gradings or iteration.cost_usd != answers:
+            return False
+        await skill_improvement_repo.update_iteration(
+            self.db, iteration=iteration, values={"cost_usd": answers + gradings}
+        )
+        return True
 
     async def _stop_check(self, run: SkillImprovementRun) -> None:
         """Stop the checks of a session that stops while they run, and keep what they cost."""
@@ -2306,7 +2392,7 @@ class SkillImprovementService:
                 message="The session has no step for a person to take now",
                 details={"status": run.status, "stage": run.stage},
             )
-        pack = await self._evidence(ctx, line, run.window_days)
+        pack = await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
         priced = await self.authoring.estimate_pack(
             ctx, pack, improver_agent_id=run.improver_agent_id
         )
@@ -2463,7 +2549,8 @@ class SkillImprovementService:
         return timeline
 
     async def _shown_runs(self, ctx: AuthContext, run_ids: set[UUID]) -> set[UUID]:
-        """The runs a reader may see quoted: those of agents they may view."""
+        """The runs a reader may see quoted: those of agents they may view, less the eval
+        answers a reader of fewer than every dataset may not."""
         owners = await agent_run_repo.agents_of_runs(
             self.db, list(run_ids), organization_id=ctx.organization_id
         )
@@ -2473,7 +2560,21 @@ class SkillImprovementService:
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
-        return {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        return await self._without_eval_answers(
+            ctx, {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        )
+
+    async def _without_eval_answers(self, ctx: AuthContext, run_ids: set[UUID]) -> set[UUID]:
+        """These runs, less the eval answers when the reader may not view every dataset.
+
+        An eval answer quotes a dataset's question, and a run does not record which
+        dataset it answered.
+        """
+        if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
+            return run_ids
+        return run_ids - await agent_run_repo.eval_answers(
+            self.db, list(run_ids), organization_id=ctx.organization_id
+        )
 
     @staticmethod
     def _hunk(hunk: SpecProposalHunk, base: SkillVersion, shown: set[UUID]) -> HunkRead:
@@ -2484,9 +2585,9 @@ class SkillImprovementService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=None,
@@ -2494,13 +2595,13 @@ class SkillImprovementService:
             base_name=None,
             base_description=hunk.base_description,
             new_name=None,
-            new_description=hunk.new_description,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            new_description=redact_credentials(hunk.new_description)[0],
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )
@@ -2512,6 +2613,7 @@ class SkillImprovementService:
             applies=description
             or authoring_hunks.apply_text(base.content, hunk, hunk.new_text) is not None,
             decided_at=hunk.decided_at,
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _at_changes(
@@ -2581,7 +2683,7 @@ class SkillImprovementService:
         self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun
     ) -> EvidencePack:
         """What the session's analysis and proposals read."""
-        return await self._evidence(ctx, line, run.window_days)
+        return await self._evidence(ctx, line, run.window_days, handed_from=_handed_from(run))
 
     async def _line_of(self, skill: Skill, run: SkillImprovementRun) -> SessionLine:
         if run.fork_id is None:
@@ -2600,12 +2702,18 @@ class SkillImprovementService:
         return len(visible), len(agents) - len(visible)
 
     async def _evidence(
-        self, ctx: AuthContext, line: SessionLine, window_days: int
+        self,
+        ctx: AuthContext,
+        line: SessionLine,
+        window_days: int,
+        *,
+        handed_from: UUID | None = None,
     ) -> EvidencePack:
         """The bad answers of the line's agents that loaded a version of this line.
 
         A fork with no version of its own serves its base, a main version, and is read
-        through it.
+        through it. `handed_from` is the agent's improvement session that handed the
+        skill over: the failed training answers it read that used the skill count too.
         """
         versions, _ = await skill_version_repo.list_versions(
             self.db,
@@ -2621,9 +2729,20 @@ class SkillImprovementService:
             reached.agent.id
             for reached in await self.skill_agents.line_agents(line.skill, line.fork_id)
         ]
-        return await self.authoring.evidence.for_skill(
+        pack = await self.authoring.evidence.for_skill(
             ctx, line.skill.id, window_days=window_days, versions=ids, readers=readers
         )
+        if handed_from is None:
+            return pack
+        read = {run.run_id for run in pack.runs}
+        handed = [
+            run
+            for run in await self.authoring.evidence.for_skill_handoff(
+                ctx, line.skill.id, handed_from
+            )
+            if run.run_id not in read
+        ]
+        return replace(pack, runs=[*pack.runs, *handed])
 
     async def _base(self, line: SessionLine) -> SkillVersion:
         latest = line.latest

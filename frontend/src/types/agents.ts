@@ -12,7 +12,15 @@ import type { SecretRequirement } from "./secrets";
 import type { Visibility } from "./sharing";
 
 /** What an agent is for: `agent` for the ones people use, every other kind the platform's own. */
-export type AgentKind = "agent" | "judge" | "drafter" | "generator" | "classifier" | "improver";
+export type AgentKind =
+  | "agent"
+  | "judge"
+  | "drafter"
+  | "generator"
+  | "classifier"
+  | "improver"
+  | "extractor"
+  | "coverage";
 
 /** A kind only the platform runs. */
 export type SystemAgentKind = Exclude<AgentKind, "agent">;
@@ -322,6 +330,8 @@ export interface SpecialistSpec {
  */
 export interface SubagentsConfig {
   inline: SpecialistSpec[];
+  /** Discover current published agents the person running this conversation may use. */
+  allow_any_agent: boolean;
   mode: DelegationMode;
   /** Whether the model may invent a specialist mid-run. Off by default. */
   allow_dynamic: boolean;
@@ -391,6 +401,8 @@ export interface PlatformMcpServerRef {
   account: "platform";
   allowed_tools: string[] | null;
   approval: McpApproval;
+  /** Each tool's own approval, over `approval` - see {@link McpToolApproval}. */
+  tool_approval?: McpToolApproval;
 }
 
 /** One MCP binding: the organization's connection, each person's own, or the platform's. */
@@ -445,11 +457,13 @@ export interface AgentSpec {
   variables?: PromptVariableSpec[];
   /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
+  model_credential_mode?: "organization" | "personal";
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
@@ -612,6 +626,7 @@ export interface Agent {
    * Read off the frozen spec, not the draft; null for a draft agent and when the
    * profile has been deleted. Listing only.
    */
+  personal_model_key?: boolean;
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
@@ -629,6 +644,7 @@ export interface Agent {
   personal_coding_harness?: LocalCodingAgent["harness"] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   created_at?: string;
@@ -642,7 +658,19 @@ export interface Agent {
 }
 
 export interface AgentDetail extends Agent {
+  can_review_shipped_update?: boolean;
   draft_spec: AgentSpec;
+  draft_revision: string;
+}
+
+export interface AgentDraftUpdate {
+  spec: AgentSpec;
+  expected_revision: string;
+}
+
+export interface AgentDraftDiscard {
+  expected_revision: string;
+  expected_version_id: string;
 }
 
 /**

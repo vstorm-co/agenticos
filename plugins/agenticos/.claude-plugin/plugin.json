@@ -1,0 +1,18 @@
+{
+  "name": "agenticos",
+  "description": "Operate an AgenticOS organization from Claude through its MCP server: build and publish agents, diagnose runs and spend, automate with routines and workflows, and manage knowledge, tables and tasks.",
+  "version": "0.3.0",
+  "author": {
+    "name": "AgenticOS"
+  },
+  "homepage": "https://github.com/vstorm-co/agenticos/tree/main/plugins/agenticos",
+  "repository": "https://github.com/vstorm-co/agenticos",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agenticos",
+    "mcp",
+    "agents",
+    "workflows",
+    "automation"
+  ]
+}

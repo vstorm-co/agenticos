@@ -190,10 +190,11 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByRole("radio", { name: "openai default" })).toBeDisabled();
   });
 
-  it("names the model, not just the label somebody typed", () => {
+  it("shows the saved label without a second technical line", () => {
     mount();
 
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeVisible();
+    expect(screen.queryByText("openai · gpt-4.1")).not.toBeInTheDocument();
   });
 
   it("tells an empty organization what is wrong and where a model comes from", () => {
@@ -263,12 +264,11 @@ describe("ModelProfilePicker", () => {
 
   it("keeps the saved models it already has when a later read fails", () => {
     // A refetch that errors over a list already on screen leaves that list
-    // standing: stale rows somebody can still choose from beat a red panel
-    // instead of them.
+    // standing, with the failed refresh visible beside it.
     mount({ allowAdd: true, profilesStatus: "failed" });
 
     expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
-    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.getByText("Models could not be listed")).toBeVisible();
   });
 
   it("moves the agent onto the model that was just created", async () => {
@@ -401,15 +401,6 @@ describe("ModelProfilePicker", () => {
     expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
   });
 
-  it("still names the model where the label does not, on the row that offers it", () => {
-    // The other half of `modelDetail`: a name somebody chose says nothing about what
-    // runs. It is the *list* that carries it now - the line above the form carries
-    // the name, and the form's own fields carry the pair.
-    mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
-
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
-  });
-
   it("names what the agent runs on rather than relying on it reading differently", () => {
     // The strip and the selected row now hold the same string, which is what
     // saying it once costs. The caption is what tells them apart, and it is
@@ -514,3 +505,98 @@ it("labels a required independent model without promising the default model", ()
     "Choose a decision model",
   );
 });
+
+it("offers a keyless chat destination only when the agent uses a personal key", async () => {
+  const changed = vi.fn();
+  const { rerender } = render(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      compact
+    />,
+    { wrapper },
+  );
+  expect(screen.queryByRole("radio", { name: /openai default/ })).toBeNull();
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /openai default/ }));
+  expect(changed).toHaveBeenCalledWith("p1");
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value="p1"
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("No key")).toBeNull();
+});
+
+it.each([false, true])(
+  "refreshes saved model profiles without changing the selection (allowAdd=%s)",
+  async (allowAdd) => {
+    const onChange = vi.fn();
+    render(
+      <ModelProfilePicker
+        profiles={[profile()]}
+        profilesStatus="loaded"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+      />,
+      { wrapper },
+    );
+    if (allowAdd) await userEvent.click(screen.getByText(/Use a saved model/));
+    await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(refetchProfiles).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { allowAdd: false, compact: false },
+  { allowAdd: false, compact: true },
+  { allowAdd: true, compact: false },
+])(
+  "reports refresh failure beside cached profiles without changing selection ($allowAdd, $compact)",
+  async ({ allowAdd, compact }) => {
+    const onChange = vi.fn();
+    const profiles = [profile()];
+    const view = render(
+      <ModelProfilePicker
+        profiles={profiles}
+        profilesStatus="loaded"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+        compact={compact}
+      />,
+      { wrapper },
+    );
+    view.rerender(
+      <ModelProfilePicker
+        profiles={profiles}
+        profilesStatus="failed"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+        compact={compact}
+      />,
+    );
+    expect(screen.getByText("Models could not be listed")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetchProfiles).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  },
+);

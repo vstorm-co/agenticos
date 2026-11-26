@@ -30,11 +30,14 @@ export function parseAsked(toolCall: ToolCall): AskedQuestion[] | null {
     if (typeof question !== "string") return [];
     const key = typeof header === "string" ? header : question;
     const given = answers?.[key];
-    const answer = Array.isArray(given)
-      ? given.map(String)
-      : typeof given === "string" && given.trim() !== ""
-        ? [given.trim()]
-        : null;
+    const answer =
+      answers?.cancelled === true || given === "(skipped)"
+        ? []
+        : Array.isArray(given)
+          ? given.map(String)
+          : typeof given === "string" && given.trim() !== ""
+            ? [given.trim()]
+            : null;
     return [{ header: typeof header === "string" ? header : "", question, answer }];
   });
 }
@@ -60,6 +63,7 @@ function toRecord(result: unknown): Record<string, unknown> | null {
  */
 export function AskedResult({ asked }: { asked: AskedQuestion[] }) {
   const t = useTranslations("chat.tools");
+  const ui = useTranslations("ui");
   return (
     <ol className="space-y-3 py-1">
       {asked.map((item, index) => (
@@ -72,6 +76,8 @@ export function AskedResult({ asked }: { asked: AskedQuestion[] }) {
           <p className="text-foreground text-[13px] font-medium">{item.question}</p>
           {item.answer === null ? (
             <p className="text-muted-foreground text-[13px]">{t("notAnsweredYet")}</p>
+          ) : item.answer.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{ui("skipped")}</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {item.answer.map((label) => (

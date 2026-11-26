@@ -264,7 +264,29 @@ class TestPublishedStarters:
         session.execute = AsyncMock()
 
         assert await agent_repo.published_starters(session, version_ids=[]) == {}
+        assert await agent_repo.published_hidden_starters(session, version_ids=[]) == set()
         session.execute.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_only_published_opt_outs_hide_starters(self):
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import agent as agent_repo
+
+        visible, hidden = uuid4(), uuid4()
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock())
+        session.execute.return_value.scalars.return_value.all.return_value = [hidden]
+        found = await agent_repo.published_hidden_starters(session, version_ids=[visible, hidden])
+
+        assert found == {hidden}
+        query = session.execute.call_args.args[0].compile(dialect=postgresql.dialect())
+        assert {item for item in query.params.values() if isinstance(item, str)} == {
+            "show_starters",
+            "false",
+        }
 
     @pytest.mark.anyio
     async def test_icons_are_validated_from_the_published_version(self) -> None:

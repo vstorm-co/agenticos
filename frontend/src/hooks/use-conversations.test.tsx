@@ -5,7 +5,11 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useConversations, type ConversationQuery } from "./use-conversations";
+import {
+  useConversations,
+  useConversationSearch,
+  type ConversationQuery,
+} from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
@@ -2101,4 +2105,40 @@ it("marks and restores shared unread state without touching access or grant cach
     await result.current.markRead("shared");
   });
   expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
+});
+
+describe("conversation message search", () => {
+  it("combines indexed excerpts with title-only matches without duplicate threads", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/conversations/search?")
+        ? {
+            items: [
+              {
+                conversation_id: "c-1",
+                title: "Notes",
+                updated_at: "2026-07-01T00:00:00Z",
+                hits: 2,
+                snippet: "Visit **Warsaw**",
+              },
+            ],
+          }
+        : { items: [conversation("c-1"), conversation("c-2")], total: 2 },
+    );
+    const { result } = renderHook(() => useConversationSearch(" Warsaw "), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items.map((item) => item.id)).toEqual(["c-1", "c-2"]);
+    expect(result.current.data?.items[0]?.snippet).toBe("Visit **Warsaw**");
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/search?query=Warsaw&limit=40");
+  });
+
+  it("makes no request for whitespace and surfaces a failed message search", async () => {
+    const { result, rerender } = renderHook(({ term }) => useConversationSearch(term), {
+      initialProps: { term: " " },
+      wrapper,
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("search unavailable"));
+    rerender({ term: "Warsaw" });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
 });

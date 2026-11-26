@@ -226,3 +226,27 @@ async def test_a_model_in_use_answers_409_naming_its_agents(client: AsyncClient,
     error = response.json()["error"]
     assert error["code"] == "IN_USE"
     assert error["details"]["agents"] == [{"id": str(agent_id), "name": "Helpdesk"}]
+
+
+async def test_official_chatgpt_model_listing_never_uses_a_global_or_api_key_catalog(
+    client: AsyncClient, owner: None
+) -> None:
+    service = MagicMock(
+        chatgpt_models=AsyncMock(
+            return_value=[CatalogModel(id="account-model", name="Account model")]
+        )
+    )
+    app.dependency_overrides[deps.get_secret_service] = lambda: service
+    response = await client.get(f"{_V1}/providers/openai_chatgpt/models")
+    assert response.status_code == 200 and response.json()["items"] == []
+    service.chatgpt_models.assert_not_awaited()
+    secret_id = uuid.uuid4()
+    response = await client.get(
+        f"{_V1}/providers/openai_chatgpt/models", params={"secret_id": str(secret_id)}
+    )
+    assert response.status_code == 200 and response.json()["source"] == "live"
+    assert response.json()["items"][0]["apis"] == ["responses"]
+    assert service.chatgpt_models.call_args.args[1] == secret_id
+    for params in [{"api": "chat"}, {"base_url": "https://other.example.test"}]:
+        response = await client.get(f"{_V1}/providers/openai_chatgpt/models", params=params)
+        assert response.status_code == 400

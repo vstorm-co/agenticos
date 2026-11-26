@@ -112,6 +112,41 @@ async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
     assert service.set_source_consents.await_args.args[3].review_token == "b" * 64
 
 
+async def test_routine_tool_settings_keep_the_path_and_refuse_a_release():
+    from app.schemas.routine_tools import RoutineCapabilityToolOption, RoutineToolOptions
+
+    trigger_id = uuid4()
+    options = RoutineToolOptions(
+        items=[
+            RoutineCapabilityToolOption(
+                capability_id="sandbox",
+                capability_name="Sandbox",
+                tool_id="execute",
+                name="execute",
+                effect=True,
+                agent="free",
+                setting="off",
+            )
+        ]
+    )
+    service = MagicMock(
+        tool_options=AsyncMock(return_value=options),
+        set_tool_settings=AsyncMock(return_value=options),
+    )
+    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/tools"
+    off = {"capability_id": "sandbox", "tool_id": "execute", "setting": "off"}
+    async with _client(service) as client:
+        listed = await client.get(root)
+        saved = await client.put(root, json={"settings": [off]})
+        released = await client.put(root, json={"settings": [{**off, "setting": "free"}]})
+    assert listed.json()["items"][0]["setting"] == "off"
+    assert saved.status_code == 200
+    assert service.set_tool_settings.await_args.args[1:3] == (_AGENT_ID, trigger_id)
+    assert service.set_tool_settings.await_args.args[3].settings[0].setting == "off"
+    # A routine can only narrow: there is no value that runs a tool freely.
+    assert released.status_code == 422
+
+
 async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     from app.schemas.agent_trigger import TriggerAttemptList, TriggerAttemptRead
 
@@ -143,6 +178,49 @@ async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     assert service.attempts.await_args.kwargs == {"skip": 10, "limit": 10}
 
 
+async def test_readiness_reads_every_routine_of_a_screen_at_once() -> None:
+    from app.schemas.routine_readiness import RoutineBlocker, TriggerReadiness
+
+    trigger_id, run_id = uuid4(), uuid4()
+    service = MagicMock(
+        readiness=AsyncMock(
+            return_value=[
+                TriggerReadiness(
+                    trigger_id=trigger_id,
+                    blockers=[
+                        RoutineBlocker(code="awaiting_approval", severity="blocked", run_id=run_id)
+                    ],
+                )
+            ]
+        )
+    )
+    async with _client(service) as client:
+        response = await client.post(
+            "/api/v1/triggers/readiness", json={"trigger_ids": [str(trigger_id)]}
+        )
+        empty = await client.post("/api/v1/triggers/readiness", json={"trigger_ids": []})
+        too_many = await client.post(
+            "/api/v1/triggers/readiness", json={"trigger_ids": [str(uuid4()) for _ in range(101)]}
+        )
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {
+            "trigger_id": str(trigger_id),
+            "blockers": [
+                {
+                    "code": "awaiting_approval",
+                    "severity": "blocked",
+                    "run_id": str(run_id),
+                    "count": None,
+                }
+            ],
+        }
+    ]
+    assert service.readiness.await_args.args[1] == [trigger_id]
+    assert (empty.status_code, too_many.status_code) == (422, 422)
+    service.readiness.assert_awaited_once()
+
+
 async def test_activation_status_delegates_the_exact_receipt() -> None:
     from app.schemas.agent_trigger import TriggerActivationRead
 
@@ -163,3 +241,46 @@ async def test_activation_status_delegates_the_exact_receipt() -> None:
         activation_id,
         job_id,
     )
+
+
+async def test_filtered_event_endpoint_returns_only_the_typed_snapshot() -> None:
+    from app.schemas.agent_trigger import GithubFilteredEvent, TriggerFilteredEventRead
+
+    trigger_id = uuid4()
+    service = MagicMock(
+        filtered_event=AsyncMock(
+            return_value=TriggerFilteredEventRead(
+                last_event=GithubFilteredEvent(
+                    received_at=datetime(2026, 11, 17, tzinfo=UTC),
+                    reason="author",
+                    authors="members",
+                )
+            )
+        )
+    )
+    async with _client(service) as client:
+        response = await client.get(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/filtered-event"
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "last_event": {
+            "received_at": "2026-11-17T00:00:00+00:00",
+            "reason": "author",
+            "authors": "members",
+        }
+    }
+    assert service.filtered_event.await_args.args[1:] == (_AGENT_ID, trigger_id)
+
+
+@pytest.mark.security
+async def test_filtered_event_endpoint_preserves_the_owner_access_refusal() -> None:
+    from app.core.exceptions import NotFoundError
+
+    service = MagicMock(
+        filtered_event=AsyncMock(side_effect=NotFoundError(message="Trigger not found"))
+    )
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/agents/{_AGENT_ID}/triggers/{uuid4()}/filtered-event")
+    assert response.status_code == 404
+    assert "last_event" not in response.json()

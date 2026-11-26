@@ -42,6 +42,7 @@ export interface McpCatalogEntry {
    */
   reviewed?: boolean;
   /** A saved server outside the curated catalog and mirrored registry. */
+  gallery_visible?: boolean;
   custom?: boolean;
   /** Accessible accounts grouped by the listing API; null uses legacy matching. */
   connection_ids?: string[] | null;
@@ -97,15 +98,38 @@ export type McpConnectionState =
 /** Whether any accessible account has been saved for a server. */
 export type McpServerStateFilter = "all" | "connected" | "not-connected";
 
+/** What a platform tool works on - `PlatformToolGroup` in `backend/app/schemas/agent.py`. */
+export type PlatformToolGroup =
+  | "tables"
+  | "tasks"
+  | "workflows"
+  | "agents"
+  | "knowledge"
+  | "skills"
+  | "projects"
+  | "automations"
+  | "apps"
+  | "runs"
+  | "connections"
+  | "account"
+  | "administration";
+
 /** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
 export interface PlatformMcpTool {
   name: string;
   /** The first line of what the model reads. */
   description: string;
-  /** Whether it changes something - held for approval under `approval: writes`. */
+  /** What it works on, which is how the Builder groups the tools. */
+  group: PlatformToolGroup;
+  /** Whether it changes persisted state. Approval defaults are separate. */
   writes: boolean;
   /** Runs without approval under every policy: it changes only the caller's own preference. */
   ungated?: boolean;
+  /** Runs under the default writes policy; explicit required/all policies still ask. */
+  default_approval_free?: boolean;
+  conditional_approval?: boolean;
+  /** Every call requires a fresh human answer, including under standing consent. */
+  always_asks?: boolean;
   /** A read held for approval all the same: it releases a whole past conversation. */
   held?: boolean;
 }

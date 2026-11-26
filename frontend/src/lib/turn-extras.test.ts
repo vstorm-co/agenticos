@@ -257,3 +257,11 @@ it("reports only confirmed ledger writes and never infers a saved memory from to
     ]),
   ).toEqual([]);
 });
+
+it("keeps files reported by an external ACP task", () => {
+  expect(
+    filesChangedOf([
+      call("run_acp_agent", { result: JSON.stringify({ files_changed: ["src/result.py"] }) }),
+    ]),
+  ).toEqual(["src/result.py"]);
+});

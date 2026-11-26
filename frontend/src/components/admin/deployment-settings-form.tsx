@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import { endInput, endInstant } from "@/components/triggers/ends-at-field";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 
 import {
@@ -11,13 +12,20 @@ import {
 import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-card";
 import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
 import { ApnsKeyCard } from "@/components/admin/apns-key-card";
+import { useSignInProviders } from "@/components/auth/oauth-buttons";
+import { ConsoleNavigationSelection } from "@/components/settings/console-navigation-controls";
+import { ConsoleNoticeControls } from "@/components/settings/console-notice-controls";
+import { NAV_GROUPS } from "@/lib/nav-sections";
+import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
 import { DomainListField } from "@/components/admin/domain-list-field";
 import { ErrorState } from "@/components/states";
 import { LoadingForm } from "@/components/states/loading-form";
 import {
+  Button,
   FormField,
+  Label,
   Input,
   Select,
   SelectContent,
@@ -61,11 +69,19 @@ const NO_DEFAULT = "none";
  * save a full write of every field, so renaming the deployment would also resend -
  * and quietly re-assert - an announcement somebody else had changed meanwhile.
  */
+type NoticeTimeField = "announcement_expires_at" | "maintenance_planned_end_at";
+const NOTICE_TIME_FIELDS: readonly NoticeTimeField[] = [
+  "announcement_expires_at",
+  "maintenance_planned_end_at",
+];
+
 export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void } = {}) {
   const t = useTranslations("pages.admin");
   const tc = useTranslations("common");
+  const experience = useTranslations("consoleExperience");
   const tErrors = useTranslations("errors");
   const router = useRouter();
+  const signInProviders = useSignInProviders();
   const { settings, isLoading, error, refetch, save, uploadImage, clearImage } =
     useDeploymentSettings();
 
@@ -76,6 +92,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
   // It is also why an upload - which answers with the whole row - immediately shows
   // its new mark without anything here re-seeding.
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
+  const [timing, setTiming] = useState<Partial<Record<NoticeTimeField, string>>>({});
   // Team organizations only: a personal one cannot be the default, and the
   // backend refuses it.
   const { organizations: teams } = useAdminOrganizations({
@@ -102,6 +119,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     footer_text: settings?.footer_text,
     terms_url: settings?.terms_url,
     privacy_url: settings?.privacy_url,
+    password_sign_in_enabled: settings?.password_sign_in_enabled,
     signup_mode: settings?.signup_mode,
     allowed_email_domains: settings?.allowed_email_domains,
     announcement: settings?.announcement,
@@ -115,6 +133,11 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     default_organization_id: settings?.default_organization_id,
     default_organization_role: settings?.default_organization_role,
     dictation_compressed_audio: settings?.dictation_compressed_audio,
+    onboarding_reminders_available: settings?.onboarding_reminders_available,
+    chat_costs_available: settings?.chat_costs_available,
+    console_availability: settings?.console_availability,
+    announcement_expires_at: settings?.announcement_expires_at,
+    maintenance_planned_end_at: settings?.maintenance_planned_end_at,
     ...edits,
   };
 
@@ -146,13 +169,54 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     disabled: save.isPending,
   });
 
+  const invalidTiming = NOTICE_TIME_FIELDS.some((field) => {
+    const value = timing[field];
+    return value !== undefined && endInstant(value) === undefined;
+  });
+  const timingField = (field: NoticeTimeField): ReactNode => {
+    const value = timing[field] ?? endInput(draft[field]);
+    const invalid = endInstant(value) === undefined;
+    const expiry = field === "announcement_expires_at";
+    return (
+      <FormField
+        label={experience(expiry ? "announcementExpiry" : "maintenanceEnd")}
+        htmlFor={field}
+        description={experience(expiry ? "announcementExpiryHint" : "maintenanceEndHint", {
+          zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        })}
+        error={invalid ? experience("invalidTime") : undefined}
+      >
+        <Input
+          id={field}
+          type="datetime-local"
+          step="60"
+          value={value}
+          disabled={save.isPending}
+          aria-invalid={invalid}
+          onChange={(event) =>
+            setTiming((current) => ({ ...current, [field]: event.target.value }))
+          }
+        />
+      </FormField>
+    );
+  };
+
   const submit = () => {
     // `router.refresh()` because every surface that draws the name reads it from a
     // context the server resolved above `[locale]`: without it the form would show
     // a saved name the sidebar beside it still disagrees with.
-    save.mutate(edits, {
+    const changes = { ...edits };
+    for (const field of NOTICE_TIME_FIELDS) {
+      const raw = timing[field];
+      if (raw === undefined) continue;
+      const instant = endInstant(raw);
+      if (instant === undefined) return;
+      changes[field] = instant;
+    }
+    save.mutate(changes, {
       onSuccess: () => {
         setEdits({});
+        setTiming({});
         router.refresh();
         onContinue?.();
       },
@@ -166,12 +230,97 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
       <DeploymentSettingsLayout
         guided={!!onContinue}
         onContinue={onContinue}
-        dirty={Object.keys(edits).length > 0}
+        dirty={Object.keys(edits).length > 0 || Object.keys(timing).length > 0}
+        invalid={invalidTiming}
         pending={save.isPending}
         onSave={submit}
-        onDiscard={() => setEdits({})}
+        onDiscard={() => {
+          setEdits({});
+          setTiming({});
+        }}
         identity={
           <>
+            <DeploymentSettingsPanel
+              title={experience("presentation.deploymentTitle")}
+              description={experience("presentation.deploymentHint")}
+            >
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={save.isPending || isLoading}
+                  data-tour="deployment-console-navigation"
+                  onClick={() =>
+                    set("console_availability", { ...draft.console_availability, navigation: null })
+                  }
+                >
+                  {experience("presentation.inheritNavigation")}
+                </Button>
+                <ConsoleNavigationSelection
+                  value={draft.console_availability?.navigation}
+                  allowed={NAV_GROUPS.filter(
+                    (group) => !group.adminOnly && !group.switcherOnly,
+                  ).flatMap((group) => group.items.map((item) => item.labelKey))}
+                  disabled={save.isPending || isLoading}
+                  onChange={(navigation) =>
+                    set("console_availability", { ...draft.console_availability, navigation })
+                  }
+                />
+              </div>
+              <ConsoleNoticeControls
+                mode="availability"
+                value={draft.console_availability ?? undefined}
+                disabled={save.isPending || isLoading}
+                onChange={(changes) =>
+                  set("console_availability", { ...draft.console_availability, ...changes })
+                }
+              />
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={experience("title")}
+              description={experience("deploymentHint")}
+            >
+              <ChatHomeControls
+                mode="availability"
+                value={{ ...settings?.chat_home_available, ...edits.chat_home_available }}
+                disabled={save.isPending || isLoading}
+                onChange={(field, value) =>
+                  set("chat_home_available", { ...edits.chat_home_available, [field]: value })
+                }
+              />
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={experience("costs.title")}
+              description={experience("costs.deploymentHint")}
+            >
+              <div
+                className="flex items-center justify-between gap-4"
+                data-tour="deployment-chat-costs"
+              >
+                <Label htmlFor="deployment-chat-costs">{experience("costs.available")}</Label>
+                <Switch
+                  id="deployment-chat-costs"
+                  checked={draft.chat_costs_available !== false}
+                  disabled={save.isPending || isLoading}
+                  onCheckedChange={(value) => set("chat_costs_available", value)}
+                />
+              </div>
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={experience("remindersTitle")}
+              description={experience("remindersDeploymentHint")}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="deployment-reminders">{experience("remindersEnabled")}</Label>
+                <Switch
+                  id="deployment-reminders"
+                  checked={draft.onboarding_reminders_available !== false}
+                  disabled={save.isPending || isLoading}
+                  onCheckedChange={(value) => set("onboarding_reminders_available", value)}
+                />
+              </div>
+            </DeploymentSettingsPanel>
             <DeploymentSettingsPanel
               title={t("brandingIdentity")}
               description={t("brandingIdentityHint")}
@@ -277,6 +426,31 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
         }
         access={
           <>
+            <DeploymentSettingsPanel
+              title={t("passwordSignInTitle")}
+              description={t("passwordSignInHint")}
+            >
+              <div
+                data-tour="deployment-password-sign-in"
+                className="flex items-center justify-between gap-4"
+              >
+                <Label htmlFor="password-sign-in">{t("passwordSignInEnabled")}</Label>
+                <Switch
+                  id="password-sign-in"
+                  checked={draft.password_sign_in_enabled ?? true}
+                  onCheckedChange={(checked) => set("password_sign_in_enabled", checked)}
+                  disabled={
+                    save.isPending ||
+                    ((draft.password_sign_in_enabled ?? true) && signInProviders.length === 0)
+                  }
+                />
+              </div>
+              {settings?.password_sign_in_forced && (
+                <p className="text-warning-ink text-sm" role="status">
+                  {t("passwordSignInForced")}
+                </p>
+              )}
+            </DeploymentSettingsPanel>
             <DeploymentSettingsPanel title={t("accessSignup")} description={t("accessSignupHint")}>
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
@@ -462,6 +636,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
                   <Textarea id="announcement" rows={2} maxLength={500} {...text("announcement")} />
                 </FormField>
 
+                {timingField("announcement_expires_at")}
                 <FormField
                   className="sm:col-span-2"
                   label={t("noticeLevel")}
@@ -513,6 +688,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
                     {...text("maintenance_message")}
                   />
                 </FormField>
+                {timingField("maintenance_planned_end_at")}
               </div>
             </DeploymentSettingsPanel>
           </>

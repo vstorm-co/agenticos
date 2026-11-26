@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -84,12 +86,12 @@ export function MergeChanges({
       )}
       {merge.parts.map((part, index) =>
         part.state === "same" ? (
-          <details key={index} className="text-muted-foreground text-xs">
+          <NativeDisclosure key={index} className="text-muted-foreground text-xs">
             <summary className="cursor-pointer">
               {t("unchangedLines", { count: lines(part.base) })}
             </summary>
             <pre className="mt-1 font-mono break-words whitespace-pre-wrap">{part.base}</pre>
-          </details>
+          </NativeDisclosure>
         ) : (
           <MergeText
             key={index}
@@ -102,6 +104,8 @@ export function MergeChanges({
         ),
       )}
       <MergeFiles
+        skillId={merge.skill_id}
+        versions={{ base: merge.base.id, fork: merge.fork.id, main: merge.main.id }}
         files={merge.files}
         editable={editable}
         saving={actions.pickFile.isPending}

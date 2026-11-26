@@ -57,6 +57,7 @@ export function VisualSaveDialog({
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   async function save() {
+    if (publish.isPending || name.trim() === "") return;
     try {
       const app = await publish.mutateAsync({
         conversationId,
@@ -86,8 +87,13 @@ export function VisualSaveDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!publish.isPending) onOpenChange(next);
+      }}
+    >
+      <DialogContent className={DIALOG_CONFIRM} dismissible={!publish.isPending}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -102,6 +108,7 @@ export function VisualSaveDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="visual-app-title">{t("saveTitleLabel")}</Label>
             <Input
+              disabled={publish.isPending}
               id="visual-app-title"
               value={title}
               maxLength={200}
@@ -113,6 +120,7 @@ export function VisualSaveDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="visual-app-name">{t("saveName")}</Label>
             <Input
+              disabled={publish.isPending}
               id="visual-app-name"
               value={name}
               maxLength={64}
@@ -131,7 +139,12 @@ export function VisualSaveDialog({
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={publish.isPending}
+              onClick={() => onOpenChange(false)}
+            >
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={publish.isPending || name.trim() === ""}>

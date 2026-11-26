@@ -50,11 +50,14 @@ def _secret(ctx: AuthContext, **overrides):
 class TestTheCatalog:
     def test_every_model_provider_can_be_keyed(self):
         """Generated from the resolver's own table, so a provider added there
-        cannot end up with no way to store a key for it."""
+        cannot end up with no way to store a key for it. Subscription accounts
+        are signed in per person, so they have no key to store."""
         from app.agents.model_resolver import PROVIDERS
 
         ids = {entry.id for entry in secret_purposes.all_purposes()}
-        assert set(PROVIDERS) <= ids
+        keyed = {spec.id for spec in PROVIDERS.values() if not spec.personal_gateway}
+        assert keyed <= ids
+        assert "subscription_accounts" not in ids
 
     def test_each_purpose_declares_the_shape_it_takes(self):
         """The form follows from the service. A purpose with the wrong kind

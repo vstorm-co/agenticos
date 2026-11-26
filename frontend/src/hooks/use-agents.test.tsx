@@ -52,6 +52,14 @@ vi.mock("@/lib/api-client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+function shared() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, wrapper: Wrapper };
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -185,12 +193,83 @@ describe("useAgents", () => {
 describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("discards against the confirmed version and updates the cached draft without changing access", async () => {
+    const original = {
+      id: "a1",
+      name: "Draft",
+      can_edit: true,
+      current_version_id: "production",
+      draft_spec: { ...SPEC, name: "Draft" },
+      draft_revision: "base",
+    };
+    const reset = {
+      ...original,
+      name: SPEC.name,
+      can_edit: false,
+      draft_spec: SPEC,
+      draft_revision: "reset",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(original)
+      .mockRejectedValueOnce(new Error("Offline"));
+    vi.mocked(apiClient.post).mockResolvedValueOnce(reset);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent?.name).toBe("Draft"));
+
+    const request = { expected_revision: "base", expected_version_id: "latest" };
+    await result.current.discardDraft.mutateAsync(request);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/draft/discard", request);
+    expect(apiClient.put).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(result.current.agent).toMatchObject({
+        name: SPEC.name,
+        draft_revision: "reset",
+        can_edit: true,
+        current_version_id: "production",
+      }),
+    );
+  });
+
+  it.each([
+    ["draft_changed", "This draft changed elsewhere.", false],
+    ["published_version_changed", "A newer version was published.", true],
+    ["server_error", "Refused", false],
+  ])("reports a %s discard refusal without writing the cache", async (reason, message, refetch) => {
+    const draft = { id: "a1", draft_spec: SPEC, draft_revision: "base" };
+    vi.mocked(apiClient.get).mockResolvedValue(draft);
+    const error =
+      reason === "server_error"
+        ? new Error("Refused")
+        : new ApiError(409, "Refused", {
+            error: { code: "CONFLICT", message: "Refused", details: { reason } },
+          });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(error);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent).toEqual(draft));
+
+    await expect(
+      result.current.discardDraft.mutateAsync({
+        expected_revision: "base",
+        expected_version_id: "latest",
+      }),
+    ).rejects.toBe(error);
+
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(message));
+    expect(apiClient.get).toHaveBeenCalledTimes(refetch ? 2 : 1);
+    expect(result.current.agent).toEqual(draft);
+  });
+
   it("exposes a refused read and allows retrying after access is restored", async () => {
     const refusal = new ApiError(404, "Agent not found");
     vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.error).toBe(refusal));
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     await result.current.refetch();
     await waitFor(() => expect(result.current.agent?.id).toBe("a1"));
     expect(result.current.error).toBeNull();
@@ -201,28 +280,36 @@ describe("useAgent draft", () => {
     // why a field added to the spec can go missing without anything failing.
     // A tool held for approval that arrives at the server unheld is the whole
     // feature quietly not existing.
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1", name: "Support" });
 
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await result.current.saveDraft.mutateAsync({
-      ...SPEC,
-      capabilities: [
-        {
-          id: "email",
-          config: {},
-          approval: "never",
-          tool_approval: { send_email: "required" },
-          tool_overrides: { send_email: { name: "send_invoice_email" } },
-          secret_id: "sec-1",
-          enabled: true,
-        },
-      ],
+      spec: {
+        ...SPEC,
+        capabilities: [
+          {
+            id: "email",
+            config: {},
+            approval: "never",
+            tool_approval: { send_email: "required" },
+            tool_overrides: { send_email: { name: "send_invoice_email" } },
+            secret_id: "sec-1",
+            enabled: true,
+          },
+        ],
+      },
+      expected_revision: "base",
     });
 
     expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/draft", {
+      expected_revision: "base",
       spec: expect.objectContaining({
         capabilities: [
           expect.objectContaining({
@@ -539,7 +626,10 @@ describe("useAgents mutations", () => {
 
     await result.current.create.mutateAsync({ spec: SPEC });
 
-    expect(toast.success).toHaveBeenCalledWith("Created Support");
+    expect(toast.success).toHaveBeenCalledWith("Created Support", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("records its own created agent before refreshing a guided create's ceiling", async () => {
@@ -644,6 +734,7 @@ describe("useAgents mutations", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/clone", {});
     expect(toast.success).toHaveBeenCalledWith(
       "Created Support copy - a draft, nothing published yet",
+      { position: "bottom-center", duration: 3000 },
     );
   });
 
@@ -738,13 +829,17 @@ describe("useAgents mutations", () => {
     expect(toast.error).toHaveBeenCalledWith("gone");
   });
 
-  it("deletes an agent", async () => {
+  it("deletes an agent and refreshes the usage left by its routines", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useAgents(), { wrapper });
+    const { client, wrapper: Wrapper } = shared();
+    const usage = qk.eventSources.usage("source");
+    client.setQueryData(usage, []);
+    const { result } = renderHook(() => useAgents(), { wrapper: Wrapper });
 
     await result.current.remove.mutateAsync("a1");
 
+    expect(client.getQueryState(usage)?.isInvalidated).toBe(true);
     expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1");
     expect(toast.success).toHaveBeenCalledWith("Agent deleted");
   });
@@ -776,14 +871,6 @@ const SPECIALIST: SpecialistSpec = {
 
 describe("the agent ceiling", () => {
   beforeEach(() => vi.clearAllMocks());
-
-  function shared() {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const Wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    return { client, wrapper: Wrapper };
-  }
 
   it("reads the ceiling from its own route, and is unknown until it lands", async () => {
     let answer: (value: unknown) => void = () => {};
@@ -891,7 +978,7 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await result.current.saveDraft.mutateAsync(SPEC);
+    await result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" });
 
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -901,9 +988,24 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockRejectedValue(new Error("conflict"));
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await expect(result.current.saveDraft.mutateAsync(SPEC)).rejects.toThrow();
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("conflict");
+  });
+
+  it("explains a draft conflict in the reader's language", async () => {
+    const conflict = new ApiError(409, "Stale", {
+      error: { code: "CONFLICT", message: "Stale", details: { reason: "draft_changed" } },
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
+    vi.mocked(apiClient.put).mockRejectedValue(conflict);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toBe(conflict);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("saving is paused"));
   });
 
   it("names the version it published", async () => {
@@ -914,7 +1016,10 @@ describe("useAgent mutations", () => {
     await result.current.publish.mutateAsync("A note");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/publish", { note: "A note" });
-    expect(toast.success).toHaveBeenCalledWith("Published v4");
+    expect(toast.success).toHaveBeenCalledWith("Published v4", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("refetches the environments after a publish, because the default one moved", async () => {
@@ -1257,7 +1362,11 @@ describe("useAddToAgent", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("writes the draft with the resource bound", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAddToAgent(), { wrapper });
 
@@ -1269,6 +1378,7 @@ describe("useAddToAgent", () => {
     expect(answer).toEqual({ already: false });
     const [path, body] = vi.mocked(apiClient.put).mock.calls[0]!;
     expect(path).toBe("/agents/a1/draft");
+    expect(body).toEqual(expect.objectContaining({ expected_revision: "base" }));
     expect((body as { spec: AgentSpec }).spec.skill_ids).toEqual(["s1"]);
   });
 

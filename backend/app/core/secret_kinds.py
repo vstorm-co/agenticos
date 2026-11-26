@@ -97,6 +97,7 @@ class SecretKind(StrEnum):
 
     NONE = "none"
     API_KEY = "api_key"
+    WEBHOOK_CREDENTIALS = "webhook_credentials"
     AZURE_OPENAI = "azure_openai"
     AWS_CREDENTIALS = "aws_credentials"
     GCP_SERVICE_ACCOUNT = "gcp_service_account"
@@ -104,12 +105,14 @@ class SecretKind(StrEnum):
     GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
     SLACK_OAUTH_APP = "slack_oauth_app"
+    MCP_OAUTH_CLIENT = "mcp_oauth_client"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
     HTTP_CREDENTIAL = "http_credential"
     SMTP_ACCOUNT = "smtp_account"
     MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
     OPENAI_CODEX = "openai_codex"
+    OPENAI_CHATGPT = "openai_chatgpt"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -191,6 +194,25 @@ class ApiKeySecret(_SecretBase):
     @property
     def hint(self) -> str:
         return self.api_key.get_secret_value()[-4:]
+
+
+class WebhookCredentialsSecret(_SecretBase):
+    """Basic authentication checked on inbound webhooks, never an outbound token."""
+
+    kind: Literal[SecretKind.WEBHOOK_CREDENTIALS] = SecretKind.WEBHOOK_CREDENTIALS
+    username: SealedStr = Field(min_length=1, max_length=255, title="Username")
+    password: SealedStr = Field(min_length=1, title="Password")
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: SecretStr) -> SecretStr:
+        if ":" in value.get_secret_value():
+            raise ValueError("Basic authentication usernames cannot contain ':'")
+        return value
+
+    @property
+    def hint(self) -> str:
+        return ""
 
 
 class AzureOpenAISecret(_SecretBase):
@@ -333,6 +355,48 @@ class GitTokenSecret(_SecretBase):
         host = f"[{hostname}]" if ":" in hostname else hostname
         expected = host if port in (None, 443) else f"{host}:{port}"
         return self.host.lower().removesuffix(":443") == expected.lower()
+
+
+def normalized_mcp_server(url: str) -> str:
+    """A server identity, including its path, without credentials or redirect fragments."""
+    try:
+        parts = urlsplit(url.strip())
+        port = parts.port
+    except ValueError:
+        raise ValueError("Use a valid HTTP(S) MCP server URL") from None
+    if (
+        parts.scheme not in {"https", "http"}
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError("Use an HTTP(S) MCP server URL without credentials, query or fragment")
+    host = parts.hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if port is not None and port != (443 if parts.scheme == "https" else 80):
+        host = f"{host}:{port}"
+    return f"{parts.scheme}://{host}{parts.path.rstrip('/')}"
+
+
+class McpOAuthClientSecret(_SecretBase):
+    """The organization's pre-registered app for exactly one MCP endpoint."""
+
+    kind: Literal[SecretKind.MCP_OAUTH_CLIENT] = SecretKind.MCP_OAUTH_CLIENT
+    server_url: str = Field(min_length=1, max_length=2048, title="MCP server URL")
+    client_id: str = Field(min_length=1, max_length=2048, title="Client ID")
+    client_secret: SealedStr | None = Field(default=None, title="Client secret")
+
+    @field_validator("server_url")
+    @classmethod
+    def server_identity(cls, value: str) -> str:
+        return normalized_mcp_server(value)
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
 
 
 class SmtpAccountSecret(_SecretBase):
@@ -509,6 +573,21 @@ class OpenAICodexSecret(_SecretBase):
         return self.account_id[-4:]
 
 
+class OpenAIChatGPTSecret(_SecretBase):
+    """An application-specific public Responses API grant; never a Codex token."""
+
+    kind: Literal[SecretKind.OPENAI_CHATGPT] = SecretKind.OPENAI_CHATGPT
+    client_id: str = Field(min_length=1, max_length=512)
+    access_token: CredentialStr
+    refresh_token: CredentialStr
+    id_token: SealedStr | None = None
+    scope: str = Field(max_length=4096)
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -661,12 +740,15 @@ StorableSecret = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | SlackOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -681,9 +763,11 @@ TypedSecret = Annotated[
     | GoogleOAuthAppSecret
     | MicrosoftOAuthAppSecret
     | SlackOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret,
     Field(discriminator="kind"),
 ]
@@ -705,12 +789,15 @@ SecretValue = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | SlackOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -805,6 +892,7 @@ class SecretKindInfo(BaseModel):
 
 _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.API_KEY: ApiKeySecret,
+    SecretKind.WEBHOOK_CREDENTIALS: WebhookCredentialsSecret,
     SecretKind.AZURE_OPENAI: AzureOpenAISecret,
     SecretKind.AWS_CREDENTIALS: AwsCredentialsSecret,
     SecretKind.GCP_SERVICE_ACCOUNT: GcpServiceAccountSecret,
@@ -812,15 +900,29 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
     SecretKind.SLACK_OAUTH_APP: SlackOAuthAppSecret,
+    SecretKind.MCP_OAUTH_CLIENT: McpOAuthClientSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
     SecretKind.HTTP_CREDENTIAL: HttpCredentialSecret,
     SecretKind.SMTP_ACCOUNT: SmtpAccountSecret,
     SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
+    SecretKind.OPENAI_CHATGPT: OpenAIChatGPTSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.WEBHOOK_CREDENTIALS: (
+        "Webhook credentials",
+        "A username and password for verifying incoming webhooks only.",
+    ),
+    SecretKind.MCP_OAUTH_CLIENT: (
+        "MCP OAuth client",
+        "A pre-registered OAuth application for one MCP server. Store it organization-visible so each member only signs in.",
+    ),
+    SecretKind.OPENAI_CHATGPT: (
+        "ChatGPT plan usage (official)",
+        "An application-specific ChatGPT grant for the public Responses API. Requires an eligible deployment; independent of Codex sign-in.",
+    ),
     SecretKind.SMTP_ACCOUNT: (
         "SMTP account",
         "Send workflow emails through your own mail server. Server, sender and credentials are stored together.",

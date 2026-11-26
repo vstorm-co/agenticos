@@ -1,6 +1,6 @@
-import type { AgentSpec } from "@/types/agents";
+import type { AgentDraftUpdate } from "@/types/agents";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,7 @@ const AGENT: AgentDetail = {
   has_avatar: false,
   categories: [],
   tags: [],
+  draft_revision: "base",
   draft_spec: {
     name: "Support",
     description: null,
@@ -52,10 +53,29 @@ const page = vi.hoisted(() => ({
   params: "",
   validate: (() => undefined) as unknown,
   agent: undefined as unknown,
-  attention: [] as { agent_id: string; rated_down: number; failed_runs: number }[],
+  attention: [] as {
+    agent_id: string;
+    rated_down: number;
+    failed_runs: number;
+    failing_suites?: number;
+  }[],
+  sessions: [] as { id: string; status: string; created_at: string }[],
+  gaps: 0,
+  gapsEnabled: [] as (boolean | undefined)[],
 }));
 vi.mock("@/hooks/use-usage-stats", () => ({
   useAgentAttention: () => ({ agents: page.attention }),
+}));
+vi.mock("@/hooks/use-improvements", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-improvements")>()),
+  useImprovements: () => ({ sessions: page.sessions }),
+}));
+vi.mock("@/hooks/use-knowledge-gaps", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-knowledge-gaps")>()),
+  useKnowledgeGaps: (_scope: unknown, query?: { enabled?: boolean }) => {
+    page.gapsEnabled.push(query?.enabled);
+    return { total: page.gaps };
+  },
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -75,7 +95,10 @@ vi.mock("@/hooks", async () => {
       agent: { ...(page.agent as AgentDetail), kind: page.kind },
       isLoading: false,
       saveDraft: {
-        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        mutateAsync: vi.fn(async ({ spec }: AgentDraftUpdate) => ({
+          draft_spec: spec,
+          draft_revision: "saved",
+        })),
         isPending: false,
       },
       validate: page.validate,
@@ -107,6 +130,7 @@ vi.mock("@/hooks", async () => {
     useEmbeds: () => ({ embeds: [] }),
     useKnowledgeBases: () => ({ kbs: [] }),
     useMcpCatalog: () => ({ servers: [] }),
+    usePlatformMcpTools: () => ({ tools: [], isLoading: false, error: null }),
     useModelProviders: () => ({
       profiles: [],
       profilesStatus: "loaded",
@@ -129,6 +153,12 @@ vi.mock("@/hooks", async () => {
     useSkills: () => ({ skills: [], total: 0 }),
   };
 });
+
+vi.mock("@/components/mcp/mcp-server-list", () => ({
+  McpServerList: ({ canManageOrganization }: { canManageOrganization: boolean }) => (
+    <div data-testid="embedded-mcp-management">{String(canManageOrganization)}</div>
+  ),
+}));
 
 // The page's eval parts read their own queries; this test is not about them.
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -182,8 +212,13 @@ vi.mock("@/components/agents/embeds-panel", () => ({ EmbedsPanel: () => null }))
 vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => null }));
 
 async function mount() {
+  await mountAndReturn();
+}
+
+async function mountAndReturn() {
+  let mounted!: ReturnType<typeof render>;
   await act(async () => {
-    render(
+    mounted = render(
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
@@ -193,6 +228,7 @@ async function mount() {
       </QueryClientProvider>,
     );
   });
+  return mounted;
 }
 
 beforeEach(() => {
@@ -202,6 +238,9 @@ beforeEach(() => {
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [], fixes: [] });
   page.agent = { ...AGENT, can_edit: true, can_publish: true };
   page.attention = [];
+  page.sessions = [];
+  page.gaps = 0;
+  page.gapsEnabled = [];
 });
 
 describe("the detail page's Evals tab gate", () => {
@@ -265,6 +304,22 @@ describe("the detail page's tabs", () => {
     expect(results.compareDocumentPosition(screen.getByTestId("eval-suites"))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+});
+
+describe("a link naming a tab on a system agent", () => {
+  it("opens no tab of a page the console does not offer, and no empty panel", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.kind = "judge";
+    for (const params of ["tab=evals", "tab=gaps"]) {
+      page.params = params;
+      const { unmount } = await mountAndReturn();
+      expect(await screen.findByText("Resource unavailable")).toBeVisible();
+      expect(screen.queryByRole("tab")).toBeNull();
+      expect(screen.queryByRole("tabpanel")).toBeNull();
+      expect(screen.queryByTestId("eval-results")).toBeNull();
+      unmount();
+    }
   });
 });
 
@@ -366,5 +421,113 @@ describe("a publish asked for by a link", () => {
     await mount();
 
     expect(await screen.findByRole("dialog", { name: "Publish v1?" })).toBeInTheDocument();
+  });
+});
+
+describe("embedded organization MCP management", () => {
+  it.each([true, false])(
+    "uses mcp:manage rather than model-connection permission: %s",
+    async (manageMcp) => {
+      allowed = new Set([manageMcp ? Perm.mcpManage : Perm.connectionsManage]);
+      page.params = "tab=mcp";
+      await mount();
+      if (manageMcp) {
+        fireEvent.click(await screen.findByRole("button", { name: "Connect a server" }));
+        expect(await screen.findByTestId("embedded-mcp-management")).toHaveTextContent("true");
+      } else {
+        expect(screen.queryByRole("button", { name: "Connect a server" })).toBeNull();
+      }
+    },
+  );
+});
+
+describe("the dots on the tabs that hold what needs attention", () => {
+  it("marks Evals with why, keeping the tab's own name", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.attention = [{ agent_id: "a1", rated_down: 2, failed_runs: 0, failing_suites: 1 }];
+    await mount();
+
+    const evals = await screen.findByRole("tab", { name: "Evals" });
+    expect(screen.getByRole("tab", { name: "Build" })).toHaveAttribute("aria-selected", "true");
+    expect(evals).toHaveAttribute("aria-selected", "false");
+    expect(evals).toHaveAccessibleDescription(
+      "Needs attention: 2 answers rated down, 1 failing suite",
+    );
+    expect(screen.getByTestId("evals-attention")).toBeInTheDocument();
+    expect(screen.queryByTestId("gaps-attention")).toBeNull();
+  });
+
+  it("marks Evals for an Improve session waiting for a person, not for one still working", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.sessions = [{ id: "s1", status: "waiting", created_at: "2026-11-01T00:00:00Z" }];
+    const { unmount } = await mountAndReturn();
+    expect(await screen.findByRole("tab", { name: "Evals" })).toHaveAccessibleDescription(
+      "Needs attention: an improvement waits for you",
+    );
+    unmount();
+
+    page.sessions = [{ id: "s1", status: "running", created_at: "2026-11-01T00:00:00Z" }];
+    await mount();
+    expect(await screen.findByRole("tab", { name: "Evals" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+  });
+
+  it("leaves a waiting Improve session out for a reader who may not continue it", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.agent = { ...AGENT, can_edit: false, can_publish: false };
+    page.sessions = [{ id: "s1", status: "waiting", created_at: "2026-11-01T00:00:00Z" }];
+    const { unmount } = await mountAndReturn();
+    expect(await screen.findByRole("tab", { name: "Evals" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+    unmount();
+
+    page.attention = [{ agent_id: "a1", rated_down: 1, failed_runs: 0 }];
+    await mount();
+    expect(await screen.findByRole("tab", { name: "Evals" })).toHaveAccessibleDescription(
+      "Needs attention: 1 answer rated down",
+    );
+  });
+
+  it("marks Knowledge gaps with how many are open", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.gaps = 3;
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Knowledge gaps" })).toHaveAccessibleDescription(
+      "3 open knowledge gaps",
+    );
+    expect(screen.getByTestId("gaps-attention")).toBeInTheDocument();
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+  });
+
+  it("marks nothing when nothing waits", async () => {
+    allowed = new Set([Perm.runsView]);
+    await mount();
+
+    await screen.findByRole("tab", { name: "Evals" });
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+    expect(screen.queryByTestId("gaps-attention")).toBeNull();
+  });
+
+  it("asks nothing and marks nothing for a reader who may not see runs, or on a system agent", async () => {
+    allowed = new Set();
+    page.attention = [{ agent_id: "a1", rated_down: 2, failed_runs: 0 }];
+    page.gaps = 3;
+    const { unmount } = await mountAndReturn();
+    await screen.findByRole("tab", { name: "History" });
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+    expect(page.gapsEnabled.every((enabled) => enabled === false)).toBe(true);
+    unmount();
+
+    allowed = new Set([Perm.runsView]);
+    page.kind = "judge";
+    page.gapsEnabled = [];
+    await mount();
+    expect(page.gapsEnabled.length).toBeGreaterThan(0);
+    expect(page.gapsEnabled.every((enabled) => enabled === false)).toBe(true);
   });
 });

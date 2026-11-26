@@ -321,11 +321,16 @@ test("test questions, review and improvement publish keep a guarded environment 
     await expect(testQuestions).toContainText(String(dataset.name), { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   await page.getByText("Show details", { exact: true }).click();
-  const estimate = page.getByText(/^Up to .+ \(estimate\) to sort the \d+ answers? with feedback/);
+  const estimate = page.getByText(/^Up to .+ \(estimate\) to sort \d+ selected source examples?\./);
   await expect(
     page.getByRole("link", { name: "Configure model and instructions in the dataset" }),
   ).toHaveAttribute("href", `/datasets/${id(dataset)}?tab=settings`);
   await expect(estimate).toBeVisible();
+  const signals = page.getByRole("region", { name: "Sources to learn from" });
+  await expect(signals.locator("dl")).toBeVisible();
+  const sourceCounts = await signals.locator("dd").allTextContents();
+  const sourceTotal = sourceCounts.reduce((sum, count) => sum + Number(count), 0);
+  await expect(estimate).toContainText(`to sort ${sourceTotal} selected source example`);
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();
   expect(
@@ -365,7 +370,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   expect(attempt?.included_hunk_ids).toHaveLength(1);
   await page.reload();
   await expect(
-    page.getByText(/^Attempt \d+ made .+ better: \d+ questions? fixed and none broke\./),
+    page.getByText(/^The updated agent answered \d+ more test questions correctly\./),
   ).toBeVisible();
   await capture(page, info, "improvement-result");
 
@@ -479,7 +484,12 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   await page.goto(`/agents/${id(agent)}?tab=history`);
   await page.getByRole("link", { name: /Kept as draft/ }).click();
   await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}$`));
-  await expect(page.getByText(/This improvement is finished/)).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Result", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("button", { name: "Session details", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Decision", exact: true }).click();
   await expect(decided).toContainText("Kept as a draft");
   await expect(page.getByRole("button", { name: "Keep as draft" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Publish version/ })).toHaveCount(0);

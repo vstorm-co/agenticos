@@ -287,7 +287,7 @@ export interface DelegateRef {
   has_avatar?: boolean;
   avatar_color?: number | null;
   /** Set for Claude Code or Codex, which wear their own mark rather than an agent's face. */
-  harness?: CodingHarness;
+  harness?: CodingHarness | "custom";
 }
 
 /**

@@ -5,10 +5,17 @@ import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentDetail, AgentKind, AgentSpec, CapabilityCatalogEntry } from "@/types/agents";
+import type {
+  AgentDetail,
+  AgentDraftUpdate,
+  AgentKind,
+  AgentSpec,
+  CapabilityCatalogEntry,
+} from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import { useOnboardingStore } from "@/stores/onboarding-store";
+import { useOrgStore } from "@/stores/org-store";
 
 /** Regression coverage retained for the ordinary Agent Builder after removing helper pages. */
 
@@ -94,7 +101,9 @@ function file(id: string, name: string, visibility: string) {
   };
 }
 
-const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
+const saveDraft = vi.hoisted(() =>
+  vi.fn(async ({ spec }: AgentDraftUpdate) => ({ draft_spec: spec, draft_revision: "saved" })),
+);
 
 const page = vi.hoisted(() => ({
   kind: "judge" as AgentKind,
@@ -138,6 +147,7 @@ vi.mock("@/hooks", async () => {
         kind: page.kind,
         system_key: page.systemKey,
         ...page.access,
+        draft_revision: "base",
         draft_spec: page.draft,
       } as AgentDetail,
       isLoading: false,
@@ -166,7 +176,9 @@ vi.mock("@/hooks", async () => {
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
     useExposures: () => ({ exposures: [] }),
     useEmbeds: () => ({ embeds: [] }),
-    useKnowledgeBases: () => ({ kbs: [{ id: "kb1", name: "Handbook", document_count: 1 }] }),
+    useKnowledgeBases: () => ({
+      kbs: [{ id: "kb1", organization_id: "org-1", name: "Handbook", document_count: 1 }],
+    }),
     useMcpCatalog: () => ({ servers: [] }),
     useMembers: () => ({ members: [] }),
     useModelProviders: () => ({
@@ -217,9 +229,7 @@ vi.mock("@/stores", () => ({
 
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({
-  ModelSettingsForm: ({ verdict }: { verdict?: string }) => (
-    <div data-testid="model-settings" data-verdict={verdict ?? "none"} />
-  ),
+  ModelSettingsForm: () => <div data-testid="model-settings" />,
 }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
@@ -261,12 +271,6 @@ async function mount() {
   return view as ReturnType<typeof render>;
 }
 
-/** The name field of the name and description card: the page has other fields called "Name". */
-function nameField() {
-  const card = screen.getByText("Name and description").closest("[data-tour='agent-identity']");
-  return within(card as HTMLElement).getByRole("textbox", { name: "Name" });
-}
-
 /** The kind of agent a case renders, the platform's seeded one or an organization's own. */
 function viewing(
   kind: AgentKind,
@@ -278,6 +282,7 @@ function viewing(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useOrgStore.setState({ activeOrgId: "org-1" });
   viewing("judge");
   page.access = { can_edit: true, can_publish: true };
   page.draft = CLEAN_DRAFT;
@@ -289,7 +294,10 @@ beforeEach(() => {
   page.skills = [];
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  useOrgStore.setState({ activeOrgId: null });
+});
 
 describe("the header of a regular agent's page", () => {
   it("is not worn by an ordinary agent", async () => {
@@ -407,15 +415,23 @@ describe("saving a regular agent's draft", () => {
     page.draft = LEGACY_DRAFT;
     await mount();
 
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    const name = within(screen.getByRole("dialog", { name: "Details" })).getByRole("textbox", {
+      name: "Name",
+    });
     vi.useFakeTimers();
-    fireEvent.change(nameField(), {
+    fireEvent.change(name, {
       target: { value: "Support" },
     });
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
 
-    expect(saveDraft).toHaveBeenCalledWith({ ...LEGACY_DRAFT, name: "Support" });
+    expect(saveDraft).toHaveBeenCalledWith({
+      spec: { ...LEGACY_DRAFT, name: "Support" },
+      expected_revision: "base",
+    });
   });
 });
 

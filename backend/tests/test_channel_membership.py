@@ -424,3 +424,26 @@ class TestConfirmsParticipation:
                 )
                 is False
             )
+
+
+@pytest.mark.parametrize("destination", ["original", "other", "legacy", "malformed"])
+async def test_matrix_cached_participation_cannot_cross_homeservers(destination):
+    from app.services.channels.matrix_protocol import room_key
+
+    bot = _bot("matrix")
+    bot.api_base_url = "https://original.example.org"
+    key = room_key("!room:domain", server_url=bot.api_base_url)
+    if destination == "other":
+        bot.api_base_url = "https://other.example.org"
+    elif destination == "legacy":
+        key = room_key("!room:domain")
+    elif destination == "malformed":
+        key = "!room%3Adomain|s=invalid"
+    redis = FakeRedis()
+    redis.store[membership._key(bot.id, key, "@ada:domain")] = "1"
+    membership.configure(redis)
+    with patch.object(membership, "get_adapter") as adapter:
+        assert await membership.is_still_member(bot, key, "@ada:domain") is (
+            destination == "original"
+        )
+    adapter.assert_not_called()

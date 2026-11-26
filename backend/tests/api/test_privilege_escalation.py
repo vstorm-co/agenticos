@@ -52,6 +52,7 @@ def _stored_user(*, is_app_admin: bool = False) -> MagicMock:
     user.notify_approval_requests = True
     user.notify_usage_reports = True
     user.locale = user.time_zone = user.job_title = user.about = user.working_hours = None
+    user.theme = user.look = None
     user.created_at = "2026-07-31T00:00:00Z"
     user.updated_at = None
     return user

@@ -55,9 +55,15 @@ export interface ProviderInfo {
    * than by the person adding it. The form shows the choice instead of asking.
    */
   api_from_model?: boolean;
+  /**
+   * Whether models run on each person's own subscription accounts, signed in
+   * under Settings: no key and no endpoint, and only a person's own run uses it.
+   */
+  personal_gateway?: boolean;
 }
 
 export interface ProviderCatalog {
+  native_runtimes?: { codex: boolean; claude_code: boolean; external: boolean };
   items: ProviderInfo[];
   total: number;
 }
@@ -294,6 +300,8 @@ export interface GalleryInstallResult {
 export interface AgentTemplate {
   key: string;
   name: string;
+  slug?: string;
+  avatar_url?: string | null;
   description: string;
   capabilities: string[];
   skills: string[];

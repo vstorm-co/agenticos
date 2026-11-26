@@ -63,7 +63,7 @@ function mount(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MyClaims />
+      <MyClaims agents={[{ id: "a", slug: "researcher", name: "Researcher" }]} />
     </QueryClientProvider>,
   );
 }
@@ -241,8 +241,11 @@ it.each([null, "Researcher"])(
         }),
       ],
     });
-    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    const row = screen.getByRole("button", { name: /Prefers short answers/ });
+    expect(row.querySelector('[data-agent-avatar="a"]')).toBeVisible();
+    await userEvent.click(row);
     expect(screen.getByRole("dialog")).toHaveTextContent(`scopeAgent:${agentName ?? "anAgent"}`);
+    expect(screen.getByRole("dialog").querySelector('[data-agent-avatar="a"]')).toBeVisible();
     expect(screen.getByRole("dialog")).toHaveTextContent("drawnFrom:2");
   },
 );
@@ -254,4 +257,12 @@ it("keeps a refused memory retraction open for another decision", async () => {
   const confirm = screen.getAllByRole("dialog").at(-1)!;
   await userEvent.click(within(confirm).getByRole("button", { name: "retract" }));
   expect(confirm).toBeInTheDocument();
+});
+
+it("keeps memories scrollable above a persistent one-page footer", () => {
+  mount();
+  expect(screen.getByRole("list")).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+  expect(screen.getByText("1 / 1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "previousPage" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "nextPage" })).toBeDisabled();
 });

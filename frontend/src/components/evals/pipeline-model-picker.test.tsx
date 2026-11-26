@@ -7,6 +7,11 @@ import type { ModelProfilePicker } from "@/components/agents/model-profile-picke
 import type { ModelProfile } from "@/types/providers";
 import { PipelineModelPicker } from "./pipeline-model-picker";
 
+const refresh = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ refetchProfiles: refresh, isFetching: false }),
+}));
+
 vi.mock("@/components/agents/model-profile-picker", () => ({
   ModelProfilePicker: ({
     allowAdd,
@@ -30,6 +35,22 @@ const profile: ModelProfile = {
 };
 
 describe("PipelineModelPicker", () => {
+  it("refreshes the compact saved-profile list without changing its selection", async () => {
+    const onChange = vi.fn();
+    render(
+      <PipelineModelPicker
+        profiles={[profile]}
+        profilesStatus="loaded"
+        value="saved"
+        onChange={onChange}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("Support model");
+  });
+
   it("offers saved models first, and closes creation after selecting the new model", async () => {
     const onChange = vi.fn();
     render(

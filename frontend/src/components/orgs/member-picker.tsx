@@ -1,6 +1,6 @@
 "use client";
 
-import { COMMAND_ITEM_FOCUS } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
 
 import { useState } from "react";
 import { Command } from "cmdk";
@@ -99,10 +99,7 @@ export function MemberPicker({
                   aria-selected={chosen}
                   aria-label={`${scope}: ${displayName(member)} (${member.email})`}
                   onSelect={() => onToggle(member.user_id)}
-                  className={cn(
-                    COMMAND_ITEM_FOCUS,
-                    "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5",
-                  )}
+                  className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer")}
                 >
                   <MemberIdentity member={member} className="min-w-0 flex-1" />
                   <Check

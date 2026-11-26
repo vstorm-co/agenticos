@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CalendarClock, Package, Radar, UserRound } from "lucide-react";
+import { Bot, CalendarClock, Package, Radar, Sparkles, UserRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +27,7 @@ const ICONS: Record<SuggestionKind, typeof Bot> = {
   profile: UserRound,
   role_pack: Package,
   finding: Radar,
+  personal: Sparkles,
 };
 
 export const payloadText = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -133,7 +134,7 @@ export function SuggestionMark({
   return (
     <span
       className={cn(
-        "bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+        "bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
         className,
       )}
     >

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import type { EvalRun } from "@/types/eval-runs";
 import type { CheckAnswers, Improvement } from "@/types/improvement";
@@ -39,7 +39,7 @@ export function CheckProgress({
   const checking = session.stage === "evaluating" || session.stage === "judging";
   const measured = session.iterations.some((item) => item.verdict !== null);
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-check">
+    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-check">
       <h2 className="font-medium">{t("checkTitle")}</h2>
       {session.stop_reason === "budget" && (
         <p role="alert" className="text-warning-ink text-sm">
@@ -101,7 +101,7 @@ export function CheckProgress({
           {t("openCheck")}
         </Link>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -159,8 +159,8 @@ function AnswerBar({
         className="bg-muted h-2 overflow-hidden rounded-full"
       >
         <div
-          className="bg-chart h-full rounded-full transition-[width] duration-500"
-          style={{ width: `${total > 0 ? (answered / total) * 100 : 0}%` }}
+          className="bg-chart h-full w-full origin-left rounded-full transition-transform duration-500"
+          style={{ transform: `scaleX(${total > 0 ? answered / total : 0})` }}
         />
       </div>
       {note && <p className="text-muted-foreground text-xs">{note}</p>}

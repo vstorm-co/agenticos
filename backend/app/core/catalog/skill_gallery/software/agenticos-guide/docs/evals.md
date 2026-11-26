@@ -25,6 +25,9 @@ where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
 clicking it opens the run.
 
+Fewer than three measured runs are no trend yet: the chart's place lists them, each
+with its pass rate and a link to it, and says how many runs there are so far.
+
 The axis uses times when the history fits within one day, including a past day. Across days it shows dates for older runs and times for today, printing each repeated label once. The tooltip keeps the full start date and time. Past 10 runs a switch above the chart shows
 the last 10, the last 30 or every run; it opens on the last 10, and the choice
 stays in the page's address, so Back and a link keep it.
@@ -63,7 +66,7 @@ changed since offers **Test again** instead. While the run answers it says how
 many first answers are in and the comparison waits for both sides. Answers the
 judge failed to grade say why and count as neither passed nor failed, and
 **Grade again** in the header grades them again without asking the agent, for
-whoever may run the dataset.
+whoever may run the dataset and read the run's answers.
 
 Below the verdict are the sides next to each other, how the two compare, and the
 cases - each row with a pass or fail dot per side, filtered by outcome or tag,
@@ -124,26 +127,48 @@ call per case when a judge scores the dataset .
 
 The estimate includes model-backed grading whenever the dataset requires it, priced on the model selected in Grading. No organization switch disables that scorer.
 
-An agent with no history on a model is estimated as a typical case -
-`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
+An agent with no history on a model is estimated as typical requests -
+`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out each - at the
 model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
-prices, and the estimate says it is a rough guess (`basis: "fallback"`). A judge
-with no history is priced the same way, on the model its published spec names;
-the estimate warns when that is the model being tested, and a run's page when
-it was. The baseline's cost is part of the total,
+prices, and the estimate says it is a rough guess (`basis: "fallback"`). An
+answer is one request, or `1 + EVAL_FALLBACK_TOOL_ROUNDS` when the agent has a
+tool: each tool call is answered in another request.
+
+A judge with no history is
+priced as one request that also reads the answer it grades, on the model its
+published spec names; the estimate warns when that is the model being tested,
+and a run's page when it was. The baseline's cost is part of the total,
 unless a recent matching baseline is reused, in which case its first answers
 cost nothing and the estimate names the run they come from.
 
 ### The budget it leaves { #the-budget-it-leaves }
 
-An eval spends from the agent's and organization's existing monthly budgets. The estimate
-reports their remaining amounts after the full exposure as `agent_after_usd` and
-`org_after_usd`. Starting refuses with `402` when the first pass plus
+An eval spends from the agent's and organization's existing monthly budgets.
+`total_usd` is the first answers and their grading, and `expected_usd` what the
+run most likely costs: that, and half of `rerun_ceiling_usd` for a run compared
+with a baseline, because a compared run usually asks about half of the cases it
+may ask again. A stability run asks every case again, and a run with nothing to
+compare with asks none. The start dialog shows `expected_usd`, with the most the
+run may cost beneath it, and a run's page what it spent against both.
+
+The estimate reports the budgets' remaining amounts after the full exposure as
+`agent_after_usd` and `org_after_usd`. Starting refuses with `402` when the first pass plus
 `rerun_ceiling_usd` exceeds either budget. The ceiling includes every case
 flipping, all confirming attempts, the judge and baseline reruns, including a
 reused baseline. Actual spending can differ from this estimate. Each model
 request still observes the monthly budgets; exhausting one ends the eval as
 `budget_exceeded`.
+
+A start may carry the estimate's `total_usd` back as `quoted_usd`, and the
+estimate's `dataset_version` with it. Starting refuses with `409` if the current
+start estimate is higher than that quote. The Architect passes both, and its
+approval card shows the quote. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and promotion
+guards accept `quoted_usd` too; `GET .../gate/estimate` prices the due guards.
+
+A queued knowledge draft retains its quote. Its worker checks the estimate
+again before retrieval or model work, and refuses a higher or unknown price.
+Existing clients and jobs without a quote retain their previous behavior.
 
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
@@ -173,11 +198,13 @@ An unknown environment returns 404. Concurrent suite creates or renames with the
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
 
@@ -193,6 +220,10 @@ leaves it out when asked to (`?exclude_surface=eval`). Its single-run read
 names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
+
+That role is read again before each case. When the starter has left the
+organization, lost access to the agent or the dataset, or had their key revoked,
+the run fails before it answers another case.
 
 Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
 tool with a test connection on the run's environment runs against it, a tool
@@ -262,6 +293,8 @@ them.
 
 ## Results { #results }
 
+The result leads with the outcome and the answers to review. A comparison shows the number of passing answers before and after. Open a question to read its response and grading. **How this was tested** keeps criterion-family results, cost and run mechanics on demand; opening those details keeps the answers visible. The outcome filter and selected question remain in the URL.
+
 Every attempt keeps the answer, the calls it made - each marked executed,
 blocked, replayed or divergent - every scorer's verdict and reason, its cost,
 its tokens and its latency. The answer and calls are copied onto the result,
@@ -271,7 +304,7 @@ Each arm of the run is summarised on two axes, and per tag:
 
 | Axis | Measures |
 |---|---|
-| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why |
+| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why; **Criteria passed** (`partial_credit`), the mean share of each case's criteria its first answer passed - six of seven counts 6/7 where the pass rate counts the case failed - with `criteria_passed` and `criteria_graded` |
 | Efficiency | Cost per passed case, tokens per case, and latency at p50 and p95 |
 
 Every attempt comes out one of four ways (`state` on the attempt):
@@ -299,7 +332,7 @@ An answer the judge failed on or skipped is **not graded**: the run lists those 
 (`POST /api/v1/datasets/{id}/scores/rescore`) reads the answer kept on the
 attempt rather than asking the agent. A person's verdict in the
 [review queue](datasets.md#review) replaces the scorers' outcome for that case,
-and the run's numbers follow it.
+and the run's numbers follow it, as they follow a new grade.
 
 A judge that searches - [Knowledge search](concepts.md#system-agent-spec) on
 its Toolbox tab - checks an answer's facts against the knowledge bases of the agent
@@ -308,6 +341,11 @@ the start of the passage, under its reason. Until its runs give it a history,
 the estimate prices each grading at the judge's steps. A judge starts at
 temperature 0, so the same answer is graded the same way twice, and its page
 warns when that is raised.
+
+A passage it found is shown only to a reader who may see the answer and read
+the knowledge base it came from, and credentials in it are redacted before it is
+kept. A passage that does not name its knowledge base is shown to nobody, since
+it may have come from somebody's personal knowledge base.
 
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is
@@ -334,6 +372,20 @@ moved away from. A check measured against the draft itself counts in neither.
 A judge criterion can apply to every case or only cases carrying any of its selected tags. In **Grading**, choose the tags and check the coverage count; a case with several matching tags is counted once. Unmatched criteria are omitted entirely, so they cannot fail or leave that case undecided. Review notes can become criteria for a selected case tag. Changing a scope changes the scoring fingerprint; guarded suites adopt it only after an authorized pin move.
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
+
+`criterion_change` is the net number of confirmed criterion fixes, divided by every paired criterion grade. It is computed before limiting the response detail. When whole questions do not change and several attempts improve criteria alone, Improve prefers the larger normalized criterion change; exact ties retain the earlier attempt. Invalid comparisons do not aggregate or return criterion movement. Incomparable baselines do not trigger paid confirmation reruns.
+
+Criterion names, per-criterion grades and skill attributions require `runs:view`, access to the session's pinned dataset and access to every named skill. Skill-check details require all contributing datasets. Hidden or missing sources hide these details without changing stored results. Result notifications check the recipient's current access before including criterion details. Stored criterion-bearing notifications recheck those sources whenever the inbox is read and before delayed delivery; missing provenance or revoked access hides the notification.
+
+Stored skill sources use stable IDs: renaming a skill preserves its identity, while deleting it and reusing its name never restores access to old evidence. Session criterion details with a named skill but no original skill ID are hidden as well. The optional displayed skill name never grants access: the original ID is still checked when its label is absent.
+
+Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
+
+Reading a run compares it again only when a person decided one of its scores since its verdict was kept, and that comparison takes the same claim and budget. While the claim is taken, a list of runs and the Builder's note on whether a change of model may be accepted show each run's verdict as it was kept, and reading the run on its own returns 429. Accepting the change still compares. A check on an eval suite keeps the suite's verdict with the run's own, so reading it again compares nothing.
+
+Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
+
+Busy refusals do not consume the per-minute read quotas. The console pauses polling until `Retry-After` expires.
 
 A comparison matches the two sides case by case on the case's stable id, and
 reports each case as a **regression** (passed, now fails), **fixed** (failed,
@@ -373,8 +425,22 @@ provider's, not the agent's.
 A completed baseline arm stands in for running one only when its version,
 dataset version, model, scoring and judge all match, it ran in the same
 environment with the same `from_recordings` and `live_reads`, and it finished within
-`EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
-answers are reused: a case that flips is asked of it again in this run.
+`EVAL_BASELINE_CACHE_HOURS`. No context file the agent binds may have changed
+since that run: a context file is read live at every answer. The run says which
+run it reused. Only its first answers are reused: a case that flips is asked of
+it again in this run.
+
+A baseline that is the agent's draft - what an Improve session measures each
+attempt against - is matched by the draft's exact fingerprint, and only when the
+earlier run left out exactly the same cases. That run may be the session's previous
+check, or a run of a published version whose spec the draft still is, so a session
+started from an unedited draft reuses that version's own eval.
+
+A session leaves out its own evidence in every check, so while the draft is
+unchanged the baseline answers at most once per session. A run that asked more
+cases is never cut down, because a reused arm's answers are read whole. A reused
+baseline costs nothing in the estimate. A published baseline with cases left out
+is never reused.
 
 ### A flip is confirmed before it counts { #a-flip-is-confirmed-before-it-counts }
 
@@ -392,6 +458,42 @@ earlier time - the same spec on the same model, run the same way, as a suite
 checking one version every day compares with: its reruns would only be the
 candidate's again, so it is not rerun, and the candidate's reruns alone
 confirm the drift.
+
+A case passes only when every criterion it is graded on passes - each check,
+judge criterion, expected tool call and reference grade - so a change that
+fixes one of a case's several failing criteria flips no case. The
+comparison's `criteria` lists, per criterion, how many cases both sides
+graded on it, how many each side passed on its first answer, and the fixes
+and breaks every rerun on both sides repeated. It lists at most 200: past
+that, every criterion that moved comes first, then the ones failing most
+often.
+
+Criteria are also counted by **family**: the checks and judge criteria that
+test one thing across the dataset, named by a check's
+[`family`](datasets.md#checks). A criterion whose check names none is a family
+of its own. A family passes in a case when every criterion of it does there, and
+the comparison's `families` lists, per family, the cases both sides graded,
+how many each side passed, and the cases it flipped on. It lists at most 200
+families: past that, every family worse or better comes first, then any other
+that moved, then the ones failing most often.
+
+A family is **settled**
+when its own flipped cases are enough for an exact McNemar test to tell which
+way it moved; then every flip counts. A family that moved on two cases or more
+without being settled has those cases rerun, and only the flips every rerun
+repeated count. A family that moved on one case decides nothing and sends
+nothing to be asked again. Beside the cases whose outcome flipped, these are the
+only cases rerun.
+
+A run that keeps questions aside for an Improve session is judged on them
+alone, so only its held-out cases are rerun, and its families settle on those
+cases. Its training cases are never asked again: the next attempt reads their
+first answers, and nothing reads a rerun of them. Its rerun ceiling counts the
+held-out cases alone.
+
+The verdict below stays about whole cases; an
+[Improve session](authoring.md#the-improve-wizard) and a
+[skill check](skills.md#the-rule) read the families when no case flipped.
 
 A run compared with a baseline needs at least one rerun; a run with
 none may skip them. A run compared with an earlier run it never asked again -
@@ -606,8 +708,9 @@ channel yet.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | How old a matching baseline may be and still be reused |
 | `EVAL_SIGNIFICANCE` | `0.05` | The level below which confirmed flips are a verdict |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | A relative change in cost, tokens or latency counted as none |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a case is priced at on a model with no history |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | The requests an answer from an agent with tools takes beyond one, on a model with no history |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |
@@ -633,6 +736,12 @@ the dataset - a run over a dataset the reader cannot open is not listed, and
 asking for it by id answers `404`, as a run of another organization does. A
 dataset's runs also need `datasets:view` on it, and list only the agents the
 reader may see.
+
+Deciding on one of a run's answers, or grading it again, needs `runs:view` and
+the agent that answered as well as the dataset's own permission - `datasets:edit`
+to decide, `datasets:run` to grade. Either changes the run's verdict and what was
+built on it: a suite's gate, an improvement session, a skill check. A grant on the
+dataset alone does not open them.
 
 Setting up, changing, pausing or running a suite needs `agents:edit` and
 `agents:run` on the agent, `datasets:run` on the dataset and `runs:view`, and a

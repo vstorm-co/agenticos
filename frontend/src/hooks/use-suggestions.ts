@@ -25,6 +25,8 @@ export function useSuggestions(enabled = true) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
+    staleTime: 30_000,
+    gcTime: 30 * 60_000,
     // The opening row reads ahead; mounting its card must not restart a failed read.
     retryOnMount: false,
     enabled,

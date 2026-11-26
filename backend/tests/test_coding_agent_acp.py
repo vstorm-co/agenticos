@@ -441,7 +441,7 @@ class Computer:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
             # Either harness, in the chat's folder or a project inside it.
-            assert args["agent"] in {"claude_code", "codex"}
+            assert args["agent"] in {"claude_code", "codex", "custom"}
             assert args["root"] == "/w" or args["root"].startswith("/w/")
             return {"id": "p1"}
         if op == "agent.send":
@@ -1301,7 +1301,7 @@ async def test_a_session_name_is_short_and_safe(session: str) -> None:
         await _local_tools()(_ctx(_local_workspace(), []), task="Fix", session=session)
 
 
-async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> None:
+async def test_an_organization_sandbox_stays_pinned_to_its_harness_and_workspace() -> None:
     from pydantic_ai.exceptions import ModelRetry
 
     call = (
@@ -1316,7 +1316,7 @@ async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> 
         .tools["run_coding_agent"]
         .function
     )
-    with pytest.raises(ModelRetry, match="runs only on the person's computer"):
+    with pytest.raises(ModelRetry, match="sandbox is configured for Claude Code only"):
         await call(_ctx(_local_workspace(), []), task="Fix", harness="codex")
     with pytest.raises(ModelRetry, match="`folder` chooses a project"):
         await call(_ctx(_local_workspace(), []), task="Fix", folder="app")
@@ -1435,3 +1435,34 @@ async def test_a_refused_source_never_opens_the_local_coding_adapter(monkeypatch
         await _local_task(monkeypatch, computer, _local_workspace())
     assert "agent.open" not in computer.ops
     assert checks == (2 if late else 1)
+
+
+@pytest.mark.parametrize("selected", ["legacy-a", "not-advertised"])
+async def test_legacy_advertised_models_use_the_matching_session_protocol(selected: str) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.agents.capabilities.coding_agent._acp import (
+        AcpError,
+        _configure_session,
+        current_session_model,
+    )
+
+    conversation = AsyncMock()
+    opened = {
+        "models": {
+            "availableModels": [{"modelId": "legacy-a", "name": "Legacy A"}],
+            "currentModelId": "legacy-b",
+        }
+    }
+    if selected == "not-advertised":
+        with pytest.raises(AcpError, match="does not advertise"):
+            await _configure_session(conversation, "session", opened, model=selected, effort=None)
+        conversation.request.assert_not_awaited()
+    else:
+        configured = await _configure_session(
+            conversation, "session", opened, model=selected, effort=None
+        )
+        conversation.request.assert_awaited_once_with(
+            "session/set_model", {"sessionId": "session", "modelId": selected}
+        )
+        assert current_session_model(configured) == selected

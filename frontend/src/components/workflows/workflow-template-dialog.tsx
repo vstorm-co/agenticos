@@ -4,22 +4,20 @@ import { useState } from "react";
 import { ArrowLeft, Database, FlaskConical } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui";
 import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui";
-import { DIALOG_COLUMN, DIALOG_WIDE, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
+  TemplateCategoryButton,
+  TemplateLibraryDialog,
+  TemplateLibraryItem,
+} from "@/components/templates/template-library";
+import { DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import type { WorkflowCreateChoice } from "./workflow-create-dialog";
 
 type Category = "automations" | "examples";
 
-/** A separate template library, following the agent library's category-first layout. */
+/** The same category-to-library composition as agents, with workflow admission unchanged. */
 export function WorkflowTemplateDialog({
   open,
   onOpenChange,
@@ -41,99 +39,90 @@ export function WorkflowTemplateDialog({
           template_id: id,
         }))
       : WORKFLOW_TEMPLATES.map((template) => ({ ...template, template_id: undefined }));
+  const categoryTitle = category === "automations" ? "automationsHeading" : "examplesHeading";
   return (
-    <Dialog
+    <TemplateLibraryDialog
       open={open}
+      detail={category !== null}
       onOpenChange={(next) => {
         setCategory(null);
         onOpenChange(next);
       }}
+      title={category ? t(categoryTitle) : t("templateLibrary")}
+      description={
+        category
+          ? t(category === "automations" ? "automationCategoryHint" : "exampleCategoryHint")
+          : t("templateLibraryDescription")
+      }
     >
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
-        <DialogHeader>
-          <DialogTitle>{t("templateLibrary")}</DialogTitle>
-          <DialogDescription>{t("templateLibraryDescription")}</DialogDescription>
-        </DialogHeader>
-        <div className={cn("min-h-0 flex-1 overflow-y-auto", DIALOG_SCROLL_GUTTER)}>
-          {category ? (
-            <div className="space-y-5 p-1">
-              <Button variant="ghost" onClick={() => setCategory(null)}>
-                <ArrowLeft className="size-4" />
-                {t("templateCategories")}
-              </Button>
-              <div className="grid items-stretch gap-4 sm:grid-cols-2">
-                {templates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="bg-muted flex flex-col gap-4 rounded-xl border p-5"
-                  >
-                    <Workflow className="text-muted-foreground size-8" aria-hidden />
-                    <div className="flex-1 space-y-2">
-                      <h3 className="font-semibold">{t(`templates.${template.id}.name`)}</h3>
-                      <p className="text-muted-foreground text-sm">
-                        {t(`templates.${template.id}.description`)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      disabled={
-                        !!template.template_id &&
-                        template.id !== "awaitReply" &&
-                        !canProvisionTables
-                      }
-                      title={
-                        template.template_id && template.id !== "awaitReply" && !canProvisionTables
-                          ? t("templatesNeedTables")
-                          : undefined
-                      }
-                      onClick={() =>
-                        onChoose({
-                          name: t(`templates.${template.id}.name`),
-                          description: t(`templates.${template.id}.description`),
-                          graph: template.graph,
-                          ...(template.template_id ? { template_id: template.template_id } : {}),
-                        })
-                      }
-                    >
-                      {t("useTemplate")}
-                    </Button>
+      {category ? (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-start"
+            onClick={() => setCategory(null)}
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            {t("templateCategories")}
+          </Button>
+          <div className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto p-1", DIALOG_SCROLL_GUTTER)}>
+            {templates.map((template) => {
+              const blocked =
+                !!template.template_id && template.id !== "awaitReply" && !canProvisionTables;
+              return (
+                <TemplateLibraryItem key={template.id}>
+                  <Workflow className="text-muted-foreground size-9 shrink-0" aria-hidden />
+                  <div className="min-w-0 space-y-2">
+                    <h3 className="font-medium">{t(`templates.${template.id}.name`)}</h3>
+                    <p className="text-muted-foreground text-sm">
+                      {t(`templates.${template.id}.description`)}
+                    </p>
+                    {blocked && (
+                      <p className="text-muted-foreground text-xs">{t("templatesNeedTables")}</p>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 p-1 sm:grid-cols-2">
-              {(["automations", "examples"] as const).map((id) => {
-                const Icon = id === "automations" ? Database : FlaskConical;
-                return (
-                  <button
-                    type="button"
-                    key={id}
-                    onClick={() => setCategory(id)}
-                    className="bg-muted hover:bg-accent focus-visible:ring-ring/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="col-start-2 w-fit shrink-0 sm:col-start-auto"
+                    disabled={blocked}
+                    onClick={() =>
+                      onChoose({
+                        name: t(`templates.${template.id}.name`),
+                        description: t(`templates.${template.id}.description`),
+                        graph: template.graph,
+                        ...(template.template_id ? { template_id: template.template_id } : {}),
+                      })
+                    }
                   >
-                    <Icon
-                      className="text-muted-foreground row-span-4 size-7 sm:size-8"
-                      aria-hidden
-                    />
-                    <span className="font-semibold">
-                      {t(id === "automations" ? "automationsHeading" : "examplesHeading")}
-                    </span>
-                    <span className="text-muted-foreground text-sm">
-                      {t("templateCount", {
-                        count: id === "automations" ? 3 : WORKFLOW_TEMPLATES.length,
-                      })}
-                    </span>
-                    <span className="text-muted-foreground text-sm">
-                      {t(id === "automations" ? "automationCategoryHint" : "exampleCategoryHint")}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    {t("useTemplate")}
+                  </Button>
+                </TemplateLibraryItem>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className={cn("min-h-0 flex-1 overflow-y-auto", DIALOG_SCROLL_GUTTER)}>
+          <div className="grid gap-4 p-1 sm:grid-cols-2">
+            {(["automations", "examples"] as const).map((id) => (
+              <TemplateCategoryButton
+                key={id}
+                icon={id === "automations" ? Database : FlaskConical}
+                title={t(id === "automations" ? "automationsHeading" : "examplesHeading")}
+                count={t("templateCount", {
+                  count: id === "automations" ? 3 : WORKFLOW_TEMPLATES.length,
+                })}
+                description={t(
+                  id === "automations" ? "automationCategoryHint" : "exampleCategoryHint",
+                )}
+                onClick={() => setCategory(id)}
+              />
+            ))}
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </TemplateLibraryDialog>
   );
 }

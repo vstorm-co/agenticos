@@ -39,7 +39,8 @@ export function ConsoleToaster({ closeLabel }: { closeLabel: string }) {
       toastOptions={{
         closeButtonAriaLabel: closeLabel,
         style: {
-          borderRadius: "0.875rem",
+          borderRadius: "1rem",
+          boxShadow: "var(--shadow-float)",
         },
         classNames: {
           success: "[&_[data-icon]]:text-success",

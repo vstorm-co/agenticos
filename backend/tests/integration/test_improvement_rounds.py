@@ -5,26 +5,33 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentRequiredError
+from app.core.permissions import AuthContext
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo
+from app.schemas.dataset import DatasetUpdate
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
     ImprovementContinue,
+    ImprovementFinish,
     ImprovementStart,
+    ImprovementTarget,
     NextStepBlocked,
     TryAgainBlocked,
 )
 from app.services.agent_runner import AgentRunnerService
+from app.services.authoring_evidence import EvidencePack
 from app.services.authoring_worker import AuthoringWorker
+from app.services.dataset import DatasetService
 from app.services.eval_run_worker import EvalRunWorker
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import ImprovementPipelineService, Inputs
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import Model, _dataset
@@ -152,6 +159,34 @@ async def _two_rounds(db):
     return ctx, agent, started, first, second
 
 
+async def test_a_stopped_attempt_is_selected_and_accepted_in_one_call(db):
+    """A session that stopped on its attempt has no round waiting; naming the round in
+    the finish selects it and accepts it, without a separate select first."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    assert (await service.read(ctx, agent.id, started.id)).status == "stopped"
+
+    with pytest.raises(BadRequestError, match="checked round"):
+        await service.finish(ctx, agent.id, started.id, ImprovementFinish(confirmed=True))
+    result = await service.finish(
+        ctx, agent.id, started.id, ImprovementFinish(confirmed=True, round=1)
+    )
+
+    assert result.session.status == "accepted"
+    assert result.session.best_iteration_id == result.session.iterations[0].id
+    assert "ROUND_BAD" in AgentSpec.model_validate(agent.draft_spec).instructions
+
+
 async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db):
     ctx, agent, started, first, second = await _two_rounds(db)
     service = ImprovementPipelineService(db)
@@ -215,6 +250,81 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert current is not None and current.id == ready.iterations[0].batch_id
 
 
+async def test_the_next_attempt_learns_from_the_draft_and_reads_what_the_last_one_tried(db):
+    ctx, agent, started, first, second = await _two_rounds(db)
+    one, _ = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    rows = await authoring_repo.train_answers(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_ids=[started.dataset_id],
+        since=started.created_at,
+    )
+    assert {row.arm.eval_run_id for row in rows} >= set(one.eval_run_ids)
+    assert {row.arm.source for row in rows} <= {"draft", "version"}
+    learned = "\n".join(second.prompts)
+    assert "# Earlier attempts in this session" not in "\n".join(first.prompts)
+    assert "## Attempt 1: regression" in learned
+    assert "Be brief. ROUND_BAD" in learned
+    assert "On 5 held-out questions it fixed 0 and broke" in learned
+
+
+@pytest.mark.security
+async def test_a_session_ending_on_a_kept_attempt_notifies_about_that_attempt(db):
+    """The kept attempt can be older than the latest; the notice describes the one kept."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    one, two = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    one.verdict = "criteria_better"
+    one.verdict_detail = {
+        **(one.verdict_detail or {}),
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "price break",
+                "graded": 5,
+                "before": 1,
+                "after": 5,
+                "fixed": 4,
+                "broken": 0,
+            }
+        ],
+    }
+    assert two.verdict == "better"
+    run = await db.get(ImprovementRun, started.id)
+    assert run is not None
+    run.best_iteration_id = one.id
+    await db.flush()
+
+    await ImprovementPipelineService(db)._notify_end(run, end="kept")
+
+    notice = await db.scalar(
+        select(Notification).where(Notification.occurrence_id == f"{started.id}:kept")
+    )
+    assert notice is not None
+    assert [item["name"] for item in notice.render_context["criteria"]] == ["price break"]
+
+    from app.db.models.organization import OrganizationMember
+
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == ctx.organization_id,
+            OrganizationMember.user_id == ctx.user_id,
+        )
+    )
+    membership.role = "member"
+    await db.flush()
+    await ImprovementPipelineService(db)._notify_end(run, end="access-removed")
+    private = await db.scalar(
+        select(Notification).where(Notification.occurrence_id == f"{started.id}:access-removed")
+    )
+    assert private.render_context["criteria"] == []
+    assert "price break" not in private.summary
+
+
 async def test_an_attempt_whose_draw_would_leave_too_few_to_measure_is_never_written(db):
     ctx, agent, _ = await _setup(db)
     dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.5"))
@@ -261,18 +371,24 @@ async def test_an_attempt_that_still_draws_too_few_to_measure_is_not_checked(db)
     assert waiting.next_step_blocked == blocked
     [listed] = await service.awaiting(ctx)
     assert listed.next_step_blocked == blocked
-    notices = list(
-        await db.scalars(
-            select(Notification)
-            .where(Notification.event_type == "improvement_finished")
-            .order_by(Notification.created_at)
+    run = await db.get(ImprovementRun, started.id)
+    assert run is not None and run.stage_started_at is not None
+    # created_at can tie across transitions in this transaction; the occurrence
+    # identifies this filtering stop rather than an arbitrary tied notification.
+    notice = await db.scalar(
+        select(Notification).where(
+            Notification.organization_id == ctx.organization_id,
+            Notification.recipient_user_id == ctx.user_id,
+            Notification.event_type == "improvement_finished",
+            Notification.occurrence_id == f"{started.id}:{run.stage_started_at.isoformat()}",
         )
     )
-    assert notices[-1].render_context["next_step_blocked"] == {
+    assert notice is not None
+    assert notice.render_context["next_step_blocked"] == {
         "reason": "missing_holdout",
         "needed": 1,
     }
-    assert "1 more are needed" in notices[-1].summary
+    assert "1 more are needed" in notice.summary
 
 
 async def test_attribution_needs_consent_to_the_current_price_and_is_idempotent(db):
@@ -352,16 +468,16 @@ async def test_try_again_is_refused_before_it_costs_anything_when_too_few_questi
 ):
     ctx, agent, _ = await _setup(db)
     dataset = await _dataset(db, ctx, cases=5)
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    stored.improvement_holdout_share = Decimal("0.5")
+    await db.flush()
     service = ImprovementPipelineService(db)
     started = await service.start(
         ctx,
         agent.id,
         ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
     )
-    stored = await db.get(Dataset, dataset.id)
-    assert stored is not None
-    stored.improvement_holdout_share = Decimal("0.5")
-    await db.flush()
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
@@ -460,3 +576,55 @@ async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budge
         await service.select_round(ctx, agent.id, started.id, 1)
     with pytest.raises(ConcurrentChangeError, match="stale"):
         await service.estimate_attribution(ctx, agent.id, started.id, 2)
+
+
+@pytest.mark.security
+async def test_a_later_attempt_draws_with_the_share_the_session_started_with(db):
+    """Editing the dataset's held-out share must not move what a running session measures."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+
+    await DatasetService(db).update(
+        ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.125"))
+    )
+    await _next_step(db, ctx, started.id)
+    _, second = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+
+    assert second.holdout_case_ids is not None and len(second.holdout_case_ids) == 5
+
+
+async def test_a_start_keeps_the_share_its_inputs_were_prepared_with(db: AsyncSession) -> None:
+    """A settings edit while evidence is prepared must not replace the start's captured share."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    evidence = service._evidence
+
+    async def change_settings_then_read(
+        actor: AuthContext, inputs: Inputs, target: ImprovementTarget
+    ) -> EvidencePack:
+        await DatasetService(db).update(
+            ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.125"))
+        )
+        return await evidence(actor, inputs, target)
+
+    with patch.object(service, "_evidence", side_effect=change_settings_then_read):
+        started = await service.start(
+            ctx,
+            agent.id,
+            ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+        )
+    stored = await db.get(ImprovementRun, started.id)
+    assert stored is not None and stored.holdout_share == Decimal("0.625")

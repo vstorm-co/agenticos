@@ -86,6 +86,8 @@ export function CanvasToolbar({
     onPhone ? state.phoneMinimapShown : state.minimapShown,
   );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
+  const rebindTables = useWorkflowEditorStore((state) => state.rebindTables);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
   // Opened from the "+", from Tab, or from the "+" on a connection.
@@ -127,7 +129,7 @@ export function CanvasToolbar({
   return (
     <>
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-        <div className="bg-card/95 border-border pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border p-1 shadow-sm">
+        <div className="panel pointer-events-auto flex flex-wrap items-center gap-1 rounded-2xl p-1.5">
           {!readOnly && !empty && (
             <Popover open={adding} onOpenChange={setAdding}>
               <PopoverTrigger asChild>
@@ -215,6 +217,37 @@ export function CanvasToolbar({
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={8} className="w-96 p-3">
                   <p className="text-muted-foreground mb-2 text-xs">{t("toolbarProblemsHint")}</p>
+                  {tableDrift.length > 0 && (
+                    // One click for every step whose table changed under it, rather
+                    // than opening each step to update it.
+                    <div className="mb-3 rounded-lg border border-dashed p-2.5">
+                      <p className="text-muted-foreground text-xs">
+                        {t("toolbarTablesChanged", { count: tableDrift.length })}
+                      </p>
+                      {tableDrift.some((entry) => entry.requiresReview) && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t("problemTableDependenciesChanged")}
+                        </p>
+                      )}
+                      {tableDrift.some((entry) => !entry.requiresReview) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            rebindTables(
+                              tableDrift
+                                .filter((entry) => !entry.requiresReview)
+                                .map((entry) => ({ site: entry.site, ref: entry.rebound })),
+                            )
+                          }
+                        >
+                          {t("toolbarRebindTables")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <ProblemsFooter
                     problems={problems}
                     names={names}
@@ -248,7 +281,7 @@ export function CanvasToolbar({
         </div>
       )}
       {!readOnly && selected.length > 1 && (
-        <div className="bg-background/95 border-border absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-3 py-2 shadow-md backdrop-blur">
+        <div className="panel absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-3 py-2">
           <span className="text-sm">{t("panelMultiSelected", { count: selected.length })}</span>
           <Button
             size="sm"
@@ -330,7 +363,7 @@ export function ShortcutSheet() {
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
   return (
     <Dialog open={overlay === "shortcuts"} onOpenChange={(open) => !open && setOverlay(null)}>
-      <DialogContent className="max-w-md">
+      <DialogContent data-workflow-fields className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t("shortcutsTitle")}</DialogTitle>
         </DialogHeader>

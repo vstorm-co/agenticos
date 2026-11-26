@@ -6,6 +6,7 @@ import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/
 interface TokenPair {
   access_token: string;
   refresh_token: string;
+  is_new_user?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     const response = bffJson({
       user,
       access_token: tokens.access_token,
+      is_new_user: tokens.is_new_user === true,
     });
     response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, {
       httpOnly: true,

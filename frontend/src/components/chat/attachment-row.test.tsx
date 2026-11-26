@@ -34,7 +34,7 @@ describe("the composer's attachment row", () => {
       </AttachmentRow>,
     );
 
-    expect(screen.getByText("20 files")).toBeVisible();
+    expect(screen.getByRole("group", { name: "20 files" })).toBeVisible();
   });
 
   it("counts one file as one file", () => {
@@ -44,7 +44,7 @@ describe("the composer's attachment row", () => {
       </AttachmentRow>,
     );
 
-    expect(screen.getByText("1 file")).toBeVisible();
+    expect(screen.getByRole("group", { name: "1 file" })).toBeVisible();
   });
 
   it("offers no arrows when everything already fits", () => {

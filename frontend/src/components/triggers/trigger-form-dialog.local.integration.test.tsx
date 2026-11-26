@@ -67,9 +67,11 @@ beforeEach(() => {
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
-    return path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 };
+    if (path.endsWith("/tools"))
+      return { items: [], unavailable_settings: [], unavailable_sources: [] };
+    return path === "/me/permissions"
+      ? { role: "viewer", permissions: [] }
+      : { items: [], total: 0 };
   });
   vi.mocked(apiClient.post).mockResolvedValue({
     id: "routine",
@@ -94,15 +96,14 @@ async function configure() {
     { wrapper },
   );
   const dialog = within(await screen.findByRole("dialog"));
-  await user.click(dialog.getByRole("checkbox", { name: /Run as me/ }));
+  const identity = dialog.getByRole("checkbox", { name: /Run as me/ });
+  await waitFor(() => expect(identity).toBeChecked());
   await user.click(dialog.getByRole("button", { name: /Choose a folder/ }));
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   fireEvent.change(dialog.getByLabelText("Message"), { target: { value: "Read the report" } });
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   return { user, dialog, onCreated, onOpenChange, ...view };
 }
 describe("local routine creation", () => {
-  it("creates paused, asks once for every routine, then reviews access before activation", async () => {
+  it("lets a signed-in Viewer with an agent run grant use creator-local access without a role consent permission", async () => {
     const { user, dialog, onCreated } = await configure();
     await user.click(dialog.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
@@ -166,7 +167,13 @@ describe("local routine creation", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(apiClient.post).toHaveBeenCalledTimes(1);
     expect(native.allow).toHaveBeenCalledTimes(1);
-    expect(apiClient.patch).toHaveBeenCalledTimes(2);
+    expect(apiClient.patch).toHaveBeenCalledTimes(3);
+    expect(apiClient.patch).toHaveBeenNthCalledWith(2, "/agents/agent/triggers/routine", {
+      local_target: approved,
+    });
+    expect(apiClient.patch).toHaveBeenNthCalledWith(3, "/agents/agent/triggers/routine", {
+      is_active: true,
+    });
   });
   it("does not activate after an organization switch during native confirmation", async () => {
     let finish: (value: typeof approved) => void = () => {

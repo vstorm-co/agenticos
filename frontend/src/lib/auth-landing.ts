@@ -1,5 +1,6 @@
 import { isSafeReturnPath } from "@/lib/safe-return-path";
 import { ROUTES } from "@/lib/constants";
+import { invitationFlowFrom } from "@/lib/invitation-links";
 
 /**
  * Where a fresh session lands: the deep link the visitor was headed to when
@@ -16,7 +17,52 @@ import { ROUTES } from "@/lib/constants";
  * page - a role fork here quietly splits one product into two.
  */
 export function postSignInDestination(returnTo?: string | null): string {
-  return isSafeReturnPath(returnTo, window.location.origin) ? returnTo : ROUTES.CHAT;
+  return isSafeReturnPath(returnTo, window.location.origin) && !isSignInPage(returnTo)
+    ? returnTo
+    : ROUTES.CHAT;
+}
+
+/** The pages a visitor signs in or recovers an account on. */
+const SIGN_IN_PAGES = new Set<string>([
+  ROUTES.LOGIN,
+  ROUTES.REGISTER,
+  ROUTES.FORGOT_PASSWORD,
+  "/reset-password",
+  "/magic-link-sent",
+]);
+
+/**
+ * Whether `path` is one of the sign-in pages - never a place to come back to.
+ *
+ * Signing out leaves the dashboard for the login page, and the dashboard's
+ * guard, finding nobody signed in a moment later, read the address it was
+ * already on: `/login?returnTo=/login`. Signing in again then sent the fresh
+ * session to the login page, which sent it on to its `returnTo` - the login
+ * page - and the button said "Logging in..." until the app was restarted.
+ * A locale prefix (`/vi/login`) is the same page.
+ */
+export function isSignInPage(path: string): boolean {
+  const { pathname } = new URL(path, window.location.origin);
+  let decoded: string;
+  try {
+    // Next also serves /lo%67in as /login; reserved separators stay encoded.
+    decoded = decodeURI(pathname);
+  } catch {
+    return false;
+  }
+  const bare = decoded.replace(/\/+$/, "") || "/";
+  return (
+    SIGN_IN_PAGES.has(bare) ||
+    SIGN_IN_PAGES.has(bare.replace(/^\/[a-z]{2}(?:-[A-Za-z]{2,4})?(?=\/)/, ""))
+  );
+}
+
+/** New accounts start setup; only an already staged invitation's public flow survives. */
+export function postRegistrationDestination(returnTo?: string | null): string {
+  const query = new URLSearchParams({ welcome: "1", entry: "account" });
+  const flow = invitationFlowFrom(returnTo);
+  if (flow) query.set("flow", flow);
+  return `${ROUTES.ONBOARDING}?${query}`;
 }
 
 /**
@@ -35,9 +81,14 @@ export function postSignInDestination(returnTo?: string | null): string {
  * depending on which button somebody pressed - which is the drift #135 is
  * about, one axis over.
  */
-export function goToDestination(destination: string, navigate: (href: string) => void): void {
+export function goToDestination(
+  destination: string,
+  navigate: (href: string) => void,
+  replace = false,
+): void {
   if (destination.includes("#")) {
-    window.location.assign(destination);
+    if (replace) window.location.replace(destination);
+    else window.location.assign(destination);
     return;
   }
   navigate(destination);

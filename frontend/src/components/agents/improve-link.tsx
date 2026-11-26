@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { TrendingUp } from "lucide-react";
 
+import { AttentionDot } from "@/components/agents/attention-dot";
 import { Button } from "@/components/ui";
 import { useImprovements } from "@/hooks/use-improvements";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
-import { attentionParts } from "@/lib/attention";
+import { attentionParts, improveNeeded } from "@/lib/attention";
 import { ROUTES } from "@/lib/constants";
 import { resolvePreset } from "@/lib/dashboard/period";
 import { openImprovement } from "@/lib/improvement-steps";
@@ -67,7 +68,7 @@ export function ImproveButton({
   const lately = resolvePreset("30d");
   const { agents } = useAgentAttention({ from: lately.from, to: lately.to });
   const attention = agents.find((agent) => agent.agent_id === agentId);
-  const needed = attention !== undefined && (attention.rated_down > 0 || attention.failed_runs > 0);
+  const needed = improveNeeded(attention);
   const open = openImprovement(useImprovements(agentId).sessions);
   return (
     <Button
@@ -92,12 +93,7 @@ export function ImproveButton({
     >
       <span className="relative" aria-hidden>
         <TrendingUp className="h-4 w-4" />
-        {needed && (
-          <span
-            data-testid="improve-attention"
-            className="bg-warning ring-background absolute -top-1 -right-1 size-2 rounded-full ring-2"
-          />
-        )}
+        {needed && <AttentionDot testId="improve-attention" />}
       </span>
       {t("improveSession")}
     </Button>

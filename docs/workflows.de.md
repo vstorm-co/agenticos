@@ -1,5 +1,5 @@
 ---
-source_sha: "37be6df188e7"
+source_sha: "40313f92dbc9"
 ---
 
 # Workflows { #workflows }
@@ -21,6 +21,8 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** fragt nach einem Namen und dem Zugriff, mit derselben Auswahl wie bei Agenten: alle, nur Sie oder ausgewählte Personen und Abteilungen. Wählen Sie den Startauslöser, ergänzen Sie optional Beschreibung und Tags und klicken Sie auf **Create**. Die Auswahl eines Auslösers erstellt noch keinen Workflow. **Workflow templates** öffnet eine separate Kategoriengalerie; eine Vorlage füllt Name und Beschreibung im Erstellungsformular aus.
+
+Um den Zugriff auf einen bestehenden Workflow zu ändern, öffnen Sie ihn und wählen Sie **More → Settings → Access**. Wählen Sie unter **General access** entweder **Only people with access** oder **Everyone in the organization**. Wenn Sie den Workflow bearbeiten dürfen, können Sie hier auch Personen und Gruppen Zugriff gewähren oder entziehen. Beim Wechsel zu privat bleiben explizite Freigaben erhalten. Rollen, die nur geteilte Workflows erreichen, können den Zugriff verlieren; Rollen mit Zugriff auf alle Workflows behalten ihn. Die Freigabe gilt auch für bisherige Runs; sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.
 
 Der Katalog zeigt Karten und Suche in einem gemeinsamen Panel. **Filters** öffnet Status, Tags und Sortierung und zählt aktive Filter. Bei Ladefehlern erscheint **Retry** statt eines leeren Katalogs. Der Import beginnt mit der Dateiauswahl; **Or paste the file's JSON here** öffnet ein beschriftetes Textfeld.
 
@@ -66,15 +68,11 @@ Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätz
 
 Die Seitennavigation der Run-Historie steht am unteren Panelrand. Run-Details bieten eine kompakte Zusammenfassung, eine Canvas über den Arbeitsbereich und ein Seitenpanel für Steps, Output und verfügbare Dateien. Ein Klick auf einen Schritt öffnet seine gespeicherten Daten. Dateiimport und eingefügtes JSON haben eigene Tabs; das JSON-Codefeld bietet Formatierung und behält ungültige Eingaben bei einer Fehlermeldung.
 
-**Export workflow** unter **More** in der Kopfzeile des Editors exportiert den Entwurf als
-`.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder
-Agent, jede Tabelle, jedes Secret, Mitglied, jeder Bot oder Workflow, den ein
-Schritt gewählt hat, wird weggelassen und aufgeführt, angeheftete Testdaten werden
-weggelassen und ebenso der Fehler-Workflow. Sie enthält nie den Wert eines Secrets.
-**Import** in der Liste macht aus einer solchen Datei einen neuen Entwurf, nimmt
-jede ID heraus, die eine von Hand erstellte noch nennt, und führt jeden Schritt und
-jedes Feld auf, das vor dem Veröffentlichen neu zu wählen ist. Eine Datei mit
-einem Schritt, den dieses Deployment nicht hat, wird abgelehnt, und nichts entsteht.
+**Workflow exportieren** unter **Mehr** öffnet ein auswählbares Ressourcenpaket. Verknüpfte Definitionen auswählen und mit ZIP zusätzlich Originaldokumente oder verarbeiteten Text der Wissensbasis einschließen. **Importieren** in der Workflow-Liste prüft diese Abhängigkeiten vor dem Erstellen privater Entwürfe. Ausgelassene Bindungen erscheinen vor dem Import und im Ergebnis; veröffentlichte Delegiertenversionen werden unter ihrem Zielagenten gewählt.
+
+**Ältere Workflow-Datei exportieren** behält das Format `.workflow.json`: ohne Ressourcen-IDs, angeheftete Testergebnisse und Fehler-Workflow. **Ältere Workflow-Datei importieren** behält den bisherigen Ablauf und listet neu zu wählende Ressourcen vor der Veröffentlichung auf. Nicht unterstützte Schritttypen werden ohne Erstellung abgelehnt.
+
+Der Tab kann eine Übertragung nach dem Neuladen für dieselbe angemeldete Person und Organisation wiederherstellen. Nur die Operations-ID wird im Sitzungsspeicher gespeichert. Vor der Ergebnisanzeige prüft der Server den Zugriff erneut. Ein unterbrochener Upload benötigt die ursprüngliche ZIP erneut und beginnt von vorn; Dateibytes und Upload-Positionen werden nicht im Browser gespeichert. Abgelaufene oder unzugängliche Übertragungen bieten einen Neustart.
 
 ### Workflows finden, benennen und stilllegen { #finding-naming-and-retiring-a-workflow }
 
@@ -470,9 +468,18 @@ hat:
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 **Secret** bieten zusätzlich einen Link zum Neuanlegen — immer, nicht nur wenn die
-Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
-hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
-Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
+Liste leer ist — während das **Table**-Auswahlfeld keinen hat.
+
+Ändert sich das Schema einer Tabelle, nachdem ein Schritt an sie gebunden wurde,
+verschiebt der Editor den Schritt selbst auf das neue Schema, solange jede Spalte,
+die der Schritt liest, noch mit demselben Typ existiert - eine hinzugefügte Spalte
+oder eine Änderung an einer, die der Schritt nicht liest, verlangt nichts von dir.
+Wurde eine gelesene Spalte entfernt oder hat sie ihren Typ geändert, zeigt der
+Schritt stattdessen ein Problem, und sowohl das **Table**-Feld des Schritts als auch
+die Problemliste der Werkzeugleiste bieten **Update to the current schema** an, das
+jede gewählte Spalte behält, die noch existiert. Prüfe danach, was den Schritt liest.
+
+Auch Filter, Sortierspalten und Wertebindungen werden geprüft. Entferne oder ersetze abhängige Einstellungen mit geänderten Spalten, bevor du das Tabellenschema aktualisierst; die Sammelaktualisierung lässt solche Schritte unverändert. Eine Wertebindung für den ganzen Datensatz erfordert ebenfalls diese manuelle Prüfung.
 
 ### Evals für einen Modellschritt { #evals-for-a-model-step }
 
@@ -715,13 +722,12 @@ nicht tat.
 
 Jedes Speichern wird gegen die Revision geschrieben, die Sie geöffnet haben, sodass
 ein an zwei Stellen zugleich bearbeiteter Draft nicht still überschreiben kann.
-Passiert das, hebt der Editor ein Banner mit dem Titel **This draft changed
-elsewhere**: *Someone edited this workflow since you opened it. Overwrite keeps your
-changes; reload replaces them with the latest saved draft.* Sie wählen:
+Passiert das, hebt der Editor ein Banner mit dem Titel **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Sie wählen:
 
-- **Overwrite** — behalten Sie Ihre Version und schreiben Sie sie über die
+- **Keep my changes** — behalten Sie Ihre Version und schreiben Sie sie über die
   anderswo gespeicherte.
-- **Reload** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
+- **Load their version** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
   zuletzt gespeicherten Draft.
 
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
@@ -972,8 +978,11 @@ weiter, den die freigebende Person gedrückt hat, und die entschiedene Zeile nen
 Eine Bearbeitung geht mit jeder gedrückten Schaltfläche mit.
 
 
-In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
-**Published**, und ein aus der Konsole oder über die HTTP-API gestarteter Lauf
+In der Liste lautet ein Test des ganzen Entwurfs **Draft (test)**, ein [Test eines
+einzelnen Schritts](#a-steps-data-pinning-and-testing-one-step) **Step test** mit dem Namen des Schritts und ein echter Lauf
+**Published**. **Version** zeigt nur Schritttests oder lässt sie weg.
+
+Ein aus der Konsole oder über die HTTP-API gestarteter Lauf
 lautet **Console or API**. **Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
 die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
@@ -982,12 +991,9 @@ aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
 Schritt dessen **Input** und **Output** aus diesem Lauf. Die Zeilen, die das
 [schnelle Log](#quick-log) eines Schritts geschrieben hat, stehen unter dem Schritt.
 
-**Retry from failed step**
-startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
-erfolgreiche Schritt weitergibt, was er zuvor weitergegeben hat. So laufen nur der
-fehlgeschlagene Schritt und was er nicht erreicht hat, und ein Schreibzugriff
-geschieht nie zweimal. Eine Schleife läuft erneut und verwendet die erfolgreichen
-Schritte jedes Elements wieder. **Debug in editor** heftet an die Schritte des
+**Retry from failed step** startet einen neuen Lauf mit derselben Version und Eingabe. Er übernimmt die Ergebnisse abgeschlossener Schritte und der abgeschlossenen Aufrufe eines Python-Blocks, ohne deren Schreibvorgänge zu wiederholen. Schleifen laufen erneut und verwenden die erfolgreichen Schritte jedes Elements wieder. Ein Resume link wird neu erzeugt: Der Link des alten Laufs kann den neuen Lauf nicht fortsetzen.
+
+**Debug in editor** heftet an die Schritte des
 Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeben
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
 /api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,
@@ -1126,6 +1132,26 @@ genau dort weiter, wo er aufgehört hat. Ereignisse werden geschrieben, bevor si
 gesendet werden, sodass nichts verloren geht und nichts zweimal läuft. Der Socket
 prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen des
 Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
+
+### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
+
+Die Quellenauswahl verlinkt zur Quellenverwaltung, ohne einen weiteren Standardeintrag in der Seitenleiste hinzuzufügen. Zugangsdaten neuer Quellen wählen oder erstellen Sie im Vault: organisationsweit sichtbare `api_key` für Signierschlüssel und Token oder `webhook_credentials` für eingehende Basic Auth. Der Workflow behält nur seine Quellenbindung; die Rotation der Zugangsdaten erfolgt im Vault.
+
+Neue **Webhook**-Schritte im Workflow-Editor fragen zuerst nach einer vorhandenen oder neuen Ereignisquelle. Sie können den Entwurf speichern und mit eingefügtem JSON testen, auch bevor Sie eine Quelle ausgewählt haben. Zum Veröffentlichen müssen Sie eine Quelle oder ausdrücklich einen **dedizierten Endpunkt** wählen. Verwenden Sie einen dedizierten Endpunkt, wenn der Absender eine synchrone Antwort benötigt. Vorhandene dedizierte Schritte behalten ihre Einstellungen und URLs.
+
+Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
+
+Sie können eine Quelle, die Sie nicht mehr nutzen dürfen, durch eine für Sie nutzbare Quelle ersetzen. Das aktive Abonnement ändert sich erst beim Veröffentlichen. Um ein Beispiel im Workflow-Entwurf anzuheften, benötigen Sie Bearbeitungsrechte.
+
+Wer die Läufe dieses Workflows einsehen darf, kann im Verlauf auch die zugestellten Ereignisdaten sehen, selbst wenn die Quelle privat ist. Eine spätere Freigabe des Workflows kann Daten aus früheren Läufen sichtbar machen. Sie gewährt kein Recht, neue Ereignisse direkt von der Quelle zu empfangen.
+
+**Auf Ereignis warten** erfasst das nächste authentifizierte Ereignis an der konfigurierten Live-URL. Das Fenster dauert zwei Minuten; temporäre Beispiele bleiben zehn Minuten und unterliegen dem 64-KB-Pin-Limit. **Aktive Abonnenten werden weiter ausgeführt.** Die Erfassung erzeugt keinen zusätzlichen Lauf und ändert die Zustellung nicht. Eingefügtes Beispiel-JSON ist eine Alternative; Speichern und Veröffentlichen benötigen kein Beispiel.
+
+Das Beispiel des gewählten Triggers bleibt `{body, delivery_id}`. Pinnen Sie es und verwenden Sie vorhandene Feldbindungen und Schritttests; nachfolgende Knoten lesen JSON direkt. Wählen Sie bei mehreren Einstiegen ausdrücklich den gewünschten Webhook-Knoten für Erfassung und Pin.
+
+Für den Test eines manuellen Zweigs oder die Verwendung bereits angehefteter JSON-Daten ist keine Nutzungsberechtigung für die Webhook-Quelle erforderlich. Wer einen Workflow mit dieser Quelle als Abonnement veröffentlicht oder Live-Ereignisse abhört, benötigt diese Berechtigung.
+
+Eine gemeinsame Quelle bestätigt dauerhaften Empfang asynchron. Veröffentlichen verweigert einen solchen Einstieg, wenn sein erreichbarer Zweig **Auf Webhook antworten** enthält. Verwenden Sie einen dedizierten Workflow-Endpunkt, wenn der Absender dessen synchrone Statuscodes, Header oder Body benötigt. URL, Zugangsdaten, Duplikaterkennung und Antwortverhalten dedizierter Endpunkte bleiben unverändert.
 
 ### Ein Webhook oder ein Zeitplan { #a-webhook-or-a-schedule }
 
@@ -1563,7 +1589,7 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
 - Ein Parameter ist **ein Wert oder Daten aus einem Schritt** — **Data** liest sie aus
   einer erreichbaren, typkompatiblen vorgelagerten Ausgabe oder fügt sie in Text ein.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
-  ein Banner mit **Overwrite** oder **Reload**.
+  ein Banner mit **Keep my changes** oder **Load their version**.
 - **Publish** wird blockiert, solange ein Problem besteht, und validiert erneut auf
   dem Server; frühere Versionen bleiben schreibgeschützt einsehbar, und **Restore to
   draft** macht eine davon wieder zum Draft.
@@ -1583,3 +1609,11 @@ Neue Automatisierungen können mit `prepare_workflow_draft` eingereicht werden: 
 ### Follow-up-Entwürfe { #follow-up-drafts }
 
 Im Dialog für das Warten auf eine Antwort kannst du auch einen Follow-up-Entwurf nach Ablauf aktivieren. Wähle ein vorhandenes Modell und Höchstkosten pro Entwurf. Gib beim Start den Kontext für den Text an. Nur der nach erfolgreicher Postfachprüfung gewählte Fristzweig startet den Agenten; eine bestätigte Antwort überspringt ihn, ein Postfachfehler beendet die Prüfung als Fehler. Der Agent hat keine Werkzeuge. Sein Entwurf wird im Workflow-Ergebnis gespeichert; eine Benachrichtigung führt dorthin. Prüfe vor dem Senden den aktuellen Thread. Diese Vorlage erstellt keinen Gmail-/Outlook-Entwurf und versendet keine E-Mail.
+
+Auswählbare Ressourcenpakete unterstützen auch Workflow-Wurzeln über `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` und die Bundle-Import-Endpunkte. Verknüpfte Definitionen lassen sich kopieren, wiederverwenden oder auslassen. Der Import erstellt private, unveröffentlichte Entwürfe ohne aktive Trigger. Bindungen hochgeladener Dateien und angeheftete Laufergebnisse werden nicht übertragen. Das Ergebnis nennt ausgelassene Bindungspfade; die Veröffentlichung prüft fehlende Ressourcen weiterhin. Delegierte benötigen eine ausdrücklich ausgewählte veröffentlichte Version des zugeordneten Agenten. Fehler-Workflows müssen auf einen zugänglichen veröffentlichten Fehlerhandler verweisen; Entwürfe werden dafür niemals automatisch veröffentlicht. Erstellungszyklen erfordern Wiederverwendung oder das Auslassen einer Bindung.
+
+Tabellenbindungen mit ausgewählten Spalten werden zur manuellen Auswahl am Ziel ausgelassen; Bindungen ganzer Tabellen verwenden die Schema-Version des Ziels.
+
+Python-Aktionsbindungen verwenden das Ressourcenschema der jeweiligen Aktion. Bei Wiederverwendung eines Ziels werden Tabellen-ID und Schemaversion gemeinsam ersetzt. Wird eine Aktionsabhängigkeit ausgelassen, entfällt ihre gesamte Bindung; prüfen Sie den Python-Code vor der Veröffentlichung. Exporte mit einer Auswahl bestimmter Tabellenspalten werden abgelehnt: entfernen Sie die Auswahl vor dem Export und wählen Sie die Zielspalten erneut.
+
+Abonnements wiederverwendbarer Ereignisquellen werden nicht mit Workflow-Paketen übertragen. Export und Import entfernen die Quellen-ID, melden den ausgelassenen Bindungspfad und lassen den Webhook-Schritt eine Quelle verlangen. Wählen Sie vor der Veröffentlichung im privaten Entwurf erneut eine berechtigte Quelle; der Import aktiviert keinen eigenen Endpunkt als Ersatz.

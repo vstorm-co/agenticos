@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import plistlib
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,6 +13,71 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.mark.parametrize("has_wrapper", [False, True], ids=["legacy-tree", "current-tree"])
+@pytest.mark.parametrize(("build_status", "check_status"), [(0, 0), (9, 0), (0, 7)])
+def test_linux_release_builds_old_tags_and_keeps_current_validation(
+    tmp_path: Path, has_wrapper: bool, build_status: int, check_status: int
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    steps = workflow["jobs"]["desktop"]["steps"]
+    selector = next(step for step in steps if step.get("id") == "linux-build")
+    action = next(step for step in steps if "tauriScript" in step.get("with", {}))
+    assert selector["if"] == "runner.os == 'Linux'"
+    assert steps.index(selector) < steps.index(action)
+    assert action["with"]["tauriScript"] == "${{ steps.linux-build.outputs.command }}"
+
+    desktop = tmp_path / "desktop"
+    desktop.mkdir()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    if has_wrapper:
+        shutil.copy(ROOT / "scripts/build_linux_desktop_release.sh", scripts)
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    for name, status in (("bunx", build_status), ("python3", check_status)):
+        tool = tools / name
+        tool.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "$COMMAND_LOG/{name}"\nexit {status}\n')
+        tool.chmod(0o755)
+    output = tmp_path / "output"
+    environment = os.environ | {
+        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+        "COMMAND_LOG": str(tmp_path),
+        "GITHUB_OUTPUT": str(output),
+    }
+    selected = subprocess.run(
+        ["/bin/bash", "-c", selector["run"]],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+    assert ("::warning::" in selected.stdout) is not has_wrapper
+    command = output.read_text().strip().removeprefix("command=")
+    arguments = ["build", "--target", "x86_64-unknown-linux-gnu", "--", "--locked"]
+    result = subprocess.run(
+        [*shlex.split(command), *arguments],
+        cwd=desktop,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == (build_status or (check_status if has_wrapper else 0))
+    assert (tmp_path / "bunx").read_text().splitlines() == ["tauri", *arguments]
+    validation_log = tmp_path / "python3"
+    if has_wrapper and not build_status:
+        assert validation_log.read_text().splitlines() == [
+            "../scripts/check_desktop_installation.py",
+            "src-tauri/target/x86_64-unknown-linux-gnu/release/bundle",
+            "--appimage-only",
+        ]
+    else:
+        assert not validation_log.exists()
 
 
 def test_release_versions_include_apple_extensions(
@@ -124,9 +190,19 @@ def test_desktop_updater_manifest_has_only_one_writer() -> None:
     assert set(updater["needs"]) == {"resolve", "desktop"}
     assert "if" not in updater
     assert action["with"]["uploadUpdaterSignatures"] is True
+    jobs = dict(release["jobs"])
+    arch = jobs.pop("arch")
+    assert arch["uses"] == "./.github/workflows/arch-package.yml"
+    assert arch["with"]["source_ref"] == "${{ needs.resolve.outputs.commit }}"
+    reusable = yaml.safe_load((ROOT / arch["uses"]).read_text())
+    for name, job in reusable["jobs"].items():
+        # Every reusable job is inspected; another level must be explicitly traversed too.
+        assert "uses" not in job
+        jobs[f"arch/{name}"] = job
+    assert action["with"]["uploadUpdaterJson"] is False
     publishers = [
         name
-        for name, job in release["jobs"].items()
+        for name, job in jobs.items()
         if any(
             'gh release upload "$TAG" "$RUNNER_TEMP/latest.json"' in step.get("run", "")
             for step in job["steps"]

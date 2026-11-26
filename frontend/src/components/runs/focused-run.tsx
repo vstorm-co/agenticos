@@ -107,7 +107,8 @@ export function FocusedRun({
   const locale = useLocale();
   const { can } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
-  const { run, isLoading, error } = useRun(runId);
+  const { run, isLoading, error, refetch } = useRun(runId);
+  const common = useTranslations("common");
   // Scoring a run takes `datasets:run` on the dataset scored against, which a grant on
   // one widens past the role - so the menu is for who may run a dataset with a case.
   const scoresRuns = useRunsADataset({ enabled: run?.conversation_id != null });
@@ -163,6 +164,21 @@ export function FocusedRun({
     return () => window.removeEventListener("keydown", step);
   }, [prevRunId, nextRunId, onFocusRun]);
 
+  const unavailableHeader = onClose !== undefined && (
+    <div className="border-border flex items-center justify-between border-b px-4 py-3">
+      <h2 className="text-sm font-medium">{t("runDetail")}</h2>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t("closeRunDetail")}
+        onClick={onClose}
+      >
+        <X className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
+
   // Before the wait, because holding the previous run's row means `isLoading` is
   // false while a failure for *this* one is already known - and the held row
   // would otherwise be drawn as though it were the answer to the id in the URL.
@@ -172,14 +188,27 @@ export function FocusedRun({
     // the link. Anything else is a fact about the request, and saying "no such
     // run" for a refused permission sends somebody looking for a run that is
     // there.
-    return error instanceof ApiError && error.status === 404 ? (
-      <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
-    ) : (
-      <ErrorState title={t("runCouldNotBeRead")} />
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        {error instanceof ApiError && error.status === 404 ? (
+          <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
+        ) : (
+          <ErrorState
+            title={t("runCouldNotBeRead")}
+            cta={{ label: common("retry"), onClick: () => void refetch() }}
+          />
+        )}
+      </div>
     );
   }
   if (isLoading || run === undefined) {
-    return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        <LoadingState variant="skeleton-table" columns={6} rows={2} />
+      </div>
+    );
   }
 
   return (
@@ -410,6 +439,17 @@ export function FocusedRun({
         data-run-scrollport
         className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4"
       >
+        {run.error && (
+          <section
+            aria-label={t("recordedFailure")}
+            className="border-destructive/40 space-y-1 border-l-2 pl-3"
+          >
+            <h3 className="text-sm font-medium">{t("recordedFailure")}</h3>
+            <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">
+              {run.error}
+            </p>
+          </section>
+        )}
         <TabsContent value="timeline">
           {/* An eval case keeps no conversation: its answer and grade live on
               the eval run, so the timeline says where rather than that nothing

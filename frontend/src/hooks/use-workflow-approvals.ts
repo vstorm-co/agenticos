@@ -20,34 +20,40 @@ import {
  * the run it wakes is on some other page's screen too.
  */
 export function useWorkflowApprovals(options?: { enabled?: boolean }) {
-  const t = useTranslations("pages.runs");
-  const tErrors = useTranslations("errors");
-  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: qk.workflows.approvals(),
     queryFn: listWorkflowApprovals,
     refetchInterval: 30_000,
     enabled: options?.enabled ?? true,
   });
-  const decide = useMutation({
+  const decide = useDecideWorkflowApproval();
+  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, decide };
+}
+
+export function useDecideWorkflowApproval() {
+  const t = useTranslations("pages.runs");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: ({
       id,
       approved,
       final,
       choice,
+      note,
     }: {
       id: string;
       approved: boolean;
       final?: string;
       choice?: string;
-    }) => decideWorkflowApproval(id, approved, final, choice),
+      note?: string;
+    }) => decideWorkflowApproval(id, approved, final, choice, note),
     onSuccess: async (approval) => {
       await queryClient.invalidateQueries({ queryKey: qk.workflows.all() });
       toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, decide };
 }
 
 /**

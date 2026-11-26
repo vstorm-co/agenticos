@@ -1,9 +1,12 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.portability_operation import PortabilityOperation
+from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -19,6 +22,8 @@ from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.coding_account import CodingAccount
+from app.db.models.personal_model_key import PersonalModelKey
+from app.db.models.personal_model_generation import PersonalModelGeneration
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -73,10 +78,13 @@ from app.db.models.authoring import (
 )
 from app.db.models.improvement import (
     ImprovementIteration,
+    ImprovementMode,
     ImprovementRun,
+    ImprovementSearchVariant,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
+    SearchVariantStatus,
     StopReason,
 )
 from app.db.models.eval_run import (
@@ -149,6 +157,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
+from app.db.models.project_filesystem import ProjectFilesystemBinding, ProjectFilesystemLease
 from app.db.models.suggestion import RoutineFindingRevision, Suggestion
 from app.db.models.watch import Watch
 from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
@@ -169,8 +178,11 @@ from app.db.models.artifact import (
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
+from app.db.models.case_key_draft import CaseKeyDraft
+from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -220,6 +232,15 @@ from app.db.models.artifact_share_request import ArtifactShareRequest
 from app.db.models.channel_binding_request import ChannelBindingRequest
 
 __all__ = [
+    "ProjectResource",
+    "EventDelivery",
+    "EventDispatch",
+    "EventSource",
+    "EventSourceCredential",
+    "EventSubscription",
+    "PersonalContextCache",
+    "SolutionInstallation",
+    "PortabilityOperation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",
@@ -232,6 +253,8 @@ __all__ = [
     "ApiKey",
     "BrowserSignIn",
     "CodingAccount",
+    "PersonalModelKey",
+    "PersonalModelGeneration",
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
@@ -253,12 +276,15 @@ __all__ = [
     "ChannelBindingRequest",
     "ArtifactVersion",
     "CaseGeneration",
+    "CaseKeyDraft",
+    "KeyCoverageReport",
     "CaseProposal",
     "CaseScore",
     "Dataset",
     "DatasetCase",
     "DatasetVersion",
     "KnowledgeGapClassification",
+    "KnowledgeGapEvalClassification",
     "KnowledgeGapMember",
     "KnowledgeGapTopic",
     "KnowledgeSearch",
@@ -332,10 +358,13 @@ __all__ = [
     "SpecProposalBatch",
     "SpecProposalHunk",
     "ImprovementIteration",
+    "ImprovementMode",
     "ImprovementRun",
+    "ImprovementSearchVariant",
     "ImprovementStage",
     "ImprovementStatus",
     "ImprovementVerdict",
+    "SearchVariantStatus",
     "StopReason",
     "EvalRun",
     "EvalRunArm",
@@ -369,6 +398,8 @@ __all__ = [
     "BackgroundTaskKind",
     "BackgroundWorker",
     "Project",
+    "ProjectFilesystemBinding",
+    "ProjectFilesystemLease",
     "ContextFile",
     "ContextProposal",
     "ContextMode",
@@ -462,3 +493,14 @@ __all__ = [
 ]
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
+
+from app.db.models.event_source import (
+    EventDelivery,
+    EventDispatch,
+    EventSource,
+    EventSourceCredential,
+    EventSubscription,
+)
+from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration
+
+from app.db.models.project_resource import ProjectResource

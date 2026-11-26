@@ -8,13 +8,49 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
 
 if TYPE_CHECKING:
     from app.db.models.user import User
+
+
+class HistoryCheckpointFrontier(BaseSchema):
+    """The checkpoint and visible transcript frontier a model history was built from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary_ordinal: int | None = Field(ge=0)
+    message_ordinal: int = Field(ge=0)
+
+
+class HistoryProvenance(BaseSchema):
+    """The agent and credential-free digest of a checkpoint's approved recipients."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    agent_id: UUID
+    configuration_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mcp_destination_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class HistoryCheckpoint(BaseSchema):
+    """Versioned private replay storage; older list snapshots have no recipient proof."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    version: Literal[1]
+    provenance: HistoryProvenance
+    messages: list[dict[str, JsonValue]]
+
+
+class HistorySource(BaseSchema):
+    """The authorized transcript window to reload when a checkpoint is incompatible."""
+
+    model_config = ConfigDict(frozen=True)
+    conversation_id: UUID
+    limit: int
+    exclude_message_id: UUID | None = None
 
 
 class LocalMessageFileSource(BaseSchema):
@@ -410,9 +446,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "the input rate. Null when not recorded"
         ),
     )
-    cost_usd: Decimal | None = None
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
     cost_is_partial: bool | None = Field(
         default=None,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether `cost_usd` is a floor rather than the whole of it - true when this "
             "turn reached a model with no price entry. Null means not recorded, which is "
@@ -564,9 +601,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
         default=None, description="The project this chat was started in, if any"
     )
     is_archived: bool = False
-    origin: Literal["api", "workflow"] | None = Field(
+    origin: Literal["api", "workflow", "routine"] | None = Field(
         default=None,
-        description="`api` for organization-key runs, `workflow` for private agent-step threads; null otherwise",
+        description="`api` for organization-key runs, `workflow` for private agent-step threads, `routine` for read-only shared routine histories; null otherwise",
     )
     is_favourite: bool = Field(
         default=False,
@@ -619,6 +656,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "null for the owner and for anyone reading it another way."
         ),
     )
+    can_fork_routine_log: bool = Field(
+        default=False,
+        description="Whether this reader created the routine and may fork its shared history into a private chat.",
+    )
     forked_from: ConversationForkOrigin | None = Field(
         default=None,
         description=(
@@ -640,6 +681,23 @@ class ConversationList(BaseSchema):
     """Schema for listing conversations."""
 
     items: list[ConversationRead]
+    total: int
+
+
+class WaitingChatQuestion(BaseSchema):
+    """A pending question's location, without its private prompt or arguments."""
+
+    run_id: UUID
+    conversation_id: UUID
+    conversation_title: str | None
+    agent_name: str
+    expires_at: datetime
+
+
+class WaitingChatQuestionList(BaseSchema):
+    """One page of the questions the signed-in person can answer in chat."""
+
+    items: list[WaitingChatQuestion]
     total: int
 
 
@@ -689,9 +747,10 @@ class ConversationCost(BaseSchema):
 
     input_tokens: int
     output_tokens: int
-    cost_usd: Decimal
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
     cost_is_partial: bool | None = Field(
         default=None,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether the total is a floor - true when any turn reached a model with no "
             "price entry. Null where no turn recorded the flag at all, which is 'nobody "
@@ -713,3 +772,21 @@ class MessageList(BaseSchema):
             "before a cost could be read. Zeroes would be a claim this has none to make."
         ),
     )
+
+
+class ConversationSearchRead(BaseSchema):
+    """A readable thread with a highlighted excerpt from a matching message."""
+
+    conversation_id: UUID
+    title: str | None
+    updated_at: datetime
+    hits: int
+    snippet: str
+    speaker_role: str
+    speaker_name: str | None
+
+
+class ConversationSearchList(BaseSchema):
+    """The best matching threads, bounded by the requested limit."""
+
+    items: list[ConversationSearchRead]

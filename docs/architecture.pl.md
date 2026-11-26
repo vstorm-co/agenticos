@@ -1,5 +1,5 @@
 ---
-source_sha: "0a32b884bf8a"
+source_sha: "32f24407d7b1"
 ---
 
 # Architektura { #architecture }
@@ -424,6 +424,23 @@ Dwa wpisy w tym słowniku są szwami do innych podsystemów, a nie zwykłymi dan
 | --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
 | `WORKSPACE_RESOURCE`        | otwarty workspace, który run dostaje też jako `ctx.workspace` | `tool_output_limits` oraz delegat, który współdzieli `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | rozwiązane drzewo delegacji                                   | capability `subagents`                                         |
+
+Montowanie projektów na żywo używa drugiej, celowo wąskiej granicy serwisowej.
+Runner wstrzykuje port wyboru projektu; capability nie czyta bezpośrednio bazy.
+Brama systemu plików projektu sprawdza aktualne członkostwo, granty, dzierżawę i
+generację workspace przy każdym RPC, we własnej transakcji. Poświadczenie bindingu
+wskazuje jeden prywatny workspace agenta; niezmienne katalogi dzierżaw wskazują
+autoryzowany dostęp runu do projektu. Dzierżawy wygasają po 90 sekundach, odnawiają
+się co 30 sekund i są unieważniane na końcu runu, przy pauzie lub zmianie wyboru.
+
+Zaufany broker SDK sprawdza tożsamość bindingu przed otwarciem lub wykonaniem sesji,
+trzyma eksportera na prywatnym moście i montuje tylko nazwany wolumen NFS w
+istniejącym kontenerze agenta. Autorytatywne pliki pozostają u dostawcy projektu.
+State zapewnia transakcyjną weryfikację wyłącznego utworzenia; natywny magazyn wymaga
+trwałych rozszerzonych atrybutów i atomowych twardych dowiązań. Nieobsługiwany dostawca
+lub zakres odmawia dopuszczenia. Epoka eksportera jest niezmienna dla zamontowanych
+uchwytów; zmiana zatrzymuje zachowany kontener do jawnego odzyskania, bez pustego
+zamiennika i automatycznego powtarzania przerwanych poleceń.
 
 Delegacja jest najostrzejszym przypadkiem tej zasady. Delegat jest wierszem; tak
 samo jego przypięta wersja, jego kolekcje, jego skille i jego sekrety, a każde
@@ -1050,3 +1067,6 @@ Operacje telefoniczne również wymagają trwałej granicy: `telephony.runtime.d
 
 
 Przyjęcie wiadomości z kanału także zatwierdza transakcję przed przygotowaniem runu: `ChannelMessageRouter._route_inner` zapisuje identity, sesję i rozmowę po sprawdzeniu dostępu oraz limitu. Klucz platformowego MCP powstaje w osobnej transakcji i wskazuje tę rozmowę; sam flush nie zapewnia jej widoczności. Nieudany commit zatrzymuje przygotowanie.
+
+
+Osobiste sesje programistyczne również przekraczają granice skutków zewnętrznych: `PersonalCodingSessionFactory` zatwierdza własność prywatnego obszaru przed pracą z poświadczeniem, a następnie początkowe źródła i audyt przed zadaniem natywnym. Chronione przed anulowaniem sprzątanie końcowe zatwierdza zachowanie sesji albo kolejkę usunięcia kontenera także po błędzie lub anulowaniu zadania. Zmiana zgody konta i usunięcie właściciela kolejkują sprzątanie we własnej transakcji przed kaskadowym usunięciem konta i obszaru. Rollback zachowuje metadane sesji i obowiązek usunięcia zasobów.

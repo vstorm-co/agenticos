@@ -1,3 +1,4 @@
+import { ChatCostContext } from "@/components/settings/console-experience-provider";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
@@ -84,6 +85,17 @@ function valueOf(label: string) {
 }
 
 describe("UsageMeter, closed", () => {
+  it("disables usage before the first message and enables it when history exists", async () => {
+    const view = render(<UsageMeter usage={null} beforeFirstMessage iconOnly />);
+    expect(trigger()).toBeDisabled();
+    await userEvent.click(trigger());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.rerender(<UsageMeter usage={null} beforeFirstMessage={false} iconOnly />);
+    expect(trigger()).toBeEnabled();
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("is one icon, there before anything was measured, saying what it will show", async () => {
     // "0 tokens" under a conversation that has not run anything is a claim, so
     // the popover says what comes rather than showing a zero.
@@ -397,4 +409,43 @@ describe("UsageMeter, open", () => {
 
     expect(screen.queryByText("Workspace")).toBeNull();
   });
+});
+
+it("keeps percentages inside the popover in icon-only mode", async () => {
+  render(
+    <UsageMeter
+      iconOnly
+      usage={usage({ context: { used_tokens: 50_000 } })}
+      contextWindow={200_000}
+    />,
+  );
+  const trigger = screen.getByRole("button", { name: "Usage of this conversation" });
+  expect(trigger).not.toHaveTextContent("25%");
+  expect(screen.getByTestId("context-fill")).toBeInTheDocument();
+  await userEvent.click(trigger);
+  expect(screen.getByText("25%")).toBeVisible();
+});
+
+it("keeps the context meter while hiding cached totals and financial budget readings", async () => {
+  render(
+    <ChatCostContext.Provider value={false}>
+      <UsageMeter
+        usage={usage({
+          context: { used_tokens: 1000 },
+          budget_percent: 90,
+          agent_budget_percent: 80,
+        })}
+        contextWindow={10000}
+        total={total()}
+      />
+    </ChatCostContext.Provider>,
+  );
+  await userEvent.click(trigger());
+  expect(screen.queryByText(/\$/)).toBeNull();
+  expect(screen.queryByText(/90%|80%/)).toBeNull();
+  expect(screen.getByRole("dialog")).toHaveTextContent("1,000");
+});
+it("does not render a withheld total as a zero price", async () => {
+  await openMeter({ usage: null, total: total({ cost_usd: null }) });
+  expect(screen.queryByText(/\$/)).toBeNull();
 });

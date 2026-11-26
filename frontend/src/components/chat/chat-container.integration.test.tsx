@@ -7,6 +7,7 @@ import { announceChange } from "@/lib/live-updates";
 import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
+import { MainChatContext } from "./main-chat-context";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
@@ -181,11 +182,13 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount(requestedConversationId?: string) {
+function mount(requestedConversationId?: string, mainChat = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer requestedConversationId={requestedConversationId} />
+      <MainChatContext.Provider value={mainChat}>
+        <ChatContainer requestedConversationId={requestedConversationId} />
+      </MainChatContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -299,10 +302,96 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
+const composerLayouts = [
+  { layout: "standard", mainChat: false },
+  { layout: "minimal", mainChat: true },
+];
+
+it.each(composerLayouts)(
+  "keeps Stop keyboard-accessible after activating Send ($layout)",
+  async ({ mainChat }) => {
+    const user = userEvent.setup();
+    mount(undefined, mainChat);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await user.type(editor, "First prompt");
+    const send = screen.getByRole("button", { name: "Send message" });
+    act(() => send.focus());
+    await user.keyboard("{Enter}");
+    expect(socket.send).toHaveBeenCalledWith(expect.objectContaining({ message: "First prompt" }));
+    expect(screen.getByRole("button", { name: "Stop generating" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(socket.send).toHaveBeenCalledWith({ type: "stop" });
+  },
+);
+
+it.each(composerLayouts)(
+  "keeps the draft if the turn completes mid-click on Stop ($layout)",
+  async ({ mainChat }) => {
+    const user = userEvent.setup();
+    mount(undefined, mainChat);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await user.type(editor, "First prompt{Enter}");
+    expect(editor).toHaveFocus();
+    receive("model_request_start", {});
+    await user.type(editor, "Unsent draft");
+
+    await user.pointer({
+      keys: "[MouseLeft>]",
+      target: screen.getByRole("button", { name: "Stop generating" }),
+    });
+    // The turn is visually done but cannot accept another message until session_ready.
+    receive("complete", {});
+    const send = screen.getByRole("button", { name: "Send message" });
+    await user.pointer({ keys: "[/MouseLeft]", target: send });
+
+    expect(messageOf(editor)).toBe("Unsent draft");
+    expect(socket.send.mock.calls.some(([frame]) => frame.message === "Unsent draft")).toBe(false);
+
+    receive("session_ready", {});
+    await user.click(send);
+    expect(socket.send).toHaveBeenCalledWith(expect.objectContaining({ message: "Unsent draft" }));
+    expect(messageOf(editor)).toBe("");
+  },
+);
+
 describe("the chat container - answering a durable question", () => {
+  it("keeps the normal draft composer below one inline question and queues follow-ups", async () => {
+    useChatStore.getState().addMessage({
+      id: "question-start",
+      role: "user",
+      content: "Ask about format",
+      timestamp: new Date(),
+    });
+    mount(undefined, true);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "My unsent draft");
+    receive("model_request_start", {});
+    receive("thinking_delta", { content: "Choosing a format" });
+    receive("ask_user", {
+      questions: [{ question: "Which format?", options: [{ label: "List" }] }],
+    });
+    expect(editor).toHaveAttribute("contenteditable", "true");
+    expect(editor).toBeVisible();
+    expect(messageOf(editor)).toBe("My unsent draft");
+    expect(screen.queryByRole("button", { name: "Answer the agent’s question" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel task" })).toBeNull();
+    expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(await screen.findByText("My unsent draft")).toBeVisible();
+    expect(socket.send.mock.calls.some(([frame]) => frame.message === "My unsent draft")).toBe(
+      false,
+    );
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "ask_user_response")).toBe(
+      false,
+    );
+    expect(messageOf(editor)).toBe("");
+  });
+
   it("keeps the question disabled offline and resumes on the connected socket", async () => {
     mount();
-    await screen.findByRole("button", { name: "Voice input" });
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "Keep this draft while I answer");
     receive("model_request_start", {});
     receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
     receive("user_question_required", {
@@ -323,6 +412,10 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
+    expect(editor).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
+    expect(answer.closest("[data-transcript]")).toBeInTheDocument();
+    expect(answer.closest("[data-chat-dock]")).toBeNull();
     act(() => {
       socket.isConnected = true;
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });
@@ -351,6 +444,40 @@ describe("the chat container - answering a durable question", () => {
     );
     expect(screen.queryByText("How formal?")).not.toBeInTheDocument();
     expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Type a message..." })).toBe(editor);
+    expect(messageOf(editor)).toBe("Keep this draft while I answer");
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
+  });
+
+  it("cancels a durable question over HTTP even while the chat socket is offline", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue("Not performed: the run was stopped.");
+    mount();
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "Draft after cancellation");
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-cancel", args: {} });
+    receive("user_question_required", {
+      run_id: "cancel-question-run",
+      questions: [
+        {
+          tool_call_id: "ask-cancel",
+          questions: [{ question: "Continue?", options: [{ label: "Yes" }] }],
+        },
+      ],
+    });
+    receive("complete", {});
+    act(() => {
+      socket.isConnected = false;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    expect(screen.getByRole("button", { name: /Yes/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/runs/cancel-question-run/cancel"),
+    );
+    await waitFor(() => expect(editor).toBeVisible());
+    expect(messageOf(editor)).toBe("Draft after cancellation");
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
   });
 });
 
@@ -423,7 +550,7 @@ describe("the chat container - following the transcript", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     const readHeight = vi.fn(() => 2000);
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: readHeight });
     scrollTo.mockClear();
@@ -436,11 +563,11 @@ describe("the chat container - following the transcript", () => {
     expect(readHeight).not.toHaveBeenCalled();
     expect(scrollTo).not.toHaveBeenCalled();
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
-    expect(scroller.scrollTop).toBe(2000);
-    expect(readHeight).toHaveBeenCalledTimes(1);
+    expect(scroller.scrollTop).toBe(1500);
+    expect(readHeight).toHaveBeenCalled();
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
@@ -451,7 +578,7 @@ describe("the chat container - following the transcript", () => {
    * dock over it. With a message in it: an empty conversation reads from its top
    * and is not followed at all.
    */
-  async function scrollerAndDock() {
+  async function scrollerAndDock(observers: ReturnType<typeof observeSizes>) {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
     act(() =>
@@ -467,6 +594,10 @@ describe("the chat container - following the transcript", () => {
     expect(scroller).toHaveClass("overflow-y-auto");
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    // Establish the measured extent before simulating native user scrolling.
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(scroller)) observer.grew();
+    });
     return { dock, scroller };
   }
 
@@ -477,20 +608,45 @@ describe("the chat container - following the transcript", () => {
     });
   }
 
+  it("keeps the normal composer and its transcript clearance while a question is pending", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock(observers);
+    const region = dock.querySelector<HTMLElement>("[data-chat-composer-region]")!;
+    Object.defineProperty(dock, "offsetHeight", {
+      configurable: true,
+      get: () => (region.hidden ? 56 : 180),
+    });
+    const resize = () =>
+      act(() => {
+        for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
+      });
+    resize();
+    expect(scroller.style.paddingBottom).toBe("180px");
+    receive("model_request_start", {});
+    receive("thinking_delta", { content: "Choosing a format" });
+    receive("ask_user", {
+      questions: [{ question: "Choose a format", options: [{ label: "List" }] }],
+    });
+    expect(region).toBeVisible();
+    resize();
+    expect(scroller.style.paddingBottom).toBe("180px");
+    expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
+  });
+
   it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     scroller.scrollTop = 1500;
 
     growDock(observers, dock);
 
     expect(scroller.style.paddingBottom).toBe("148px");
-    expect(scroller.scrollTop).toBe(2000);
+    expect(scroller.scrollTop).toBe(1500);
   });
 
   it("leaves a reader who scrolled up where they are when the dock grows", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     // From the foot, then up: a scroll up is what lets go.
     scroller.scrollTop = 1500;
     fireEvent.scroll(scroller);
@@ -729,7 +885,7 @@ describe("the chat container - server dictation", () => {
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
-  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
+  it("shows browser dictation in the composer without a setup prompt", async () => {
     readiness.current = { ...readiness.current, engine: "browser", requested: false };
     class FakeRecognition {
       start = vi.fn();
@@ -737,14 +893,14 @@ describe("the chat container - server dictation", () => {
     }
     vi.stubGlobal("SpeechRecognition", FakeRecognition);
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
+    mount(undefined, true);
     await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
 
     fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
 
-    expect(
-      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Dictation" })).toBeVisible());
+    expect(screen.getByText("Listening").closest("[data-tour=chat-composer]")).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Open in the Agent Builder" })).toBeNull();
     vi.unstubAllGlobals();
   });
 
@@ -1035,7 +1191,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     mount();
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(document.querySelector<HTMLElement>("[data-chat-scroller]")?.scrollTop).toBe(0);
     expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
 
     act(() =>
@@ -1052,7 +1208,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const scroller = dock.previousElementSibling as HTMLElement;
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
     expect(scroller.scrollTop).toBe(1500);
@@ -1888,6 +2044,28 @@ describe("the chat container - a conversation shared with the reader", () => {
     expect(screen.queryByText("Could not verify access to this conversation")).toBeNull();
   });
 
+  it("keeps a shared routine history read-only and lets its creator continue through a fork", async () => {
+    openShared({ user_id: null, origin: "routine", can_fork_routine_log: true });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine-fork",
+      user_id: SIGNED_IN.id,
+      title: "Routine follow-up",
+    });
+    mount();
+    const continueButton = await screen.findByRole(
+      "button",
+      { name: "Continue in a new chat" },
+      SETTLE,
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(continueButton);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-theirs/fork", {
+        message_id: "m-1",
+      }),
+    );
+  });
+
   it("offers fork controls and lineage for an owned chat beyond the sidebar page", async () => {
     openShared({
       user_id: SIGNED_IN.id,
@@ -1897,14 +2075,14 @@ describe("the chat container - a conversation shared with the reader", () => {
     });
     mount();
 
-    expect(
-      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fork into a new conversation" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    }, SETTLE);
   });
 });
 
-it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
+it("keeps findings beside the composer and leaves approvals to decision cards", async () => {
   const originalGet = get.getMockImplementation();
   get.mockImplementation((url: string, ...args: unknown[]) =>
     url.startsWith("/outcomes?")
@@ -1918,16 +2096,130 @@ it("keeps actionable outcome notices beside the composer instead of above the tr
               context_url: "/runs?tab=approvals",
               source_conversation_id: "c-notice",
             },
+            {
+              id: "finding",
+              kind: "finding",
+              summary: "A finding from this conversation",
+              status: "open",
+              source_conversation_id: "c-notice",
+            },
           ],
         })
       : originalGet?.(url, ...args),
   );
   useConversationStore.getState().setCurrentConversationId("c-notice");
   mount();
-  const notice = await screen.findByText("Review the pending operation");
+  const notice = await screen.findByText("A finding from this conversation");
   const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
   expect(dock).toContainElement(notice);
   expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+  expect(screen.queryByText("Review the pending operation")).not.toBeInTheDocument();
+});
+
+describe("starting a new chat", () => {
+  beforeEach(() => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/me/suggestions"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "briefing-finding",
+                kind: "finding",
+                status: "open",
+                title: "Review the weekly summary",
+                detail: "A finding worth discussing",
+                payload: {},
+                urgent: false,
+                created_at: "2026-11-21T09:00:00Z",
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+  });
+  it("puts the Inbox timeline above the composer and the agent's prompts below it", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "first-agent",
+                slug: "first-agent",
+                name: "First agent",
+                status: "published",
+                starters: ["Draft a summary", "Find open questions"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "first-agent" });
+    mount(undefined, true);
+    const openers = await screen.findAllByRole("button", {
+      name: /^(Draft a summary|Find open questions)$/,
+    });
+    expect(openers).toHaveLength(2);
+    const opener = openers[1]!;
+    const editor = screen.getByRole("textbox");
+    const briefing = await screen.findByRole("region", { name: "Daily briefing" });
+    expect(await screen.findByText("Review the weekly summary")).toBeVisible();
+    expect(
+      briefing.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(editor.compareDocumentPosition(opener) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(editor);
+    expect(opener).toBeVisible();
+    const hints = opener.closest("[data-chat-welcome-hints]");
+    await userEvent.type(editor, "My own question");
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Find open questions" })).toBeNull(),
+    );
+    expect(hints).toBeInTheDocument();
+    expect(hints).toHaveAttribute("inert");
+    expect(hints).toHaveAttribute("data-suggestions-hidden", "true");
+    await userEvent.clear(editor);
+    const restored = await screen.findByRole("button", { name: "Find open questions" });
+    await userEvent.click(restored);
+    await waitFor(() => expect(editor.textContent).toContain(opener.textContent));
+    expect(
+      socket.send.mock.calls.some(([frame]) =>
+        JSON.stringify(frame).includes(opener.textContent ?? ""),
+      ),
+    ).toBe(false);
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("keeps the briefing when the selected agent turns off suggested prompts", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "quiet-agent",
+                slug: "quiet-agent",
+                name: "Quiet agent",
+                status: "published",
+                show_starters: false,
+                starters: ["Hidden suggested prompt"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "quiet-agent" });
+    mount(undefined, true);
+    await screen.findByText("Quiet agent", { selector: ".chat-empty-state p span" });
+    expect(screen.queryByRole("button", { name: "Hidden suggested prompt" })).toBeNull();
+    expect(document.querySelector("[data-chat-welcome-hints]")).toBeNull();
+    expect(await screen.findByRole("region", { name: "Daily briefing" })).toBeVisible();
+    expect(await screen.findByText("Review the weekly summary")).toBeVisible();
+  });
 });
 
 describe("opening a saved chat", () => {

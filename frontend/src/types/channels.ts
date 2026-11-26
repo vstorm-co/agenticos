@@ -1,4 +1,7 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord, WhatsApp. */
+/**
+ * Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams,
+ * Discord, Matrix and WhatsApp.
+ */
 
 import type { OrgRole } from "./organization";
 
@@ -8,6 +11,7 @@ export type ChannelPlatform =
   | "mattermost"
   | "teams"
   | "discord"
+  | "matrix"
   | "sms"
   | "email"
   | "imessage"
@@ -121,7 +125,7 @@ export interface ChannelBot extends AnswerStyle {
   webhook_url: string | null;
   /**
    * The bot's own server, for a self-hosted platform. An address rather than a
-   * credential, so it is read back - Mattermost only; the others have one
+   * credential, so it is read back - Mattermost and Matrix only; the others have one
    * address for everybody.
    */
   api_base_url: string | null;
@@ -190,7 +194,7 @@ export interface ChannelBot extends AnswerStyle {
    */
   inherited_speech_to_text?: InheritedSpeechToText | null;
   /**
-   * Who answers here, from the active bindings.
+   * The agents bound here, paused bindings included and marked `is_active`.
    *
    * A bot with none is registered and silent, which is the state somebody opens
    * the channels page to explain - and a listing that named only the bot could
@@ -222,8 +226,12 @@ export interface ChannelConnection {
   reason: string | null;
 }
 
-/** An agent that answers on one bot. */
+/** An agent bound to one bot, with the binding's own id and pause state. */
 export interface BotAgent {
+  /** The binding's id: what unbinding addresses. */
+  exposure_id: string;
+  /** False while the binding is paused; the bot then answers nothing as this agent. */
+  is_active: boolean;
   id: string;
   name: string;
   slug: string;
@@ -242,9 +250,9 @@ export interface ChannelBotCreate {
   /** The bot token as issued by the platform. Encrypted at rest, never read back. */
   token: string;
   /**
-   * Mattermost only, and required there: the bot's own server. Mattermost is
-   * self-hosted, so a bot that does not know its server cannot reply, cannot
-   * open its event stream and cannot fetch an attachment.
+   * Mattermost and Matrix only, and required there: the bot's own server (a Matrix
+   * homeserver). Both are self-hosted, so a bot that does not know its server cannot
+   * reply, cannot open its event stream and cannot fetch an attachment.
    */
   api_base_url?: string;
   /**
@@ -313,7 +321,7 @@ export interface ChannelBotUpdate {
   name?: string;
   /** A replacement bot token. Sealed at rest like the first one. */
   token?: string;
-  /** Mattermost only: the bot's own server. An address, so it is read back. */
+  /** Mattermost and Matrix only: the bot's own server. An address, so it is read back. */
   api_base_url?: string;
   webhook_secret?: string;
   slack_signing_secret?: string;

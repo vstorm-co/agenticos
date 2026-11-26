@@ -46,6 +46,7 @@ from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials, WhatsAppGraphError
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
+from app.services.message_history import ModelHistory
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from tests.whatsapp_fakes import OpenWindow
 from tests.workspaces import document_workspace
@@ -219,7 +220,9 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         # because where a summary has run that is where the history starts.
         patch(
             f"{router}.ConversationService",
-            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+            return_value=MagicMock(
+                model_history=AsyncMock(return_value=ModelHistory([], revision=None))
+            ),
         ),
         patch(
             f"{router}.get_adapter",
@@ -527,7 +530,7 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         # The window is read off the database and these tests hand `_route_inner`
         # a mock; what they are about is the file rows, not the history.
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
 
         with _channel(
             _agent_router(
@@ -561,7 +564,7 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router, _replies, rows = _router()
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
 
         with _channel(_agent_router(answer_default=None), rows):
             await router._route_inner(
@@ -912,7 +915,9 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(f"{router}.conversation_repo.count_messages", AsyncMock(return_value=0)),
         patch(
             f"{router}.ConversationService",
-            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+            return_value=MagicMock(
+                model_history=AsyncMock(return_value=ModelHistory([], revision=None))
+            ),
         ),
         patch(f"{router}.ChannelAgentRouter", return_value=agents),
         patch.object(FileUploadService, "upload", upload),
@@ -961,7 +966,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
     async def test_a_crash_on_the_mention_path_answers_like_one_on_the_default_path(self):
         router_m, replies_m, rows_m = _router()
-        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_m._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
             # Without the fix this would raise out of `_route_inner` and answer
             # nothing; with it the crash is caught and apologised for.
@@ -969,7 +974,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
         router_d, replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
             await router_d._route_inner(_incoming("just a question"), MagicMock(commit=AsyncMock()))
 
@@ -984,7 +989,7 @@ class TestACrashAnswersTheSameOnEitherPath:
         either path. A crash that had already linked them keeps them - covered
         below (#1503)."""
         router_m, _replies_m, rows_m = _router()
-        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_m._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
             await router_m._route_inner(
                 _incoming("@support here is the report"), MagicMock(commit=AsyncMock())
@@ -992,7 +997,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
         router_d, _replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
             await router_d._route_inner(
                 _incoming("here is the report"), MagicMock(commit=AsyncMock())
@@ -1122,7 +1127,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
         router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
 
         incoming = IncomingMessage(
@@ -1158,7 +1163,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
         router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
 
         incoming = IncomingMessage(

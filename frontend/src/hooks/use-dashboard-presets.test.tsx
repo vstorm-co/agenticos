@@ -91,3 +91,16 @@ describe("useDashboardPresets", () => {
     expect(result.current.presets).toEqual([]);
   });
 });
+
+it("does not request presets for a view without arrangement controls, then reads them when opened", async () => {
+  vi.mocked(api.listPresets).mockResolvedValue([]);
+  const view = renderHook(({ enabled }) => useDashboardPresets(enabled), {
+    initialProps: { enabled: false },
+    wrapper,
+  });
+  expect(view.result.current.isLoading).toBe(false);
+  expect(api.listPresets).not.toHaveBeenCalled();
+  view.rerender({ enabled: true });
+  await waitFor(() => expect(api.listPresets).toHaveBeenCalledOnce());
+  await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+});

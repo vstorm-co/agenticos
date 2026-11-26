@@ -374,7 +374,7 @@ ENV_FILE_CREATED=0
 # append a token to its `.env`, and `exec` into a service that is not ours. The
 # old script died here (`does not look like an AgenticOS clone`); this one moves
 # on to `$INSTALL_DIR` instead.
-ours() { grep -q 'ghcr.io/vstorm-co/agenticos-' "${1:-.}/docker-compose.yml" 2>/dev/null; }
+ours() { grep -Eq 'ghcr.io/vstorm-co/agenticos(-|\})' "${1:-.}/docker-compose.yml" 2>/dev/null; }
 
 # The compose file at the latest release, so that the file and the `latest`
 # images it pulls by default are the same release - the one on `main` can be

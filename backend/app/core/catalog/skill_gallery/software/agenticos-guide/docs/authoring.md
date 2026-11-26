@@ -27,11 +27,11 @@ It does three things:
 
 In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
-**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and any dataset-specific guidance, added below the platform's rules for the helper and never in place of them; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
-The assistant has no tools. What it reads is gathered for it, from the last 30
+What the assistant reads is gathered for it, from the last 30
 days of the agent's runs:
 
 - answers people rated down, with their comments first;
@@ -40,6 +40,13 @@ days of the agent's runs:
 
 An unrated run that succeeded says nothing either way and is not read. Neither is
 a test from the Builder's test panel, nor a delegate's run.
+
+The built-in assistant has no tools. A helper agent picked in its place may bind
+`thinking`, `knowledge`, `context` or `skills` and nothing that reaches further, and one that
+searches is given the knowledge bases of the agent it improves. Improving an
+agent, its instructions are the dataset's improvement instructions, or the
+built-in ones - never those of its own published version. A skill's Improve
+session runs it as published, with its own instructions.
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
@@ -145,11 +152,13 @@ The check is not one of the suite's runs: it is in no suite's history and
 notifies nobody, and the run's own verdict is what Accept goes by. A skill or
 context change checked on a suite of the agent it runs on gets the same.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from a version that was only proposed, which the draft does not hold: an earlier attempt's, the one a knowledge check measures, or one serving a skill or context file change. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
@@ -164,6 +173,10 @@ runs that checked the suggestions, so you can compare the prediction with what
 the runs found.
 
 ## Configuration { #configuration }
+
+Finished Improve sessions show the outcome, saved changes and changed answers together. The first changed answer is open for comparison; regressions appear first. A reused baseline reads its answer from its original run. Skill results show each agent’s outcome beside the changes, and application does not imply every agent improved. Tabs above the result provide **Result**, **Changes**, **Test questions** and **Attempts**. **Analysis** and **Decision** remain in **Session details**; existing step links still work. Decision actions appear only while a decision is available.
+
+**Attempts** opens its first card by default, and **Test questions** opens **Review the questions**. Historical **Changes** uses the full width and omits an empty knowledge section.
 
 Besides the text, the assistant can suggest a change to a few parts of an
 agent's configuration. Each one is a suggestion like any other, decided on its
@@ -266,9 +279,7 @@ and are refused once it changed since, for a skill change as for a file.
 
 ## Describing a new agent { #describing-a-new-agent }
 
-The create dialog offers to describe the agent instead of filling in the form.
-The description goes to the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant), which drafts agents and asks
-before it creates one; the result is an ordinary draft.
+The create dialog’s **Create with Architect** action opens the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant) widget without sending a prompt or creating an agent. Describe what you need in that conversation; the Architect asks before creating an ordinary draft.
 
 ## Cost and budget { #cost-and-budget }
 
@@ -294,9 +305,12 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
 | Apply or discard a skill change | `skills:edit` on the skill and `runs:view` |
 | Apply or discard a context file change | `context:edit` on the file and `runs:view` |
-| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
+| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent; for a skill or context file change, edit access to the skill or file and run access to the agent it is checked on |
 
-Grants count: a member with an edit grant on one agent may improve that agent.
+Grants count: a member with an edit grant on one agent may improve that agent,
+when their role also holds `runs:view` - an Owner, Admin, Builder or Operator.
+Members and Viewers hold no `runs:view`, so a grant alone does not let them
+start or read a session.
 
 If an API request selects a helper agent, you need both view and run access to
 that helper. A missing or inaccessible helper returns `404` before its settings
@@ -332,9 +346,13 @@ visible even after cancellation.
 
 The test runs on its own: the agent as it is and the changed one answer the same
 questions, and an inconclusive comparison is asked once more within the test's
-price. It ends at the result: `ready` when the attempt made the agent better, its
+price. An answer the model provider timed out on or failed is first asked again on
+its own, once, in the same test, when what is left of the budget covers it, so a
+few lost answers do not repeat the whole test. It ends at the result: `ready` when the attempt made the agent better, its
 changes then the waiting suggestion batch, and `stopped`, with the verdict as the
 reason, otherwise.
+
+Replacement answers are priced per model from the check's frozen per-case estimates, including the judge, while reserving the confirmation reruns. Costs, tokens and latency include the failed try. Older checks without frozen arm prices leave lost answers incomplete instead of guessing a retry budget.
 
 No attempt starts by itself. **Try again** is the same
 `/continue` from the result, with an optional `note` the helper reads beside the
@@ -344,8 +362,8 @@ within its budget. Two unchanged results in a row, or an inconclusive one and it
 repeat, show on the result as a hint that another attempt is unlikely to help, not
 as a stop.
 
-Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
-and the steps after it run with that person's current permissions and credential,
+Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step, try again, or confirm one of its paid checks: of chosen changes, of a knowledge draft, or of what each change did. The session records who did,
+and the steps after it run with that person's current permissions and credential and are logged under them,
 so a session the Architect started can be taken further in the console.
 
 The worker
@@ -358,6 +376,8 @@ with the reason `expired`. An agent has one open session at a time - queued,
 running, waiting, ready, stopped or failed - so starting another answers `409`
 until the open one ends. The creator or an organization administrator can post to
 `/{run_id}/cancel`.
+
+Stopping does not require `runs:view`. Without it, the response contains only `id` and `status`, with no budget, dataset, progress or error metadata.
 
 The person who took the last step is notified at each stop and each end: the
 analysis read, changes ready to review, a checked result, stopped, failed or stale,
@@ -412,21 +432,23 @@ not accept, publish or replace the attempt's combined verdict.
 
 Open **Improve** from the agent’s **Evals** toolbar, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent’s **Knowledge gaps** tab. When the current published version had answers rated down or failed runs in the last 30 days, Improve carries an attention dot. The dashboard card **Improvements waiting for you** lists sessions waiting for a decision.
 
+The same dot marks the agent's tabs that hold something waiting for you. **Evals** carries it for those reasons, a failing suite or an Improve session waiting for you, and **Knowledge gaps** for open gaps; hovering the tab, or a screen reader, says why. An agent marked **Needs attention** on the agent list or the dashboard card opens on its **Evals** tab.
+
 Every **Improve** opens the agent's open session - working, waiting for you, at its result, or stopped or failed - and starts a new one once that session is kept as a draft, published, discarded, cancelled or closed, after which it stays in the agent's [improvement history](#improvement-history). **End it and start a new one** beside an open session ends it first.
 
 A session lives at `/agents/<agent>/improve/<session>`; the page can be closed and reopened while work continues. Each screen asks for at most one decision, names who decided what on it, and keeps advanced options under **Show details**. Each screen leads with figures and small charts, every state marked with an icon as well as a colour; full answers, quotes and reasons wait in cards that open. One line above the steps gives the session's state - **Working** while a step runs, and at a stop what it waits for: **Waiting for you: look at what went wrong** or **Waiting for you: review the changes** - and what it has spent of its limit.
 
 A step opens once it has work to show or a decision to ask for; the page follows the step the session is on, and after you open another one, **Go to the current step** brings it back. At a stop the footer holds the next step with its price, for example **Next step: write the changes · about $0.04**; nothing is spent before you press it. When the price moved since it was shown, the footer says so - **The price changed to about $0.05. Press again to go on.** - and when the step costs more than the session has left, it offers to raise the session's limit right there.
 
-**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written.
+**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written. When the dataset has guidance for the improver, the dialog shows it with who last changed it: a member by name, and somebody who has left as a former member.
 
 The analysis cost and whole-session spending limit appear before **Start improving**. Each later step has its own estimate and waits for your decision. **Show details** holds the spending-limit input, question distribution, today's test and a link to the dataset's helper settings. The running session opens its own page after you start. Closing the setup dialog returns to the agent; existing `/improve/new` links open the same dialog.
 
-1. **Understand.** One sentence and a bar count the problems to fix in the agent and the information missing from the knowledge base. Examples whose misses joined one knowledge gap topic form one card, and so does a question asked both as a test question and in a conversation. A card shows the question and opens to the answer, the comments, how a test answer was graded - the grade the judge gave each criterion, and whether each rule was met - and why it counts: the grades it failed, how a person rated it, and why the classifier put it there. Answers rated up, or in which the classifier found nothing wrong, are sorted under **Not a problem to fix** automatically; nothing on this step is set by hand. An answer whose topic a document has covered since counts under **Already in the knowledge base**, with that document and the day it was added: nothing is left to draft for it. The session always stops here; **Next step: write the changes** asks the helper for changes.
-2. **Changes.** How many changes were proposed and how many are included, then each change as a diff with Should fix, Why and Based on folded under it. At the stop each change has **Include change N in the test**, of which at least one stays ticked, and **Change the wording**, which tests your wording instead of the helper's: the change is then marked **Reworded by you**, and **Back to the proposed wording** undoes it. **Next step: test the selected changes** starts the test, priced at the most it may cost, with what it most likely costs beneath - without the repeat an inconclusive result gets; while it runs, the list can be read but not changed. Knowledge drafts form their own column, holding the drafts somebody asked for. When no change was found, the screen lists what each attempt tried.
+1. **Understand.** One sentence and a bar count the problems to fix in the agent or its skills and the information missing from the knowledge base; once an attempt has been checked, a line names the still-failing criteria the helper put down to a skill, which are fixed in the skill rather than in the agent's instructions. Examples whose misses joined one knowledge gap topic form one card, and so does a question asked both as a test question and in a conversation. A card shows the question and opens to the answer, the comments, how a test answer was graded - the grade the judge gave each criterion, and whether each rule was met - and why it counts: the grades it failed, how a person rated it, and why the classifier put it there. Answers rated up, or in which the classifier found nothing wrong, are sorted under **Not a problem to fix** automatically; nothing on this step is set by hand. An answer whose topic a document has covered since counts under **Already in the knowledge base**, with that document and the day it was added: nothing is left to draft for it. The session always stops here; **Next step: write the changes** asks the helper for changes.
+2. **Changes.** How many changes were proposed and how many are included, then each change as a diff with Should fix, Why and Based on folded under it. At the stop each change has **Include change N in the test**, of which at least one stays ticked, and **Change the wording**, which tests your wording instead of the helper's: the change is then marked **Reworded by you**, and **Back to the proposed wording** undoes it. **Next step: test the selected changes** starts the test, priced at the most it may cost, with what it most likely costs beneath - one test asking again about half of the held-out answers it may, without the repeat an inconclusive result gets; while it runs, the list can be read but not changed. Knowledge drafts form their own column, holding the drafts somebody asked for. When no change was found, the screen lists what each attempt tried.
 3. **Check.** The agent as it is today and the changed one answer the same questions in one test, each with a bar of how far it has got; answers from a test run before the session started fill today's bar at once. Then the stages, each marked done, running or not started: asking, grading, and re-asking the answers whose result changed. The test runs on its own and the result opens when it is done. **Open the full check** leads to the eval run.
-4. **Result.** What the session came to comes first, in sentences built from the verdicts - which attempt made the agent better, or that none did and which made it worse - with the topics missing from the knowledge base and why the session stopped; once decided, it says which attempt was published as which version, or kept as a draft. Under **What you can do** sits one primary action: **Review and accept the changes** when a checked candidate waits, **Try again** while attempts or budget are left, **Draft the ones you need** when only knowledge is missing, and otherwise **End without changes**, beside **Start a new session** and a hint to add test questions where the agent answers badly. A failed step offers **Retry this step within the spending limit** first. With two attempts or more measured, **Which attempt to keep** lists them with the kept one ticked; choosing another asks for **Keep attempt N**, and an attempt that was not better first says what accepting it costs - the questions it broke, or that it brings no measured gain. A decided session lists them without the choice. **Try again** takes an optional **Note for the helper** - what to change or keep - and its price before it starts; the new attempt stops at **Changes**. A step stopped because whoever took it lost the access it needs offers **Continue this step with my access**, to anyone who may start a session. Then the figures: newly fixed and newly broken count only changes confirmed by asking again, with the ones not confirmed yet in small type beneath - changed once, but not the same way when asked again, and the count of topics missing knowledge leads to their list. Each attempt is one closed row - its verdict, what it fixed and broke against its own baseline out of the questions it kept aside, what writing and testing it cost - the session's total, analysis included, sits above the list - and the best attempt marked - or, when a person chose an attempt that was not better, marked as chosen. Every attempt keeps aside its own questions, so attempts are compared by their change rather than by their pass rates, which appear only in a row's details. A row opens to the bars of questions handled well before and after, the cost per answer when it moved, and each changed question with its answers before and after; a change the repeat answers did not confirm waits under **Not confirmed yet**, marked only possibly fixed or possibly broken. A bar is green or red only for a change confirmed by asking again; otherwise it stays grey, and a difference of one question, or bars pointing in opposite directions, is called within noise. Under **Show details** in the row: **How we measured it**, one sentence saying how many questions the helper saw and how many were kept aside to decide the result; **Which change helped?** when the attempt made two changes or more, with what testing each on its own costs; and, only when the session has a draft to test, **Check whether the draft would help**, as if search found it or through real search. When the checks were noise - answers graded both ways when asked again within an attempt, or today's version scoring differently between attempts on the held-out questions they shared - and no attempt was better, the card says first that the test cannot tell a better version from a worse one, offers what makes it reliable - yes-or-no grading criteria instead of a scale, a rule for length and format instead of the judge, more questions up to about 30 kept aside, a stronger judge model - and lists the questions graded both ways with each attempt's grades. Beside a better attempt it only notes the noise. Attempts that shared fewer than five held-out questions are not compared for noise, and the card says so. Two attempts in a row that changed nothing, or could not be graded reliably, earn a hint that another will probably not help; the session never stops on its own before its attempt limit, and the card names that limit only once it is reached. See [when the grading itself moves](evals.md#a-flip-is-confirmed-before-it-counts) and [how steady the answers are](evals.md#how-steady-the-answers-are).
-5. **Accept.** Figures for what the new version fixes, breaks and costs per answer, and how many questions it was tested on, with the cost per answer compared with today's version on the questions kept aside. Below them the change being accepted, as it was measured - a person's wording marked **Reworded by you**. An attempt that was not better repeats the warning from the result, leaves the automatic check unticked and makes **Keep as draft** the first choice. The topics this session found still missing from the knowledge base are counted - with how many have a draft ready to add and how many a draft out of date - and listed with their questions. A session drafts none of them: each offers **Draft** with the most one draft costs, says **Drafting…** while it is written, and once drafted offers **Review and add** or **Not now**, which sets it aside for the session (`PUT /{run_id}/topics/{topic_id}/later`). Each place people use the agent says whether it switches at once, after its automatic check passes or stays on its version. Then **Publish version N** or **Keep as draft**. Either ends the session, and this step then says what was decided, by whom and when, with a link to the version and the change in the wording that was accepted; **Changes** then lists every attempt. With nothing to accept, the step is skipped.
+4. **Result.** What the session came to comes first, in sentences built from the verdicts - which attempt made the agent better, or that none did and which made it worse - with the topics missing from the knowledge base and why the session stopped. A question passes only when every criterion it is graded on does, so an attempt that fixed one criterion while others still fail flips no question: its verdict is **Better on criteria**, the sentence names each criterion with how many held-out questions passed it before and after - *Attempt 1 made Quote Builder better on 1 criterion: price break 9/40 → 40/40* - and then the criteria still failing, with the skill the helper put each one down to - *No additional question passes yet, because other criteria still fail: validity (skill “Quote rules”)*. Such an attempt is a checked candidate like a better one. One that made a criterion worse while no question broke is **Worse on criteria** and named the same way, and a better attempt that also made a criterion worse says so beside its fixes. Criteria are counted by [family](evals.md#a-flip-is-confirmed-before-it-counts), so every case's check of one thing moves together. A family the helper put down to a skill that got worse does not make an attempt worse: the sentence says the agent now follows the skill more closely and that the skill is the one to fix. An attempt that broke questions still names the families it made better, so the part that helped can be kept by trying again with a note. The figures add **Criteria passed**, how often the criteria passed before and after on the held-out questions, and **Still held back by a skill**, how many still fail because of a skill and which. Both count a criterion's move only when asking again confirmed it, as for whole questions; once decided, it says which attempt was published as which version, or kept as a draft. Under **What you can do** sits one primary action: **Review and accept the changes** when a checked candidate waits, **Try again** while attempts or budget are left, **Draft the ones you need** when only knowledge is missing, and otherwise **End without changes**, beside **Start a new session** and a hint to add test questions where the agent answers badly. A failed step offers **Retry this step within the spending limit** first. With two attempts or more measured, **Which attempt to keep** lists them with the kept one ticked; choosing another asks for **Keep attempt N**, and an attempt that was not better first says what accepting it costs - the questions it broke, the criteria it made worse, or that it brings no measured gain. A decided session lists them without the choice. **Try again** takes an optional **Note for the helper** - what to change or keep - and its price before it starts; the new attempt stops at **Changes**. A step stopped because whoever took it lost the access it needs offers **Continue this step with my access**, to anyone who may start a session. Then the figures: newly fixed and newly broken count only changes confirmed by asking again, with the ones not confirmed yet in small type beneath - changed once, but not the same way when asked again, and the count of topics missing knowledge leads to their list. Each attempt is one closed row - its verdict, what it fixed and broke against its own baseline out of the questions it kept aside, how many criteria got better or worse, what writing and testing it cost - the session's total, analysis included, sits above the list - and the best attempt marked - or, when a person chose an attempt that was not better, marked as chosen. Every attempt keeps aside its own questions, so attempts are compared by their change rather than by their pass rates, which appear only in a row's details. A row opens to the bars of questions handled well before and after, a table of every criterion with its passes before and after and its confirmed change, the cost per answer when it moved, and each changed question with its answers before and after; a change the repeat answers did not confirm waits under **Not confirmed yet**, marked only possibly fixed or possibly broken. A bar is green or red only for a change confirmed by asking again; otherwise it stays grey, and a difference of one question, or bars pointing in opposite directions, is called within noise. Under **Show details** in the row: **How we measured it**, one sentence saying how many questions the helper saw and how many were kept aside to decide the result; **Which change helped?** when the attempt made two changes or more, with what testing each on its own costs; and, only when the session has a draft to test, **Check whether the draft would help**, as if search found it or through real search. When the checks were noise - answers graded both ways when asked again within an attempt, or today's version scoring differently between attempts on the held-out questions they shared - and no attempt was better, the card says first that the test cannot tell a better version from a worse one, offers what makes it reliable - yes-or-no grading criteria instead of a scale, a rule for length and format instead of the judge, more questions up to about 30 kept aside, a stronger judge model - and lists the questions graded both ways with each attempt's grades. Beside a better attempt it only notes the noise. Attempts that shared fewer than five held-out questions are not compared for noise, and the card says so. Two attempts in a row that changed nothing, or could not be graded reliably, earn a hint that another will probably not help; the session never stops on its own before its attempt limit, and the card names that limit only once it is reached. See [when the grading itself moves](evals.md#a-flip-is-confirmed-before-it-counts) and [how steady the answers are](evals.md#how-steady-the-answers-are).
+5. **Accept.** Figures for what the new version fixes, breaks and costs per answer, and how many questions it was tested on, with the cost per answer compared with today's version on the questions kept aside. Below them the change being accepted, as it was measured - a person's wording marked **Reworded by you**. An attempt that was not better repeats the warning from the result, leaves the automatic check unticked and makes **Keep as draft** the first choice; an attempt better on criteria is not called that, and repeats what it fixed and what still fails instead. The topics this session found still missing from the knowledge base are counted - with how many have a draft ready to add and how many a draft out of date - and listed with their questions. A session drafts none of them: each offers **Draft** with the most one draft costs, says **Drafting…** while it is written, and once drafted offers **Review and add** or **Not now**, which sets it aside for the session (`PUT /{run_id}/topics/{topic_id}/later`). Each place people use the agent says whether it switches at once, after its automatic check passes or stays on its version. Then **Publish version N** or **Keep as draft**. Either ends the session, and this step then says what was decided, by whom and when, with a link to the version and the change in the wording that was accepted; **Changes** then lists every attempt. With nothing to accept, the step is skipped.
 
 A link to a step that no longer exists - `?step=testSet` or `?step=today` - opens the step that took its place, **Understand** or **Check**, without adding a history entry.
 
@@ -434,7 +456,9 @@ A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repe
 
 A session kept as a draft is finished: publish the draft with the agent's own **Publish**, and when that version is the one the session measured, it is recorded on the session. Finishing can set up a publish-triggered suite with zero allowed regressions. Normal permissions and publish validation still apply, and guarded environments wait for their checks. Changes edited after their test must be tested again.
 
-The session estimate includes sorting bad chat answers against writable knowledge bases bound to the agent and grouping their misses into [topics](knowledge-gaps.md#topics). It includes no drafts: a draft is written only when a person asks for one, and is paid as that run. Each step checks its complete estimate again before starting. Only frozen, unerased source chats reach classification or grouping; training failures remain agent evidence, and held-out text never reaches these helpers.
+The session estimate includes sorting bad chat answers and failed training answers against writable knowledge bases bound to the agent, and grouping their misses into [topics](knowledge-gaps.md#topics). It includes no drafts: a draft is written only when a person asks for one, and is paid as that run. Each step checks its complete estimate again before starting. Only frozen, unerased source chats and the training answers the session learns from reach classification or grouping; a training answer missing knowledge also remains agent evidence, and held-out text never reaches these helpers.
+
+A failed training answer that misses only keys none of the agent's sources holds, by the agent's [key coverage](datasets.md#key-coverage) report for that dataset, counts under missing knowledge rather than as the agent's fault. The helper reads which keys those are, by label, and that the user must supply them: no change to the instructions can.
 
 A failed classifier is shown explicitly, leaves the source conversations available, and the session still stops at **Understand**. A session needing only knowledge stops and lists the topics missing from the knowledge base, to draft the ones you want, without creating an empty agent version. A draft goes stale once a document is added to the knowledge base after it was written, and **Redraft** writes it again (see [Drafting the missing content](knowledge-gaps.md#drafting-the-missing-content)). Checking a draft still requires its own estimate and confirmation; adding content remains a separate human decision.
 
@@ -454,7 +478,7 @@ A finished session - kept as a draft, published, discarded, cancelled, or closed
 
 A session waiting for you, at its result, stopped or failed is still open: **Improve** and its entry in the history take you back to it, to take its next step, raise its limit and continue, choose an attempt, retry the failed step or discard it.
 
-The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent.
+The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent. Its changes, and the suggestions it leaves in the Builder, are written from the dataset's questions, so reading them also needs read access to the dataset.
 
 #### Asking the Architect { #asking-the-architect }
 
@@ -475,6 +499,71 @@ session, and every later step shows its own price. It calls the wizard's own
 actions as you, so the same checks apply: a changed agent refuses the
 acceptance, a guarded environment waits for its check, and the audit log records
 you, with the Architect's credential named beside you.
+
+### Searching many variants { #searching-many-variants }
+
+A session can search many versions of the agent's instructions instead of asking
+for one proposal per attempt. Choose **Search variants** when you start Improve,
+or post `mode: "search"` with `search` settings to the estimate and the start.
+Search needs at least ten training questions in the dataset. With fewer, the
+option is off and the API answers `422`.
+
+After **Understand**, the next step runs the search. The helper writes a few
+complete versions of the instructions at a time. Each version answers the same
+draw of the attempt's training questions, and its answers are graded. The helper
+then writes the next versions from the best ones and the questions they still
+fail. The search never reads the questions kept aside for the check.
+
+The search ends at its own budget, at its variant limit (`max_variants`, 40 by
+default), or after rounds that find nothing better (`patience`, 3 by default).
+The best variant that beats the current instructions comes to **Changes** as
+ordinary changes, and its check, result and acceptance work as for any attempt.
+A score from the search is the share of required checks passed on training
+questions. It is not a verdict. At **Changes**, before the check,
+`PUT /{run_id}/search/choice` with `variant_id` brings another of the three best
+variants instead. When no variant beats the current instructions, the session
+stops with `no_variant`.
+
+The search has its own budget, `search.budget_usd`, inside the session's limit,
+and the start estimate adds it and the check of the variant it finds to the
+total. A variant starts only while its estimate, with what its longer
+instructions cost to read, fits what is left. Each answer
+is capped at twice its share of that estimate, so the search can go over its
+budget by at most the one variant it was scoring. The session shows what the
+search spent apart from the rest.
+
+An answer's cap also covers what the variant's longer instructions cost to read,
+and an agent whose past answers cost nothing is capped at the price of an
+unpriced case. An answer stopped at its own cap counts as not answered for that
+variant; only a spent search, session or monthly budget ends the search.
+
+A scoring unit stops starting answers before its job's time runs out, cuts an
+answer still going just before the job would end, and keeps what it answered; the
+next unit asks the rest, so each question is paid for once. A kept answer to a
+question erased since is dropped with it.
+Before each unit the search checks that whoever is acting still has edit access
+to the agent, `runs:view` and the right to run the dataset, and otherwise the
+session stops as its next step would. A note given with **Try again** reaches the
+helper that writes the variants too.
+
+Only someone who could start the session - with edit access to the agent,
+`runs:view` and the right to run the dataset - reads the variants' text, which
+is written from the dataset's questions; anyone else sees the counts. A question
+a variant could not answer or have graded counts as failed.
+
+A round of proposals the model does not answer - the provider refused, timed out
+or was unreachable - is asked again, up to three times; then the search ends
+because the helper could not write more variants, with what the failed rounds
+cost counted in its spend. A search with no progress for an hour fails as
+stalled and can be retried.
+
+By default the dataset's judge grades the variants on its own model;
+`grading_model_profile_id` grades them on a cheaper or local model instead. The
+check after **Changes** always grades with the dataset's judge. A variant's
+answers are not eval runs: they appear neither on the Evals tab nor in
+comparisons, and the session shows what they cost. The search's jobs run one at a
+time per organization, without taking the slots of eval runs. Searching a
+skill's content is not available yet.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 
@@ -497,7 +586,13 @@ Other agents may read the same skill, so agent Improve never changes one. The he
 
 A change that repeats a 200-character passage of a bound skill is refused, and so is a new skill with a bound skill's name or text. A reported problem is kept only when it names one of the agent's skills and quotes a run that used the version the agent reads now; quotes from other runs are dropped from it. A run served an older version, or another fork, is not evidence against the text the helper reads.
 
+A criterion is the skill's only when a line of the skill states the wrong value or rule, so the agent could not fix it without contradicting the skill - *Quotes are valid for 30 days* against a criterion asking for 14. The helper copies that line with the problem, and the problem keeps the criterion only when the skill's text holds the line, whitespace, list markers and case aside.
+
+When the skill is only silent, or only says not to add other sections, and the facts the criterion needs are in the agent's instructions, context or knowledge, the criterion stays the agent's: the helper proposes the agent change, and may still report the skill problem as advice. Only the skill's own criteria are set aside by the verdict and counted under **Still held back by a skill**.
+
 The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
+
+The failed training answers this session read that used the skill count as the skill's evidence too: test questions from the stored training part of the session's own dataset, which a skill check never measures on. A skill's Improve started this way no longer needs chat answers rated down to begin; a caller who may not run that dataset reads none of those answers.
 
 When the agent is behind main, an **Update to vN** or **Catch up the fork** card opens the skill's page. If the skills cannot be read, the section says so instead of disappearing.
 
@@ -522,6 +617,10 @@ A new fix counts as demonstrated only if the draft reached every confirming cand
 Manual tests and test-question generation notify their requester when they finish, including failures. Repeated job deliveries do not duplicate the notice. Suite and improvement child tests use their parent notification instead. Preferences for these events live under **Settings → Notifications**. Open test and dataset pages refresh through the live change feed after the outcome commits.
 
 The wizard’s Understand step shows the bounded source sample, recorded cause, answer, reader comments and a conversation link. Unknown causes stay explicitly unclassified. The Test set step reads the session’s pinned question version, with training and held-out questions identified. Today shows the baseline only after a successful completed check; partial or failed checks never appear as a measured baseline. Source previews require `runs:view`, recheck current knowledge-base visibility and redact credentials in every text field.
+
+The evidence the helper's model is sent - questions, answers, reader comments, tool-call arguments and errors - is redacted the same way before it leaves, so the quotes a change keeps are redacted too. Quotes and summaries kept before this redaction are redacted again whenever they are read.
+
+Anything a suggestion would write that quotes a credential - instruction or skill text, a tool's name or description, a field's value, a new skill, a proposed context file or skill body - is shown redacted and marked `contains_credential`, and Accept, Apply or a check of it is refused. A suggested passage can be edited and accepted without the credential; a proposed file or skill body is discarded and the change made by hand.
 
 
 The Accept screen names the next version and repeats the selected round’s measured result. The automatic-check offer appears only when the agent has no suite. Publishing records the version identity and number on the session, so reopening Done links to that publication even after a later publish. Old sessions without this pin show their stored state without guessing a version. A failed suggestions read offers a retry; replaced suggestions are unavailable rather than indefinitely loading. Guarded followers wait for their checks and pinned environments stay on their current version.

@@ -41,7 +41,7 @@ from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
-from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
 from app.services.parked_runs import Continued, DecidedApproval
@@ -61,7 +61,7 @@ _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 
 def _url(path: str, query: str = "") -> str:
-    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path)}{query}"
+    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path.replace('{installation_key}', 'trial'))}{query}"
 
 
 # -- callers ------------------------------------------------------------------
@@ -123,9 +123,10 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
-    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
-    # the stub answers 404 like the rest; the per-agent routes are ungated and never
-    # reach this sweep.
+    deps.get_portability_service,
+    # The org-wide `GET /triggers` and `POST /triggers/readiness` are the gated trigger
+    # routes, so past their gate the stub answers 404 like the rest; the per-agent
+    # routes are ungated and never reach this sweep.
     deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
@@ -144,6 +145,7 @@ _SERVICE_DEPS = (
     deps.get_mcp_connection_service,
     deps.get_secret_service,
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -152,7 +154,16 @@ _SERVICE_DEPS = (
     deps.get_ml_service,
     deps.get_workflow_registry_service,
     deps.get_voice_usage_service,
+    deps.get_solution_service,
 )
+
+
+class _VisibleRunCosts:
+    """The route contract projects a supplied run; disclosure policy has its own tests."""
+
+    async def run_result(self, _ctx: AuthContext, data: AgentRunResult) -> AgentRunResult:
+        return data
+
 
 Provider = Callable[[], object]
 
@@ -185,6 +196,7 @@ def as_role(mock_redis: MagicMock) -> Iterator[ClientFactory]:
         app.dependency_overrides[deps.get_db_session] = lambda: absent
         for factory in _SERVICE_DEPS:
             app.dependency_overrides[factory] = lambda: absent
+        app.dependency_overrides[deps.get_chat_cost_visibility_service] = _VisibleRunCosts
         app.dependency_overrides.update(overrides or {})
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -248,6 +260,42 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call(
+        "POST",
+        "/solutions/plan",
+        Perm.AGENTS_VIEW,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install",
+        Perm.AGENTS_EDIT,
+        body={
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+            "manifest": {
+                "name": "trial",
+                "contexts": [{"key": "policy", "data": {"name": "Policy"}}],
+            },
+        },
+    ),
+    Call(
+        "POST",
+        "/solutions/prepare",
+        Perm.AGENTS_EDIT,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install-plan",
+        Perm.AGENTS_EDIT,
+        body={
+            "plan_id": "00000000-0000-4000-8000-000000000001",
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+        },
+    ),
+    Call("GET", "/solutions/installations/{installation_key}", Perm.AGENTS_EDIT),
     Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
     Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
@@ -258,6 +306,9 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
+    Call("GET", "/conversations/search", Perm.AGENTS_VIEW),
+    Call("GET", "/assistant/configuration", Perm.ORG_SETTINGS),
+    Call("POST", "/assistant/install", Perm.ORG_SETTINGS),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
@@ -274,6 +325,21 @@ CALLS: tuple[Call, ...] = (
     # How close the organization is to its agent limit: only a caller who can
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
+    Call("GET", "/agents/import-destinations", Perm.AGENTS_EDIT, query="?kind=agent"),
+    Call("POST", "/agents/import-preview", Perm.AGENTS_EDIT, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/agents/import",
+        Perm.AGENTS_EDIT,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"agent/{_SOME_ID}"],
+                "resources": [{"key": f"agent/{_SOME_ID}", "kind": "agent", "name": "Draft"}],
+            },
+            "choices": {},
+        },
+    ),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # A system agent is an agent too, so it is gated like `create`.
     Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),
@@ -297,6 +363,7 @@ CALLS: tuple[Call, ...] = (
     # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("POST", "/triggers/readiness", Perm.AGENTS_VIEW, body={"trigger_ids": [str(uuid4())]}),
     Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
     # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
     # beside it - browsing ready-made schedules, not acting on one agent.
@@ -313,8 +380,6 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
-    Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
         "GET",
@@ -322,7 +387,6 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -420,6 +484,20 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
+    Call("POST", "/workflows/bundle-import-preview", Perm.WORKFLOWS_CREATE, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/workflows/bundle-import",
+        Perm.WORKFLOWS_CREATE,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"workflow/{_SOME_ID}"],
+                "resources": [{"key": f"workflow/{_SOME_ID}", "kind": "workflow", "name": "Draft"}],
+            },
+            "choices": {},
+        },
+    ),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -573,9 +651,19 @@ CALLS: tuple[Call, ...] = (
     # (PATCH, DELETE) hand the decision to the service - a gate there would
     # refuse a member holding an explicit grant before `resolve_access` could
     # widen their access.
+    Call(
+        "POST",
+        "/secrets/openai-chatgpt",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "My plan",
+            "callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s",
+        },
+    ),
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
     Call("GET", "/secrets/purposes", Perm.SECRETS_VIEW),
     Call("GET", "/secrets", Perm.SECRETS_VIEW),
+    Call("GET", "/secrets/references", Perm.SECRETS_VIEW),
     Call(
         "POST",
         "/secrets",
@@ -686,7 +774,13 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
-WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
+# Planning validates caller-supplied content without reading resources or writing;
+# POST keeps the manifest out of query strings and access logs. Routine readiness
+# writes nothing either: POST carries up to 100 ids a query string would not.
+_READ_ONLY_POSTS = frozenset({"/solutions/plan", "/triggers/readiness"})
+WRITE_CALLS: tuple[Call, ...] = tuple(
+    call for call in CALLS if call.method != "GET" and call.path not in _READ_ONLY_POSTS
+)
 
 
 class TestEachRouteDemandsItsOwnPermission:
@@ -849,6 +943,7 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 
         assert response.status_code == 200
         assert response.json()["role"] == role.value
+        assert response.json()["run_agent_id"] is None
 
     @pytest.mark.parametrize("role", list(OrgRoleName), ids=lambda role: role.value)
     async def test_every_role_can_read_the_role_catalog(
@@ -950,6 +1045,7 @@ _PLATFORM_PREFIXES = (
     # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
     "/trigger-templates",
+    "/solutions",
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
     "/local-services",
@@ -965,7 +1061,7 @@ _PLATFORM_PREFIXES = (
 
 def _is_platform(tail: str) -> bool:
     """Whether a path belongs to the platform layer rather than the template."""
-    return tail.startswith(_PLATFORM_PREFIXES)
+    return tail == "/conversations/search" or tail.startswith(_PLATFORM_PREFIXES)
 
 
 def _api_routes() -> Iterator[RouteContext]:
@@ -1058,6 +1154,7 @@ RESOURCE_AWARE_SERVICES = (
     # A ChatGPT sign-in is a secret written another way: putting a new one in
     # place of an old one is the secret service's rotation, grants and all.
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.
@@ -1387,6 +1484,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
             {
                 "id": str(shared_id),
@@ -1401,6 +1500,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
         ]
 
@@ -1554,7 +1655,12 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             async def parked_questions(self, *args: Any, **kwargs: Any) -> list[Any]:
                 return []
 
-        overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
+        runner = _Resuming()
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(await runner.resume(), False)))
+        overrides = {
+            deps.get_agent_runner_service: lambda: runner,
+            deps.get_parked_run_service: lambda: parked,
+        }
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/resume"))
 
@@ -1946,6 +2052,10 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Sandbox supervisors use an exact workspace binding token, never session JWTs.
+        # Every file RPC additionally reauthorizes the live run and Project lease.
+        ("GET", f"{V1}/project-filesystem/bindings/{{binding_id}}"),
+        ("POST", f"{V1}/project-filesystem/bindings/{{binding_id}}/fs"),
         # Twilio fetches staged MMS bytes with an expiring, media-bound token.
         ("GET", f"{V1}/sms/media/{{media_id}}"),
         # A BlueBubbles bridge supplies its configured bearer credential, not a user session.
@@ -2135,6 +2245,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # service verifies that HMAC against the trigger named in the path. A
         # session here would mean the integration could never deliver.
         ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
+        # Reusable sources verify the sender against the named source's credentials.
+        ("POST", f"{V1}/webhooks/sources/{{source_id}}"),
         # A GitHub App's single delivery URL. The same arrangement with the routing
         # moved into the body: an App has one URL and one signing secret per
         # installation, so the path names nothing and the installation id in the
@@ -2394,6 +2506,34 @@ class TestAQuestionTheRunParkedOn:
         assert response.json()[0]["tool_call_id"] == "ask-1"
         assert response.json()[0]["questions"][0]["header"] == "Tone"
 
+    @pytest.mark.security
+    async def test_a_question_link_for_another_conversation_cannot_load_the_card(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        service = MagicMock(get_run=AsyncMock(return_value=run), parked_questions=AsyncMock())
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.get(
+                _url(f"/runs/{run.id}/questions"), params={"conversation_id": str(uuid4())}
+            )
+        assert response.status_code == 200
+        assert response.json() == []
+        service.parked_questions.assert_not_called()
+
+    async def test_a_viewer_can_list_their_questions(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        service = MagicMock(
+            list_waiting_questions=AsyncMock(return_value={"items": [], "total": 0})
+        )
+        async with as_role("viewer", {deps.get_conversation_service: lambda: service}) as client:
+            response = await client.get(
+                _url("/conversations/waiting-questions"), params={"skip": "2", "limit": "3"}
+            )
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "total": 0}
+        assert service.list_waiting_questions.call_args.kwargs == {"skip": 2, "limit": 3}
+
     async def test_an_answer_continues_the_run_and_says_what_it_did(
         self, as_role: ClientFactory, synthetic_roles: None
     ) -> None:
@@ -2409,12 +2549,19 @@ class TestAQuestionTheRunParkedOn:
             parked_questions=AsyncMock(return_value=[]),
         )
         body = {"responses": {"ask-1": [{"selected": ["Casual"]}]}}
-        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+        parked = MagicMock(
+            answer=AsyncMock(return_value=Continued(service.answer.return_value, False))
+        )
+        overrides = {
+            deps.get_agent_runner_service: lambda: service,
+            deps.get_parked_run_service: lambda: parked,
+        }
+        async with as_role("viewer", overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/answers"), json=body)
 
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
-        assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+        assert parked.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
 
     async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
         self, as_role: ClientFactory, synthetic_roles: None
@@ -2466,3 +2613,15 @@ class TestAQuestionTheRunParkedOn:
 
         assert response.status_code == 422
         service.answer.assert_not_called()
+
+
+async def test_a_viewer_can_review_a_solution_manifest_without_installing(
+    as_role: ClientFactory,
+) -> None:
+    manifest = {"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]}
+    async with as_role(OrgRoleName.VIEWER) as client:
+        response = await client.post(f"{settings.API_V1_STR}/solutions/plan", json=manifest)
+    assert response.status_code == 200
+    assert response.json()["publishes"] is False
+    assert response.json()["executes"] is False
+    assert response.json()["resources"] == ["policy"]

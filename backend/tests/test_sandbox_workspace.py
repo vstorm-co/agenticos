@@ -11,6 +11,7 @@ refusals worth more than the feature itself:
 """
 
 import errno
+import json
 import logging
 import os
 import threading
@@ -102,6 +103,8 @@ def no_project_recovery_copies(monkeypatch):
 @pytest.fixture
 def mock_db_session() -> AsyncMock:
     session = AsyncMock()
+    # These conversation fixtures do not belong to a project workspace.
+    session.scalar = AsyncMock(return_value=None)
     session.info = {}
     session.begin_nested = MagicMock(return_value=MagicMock())
     return session
@@ -154,6 +157,14 @@ def _resolved(
     row.default_runtime = default_runtime
     row.name = "Local Docker"
     return ResolvedConnection(row=row, token=token)
+
+
+@pytest.fixture(autouse=True)
+def legacy_filesystem_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Workspace unit fakes represent legacy hosts; mount admission has its own tests."""
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=False)
+    )
 
 
 def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
@@ -6065,3 +6076,304 @@ async def test_browser_only_selection_keeps_the_agents_sandbox(
     await service.open(_spec(), ctx=_ctx(), identity=_identity(), local=target)
     cloud.assert_awaited_once()
     local.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_discard_cannot_target_an_unadmitted_or_foreign_personal_workspace() -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.agent_workspace import AgentWorkspace
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    org = uuid4()
+    ctx = AuthContext(user_id=uuid4(), organization_id=org, role="owner")
+    for row in (
+        AgentWorkspace(organization_id=org, coding_account_id=None),
+        AgentWorkspace(organization_id=uuid4(), coding_account_id=uuid4()),
+    ):
+        db = AsyncMock()
+        with pytest.raises(AuthorizationError):
+            await SandboxWorkspaceService(db).discard_personal_coding(ctx, row)
+        db.execute.assert_not_awaited()
+
+
+def test_private_namespaces_are_isolated_and_cannot_widen_workspace_scope() -> None:
+    from dataclasses import replace
+
+    identity = WorkspaceIdentity(
+        organization_id=uuid4(),
+        agent_id=uuid4(),
+        run_id=uuid4(),
+        conversation_id=uuid4(),
+        user_id=str(uuid4()),
+        namespace=uuid4(),
+    )
+    first = scope_key(identity, "user", "service")
+    assert first == scope_key(replace(identity, run_id=uuid4()), "user", "service")
+    assert first != scope_key(replace(identity, namespace=uuid4()), "user", "service")
+    assert first != scope_key(replace(identity, user_id=str(uuid4())), "user", "service")
+    with pytest.raises(WorkspaceScopeUnavailable):
+        scope_key(identity, "conversation", "service")
+
+
+@pytest.mark.anyio
+async def test_personal_coding_teardown_selection_requires_an_owner_boundary() -> None:
+    from app.repositories import agent_workspace
+
+    db = AsyncMock()
+    with pytest.raises(ValueError, match="requires an owner"):
+        await agent_workspace.list_personal_coding(db)
+    db.execute.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "session,detail,status,code",
+    [
+        (None, "No workspace for session: sc-deadbeef-cafe", 404, "workspace_not_retained"),
+        ("sc-deadbeef-cafe", "No workspace for session: sc-deadbeef-cafe", 404, None),
+        (None, "Not Found", 404, None),
+        (None, "No workspace for session: another-session", 404, None),
+        (None, "No workspace for session: sc-deadbeef-cafe", 401, None),
+        (None, "This service keeps no workspaces on disk", 409, None),
+        (None, "Could not reach the sandbox service", None, None),
+    ],
+)
+async def test_missing_archive_is_not_confused_with_empty_files_or_a_connection_fault(
+    monkeypatch, mock_db_session, session, detail, status, code
+):
+    from pydantic_ai_backends import remote as remote_module
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            raise WorkspaceArchiveError(json.dumps({"detail": detail}), status)
+
+        def trees(self, session_ids, path=".", *, max_depth, max_entries):
+            return {
+                session_id: WorkspaceArchiveError(json.dumps({"detail": detail}), status)
+                for session_id in session_ids
+            }
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    _serve(monkeypatch, _resolved())
+    row = _row(backend="service", session_id=session, connection_id=uuid4())
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    service = SandboxWorkspaceService(mock_db_session)
+    found = await service.listing(_ctx(), conversation_id=uuid4())
+    assert found is not None
+    assert found[1].entries == []
+    assert found[1].unreadable_code == code
+    assert detail in found[1].unreadable_reason
+    batched = await service._host_trees(_ctx(), [row])
+    assert batched[0].unreadable_code == code
+    assert detail in batched[0].unreadable_reason
+
+
+async def test_legacy_archive_without_a_recorded_session_still_lists_real_files(
+    monkeypatch, mock_db_session
+):
+    from pydantic_ai_backends import remote as remote_module
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            return [{"path": "notes.txt", "size": 4, "is_dir": False}]
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    _serve(monkeypatch, _resolved())
+    row = _row(backend="service", session_id=None, connection_id=uuid4())
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    found = await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+    assert found is not None
+    assert found[1].entries[0]["path"] == "notes.txt"
+    assert found[1].unreadable_reason is None and found[1].unreadable_code is None
+
+
+async def test_creating_a_file_materializes_the_session_and_makes_the_archive_browsable(
+    monkeypatch, mock_db_session, sandboxes
+):
+    mock_db_session.add = MagicMock()
+    from pydantic_ai_backends import remote as remote_module
+
+    row = _row(backend="service", session_id=None, connection_id=uuid4())
+    for method in ("get_by_key", "touch"):
+        monkeypatch.setattr(workspace_repo, method, AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    mock_db_session.get = AsyncMock(return_value=row)
+
+    async def record_session(db, *, workspace, session_id):
+        workspace.session_id = session_id
+        return workspace
+
+    monkeypatch.setattr(workspace_repo, "record_session", record_session)
+    _serve(monkeypatch, _resolved())
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            if not (sandboxes.root / "notes.txt").exists():
+                raise WorkspaceArchiveError(
+                    json.dumps({"detail": f"No workspace for session: {session_id}"}), 404
+                )
+            return [{"path": "notes.txt", "size": 4, "is_dir": False}]
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    service = SandboxWorkspaceService(mock_db_session)
+    before = await service.listing(_ctx(), conversation_id=uuid4())
+    assert before is not None and before[1].unreadable_code == "workspace_not_retained"
+    opened = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+    assert opened is not None
+    await opened.workspace.write_bytes("notes.txt", b"kept")
+    closed = await service.close(opened)
+    assert closed is None
+    assert row.session_id is not None
+    after = await service.listing(_ctx(), conversation_id=uuid4())
+    assert after is not None
+    assert after[1].unreadable_reason is None and after[1].unreadable_code is None
+    assert after[1].entries[0]["path"] == "notes.txt"
+
+
+@pytest.mark.parametrize("scope", ["run", "conversation"])
+async def test_private_docker_workspace_receives_only_its_immutable_mount_credential(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+    scope: str,
+) -> None:
+    from pydantic import SecretStr
+
+    from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    _a_row_is_created(monkeypatch)
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    credential = ProjectFilesystemCredential(uuid4(), SecretStr("private-binding-token"))
+    mint = AsyncMock(return_value=credential)
+    monkeypatch.setattr(ProjectFilesystemBindingService, "credential", mint)
+    identity = _identity()
+    opened = await SandboxWorkspaceService(mock_db_session).open(
+        _spec(backend="service"), ctx=_ctx(), identity=identity, scope_override=scope
+    )
+    assert opened is not None
+    assert opened.filesystem_binding_id == credential.binding_id
+    [adapter] = sandboxes.made
+    assert adapter["filesystem_binding"].id == credential.binding_id
+    assert adapter["filesystem_binding"].token == credential.token
+    assert "private-binding-token" not in repr(opened)
+    mint.assert_awaited_once_with(
+        organization_id=identity.organization_id,
+        connection_id=resolved.row.id,
+        session_name=opened.scope_key,
+        workspace_id=opened.row_id,
+        conversation_id=identity.conversation_id,
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("already_bound", [False, True])
+async def test_enabling_mounts_preserves_retained_ordinary_sessions_and_their_files(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+    already_bound: bool,
+) -> None:
+    from pydantic import SecretStr
+
+    from app.db.models.project_filesystem import ProjectFilesystemBinding
+    from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    row = _row(backend="service", session_id="retained-session", connection_id=resolved.row.id)
+    monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    credential = ProjectFilesystemCredential(uuid4(), SecretStr("retained-binding-token"))
+    lookup = AsyncMock(
+        return_value=ProjectFilesystemBinding(id=credential.binding_id) if already_bound else None
+    )
+    monkeypatch.setattr(sandbox_workspace.filesystem_binding_repo, "binding_for_session", lookup)
+    mint = AsyncMock(return_value=credential)
+    monkeypatch.setattr(ProjectFilesystemBindingService, "credential", mint)
+    (sandboxes.root / "retained.txt").write_text("existing private files")
+    mock_db_session.add = MagicMock()
+    identity = _identity()
+    opened = await SandboxWorkspaceService(mock_db_session).open(
+        _spec(backend="service"), ctx=_ctx(), identity=identity
+    )
+    assert opened is not None
+    assert await opened.workspace.read_text("retained.txt") == "existing private files"
+    assert sandboxes.attached == [
+        WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="retained-session")
+    ]
+    assert sandboxes.destroyed == []
+    lookup.assert_awaited_once_with(
+        mock_db_session,
+        organization_id=identity.organization_id,
+        connection_id=resolved.row.id,
+        session_name=opened.scope_key,
+    )
+    [adapter] = sandboxes.made
+    if already_bound:
+        assert opened.filesystem_binding_id == credential.binding_id
+        assert adapter["filesystem_binding"].id == credential.binding_id
+        assert adapter["filesystem_binding"].token == credential.token
+        mint.assert_awaited_once()
+    else:
+        assert opened.filesystem_binding_id is None and adapter["filesystem_binding"] is None
+        mint.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_invalid_retained_mount_binding_is_not_downgraded_to_an_ordinary_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+) -> None:
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.project_filesystem import ProjectFilesystemBinding
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    row = _row(
+        backend="service", session_id="retained-bound-session", connection_id=resolved.row.id
+    )
+    monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        sandbox_workspace.filesystem_binding_repo,
+        "binding_for_session",
+        AsyncMock(return_value=ProjectFilesystemBinding(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        ProjectFilesystemBindingService,
+        "credential",
+        AsyncMock(
+            side_effect=AuthorizationError(message="The sandbox filesystem identity changed")
+        ),
+    )
+    (sandboxes.root / "retained.txt").write_text("existing private files")
+    with pytest.raises(AuthorizationError, match="identity changed"):
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+    assert sandboxes.made == sandboxes.attached == sandboxes.destroyed == []
+    assert (sandboxes.root / "retained.txt").read_text() == "existing private files"

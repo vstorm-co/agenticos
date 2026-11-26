@@ -27,10 +27,12 @@ from app.schemas.improvement import (
     ImprovementSelection,
     ImprovementSkills,
     ImprovementStart,
+    ImprovementStopRead,
     ImprovementTarget,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
+    SearchChoice,
     SelectionConsent,
     SelectionEstimate,
     TopicDeferral,
@@ -165,6 +167,15 @@ async def choose_improvement_changes(
     return await service.choose_changes(ctx, agent_id, run_id, data)
 
 
+@router.put("/{run_id}/search/choice", response_model=ImprovementRead, dependencies=[ASSISTANT])
+async def choose_improvement_variant(
+    agent_id: UUID, run_id: UUID, data: SearchChoice, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Bring another of the search's best variants to Changes, in place of the one it chose,
+    while the session waits there and before the check."""
+    return await service.choose_variant(ctx, agent_id, run_id, data)
+
+
 @router.put("/{run_id}/topics/{topic_id}/later", response_model=ImprovementRead)
 async def defer_improvement_topic(
     agent_id: UUID,
@@ -200,9 +211,16 @@ async def read_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc
     return await service.read(ctx, agent_id, run_id)
 
 
-@router.post("/{run_id}/cancel", response_model=ImprovementRead, dependencies=[ASSISTANT])
+@router.post(
+    "/{run_id}/cancel",
+    response_model=ImprovementRead | ImprovementStopRead,
+    dependencies=[ASSISTANT],
+)
 async def stop_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
-    """Stop new work and cancel children, as the creator or an organization administrator."""
+    """Stop new work and cancel children, as the creator or an organization administrator.
+
+    A caller without `runs:view` receives only the session ID and resulting status.
+    """
     return await service.cancel(ctx, agent_id, run_id)
 
 

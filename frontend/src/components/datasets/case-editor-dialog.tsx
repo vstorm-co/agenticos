@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -41,8 +43,12 @@ import {
   SheetClose,
   Textarea,
 } from "@/components/ui";
+import { ErrorState } from "@/components/states";
+import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { CodeArea } from "@/components/ui/code-area";
+import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { submitFailure } from "@/lib/api-error";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -51,6 +57,7 @@ import type { DatasetScoring } from "@/types/scoring";
 import { DatasetChip } from "./dataset-chip";
 import { CaseCallsEditor } from "./case-calls-editor";
 import { CaseChecksEditor } from "./case-checks-editor";
+import { KeyDraftPanel } from "./key-draft-panel";
 import { CaseGradedBy } from "./case-graded-by";
 import { CaseTwinNotice } from "./case-twin-notice";
 import {
@@ -59,6 +66,7 @@ import {
   contentOf,
   draftOf,
   expectsSomething,
+  withKeys,
   type CaseDraft,
   type CaseField,
 } from "./case-form";
@@ -85,6 +93,8 @@ interface CaseEditorDialogProps {
   scoring?: DatasetScoring;
   /** Tool names the dataset's cases already expect. */
   knownTools?: string[];
+  /** A stored case its editor may list the keys of, from its saved reference answer. */
+  keyDraft?: { datasetId: string; caseId: string };
   /**
    * For a new case: `find` reads the case already asking its question, if one
    * does, and `open` shows that case in place of the new one.
@@ -97,6 +107,17 @@ interface CaseEditorDialogProps {
   startFrom?: CaseCopy;
   /** Where an unsaved edit is kept in this browser, and the version it is made on. */
   localCopy?: { key: string; base: number };
+  /**
+   * The stored case as its dataset is read now, for an edit to notice a change saved
+   * elsewhere: adopted when nothing is edited here, asked about when something is.
+   */
+  remote?: {
+    datasetId: string;
+    stored: CaseDraft | undefined;
+    fetchedAt: number;
+    error?: Error | null;
+    retry?: () => void;
+  };
 }
 
 /** What a kept copy of an unsaved case edit holds. */
@@ -184,7 +205,7 @@ function CaseGroup({
       </section>
     );
   return (
-    <details
+    <NativeDisclosure
       data-tour={`case-group-${group}`}
       open={expanded || undefined}
       className="group min-w-0 border-t"
@@ -198,7 +219,7 @@ function CaseGroup({
         {t(`caseSection.${group}`)}
       </summary>
       <div className="space-y-4 pb-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -221,13 +242,17 @@ export function CaseEditorDialog({
   nextVersion,
   scoring,
   knownTools,
+  keyDraft,
   twins,
   startFrom,
   localCopy,
+  remote,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const [draft, setDraft] = useState(startFrom?.draft ?? initial);
+  const [baseline, setBaseline] = useState(initial);
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(viewing === undefined || startFrom !== undefined);
@@ -239,8 +264,31 @@ export function CaseEditorDialog({
     addAnyway: () => void;
   } | null>(null);
   const [repeat, setRepeat] = useState(false);
+  // An edit in the JSON view is compared as its text, so it always counts as an edit.
+  const elsewhere = useRemoteDraft<CaseDraft>({
+    resource: "dataset",
+    id: remote?.datasetId ?? "",
+    local: json ?? draft,
+    stored: remote?.stored,
+    fetchedAt: remote?.fetchedAt ?? 0,
+    // `stored` is always the case's fields; only `local` can be the JSON text.
+    adopt: (stored) => {
+      setDraft(stored);
+      setBaseline(stored);
+      setJson(null);
+    },
+  });
+  const remoteError = remote?.error;
+  const held = elsewhere.held || remoteError != null;
+  const remoteFailure = remoteError ? (
+    <ErrorState
+      description={getErrorMessage(remoteError, tErrors)}
+      cta={remote?.retry ? { label: tc("retry"), onClick: remote.retry } : undefined}
+    />
+  ) : null;
   const readOnly = onSave === undefined || !editing;
-  const changed = !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(initial));
+  const changed =
+    !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(baseline));
   const missing =
     json !== null
       ? null
@@ -253,7 +301,7 @@ export function CaseEditorDialog({
   const { forget } = useUnsavedChanges(source, {
     dirty: changed,
     // Only a case that would save as it stands can be saved on the way out.
-    save: onSave === undefined || missing !== null ? undefined : () => save(onSave),
+    save: onSave === undefined || missing !== null || held ? undefined : () => save(onSave),
     discard: () => onOpenChange(false),
     copy: localCopy && { ...localCopy, value: { draft, json } satisfies CaseCopy },
   });
@@ -305,7 +353,7 @@ export function CaseEditorDialog({
     onSave: (content: DatasetCaseContent) => Promise<unknown>,
     anyway: boolean = repeat,
   ): Promise<boolean> {
-    if (saving) return false;
+    if (saving || held) return false;
     let content: DatasetCaseContent | null;
     if (json !== null) {
       content = parsed();
@@ -381,7 +429,8 @@ export function CaseEditorDialog({
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
-              <CaseView content={viewing} />
+              {remoteFailure}
+              <CaseView content={{ ...viewing, ...(contentOf(draft).content ?? {}) }} />
             </div>
           </div>
         </SheetContent>
@@ -406,6 +455,14 @@ export function CaseEditorDialog({
           </DialogDescription>
         </DialogHeader>
         <div className={DIALOG_BODY}>
+          {remoteFailure}
+          {!remoteError && elsewhere.conflict && (
+            <RemoteChangeBanner
+              change={elsewhere.conflict}
+              onReload={elsewhere.reload}
+              onKeepMine={elsewhere.keepMine}
+            />
+          )}
           <fieldset disabled={saving} className="min-w-0">
             <legend className="sr-only">{title}</legend>
             {editing && json !== null && (
@@ -415,12 +472,16 @@ export function CaseEditorDialog({
                 description={t("caseJsonHint")}
                 error={jsonProblem ? t("caseJsonInvalid") : undefined}
               >
-                <Textarea
-                  rows={18}
-                  className="font-mono text-base md:text-xs"
+                <CodeArea
+                  id="case-json"
+                  name="case.json"
+                  aria-label={t("caseJson")}
+                  className="border-input h-96 rounded-md border max-sm:h-72"
                   value={json}
-                  onChange={(event) => {
-                    setJson(event.target.value);
+                  invalid={jsonProblem}
+                  describedBy={jsonProblem ? "case-json-err" : "case-json-desc"}
+                  onChange={(next) => {
+                    setJson(next);
                     setJsonProblem(false);
                   }}
                 />
@@ -531,6 +592,15 @@ export function CaseEditorDialog({
                             if (slot === "checks") {
                               return (
                                 <ListField key={slot} field={slot} error={errors.checks}>
+                                  {keyDraft && (
+                                    <KeyDraftPanel
+                                      datasetId={keyDraft.datasetId}
+                                      caseId={keyDraft.caseId}
+                                      savedReference={viewing?.reference_answer ?? null}
+                                      editedReference={draft.reference_answer}
+                                      onUse={(keys) => edit("checks", withKeys(draft.checks, keys))}
+                                    />
+                                  )}
                                   <CaseChecksEditor
                                     checks={draft.checks}
                                     onChange={(checks) => edit("checks", checks)}
@@ -672,7 +742,7 @@ export function CaseEditorDialog({
               data-tour="case-save"
               loading={saving}
               onClick={() => void save(onSave)}
-              disabled={saving || missing !== null}
+              disabled={saving || missing !== null || held}
             >
               <Save className="size-4" aria-hidden />
               {saveLabel ?? t("saveCase")}

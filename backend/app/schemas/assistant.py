@@ -37,14 +37,23 @@ class AssistantRead(BaseSchema):
     wears_mark: bool = Field(
         default=True,
         description=(
-            "Whether it still wears the mark it shipped with, which the console draws "
-            "in the theme's colours; false once somebody gave it a picture of its own"
+            "Legacy indication that the assistant has its default appearance rather than "
+            "an uploaded replacement. New consoles use the ordinary generated agent avatar."
         ),
     )
     can_use: bool = Field(
         description="Whether the caller may talk to it - `agents:run`, as for any agent"
     )
     can_configure: bool = Field(description="Whether the caller may change its settings")
+
+
+class AssistantConfigurationRead(BaseSchema):
+    """Configuration only; reading it never installs or refreshes shipped agents."""
+
+    installed: bool
+    agent_id: UUID | None = None
+    enabled: bool | None = None
+    greeting: str | None = None
 
 
 class AssistantUpdate(BaseSchema):

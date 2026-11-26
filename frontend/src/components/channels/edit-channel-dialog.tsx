@@ -52,6 +52,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
   // i18n-exempt: a product\'s own name, written the same in every language
   whatsapp: "WhatsApp",
 };
@@ -115,7 +116,7 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
   const token = draft.token.trim();
   if (token) patch.token = token;
 
-  if (bot.platform === "mattermost" || bot.platform === "imessage") {
+  if (bot.platform === "mattermost" || bot.platform === "matrix" || bot.platform === "imessage") {
     const serverUrl = draft.serverUrl.trim();
     if (serverUrl && serverUrl !== bot.api_base_url) patch.api_base_url = serverUrl;
     if (bot.platform === "mattermost") {
@@ -440,6 +441,23 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
               stored={stored(bot.has_command_token)}
               onToken={(value) => set("commandToken", value)}
             />
+          )}
+
+          {bot.platform === "matrix" && (
+            <FormField
+              label={t("matrixHomeserverUrl")}
+              htmlFor="edit-matrix-homeserver-url"
+              description={t("matrixHomeserverUrlHint")}
+              error={errors.api_base_url}
+              required
+            >
+              <Input
+                id="edit-matrix-homeserver-url"
+                value={draft.serverUrl}
+                onChange={(event) => set("serverUrl", event.target.value)}
+                maxLength={MAX_URL}
+              />
+            </FormField>
           )}
 
           {bot.platform === "slack" && (

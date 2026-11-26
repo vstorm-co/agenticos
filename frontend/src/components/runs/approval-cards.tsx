@@ -6,11 +6,13 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
+import { RejectionFeedback } from "@/components/runs/rejection-feedback";
 import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { visibleHandle } from "@/lib/asked-in-chat";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
+import { isTableTool } from "@/lib/table-tool-calls";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
 
@@ -24,9 +26,13 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
   if (approval.content_hidden) return t("contentHidden");
+  // A table write's first string argument is its table's id: the card shows it
+  // only as the fallback of `TableCallReadout`, which names the table instead.
+  const argumentLine =
+    withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
   return (
-    approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
-    (withArguments ? callSummary(approval.tool_args) : null)
+    approvalSummary(approval.capability_tool_id, approval.context, tTools, approval.tool_id) ??
+    argumentLine
   );
 }
 
@@ -70,10 +76,12 @@ export function PendingApproval({
   deciding,
   onDecide,
   onOpenRun,
+  className,
 }: {
+  className?: string;
   approval: ToolApproval;
   deciding: boolean;
-  onDecide: (approved: boolean) => void;
+  onDecide: (approved: boolean, note?: string) => void;
   onOpenRun: () => void;
 }) {
   const t = useTranslations("pages.runs");
@@ -83,8 +91,15 @@ export function PendingApproval({
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
+  // Kept for a table write whose table this approver cannot read, so the card
+  // still says what it targets; replaced by the named summary when it can.
+  const tableLine =
+    isTableTool(approval.tool_id) && !approval.content_hidden
+      ? callSummary(approval.tool_args)
+      : null;
   const askedLine = useAskedLine(approval);
-  const mayApprove = !(approval.always_asks && approval.content_hidden);
+  const hiddenFromThem = Boolean(approval.always_asks && approval.content_hidden);
+  const mayApprove = approval.may_approve ?? !hiddenFromThem;
 
   return (
     <li>
@@ -95,7 +110,7 @@ export function PendingApproval({
         rejectLabel={t("reject")}
         disabled={deciding}
         rejectOnly={!mayApprove}
-        className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
+        className={cn("flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start", className)}
       >
         <div className="flex min-w-0 flex-1 gap-3">
           <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
@@ -130,22 +145,44 @@ export function PendingApproval({
               </p>
             </div>
             <ApprovalDelegate approval={approval} />
-            <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+            <ApprovalDetails
+              toolName={approval.tool_id}
+              args={approval.tool_args}
+              context={approval.context}
+              fallback={
+                tableLine !== null && (
+                  <p className="text-foreground/80 truncate text-sm" title={tableLine}>
+                    {tableLine}
+                  </p>
+                )
+              }
+            />
           </div>
         </div>
-        <div className="flex shrink-0 gap-2 sm:flex-col">
+        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
           {mayApprove ? (
             <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
               <CheckCircle2 className="h-4 w-4" aria-hidden />
               {t("approve")}
             </Button>
           ) : (
-            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+            <p className="text-muted-foreground max-w-48 text-xs">
+              {hiddenFromThem
+                ? t("approveNeedsTheRun")
+                : approval.tool_id === "agenticos_change_deployment"
+                  ? t("approveNeedsItsAdminPerson")
+                  : t("approveNeedsItsPerson")}
+            </p>
           )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />
             {t("reject")}
           </Button>
+          <RejectionFeedback
+            requests={[{ id: approval.id }]}
+            disabled={deciding}
+            onReject={([note]) => onDecide(false, note)}
+          />
         </div>
       </SwipeToDecide>
     </li>
@@ -211,6 +248,11 @@ export function DecidedApproval({
           {summary}
         </p>
       )}
+      {approval.status === "rejected" && approval.note && (
+        <p className="text-foreground/80 mt-1 pl-10 text-sm break-words whitespace-pre-wrap">
+          {approval.note}
+        </p>
+      )}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-10 text-xs">
         <AccountBadge account={approval.account} />
         {askedLine && <span>{askedLine}</span>}
@@ -227,7 +269,11 @@ export function DecidedApproval({
           </span>
         )}
         <div className="w-full pt-1">
-          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+          <ApprovalDetails
+            toolName={approval.tool_id}
+            args={approval.tool_args}
+            context={approval.context}
+          />
         </div>
       </div>
     </li>

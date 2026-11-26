@@ -6,6 +6,14 @@
     in this platform passes through `app/core/vault.py`. Adding a second way to
     hold a credential at rest is the defect two migrations removed.
 
+    The native CLIProxyAPI subscription store is the explicit exception described below.
+
+## Native subscription store
+
+CLIProxyAPI subscription accounts are a maintainer-approved exception to the Vault rule. The native store on `subscription_accounts` keeps provider tokens, account state, refresh journals, `keys.json` and `config.yaml`. The binary owns sign-in, refresh and recovery; saving to Vault only at shutdown could lose rotated tokens or refresh receipts after a crash. A full Vault adapter must cover all persistent mutations and the journal before replacing this store.
+
+Directories use `0700` and configuration/key files `0600`; processes are isolated per organization, person and membership generation and bind to loopback. These controls do not encrypt the volume or backups, cryptographically bind files to an owner, or participate in Vault key rotation. Protect the entire volume as credentials and encrypt its storage/backups where required. Other model keys and connector credentials continue using Vault.
+
 ## In the console
 
 Vault lists keys, your connected accounts and organization accounts in one table. **Add key** stores a credential; **Connect account** lets you choose your own account or, with permission, an organization account. Each row keeps its own access and actions: key sharing/rotation, or account reconnection/disconnection. OAuth tokens stay hidden, and disconnecting an account asks for confirmation.
@@ -96,6 +104,7 @@ decides which fields exist.
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `http_credential` | A token a workflow's HTTP step sends, an optional username, and the origins it may be sent to |
+| `webhook_credentials` | Write-only username and password for inbound webhook Basic Auth, without a value hint; not an outbound HTTP credential |
 | `smtp_account` | SMTP host, port, TLS mode, sender and login credentials, sealed together for workflow email |
 | `microsoft_oauth_app` | The same three fields, for an app registration people sign in through |
 | `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
@@ -247,6 +256,8 @@ as a channel bot's signing secret. It is never returned or logged in the clear; 
 verification unseals it, compares in constant time, and a delivery that fails is a 403.
 See [Concepts](concepts.md#trigger).
 
+**Reusable event sources.** The source can reference an organization-visible Vault secret with `credentials.vault_secret_id`. Provider, HMAC and API-key authentication use `api_key`; inbound Basic Auth uses `webhook_credentials`. The source resolves the live value for each delivery, so Vault rotation applies without copying credentials into sources or workflow definitions. Selecting the key requires `secrets:view`; personal, cross-organization and incompatible keys are refused. `webhook_credentials` does not replace the origin-restricted `http_credential` used for outbound HTTP requests.
+
 **Workflow webhooks.** The HMAC key a workflow webhook's deliveries are signed with,
 minted by the platform, sealed to the organization and stored on the webhook's row
 with its `key_version`. It is shown once, when it is made or replaced, and never
@@ -380,3 +391,16 @@ with a generated default.
 
 
 External A2A source consent also binds the referenced vault credential’s authorization generation. Replacing its value invalidates a standing review, even when the secret ID stays the same. Renaming it and vault encryption-key maintenance preserve that generation. Existing A2A reviews require re-review after this upgrade.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Personal Copilot OAuth access tokens use the existing user-sealed model credential store; no organization-key fallback occurs. Device authorization state is owner/tenant/agent-bound and expires in Redis; tokens never reach API responses or audit details. New sign-ins, key replacement and disconnection advance a database generation in the same transaction. This metadata survives key deletion to refuse older pending grants, is included in the owner’s personal-data export without the generation value, and is removed with membership or user deletion. Disconnect removes the local credential; revoke the OAuth application separately in GitHub.
+
+Before each model request, personal Copilot credentials are checked against the stored connection revision. Disconnecting or replacing the connection stops subsequent requests in an active run; an already submitted request cannot be withdrawn.
+
+
+## MCP OAuth client storage
+
+The `mcp_oauth_client` kind seals a server URL, public client ID and optional client secret together. Select purpose `custom` when adding it in Vault. Only organization-visible instances participate in automatic MCP sign-in. The database keeps a normalized server identity for unique matching; it never stores the client secret in plaintext. Making a private client organization-visible is refused if another client already occupies that server's slot.
+
+Personal OAuth grants record the source organization, secret ID and authorization generation inside their own sealed payload. Source rotation, deletion or loss of organization visibility invalidates these grants. See [shared MCP OAuth clients](mcp.md#shared-mcp-oauth-clients) for connection behavior.

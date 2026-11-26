@@ -38,7 +38,7 @@ from sqlalchemy.orm import aliased
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.background_task_kind import BackgroundTaskKind
-from app.db.models.workflow import Workflow
+from app.db.models.workflow import Workflow, WorkflowVersion
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     DispatchOutbox,
@@ -95,6 +95,7 @@ async def create_run(
     key_scopes: list[str] | None = None,
     inline_result_bytes: int = 0,
     entry_node_id: UUID | None = None,
+    tested_step_node_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -110,6 +111,7 @@ async def create_run(
         workflow_version_id=workflow_version_id,
         draft_graph_snapshot=draft_graph_snapshot,
         entry_node_id=entry_node_id,
+        tested_step_node_id=tested_step_node_id,
         mode=mode,
         triggered_by=triggered_by,
         public_origin=public_origin,
@@ -274,6 +276,12 @@ async def list_runs(
             where.append(WorkflowRun.status.in_([item.value for item in filters.statuses]))
         if filters.mode is not None:
             where.append(WorkflowRun.mode == filters.mode.value)
+        if filters.step_test is not None:
+            where.append(
+                WorkflowRun.tested_step_node_id.is_not(None)
+                if filters.step_test
+                else WorkflowRun.tested_step_node_id.is_(None)
+            )
         if filters.triggered_by is not None:
             where.append(WorkflowRun.triggered_by == filters.triggered_by.value)
         if filters.created_after is not None:
@@ -598,15 +606,18 @@ async def step_figures(
         .scalar_subquery()
     )
     took = func.extract("epoch", NodeRun.ended_at - NodeRun.started_at)
+    # A script's actions accrue cost to the visible step, but are not extra
+    # executions of that step and must not shorten its measured duration.
+    graph_step = NodeRun.scope_path[-1]["action"].astext.is_(None)
     return list(
         (
             await db.execute(
                 select(
                     NodeRun.node_instance_id,
-                    func.count().label("runs"),
-                    func.count().filter(NodeRun.status == "failed").label("failed"),
+                    func.count().filter(graph_step).label("runs"),
+                    func.count().filter(graph_step, NodeRun.status == "failed").label("failed"),
                     func.coalesce(func.sum(attempt_cost + called_cost), 0).label("cost"),
-                    func.avg(took).label("avg_seconds"),
+                    func.avg(took).filter(graph_step).label("avg_seconds"),
                 )
                 .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
                 .where(
@@ -761,6 +772,28 @@ async def get_node_run_by_identity(
     return result.scalar_one_or_none()
 
 
+async def script_call_at(
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    node_instance_id: UUID,
+    parent_scope: list[dict[str, Any]],
+    index: int,
+) -> NodeRun | None:
+    """Find a previous script call by position, even when its arguments or name differ."""
+    scope = NodeRun.scope_path
+    result = await db.execute(
+        select(NodeRun).where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.node_instance_id == node_instance_id,
+            scope.op("-")(-1) == parent_scope,
+            scope[-1]["action"].as_string().is_not(None),
+            scope[-1]["index"].as_integer() == index,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_node_run_statuses(db: AsyncSession, *, workflow_run_id: UUID) -> list[str]:
     """The status of every top-level `NodeRun` of a run - what deciding "has it
     finished" reads. A loop body's rows are its loop's to account for."""
@@ -784,6 +817,22 @@ async def list_node_runs_at(
     return list(result.scalars().all())
 
 
+async def list_waiting_timers(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
+    """Only active timer waits are candidates for a run's public callback.
+
+    In particular do not load the other live nodes' private interpreter snapshots.
+    """
+    return list(
+        await db.scalars(
+            select(NodeRun).where(
+                NodeRun.workflow_run_id == workflow_run_id,
+                NodeRun.status == NodeRunStatus.WAITING.value,
+                NodeRun.waiting_reason == WaitingReason.TIMER.value,
+            )
+        )
+    )
+
+
 async def list_node_runs_of(
     db: AsyncSession, *, workflow_run_id: UUID, node_instance_ids: Sequence[UUID]
 ) -> list[NodeRun]:
@@ -798,10 +847,18 @@ async def list_node_runs_of(
 
 
 async def list_node_runs_page(
-    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID, skip: int, limit: int
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    organization_id: UUID,
+    skip: int,
+    limit: int,
+    node_run_id: UUID | None = None,
 ) -> tuple[list[NodeRun], int]:
     """A page of a run's node runs, in the order they were created, and how many there are."""
     where = [NodeRun.workflow_run_id == workflow_run_id, NodeRun.organization_id == organization_id]
+    if node_run_id is not None:
+        where.append(NodeRun.id == node_run_id)
     total = await db.scalar(select(func.count()).select_from(NodeRun).where(*where)) or 0
     result = await db.execute(
         select(NodeRun)
@@ -1113,6 +1170,7 @@ async def create_attempt(
     retry_guarantee: str | None,
     started_at: datetime,
     reserved_usd: Decimal | None = None,
+    receipt_only: bool = False,
     agent_run_id: UUID | None = None,
 ) -> NodeAttempt:
     attempt = NodeAttempt(
@@ -1122,6 +1180,7 @@ async def create_attempt(
         agent_run_id=agent_run_id,
         idempotency_key=idempotency_key,
         retry_guarantee=retry_guarantee,
+        receipt_only=receipt_only,
         reserved_usd=reserved_usd,
         status=NodeAttemptStatus.IN_FLIGHT.value,
         started_at=started_at,
@@ -1170,6 +1229,31 @@ async def call_history_requires_child(
                 )
             )
         )
+    )
+
+
+async def may_have_dispatched(db: AsyncSession, *, node_run_id: UUID) -> bool:
+    """Whether any attempt lacks proof that it stopped before sending the requested action."""
+    failed_before_effect = and_(
+        NodeAttempt.status == NodeAttemptStatus.FAILED.value,
+        NodeAttempt.result.contains({"status": "failed", "effect_not_started": True}),
+    )
+    # The gate wrote an approval request but did not invoke the requested tool.
+    # A retry will get its own decision. Other completed/waiting attempts do
+    # not imply that the action never ran.
+    gated_before_tool = and_(
+        NodeAttempt.status == NodeAttemptStatus.COMPLETED.value,
+        NodeAttempt.result.contains(
+            {
+                "status": "waiting",
+                "reason": "approval",
+                "effect_not_started": True,
+            }
+        ),
+    )
+    unproven = or_(NodeAttempt.receipt_only, failed_before_effect, gated_before_tool).is_not(True)
+    return bool(
+        await db.scalar(select(exists().where(NodeAttempt.node_run_id == node_run_id, unproven)))
     )
 
 
@@ -1436,6 +1520,7 @@ async def create_outbox(
     workflow_run_id: UUID,
     node_run_id: UUID,
     available_at: datetime | None = None,
+    delay: timedelta | None = None,
 ) -> DispatchOutbox:
     """Insert a dispatch row. Raises `IntegrityError` if one is already live.
 
@@ -1443,24 +1528,32 @@ async def create_outbox(
     failure wrap this in `db.begin_nested()`, the same savepoint shape
     `UserService.confirm_email_change` uses for its own race.
 
-    `available_at=None` means due now by the database's own clock - the clock
-    `claim_outbox` compares against - so an application host running slightly
-    ahead of the database cannot write a row that is not yet claimable when
-    its job arrives.
+    With neither `available_at` nor `delay` the row is due now by the database's
+    own clock - the clock `claim_outbox` compares against - so an application
+    host running slightly ahead of the database cannot write a row that is not
+    yet claimable when its job arrives. `delay` is measured on that clock too: a
+    retry's backoff waits as long as it says whatever the host's clock reads.
+    `available_at` is an absolute time, such as a Wait step's, and is kept as
+    given.
 
     `submitted_at` is when the row's job is due to run - now, or `available_at`
     when later - for the caller (`dispatch_queue.queue_dispatch`) queues that job
     in the same transaction. The poll then looks only at rows still pending a
     lease after they came due.
     """
+    due: datetime | ColumnElement[datetime]
+    if delay is not None:
+        due = func.clock_timestamp() + literal(delay, Interval())
+    elif available_at is not None:
+        due = available_at
+    else:
+        due = func.now()
     outbox = DispatchOutbox(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_run_id=node_run_id,
-        available_at=func.now() if available_at is None else available_at,
-        submitted_at=func.now()
-        if available_at is None
-        else func.greatest(func.now(), available_at),
+        available_at=due,
+        submitted_at=func.greatest(func.now(), due),
     )
     db.add(outbox)
     await db.flush()
@@ -1853,6 +1946,20 @@ async def take_expired_runs(
     descendant = aliased(WorkflowRun)
     caller = aliased(WorkflowRun)
     retry = aliased(WorkflowRun)
+    # A failed retry can itself be retried, even when it failed before the
+    # script. Keep the entire receipt chain until its last retry succeeds or
+    # expires: ON DELETE SET NULL would otherwise make a prior write invisible.
+    script_node = {"nodes": [{"definition_id": "code.python.actions"}]}
+    retry_needs_receipts = and_(
+        retry.status != WorkflowRunStatus.SUCCEEDED.value,
+        or_(
+            retry.draft_graph_snapshot.contains(script_node),
+            exists().where(
+                WorkflowVersion.id == retry.workflow_version_id,
+                WorkflowVersion.graph.contains(script_node),
+            ),
+        ),
+    )
     expired = (
         select(WorkflowRun.id)
         .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
@@ -1879,7 +1986,7 @@ async def take_expired_runs(
             ),
             ~exists().where(
                 retry.retry_of_run_id == WorkflowRun.id,
-                retry.ended_at.is_(None),
+                or_(retry.ended_at.is_(None), retry_needs_receipts),
             ),
             ~exists(
                 select(ResourceRef.id)

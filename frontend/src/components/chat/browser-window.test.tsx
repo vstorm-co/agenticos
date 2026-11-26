@@ -240,7 +240,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
   it("draws the agent's cursor where it is about to press, while it runs and nobody holds it", () => {
     const pointer = { x: 0.25, y: 0.5, step: 3 };
     const { rerender } = render(<BrowserWindow browse={browse({ pointer })} control={null} />);
-    expect(screen.getByTestId("agent-cursor")).toHaveStyle({ left: "25%", top: "50%" });
+    expect(screen.getByTestId("agent-cursor")).toHaveStyle({ transform: "translate(25%, 50%)" });
 
     rerender(
       <BrowserWindow browse={browse({ pointer, heldBy: "Ada", heldById: "u1" })} control={null} />,

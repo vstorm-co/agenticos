@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useMotionStore } from "@/stores/motion-store";
 
 import { SWIPE_THRESHOLD, SwipeToDecide } from "./swipe-to-decide";
 
@@ -35,6 +37,7 @@ function swipe(target: Element, path: [number, number][], pointerType = "touch")
 
 beforeEach(() => {
   haptic.mockClear();
+  useMotionStore.setState({ motion: "system" });
 });
 
 describe("SwipeToDecide", () => {
@@ -65,12 +68,12 @@ describe("SwipeToDecide", () => {
     expect(haptic.mock.calls.map(([kind]) => kind)).toEqual(["threshold", "success"]);
   });
 
-  it("rejects on a swipe to the left, and shows what it will do as it goes", () => {
+  it("rejects on a swipe to the left, and shows what it will do as it goes", async () => {
     const { onApprove, onReject, target } = row();
     fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
     fireEvent.pointerMove(target, { pointerId: 1, pointerType: "touch", clientX: -40, clientY: 0 });
     expect(screen.getByText("Reject")).toBeInTheDocument();
-    expect(target.style.transform).toBe("translateX(-40px)");
+    await waitFor(() => expect(target.style.transform).toBe("translateX(-40px)"));
     fireEvent.pointerMove(target, {
       pointerId: 1,
       pointerType: "touch",
@@ -82,7 +85,7 @@ describe("SwipeToDecide", () => {
     expect(onReject).toHaveBeenCalledTimes(1);
     expect(onApprove).not.toHaveBeenCalled();
     expect(haptic).toHaveBeenLastCalledWith("warning");
-    expect(target.style.transform).toBe("");
+    await waitFor(() => expect(target.style.transform).toBe("none"));
   });
 
   it("springs back short of the point, and says so with a tap only once it is passed", () => {
@@ -107,7 +110,7 @@ describe("SwipeToDecide", () => {
     ]);
 
     expect(onApprove).not.toHaveBeenCalled();
-    expect(target.style.transform).toBe("");
+    expect(["", "none"]).toContain(target.style.transform);
   });
 
   it("ignores a mouse, another finger, and a row already deciding", () => {
@@ -150,7 +153,87 @@ describe("SwipeToDecide", () => {
     fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
 
     expect(onApprove).not.toHaveBeenCalled();
-    expect(target.style.transform).toBe("");
+    expect(["", "none"]).toContain(target.style.transform);
+  });
+
+  it.each(["disabled", "rejectOnly"] as const)(
+    "rechecks %s before a finger can decide",
+    (restriction) => {
+      const approve = vi.fn();
+      const reject = vi.fn();
+      const content = (restricted: boolean) => (
+        <SwipeToDecide
+          onApprove={approve}
+          onReject={reject}
+          approveLabel="Approve"
+          rejectLabel="Reject"
+          disabled={restricted && restriction === "disabled"}
+          rejectOnly={restricted && restriction === "rejectOnly"}
+        >
+          <p>Changing permissions</p>
+        </SwipeToDecide>
+      );
+      const { rerender } = render(content(false));
+      const target = screen.getByText("Changing permissions").parentElement!;
+      fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(target, {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: SWIPE_THRESHOLD + 10,
+        clientY: 0,
+      });
+      rerender(content(true));
+      fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
+      expect(approve).not.toHaveBeenCalled();
+      expect(reject).not.toHaveBeenCalled();
+    },
+  );
+
+  it("uses the latest finger direction even when React batches pointer updates", () => {
+    const { target, onApprove, onReject } = row();
+    act(() => {
+      fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(target, {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: SWIPE_THRESHOLD + 10,
+        clientY: 0,
+      });
+      fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
+    });
+    expect(onApprove).toHaveBeenCalledTimes(1);
+    expect(onReject).not.toHaveBeenCalled();
+  });
+
+  it.each([1, -1])(
+    "cancels an armed gesture when reduced motion changes, direction=%s",
+    (direction) => {
+      const { target, onApprove, onReject } = row();
+      fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(target, {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: direction * (SWIPE_THRESHOLD + 10),
+        clientY: 0,
+      });
+      act(() => useMotionStore.setState({ motion: "reduce" }));
+      fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
+      expect(onApprove).not.toHaveBeenCalled();
+      expect(onReject).not.toHaveBeenCalled();
+    },
+  );
+
+  it("stops a returning row and skips spring motion when the preference changes", async () => {
+    const { target, onApprove, onReject } = row();
+    fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(target, { pointerId: 1, pointerType: "touch", clientX: 40, clientY: 0 });
+    await waitFor(() => expect(target.style.transform).toBe("translateX(40px)"));
+    fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
+    act(() => useMotionStore.setState({ motion: "reduce" }));
+    await waitFor(() => expect(target.style.transform).toBe("none"));
+    swipe(target, [[30, 0]]);
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onReject).not.toHaveBeenCalled();
   });
 
   it("does nothing on a tap", () => {

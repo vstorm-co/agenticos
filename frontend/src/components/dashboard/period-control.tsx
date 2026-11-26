@@ -23,6 +23,7 @@ import {
   type Period,
   type PeriodPreset,
 } from "@/lib/dashboard/period";
+import { MENU_ROW, CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 import { SEGMENTED_CLASS, segment } from "./segmented";
@@ -83,7 +84,7 @@ export function PeriodControl({
             if (preset) onChange(resolvePreset(preset));
           }}
         >
-          <SelectTrigger className="h-9 w-auto min-w-36" aria-label={t("period.label")}>
+          <SelectTrigger size="sm" className="w-auto min-w-36" aria-label={t("period.label")}>
             <SelectValue placeholder={t("period.custom")} />
           </SelectTrigger>
           <SelectContent>
@@ -149,10 +150,18 @@ function PeriodMenu({ period, onChange }: { period: Period; onChange: (period: P
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label={t("period.label")}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="group/period h-9 gap-1.5"
+          aria-label={t("period.label")}
+        >
           <CalendarRange className="size-3.5" aria-hidden />
           {label}
-          <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />
+          <ChevronDown
+            className="text-muted-foreground size-3.5 transition-transform duration-[var(--duration-fast)] group-data-[state=open]/period:rotate-180 motion-reduce:transition-none"
+            aria-hidden
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -172,13 +181,12 @@ function PeriodMenu({ period, onChange }: { period: Period; onChange: (period: P
             />
           </div>
         ) : (
-          <div role="menu" aria-label={t("period.label")} className="flex min-w-44 flex-col">
+          <div role="group" aria-label={t("period.label")} className="flex min-w-44 flex-col">
             {[...PERIOD_PRESETS, "custom" as const].map((preset) => (
               <button
                 key={preset}
                 type="button"
-                role="menuitemradio"
-                aria-checked={period.preset === preset}
+                aria-pressed={period.preset === preset}
                 onClick={() => {
                   if (preset === "custom") {
                     setPicking(true);
@@ -187,7 +195,7 @@ function PeriodMenu({ period, onChange }: { period: Period; onChange: (period: P
                   onChange(resolvePreset(preset));
                   setOpen(false);
                 }}
-                className="hover:bg-accent flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-sm"
+                className={cn(CONTROL_FOCUS, MENU_ROW, "hover:bg-accent justify-between text-left")}
               >
                 {t(`period.${preset}`)}
                 {period.preset === preset && <Check className="size-3.5" aria-hidden />}

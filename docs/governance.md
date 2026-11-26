@@ -12,7 +12,7 @@ or on an incoming event — a GitHub issue, an inbound email (see
 
 It uses the same spending ledger, approval queue and audit trail. The
 [unattended action policy](#routine-action-consent) tightens which calls need
-approval; explicit standing consent names individual actions and one version.
+approval; routine tool settings retain or tighten the agent's rules.
 
 Unattended work also has defined outcomes for a **refusal**:
 
@@ -41,24 +41,42 @@ An event trigger adds one more refusal at its edge: a webhook whose signature do
 not verify against the trigger's own secret is a 403 that never reaches the runner
 at all.
 
+GitHub routines show an author filter when creating or editing issue, pull-request
+and comment triggers. **Repository members (default)** admits `OWNER`, `MEMBER`
+and `COLLABORATOR`; **Members and contributors** also admits `CONTRIBUTOR`.
+**Anyone** includes first-time contributors and other reporters. These are GitHub
+author associations, not AgenticOS organization roles. Bot senders and an explicitly
+excluded connected login remain blocked under every option. The author filter does
+not apply to pushes, workflow runs or releases. Existing routines keep their policy;
+a configuration with no `authors` still means `members`.
+
+In the routine's history, its signed-in owner can see the **Latest filtered GitHub
+event**: when a verified webhook failed a filter, why, and the author policy at
+receipt. Both per-routine webhooks and GitHub App deliveries record this diagnostic.
+Only the latest retained sample is kept, updated at most once per minute per
+routine using the database clock. There is no payload, author text or secret, and
+no run is created or run-admission quota spent for it. No diagnostic means no rejection has been recorded; it
+does not prove webhook delivery. Public webhook responses remain unchanged.
+
 ## Routine delivery
 
-A routine created from a private chat through the platform MCP answers in that
-chat unless you choose another destination. Its card in the conversation shows
-current state, the next activation and the existing edit, pause and remove controls.
-The run log remains available under Routines.
+New routines save every execution in one shared read-only history by default. Its creator can fork an answer into a private chat to continue. Choose a new private chat per execution if each run should have its own editable conversation. The routine card retains its edit, pause and remove controls, and Routines lists every execution with links to its chat and run details.
 
-Before posting a completed answer, the platform rechecks the creator’s active membership and current write access to the chosen conversation. A removed or inaccessible destination leaves the answer in the run log and shows **Last answer unavailable in chat** on the routine. A database failure during message delivery is isolated so it does not undo the completed fire or run the agent again.
+Runs admitted before the chat-mode upgrade retain their original delivery contract. Only those older runs copy a completed answer to a previously selected destination, after rechecking the creator’s active membership and current write access. A missing destination leaves the answer in the run log. Delivery failures do not undo the completed execution or run the agent again.
 
 Completion notifications link to the conversation only after successful delivery.
 
 `last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
+
+For a routine made in a private chat on a chat app that opens a new chat for each run (`chat_mode=per_run`), the status reads `pending` until the bot has posted the answer, then `delivered`, or `unavailable` with a notice to the owner. Migration `0363_trigger_delivery_pending.py` adds `pending`; its downgrade reads `pending` as `delivered`. See [Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat).
 
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
 An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.
 
 Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
+
+When another person publishes, rolls back or promotes a version, **Act as creator** is switched off on the routines that version reaches: those on an environment it moves to, including a guarded one that moves once its guards pass, and those naming no environment when it moves the default. Such a routine waits for its owner's review. A pinned routine, or one on an environment the version does not reach, keeps running what its creator agreed to.
 
 The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
 
@@ -76,9 +94,17 @@ Routine runs retain the MCP accounts and tool aliases admitted for that executio
 
 A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
 
-The built-in AgenticOS platform MCP server requires **Act as creator**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Enable Act as creator or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
+The built-in AgenticOS platform MCP server requires **Run as me**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Turn on Run as me or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
 
 Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
+
+The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the source review, the end date, the monthly budget, a previous run parked on an approval or an answer, and the actions that lack standing consent.
+
+A routine that would not start a run is outlined red; one with actions requiring approval if used is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it. While a check is pending or unavailable, a neutral message says so instead of implying the routine is ready. A failed check offers Retry; Run now still performs its own admission checks.
+
+The Routines dashboard card puts a routine that would not run first and names the reason in its pill. `POST /triggers/readiness` returns the same reasons as bounded codes for up to 100 routines at once, leaving out any the caller cannot see, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
+
+Readiness requests are limited to one active check per person within an organization. A second tab waits or retries instead of starting parallel deep checks. Changes to source resources refresh the visible readiness; a parked top-level run is found in the routine history even if a worker stopped before linking it as the last run. During a Redis outage this concurrency guard is enforced per API process.
 
 ## Budgets
 
@@ -745,48 +771,40 @@ next activation has budget again, or the responsibility is removed, its open
 budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
 
-### Action consent { #routine-action-consent }
+### Routine tools { #routine-action-consent }
 
-Actions are grouped by capability or concrete MCP account and can be searched.
-Select or clear a group, or the entire eligible inventory; bulk controls also cover
-items hidden by the search. Individual exclusions remain available. A review supports
-up to 1,000 selected actions; a larger selection is shown and cannot be saved until
-reduced, never silently truncated.
+New routines run as their creator, with that person's current permissions. Creation defaults to eligible tools running automatically under the agent's approval rules (`action_mode=agent`), with runs collected in one shared, read-only chat. A separate editable chat per run remains available. Identity, conversation history and tool approval are independent settings.
 
-Changing only the title or cadence retains consent. When the version, work, instructions
-or an account changes, the dialog explains which boundary changed. **Reselect previously
-reviewed actions** is an explicit new choice over matching eligible identities; it grants
-nothing until you save the current review. New actions and changed accounts are not
-selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
+**Routine tools** groups capabilities, AgenticOS tools and concrete MCP accounts, with search and these choices:
 
-An unattended routine asks before capability actions, local file changes and
-delegation. External MCP calls ask unless their server marks them read-only;
-a connection's stronger approval policy still applies. Ordinary interactive
-agent defaults are unchanged. Code mode is disabled for routine runs so bundled
-scripts cannot skip the individual action gates.
+| Setting | Effect in this routine |
+|---|---|
+| **Follow agent** | Keep the agent's approval rules. A tool requiring approval still requires it. |
+| **Ask every time** | Add approval before using this tool, including reads. This choice is offered when the agent does not already ask. |
+| **Off** | Prevent the routine from using this tool. It does not mean skipping approval. |
 
-Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
+These settings only restrict the agent. Explicit agent or MCP requirements and mandatory platform or native approvals remain enforced. Delegated agents keep their own rules; a parent's settings do not authorize a delegate's actions. Provider-executed tools are excluded when the platform cannot enforce these restrictions. Code mode remains disabled for routine runs.
 
-The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
+The routine's creator can change these restrictions while signed in as themselves. An API key, another administrator, impersonation, an agent or a routine acting as its creator cannot make this review. Adding restrictions does not require `approvals:decide` or the organization's approval-waiver switch: it grants no new authority.
 
-An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
+Saving replaces the routine's tool restrictions, with at most 1,000 entries. **Follow agent for all tools** clears these overrides, not the agent's rules. Restrictions on unavailable tools remain saved until explicitly removed. Reconnecting an MCP account does not silently remove restrictions on that connection's tools.
 
-Saving requires the version and configuration the person reviewed to remain
-current. Consent names the immutable published version, stable capability/tool IDs and
-routine configuration. Changing the work or destination invalidates it. Each run
-retains its admitted consent IDs; adding consent later cannot release a parked
-run, and revoking then regranting creates a new identity. Current membership,
-permissions, organization policy and consent are checked again at each tool.
-Every waived call records an approved row naming its consenting person and
-arguments. Delegates require their own decisions; a parent's waiver is not lent.
+!!! warning "Saving an older routine removes its standing approvals"
+    The dialog warns before saving: the routine switches to the agent's approval rules and all previous standing action approvals are removed atomically. Stored legacy policies remain effective until this review is saved; selecting **Follow agent** does not preserve an old waiver.
 
-Standing action consent also records the current revisions of bound skills, skill resources, context files and project instructions. Editing any of them invalidates the exception, even if the published agent version stays the same or the old text is later restored. Review actions again to grant a new exception. Existing exceptions without a revision fingerprint remain valid only for agents without these mutable instruction sources.
+The **Reviewed sources** panel lists capabilities, skills, knowledge bases, tables and accounts by kind and name. Each kind is folded to a count; unavailable sources are identified. Tool restrictions do not bypass source review, current resource grants or the approved source and behavior ceiling.
 
-`0267_routine_action_consents.py` creates no exceptions for existing routines.
-This changes unattended execution: an existing action may now wait for approval.
-Drain old workers and upgrade the API and workers together before resuming duties,
-as an old worker does not enforce this gate. Downgrade removes stored exceptions;
-existing approval audit rows and already performed effects remain.
+AgenticOS Virtual Tables writes still use live table and operation grants. A routine restriction may require an additional decision, while an explicit agent approval policy always applies.
+
+**Legacy standing approvals.** Older stored routines and the compatibility API can contain `manual`, `per_tool` or unspecified action policies. These are distinct from the new restriction controls. Granting a legacy exception requires the creator, `approvals:decide` and `chat_may_waive_approvals`; explicit required approvals cannot be waived. Changing only title or cadence retains consent, while changing work or destination invalidates it.
+
+A legacy exception binds the reviewed published version, routine configuration and stable action identity. An MCP exception also names the concrete account, endpoint hash and authorization generation. It never authorizes another action or account. Personal accounts are available only when acting as the creator; consent can be revoked even when the recorded tool inventory is unavailable.
+
+Each run retains its admitted consent IDs. Adding consent cannot release an already parked run; revoking and regranting creates a new identity. Current membership, permissions, organization policy and consent are checked at each tool. Each waived call has an approval audit row naming the consenting person and arguments. A parent's waiver is not lent to delegates.
+
+Legacy consent also binds revisions of skills, skill resources, context files and project instructions. Editing any invalidates it, even if old text is restored. Exceptions without this fingerprint remain valid only for agents without these mutable sources. Saving the new tool restrictions clears these legacy exceptions rather than renewing them.
+
+`0267_routine_action_consents.py` created no exceptions for existing routines. Its unattended approval gate requires upgrading API and workers together after draining old workers. Downgrade removes stored exceptions, but not approval audit rows or effects already performed.
 
 ### Resumed routine answers { #resumed-routine-answers }
 
@@ -847,13 +865,15 @@ notifications and decisions.
 Some work is the platform's own and still needs a model. A **system role** gives it
 an owner an operator can see: one configuration per organization and role, never
 an agent row, never one per job, and never attributed to the starter agent or any
-agent whose instructions did not run (#2575). **Organizations → AI & services → Background services** (`budgets:manage`) lists each role with what it runs on, this month's
+agent whose instructions did not run (#2575). **Organizations → AI & services** (`budgets:manage`) lists each role with what it runs on, this month's
 spend and its recent executions.
 
 | Role                 | What it does                                                                                                                                             | Configured                                                             |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `daily_briefing`     | The nightly look at each person's week and the briefing built from it                                                                                    | In the Proactivity tab: the same model and limit, shown here read-only |
 | `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own                |
+
+Daily briefing reads current personal profile memory and the person's memory with the starter agent, alongside legacy notes. Routine and agent proposals need evidence from separate threads or dates and are checked against prior proposals and existing routines. Memory maintenance compares against current claims in the source scope and requires a quote from a user turn before recording a claim.
 
 Memory maintenance does not require the AgenticOS starter. Its run retains the originating agent as a storage reference and is accounted as `memory_maintenance`; only platform extraction instructions and the role-selected model execute. Removing or unpublishing the starter does not disable extraction for other published agents.
 
@@ -1298,6 +1318,9 @@ reads the most recent `window` tokens of the run and either lets it be or sends
 one short correction, which the run's model receives on its next request with the
 reviewer's name on it. The run view lists each correction and who sent it.
 
+A reviewer is told that the run it reads is material to review, not instructions
+to it; its focus is added to that rule and never replaces it.
+
 A reviewer's calls are checked against the agent's and the organization's budget
 before they are made and booked on the run, priced as the reviewer's model. One
 refused for budget is skipped, and a reviewer that fails is logged; neither fails
@@ -1375,6 +1398,18 @@ measure of the miss, not of what was billed again, since a compaction can also
 shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
+
+In web chat, Activity → Approvals, or Inbox, choose **Reject with feedback** to
+say why you are blocking an action or what to try instead. The proposed action
+does not run, and the comment is saved with the rejection. In a chat batch, all
+listed calls are rejected, but each comment belongs only to its own call. Use
+**Reject** if you do not need to leave a comment.
+
+On a standard agent tool denial, the agent receives the comment when the run resumes.
+If a revised action needs approval, it asks again. In a workflow's **Ask for
+approval** step, the **Rejected** branch can read the comment as `note`, for
+example to redraft a proposal. Rejection does not retry a step automatically:
+a rejected **Call an MCP tool** step still fails without calling the tool.
 
 A gated tool parks the run and waits for a person. The Builder offers **Always ask**
 and **Never ask** for a capability; individual tools can also **Follow the capability**.
@@ -1523,6 +1558,14 @@ The approval card also offers **Allow this tool in this chat** and **Always allo
 Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
 
 The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
+
+The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the version a publish makes, the dataset an eval runs on, the price it was quoted at. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
+
+A platform call that always asks - accepting an improvement, publishing an agent, inviting a member - runs with the platform authority of the person its run acts for. So only that person, signed in as themselves, may approve it: not another member holding `approvals:decide`, not an API key, the person's own included, and not an administrator impersonating them. Anybody holding `approvals:decide` may still reject it. The person needs no permission beyond being that person, so a Builder or a Member approves the Architect's card in their own chat and continues the run there. Only they may continue a run past an approved platform call.
+
+On a channel such as Slack or Telegram, the person answers it in that chat, from the chat account linked to them. When the run asks about other calls at the same time, the person answers only their own, and the rest waits for somebody holding `approvals:decide`. The run continues once every call has an answer.
+
+A run with no person - a visitor's on a widget or a hosted page, an unlinked channel member's, or one whose starter was deleted - has nobody whose answer counts, so its platform call waits until it expires; such a run never holds platform authority in the first place. A deployment change (`change_deployment`) needs both rules at once: the run's own person, who must also be an application administrator. The Architect of anybody else cannot change it.
 
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it
@@ -1968,10 +2011,11 @@ sentence.
 
 So the audience is split by the permission rather than trimmed to it:
 
-| Recipient holds    | Gets                                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `approvals:decide` | the request, with the link to the queue                                                                                   |
-| anything less      | the _fact_: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+| Recipient holds | Gets |
+| --- | --- |
+| `approvals:decide` | the request, with the link to the queue |
+| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, while that call waits |
+| anything less | the _fact_: the run is held not failed, somebody who may decide approvals has to answer it, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
@@ -2351,9 +2395,15 @@ The list shows when a routine was paused automatically and its failure count. He
 
 ## Reviewed routine sources { #routine-sources }
 
-A routine freezes its published source configuration, exact MCP accounts, credential consent generations and known tool names when it is created. The review includes pinned delegates, knowledge collections, skills, context and capability configuration; remote A2A registrations also retain their endpoint/card/credential binding. Changing instructions or model settings alone can follow publication. Adding sources, changing an account or granting it renewed consent requires the owner to review the Sources panel in the routine's consent dialog. This review does not waive action approvals or grant access to resources. Current resource permissions still apply.
+New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
 
-Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
+A capability switched off, and what only it reaches - skills while **Skills** is off, context files while **Context** is off, collections while **Knowledge** is off, delegates and remote agents while **Subagents** is off - are not sources: no run reaches them, so the review does not list them, one that is gone does not block the routine, and editing such a skill or context file needs no new consent. Switching the capability on is a new source and is reviewed.
+
+Changing a pinned delegate version requires review, including a model-only publication of that delegate.
+
+The owner may instead select `restricted`, which freezes the reviewed source configuration, exact MCP accounts, credential generations and known tool names. Its review includes pinned delegates, knowledge, skills, context, capabilities and remote A2A registrations. New sources or changed account authorization require another review. Existing policies without a mode remain restricted; upgrading does not silently broaden them.
+
+Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work. The owner can explicitly switch an existing routine's mode through its token-bound access settings.
 
 Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
 
@@ -2368,14 +2418,21 @@ presets together. A trigger decides _when_ a routine runs; a monitoring preset
 restricts _what_ it can do. Use one routine for a responsibility, rather than
 creating a watch and a scheduled agent for the same mailbox.
 
-Choose **After every completed run** (`result_mode: report`, the existing default)
-for regular reports, or **Only when something needs attention** (`result_mode:
-inbox`) for checks that should stay quiet. In Inbox mode, the agent returns relevant
-source items with stable item and revision identifiers, context and any requested
-full draft. An empty result creates no working conversation or completion notice.
-Each item gets one private working conversation and one Inbox case. Repeated source
-revisions are deduplicated durably, including after a case is resolved. A new revision
-updates the same conversation and reopens its case; a muted item stays muted.
+Inbox findings are published only through the AgenticOS MCP tool `publish_inbox_finding`. Every routine and monitor receives this reporting tool automatically, even without a platform binding. An implicit reporting credential has no general platform scopes: it is bound to one live run and can publish only to that routine's owner. It cannot choose another recipient, read personal Inbox data or administer the organization. Membership, source consent, pause and expiry are checked on every publication. Monitors must successfully read their source first; unresolved read failures prevent reporting. Urgency respects the monitor owner's setting.
+
+The agent supplies stable item and revision IDs, useful context and any requested complete draft. An unchanged revision stays quiet; a new revision updates the same working conversation and reopens the case, while muted items remain muted. A run can publish up to eight findings. Final answers are retained in the log or explicitly selected chat destination; they are never parsed into Inbox cards. The legacy `result_mode` field remains readable, but no longer selects automatic structured delivery. For no-change checks, publish nothing unless an every-check monitor was requested.
+
+Published findings are committed at the MCP call. A later run failure does not erase an already reported finding; the failed attempt remains visible and retries deduplicate source revisions.
+
+New routines default to **one shared read-only history** (`chat_mode=shared`). Choose **a new private chat for each run** (`chat_mode=per_run`) to retain each full execution transcript, including tool calls, in its own editable chat. Follow-up messages do not edit the routine or become the next execution’s transcript; configured memory still applies. The chat appears in your chat sidebar.
+
+Choose **shared history** (`chat_mode=shared`) to append executions to one read-only system conversation. The creator sees it in the sidebar with `runs:view` and current agent access; project logs remain governed by project access. The creator can fork an answer into a private chat to continue. New executions do not automatically replay previous log messages; configured memory and explicit source reads provide continuity.
+
+Migration `0351_routine_chat_modes.py` maps existing primary/specific-chat delivery to per-run chats, and log-only or legacy Inbox delivery to shared history. It preserves existing conversations, schedules, pause state, budgets and source/tool consents. Existing logs become read-only; runs already admitted without a chat-mode snapshot retain their old delivery contract. Deploy API and workers together. Legacy destination fields remain readable for compatibility and downgrade.
+
+Inbox findings still have their own working conversations, grouped by stable source item. Publishing a finding does not create a card for every execution.
+
+Unattended execution has no live `ask_user` channel. If essential input is missing, the agent is instructed to publish the question and blocked work as an Inbox finding, rather than assume an answer. This does not itself park a resumable question form.
 
 Open the conversation from Inbox to edit the draft or request the next action.
 Reading or editing a draft does not send it or complete the case. Normal tool

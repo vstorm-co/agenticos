@@ -7,18 +7,27 @@ import { routineActionsApi, type RoutineActionKey } from "@/lib/routine-actions-
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 
-export function useRoutineActions(agentId: string, triggerId: string) {
+export function useRoutineActions(agentId: string, triggerId: string, { enabled = true } = {}) {
   const client = useQueryClient();
   const t = useTranslations("errors");
   const key = qk.triggers.actionConsents(agentId, triggerId);
   const query = useQuery({
     queryKey: key,
     queryFn: () => routineActionsApi.get(agentId, triggerId),
+    enabled,
+    // A review is of what the routine reaches now. Publishing, a rollback, a
+    // promotion, or an edited skill, context file, delegate or connection all
+    // change that - more writers than any one invalidation list keeps up with -
+    // so every opening reads it again rather than showing the console's cache.
+    staleTime: 0,
   });
   const replace = useMutation({
     mutationFn: (actions: RoutineActionKey[]) =>
       routineActionsApi.replace(agentId, triggerId, actions, query.data?.review_token),
-    onSuccess: (data) => client.setQueryData(key, data),
+    onSuccess: (data) => {
+      client.setQueryData(key, data);
+      void client.invalidateQueries({ queryKey: qk.triggers.readinessAll() });
+    },
     onError: (error) => {
       toast.error(getErrorMessage(error, t));
       void client.invalidateQueries({ queryKey: key });

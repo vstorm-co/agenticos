@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
@@ -49,12 +49,18 @@ from app.db.models.agent_run import (
 )
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.case_generation import CaseGeneration
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
-from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
+from app.db.models.key_coverage_report import KeyCoverageReport
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
+    KnowledgeGapTopic,
+)
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.system_agent_profile import DAILY_BRIEFING
@@ -86,6 +92,7 @@ async def create_run(
     modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
+    text_to_speech_defaults: dict[str, str | bool | None] | None = None,
     key_scopes: list[str] | None = None,
     improvement_run_id: UUID | None = None,
     skill_uses_recorded: bool | None = None,
@@ -95,8 +102,10 @@ async def create_run(
     routine_kind: str = "trigger",
     routine_policy: dict[str, object] | None = None,
     routine_activation_at: datetime | None = None,
+    run_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        id=run_id or uuid4(),
         trigger_id=trigger_id,
         routine_origin_id=routine_origin_id or trigger_id,
         routine_kind=routine_kind,
@@ -110,6 +119,7 @@ async def create_run(
         agent_version_id=agent_version_id,
         is_test=is_test,
         test_spec=test_spec,
+        text_to_speech_defaults=text_to_speech_defaults,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         runs_as_agent=runs_as_agent,
@@ -135,6 +145,14 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+async def set_text_to_speech_defaults(
+    db: AsyncSession, *, run: AgentRun, defaults: dict[str, str | bool | None]
+) -> None:
+    """Pin the shared speech destination before an inheriting delegate can use it."""
+    run.text_to_speech_defaults = defaults
+    await db.flush()
 
 
 # Count the uncompressed JSONB representation, including every delegate, even
@@ -346,10 +364,15 @@ async def record_delegated_run(
     return run
 
 
-async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> AgentRun | None:
-    result = await db.execute(
-        select(AgentRun).where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+async def get_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> AgentRun | None:
+    statement = select(AgentRun).where(
+        AgentRun.id == run_id, AgentRun.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -393,6 +416,26 @@ async def latest_run_for_conversation(
             AgentRun.surface != RunSurface.FOLLOW_UPS.value,
         )
         .order_by(AgentRun.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def latest_parked_run_for_conversation(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID
+) -> AgentRun | None:
+    """Find a top-level parked run even if its trigger's completion link was never saved."""
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status.in_(
+                (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
+            ),
+        )
+        .order_by(AgentRun.created_at.desc(), AgentRun.id.desc())
         .limit(1)
     )
     return result.scalar_one_or_none()
@@ -562,11 +605,9 @@ class RunFilters:
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
             whether it earned one.
-        conversation_id: The thread the run ran inside. What lets a trigger's own
-            runs be listed: every fire of one trigger appends to a single run-log
-            conversation, so the conversation *is* the trigger's identity in the
-            run history - and reading them as runs rather than as a transcript is
-            what gives each fire a status and a link to its own detail.
+        conversation_id: The thread the run ran inside.
+        trigger_id: One scheduled/event routine, across independent execution
+            chats and legacy shared history, including its admission-time origin.
         model_label: The model as the run itself recorded it. Compared as the
             stored string rather than resolved through the catalog: the column
             is what a run answered with, a profile it came from may since have
@@ -594,6 +635,7 @@ class RunFilters:
     exclude_surface: str | None = None
     user_id: UUID | None = None
     conversation_id: UUID | None = None
+    trigger_id: UUID | None = None
     model_label: str | None = None
     started_from: datetime | None = None
     started_to: datetime | None = None
@@ -623,6 +665,16 @@ class RunFilters:
             clauses.append(AgentRun.user_id == self.user_id)
         if self.conversation_id is not None:
             clauses.append(AgentRun.conversation_id == self.conversation_id)
+        if self.trigger_id is not None:
+            clauses.append(
+                or_(
+                    AgentRun.trigger_id == self.trigger_id,
+                    and_(
+                        AgentRun.routine_kind == "trigger",
+                        AgentRun.routine_origin_id == self.trigger_id,
+                    ),
+                )
+            )
         if self.model_label is not None:
             clauses.append(AgentRun.model_label == self.model_label)
         if self.started_from is not None:
@@ -918,6 +970,19 @@ async def run_origins(
     )
     for run_id, knowledge_base_id in classified.all():
         found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    classified_evals = await db.execute(
+        select(
+            type_coerce(KnowledgeGapEvalClassification.classifier_run_id, run_id_of),
+            KnowledgeGapEvalClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapEvalClassification.organization_id == organization_id,
+            KnowledgeGapEvalClassification.classifier_run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified_evals.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
     generations = await db.execute(
         select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(
             CaseGeneration.organization_id == organization_id,
@@ -925,6 +990,24 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    drafts = await db.execute(
+        select(type_coerce(CaseKeyDraft.run_id, run_id_of), CaseKeyDraft.dataset_id).where(
+            CaseKeyDraft.organization_id == organization_id,
+            CaseKeyDraft.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in drafts.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    reports = await db.execute(
+        select(
+            type_coerce(KeyCoverageReport.run_id, run_id_of), KeyCoverageReport.dataset_id
+        ).where(
+            KeyCoverageReport.organization_id == organization_id,
+            KeyCoverageReport.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in reports.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 
@@ -1363,6 +1446,22 @@ async def agents_of_runs(
         )
     )
     return {row.id: row.agent_id for row in result.all()}
+
+
+async def eval_answers(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Those of these runs that answered an eval case."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(AgentRun.id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.surface == RunSurface.EVAL.value,
+        )
+    )
+    return set(result.scalars().all())
 
 
 async def conversations_of_runs(
@@ -2723,6 +2822,11 @@ class ApprovalRow:
     """Set by the service when this reader may not see what the call quotes."""
     always_asks: bool = False
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
+    may_approve: bool = False
+    """Set by the service: whether an approval from this reader would be accepted."""
+    acts_for_user_id: UUID | None = None
+    """Whose authority the run carries: who started it, or the binding's publisher for
+    a run a chat account asked. Decides who may approve; never shown."""
 
 
 @dataclass(frozen=True)
@@ -2870,6 +2974,7 @@ async def list_approvals(
             note=approval.note,
             created_at=approval.created_at,
             always_asks=approval.always_asks,
+            acts_for_user_id=run_user_id,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(
@@ -3385,3 +3490,13 @@ async def run_id_for_routine_activation(
         )
         .limit(1)
     )
+
+
+async def record_workspace_origins(
+    db: AsyncSession, *, run: AgentRun, origins: Sequence[dict[str, str]]
+) -> None:
+    """Merge actual opened workspace references across approval continuations."""
+    kept = {entry["workspace_id"]: entry for entry in run.workspace_origins or []}
+    kept.update({entry["workspace_id"]: entry for entry in origins})
+    run.workspace_origins = list(kept.values())
+    await db.flush()

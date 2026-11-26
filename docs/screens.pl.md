@@ -1,5 +1,5 @@
 ---
-source_sha: "12c6776e073b"
+source_sha: "e11d6e8c4bbd"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -400,7 +400,7 @@ Podłącz dowolny serwer MCP po URL, a jego narzędzia stają się przełącznik
 
 ### Channels { #channels }
 
-Platformy czatowe, na których odpowiada ta organizacja - Slack, Teams, Telegram, Mattermost. Bot obsługuje każdego związanego z nim agenta, a to powiązanie tworzy się na zakładce Availability tego agenta.
+Platformy czatowe, na których odpowiada ta organizacja - Slack, Teams, Telegram, Mattermost. Bot odpowiada jako jeden agent, powiązany z wiersza bota tutaj albo na zakładce Availability tego agenta.
 
 ![Channels](assets/screens/light/channels.webp?v=20261102-industrial#only-light)
 ![Channels](assets/screens/dark/channels.webp?v=20261102-industrial#only-dark)

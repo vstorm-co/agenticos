@@ -1,5 +1,5 @@
 ---
-source_sha: "6308658dc6b3"
+source_sha: "8cc9c6583fa2"
 ---
 
 # Funkcje { #features }
@@ -170,14 +170,14 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **Hostowana strona**, do której możesz komuś wysłać link
 - **Osadzalny widget** na Twoją własną stronę
 - **HTTP API** oraz surowy WebSocket do strumieniowania
-- **Slack**, **Telegram**, **Mattermost** i **Discord**, gdzie `@mention` uruchamia się jako
+- **Slack**, **Telegram**, **Mattermost**, **Discord** i **Matrix**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
 - **WhatsApp**, w czatach bezpośrednich, z odpowiedziami tekstem i członkiem
   powiązanym kodem wysłanym z czatu
 
 Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
 dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
-transkrypcja wiadomości głosowych w Slacku, Telegramie, Mattermost i na Discordzie.
+transkrypcja wiadomości głosowych w Slacku, Telegramie, Mattermost, na Discordzie i w Matrixie.
 
 **Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
 w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje

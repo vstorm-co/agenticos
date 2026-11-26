@@ -134,7 +134,7 @@ async def test_what_may_be_staged_is_staged_and_the_rest_is_only_counted(db):
         ("spec_field", "loosens_approval", "capabilities/charts/approval"),
     }
     assert "# Its configuration" in model.prompts[-1]
-    assert shared.name in model.prompts[-1] and private.name in model.prompts[-1]
+    assert shared.name in model.prompts[-1] and private.name not in model.prompts[-1]
     batch = (await AuthoringService(db).for_agent(ctx, agent.id)).batch
     assert batch is not None
     by_path = {(hunk.path, str(hunk.new_value)): hunk for hunk in batch.hunks}

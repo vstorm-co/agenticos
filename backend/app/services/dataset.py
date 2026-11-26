@@ -20,7 +20,6 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +27,7 @@ from app.agents.isolation import capability_tools
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import CASE_GENERATOR, IMPROVER, JUDGE
 from app.core.audit import record_audit
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -40,6 +40,7 @@ from app.core.exceptions import (
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message
@@ -49,6 +50,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     case_generation_repo,
+    case_key_draft_repo,
     conversation_repo,
     credential_repo,
     dataset_repo,
@@ -79,7 +81,7 @@ from app.schemas.dataset import (
     DatasetVersionRead,
     EditedCaseContent,
 )
-from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers, DatasetHelpersRead
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
@@ -95,6 +97,7 @@ logger = logging.getLogger(__name__)
 from app.services.improvement_data import case_partition
 
 MAX_CASES = MAX_EXPORT_ROWS
+_HELPER_AUTHORSHIP = {"instructions_updated_by", "instructions_updated_at"}
 _MAX_REPLY_STEPS = 50
 _MAX_EXPECTED_CALLS = 50
 
@@ -143,6 +146,12 @@ def _refuse_past_ceiling(held: int, adding: int) -> None:
             ),
             details={"case_count": held, "adding": adding, "max_cases": MAX_CASES},
         )
+
+
+def _read_import(content: bytes, fmt: DatasetFileFormat) -> list[tuple[dict[str, Any], int]]:
+    """An import's cases as their rows' fields, each redacted, with how many values it
+    redacted. Pure, and run in a thread."""
+    return [redacted_case(case) for case in dataset_files.parse(content, fmt)]
 
 
 @dataclass(frozen=True)
@@ -199,18 +208,24 @@ def redact_credentials(text: str | None) -> tuple[str | None, int]:
     return verdict.replacement, verdict.replacement.count("[redacted:")
 
 
-def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
+def redact_json(value: JsonValue) -> tuple[JsonValue, int]:
+    """Every string in `value`, a key as much as a value, redacted as :func:`redact_credentials`
+    redacts text, and how many were."""
     if isinstance(value, str):
         cleaned, found = redact_credentials(value)
         return cleaned, found
     if isinstance(value, list):
-        items = [_redact_json(item) for item in value]
+        items = [redact_json(item) for item in value]
         return [item for item, _ in items], sum(found for _, found in items)
     if isinstance(value, dict):
-        entries = {key: _redact_json(item) for key, item in value.items()}
-        return {key: item for key, (item, _) in entries.items()}, sum(
-            found for _, found in entries.values()
-        )
+        redacted: dict[str, JsonValue] = {}
+        total = 0
+        for key, item in value.items():
+            cleaned_key, key_found = redact_credentials(key)
+            cleaned, found = redact_json(item)
+            redacted[cleaned_key or key] = cleaned
+            total += key_found + found
+        return redacted, total
     return value, 0
 
 
@@ -231,13 +246,13 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
         turn["content"], count = redact_credentials(turn["content"])
         found += count
     for call in data["expected_tool_calls"]:
-        call["args"], count = _redact_json(call["args"])
+        call["args"], count = redact_json(call["args"])
         found += count
     for check in data["checks"]:
         for key in [key for key in check if key != "type"]:
-            check[key], count = _redact_json(check[key])
+            check[key], count = redact_json(check[key])
             found += count
-    data["tags"], count = _redact_json(data["tags"])
+    data["tags"], count = redact_json(data["tags"])
     found += count
     return data, found
 
@@ -324,7 +339,7 @@ def _dataset_read(
         run_needs=run_needs,
         pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
-        helper_settings=DatasetHelpers.model_validate(dataset.helper_settings or {}),
+        helper_settings=DatasetHelpersRead.model_validate(dataset.helper_settings or {}),
         helper_defaults=DatasetHelperDefaults(
             judge=JUDGE.instructions,
             generator=CASE_GENERATOR.instructions,
@@ -616,6 +631,15 @@ class DatasetService:
             if changes_helpers
             else await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         )
+        if (
+            dataset.skill_id is not None
+            and data.improvement_holdout_share is not None
+            and data.improvement_holdout_share != 1
+        ):
+            raise refused_field(
+                "improvement_holdout_share",
+                "Every question of a skill's own test set is held out, so its share stays 1",
+            )
         update_data = writable(data, over=Dataset)
         if changes_helpers:
             kept = DatasetHelpers.model_validate(dataset.helper_settings or {})
@@ -627,11 +651,19 @@ class DatasetService:
                     ("improver", data.helper_settings.improver, kept.improver),
                 ):
                     if name in data.helper_settings.model_fields_set:
-                        setattr(
-                            kept,
-                            name,
-                            current.model_copy(update=helper.model_dump(exclude_unset=True)),
-                        )
+                        changes = helper.model_dump(exclude_unset=True, exclude=_HELPER_AUTHORSHIP)
+                        merged = current.model_copy(update=changes)
+                        if (
+                            "instructions" in changes
+                            and changes["instructions"] != current.instructions
+                        ):
+                            merged = merged.model_copy(
+                                update={
+                                    "instructions_updated_by": ctx.subject_id,
+                                    "instructions_updated_at": datetime.now(UTC),
+                                }
+                            )
+                        setattr(kept, name, merged)
             update_data["helper_settings"] = kept.model_dump(mode="json")
         if data.helper_settings is not None:
             for name, helper in (
@@ -702,6 +734,9 @@ class DatasetService:
             resource_type=DATASET.key,
             resource_id=dataset.id,
         )
+        await case_key_draft_repo.delete_for_dataset(
+            self.db, organization_id=ctx.organization_id, dataset_id=dataset.id
+        )
         await dataset_repo.delete(self.db, dataset)
         await record_audit(
             self.db,
@@ -756,7 +791,9 @@ class DatasetService:
         """A page of the cases one version holds - the newest version unless one is named.
 
         `same_input` narrows to the cases asking that question, as a new case is
-        checked for one already there; `total` then counts the matches on this page.
+        checked for one already there; `total` then counts every match.
+        A case the caller reads masked is never a match, so a guess cannot be
+        confirmed against a question they may not read.
         It is redacted as a case's input is when stored, so a question holding a
         credential still finds the case asking it.
         """
@@ -764,15 +801,22 @@ class DatasetService:
         held = await self._version(ctx, dataset, version)
         if held is None:
             return DatasetCaseList(items=[], total=0, version=0)
-        cases = await dataset_repo.list_cases(
-            self.db,
-            held.id,
-            organization_id=ctx.organization_id,
-            skip=skip,
-            limit=limit,
-            same_input=redact_credentials(same_input)[0],
-        )
-        total = held.case_count if same_input is None else len(cases)
+        if same_input is None:
+            cases = await dataset_repo.list_cases(
+                self.db, held.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+            )
+            total = held.case_count
+        else:
+            matches = await dataset_repo.list_cases(
+                self.db,
+                held.id,
+                organization_id=ctx.organization_id,
+                limit=None,
+                same_input=redact_credentials(same_input)[0],
+            )
+            masked = await self.masked_case_ids(ctx, matches)
+            readable = [case for case in matches if case.id not in masked]
+            cases, total = readable[skip : skip + limit], len(readable)
         return DatasetCaseList(
             items=await self.case_reads(ctx, cases), total=total, version=held.number
         )
@@ -787,18 +831,11 @@ class DatasetService:
         A removed source fails closed, since no conversation remains to authorize.
         """
         reads = [_case_read(case) for case in cases]
-        if ctx.has(Perm.RUNS_VIEW):
-            return reads
-        readable = await ConversationService(self.db).readable(
-            ctx,
-            {case.source_conversation_id for case in cases if case.source_conversation_id},
-        )
+        masked = await self.masked_case_ids(ctx, cases)
         for case, read in zip(cases, reads, strict=True):
-            if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
+            if case.id not in masked:
                 continue
-            if case.source_conversation_id in readable:
-                continue
-            read.input = "From a conversation you cannot open"
+            read.input = "Source unavailable or origin unverified"
             read.history = []
             read.reference_answer = None
             read.counter_example = None
@@ -808,22 +845,54 @@ class DatasetService:
             read.masked = True
         return reads
 
+    async def masked_case_ids(self, ctx: AuthContext, cases: Sequence[DatasetCase]) -> set[UUID]:
+        """The revisions among `cases` this caller reads masked: taken from a conversation
+        they may not open. Anything computed over case text for this caller leaves them out,
+        or it would confirm what the mask hides.
+
+        The flag also conservatively protects legacy generated revisions of unknown
+        origin. Source and conversation links protect a revision from an older writer;
+        the upgrade requires old writers to stop before its backfill runs.
+        """
+        if ctx.has(Perm.RUNS_VIEW):
+            return set()
+        readable = await ConversationService(self.db).readable(
+            ctx,
+            {case.source_conversation_id for case in cases if case.source_conversation_id},
+        )
+        return {
+            case.id
+            for case in cases
+            if (
+                case.from_conversation
+                or case.source == CaseSource.CONVERSATION.value
+                or case.source_conversation_id is not None
+            )
+            and case.source_conversation_id not in readable
+        }
+
     async def source_privacy(self, ctx: AuthContext, message_id: UUID) -> DatasetSourcePrivacy:
         """Warn before a curator copies another person's private conversation.
 
         Uses the same source access as Add to dataset, and exposes no owner metadata
-        unless the caller may read the conversation or its recorded runs.
+        unless the caller may read the conversation or its recorded runs. A message
+        in another organization, or in a conversation the caller may not read, is
+        refused exactly as an unknown id is, so neither its existence nor its
+        conversation can be probed.
         """
         message = await conversation_repo.get_message_by_id(self.db, message_id)
         if message is None or (not ctx.has(Perm.RUNS_VIEW) and ctx.user_id is None):
             raise NotFoundError(message="Message not found")
-        conversation = await ConversationService(self.db).get_conversation(
-            message.conversation_id,
-            organization_id=ctx.organization_id,
-            user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
-            ctx=ctx,
-            include_favourite=False,
-        )
+        try:
+            conversation = await ConversationService(self.db).get_conversation(
+                message.conversation_id,
+                organization_id=ctx.organization_id,
+                user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
+                ctx=ctx,
+                include_favourite=False,
+            )
+        except NotFoundError:
+            raise NotFoundError(message="Message not found") from None
         private = (
             conversation.project_id is None
             and conversation.user_id is not None
@@ -964,18 +1033,25 @@ class DatasetService:
         **provenance: UUID | None,
     ) -> DatasetCase:
         identity = case_id or uuid.uuid4()
+        chat = ("source_run_id", "source_conversation_id", "source_message_id")
         return DatasetCase(
             id=uuid.uuid4(),
             dataset_id=dataset.id,
             organization_id=ctx.organization_id,
             case_id=identity,
             improvement_partition=partition
+            or ("holdout" if dataset.skill_id is not None else None)
             or case_partition(identity, dataset.improvement_holdout_share),
             source=source.value,
             created_by_user_id=ctx.subject_id,
             asked_by_user_id=authorship.asked_by,
             history_author_ids=authorship.history_for(len(fields.get("history") or [])),
             noted_by_user_id=authorship.noted_by,
+            from_conversation=source is CaseSource.CONVERSATION
+            or authorship.asked_by is not None
+            or authorship.noted_by is not None
+            or any(author is not None for author in authorship.history)
+            or any(provenance.get(link) is not None for link in chat),
             **fields,
             **provenance,
         )
@@ -1194,6 +1270,27 @@ class DatasetService:
             )
         return previous, found[0], found[1]
 
+    async def editable_case(
+        self, ctx: AuthContext, dataset_id: UUID, case_id: UUID
+    ) -> tuple[Dataset, DatasetCase]:
+        """The dataset and its newest revision of a case, for an editor who can read its text.
+
+        Raises:
+            NotFoundError: As :meth:`get` does, or when the newest version holds no
+                such case.
+            AuthorizationError: Without `datasets:edit`, or when the case's text is
+                masked because its source conversation is not readable.
+        """
+        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        _, current, _ = await self._held_case(ctx, dataset, case_id)
+        [visible] = await self.case_reads(ctx, [current])
+        if visible.masked:
+            raise AuthorizationError(
+                message="The source conversation must be readable before its text can be read",
+                details={"permission": "runs:view"},
+            )
+        return dataset, current
+
     async def read_case(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, *, version: int | None = None
     ) -> DatasetCaseRead:
@@ -1242,7 +1339,7 @@ class DatasetService:
         hidden_fields = data.model_fields_set - {"tags", "order_mode"}
         if visible.masked and hidden_fields:
             raise AuthorizationError(
-                message="The source conversation must be readable before its text can be edited",
+                message="Access to the protected source is required before its text can be edited",
                 details={"permission": "runs:view", "fields": sorted(hidden_fields)},
             )
         merged = {
@@ -1281,6 +1378,7 @@ class DatasetService:
             ),
             **provenance,
         )
+        revision.from_conversation = revision.from_conversation or current.from_conversation
         if data.input is None:
             # Still the placeholder an erasure left, so still not worth asking.
             revision.anonymised_at = current.anonymised_at
@@ -1313,18 +1411,18 @@ class DatasetService:
     ) -> DatasetVersionRead:
         """Append every case in a CSV or JSONL file, as one new version.
 
-        The file is parsed, measured against the ceiling and redacted before the
-        dataset is locked, so a large upload holds up nobody else's edit; and it is
-        refused whole if any row is wrong (see :func:`dataset_files.parse`). The
-        ceiling is checked again under the lock, against the count it guards.
+        The file is parsed and redacted on the bounded file pool, off the event loop, and
+        measured against the ceiling before the dataset is locked, so a large
+        upload holds up neither the API nor anybody else's edit; and it is refused
+        whole if any row is wrong (see :func:`dataset_files.parse`). The ceiling is
+        checked again under the lock, against the count it guards.
         """
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        cases = dataset_files.parse(content, dataset_files.format_of(filename, fmt))
+        cases = await run_blocking(_read_import, content, dataset_files.format_of(filename, fmt))
         _refuse_past_ceiling(current.case_count, len(cases))
         revisions: list[DatasetCase] = []
         redacted = 0
-        for case in cases:
-            fields, found = redacted_case(case)
+        for fields, found in cases:
             redacted += found
             revisions.append(self._revision(ctx, current, fields, source=CaseSource.IMPORT))
         dataset = await self._locked(ctx, dataset_id)

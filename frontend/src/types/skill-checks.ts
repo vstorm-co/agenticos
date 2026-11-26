@@ -4,11 +4,21 @@
  * Mirrors `backend/app/schemas/skill_check.py`. Money arrives as decimal strings.
  */
 
+import type { VerdictCriterion, VerdictFamily } from "@/types/improvement";
+
 export type CheckMode = "quick" | "thorough";
 export type CheckStatus = "running" | "done" | "cancelled" | "applied" | "forked" | "discarded";
 export type CheckVerdict = "passed" | "blocked" | "no_better" | "needs_ack";
 export type AgentCheckState =
-  "queued" | "running" | "better" | "no_change" | "within_noise" | "worse" | "unknown";
+  | "queued"
+  | "running"
+  | "better"
+  | "criteria_better"
+  | "no_change"
+  | "criteria_worse"
+  | "within_noise"
+  | "worse"
+  | "unknown";
 export type UnknownReason =
   | "no_questions"
   | "no_access"
@@ -19,7 +29,8 @@ export type UnknownReason =
   | "unscorable"
   | "all_evidence"
   | "cancelled"
-  | "own_not_asked";
+  | "own_not_asked"
+  | "too_few_questions";
 export type CheckOutcome =
   "improve_further" | "apply" | "apply_and_pin" | "fork_for_helped" | "discard";
 
@@ -34,8 +45,8 @@ export interface SkillCheckStart {
 
 export interface CheckStage {
   kind: "skill_set" | "dataset_sample" | "dataset";
-  dataset_id: string;
-  /** Null for a dataset the reader may not see. */
+  /** Null, with its name and eval run, for a dataset the reader may not see. */
+  dataset_id: string | null;
   dataset_name: string | null;
   cases: number;
   eval_run_id: string | null;
@@ -68,6 +79,10 @@ export interface SkillCheckAgent {
   fixed: number;
   broken: number;
   held_out: number;
+  /** Each criterion over the held-out questions, both stages together. */
+  criteria?: VerdictCriterion[];
+  /** Each family of criteria over the held-out questions, both stages together. */
+  families?: VerdictFamily[];
   fixed_confirmed: number;
   regressions_confirmed: number;
   noisy: boolean;

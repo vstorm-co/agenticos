@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTriggerAttempts, useTriggers } from "./use-triggers";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("@/lib/api-client", () => ({
@@ -102,6 +103,72 @@ describe("useTriggers", () => {
       interval_seconds: 300,
     });
     expect(toast.success).toHaveBeenCalledWith("Trigger created");
+  });
+
+  it("refreshes the chat listing when creation adds a routine log", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ conversation_id: "routine-log" }));
+    const { result } = renderHook(() => useTriggers("a1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await result.current.create.mutateAsync({
+      prompt: "summarise",
+      trigger_type: "schedule",
+      interval_seconds: 300,
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversations.all() });
+  });
+
+  it("refreshes cached subscribers on create, rebind, pause and delete without touching samples", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useTriggers("a1"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const shared = trigger({ trigger_type: "event", source_id: "new-source" });
+    vi.mocked(apiClient.post).mockResolvedValue(shared);
+    vi.mocked(apiClient.patch).mockResolvedValue(shared);
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const oldUsage = qk.eventSources.usage("old-source");
+    const newUsage = qk.eventSources.usage("new-source");
+    const sample = qk.eventSources.capture("new-source", "listener");
+    client.setQueryData(sample, {});
+    const operations = [
+      {
+        mutate: () =>
+          result.current.create.mutateAsync({
+            trigger_type: "event",
+            source_id: "new-source",
+            prompt: "Triage",
+          }),
+        refreshOld: false,
+      },
+      {
+        mutate: () =>
+          result.current.update.mutateAsync({
+            triggerId: "t1",
+            patch: { source_id: "new-source" },
+          }),
+        refreshOld: true,
+      },
+      {
+        mutate: () => result.current.setActive.mutateAsync({ triggerId: "t1", isActive: false }),
+        refreshOld: false,
+      },
+      { mutate: () => result.current.remove.mutateAsync("t1"), refreshOld: true },
+    ];
+    for (const { mutate, refreshOld } of operations) {
+      client.setQueryData(oldUsage, []);
+      client.setQueryData(newUsage, []);
+      await mutate();
+      expect(client.getQueryState(newUsage)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(oldUsage)?.isInvalidated).toBe(refreshOld);
+      expect(client.getQueryState(sample)?.isInvalidated).toBe(false);
+    }
   });
 
   it("sends only is_active when pausing, and names the act", async () => {

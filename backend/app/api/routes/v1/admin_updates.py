@@ -2,9 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.deps import CurrentAppAdmin, UpdateSvc
+from app.api.deps import CurrentAppAdmin, UpdateSvc, require_deployment_mcp_scope
+from app.api.public_api import ASSISTANT
 from app.schemas.updates import (
     AgentUpdateRead,
     UpdateApply,
@@ -13,7 +14,7 @@ from app.schemas.updates import (
     UpdateStatusRead,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)])
 
 
 @router.get("", response_model=UpdateStatusRead)

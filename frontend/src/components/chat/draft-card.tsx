@@ -2,6 +2,7 @@
 
 import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
+import { FilePenLine } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { draftsOf, type DraftCard } from "@/lib/drafts";
@@ -16,24 +17,30 @@ export function DraftCardView({ card }: { card: DraftCard }) {
   const t = useTranslations("chat.drafts");
   const [open, setOpen] = useState(0);
   const id = useId();
-  const version = card.versions[Math.min(open, card.versions.length - 1)]!;
+  const selected = Math.min(open, card.versions.length - 1);
+  const version = card.versions[selected]!;
   const tabbed = card.versions.length > 1;
   // Arrow keys move between the tabs, wrapping, and select the one they reach.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (step === 0) return;
     event.preventDefault();
-    const next = (open + step + card.versions.length) % card.versions.length;
+    const next = (selected + step + card.versions.length) % card.versions.length;
     setOpen(next);
     document.getElementById(`${id}-tab-${next}`)?.focus();
   };
   return (
-    <div className="bg-muted/40 border-foreground/10 my-2 w-full min-w-0 overflow-hidden rounded-2xl border">
-      <div className="flex items-baseline justify-between gap-3 px-3.5 py-2.5">
-        <span className="min-w-0 text-sm font-medium break-words">{card.title}</span>
+    <div className="bg-card border-border my-3 w-full min-w-0 overflow-hidden rounded-2xl border">
+      <div className="bg-muted/25 flex items-center gap-3 px-4 py-3">
+        <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
+          <FilePenLine className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1 text-sm leading-5 font-medium wrap-anywhere">
+          {card.title}
+        </span>
         <span
           title={card.kind}
-          className="text-muted-foreground max-w-[40%] min-w-0 truncate font-mono text-xs tracking-wider uppercase"
+          className="text-muted-foreground bg-muted max-w-[35%] min-w-0 truncate rounded-md px-2 py-1 text-xs"
         >
           {card.kind}
         </span>
@@ -47,14 +54,14 @@ export function DraftCardView({ card }: { card: DraftCard }) {
               role="tab"
               onKeyDown={onKeyDown}
               id={`${id}-tab-${index}`}
-              aria-selected={index === open}
+              aria-selected={index === selected}
               aria-controls={`${id}-panel`}
-              tabIndex={index === open ? 0 : -1}
+              tabIndex={index === selected ? 0 : -1}
               onClick={() => setOpen(index)}
               className={cn(
-                "rounded-md px-2 py-0.5 text-xs transition-colors",
-                index === open
-                  ? "bg-foreground/10 text-foreground"
+                "pressable-control focus-visible:ring-ring min-h-8 rounded-lg px-2.5 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                index === selected
+                  ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -64,12 +71,19 @@ export function DraftCardView({ card }: { card: DraftCard }) {
         </div>
       )}
       <div
+        key={selected}
+        className={tabbed ? "tab-panel" : undefined}
+        data-state={tabbed ? "active" : undefined}
         id={`${id}-panel`}
         role={tabbed ? "tabpanel" : undefined}
-        aria-labelledby={tabbed ? `${id}-tab-${open}` : undefined}
+        aria-labelledby={tabbed ? `${id}-tab-${selected}` : undefined}
       >
         {version.fields.map((field, index) => (
-          <DraftSegment key={`${open}:${index}`} field={field} named={version.fields.length > 1} />
+          <DraftSegment
+            key={`${selected}:${index}`}
+            field={field}
+            named={version.fields.length > 1}
+          />
         ))}
       </div>
     </div>

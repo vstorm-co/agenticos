@@ -328,6 +328,42 @@ describe("paging between the files it was opened from", () => {
     expect(onSelect).toHaveBeenCalledWith(0);
   });
 
+  it.each([
+    { left: 430, initial: 0, next: 150 },
+    { left: -20, initial: 200, next: 80 },
+    { left: 120, initial: 0, next: null },
+  ])(
+    "reveals attachment at $left within its own strip without moving ancestors",
+    async ({ left, initial, next }) => {
+      const { onSelect } = withCarousel(0);
+      const button = screen.getByRole("button", { name: /chart\.png/ });
+      const list = button.closest("ul");
+      if (!list) throw new Error("missing attachment strip");
+      list.scrollLeft = initial;
+      const listBounds = vi
+        .spyOn(list, "getBoundingClientRect")
+        .mockReturnValue(new DOMRect(100, 0, 300, 40));
+      const buttonBounds = vi
+        .spyOn(button, "getBoundingClientRect")
+        .mockReturnValue(new DOMRect(left, 0, 120, 40));
+      const ownScroll = vi.spyOn(list, "scrollTo");
+      const ancestorScroll = vi.spyOn(button, "scrollIntoView");
+      try {
+        await userEvent.click(button);
+        expect(onSelect).toHaveBeenCalledWith(2);
+        if (next === null) expect(ownScroll).not.toHaveBeenCalled();
+        else expect(ownScroll).toHaveBeenCalledWith({ left: next, behavior: "smooth" });
+        expect(ancestorScroll).not.toHaveBeenCalled();
+        expect(button).toHaveFocus();
+      } finally {
+        listBounds.mockRestore();
+        buttonBounds.mockRestore();
+        ownScroll.mockRestore();
+        ancestorScroll.mockRestore();
+      }
+    },
+  );
+
   it("names every file in the strip, not a row of dots", async () => {
     // Five attachments are five names; a dot says how many there are and nothing
     // about which one is the spreadsheet.

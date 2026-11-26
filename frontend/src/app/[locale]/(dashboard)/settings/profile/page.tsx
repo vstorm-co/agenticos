@@ -1,8 +1,11 @@
 "use client";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
+import { ChatHomePreferences } from "@/components/settings/chat-home-preferences";
+import { OnboardingResumeLink } from "@/components/onboarding/onboarding-resume-link";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { PersonalIntegrationAccounts } from "@/components/settings/personal-integration-accounts";
 import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
 import { useAuth } from "@/hooks";
@@ -21,7 +24,10 @@ export default function ProfileSettingsPage() {
       </div>
       <div className="bg-card min-w-0 rounded-2xl border px-5 pb-2 sm:px-6">
         <AppearanceSettings />
+        <ChatHomePreferences />
+        <OnboardingResumeLink />
       </div>
+      <PersonalModelKeys />
       <div>
         <ForgetMe userId={user.id} />
       </div>

@@ -70,6 +70,7 @@ from app.services.channels.public_line import (
     refuse_without_ceiling,
     spec_served_by,
 )
+from app.services.personal_model_surfaces import require_organization_agent
 
 # How many bots one organization can have bound before the picker stops being a
 # picker. Far above any real deployment; it exists so the query is bounded.
@@ -344,6 +345,7 @@ class AgentExposureService:
         # spending-limit check must not both commit.
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         # The agent first, then the bot: the order every change to a binding locks in.
+        await require_organization_agent(self.db, ctx, agent_id, environment_id=data.environment_id)
         refuse_system_agent(agent, action="a channel")
         bot = await channel_bot_repo.get_for_org(
             self.db, data.channel_bot_id, organization_id=ctx.organization_id, for_update=True
@@ -494,6 +496,13 @@ class AgentExposureService:
             ctx, agent_id, exposure_id, for_update=True, lock_exposure=True
         )
         changes = writable(data, over=AgentExposure, exclude={"request_note"})
+        if changes.get("is_active", exposure.is_active):
+            await require_organization_agent(
+                self.db,
+                ctx,
+                agent_id,
+                environment_id=changes.get("environment_id", exposure.environment_id),
+            )
         if data.observation is not None:
             from app.services.channels.observation import validate_configuration
 

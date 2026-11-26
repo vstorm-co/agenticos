@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { Checkbox, Label } from "@/components/ui";
 import type { ExposureTool } from "@/types/exposures";
 import { useTranslations } from "next-intl";
@@ -84,10 +86,10 @@ export function ExposureTools({
                         ? t(`channelActionNames.${tool.id}`)
                         : tool.name}
                     </Label>
-                    <details className="text-muted-foreground mt-1 text-xs">
+                    <NativeDisclosure className="text-muted-foreground mt-1 text-xs">
                       <summary className="cursor-pointer">{t("channelToolDetails")}</summary>
                       <p className="mt-1 leading-relaxed">{tool.description}</p>
-                    </details>
+                    </NativeDisclosure>
                   </div>
                 </div>
               ))}

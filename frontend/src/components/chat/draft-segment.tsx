@@ -17,27 +17,24 @@ export function DraftSegment({ field, named }: { field: DraftField; named: boole
   const prose = field.format === "text" || field.format === "markdown";
   const previewing = field.format === "markdown" && mode === "preview";
   const showName = named && field.name !== null;
-  const clearToggle = field.format === "markdown" && !showName;
   return (
-    <div
-      data-draft-segment
-      className="border-foreground/10 relative min-w-0 border-t px-3.5 py-2.5"
-    >
-      <div className="absolute top-2 right-2 flex items-center gap-1">
+    <div data-draft-segment className="border-border relative min-w-0 border-t px-4 py-3">
+      <div className="mb-2 flex min-h-7 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        {showName && (
+          <p className="text-muted-foreground min-w-0 text-xs wrap-anywhere">{field.name}</p>
+        )}
+        <span className="text-muted-foreground mr-auto font-mono text-[10px]">{field.format}</span>
         {field.format === "markdown" && <MarkdownModeToggle mode={mode} onChange={setMode} />}
         <CopyButton text={copyableText(field.text)} className="opacity-100" />
       </div>
-      {showName && <p className="text-muted-foreground mb-1 pr-36 text-xs">{field.name}</p>}
       {previewing ? (
-        <div className={cn("min-w-0 pr-8 pb-4 text-sm break-words", clearToggle && "pt-8")}>
+        <div className="min-w-0 py-1 text-sm break-words">
           <MarkdownContent content={field.text} inertImages bareCode />
         </div>
       ) : (
         <p
           className={cn(
-            "pb-4 text-sm break-words whitespace-pre-wrap",
-            "pr-8",
-            clearToggle && "pt-8",
+            "py-1 text-sm leading-relaxed break-words whitespace-pre-wrap",
             !prose && "font-mono text-xs",
           )}
         >
@@ -55,9 +52,6 @@ export function DraftSegment({ field, named }: { field: DraftField; named: boole
           )}
         </p>
       )}
-      <span className="text-muted-foreground absolute right-3.5 bottom-1.5 font-mono text-[10px]">
-        {field.format}
-      </span>
     </div>
   );
 }

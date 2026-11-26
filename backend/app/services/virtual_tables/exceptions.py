@@ -137,6 +137,19 @@ class IdempotencyKeyReuseError(ValidationError):
         super().__init__(details={"operation": operation})
 
 
+class IdempotencyResultPurgedError(AppException):
+    """A legacy receipt's result was erased; its key still prevents a repeated write (409)."""
+
+    code = "IDEMPOTENCY_RESULT_PURGED"
+    status_code = 409
+
+    def __init__(self, *, operation: str) -> None:
+        super().__init__(
+            message="The previous result was erased during an upgrade. Check the table before starting a new write.",
+            details={"operation": operation},
+        )
+
+
 Quota = Literal["tables", "records", "record_bytes", "storage_bytes"]
 """Which ceiling a write ran into. Stable: a client branches on it."""
 

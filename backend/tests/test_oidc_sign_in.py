@@ -10,6 +10,7 @@ itself is authlib's and is stubbed; the conditions around it are not, and each
 one below is a way somebody gets in who should not.
 """
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
@@ -22,9 +23,15 @@ from app.api.deps import get_redis
 from app.core import oauth as oauth_module
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.oauth import identity_key, redirect_uri_for, sign_in_client, verified_identity
+from app.core.oauth import (
+    identity_key,
+    redirect_uri_for,
+    refusal_reason,
+    sign_in_client,
+    verified_identity,
+)
 from app.main import app
-from app.services.user import UserService
+from app.services.user import OAuthAccount, UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -111,6 +118,23 @@ class TestWhatTheClaimsHaveToSay:
     def test_a_missing_name_is_not_a_refusal(self) -> None:
         """A display name is decoration; an account without one is fine."""
         assert verified_identity({**_CLAIMS, "name": None}) == ("s-1", "ada@corp.example", None)
+
+    @pytest.mark.parametrize(
+        ("claims", "reason"),
+        [
+            (None, "no_claims"),
+            ({"email": "ada@corp.example", "email_verified": True}, "no_subject"),
+            ({"sub": "s-1", "email_verified": True}, "no_email"),
+            ({"sub": "s-1", "email": "ada@corp.example"}, "email_not_verified"),
+            (_CLAIMS, None),
+        ],
+    )
+    def test_the_refusal_names_the_condition_that_failed(
+        self, claims: dict[str, object] | None, reason: str | None
+    ) -> None:
+        """An Entra registration without the optional `xms_edov` claim is a
+        configuration to fix; the operator's log has to say which claim."""
+        assert refusal_reason(claims) == reason
 
 
 class TestWhichProvidersExist:
@@ -201,8 +225,10 @@ class TestTheRoundTrip:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": _CLAIMS}),
         )
-        created = AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True))
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        created = AsyncMock(
+            return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)
+        )
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
 
         resp = await client.get(_CALLBACK)
 
@@ -217,7 +243,11 @@ class TestTheRoundTrip:
         )
 
     async def test_an_unverified_address_never_reaches_account_creation(
-        self, client: AsyncClient, configured: None, monkeypatch: pytest.MonkeyPatch
+        self,
+        client: AsyncClient,
+        configured: None,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         app.dependency_overrides[get_redis] = _FakeRedis
         monkeypatch.setattr(
@@ -226,13 +256,18 @@ class TestTheRoundTrip:
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "email_verified": False}}),
         )
         created = AsyncMock()
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
 
-        resp = await client.get(_CALLBACK)
+        with caplog.at_level(logging.WARNING, logger="app.api.routes.v1.oauth"):
+            resp = await client.get(_CALLBACK)
 
         assert resp.status_code == 307
         assert "error=" in resp.headers["location"]
         created.assert_not_awaited()
+        [record] = [r for r in caplog.records if r.msg == "oauth_callback_claims_rejected"]
+        assert record.__dict__["reason"] == "email_not_verified"
+        assert record.__dict__["claim_names"] == ["email", "email_verified", "name", "sub"]
+        assert "ada@corp.example" not in str(record.__dict__)
 
     async def test_the_sign_up_policy_refuses_an_oidc_sign_in_as_it_refuses_a_registration(
         self, client: AsyncClient, configured: None, monkeypatch: pytest.MonkeyPatch
@@ -250,7 +285,7 @@ class TestTheRoundTrip:
         )
         monkeypatch.setattr(
             UserService,
-            "get_or_create_oauth_user",
+            "get_or_create_oauth_account",
             AsyncMock(
                 side_effect=AuthorizationError(
                     message="This deployment is invite-only. Ask an administrator to invite you."

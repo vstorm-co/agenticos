@@ -3,17 +3,8 @@
 import { Globe, RefreshCw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { CopyButton } from "@/components/chat/copy-button";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-  Label,
-} from "@/components/ui";
+import { ShareLinkField } from "@/components/sharing/share-link-field";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import type { ArtifactPublicLink } from "@/types/artifact";
 
 interface PublicLinkCardProps {
@@ -76,17 +67,7 @@ export function PublicLinkCard({
       <CardContent className="space-y-3">
         {publicUrl !== null && (
           <div className="space-y-2">
-            <Label htmlFor="artifact-public-link">{t("publicLinkAddress")}</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="artifact-public-link"
-                readOnly
-                value={publicUrl}
-                className="font-mono text-base md:text-xs"
-              />
-              {/* The chat's copy button hides until its message is hovered; here it is the point. */}
-              <CopyButton text={publicUrl} className="h-8 w-8 opacity-100" />
-            </div>
+            <ShareLinkField label={t("publicLinkAddress")} url={publicUrl} />
             <ViewCount link={link} />
           </div>
         )}

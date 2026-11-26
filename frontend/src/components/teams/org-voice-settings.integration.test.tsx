@@ -158,6 +158,7 @@ function serve({
       if (usage === "forbidden") throw new ApiError(403, "Forbidden", null);
       return usage;
     }
+    if (path === "/providers/text-to-speech-models") return { items: [], total: 0 };
     if (path === "/providers/speech-to-text-models") {
       if (catalog === "fail") throw new Error("403");
       return CATALOG;
@@ -175,7 +176,7 @@ function serve({
 async function mount(stored: Partial<Organization> = {}, served: Served = {}) {
   serve(served);
   render(<OrgVoiceSettings org={org(stored)} />, { wrapper });
-  await screen.findByRole("heading", { name: "Voice" });
+  await screen.findByRole("heading", { name: "Speech to text" });
   await waitFor(() =>
     expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
   );
@@ -215,7 +216,7 @@ describe("OrgVoiceSettings", () => {
     render(<OrgVoiceSettings org={org()} />, { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
-    expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Speech to text" })).not.toBeInTheDocument();
     // Never issued, not merely ignored.
     expect(apiClient.get).not.toHaveBeenCalledWith("/providers/speech-to-text-models");
   });
@@ -703,7 +704,7 @@ describe("OrgVoiceSettings", () => {
         expect(apiClient.get).toHaveBeenCalledWith("/ml/calls/summary", expect.anything()),
       );
       expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
-      expect(screen.getByRole("heading", { name: "Voice" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Speech to text" })).toBeInTheDocument();
     });
 
     it("is never asked for without runs:view, because it names agents and bots", async () => {
@@ -733,4 +734,111 @@ it("saves ElevenLabs Scribe with its explicit organization-wide vault key", asyn
       speech_to_text_secret_id: "team-elevenlabs",
     }),
   );
+});
+
+it("opens the STT card from its switch and clears the shared key when disabled", async () => {
+  vi.clearAllMocks();
+  vi.mocked(apiClient.patch).mockResolvedValue(org());
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  useOrgStore.setState({ activeOrgId: ORG_ID });
+  await mount({
+    speech_to_text_provider: "openai",
+    speech_to_text_model: "gpt-4o-transcribe",
+    speech_to_text_secret_id: "team-openai",
+  });
+  await userEvent.click(screen.getByRole("switch", { name: "Speech to text" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+      speech_to_text_language: null,
+      dictation_max_seconds: 300,
+      speech_to_text_provider: null,
+      speech_to_text_model: null,
+      speech_to_text_secret_id: null,
+    }),
+  );
+  await userEvent.click(screen.getByRole("switch", { name: "Speech to text" }));
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenAI");
+  expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("GPT-4o Transcribe");
+});
+
+it("reopens the STT form after collapsing a previous switch edit", async () => {
+  vi.clearAllMocks();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  useOrgStore.setState({ activeOrgId: ORG_ID });
+  serve();
+  render(<OrgVoiceSettings org={org()} collapsible />, { wrapper });
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
+  );
+  const toggle = screen.getByRole("switch", { name: "Speech to text" });
+  const heading = screen.getByRole("button", { name: "Speech to text" });
+  await userEvent.click(toggle);
+  expect(heading).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(heading);
+  expect(heading).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(toggle);
+  expect(heading).toHaveAttribute("aria-expanded", "true");
+});
+
+describe("speech form independence and catalog recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+    useOrgStore.setState({ activeOrgId: ORG_ID });
+  });
+
+  it("freezes only the speech-to-text draft while its save waits", async () => {
+    const response = Promise.withResolvers<Organization>();
+    vi.mocked(apiClient.patch).mockReturnValueOnce(response.promise);
+    await mount();
+    const recording = screen.getByLabelText("Max recording length");
+    await userEvent.clear(recording);
+    await userEvent.type(recording, "4");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(recording).toBeDisabled());
+    expect(screen.getByRole("combobox", { name: "Provider" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Language" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Speech to text" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Text to speech" })).toBeEnabled();
+    await act(async () => response.resolve(org({ dictation_max_seconds: 240 })));
+    await waitFor(() => expect(recording).toBeEnabled());
+    expect(recording).toHaveValue("4");
+  });
+
+  it("keeps saved speech choices visible on catalog failure and retries the actual catalog read", async () => {
+    await mount(
+      {
+        speech_to_text_provider: "openai",
+        speech_to_text_model: "whisper-1",
+        speech_to_text_language: "pl",
+      },
+      { catalog: "fail" },
+    );
+    expect(
+      await screen.findByText(
+        "Speech models could not be loaded. Try again before changing the provider.",
+      ),
+    ).toBeVisible();
+    const provider = screen.getByRole("combobox", { name: "Provider" });
+    expect(provider).toHaveTextContent("openai");
+    expect(provider).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveTextContent(/Polish/);
+    serve();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(provider).toBeEnabled());
+    expect(provider).toHaveTextContent("OpenAI");
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("Whisper");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+  it("lets a member finish an existing provider selection with no saved model", async () => {
+    await mount({ speech_to_text_provider: "openai", speech_to_text_model: null });
+    const model = screen.getByRole("combobox", { name: "Model" });
+    expect(model).toHaveTextContent("");
+    await choose("Model", /Whisper/);
+    expect(model).toHaveTextContent("Whisper");
+    expect(screen.getByRole("switch", { name: "Speech to text" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
 });

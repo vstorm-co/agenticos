@@ -14,6 +14,7 @@ const hooks = vi.hoisted(() => ({
   remove: vi.fn(),
   setLead: vi.fn(),
   share: vi.fn(),
+  refetchSharing: vi.fn(),
   me: "u-lead",
 }));
 
@@ -31,6 +32,7 @@ vi.mock("@/hooks", () => ({
   }),
   useGroupSharing: () => ({
     shareable: hooks.shareable,
+    refetch: hooks.refetchSharing,
     isLoading: hooks.sharing.isLoading,
     error: hooks.sharing.error,
     share: { mutate: hooks.share, isPending: hooks.sharing.pending },
@@ -208,4 +210,15 @@ it("dismisses the member list without changing membership", async () => {
   render(<GroupMembersDialog orgId="o1" group={FINANCE} canManage={false} onClose={onClose} />);
   await userEvent.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("retries the shareable catalog without closing the picker", async () => {
+  hooks.sharing.error = new Error("Catalog unavailable");
+  hooks.sharing.pending = false;
+  const onClose = vi.fn();
+  render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={onClose} />);
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(hooks.refetchSharing).toHaveBeenCalledOnce();
+  expect(onClose).not.toHaveBeenCalled();
+  hooks.sharing.error = null;
 });

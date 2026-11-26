@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, false, or_, select, true, update
+from sqlalchemy import Select, and_, false, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_log import SyncLog
@@ -51,17 +51,7 @@ class SyncLogScope:
     all_organizations: bool = False
 
 
-async def get_all(
-    db: AsyncSession,
-    scope: SyncLogScope | None = None,
-    sync_source_id: UUID | None = None,
-    limit: int = 20,
-) -> list[SyncLog]:
-    """Get sync logs, optionally filtered by a scope or one sync source.
-
-    An empty `scope` means "nothing is in scope", and answers with nothing
-    rather than with everything.
-    """
+def _scoped_query(scope: SyncLogScope | None, sync_source_id: UUID | None) -> Select[SyncLog]:
     query = select(SyncLog)
     if scope is not None:
         tenant = true() if scope.all_organizations else false()
@@ -89,9 +79,35 @@ async def get_all(
         )
     if sync_source_id:
         query = query.where(SyncLog.sync_source_id == sync_source_id)
-    query = query.order_by(SyncLog.started_at.desc()).limit(limit)
+    return query
+
+
+async def get_all(
+    db: AsyncSession,
+    scope: SyncLogScope | None = None,
+    sync_source_id: UUID | None = None,
+    limit: int = 20,
+    skip: int = 0,
+) -> list[SyncLog]:
+    """Page authorized logs with deterministic ordering, filtering before pagination."""
+    query = (
+        _scoped_query(scope, sync_source_id)
+        .order_by(SyncLog.started_at.desc(), SyncLog.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def count_all(db: AsyncSession, *, scope: SyncLogScope, sync_source_id: UUID) -> int:
+    """Count the same immutable authorized history that a page reads."""
+    return (
+        await db.scalar(
+            select(func.count()).select_from(_scoped_query(scope, sync_source_id).subquery())
+        )
+        or 0
+    )
 
 
 async def create(

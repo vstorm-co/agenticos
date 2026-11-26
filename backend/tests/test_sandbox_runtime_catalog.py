@@ -542,3 +542,11 @@ def test_a_shell_variable_survives_composes_interpolation() -> None:
 
     assert "$$(dpkg" in line or "$${node_arch}" in line, "a `$` reached compose unescaped"
     assert "$arch" not in line.replace("$$arch", "")
+
+
+def test_the_desktop_keeps_the_workbenchs_coding_and_document_tools() -> None:
+    workbench = next(runtime for runtime in CATALOG if runtime.alias == "workbench")
+    desktop = next(runtime for runtime in CATALOG if runtime.alias == DESKTOP_RUNTIME)
+    assert set(workbench.packages) <= set(desktop.packages)
+    assert set(workbench.setup_commands) <= set(desktop.setup_commands)
+    assert workbench.env_vars.items() <= desktop.env_vars.items()

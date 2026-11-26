@@ -1,6 +1,7 @@
 """Bounded, data-free preview images; callers must authorize the version first."""
 
 import base64
+import logging
 import time
 from collections import OrderedDict
 from uuid import UUID
@@ -8,6 +9,8 @@ from uuid import UUID
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.schemas.artifact import ArtifactThumbnailRead
 from app.services import artifact_render
+
+logger = logging.getLogger(__name__)
 
 _MAX_BYTES = 16 * 1024 * 1024
 _MAX_ENTRIES = 32
@@ -39,9 +42,24 @@ async def render_thumbnail(
         except ConfigurationError:
             return ArtifactThumbnailRead(version_id=version_id, state="unavailable", image=None)
         except ExternalServiceError:
-            return ArtifactThumbnailRead(version_id=version_id, state="unavailable", image=None)
+            logger.warning(
+                "artifact_thumbnail_unavailable",
+                extra={"version_id": str(version_id), "reason": "renderer_error"},
+            )
+            return ArtifactThumbnailRead(
+                version_id=version_id, state="unavailable", image=None, retryable=True
+            )
         if drawn.image is None:
-            return ArtifactThumbnailRead(version_id=version_id, state="unavailable", image=None)
+            logger.warning(
+                "artifact_thumbnail_unavailable",
+                extra={
+                    "version_id": str(version_id),
+                    "reason": "deadline" if drawn.timed_out else "empty_image",
+                },
+            )
+            return ArtifactThumbnailRead(
+                version_id=version_id, state="unavailable", image=None, retryable=True
+            )
         image = drawn.image
         if len(image) <= _MAX_BYTES:
             _IMAGES[version_id] = (now, image)

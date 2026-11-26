@@ -96,6 +96,8 @@ class WorkspaceIdentity:
     of ours because it has to be stable across the threads inside it, and a
     `ChannelSession` is created per thread.
     """
+    namespace: UUID | None = None
+    """A server-resolved subnamespace for a private user workspace; never an authority grant."""
     project_workspace_id: UUID | None = None
     project_id: UUID | None = None
     """The project the conversation belongs to, which a `project` scope keys on.
@@ -159,6 +161,8 @@ def scope_key(
             have - `conversation` on a stateless API call, `user` on an
             anonymous surface.
     """
+    if identity.namespace is not None and scope != "user":
+        raise WorkspaceScopeUnavailable("A private namespace requires a user-scoped workspace.")
     subject = _subject(identity, scope)
     host = "" if connection_id is None else f"-{connection_id.hex[:8]}"
     image = "" if runtime is None else f"-{hashlib.sha256(runtime.encode()).hexdigest()[:6]}"
@@ -212,7 +216,10 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
     # Per user *per agent*: one person's workspace in the support agent is not
     # their workspace in the finance agent, and merging them would let an agent
     # read files gathered for another one.
-    return f"{agent_id.hex[:8]}{_digest(identity.user_id)}"
+    owner = identity.user_id
+    if identity.namespace is not None:
+        owner = f"{owner}:{identity.namespace}"
+    return f"{agent_id.hex[:8]}{_digest(owner)}"
 
 
 def _digest(user_id: str) -> str:

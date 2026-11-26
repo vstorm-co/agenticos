@@ -22,6 +22,7 @@ from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, Trigg
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
+from app.schemas.routine_sources import RoutineSourceMode
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -116,12 +117,14 @@ GithubConclusion = Literal[
 ]
 """A finished workflow run's `conclusion`, as GitHub spells it."""
 
-GithubAuthors = Literal["members", "anyone"]
+GithubAuthors = Literal["members", "contributors", "anyone"]
 """Whose issues, pull requests and comments may fire a trigger.
 
 `members` - the default - is an author GitHub calls the repository's `OWNER`,
 `MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
-every one would otherwise be an agent run and a page of somebody's text in it."""
+every one would otherwise be an agent run and a page of somebody's text in it.
+`contributors` also admits `CONTRIBUTOR`; first-time contributors still need
+`anyone`. Bot and connected-account exclusions apply to all three choices."""
 
 # Where the filter's per-event fields belong, so one sent for another event is a
 # 422 rather than a filter that silently never applies.
@@ -137,8 +140,8 @@ class GithubTriggerConfig(BaseSchema):
 
     `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
     unless it says otherwise; `actions` narrows which of that event's actions
-    fire, defaulting to the one somebody would act on. `authors` keeps issues,
-    pull requests and comments to the repository's own people, and a bot never
+    fire, defaulting to the one somebody would act on. `authors` chooses whose
+    issues, pull requests and comments may fire (members by default), and a bot never
     fires a trigger except through a workflow run.
 
     `mention` is a phrase a comment has to contain (`@agent`), `branches` the
@@ -151,7 +154,7 @@ class GithubTriggerConfig(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
     event: GithubEvent = "issues"
-    actions: list[str] | None = Field(default=None, min_length=1)
+    actions: list[str] | None = None
     authors: GithubAuthors = "members"
     mention: str | None = Field(default=None, min_length=1, max_length=100)
     branches: list[str] | None = Field(default=None, min_length=1, max_length=20)
@@ -171,7 +174,9 @@ class GithubTriggerConfig(BaseSchema):
         allowed = _GITHUB_ACTIONS[self.event]
         if self.actions is None:
             self.actions = list(_DEFAULT_GITHUB_ACTIONS.get(self.event, []))
-        elif not allowed:
+        elif not self.actions and allowed:
+            raise ValueError(f"a {self.event} filter needs at least one action")
+        elif self.actions and not allowed:
             raise ValueError(f"a {self.event} has no actions to filter on")
         else:
             unknown = sorted(set(self.actions) - allowed)
@@ -500,11 +505,16 @@ class TriggerCreate(BaseSchema):
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
     )
+    source_mode: RoutineSourceMode = Field(
+        default="follow_agent",
+        description="Use the initial approved agent ceiling with current creator permissions; later source or behavior expansions require owner review. Restricted mode freezes all reviewed sources.",
+    )
     review_before_activation: bool = Field(
         default=False,
         description="Save paused with source review required before the first activation.",
     )
     prompt: str = Field(min_length=1, max_length=10000)
+    source_id: UUID | None = None
     # An optional human title; null lists the trigger by its agent's name instead.
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
@@ -530,9 +540,14 @@ class TriggerCreate(BaseSchema):
             "Narrows the agent's and the organization's limits; never lifts them (#2575)"
         ),
     )
+    chat_mode: Literal["per_run", "shared"] = Field(
+        default="shared",
+        description="A private editable chat for each execution, or one read-only shared history whose creator may fork an answer.",
+    )
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
-        description="Report every completed run, or create deduplicated Inbox cases with a private chat per source item only when attention is needed.",
+        description="Legacy delivery compatibility: report permits answer_to delivery; inbox retains only the run log. In both modes, findings are published explicitly through publish_inbox_finding MCP, never parsed from the final answer.",
     )
     answer_to: Literal["run_log", "primary", "conversation"] = Field(
         default="primary",
@@ -554,7 +569,7 @@ class TriggerCreate(BaseSchema):
         description="A schedule stops by itself at this instant; null runs until stopped (#2575)",
     )
     runs_as_creator: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Fire as the person who made the trigger: their memory and their own "
             "MCP connections, as in their own chat. Only that person may turn it "
@@ -663,6 +678,18 @@ class TriggerCreate(BaseSchema):
         # the caller's filter override and left for the service to merge and
         # validate against the source, which is unknown here until the catalog is
         # read. So its shape is checked here and the rest left to the service.
+        if self.source_id is not None:
+            if (
+                self.portal_key is not None
+                or self.preset_key is not None
+                or self.event_secret is not None
+            ):
+                raise ValueError(
+                    "source_id cannot be combined with a portal preset or event_secret"
+                )
+            if self.connection_id is not None or self.target is not None:
+                raise ValueError("source_id uses manual provider setup, not a connection or target")
+            return
         if self.portal_key is not None or self.preset_key is not None:
             if self.portal_key is None or self.preset_key is None:
                 raise ValueError("portal_key and preset_key must be given together")
@@ -689,6 +716,8 @@ class TriggerCreate(BaseSchema):
         )
 
     def _reject_event_fields(self) -> None:
+        if self.source_id is not None:
+            raise ValueError("source_id is only valid for event triggers")
         if self.event_source is not None:
             raise ValueError("event_source is not valid for a schedule")
         if self.event_secret is not None:
@@ -717,6 +746,7 @@ _UPDATE_NOT_NULLABLE = (
     "runs_as_creator",
     "overlap",
     "answer_to",
+    "chat_mode",
     "result_mode",
 )
 
@@ -730,10 +760,10 @@ class TriggerUpdate(BaseSchema):
     columns the shape CHECK depends on stay consistent. An event trigger's *filter*
     can change in place too: `event_config` is re-validated against the source's
     typed model, so refiltering which issue actions fire is an edit rather than a
-    delete-and-recreate. What still cannot change is a trigger's *type* - a
-    schedule never becomes an event - nor an event's source or secret: repointing
-    an event is a different trigger, made by deleting this one and creating that,
-    so a cadence field on an event, or an `event_config` on a schedule, is refused.
+    delete-and-recreate. A routine using a reusable event source may select
+    another one; it pauses until its creator reviews and resumes it. A dedicated
+    event trigger cannot switch sources. A trigger's *type* is fixed, so a
+    cadence field on an event, or an `event_config` on a schedule, is refused.
 
     `None` means "not sent" for every field except `environment_id`, `name` and
     `teams_conversation_id`, whose null is the deliberate "back to the default" -
@@ -755,6 +785,7 @@ class TriggerUpdate(BaseSchema):
     )
 
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
+    source_id: UUID | None = None
     name: str | None = Field(default=None, max_length=120)
     schedule_kind: Literal["interval", "cron"] | None = None
     interval_seconds: int | None = Field(
@@ -793,6 +824,8 @@ class TriggerUpdate(BaseSchema):
         gt=0,
         description="This routine's own monthly limit; null removes it",
     )
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
@@ -847,6 +880,33 @@ class TriggerUpdate(BaseSchema):
         return data
 
 
+GithubFilterReason = Literal[
+    "event",
+    "action",
+    "bot",
+    "ignored_login",
+    "author",
+    "draft",
+    "branch",
+    "mention",
+    "conclusion",
+    "not_branch",
+]
+
+
+class GithubFilteredEvent(BaseSchema):
+    """The latest retained sample of verified GitHub rejections, without event content."""
+
+    received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
+    reason: GithubFilterReason
+    authors: GithubAuthors
+
+
+class TriggerFilteredEventRead(BaseSchema):
+    last_event: GithubFilteredEvent | None = None
+
+
 class TriggerRead(BaseSchema, TimestampSchema):
     one_shot: bool = False
 
@@ -892,6 +952,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
         "A version and a named environment cannot both be selected.",
     )
     teams_conversation_id: UUID | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] = "shared"
     result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(
@@ -917,6 +979,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     event_source: EventSourceName | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
+    source_id: UUID | None = None
     # Null on an event trigger, which has no scheduled next fire.
     next_fire_at: datetime | None = None
     last_fired_at: datetime | None = None
@@ -957,6 +1020,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
         """
         if self.trigger_type != "event" or self.event_source is None:
             return None
+        if self.source_id is not None:
+            return None  # The source editor supplies its permission-checked live URL.
         if self.delivery_mode == "polling":
             return None
         return webhook_url(self.event_source, self.id)

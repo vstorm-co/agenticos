@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import RemoteAgentsPage from "./page";
+import { Perm } from "@/types/permissions";
 import type { ExternalAgent } from "@/types/external-agents";
 
 const state = vi.hoisted(() => ({
@@ -10,18 +11,28 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   error: null as string | null,
   canManage: true,
+  canRead: true,
+  retry: vi.fn(),
+  enabled: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
-  useExternalAgents: () => ({
-    agents: state.agents,
-    isLoading: state.isLoading,
-    error: state.error,
-    register: vi.fn(),
-    refresh: vi.fn(),
-    remove: vi.fn(),
+  useExternalAgents: (enabled: boolean) => {
+    state.enabled(enabled);
+    return {
+      agents: state.agents,
+      isLoading: state.isLoading,
+      error: state.error,
+      register: vi.fn(),
+      refresh: vi.fn(),
+      remove: vi.fn(),
+      retry: state.retry,
+    };
+  },
+  usePermissions: () => ({
+    can: (permission: string) => (permission === Perm.agentsView ? state.canRead : state.canManage),
+    isLoading: false,
   }),
-  usePermissions: () => ({ can: () => state.canManage, isLoading: false }),
   useSecrets: () => ({ secrets: [], create: { mutate: vi.fn(), isPending: false } }),
 }));
 
@@ -30,6 +41,8 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.canManage = true;
+  state.canRead = true;
+  vi.clearAllMocks();
 });
 
 describe("the remote agents page", () => {
@@ -78,5 +91,19 @@ describe("the remote agents page", () => {
     state.canManage = false;
     render(<RemoteAgentsPage />);
     expect(screen.queryByRole("button", { name: "Register an agent" })).toBeNull();
+  });
+  it("does not ask for inaccessible registrations or claim the list is empty", () => {
+    state.canRead = false;
+    state.canManage = false;
+    render(<RemoteAgentsPage />);
+    expect(state.enabled).toHaveBeenLastCalledWith(false);
+    expect(screen.getByText("No access to remote agents")).toBeVisible();
+    expect(screen.queryByText("No remote agents yet")).toBeNull();
+  });
+  it("lets the reader retry a failed registration list", async () => {
+    state.error = "List failed";
+    render(<RemoteAgentsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.retry).toHaveBeenCalledOnce();
   });
 });

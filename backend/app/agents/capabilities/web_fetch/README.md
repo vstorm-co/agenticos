@@ -44,7 +44,9 @@ pages nobody approved. A version published before that refusal existed is refuse
 again when it is assembled, because nothing re-validates a frozen version
 (`approval.refuse_ungateable_approvals`, #871).
 
-**It does not summarise.** The page arrives as Markdown, truncated at
-`max_content_chars`, and what to do with it is the model's problem. A summarising
-fetch is two decisions in one tool, and the second one belongs to whoever wrote
-the agent's instructions.
+Without `offset`, the page arrives as Markdown truncated at `max_content_chars`.
+Local fetchers also accept a character `offset` and `limit`, starting at zero.
+Continue at `next_offset` on the same URL. Each call uses the same download
+guards and returns at most the configured output size. If the 500,000-character
+scan ceiling is reached, the last result sets `reached_limit`. Native fetchers
+use their provider's paging and limits.

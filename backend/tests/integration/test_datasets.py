@@ -15,8 +15,10 @@ import asyncio
 import contextlib
 import csv
 import io
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -24,6 +26,7 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -40,19 +43,23 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.db.models.skill import Skill
 from app.db.models.user import User
 from app.repositories import dataset_repo, project_repo
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
     AnswerAs,
+    DatasetCaseContent,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
+    DatasetFileFormat,
     DatasetList,
     DatasetUpdate,
 )
 from app.services import dataset as dataset_service
+from app.services import dataset_files
 from app.services.access import _scope_allows
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
@@ -530,6 +537,51 @@ async def test_a_hundred_csv_rows_import_as_one_version_and_export_unchanged(db)
     assert set(sources) == {"import"}
 
 
+async def test_an_import_is_parsed_without_holding_the_event_loop(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A large file is CPU work for seconds; the API keeps answering meanwhile."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="slow-import"))
+    parse = dataset_files.parse
+
+    def slow(content: bytes, fmt: DatasetFileFormat) -> list[DatasetCaseContent]:
+        time.sleep(0.3)
+        return parse(content, fmt)
+
+    monkeypatch.setattr(dataset_files, "parse", slow)
+    ticks = 0
+
+    async def ticking() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    ticker = asyncio.create_task(ticking())
+    try:
+        version = await service.import_cases(
+            ctx, dataset.id, content=b"input,reference_answer\nq,a\n", filename="a.csv", fmt=None
+        )
+    finally:
+        ticker.cancel()
+
+    assert version.case_count == 1
+    assert ticks >= 10
+
+
+async def test_a_dataset_says_how_large_a_file_its_import_accepts(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_BYTES", 2 * 1024 * 1024)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="sized"))
+
+    assert (await service.read(ctx, dataset.id)).import_max_bytes == 2 * 1024 * 1024
+
+
 async def test_exporting_an_empty_dataset_is_the_header_alone_and_is_audited(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
@@ -559,7 +611,10 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
             history=[{"role": "user", "content": f"use {key}"}],
             note=f"seen {key}",
             expected_tool_calls=[{"tool": "login", "args": {"token": key, "n": 1, "all": [key]}}],
-            checks=[{"type": "contains", "value": f"Bearer {key}", "nested": {"k": [key]}}],
+            checks=[
+                {"type": "contains", "value": f"Bearer {key}", "nested": {"k": [key]}},
+                {"type": "keys", "keys": [{"key": "Token", "value": key}]},
+            ],
             tags=[key],
         ),
     )
@@ -574,6 +629,8 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
     assert "[redacted:" in stored.input
     assert stored.expected_tool_calls[0]["args"]["n"] == 1
     assert stored.checks[0]["type"] == "contains"
+    assert stored.checks[1]["keys"][0]["key"] == "Token"
+    assert "[redacted:" in stored.checks[1]["keys"][0]["value"]
     for fmt in ("csv", "jsonl"):
         exported = await service.export(ctx, dataset.id, version=None, fmt=fmt)
         assert key not in exported.content
@@ -586,7 +643,7 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
         )
     )
     assert details is not None
-    assert details["redacted_secrets"] == 8
+    assert details["redacted_secrets"] == 9
 
 
 async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
@@ -1958,3 +2015,47 @@ async def test_a_visible_dataset_names_the_missing_permission_but_an_outsider_le
     with pytest.raises(NotFoundError) as missing:
         await service.get(await _owner(db), dataset.id, perm=Perm.DATASETS_EDIT)
     assert missing.value.details is None
+
+
+async def _test_set(db, ctx: AuthContext) -> Dataset:
+    """A skill's own test questions: a dataset bound to a skill, every question held out."""
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name=f"refunds-{uuid.uuid4().hex[:6]}",
+        description="Refunds",
+    )
+    db.add(skill)
+    await db.flush()
+    created = await DatasetService(db).create(ctx, DatasetCreate(name=f"set-{skill.name}"))
+    dataset = await db.get(Dataset, created.id)
+    assert dataset is not None
+    dataset.skill_id = skill.id
+    dataset.improvement_holdout_share = Decimal(1)
+    await db.flush()
+    return dataset
+
+
+@pytest.mark.security
+async def test_a_skills_test_set_keeps_every_question_held_out(db) -> None:
+    """A skill check asks only held-out questions: a share below one on a skill's set
+    would add questions no check ever asks."""
+    ctx = await _owner(db)
+    dataset = await _test_set(db, ctx)
+    service = DatasetService(db)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.update(
+            ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.2"))
+        )
+    await service.update(ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal(1)))
+    dataset.improvement_holdout_share = Decimal(0)
+    await db.flush()
+    added = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Can I return shoes?", reference_answer="Yes")
+    )
+    stored = await db.scalar(select(DatasetCase).where(DatasetCase.case_id == added.case_id))
+
+    assert refused.value.details["fields"][0]["field"] == "improvement_holdout_share"
+    assert stored is not None and stored.improvement_partition == "holdout"

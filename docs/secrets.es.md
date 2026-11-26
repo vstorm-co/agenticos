@@ -1,5 +1,5 @@
 ---
-source_sha: "b74c832caa01"
+source_sha: "3c6d903fe5da"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -10,6 +10,14 @@ source_sha: "b74c832caa01"
     toda clave de API de terceros de esta plataforma pasa por
     `app/core/vault.py`. Añadir una segunda forma de guardar una credencial en
     reposo es el defecto que dos migraciones eliminaron.
+
+    La excepción explícita es el almacén nativo de suscripciones de CLIProxyAPI descrito a continuación.
+
+## Almacén nativo de suscripciones { #native-subscription-store }
+
+Las cuentas de suscripción de CLIProxyAPI son una excepción a la regla de Vault aprobada por el mantenedor. El almacén nativo en `subscription_accounts` conserva tokens del proveedor, estado de cuentas, diarios de renovación, `keys.json` y `config.yaml`. El binario gestiona inicio de sesión, renovación y recuperación; guardar en Vault solo al apagar podría perder tokens rotados o recibos de renovación tras un fallo. Un adaptador completo de Vault debe cubrir todas las mutaciones persistentes y el diario antes de sustituir este almacén.
+
+Los directorios usan `0700` y los archivos de configuración y claves `0600`; los procesos se aíslan por organización, persona y generación de membresía y escuchan en loopback. Esto no cifra el volumen ni sus copias de seguridad, no vincula criptográficamente los archivos a su propietario ni participa en la rotación de claves de Vault. Protege todo el volumen como credenciales y cifra almacenamiento y copias según tus requisitos. Las demás claves de modelos y credenciales de conectores siguen usando Vault.
 
 ## En la consola { #in-the-console }
 
@@ -105,10 +113,13 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
 | `http_credential` | Un token que envía un paso HTTP de un workflow, un nombre de usuario opcional y los orígenes a los que puede enviarse |
+| `webhook_credentials` | Nombre de usuario y contraseña de solo escritura para Basic Auth de webhooks entrantes, sin pista del valor; no sirve para solicitudes HTTP salientes |
 | `smtp_account` | Servidor SMTP, puerto, TLS, remitente y credenciales sellados juntos para el correo de workflows |
 | `microsoft_oauth_app` | Los mismos tres campos, para un registro de aplicación con el que inician sesión las personas |
 | `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
+
+**Fuentes de eventos reutilizables.** La fuente puede referenciar un secreto de Vault visible para la organización mediante `credentials.vault_secret_id`. La autenticación de proveedor, HMAC y por clave API usa `api_key`; Basic Auth entrante usa `webhook_credentials`. La fuente consulta el valor actual en cada entrega, por lo que la rotación en Vault no requiere copiar credenciales a fuentes ni definiciones de workflows. Seleccionar la clave exige `secrets:view`; se rechazan claves personales, de otra organización o incompatibles. `webhook_credentials` no sustituye a `http_credential`, limitado por orígenes, para solicitudes HTTP salientes.
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
 flujo de conexión con GitHub lo lee en el servidor para ejecutar el intercambio de
@@ -409,3 +420,16 @@ de salir a producción con un valor por defecto generado.
 
 
 El consentimiento de fuentes A2A externas también vincula la generación de autorización de la credencial de bóveda referenciada. Sustituir el valor invalida la revisión aunque conserve su identificador. Cambiar el nombre y mantener las claves de cifrado conserva esa generación. Las revisiones A2A existentes requieren una nueva revisión tras actualizar.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Los tokens OAuth personales Copilot usan el almacén existente cifrado para el usuario, sin claves de organización de respaldo. La autorización está vinculada a propietario, tenant y agente y caduca en Redis; los tokens no aparecen en respuestas API ni auditoría. Nuevos accesos, sustitución de clave y desconexión avanzan una generación en la misma transacción. Estos metadatos sobreviven al borrado de la clave para rechazar concesiones antiguas, se exportan sin el valor de generación y se eliminan con la membresía o el usuario. Desconectar elimina la credencial local; revoca la aplicación OAuth por separado en GitHub.
+
+Antes de cada solicitud al modelo, las credenciales personales de Copilot se comprueban frente a la versión guardada de la conexión. Desconectar o sustituir la conexión bloquea las siguientes solicitudes de una ejecución activa; una solicitud ya enviada no puede retirarse.
+
+
+## Almacenamiento de clientes OAuth MCP { #mcp-oauth-client-storage }
+
+El tipo `mcp_oauth_client` cifra juntos la URL del servidor, el ID público del cliente y su secreto opcional. Selecciona el propósito `custom` al añadirlo en Vault. Solo las instancias visibles para la organización participan en el inicio de sesión MCP automático. La base de datos conserva una identidad de servidor normalizada para una coincidencia única; nunca guarda el secreto del cliente en texto plano. Se rechaza hacer visible un cliente privado para toda la organización si otro cliente ya ocupa el espacio de ese servidor.
+
+Las autorizaciones OAuth personales guardan la organización de origen, el ID del secreto y la generación de autorización dentro de su propia carga cifrada. La rotación, eliminación o pérdida de visibilidad organizativa del origen invalida estas autorizaciones. Consulta [clientes OAuth MCP compartidos](mcp.md#shared-mcp-oauth-clients) para el comportamiento de las conexiones.

@@ -17,7 +17,7 @@ const Switch = React.forwardRef<
     {...props}
     ref={ref}
   >
-    <span className="bg-field border-foreground/55 group-aria-checked/switch:border-primary group-aria-checked/switch:bg-primary group-aria-invalid/switch:border-destructive group-[:enabled:hover]/switch:border-foreground/60 pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 transition-colors duration-[var(--duration-fast)]">
+    <span className="bg-field border-foreground/55 group-aria-checked/switch:border-success group-aria-checked/switch:bg-success group-aria-invalid/switch:border-destructive group-[:enabled:hover]/switch:border-foreground/60 pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 transition-colors duration-[var(--duration-fast)]">
       <SwitchPrimitives.Thumb className="data-[state=checked]:bg-primary-foreground bg-muted-foreground block h-4 w-4 rounded-full shadow-sm ring-0 transition-transform duration-[var(--duration-fast)] data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
     </span>
   </SwitchPrimitives.Root>

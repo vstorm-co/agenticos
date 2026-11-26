@@ -3,20 +3,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent, PointerEvent } from "react";
 
+type DragPreview = { width: number; height: number; offsetX: number; offsetY: number };
+
 /** Pointer capture keeps a card under the cursor; native events remain a fallback.
  * A move starts after six pixels so clicking a card still opens it. */
 export function useKanbanDrag<T>(onDrop: (item: T, targetOptionId: string | null) => void) {
   const [draggingItem, setDraggingItem] = useState<T | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [preview, setPreview] = useState<DragPreview | null>(null);
   const [overLane, setOverLane] = useState<string | null>(null);
-  const pointer = useRef<{ id: number; item: T; x: number; y: number; active: boolean } | null>(
-    null,
-  );
+  const pointer = useRef<{
+    id: number;
+    item: T;
+    x: number;
+    y: number;
+    active: boolean;
+    preview: DragPreview;
+  } | null>(null);
   const suppressClick = useRef(false);
   const reset = useCallback(() => {
     pointer.current = null;
     setDraggingItem(null);
     setPosition(null);
+    setPreview(null);
     setOverLane(null);
   }, []);
   useEffect(() => {
@@ -43,12 +52,19 @@ export function useKanbanDrag<T>(onDrop: (item: T, targetOptionId: string | null
         )
           return;
         suppressClick.current = false;
+        const bounds = event.currentTarget.getBoundingClientRect();
         pointer.current = {
           id: event.pointerId,
           item,
           x: event.clientX,
           y: event.clientY,
           active: false,
+          preview: {
+            width: bounds.width,
+            height: bounds.height,
+            offsetX: event.clientX - bounds.left,
+            offsetY: event.clientY - bounds.top,
+          },
         };
       },
       onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
@@ -56,7 +72,10 @@ export function useKanbanDrag<T>(onDrop: (item: T, targetOptionId: string | null
         if (current === null || current.id !== event.pointerId) return;
         if (!current.active && Math.hypot(event.clientX - current.x, event.clientY - current.y) < 6)
           return;
-        if (!current.active) event.currentTarget.setPointerCapture?.(event.pointerId);
+        if (!current.active) {
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          setPreview(current.preview);
+        }
         current.active = true;
         suppressClick.current = true;
         event.preventDefault();
@@ -125,5 +144,5 @@ export function useKanbanDrag<T>(onDrop: (item: T, targetOptionId: string | null
     };
   }
 
-  return { draggingItem, position, cardProps, laneProps };
+  return { draggingItem, position, preview, cardProps, laneProps };
 }

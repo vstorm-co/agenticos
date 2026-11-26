@@ -1,0 +1,27 @@
+.entry.entry {
+  --timeline-dot: 1.5rem;
+  grid-template-areas: "topic";
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 3rem;
+}
+.topic {
+  width: 100%;
+  text-align: left;
+}
+.entry::after {
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+.entry:hover::after {
+  transform: scale(1.16);
+  background: var(--color-foreground);
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry::after {
+    transition: none;
+  }
+  .entry:hover::after {
+    transform: none;
+  }
+}

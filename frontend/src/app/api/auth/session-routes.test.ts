@@ -151,6 +151,33 @@ describe("signing in", () => {
     expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
+  it.each([
+    {
+      code: "AUTHENTICATION_ERROR",
+      message: "Invalid email or password",
+      details: { reason: "invalid_credentials" },
+    },
+    { code: "AUTHENTICATION_ERROR", message: "User account is disabled", details: null },
+  ])("preserves a domain refusal and its credential-specific reason: $message", async (refusal) => {
+    vi.mocked(backendFetch).mockRejectedValue(
+      new BackendApiError(401, "Unauthorized", { error: refusal }),
+    );
+    const response = await login(request({}, { email: "a@example.com", password: "wrong" }));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: refusal });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
+  });
+
+  it.each([{ error: null }, { error: { code: 123, message: "bad" } }, { detail: 123 }])(
+    "uses a safe fallback for a malformed backend refusal: %j",
+    async (data) => {
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", data));
+      const response = await login(request({}, { email: "a@example.com", password: "wrong" }));
+      await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
+    },
+  );
+
   it("says login failed when the refusal named no reason", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
 
@@ -700,6 +727,23 @@ describe("finishing an OAuth sign-in", () => {
     expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "at" });
     expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt" });
   });
+
+  it.each([false, true])(
+    "forwards the trusted OAuth account-creation flag (%s)",
+    async (isNewUser) => {
+      vi.mocked(backendFetch)
+        .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt", is_new_user: isNewUser })
+        .mockResolvedValueOnce({ id: "u-1" });
+      const response = await oauthCallback(
+        request({}, { code: "one-time", is_new_user: !isNewUser }),
+      );
+      expect(await response.json()).toMatchObject({ is_new_user: isNewUser });
+      expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/oauth/exchange", {
+        method: "POST",
+        body: JSON.stringify({ code: "one-time" }),
+      });
+    },
+  );
 
   it("refuses a callback carrying no code", async () => {
     const response = await oauthCallback(request({}, {}));

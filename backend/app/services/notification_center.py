@@ -15,12 +15,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.agent_run import ApprovalStatus
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import (
@@ -31,6 +33,7 @@ from app.db.models.notification import (
 )
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.user import NotificationPreference
+from app.repositories import agent_run as agent_run_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
@@ -38,9 +41,11 @@ from app.repositories import notification as notification_repo
 from app.repositories import notification_route as route_repo
 from app.repositories import project as project_repo
 from app.repositories import workflow as workflow_repo
+from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
+from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
 from app.services.push import PushService
@@ -379,6 +384,21 @@ def _channel_allowed(
     return channels is None or channel in channels
 
 
+APPROVABLE_BY = "approvable_by_user_id"
+"""`render_context` key of the run's own person's `approval_requested` notice, when the
+waiting calls include their own platform call that always asks: they may answer it
+without `approvals:decide`, so they are offered the decision like anybody holding it."""
+
+APPROVABLE_CALLS = "approvable_approval_ids"
+"""Those calls' approval ids: the offer stands only while one of them still waits."""
+
+
+def approvable_by(notification: Notification) -> uuid.UUID | None:
+    """The run's own person, where the waiting calls include their own platform call."""
+    raw = (notification.render_context or {}).get(APPROVABLE_BY)
+    return uuid.UUID(raw) if isinstance(raw, str) else None
+
+
 @dataclass(frozen=True)
 class _Gate:
     """One row's outcome under Decision 7's recheck.
@@ -415,6 +435,7 @@ class _GateCache:
     workflow_visible_by_id: dict[uuid.UUID, bool]
     project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
     conversation_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
+    criterion_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -568,7 +589,11 @@ class NotificationCenterService:
             occurrence_id=occurrence_id,
             summary=_COALESCED_SUMMARY[event_type],
             context_url=context_url,
-            render_context=render_context,
+            render_context={
+                **(render_context or {}),
+                "wording": "coalesced",
+                "coalesced": event_type.value,
+            },
             organization_id=organization_id,
             announcement_id=None,
             mandatory=True,
@@ -1267,12 +1292,19 @@ class NotificationCenterService:
         workflow_ids: set[uuid.UUID] = set()
         project_ids: set[uuid.UUID] = set()
         conversation_ids: set[uuid.UUID] = set()
+        criterion_sources: dict[uuid.UUID, CriterionSources] = {}
         for notification in notifications:
             context = notification.render_context or {}
             if "project_id" in context:
                 with contextlib.suppress(ValueError):
                     project_ids.add(uuid.UUID(str(context["project_id"])))
             gate = content_gate_for(NotificationEventType(notification.event_type))
+            if gate is ContentGate.IMPROVEMENT_CRITERIA and context.get("criteria"):
+                # Missing or malformed provenance cannot authorize stored grade text.
+                with contextlib.suppress(ValidationError):
+                    criterion_sources[notification.id] = CriterionSources.model_validate(
+                        context.get("criterion_sources")
+                    )
             if (
                 gate is ContentGate.SHARED_CONVERSATION
                 and context.get("resource_kind") == "conversation"
@@ -1337,6 +1369,23 @@ class NotificationCenterService:
                 self.db, sorted(project_ids), organization_id=ctx.organization_id
             )
         }
+        datasets, _ = await criterion_source_access(
+            self.db,
+            ctx,
+            dataset_ids={source.dataset_id for source in criterion_sources.values()},
+            skill_ids=set(),
+        )
+        skills = (
+            (
+                await readable_criterion_skill_ids(
+                    self.db,
+                    ctx,
+                    {id_ for source in criterion_sources.values() for id_ in source.skill_ids},
+                )
+            )
+            if datasets
+            else set()
+        )
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
@@ -1345,6 +1394,10 @@ class NotificationCenterService:
             workflow_visible_by_id=workflow_visible_by_id,
             project_visible_by_id=project_visible_by_id,
             conversation_visible_by_id=await self._conversation_visibility(ctx, conversation_ids),
+            criterion_visible_by_id={
+                notification_id: source.dataset_id in datasets and set(source.skill_ids) <= skills
+                for notification_id, source in criterion_sources.items()
+            },
         )
 
     async def _conversation_visibility(
@@ -1358,6 +1411,42 @@ class NotificationCenterService:
             return {}
         visible = await ConversationService(self.db).visible_conversation_ids(ctx, ids)
         return {conversation_id: conversation_id in visible for conversation_id in ids}
+
+    async def answers_own_call(self, ctx: AuthContext, notification: Notification) -> bool:
+        """Whether this notice offers `ctx` their own platform call that still waits.
+
+        Once they have answered it, the rest of the batch is somebody else's to decide.
+        """
+        if notification.organization_id is None or approvable_by(notification) != ctx.user_id:
+            return False
+        raw = (notification.render_context or {}).get(APPROVABLE_CALLS)
+        if not isinstance(raw, list):
+            return False
+        for approval_id in raw:
+            with contextlib.suppress(ValueError):
+                approval = await agent_run_repo.get_approval(
+                    self.db,
+                    uuid.UUID(str(approval_id)),
+                    organization_id=notification.organization_id,
+                )
+                if approval is None or approval.status != ApprovalStatus.PENDING.value:
+                    continue
+                from app.services.approvals import answers_for, bound_platform_call
+
+                run = await agent_run_repo.get_run(
+                    self.db, approval.run_id, organization_id=notification.organization_id
+                )
+                if (
+                    run is not None
+                    and answers_for(ctx, run.user_id)
+                    and bound_platform_call(
+                        approval.tool_id,
+                        always_asks=approval.always_asks,
+                        context=approval.context,
+                    )
+                ):
+                    return True
+        return False
 
     async def gate_for(
         self, ctx: AuthContext, notification: Notification, cache: _GateCache | None = None
@@ -1402,8 +1491,13 @@ class NotificationCenterService:
             return _Gate(visible=cache.conversation_visible_by_id.get(conversation_id, False))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
+        if gate is ContentGate.IMPROVEMENT_CRITERIA:
+            return _Gate(
+                visible=not context.get("criteria")
+                or cache.criterion_visible_by_id.get(notification.id, False)
+            )
         if gate is ContentGate.DEGRADE:
-            if ctx.has(Perm.APPROVALS_DECIDE):
+            if ctx.has(Perm.APPROVALS_DECIDE) or await self.answers_own_call(ctx, notification):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

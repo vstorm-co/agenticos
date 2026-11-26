@@ -8,7 +8,11 @@ export const NativeSelect = React.forwardRef<HTMLSelectElement, React.ComponentP
   ({ className, ...props }, ref) => (
     <select
       ref={ref}
-      className={cn(FORM_CONTROL, "touch:min-h-11 h-10 px-3 py-1.5 text-sm", className)}
+      className={cn(
+        FORM_CONTROL,
+        "touch:min-h-11 h-10 px-3 py-1.5 text-base md:text-sm",
+        className,
+      )}
       {...props}
     />
   ),

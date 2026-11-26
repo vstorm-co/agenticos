@@ -21,6 +21,8 @@ a person actually asked and an answer that actually disappointed them.
 
 Choose the grader's model and instructions in **Settings**, along with generation and improvement configuration. Saved models use a compact searchable selector; **Add model** opens the provider, model and key form. Instructions use the Markdown editor. Helpers are code-defined; no helper agent needs to be created or published. A queued task keeps the configuration it started with.
 
+For generation and improvement, a dataset adds its own guidance below the platform's rules for that helper. The rules - held-out questions are not learning material, run text is data, no personal details in a case - always apply, and the guidance cannot change or remove them. The editor holds only the guidance; the rules are shown read-only beside it.
+
 ## From a new dataset to results { #dataset-workflow }
 
 Use Cases to prepare data, Results to inspect runs and answers, and Settings to configure grading and helpers.
@@ -130,12 +132,20 @@ and **Add anyway** to keep both. The check is `POST
 /datasets/{id}/cases/twins`, with the question in the body so it stays out of
 access logs.
 
+During upgrade, existing generated revisions without a surviving document reference receive the same privacy protection. A deleted anonymous chat cannot be distinguished from a case generated without source material. Historical and later metadata-only revisions stay protected. Readers with `runs:view` retain full stored content; no cases are deleted.
+
+Known document-only cases, manual cases and imports are unchanged. New agent-tool cases without chat material are not automatically hidden. Masked rows describe unavailable or unverified source material, without claiming a conversation origin.
+
+Stop old API and worker processes before migration `0374_case_from_conversation`, then start only updated code. Older writers do not preserve the privacy flag. Mixed-version writes during this upgrade are unsupported; the managed deployer stops these processes before migration.
+
 ### From a file { #import-and-export }
 
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one
 new version. The import is all or nothing: if one row is invalid, no row is
 added, and the refusal names each invalid row so you can fix the file and try
-again. A file is at most 10 MB, and a dataset holds at most 10,000 cases.
+again. A file is at most 10 MB and 10,000 rows (`DATASET_IMPORT_MAX_BYTES`,
+`DATASET_IMPORT_MAX_ROWS`), and a dataset holds at most 10,000 cases. A value
+nested too deeply to read refuses its row.
 In the console, **Import** first lists the columns and offers **Download a
 template**, a CSV with every column and one case that imports as it is;
 **Choose file** opens the file picker.
@@ -309,6 +319,14 @@ export carries, including the arguments of an expected tool call, and to every
 way a case is added. The audit entry for the change records how many values
 were redacted, never the values.
 
+It recognizes the API keys and tokens of the providers and services the
+platform works with, JWTs and private keys, a password written into an address
+(`postgres://user:password@host`), a key or password in a query string or form
+body (`?api_key=`, `token=`, `password=`), and a Basic or Bearer
+`Authorization` header. The same detector scrubs what an improvement's helper
+reads, what the knowledge gaps classifier reads, and an agent's messages when
+its guardrail redacts secrets.
+
 A generation also redacts the questions and passages it hands the generator,
 before they leave for the model, and takes the personal data the detectors find
 - e-mail addresses, phone, card and account numbers - out of the questions and
@@ -370,6 +388,7 @@ read on the stored scale, and one above it is refused naming `judge.pass_at`.
 | `max_latency_ms` | `value` | The run took no longer than this |
 | `length` | `unit` (`characters` or `words`), `min` and/or `max`, optional `path` | The answer is at least `min` and at most `max` long |
 | `judge` | `criterion` | The eval judge grades the criterion at or above the pass mark |
+| `keys` | `keys`: pairs of `key` (a label) and `value`, at most 200 across a case's keys checks - and across the dataset's default checks; family `keys` unless named | The answer carries every value; the score is the share it carries |
 
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case
@@ -388,6 +407,72 @@ least one bound.
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
 and does not reveal the customer's address".
+
+A `keys` check lists the facts a written document must carry - an invoice number,
+a total, a customer's name - each as a label and the value the document holds.
+The check passes when the answer carries every value; its score is the share it
+carries, and its reason names the labels it is missing.
+
+Each value is looked for in the answer:
+
+- as a whole token: `12` is not found in `120`, nor `INV-1` in `INV-10`;
+- not inside a longer number: `12` is not found in `12,50`, nor `234` in `1 234`,
+  nor `1 234` in `1 234 567`;
+- ignoring letter case, runs of whitespace and Unicode forms such as a ligature
+  or a no-break space;
+- with a space allowed to group the thousands of a number, so `1234` and
+  `1 234` find each other;
+- with a comma or a full stop left as it is, because it separates thousands in
+  one language and decimals in another: write the value the way the document
+  shows it.
+
+In the console, a saved case with a saved reference answer offers **List keys
+from the reference answer** beside its checks. The key extractor, a system
+agent, reads the answer in a job, as the person who asked, metered and in
+Activity, and lists the facts it states. Only a value the answer holds as
+written is kept. **Use these keys** fills the case's keys check for you to
+review and save; nothing is saved by itself, and the draft is deleted once
+used or dismissed, or 7 days after you asked for it.
+
+Every check takes an optional `family` (at most 80 characters): the thing it tests
+across the dataset, such as `total including VAT` on each case's regex for its own
+amount. A comparison counts the checks of one family together, case by case, so a
+change is judged on what moved across the dataset rather than on one case's
+pattern. A check without a family is a family of its own; one with a family
+scores, and fingerprints its scoring, exactly as before.
+
+### Keys no source covers { #key-coverage }
+
+A keys check says which facts a written document must carry; it cannot say
+whether the agent could have known them. **Results → Key coverage** answers that
+for a published agent you choose. The source coverage agent, a system agent,
+reads the labels of the keys in the newest version's keys checks - the first 200
+distinct ones - beside what the agent's published version can reach, and says
+for each label that a source holds it, that none does, or that it cannot tell.
+For each source it reads:
+
+- a knowledge base: a search for every label;
+- a context file or a skill: the passages that name a label, a skill at the
+  version or fork the agent's binding names;
+- an organization MCP server that is switched on: its tools, by what each says
+  it does.
+
+It is shown key labels and never their values. It runs in a job, as the person
+who asked, who must be able to edit the agent, metered and in Activity. Each
+agent and dataset keeps one report, which the next one replaces. A source the person who asked may not see is not read, nor is an MCP server
+reached through each person's own account or the platform's, and the report
+says how many were left out; a reader who may not see a source the report names sees it unnamed,
+and one who may not see every source the judge read gets verdicts without
+reasons.
+
+A key no source holds has to reach the agent as knowledge - a document, a
+context file, a tool - since no change to its instructions can supply it.
+[Improve](authoring.md#background-improvement-sessions) reads it that way,
+but only from a complete report - every source read - made for the version the
+agent runs now. Once the agent is published again, the dataset gains a version, or a source it
+read changes - a document added to or removed from a knowledge base, a context
+file or skill edited, a server's tools changed - the report shows as out of date
+until you check again.
 
 ### Expected tool calls { #trajectory }
 
@@ -412,6 +497,11 @@ The judge is handed the case's note, as why the case exists, its earlier turns
 and question, the reference answer when it is graded, the counter-example,
 every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer.
+
+Each of these is fenced in the judge's prompt, so text in it cannot close its
+own section and read as the prompt's own words. The prompt ends on the rule that
+fenced text is graded, never obeyed, and the dataset's own instructions cannot
+replace that rule.
 
 A case with a counter-example is always graded on a required **counter-example**
 criterion as well: the answer must not repeat the known bad answer, and the
@@ -451,6 +541,10 @@ anew, with the configuration it was first graded with (`POST
 run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
+A new grade on an eval run's answer settles that run's comparison, and the
+suites, improvement sessions and skill checks built on it, again, as a person's
+decision does.
+
 A cause still there - the judge unpublished - is refused as
 it stands, and so is an eval run's judge published anew since it failed, or a
 score of one pinned to an earlier judge prompt, whose grade would not compare
@@ -473,6 +567,10 @@ id or grade makes a verdict unreadable. A criterion graded more than once is an
 error, rather than whichever grade came last. The judge's run in Activity says
 which fields could not be read, never the answer, which can repeat a case of a
 dataset its reader may not see.
+
+The judge answers in that shape through a structured output, not in prose. An
+answer that breaks the shape goes back to the judge to fix, twice at most; only
+then is the case not graded.
 
 Each score keeps its model, published helper identity, rubric hash, task version and instruction hash. Changing the dataset model or instructions is allowed; grades from different configurations are not treated as directly comparable.
 
@@ -551,8 +649,10 @@ changed from the dialog.
 | Change how a dataset is graded | `datasets:edit` on it |
 | Create a judge for it | `datasets:edit` on it, and `agents:edit` |
 | Score a run against it | `datasets:run` on it, and `runs:view` |
+| Score an answer again | `datasets:run` on it, and `runs:view`; for an eval run's answer, also access to the agent that answered |
 | Read its scores | `datasets:view` on it |
-| Send scores to review, record or withdraw a decision | `datasets:edit` on it |
+| Send scores to review | `datasets:edit` on it |
+| Record or withdraw a decision | `datasets:edit` on it; for an eval run's answer, also `runs:view` and access to the agent that answered |
 
 A reason the judge wrote is passed through the same credential redaction as a
 case before it is stored.
@@ -598,9 +698,19 @@ itself something they may not learn. A grant widens access to one dataset and
 never changes a role. See [Permissions](https://vstorm-co.github.io/agenticos/permissions/) for how scopes and
 grants combine.
 
-A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
+A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked, for a copied case and for one generated from a chat. The duplicate-question check (`cases/twins`) never matches a masked case, and **Key coverage** leaves out key labels that only masked cases hold. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
+
+The judge's knowledge passages are removed with the answer. A reader who sees the answer is shown a passage only from a knowledge base they may read; see [Eval runs](evals.md).
+
+Text written from a dataset's cases follows the dataset's access. An Improve session's changes need read access to its dataset. A run does not record which dataset it read, so two reads need read access to every dataset: a skill session's quotes from eval answers, and, in a run's record, the messages an eval answer was sent and a platform agent's prompt and messages, such as the judge's.
+
+A decision on an eval run's answer, or a new grade for it, also needs `runs:view` and access to the answering agent, because it changes the verdicts built on that run: a reader who cannot see the answer is not offered either, and the API refuses it with `403`.
+
+Datasets are not grouped by department - the list has no group filter or
+department badges - so a department reaches a dataset through a grant on it,
+like any other resource. See [Departments](https://vstorm-co.github.io/agenticos/departments/#grouping-a-list-by-department).
 
 ## Personal data { #personal-data }
 
@@ -614,7 +724,8 @@ When the person who asked a case's question is erased, the text goes too. The
 question, the earlier turns, both answers and the note are replaced in every
 version that holds the case, and so are the answers and calls that eval runs
 recorded for it. The case keeps its id, its expected calls, its checks and its
-tags, and is marked **Anonymised after erasure**, so its curator can rewrite it
+tags - except a `keys` check, whose values came from the answer that goes - and
+is marked **Anonymised after erasure**, so its curator can rewrite it
 or remove it. Until then an eval run leaves it out, because an answer to the
 placeholder measures nothing.
 

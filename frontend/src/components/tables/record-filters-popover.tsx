@@ -58,7 +58,7 @@ function Operand({
         value={String(filter.value === true)}
         onValueChange={(next) => onChange(next === "true")}
       >
-        <SelectTrigger aria-label={column.label}>
+        <SelectTrigger size="sm" aria-label={column.label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -158,6 +158,7 @@ export function RecordFiltersPopover({
                   onValueChange={(id) => replace(index, newFilter(byId.get(id) as ColumnDef))}
                 >
                   <SelectTrigger
+                    size="sm"
                     className="col-span-2 w-full min-w-0 sm:w-40 sm:shrink-0"
                     aria-label={t("column")}
                   >
@@ -178,6 +179,7 @@ export function RecordFiltersPopover({
                   }
                 >
                   <SelectTrigger
+                    size="sm"
                     className="col-span-2 w-full min-w-0 sm:w-36 sm:shrink-0"
                     aria-label={t("operator")}
                   >

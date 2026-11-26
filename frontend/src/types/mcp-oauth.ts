@@ -11,6 +11,12 @@ export interface OAuthConsentRequest {
   organization_id: string;
   organization_name: string;
   catalog: ApiKeyScopeCatalog;
+  deployment_admin_available?: boolean;
+}
+
+export interface OAuthConsentChoice {
+  scopes: Permission[];
+  deployment_admin?: boolean;
 }
 
 export interface OAuthConsentAnswer {
@@ -24,7 +30,7 @@ export interface ConnectedApp {
   client_uri: string | null;
   user_id: string;
   user_email: string;
-  scopes: Permission[];
+  scopes: (Permission | "deployment:admin")[];
   created_at: string;
 }
 

@@ -2,13 +2,14 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { createTranslator } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
 import type { Translate } from "./agent-step-captions";
 import {
   ApiError,
+  credentialsRejected,
   fieldProblems,
   getErrorMessage,
   parseErrorMessage,
@@ -44,6 +45,20 @@ const CONFLICT = envelope("ALREADY_EXISTS", "An agent with the handle 'support' 
 
 const VALIDATION = envelope("VALIDATION_ERROR", "Some fields need fixing: spec.name", {
   fields: [{ field: "spec.name", message: "String should have at most 128 characters" }],
+});
+
+describe("retry deadlines", () => {
+  it.each(["20", "Thu, 19 Nov 2026 13:00:20 GMT"])("reads Retry-After %s", (header) => {
+    const now = new Date("2026-11-19T13:00:00Z");
+    vi.spyOn(Date, "now").mockReturnValue(now.getTime());
+    try {
+      expect(new ApiError(429, "Busy", undefined, header).retryAt).toBe(now.getTime() + 20_000);
+      expect(new ApiError(429, "Busy", undefined, "invalid").retryAt).toBe(now.getTime() + 60_000);
+      expect(new ApiError(500, "Failed").retryAt).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });
 
 describe("parseErrorMessage", () => {
@@ -623,5 +638,33 @@ describe("formulaRefusal", () => {
     expect(formulaRefusal(refusal(undefined))).toBeNull();
     expect(formulaRefusal(refusal({ reason: 3 }))).toBeNull();
     expect(formulaRefusal(refusal({ reason: "syntax" }, []))).toBeNull();
+  });
+});
+
+describe("credential-specific refusal feedback", () => {
+  it.each([
+    [401, "AUTHENTICATION_ERROR", { reason: "invalid_credentials" }, true],
+    [401, "DIRECTORY_CREDENTIALS_REJECTED", null, true],
+    [401, "AUTHENTICATION_ERROR", null, false],
+    [401, "DIRECTORY_ACCOUNT_UNUSABLE", null, false],
+    [401, "KERBEROS_TICKET_REJECTED", null, false],
+    [503, "AUTHENTICATION_ERROR", { reason: "invalid_credentials" }, false],
+  ] as const)(
+    "classifies status=%s code=%s without reading message text",
+    (status, code, details, rejected) => {
+      expect(
+        credentialsRejected(
+          new ApiError(
+            status,
+            "A translated server message",
+            envelope(code, "A translated server message", details),
+          ),
+        ),
+      ).toBe(rejected);
+    },
+  );
+  it("does not mark input for an unknown or non-API error", () => {
+    expect(credentialsRejected(new ApiError(401, "Unknown reason"))).toBe(false);
+    expect(credentialsRejected(new Error("Offline"))).toBe(false);
   });
 });

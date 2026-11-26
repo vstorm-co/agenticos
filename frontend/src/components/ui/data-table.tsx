@@ -5,7 +5,10 @@ import { EmptyIllustration } from "@/components/illustrations/empty-illustration
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { PAGE_SIZE } from "@/components/ui/list-controls";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortButton } from "@/components/ui/sort-button";
+import { StickyScrollbar } from "@/components/ui/sticky-scrollbar";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -91,6 +94,10 @@ interface DataTableProps<T> {
    * becomes the vertical one too, and `sticky` resolves against it.
    */
   fillHeight?: boolean;
+  /** Page a complete in-memory collection after sorting. Never use with server paging or infinite loading. */
+  clientPagination?: boolean;
+  /** Page size for a client-paged collection; defaults to the standard list size. */
+  pageSize?: number;
   /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
   stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
@@ -153,6 +160,8 @@ export function DataTable<T>({
   onRowClick,
   isRowActive,
   fillHeight = false,
+  clientPagination = false,
+  pageSize = PAGE_SIZE,
   stackOnNarrow = false,
   skeletonRows = 6,
   className,
@@ -163,6 +172,7 @@ export function DataTable<T>({
   onEndReached,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
+  const [page, setPage] = useState(0);
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
 
   const serverSorted = onSort !== undefined;
@@ -173,6 +183,7 @@ export function DataTable<T>({
       activeSort?.by === key
         ? { by: key, dir: activeSort.dir === "asc" ? "desc" : "asc" }
         : { by: key, dir: "desc" };
+    setPage(0);
     if (onSort) onSort(next);
     else setClientSort(next);
   };
@@ -200,12 +211,20 @@ export function DataTable<T>({
     return () => observer.disconnect();
   }, [rowHeight]);
 
-  const total = visible?.length ?? 0;
+  const recordCount = visible?.length ?? 0;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / pageSize) - 1));
+  const pageOffset = clientPagination ? currentPage * pageSize : 0;
+  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + pageSize) : visible;
+  useEffect(() => {
+    if (clientPagination && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [clientPagination, currentPage, clientSort]);
+
+  const total = pageRows?.length ?? 0;
   const first = rowHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN) : 0;
   const last = rowHeight
     ? Math.min(total, Math.ceil((scrollTop + viewport) / rowHeight) + OVERSCAN)
     : total;
-  const drawn = rowHeight ? visible?.slice(first, last) : visible;
+  const drawn = rowHeight ? pageRows?.slice(first, last) : pageRows;
 
   const onScroll = (element: HTMLDivElement) => {
     if (rowHeight) setScrollTop(element.scrollTop);
@@ -220,6 +239,7 @@ export function DataTable<T>({
 
   return (
     <div
+      data-slot="data-table"
       className={cn(
         "border-border bg-card overflow-hidden rounded-xl border",
         stackOnNarrow &&
@@ -239,14 +259,18 @@ export function DataTable<T>({
         {/* Explicit roles retain semantics when narrow-container CSS changes display types. */}
         <table
           role={stackOnNarrow ? "table" : undefined}
-          className="w-full border-collapse text-sm"
+          className="w-full border-collapse text-sm leading-5"
           aria-busy={loading || undefined}
         >
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
           <thead
             role={stackOnNarrow ? "rowgroup" : undefined}
-            className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}
+            className={cn(
+              "bg-muted/30",
+              fillHeight && "bg-card sticky top-0 z-10",
+              showEmpty && "hidden",
+            )}
           >
             <tr role={stackOnNarrow ? "row" : undefined} className="border-border border-b">
               {columns.map((col) => {
@@ -263,7 +287,7 @@ export function DataTable<T>({
                     className={cn(
                       // One line: a two-word heading wrapped to two rows made every
                       // header taller than the rows under it.
-                      "text-foreground/85 px-3 py-3 text-[13px] font-semibold whitespace-nowrap sm:px-4",
+                      "text-muted-foreground px-3 py-2.5 text-xs leading-5 font-medium whitespace-nowrap sm:px-4",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
@@ -291,6 +315,7 @@ export function DataTable<T>({
                 <tr
                   role={stackOnNarrow ? "row" : undefined}
                   key={`sk-${i}`}
+                  style={rowHeight ? { height: rowHeight } : undefined}
                   className="border-border/60 border-b last:border-0"
                 >
                   {columns.map((col) => (
@@ -321,7 +346,8 @@ export function DataTable<T>({
               drawn?.map((row, offset) => (
                 <tr
                   role={stackOnNarrow ? "row" : undefined}
-                  key={getRowKey(row, first + offset)}
+                  key={getRowKey(row, pageOffset + first + offset)}
+                  style={rowHeight ? { height: rowHeight } : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={
@@ -341,7 +367,7 @@ export function DataTable<T>({
                   // is not one.
                   aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
-                    "border-border/60 border-b transition-colors last:border-0",
+                    "border-border/60 border-b transition-colors last:border-0 motion-reduce:transition-none",
                     onRowClick &&
                       "hover:bg-accent focus-visible:bg-accent focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2",
                     // A tint alone reads as hover - they were the same colour,
@@ -413,6 +439,20 @@ export function DataTable<T>({
           </div>
         )}
       </div>
+      {/* Its own bar is under the last row; this one floats while that is off screen. */}
+      <StickyScrollbar target={scrollRef} />
+      {clientPagination && !showError && (
+        <div className="border-border shrink-0 border-t px-4 py-3 sm:px-5">
+          <PaginationBar
+            showSinglePage
+            page={currentPage}
+            pageSize={pageSize}
+            total={recordCount}
+            isLoading={loading || showError}
+            onPage={setPage}
+          />
+        </div>
+      )}
     </div>
   );
 }

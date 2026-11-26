@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PULL_THRESHOLD, PullToRefresh } from "./pull-to-refresh";
 
 const haptic = vi.hoisted(() => vi.fn());
+const motionPreference = vi.hoisted(() => ({ reduced: false }));
+vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => motionPreference.reduced }));
 vi.mock("@/lib/mobile/haptics", () => ({ haptic }));
 
 const PHONE = { platform: "android", version: "0.1.0", window: "main", vibrancy: false };
@@ -36,6 +38,7 @@ function pull(target: Element, ys: number[]) {
 beforeEach(() => {
   client = new QueryClient();
   haptic.mockClear();
+  motionPreference.reduced = false;
   window.__AGENTICOS_SHELL__ = PHONE;
 });
 
@@ -63,17 +66,17 @@ describe("PullToRefresh", () => {
     expect(refetch).toHaveBeenCalledWith({ type: "active" });
     expect(screen.getByTestId("pull-to-refresh")).toBeInTheDocument();
     await act(async () => finish());
-    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("pull-to-refresh")).toBeNull());
   });
 
-  it("springs back without refreshing short of the point", () => {
+  it("springs back without refreshing short of the point", async () => {
     const refetch = vi.spyOn(client, "refetchQueries");
     const target = page();
     pull(target, [PULL_THRESHOLD * 2 + 10, PULL_THRESHOLD]);
 
     expect(refetch).not.toHaveBeenCalled();
     expect(haptic).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("pull-to-refresh")).toBeNull());
   });
 
   it("ignores a page scrolled down, an upward swipe and a second finger", () => {
@@ -99,28 +102,28 @@ describe("PullToRefresh", () => {
     expect(refetch).not.toHaveBeenCalled();
   });
 
-  it("does not refresh when the operating system cancels an armed pull", () => {
+  it("does not refresh when the operating system cancels an armed pull", async () => {
     const refetch = vi.spyOn(client, "refetchQueries");
     const target = page();
     fireEvent.touchStart(target, { touches: [{ clientX: 0, clientY: 0 }] });
     fireEvent.touchMove(target, { touches: [{ clientX: 0, clientY: 300 }] });
     expect(screen.getByTestId("pull-to-refresh")).toBeInTheDocument();
     fireEvent.touchCancel(target, { touches: [] });
-    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("pull-to-refresh")).toBeNull());
     fireEvent.touchEnd(target, { touches: [] });
     expect(refetch).not.toHaveBeenCalled();
   });
 
-  it("shows nothing for a tap or a sideways swipe", () => {
+  it("shows nothing for a tap or a sideways swipe", async () => {
     const refetch = vi.spyOn(client, "refetchQueries");
     const target = page();
 
     fireEvent.touchStart(target, { touches: [{ clientX: 0, clientY: 0 }] });
     fireEvent.touchMove(target, { touches: [{ clientX: 3, clientY: 4 }] });
-    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("pull-to-refresh")).toBeNull());
     fireEvent.touchMove(target, { touches: [{ clientX: 120, clientY: 20 }] });
     fireEvent.touchMove(target, { touches: [{ clientX: 120, clientY: 300 }] });
-    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("pull-to-refresh")).toBeNull());
     fireEvent.touchEnd(target, { touches: [] });
 
     expect(refetch).not.toHaveBeenCalled();
@@ -135,6 +138,50 @@ describe("PullToRefresh", () => {
     pull(page(), [300]);
 
     expect(refetch).toHaveBeenCalled();
+  });
+
+  it("settles immediately with reduced motion and cancels when a second finger joins", async () => {
+    motionPreference.reduced = true;
+    const refetch = vi.spyOn(client, "refetchQueries");
+    const target = page();
+    fireEvent.touchStart(target, { touches: [{ clientX: 0, clientY: 0 }] });
+    fireEvent.touchMove(target, { touches: [{ clientX: 0, clientY: 180 }] });
+    fireEvent.touchMove(target, {
+      touches: [
+        { clientX: 0, clientY: 180 },
+        { clientX: 10, clientY: 180 },
+      ],
+    });
+    fireEvent.touchEnd(target, { touches: [] });
+    expect(refetch).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    pull(target, [30]);
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+  });
+
+  it("does not start another refresh while one is pending or update a page after unmount", async () => {
+    let finish!: () => void;
+    const refetch = vi.spyOn(client, "refetchQueries").mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const target = page();
+    pull(target, [300]);
+    pull(target, [300]);
+    expect(refetch).toHaveBeenCalledTimes(1);
+    cleanup();
+    await act(async () => finish());
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+  });
+
+  it("waits for the console scroller to exist", () => {
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <PullToRefresh />
+      </QueryClientProvider>,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("is off in a browser and on the desktop", () => {

@@ -128,7 +128,7 @@ export function PublicForm({ page, token, onSubmitValues, preview = false }: Pub
     return (
       <div className="space-y-3 py-6 text-center" role="status">
         <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" aria-hidden="true" />
-        <p className="text-base">{thanks}</p>
+        <p className="text-base wrap-anywhere">{thanks}</p>
       </div>
     );
   }

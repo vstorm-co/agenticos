@@ -1,4 +1,5 @@
-AgenticOS {{ .Chart.AppVersion }} (override image.tag or digests to pin another release).
+Backend image: {{ include "agenticos.backendImage" . }}
+Console image: {{ include "agenticos.frontendImage" . }}
 API: {{ .Values.public.apiUrl }}
 Console: {{ .Values.public.siteUrl }}
 

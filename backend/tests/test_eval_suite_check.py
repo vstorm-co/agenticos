@@ -33,6 +33,7 @@ def _run(status: EvalRunStatus) -> SimpleNamespace:
         status=status.value,
         suite_check=check.model_dump(mode="json"),
         proposal_check=None,
+        outcome_at=None,
     )
 
 

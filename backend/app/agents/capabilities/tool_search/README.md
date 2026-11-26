@@ -78,3 +78,12 @@ never fails this way.
 `local_bm25` provides provider-independent lexical ranking over the authorized deferred tool catalog. It tokenizes identifiers (including camel case), descriptions and argument schemas, weights rare terms, normalizes document length and boosts identifiers. It uses no embeddings or extra model request; the existing result limit bounds what enters context. Shipped starters use five results.
 
 Multiple queries are ranked separately and interleaved without duplicates, so a bounded result set can expose both a search and its follow-up fetch. Identifier terms receive a length-independent boost: a long API contract must not hide a precisely named operation behind short generic descriptions. Only the already authorized input catalog can be returned.
+
+## Discovery between turns
+
+Completed turns checkpoint the structured model history, including native and
+local search results. Pydantic AI derives discoveries from that evidence against
+the current tool catalog; an assistant's text is never evidence of availability.
+The checkpoint is bounded to 200 model messages and 2 MiB. Evicted discovery
+requires a new search. Compaction uses the same history and its typed availability
+records. Execution permissions, live availability and approvals still apply.

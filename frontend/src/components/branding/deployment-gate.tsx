@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { AnnouncementBanner } from "@/components/branding/announcement-banner";
 import { useBranding } from "@/components/branding/branding-provider";
+import noticeStyles from "./deployment-notice.module.css";
 import { MaintenanceScreen } from "@/components/branding/maintenance-screen";
 import { useAuth } from "@/hooks";
 import { useBrandingNotice } from "@/hooks/use-branding-notice";
@@ -58,7 +59,10 @@ export function DeploymentGate({ children }: { children: ReactNode }) {
     // of it could not be reached at all.
     return (
       <div className={cn("flex flex-1 flex-col", PAGE_CLEARANCE)}>
-        <MaintenanceScreen />
+        <MaintenanceScreen
+          message={user ? notice?.maintenance_message : undefined}
+          plannedEnd={user ? notice?.maintenance_planned_end_at : undefined}
+        />
       </div>
     );
   }
@@ -66,12 +70,11 @@ export function DeploymentGate({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       {closed && (
-        <div
-          role="status"
-          className="border-warning/40 bg-warning/10 text-foreground flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm"
-        >
-          <Wrench className="h-4 w-4 shrink-0" aria-hidden />
-          <p>{t("adminStrip")}</p>
+        <div role="status" className={noticeStyles.notice} data-level="warning">
+          <span className={noticeStyles.mark} aria-hidden>
+            <Wrench className="size-4" />
+          </span>
+          <p className={noticeStyles.message}>{t("adminStrip")}</p>
         </div>
       )}
       <AnnouncementBanner notice={notice} />

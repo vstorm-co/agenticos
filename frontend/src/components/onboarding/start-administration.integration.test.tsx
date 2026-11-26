@@ -1,9 +1,13 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
+import { StartExperience } from "./start-experience";
 import { StartAdministration } from "./start-administration";
+
+vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
 
 const env = vi.hoisted(() => ({
   orgs: new Array<Organization>(),
@@ -210,7 +214,7 @@ async function selectCompany() {
   await userEvent.click(screen.getByRole("button", { name: "Northwind" }));
 }
 async function completePersonalization() {
-  for (let i = 0; i < 3; i++)
+  for (let i = 0; i < 4; i++)
     await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 }
 async function openOrganizationSettings(appAdmin: boolean) {
@@ -222,13 +226,17 @@ async function openOrganizationSettings(appAdmin: boolean) {
 it("starts with one decision and no settings sidebar", () => {
   render(<StartAdministration appAdmin />);
   expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
-  expect(screen.getByRole("textbox", { name: "Organization name" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Personal" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Create a new organization instead" })).toBeVisible();
+  expect(screen.queryByText("I want to use a personal organization")).not.toBeInTheDocument();
+  expect(screen.queryByText("Explore the application")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "People" })).not.toBeInTheDocument();
   expect(env.change).not.toHaveBeenCalled();
   expect(env.deployment).not.toHaveBeenCalled();
 });
 it("creates a company and guides identity, profile and context before team invitations", async () => {
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   await userEvent.type(
     screen.getByRole("textbox", { name: "Organization name" }),
     "Northwind Labs",
@@ -254,6 +262,7 @@ it("can start without any existing workspace", async () => {
 it("keeps a failed creation on the same decision without advancing", async () => {
   env.create.mockRejectedValue(new Error("Cannot create workspace"));
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Northwind");
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
@@ -339,6 +348,7 @@ it("does not offer invitations without member management permission", async () =
 });
 it("updates the preview while naming a workspace without creating anything", async () => {
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   const preview = within(screen.getByRole("complementary", { name: "Organization preview" }));
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Acme Studio");
   expect(preview.getByText("Acme Studio")).toBeVisible();
@@ -413,8 +423,11 @@ it("finishes after all questions while leaving optional setup empty", async () =
   render(<StartAdministration appAdmin />);
   await selectCompany();
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
-  await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Keep current settings" }));
@@ -422,6 +435,17 @@ it("finishes after all questions while leaving optional setup empty", async () =
   expect(env.finish).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
   expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
+});
+
+it("opens a valid link to another organization already available to the reader", () => {
+  env.orgs = [org("personal", true), org("company")];
+  env.activeId = "company";
+  window.history.replaceState(null, "", "/onboarding?start-step=admin.identity&workspace=personal");
+
+  const view = render(<StartAdministration appAdmin />);
+  expect(env.change).toHaveBeenCalledWith("personal");
+  view.rerender(<StartAdministration appAdmin />);
+  expect(screen.getByRole("heading", { name: "Give your organization an identity" })).toBeVisible();
 });
 
 it("resumes the matching organization's step after its membership list arrives", () => {
@@ -462,3 +486,85 @@ it("ignores a deployment continuation after leaving that step", async () => {
   act(() => late?.());
   expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
 });
+
+vi.mock("./start-connections", () => ({
+  StartModels: () => <p>Model catalog with Vault keys</p>,
+  StartTools: () => <p>MCP services</p>,
+}));
+vi.mock("./start-launch", () => ({ StartLaunch: () => <h2>Real installed teammates</h2> }));
+it.each(["conversation", "studio", "launchpad"])(
+  "offers model setup, MCP and a direct launch in the %s design",
+  async (variant) => {
+    env.orgs = [org("company")];
+    env.activeId = "company";
+    window.history.replaceState(
+      null,
+      "",
+      `/onboarding?variant=${variant}&start-step=admin.subscriptions&workspace=company`,
+    );
+    render(<StartAdministration appAdmin />);
+    if (variant === "studio") expect(screen.queryByText("Step 5 of 11")).not.toBeInTheDocument();
+    else expect(screen.getByText("Step 5 of 11")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Model catalog with Vault keys")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("MCP services")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Meet your first teammates" }));
+    expect(screen.getByRole("heading", { name: "Real installed teammates" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: variant === "studio" ? "Continue" : "Save and continue",
+      }),
+    ).not.toBeInTheDocument();
+    expect(window.location.search).toContain(`variant=${variant}`);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("MCP services")).toBeVisible();
+  },
+);
+
+it("starts the default Studio with only the workspace decision and no repeated illustrations", () => {
+  render(
+    <StartExperience>
+      <StartAdministration appAdmin />
+    </StartExperience>,
+  );
+  expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Personal/ })).toBeVisible();
+  expect(screen.queryByText("Your workspace, coming together")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("heading", { name: "Use an existing organization" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Organization preview")).not.toBeInTheDocument();
+  expect(screen.queryByRole("group", { name: "Onboarding design" })).not.toBeInTheDocument();
+});
+
+it.each([true, false])(
+  "continues from tools into team settings before launching (app admin: %s)",
+  async (appAdmin) => {
+    env.orgs = [org("company")];
+    env.activeId = "company";
+    window.history.replaceState(
+      null,
+      "",
+      "/onboarding?variant=studio&start-step=admin.tools&workspace=company",
+    );
+    render(<StartAdministration appAdmin={appAdmin} />);
+    expect(await screen.findByText("MCP services")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /^Continue$/ }));
+    expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Real installed teammates" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
+    if (appAdmin) expect(screen.getByRole("textbox", { name: "Deployment name" })).toBeVisible();
+    else {
+      expect(screen.getByRole("heading", { name: "Workspace spending cap" })).toBeVisible();
+      expect(env.deployment).not.toHaveBeenCalled();
+    }
+  },
+);

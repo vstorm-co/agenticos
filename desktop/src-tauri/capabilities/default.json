@@ -18,6 +18,7 @@
     "allow-request-onboarding-permission",
     "allow-local-status",
     "allow-local-instances",
+    "allow-update-local",
     "allow-set-up-local",
     "allow-use-local",
     "allow-resume-local",

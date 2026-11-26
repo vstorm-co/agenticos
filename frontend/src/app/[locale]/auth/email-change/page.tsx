@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -56,29 +57,30 @@ export default function EmailChangeConfirmPage() {
   return (
     <main
       id="main"
-      className="bg-background flex min-h-screen flex-col items-center justify-center px-6"
+      className="bg-background flex min-h-dvh flex-col items-center justify-center px-6 py-10"
     >
-      <div className="w-full max-w-md space-y-6 text-center">
+      <div
+        role="status"
+        className="grid min-h-72 w-full max-w-md content-center gap-6 text-center wrap-anywhere"
+      >
         {state === "confirming" && (
           <>
             <Loader2 className="text-foreground/70 mx-auto h-10 w-10 animate-spin" />
-            <h1 className="text-foreground text-2xl font-bold tracking-tight">{t("confirming")}</h1>
+            <AuthHeading>{t("confirming")}</AuthHeading>
           </>
         )}
         {state === "success" && (
           <>
             <CheckCircle2 className="text-brand mx-auto h-10 w-10" />
-            <h1 className="text-foreground text-2xl font-bold tracking-tight">{t("success")}</h1>
-            <p className="text-foreground/65 text-sm">{t("successHint")}</p>
+            <AuthHeading>{t("success")}</AuthHeading>
+            <p className="text-muted-foreground text-sm">{t("successHint")}</p>
           </>
         )}
         {state === "error" && (
           <>
             <AlertCircle className="text-destructive mx-auto h-10 w-10" />
-            <h1 className="text-foreground text-2xl font-bold tracking-tight">
-              {t("errorHeading")}
-            </h1>
-            <p className="text-foreground/65 text-sm">{error}</p>
+            <AuthHeading>{t("errorHeading")}</AuthHeading>
+            <p className="text-muted-foreground text-sm">{error}</p>
           </>
         )}
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">

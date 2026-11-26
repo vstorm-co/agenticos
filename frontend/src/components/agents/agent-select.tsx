@@ -5,7 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { FORM_CONTROL } from "@/components/ui/control-styles";
+import { FORM_CONTROL, MENU_ROW, COMMAND_ITEM_FOCUS } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
 import { AgentAvatar } from "./agent-avatar";
@@ -102,7 +102,7 @@ export function AgentSelect({
                   onChange(agent.id);
                   setOpen(false);
                 }}
-                className="data-[selected=true]:bg-accent touch:min-h-11 flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm"
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer")}
               >
                 <AgentAvatar
                   agentId={agent.id}

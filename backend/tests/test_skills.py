@@ -1492,6 +1492,15 @@ class TestSkillFiles:
 
 
 class TestSkillGallery:
+    @pytest.fixture(autouse=True)
+    def unrestricted_gallery(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.services.skills.skill_repo.ids_by_name", AsyncMock(return_value={})
+        )
+        monkeypatch.setattr(
+            "app.services.skills.ConsoleCatalogService.policies", AsyncMock(return_value=())
+        )
+
     """The opt-in gallery - what it offers, and what installing one does.
 
     The distinction the whole feature turns on: the bundled library is seeded
@@ -1534,9 +1543,9 @@ class TestSkillGallery:
             f"{SKILLS_PATH}.skill_library.gallery_get",
             side_effect=lambda key: entry if key == "healthcare/consent" else None,
         ):
-            preview = await SkillService(_db()).gallery_preview("healthcare/consent")
+            preview = await SkillService(_db()).gallery_preview(_ctx(), "healthcare/consent")
             with pytest.raises(NotFoundError):
-                await SkillService(_db()).gallery_preview("healthcare/missing")
+                await SkillService(_db()).gallery_preview(_ctx(), "healthcare/missing")
 
         assert (preview.name, preview.content, preview.files) == (
             "consent-explainer",
@@ -1711,7 +1720,8 @@ class TestTheGalleryOnDisk:
         # 75 - the AgenticOS guide among them - the seven the AI Architect ships
         # with (#2069), the bundled visual-design (#2171) and the three that build,
         # plan and check a slide deck as a published page (#2576).
-        assert len(names) == 97
+        # One additional method for named personal coding sessions.
+        assert len(names) == 98
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

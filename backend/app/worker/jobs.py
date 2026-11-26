@@ -15,6 +15,7 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID, uuid5
 
@@ -62,6 +63,12 @@ class RevertCodingTask(Payload):
     user_id: UUID
     claim_id: UUID
     api_key_id: UUID | None = None
+
+
+class PortableTransferPayload(Payload):
+    operation_id: UUID
+    organization_id: UUID
+    revision: int = Field(ge=1)
 
 
 class MoveProjectWorkspacePayload(Payload):
@@ -124,8 +131,9 @@ class ChannelMessage(Payload):
     organization_id: UUID
     bot_id: UUID
     authorization_generation: UUID
-    platform: Literal["slack", "telegram", "mattermost", "teams", "discord"]
+    platform: Literal["slack", "telegram", "mattermost", "teams", "discord", "matrix"]
     platform_user_id: str
+    server_url: str = ""
     platform_chat_id: str
     chat_type: Literal["private", "group"]
     text: str
@@ -180,6 +188,17 @@ class ChannelHandback(Payload):
     attachments: list[ChannelHandbackFile] = Field(default_factory=list)
 
 
+class RoutineChatAnswer(Payload):
+    """Ids only: the answer text and the bot token are read when the job runs."""
+
+    organization_id: UUID
+    trigger_id: UUID
+    run_id: UUID
+    conversation_id: UUID
+    session_id: UUID
+    message_id: UUID
+
+
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
 
@@ -232,11 +251,20 @@ class DialPhone(Payload):
     call_id: UUID
 
 
+class DispatchSourceEvent(Payload):
+    organization_id: UUID
+    dispatch_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
+    # Older workers reject unknown keys, even JSON null.
+    event_source_id: UUID | None = Field(
+        default=None, exclude_if=lambda source_id: source_id is None
+    )
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
@@ -263,12 +291,26 @@ class RunAgent(Payload):
     conversation_id: UUID
     environment_id: UUID | None
     file_ids: list[UUID]
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None, exclude_if=lambda target: target is None
+    )
     digest: str
     """The request's fingerprint: an idempotent retry must send the same one."""
+    execution_token: UUID | None = Field(default=None, exclude_if=lambda token: token is None)
+    """Transient claim metadata, never stored: a worker may steer only its own live attempt."""
+    steer_target: UUID | None = Field(default=None, exclude_if=lambda target: target is None)
+    """The compatible attempt running when this message arrived. Otherwise a normal turn."""
 
 
 class AdvanceImprovement(Payload):
     """One short, restartable transition; paid work runs in its own child job."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class SearchImprovement(Payload):
+    """One unit of a search attempt: a round of proposals, or scoring one variant."""
 
     run_id: UUID
     organization_id: UUID
@@ -302,6 +344,20 @@ class GenerateCases(Payload):
     organization_id: UUID
 
 
+class ExtractCaseKeys(Payload):
+    """One case's keys, drafted by the key extractor from its reference answer."""
+
+    draft_id: UUID
+    organization_id: UUID
+
+
+class ReportKeyCoverage(Payload):
+    """Which of a dataset's keys an agent's sources cover, judged by the source coverage agent."""
+
+    report_id: UUID
+    organization_id: UUID
+
+
 class RunAuthoring(Payload):
     """One Improve or Verify the authoring assistant was asked for."""
 
@@ -313,19 +369,23 @@ class ClassifyGaps(Payload):
     """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
 
     Without `message_ids`, a knowledge base's newest unread answers, as its
-    Knowledge gaps tab asks; with them, those answers alone, as an improvement
-    session sorts the answers it found bad.
+    Knowledge gaps tab asks; with them, and with `eval_run_ids`, those answers
+    alone, as an improvement session sorts the answers it found bad.
     """
 
     organization_id: UUID
     knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
     message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    eval_run_ids: list[UUID] | None = Field(default=None, max_length=500)
+    """A session's failed training answers from evals, by the run that gave each."""
     improvement_run_id: UUID | None = None
 
 
 class DraftTopic(Payload):
     """One knowledge gap topic drafted, as the person - or through the key - that asked."""
+
+    quoted_usd: Decimal | None = Field(default=None, ge=0)
 
     organization_id: UUID
     topic_id: UUID
@@ -355,6 +415,7 @@ class ThinkForPerson(Payload):
 
     organization_id: UUID
     user_id: UUID
+    refresh_open: bool = False
 
 
 class ExtractMemory(Payload):
@@ -420,6 +481,14 @@ class BasePurge(Payload):
     tenant: UUID | None = Field(default=None, exclude_if=lambda tenant: tenant is None)
     """The base's vector tenant, which an unfiled chunk is matched by - `None`
     for the deployment-wide one."""
+
+
+class WipeSubscriptionAccounts(Payload):
+    """Gateway scopes whose sign-ins go: members who left, organizations deleted.
+
+    Scopes rather than people, because the organization may already be gone."""
+
+    scopes: list[str] = Field(min_length=1)
 
 
 class DiscardVectorDocument(Payload):
@@ -559,6 +628,14 @@ WAKE_TASK = Task(
     timeout=timedelta(seconds=60),
     priority=Priority.SCHEDULED,
 )
+DISPATCH_SOURCE_EVENT = Task(
+    kind="dispatch-source-event",
+    payload_type=DispatchSourceEvent,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
@@ -680,6 +757,24 @@ GENERATE_CASES = Task(
     priority=Priority.INTERACTIVE,
     cancellable=False,
 )
+EXTRACT_CASE_KEYS = Task(
+    kind="extract-case-keys",
+    payload_type=ExtractCaseKeys,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
+REPORT_KEY_COVERAGE = Task(
+    kind="report-key-coverage",
+    payload_type=ReportKeyCoverage,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=20),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
 # Re-running a node is the workflow reconciler's call, made from `node_attempts`.
@@ -782,6 +877,15 @@ DISCARD_VECTOR_DOCUMENT = Task(
     priority=Priority.SCHEDULED,
 )
 
+WIPE_SUBSCRIPTION_ACCOUNTS = Task(
+    kind="wipe-subscription-accounts",
+    payload_type=WipeSubscriptionAccounts,
+    pool=Pool.SYSTEM,
+    max_attempts=5,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
+
 ADVANCE_IMPROVEMENT = Task(
     kind="advance-improvement",
     payload_type=AdvanceImprovement,
@@ -791,6 +895,16 @@ ADVANCE_IMPROVEMENT = Task(
     priority=Priority.INTERACTIVE,
 )
 SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+# One attempt: its answers were paid for. A dead job's variant is scored once more
+# when the session next advances, then given up; one unit per organization at a time.
+SEARCH_IMPROVEMENT = Task(
+    kind="search-improvement",
+    payload_type=SearchImprovement,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(minutes=15),
+    priority=Priority.BULK,
+)
 ADVANCE_SKILL_IMPROVEMENT = Task(
     kind="advance-skill-improvement",
     payload_type=AdvanceSkillImprovement,
@@ -832,6 +946,7 @@ SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 WHATSAPP_NUDGES = _sweep("whatsapp-nudges")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
+EXPIRE_CASE_KEY_DRAFTS = _sweep("expire-case-key-drafts")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
@@ -847,6 +962,7 @@ WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minu
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
+SOURCE_DELIVERY_RETENTION = _sweep("source-delivery-retention", timeout=timedelta(minutes=10))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
@@ -879,6 +995,25 @@ REVERT_CODING_TASK = Task(
     max_attempts=3,
     timeout=timedelta(minutes=3),
     priority=Priority.INTERACTIVE,
+)
+
+PORTABLE_TRANSFER = Task(
+    kind="portable-transfer",
+    payload_type=PortableTransferPayload,
+    pool=Pool.INGEST,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Start a new transfer; an expired upload or a reviewed import must not be replayed implicitly",
+)
+
+SWEEP_PORTABLE_TRANSFERS = Task(
+    kind="sweep-portable-transfers",
+    payload_type=Tick,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.BULK,
 )
 
 MOVE_PROJECT_WORKSPACE = Task(
@@ -966,6 +1101,17 @@ DELIVER_CHANNEL_HANDBACK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+# A chat send has no cross-provider idempotency key. Spend its single attempt
+# before execution; an unknown network result must not automatically post twice.
+ROUTINE_CHAT_ANSWER = Task(
+    kind="routine-chat-answer",
+    payload_type=RoutineChatAnswer,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
@@ -977,12 +1123,16 @@ TASKS: dict[str, TaskKind] = {
         PROCESS_WHATSAPP_WINDOW_REFUSAL,
         DELIVER_CHANNEL_REPLY,
         DELIVER_CHANNEL_HANDBACK,
+        ROUTINE_CHAT_ANSWER,
         MOVE_PROJECT_WORKSPACE,
+        PORTABLE_TRANSFER,
+        SWEEP_PORTABLE_TRANSFERS,
         REVERT_CODING_TASK,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        DISPATCH_SOURCE_EVENT,
         WAKE_TASK,
         DIAL_PHONE,
         END_PHONE,
@@ -992,6 +1142,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AUTHORING,
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
+        SEARCH_IMPROVEMENT,
         ADVANCE_SKILL_IMPROVEMENT,
         SWEEP_SKILL_IMPROVEMENTS,
         ADVANCE_SKILL_CHECK,
@@ -999,6 +1150,8 @@ TASKS: dict[str, TaskKind] = {
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,
+        EXTRACT_CASE_KEYS,
+        REPORT_KEY_COVERAGE,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
@@ -1022,6 +1175,7 @@ TASKS: dict[str, TaskKind] = {
         EXPIRE_APPROVALS,
         WHATSAPP_NUDGES,
         EXPIRE_INVITATIONS,
+        EXPIRE_CASE_KEY_DRAFTS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
         SWEEP_RAG_SCRATCH,
@@ -1038,6 +1192,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_SCHEDULES_CHECK,
         WORKFLOW_TABLE_TRIGGERS,
         WORKFLOW_RUN_RETENTION,
+        SOURCE_DELIVERY_RETENTION,
         WORKFLOW_LOG_ALERTS,
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,

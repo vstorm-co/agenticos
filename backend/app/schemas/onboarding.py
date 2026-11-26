@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import ConfigDict, Field
 
+from app.db.models.organization import OnboardingStep
 from app.schemas.base import BaseSchema
 
 StartGoal = Literal["meeting", "document", "compare"]
@@ -14,6 +15,10 @@ StartGoal = Literal["meeting", "document", "compare"]
 class OnboardingUpdate(BaseSchema):
     model_config = ConfigDict(extra="forbid")
     goal: StartGoal | None = None
+    current_step: OnboardingStep | None = Field(
+        default=None,
+        description="An explicitly visited setup screen, not evidence that its settings were saved",
+    )
     dismissed: bool | None = None
     completed: Literal[True] | None = None
 
@@ -24,6 +29,14 @@ class OnboardingAgent(BaseSchema):
 
 
 class OnboardingRead(BaseSchema):
+    completed_at: datetime | None = None
+    current_step: OnboardingStep | None = Field(
+        default=None,
+        description="An explicitly visited setup screen, not evidence that its settings were saved",
+    )
+    updated_at: datetime | None = Field(
+        default=None, description="When the reported screen last changed or setup was completed"
+    )
     server_time: datetime = Field(default_factory=lambda: datetime.now(UTC))
     organization_id: UUID
     organization_name: str

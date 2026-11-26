@@ -208,7 +208,7 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
   expect(env.budget).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "$100" }));
   fireEvent.change(screen.getByRole("slider"), { target: { value: "350" } });
-  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" })).toHaveValue(350);
   expect(screen.getByRole("slider")).toHaveValue("350");
   expect(env.budget).not.toHaveBeenCalled();
   await proceed();
@@ -281,20 +281,34 @@ const openAnnouncement = () => {
   render(<StartDeployment org={org} onContinue={env.next} />);
 };
 
-it("prefills the welcome message and saves it only on Continue", async () => {
+it("keeps an absent announcement empty when continuing without an edit", async () => {
   openAnnouncement();
   const message = screen.getByRole("textbox", { name: "Team announcement" });
-  expect(message).toHaveValue(
+  expect(message).toHaveValue("");
+  expect(message).toHaveAttribute(
+    "placeholder",
     "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
   );
   expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent(
-    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+    "No announcement will be displayed.",
+  );
+  expect(screen.getByRole("region", { name: "Live preview" })).not.toContainElement(message);
+  await proceed();
+  expect(env.save).not.toHaveBeenCalled();
+});
+
+it("previews a typed announcement and saves it only after continuing", async () => {
+  openAnnouncement();
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Team announcement" }),
+    "Welcome Northwind",
+  );
+  expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent(
+    "Welcome Northwind",
   );
   expect(env.save).not.toHaveBeenCalled();
   await proceed();
-  expect(env.save).toHaveBeenCalledWith({
-    announcement: "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
-  });
+  expect(env.save).toHaveBeenCalledWith({ announcement: "Welcome Northwind" });
 });
 
 it("preserves an existing announcement", async () => {
@@ -307,10 +321,14 @@ it("preserves an existing announcement", async () => {
   expect(env.save).not.toHaveBeenCalled();
 });
 
-it("allows clearing the suggested welcome message", async () => {
+it("allows clearing an existing welcome message", async () => {
+  env.settings.announcement = "Existing welcome";
   openAnnouncement();
   await userEvent.clear(screen.getByRole("textbox", { name: "Team announcement" }));
-  expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent("No announcement");
+  expect(screen.getByRole("textbox", { name: "Team announcement" })).toHaveAttribute(
+    "placeholder",
+    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+  );
   await proceed();
   expect(env.save).toHaveBeenCalledWith({ announcement: null });
 });
@@ -324,9 +342,14 @@ it("shows every deployment extras link without expanding a section", () => {
   render(<StartDeployment org={org} onContinue={env.next} />);
   const links = screen.getAllByRole("link", { name: /Open settings/ });
   expect(links).toHaveLength(4);
-  for (const [index, section] of ["identity", "services", "services", "operations"].entries()) {
+  for (const [index, href] of [
+    "/admin/settings?section=identity",
+    "/orgs/company/members?tab=voice",
+    "/admin/settings?section=services",
+    "/admin/settings?section=notices",
+  ].entries()) {
     expect(links[index]).toBeVisible();
-    expect(links[index]).toHaveAttribute("href", `/admin/settings?section=${section}`);
+    expect(links[index]).toHaveAttribute("href", href);
     expect(links[index]).toHaveAttribute("target", "_blank");
   }
   expect(document.querySelector("details")).not.toBeInTheDocument();
@@ -368,4 +391,71 @@ it("still leaves the step while its settings are loading", async () => {
   render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(back).toHaveBeenCalledTimes(2);
+});
+
+it("keeps a separate announcement preview in sync and saves its tone on Continue", async () => {
+  openAnnouncement();
+  const preview = screen.getByRole("region", { name: "Live preview" });
+  const editor = screen.getByRole("textbox", { name: "Team announcement" });
+  expect(preview).not.toContainElement(editor);
+  expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  await userEvent.clear(editor);
+  await userEvent.type(editor, "Support hours: 9–17");
+  await userEvent.click(screen.getByRole("button", { name: /^Notice$/ }));
+  expect(preview.querySelector("[data-level]")).toHaveAttribute("data-level", "warning");
+  expect(preview).toHaveTextContent("Support hours: 9–17");
+  expect(editor).toHaveValue("Support hours: 9–17");
+  expect(env.save).not.toHaveBeenCalled();
+  await proceed();
+  expect(env.save).toHaveBeenCalledWith({
+    announcement: "Support hours: 9–17",
+    announcement_level: "warning",
+  });
+});
+it("keeps optional controls collapsed and opens their actual settings destination", async () => {
+  env.permissions = new Set([Perm.orgSettings]);
+  render(<StartOrganizationSettings org={org} onContinue={env.next} />);
+  const groups = document.querySelectorAll("details");
+  expect(groups).toHaveLength(3);
+  for (const group of groups) expect(group).not.toHaveAttribute("open");
+  expect(screen.getByRole("link", { name: "Open assistant settings" })).not.toBeVisible();
+  await userEvent.click(screen.getByText("Organization assistants and automation"));
+  expect(screen.getByRole("link", { name: "Open assistant settings" })).toHaveAttribute(
+    "href",
+    "/orgs/company/members?tab=assistant",
+  );
+  expect(screen.getByRole("link", { name: "All organization settings ↗" })).toHaveAttribute(
+    "href",
+    "/orgs/company/members?tab=profile",
+  );
+});
+
+it("does not offer the organization profile editor to a budget-only operator", async () => {
+  env.permissions = new Set([Perm.budgetsManage]);
+  render(<StartOrganizationSettings org={org} onContinue={env.next} />);
+  await userEvent.click(screen.getByRole("button", { name: "Keep current settings" }));
+  expect(
+    screen.queryByRole("link", { name: "All organization settings ↗" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText("Organization assistants and automation")).toBeVisible();
+});
+
+it("accepts a precise monthly cap through its labelled input without writing on mount", async () => {
+  render(<StartBudget org={org} onContinue={env.next} />);
+  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  expect(env.budget).not.toHaveBeenCalled();
+  fireEvent.change(field, { target: { value: "1250.12" } });
+  expect(field).toHaveValue(1250.12);
+  await proceed();
+  expect(env.budget).toHaveBeenCalledWith("company", 1250.12);
+});
+it("keeps an invalid budget editable with a linked error and no save", async () => {
+  render(<StartBudget org={org} onContinue={env.next} />);
+  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  fireEvent.change(field, { target: { value: "-2" } });
+  await proceed();
+  expect(field).toHaveAttribute("aria-invalid", "true");
+  expect(field.getAttribute("aria-describedby")).toContain(screen.getByRole("alert").id);
+  expect(env.budget).not.toHaveBeenCalled();
+  expect(env.next).not.toHaveBeenCalled();
 });

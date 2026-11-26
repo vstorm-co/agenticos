@@ -1,5 +1,5 @@
 ---
-source_sha: "5605d024cb81"
+source_sha: "4810cee98986"
 ---
 
 # Sandbox { #the-sandbox }
@@ -54,6 +54,41 @@ z tokenem w `SANDBOXD_TOKEN`. Pozostałe backendy sandboksa — połączenia `da
 i `e2b` oraz `state` — to usługi hostowane i dokument w Postgresie i żaden z nich
 nie ma nic wspólnego z powyższym; własny komputer osoby też nie (zobacz
 [Poza sandboxd](#beyond-sandboxd)).
+
+### Pliki projektu na żywo w sandboxie agenta { #live-project-files-in-the-agent-sandbox }
+
+Host sandboxd 0.2.40 z włączoną funkcją udostępnia pliki wybranego projektu w
+prywatnym kontenerze agenta o zakresie rozmowy/runu pod
+`/project/<niezmienny UUID dzierżawy>`. Agent zachowuje obraz, pakiety i własny
+workspace. Każde polecenie dostaje `PROJECT_DIR`; ścieżki względne nadal dotyczą
+zwykłego workspace agenta. Dane, także projektów przechowujących pliki w bazie,
+są podawane na żywo przez uwierzytelnioną bramę, zamiast kopiowane do agenta.
+Jawnie wybrany wykonawca projektu pozostaje osobną opcją.
+
+Operator włącza razem `SANDBOXD_FILESYSTEM_GATEWAY_URL` i
+`SANDBOXD_FILESYSTEM_EXPORT_IMAGE`, zachowując kontenery i trwały katalog workspace.
+Obraz eksportera ma tę samą przypiętą wersję sandboxd co SDK. URL bramy kończy się
+na `/api/v1/project-filesystem` i musi być osiągalny z sandboxd oraz prywatnego
+mostu pomocnika. Może to być osiągalny adres HTTPS API; wewnętrzna nazwa Compose,
+np. `api`, nie jest dostępna na izolowanym moście. `host.docker.internal:<port>`
+wymaga API nasłuchującego na interfejsie osiągalnym z Dockera; produkcyjny port
+opublikowany tylko na loopback nie spełnia tego warunku.
+
+W Compose przy włączaniu montowania na żywo dodaj `-f docker-compose.project-filesystem.yml` po plikach bazowych i proxy. `scripts/deploy.sh` tworzy tę samą konfigurację poza checkoutem, gdy ustawiono obie zmienne, dzięki czemu działa też rollback do starszej wersji; odmawia niepełnej konfiguracji. Osobny most z wyjściem do sieci dostaje tylko sandboxd; prywatna sieć danych, izolacja agentów i brak opublikowanych portów supervisora pozostają bez zmian.
+
+Funkcja jest wyłączona do skonfigurowania. Klient nie wybiera ścieżek hosta, obrazów
+ani adresu bramy. Pomocnik nie publikuje portów, agent nie dołącza do jego mostu
+i nie otrzymuje urządzenia FUSE ani dodatkowych uprawnień montowania. Istniejące
+sesje bez montowania wymagają jawnego odzyskania/odtworzenia z zachowaniem plików.
+Nieobsługiwane zakresy i dostawcy odmawiają poleceń projektu zamiast używać innych
+plików. Restart pomocnika unieważnia uchwyty NFS i zatrzymuje agenta do jawnego
+odzyskania systemu plików; nie uruchamia pustego zamiennika.
+
+Natywny magazyn projektu wymaga trwałych rozszerzonych atrybutów i atomowych twardych
+dowiązań; obsługiwane są zweryfikowany magazyn Linux oraz state w bazie. Bind mounty
+macOS mogą odmawiać wymagań natywnych. Dowiązania symboliczne i zmiany właściciela
+nie są obsługiwane. [Projekty](projects.md#what-an-agent-gets-in-a-project) opisują
+dostęp przez dzierżawę i opcjonalnego jawnego wykonawcę projektu.
 
 ### Usługa i backend zmieniają się razem { #the-service-and-the-backend-move-together }
 
@@ -765,7 +800,11 @@ Opcjonalny **Secure Access** wymaga bramy ingress OpenSandbox na Kubernetes. Doc
 
 Kolejna tura łączy się z zapisaną przestrzenią. Brak lub niedostępność powoduje odmowę; identyfikator pozostaje, zamiast cichego tworzenia pustych plików. Reset wykonuj jawnie po odzyskaniu potrzebnych plików. Zamknięcie tury zwalnia klientów HTTP, a przestrzeń żyje zgodnie ze swoim zakresem; jawne sprzątanie korzysta z trwałej kolejki usuwania. Zachowaj połączenie i klucz do zakończenia oczekujących usunięć. AgenticOS nie wylicza wszystkich sandboxów serwera; panele sesji i limitów sandboxd nie opisują tego dostawcy.
 
-Walidacja objęła cykl życia na Dockerze, trwałość plików, ponowne połączenie, odmowę brakującej przestrzeni i sprzątanie na server/execd 1.2.0. Secure Access na Kubernetes nie przetestowano na rzeczywistym klastrze. Cofnięcie migracji `0317_opensandbox_connections.py` jest odrzucane, dopóki istnieją połączenia OpenSandbox lub nazwy runtime dłuższe niż 64 znaki.
+Walidacja objęła cykl życia na Dockerze, trwałość plików, ponowne połączenie, odmowę brakującej przestrzeni i sprzątanie na server/execd 1.2.0.
+
+Lokalna walidacja OpenShift 5.0.0 objęła również Kubernetes BatchSandbox, Secure Access, próbę powłoki i trwałość plików na server/controller/execd/gateway 1.2.1. Usuwanie rozmowy wymaga poprawki kolejności sprzątania opisanej w [przewodniku Kubernetes](kubernetes.md#oidc-and-sandbox-configuration); wydana wersja 1.80.0 zostawia zdalne workspace. Narzędzia agenta odczytują i zapisują pliki, ale API archiwum workspace konsoli nie przegląda ani nie pobiera plików OpenSandbox.
+
+ Cofnięcie migracji `0317_opensandbox_connections.py` jest odrzucane, dopóki istnieją połączenia OpenSandbox lub nazwy runtime dłuższe niż 64 znaki.
 
 **Własny komputer osoby.** W [aplikacji desktopowej](desktop.md#work-on-this-computer)
 czat może pracować w folderze na komputerze, na którym działa. Narzędzia sięgają
@@ -800,4 +839,4 @@ ani sesji do sprzątania.
 
 Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.
 
-Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Pliki projektu należą do `/workspace`; katalog domowy (`~`) znajduje się poza współdzielonymi plikami. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.
+Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Aktywny wykonawca zachowuje własny katalog roboczy. Przy dostępie na żywo `PROJECT_DIR` wskazuje `/project/<UUID dzierżawy>`; używaj tej ścieżki dla wspólnych plików projektu. Katalog domowy (`~`) jest poza nimi. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.

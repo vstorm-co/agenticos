@@ -18,25 +18,31 @@ import type { User } from "@/types";
 import { useUploadAccountAvatar, type AgentContext } from "@/hooks/use-account-profile";
 import { useChanged } from "@/hooks/use-changed";
 import { useLocale, useTranslations } from "next-intl";
+import { AvatarLookCarousel } from "./avatar-look-carousel";
 import styles from "./profile-identity-settings.module.css";
 
 export function ProfileIdentitySettings({
   onContinue,
   saveLabel,
   secondaryAction,
+  renderActions,
   section = "all",
   unifiedSave = false,
+  avatarPresentation = "palette",
 }: {
   onContinue?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
+  renderActions?: (actions: ReactNode) => ReactNode;
   section?: "all" | "identity" | "context";
   unifiedSave?: boolean;
+  avatarPresentation?: "palette" | "carousel";
 }) {
   const sharedFormId = useId();
   const IdentityContainer = unifiedSave ? "div" : "form";
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
+  const colors = useTranslations("avatarColor");
   const locale = useLocale();
   const { user } = useAuth();
   const { setUser, avatarVersion } = useAuthStore();
@@ -51,6 +57,7 @@ export function ProfileIdentitySettings({
   const [contextSaving, setContextSaving] = useState(false);
   const identityBusy = saving || avatarUploading || colorSaving;
   const busy = identityBusy || contextSaving;
+  const identityFieldsBusy = saving || avatarUploading || contextSaving;
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seeded when the stored profile moves - a save coming back, or another
@@ -68,7 +75,7 @@ export function ProfileIdentitySettings({
       if (email !== user.email) payload.email = email;
       if (name !== (user.full_name ?? "")) payload.full_name = name || null;
       if (Object.keys(payload).length === 0) {
-        toast.info(t("nothingChanged"));
+        if (!onContinue) toast.info(t("nothingChanged"));
         setSaving(false);
         return true;
       }
@@ -157,6 +164,21 @@ export function ProfileIdentitySettings({
 
   const avatarSrc = `/api/users/avatar/${user.id}?v=${avatarVersion}`;
 
+  const identityActions = (
+    <>
+      {secondaryAction}
+      <Button
+        type="submit"
+        form={sharedFormId}
+        loading={saving}
+        disabled={busy || (!onContinue && !profileChanged)}
+        className={renderActions ? undefined : "w-full sm:w-auto"}
+      >
+        {saveLabel ?? t("saveChanges")}
+      </Button>
+    </>
+  );
+
   return (
     <div
       className={cn(
@@ -170,6 +192,7 @@ export function ProfileIdentitySettings({
           description={t("visibleTeammatesSharedOrganizations")}
         >
           <IdentityContainer
+            id={unifiedSave ? undefined : sharedFormId}
             aria-label={t("personalInfo")}
             onSubmit={async (event) => {
               event.preventDefault();
@@ -177,40 +200,51 @@ export function ProfileIdentitySettings({
               if (await handleSaveProfile()) onContinue?.();
             }}
           >
-            <fieldset disabled={busy} className="min-w-0 space-y-5">
+            <fieldset disabled={identityFieldsBusy} className="min-w-0 space-y-5">
               <legend className="sr-only">{t("personalInfo")}</legend>
-              <div className={cn("space-y-4", onContinue && styles.avatarEditor)}>
+              <div
+                className={cn(
+                  "space-y-4",
+                  onContinue && styles.avatarEditor,
+                  avatarPresentation === "carousel" && styles.carouselEditor,
+                )}
+              >
                 <div
-                  className={cn("flex items-center gap-4", onContinue && styles.portraitControls)}
+                  className={cn(
+                    "flex items-center gap-4",
+                    onContinue && avatarPresentation !== "carousel" && styles.portraitControls,
+                  )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    disabled={busy}
-                    aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
-                    className={cn(
-                      "border-border hover:bg-accent group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
-                      user.avatar_url && "bg-muted",
-                      onContinue && styles.portrait,
-                    )}
-                  >
-                    {user.avatar_url && failedAvatar !== avatarSrc ? (
-                      <Image
-                        src={avatarSrc}
-                        onError={() => setFailedAvatar(avatarSrc)}
-                        alt=""
-                        width={80}
-                        height={80}
-                        className="h-full w-full object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
-                    )}
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Camera className="size-5 text-white" aria-hidden />
-                    </span>
-                  </button>
+                  {(avatarPresentation !== "carousel" || user.avatar_url) && (
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={busy}
+                      aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
+                      className={cn(
+                        "border-border hover:bg-accent group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
+                        user.avatar_url && "bg-muted",
+                        onContinue && avatarPresentation !== "carousel" && styles.portrait,
+                      )}
+                    >
+                      {user.avatar_url && failedAvatar !== avatarSrc ? (
+                        <Image
+                          src={avatarSrc}
+                          onError={() => setFailedAvatar(avatarSrc)}
+                          alt=""
+                          width={80}
+                          height={80}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
+                      )}
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <Camera className="size-5 text-white" aria-hidden />
+                      </span>
+                    </button>
+                  )}
                   <input
                     ref={avatarInputRef}
                     type="file"
@@ -220,40 +254,61 @@ export function ProfileIdentitySettings({
                     className="hidden"
                   />
                   <div className="min-w-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={busy}
-                      data-guidance={
-                        (!!onContinue && !user.avatar_url && user.avatar_color == null) || undefined
-                      }
-                    >
-                      {avatarUploading
-                        ? t("uploading3")
-                        : user.avatar_url
-                          ? t("replaceAvatar4")
-                          : t("uploadAvatar4")}
-                    </Button>
-                    <p className="text-muted-foreground mt-2 text-xs">
-                      {isAppAdmin(user) ? t("admin") : ""}
-                      {t("memberSince", { date: formatDate(user.created_at, locale) })}
-                    </p>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      {t("squareImagesLookBest")}
-                    </p>
+                    {(!onContinue || avatarPresentation === "carousel") && (
+                      <Button
+                        type="button"
+                        variant={avatarPresentation === "carousel" ? "ghost" : "outline"}
+                        size="sm"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={busy}
+                        className={colorSaving ? "disabled:opacity-100" : undefined}
+                      >
+                        {avatarPresentation === "carousel" && <Camera size={14} aria-hidden />}
+                        {avatarUploading
+                          ? t("uploading3")
+                          : user.avatar_url
+                            ? t("replaceAvatar4")
+                            : t("uploadAvatar4")}
+                      </Button>
+                    )}
+                    {avatarPresentation !== "carousel" && (
+                      <>
+                        <p className="text-muted-foreground mt-2 text-xs">
+                          {isAppAdmin(user) ? t("admin") : ""}
+                          {t("memberSince", { date: formatDate(user.created_at, locale) })}
+                        </p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t("squareImagesLookBest")}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
-                <MoreOptions label={t("avatarColour")}>
-                  <p className="text-muted-foreground text-xs">{t("avatarColourHint")}</p>
+                {avatarPresentation === "carousel" ? (
+                  <AvatarLookCarousel
+                    seed={user.id}
+                    hint={user.avatar_url ? colors("photoLookHint") : undefined}
+                    value={user.avatar_color ?? null}
+                    disabled={busy}
+                    onChange={handleColorChange}
+                  />
+                ) : onContinue ? (
                   <AvatarColorPicker
                     value={user.avatar_color ?? null}
                     disabled={busy}
                     onChange={handleColorChange}
-                    className={onContinue ? "justify-center" : undefined}
+                    className="max-w-full justify-center"
                   />
-                </MoreOptions>
+                ) : (
+                  <MoreOptions label={t("avatarColour")}>
+                    <p className="text-muted-foreground text-xs">{t("avatarColourHint")}</p>
+                    <AvatarColorPicker
+                      value={user.avatar_color ?? null}
+                      disabled={busy}
+                      onChange={handleColorChange}
+                    />
+                  </MoreOptions>
+                )}
               </div>
               <div className={cn("grid items-start gap-4", !unifiedSave && "md:grid-cols-2")}>
                 <FormField label={t("displayName")} htmlFor="profile-name">
@@ -294,22 +349,17 @@ export function ProfileIdentitySettings({
                   />
                 </FormField>
               </div>
-              {!unifiedSave && (
-                <div
-                  data-profile-actions
-                  className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
-                >
-                  <Button
-                    type="submit"
-                    loading={saving}
-                    disabled={busy || (!onContinue && !profileChanged)}
-                    className="w-full sm:w-auto"
+              {!unifiedSave &&
+                (renderActions ? (
+                  renderActions(identityActions)
+                ) : (
+                  <div
+                    data-profile-actions
+                    className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
                   >
-                    {saveLabel ?? t("saveChanges")}
-                  </Button>
-                  {secondaryAction}
-                </div>
-              )}
+                    {identityActions}
+                  </div>
+                ))}
             </fieldset>
           </IdentityContainer>
         </SectionCard>
@@ -326,6 +376,7 @@ export function ProfileIdentitySettings({
           onSaved={onContinue}
           saveLabel={saveLabel}
           secondaryAction={secondaryAction}
+          renderActions={renderActions}
         />
       )}
     </div>

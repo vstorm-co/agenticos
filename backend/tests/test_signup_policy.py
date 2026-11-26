@@ -9,7 +9,7 @@ console to fix it from.
 Two other refusals here were found by reading rather than by a failure, and both
 are the kind that passes every happy-path test:
 
-*Closing the sign-up form does not close OAuth.* `get_or_create_oauth_user` is a
+*Closing the sign-up form does not close OAuth.* `get_or_create_oauth_account` is a
 second path that mints an account, and nothing about a Google callback looks like a
 registration - so a deployment with `closed` and a Google button was wide open. The
 gate cuts both ways: an invitation has to reach that path too, or `invite_only`
@@ -475,7 +475,7 @@ class TestReservingAUse:
 class TestBothPathsThatMintAnAccountAreGated:
     """The policy is worth nothing if a path around it exists, and one did.
 
-    `register` is the obvious one. `get_or_create_oauth_user` is the one found by
+    `register` is the obvious one. `get_or_create_oauth_account` is the one found by
     reading: a deployment with `closed` and a Google button was wide open, because
     nothing about an OAuth callback looks like a registration.
     """
@@ -565,10 +565,12 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
-            await service.get_or_create_oauth_user(
+            account = await service.get_or_create_oauth_account(
                 provider="google", provider_id="g1", email="new@acme.com"
             )
 
+        assert account.is_new_user is True
+        assert account.user is repo.create.return_value
         assert checked == [
             {
                 "email": "new@acme.com",
@@ -598,7 +600,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
-            await service.get_or_create_oauth_user(
+            await service.get_or_create_oauth_account(
                 provider="google",
                 provider_id="g1",
                 email="new@acme.com",
@@ -624,7 +626,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.create = AsyncMock()
 
             with pytest.raises(AuthorizationError):
-                await service.get_or_create_oauth_user(
+                await service.get_or_create_oauth_account(
                     provider="google", provider_id="g1", email="new@acme.com"
                 )
 
@@ -638,10 +640,11 @@ class TestBothPathsThatMintAnAccountAreGated:
         with patch("app.services.user.user_repo") as repo:
             repo.get_by_oauth = AsyncMock(return_value=MagicMock(email="old@acme.com"))
 
-            await service.get_or_create_oauth_user(
+            account = await service.get_or_create_oauth_account(
                 provider="google", provider_id="g1", email="old@acme.com"
             )
 
+        assert account.is_new_user is False
         assert checked == []
 
     async def test_an_oauth_identity_attached_to_an_existing_address_is_not_re_gated(
@@ -653,10 +656,11 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.get_by_email = AsyncMock(return_value=MagicMock(email="old@acme.com"))
             repo.update = AsyncMock()
 
-            await service.get_or_create_oauth_user(
+            account = await service.get_or_create_oauth_account(
                 provider="google", provider_id="g1", email="old@acme.com"
             )
 
+        assert account.is_new_user is False
         assert checked == []
 
 

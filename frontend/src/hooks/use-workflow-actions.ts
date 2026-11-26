@@ -32,9 +32,15 @@ export function useWorkflowActions() {
   const queryClient = useQueryClient();
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
+  const refreshLists = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.workflows.list() }),
+      queryClient.invalidateQueries({ queryKey: qk.eventSources.usage() }),
+    ]);
+
   const settle = async (detail: WorkflowDetail) => {
     queryClient.setQueryData(qk.workflows.detail(detail.id), detail);
-    await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    await refreshLists();
     // The trigger sheet reads the exposure on its own, and the switch moves it.
     await queryClient.invalidateQueries({ queryKey: qk.workflows.exposure(detail.id) });
   };
@@ -87,7 +93,7 @@ export function useWorkflowActions() {
     mutationFn: (id: string) => deleteWorkflow(id),
     onSuccess: async (_answer, id) => {
       queryClient.removeQueries({ queryKey: qk.workflows.detail(id) });
-      await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+      await refreshLists();
       toast.success(t("deletedToast"));
     },
     onError: fail,

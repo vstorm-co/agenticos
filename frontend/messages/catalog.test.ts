@@ -7,6 +7,9 @@ import de from "./de.json";
 import en from "./en.json";
 import pl from "./pl.json";
 import tr from "./tr.json";
+import fr from "./fr.json";
+import nl from "./nl.json";
+import pt from "./pt.json";
 
 /**
  * That the catalog holds copy, and only copy.
@@ -157,6 +160,9 @@ describe.each([
   ["pl.json", pl],
   ["de.json", de],
   ["tr.json", tr],
+  ["fr.json", fr],
+  ["nl.json", nl],
+  ["pt.json", pt],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 
@@ -338,6 +344,79 @@ function icuContract(message: string): IcuContract {
   };
 }
 
+it("French preserves the arguments, rich-text links and selector values supplied by callers", () => {
+  const translated = new Map(entries(fr));
+  const mismatches = entries(en).flatMap(([key, message]) => {
+    const value = translated.get(key);
+    if (value === undefined) return [];
+    return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value)) ? [] : [key];
+  });
+  expect(mismatches).toEqual([]);
+});
+
+it.each([
+  ["Dutch", nl],
+  ["Portuguese", pt],
+])(
+  "%s preserves the arguments, rich-text links and selector values supplied by callers",
+  (_language, catalog) => {
+    const translated = new Map(entries(catalog));
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      const value = translated.get(key);
+      if (value === undefined) return [];
+      return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  },
+);
+
+describe.each([
+  ["Dutch", nl],
+  ["Portuguese", pt],
+])("%s catalog completeness", (_language, catalog) => {
+  it("covers every current console message without obsolete keys", () => {
+    const expected = entries(en)
+      .map(([key]) => key)
+      .filter((key) => !key.startsWith("legal.pl."))
+      .sort();
+    expect(
+      entries(catalog)
+        .map(([key]) => key)
+        .sort(),
+    ).toEqual(expected);
+  });
+});
+
+describe.each([
+  ["French", fr],
+  ["Turkish", tr],
+])("%s catalog for Improve, the assistant and evals", (_language, catalog) => {
+  it("covers every message of those screens without obsolete keys", () => {
+    const screens = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const ofScreens = (messages: unknown) =>
+      entries(messages)
+        .map(([key]) => key)
+        .filter((key) => screens.some((prefix) => key.startsWith(prefix)))
+        .sort();
+    expect(ofScreens(catalog)).toEqual(ofScreens(en));
+  });
+  it("preserves the current screen arguments and selector branches", () => {
+    const translated = new Map(entries(catalog));
+    const prefixes = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      if (!prefixes.some((prefix) => key.startsWith(prefix))) return [];
+      const value = translated.get(key);
+      return value !== undefined &&
+        JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  });
+});
+
 describe("Turkish ICU contracts", () => {
   it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
     const translated = new Map(entries(tr));
@@ -376,6 +455,39 @@ it.each([en, pl, de])("names every selectable private notification platform", (c
   for (const channel of CHAT_NOTIFICATION_CHANNELS) {
     expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
   }
+});
+
+it.each([en, pl, de, tr])(
+  "translates the new composer and builder summaries without fallback",
+  (catalog) => {
+    const messages = new Map(entries(catalog));
+    for (const key of [
+      "chat.hints.shortcuts",
+      "chat.homeInbox.openInbox",
+      "agents.buildSummary.variables",
+      "agents.buildSummary.voice",
+      "agents.buildSummary.starters",
+    ]) {
+      expect(messages.get(key), key).toBeTruthy();
+    }
+  },
+);
+
+describe.each([
+  ["en", en],
+  ["pl", pl],
+  ["de", de],
+  ["fr", fr],
+  ["nl", nl],
+  ["pt", pt],
+  ["tr", tr],
+])("%s protected-source copy", (_locale, catalog) => {
+  it("provides localized masked labels for both case lists and answer review", () => {
+    const messages = new Map(entries(catalog));
+    for (const key of ["datasets.maskedConversation", "datasets.scoring.maskedConversation"]) {
+      expect(messages.get(key), key).toBeTruthy();
+    }
+  });
 });
 
 describe.each([

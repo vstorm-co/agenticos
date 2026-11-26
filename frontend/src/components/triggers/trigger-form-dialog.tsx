@@ -1,17 +1,23 @@
 "use client";
 
+import { LiveSample } from "@/components/event-sources/live-sample";
+import { SourceSelector } from "@/components/event-sources/source-selector";
+import { SubscriptionFields } from "@/components/event-sources/subscription-fields";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
+import type { EventSource as ReusableSource } from "@/lib/event-sources-api";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 import { ActionConsentsDialog } from "./action-consents-dialog";
 
-import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
+import type { RoutineResultMode } from "@/types/triggers";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signature-fields";
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Hand, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
 import { coveredByAllRoutines } from "@/lib/desktop/routine-work";
@@ -21,6 +27,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -59,7 +66,7 @@ import { VersionField } from "@/components/triggers/version-field";
 import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
-import { AnswerToField } from "@/components/triggers/answer-to-field";
+import { ChatModeField } from "@/components/triggers/chat-mode-field";
 import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
@@ -82,7 +89,6 @@ import {
   parseCron,
   unitToSeconds,
   WEEKDAYS,
-  weekdayKey,
 } from "@/lib/trigger-format";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import type {
@@ -91,7 +97,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerCreated,
-  TriggerAnswerTo,
+  RoutineChatMode,
   TriggerOverlap,
   TriggerType,
   TriggerUpdate,
@@ -151,8 +157,6 @@ interface TriggerFormDialogProps {
    * offers a picker over the published agents, seeded with the user's default.
    */
   agentId: string | null;
-  /** The chat that offered this routine; absent on the standalone routines page. */
-  originConversationId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The trigger to edit, or null/undefined to create a new one. */
@@ -160,6 +164,8 @@ interface TriggerFormDialogProps {
   /** Which concept a new trigger starts on. Ignored when editing. */
   initialResultMode?: RoutineResultMode;
   initialType?: TriggerType;
+  /** The explicit reusable-source creation path omits dedicated endpoint setup. */
+  reusableSourceOnly?: boolean;
   /** A template the new trigger starts from - an idea picked on the Routines page. */
   initialTemplate?: TriggerTemplate | null;
   /** Told once a new trigger exists - a suggestion is taken only then, not when the form opens. */
@@ -173,12 +179,9 @@ interface TriggerFormDialogProps {
  * schedule defines the task then its cadence, an API trigger picks what
  * fires it then the task. Editing keeps a single panel - see below.
  *
- * A trigger's shape is set once: creating chooses schedule-or-event and its
- * cadence or source, and editing may change only the prompt and the environment -
- * the shape controls are read-only, because switching an interval to cron or
- * repointing an event is a different trigger, made by deleting this one and
- * creating that. That mirrors exactly what the server's shape CHECK and its
- * update schema allow, so the form never offers an edit the API will refuse.
+ * A trigger remains a schedule or an event. Existing dedicated endpoints keep
+ * their source and credential; shared-source routines may select another source
+ * they can use.
  */
 export function TriggerFormDialog({
   agentId,
@@ -187,14 +190,13 @@ export function TriggerFormDialog({
   trigger = null,
   initialResultMode = "report",
   initialType = "schedule",
+  reusableSourceOnly = false,
   initialTemplate = null,
-  originConversationId = null,
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const tp = useTranslations("portals");
   const editing = trigger !== null;
-  const hasConversation = !!(trigger?.delivery_conversation_id ?? originConversationId);
   const localWork = useRoutineLocalWork();
   const [preparedLocal, setPreparedLocal] = useState<TriggerCreated | null>(null);
   const [approvedLocal, setApprovedLocal] = useState<LocalTarget | null>(null);
@@ -222,16 +224,20 @@ export function TriggerFormDialog({
   const { agents } = useAgents();
   const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
-  // Only agents the caller may actually run: a published version to run, and a
-  // `can_run` that resolves the caller's role scope plus any run grant. Seeding
-  // the default from this set never points at an agent the create would refuse.
-  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const [sourceId, setSourceId] = useState<string | null>(trigger?.source_id ?? null);
+  const publishedRunnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const sourceTargets = publishedRunnable.filter((agent) => agent.can_edit);
+  const canAttachSource = sourceTargets.some((agent) => agentId === null || agent.id === agentId);
+  // Binding a reusable source needs edit as well as run, whichever creation path was used.
+  const runnable = sourceId || reusableSourceOnly ? sourceTargets : publishedRunnable;
   const [pickedAgentId, setPickedAgentId] = useState("");
-  // The user's starred default, or the first published agent, the moment the
-  // list arrives - the same resolution the chat's own picker makes.
-  const seededAgentId =
-    pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
-  const effectiveAgentId = agentId ?? seededAgentId ?? null;
+  const seededAgent = pickedAgentId
+    ? runnable.find((agent) => agent.id === pickedAgentId)
+    : (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0]);
+  const effectiveAgentId = agentId ?? seededAgent?.id ?? null;
+  const canUseSourceTarget = agents.some(
+    (agent) => agent.id === effectiveAgentId && agent.can_edit && agent.can_run,
+  );
 
   const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
@@ -248,8 +254,7 @@ export function TriggerFormDialog({
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
-  // Creating walks the KB-wizard steps; editing has no steps - the shape is
-  // fixed, so its few live fields fit one panel.
+  // Schedules fit one panel; the event flow still has source-specific steps.
   const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
@@ -261,7 +266,12 @@ export function TriggerFormDialog({
     setPinnedVersion(null);
     setVersionValid(true);
   };
-  const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  const [runsAsCreatorChoice, setRunsAsCreator] = useState<boolean | null>(
+    trigger ? (trigger.runs_as_creator ?? false) : null,
+  );
+  const runsAsCreator = runsAsCreatorChoice ?? (me !== null && !impersonating);
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
@@ -285,17 +295,18 @@ export function TriggerFormDialog({
     const instant = endInstant(value);
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
-  const [resultMode, setResultMode] = useState<RoutineResultMode>(
-    trigger?.result_mode ?? initialResultMode,
+  const resultMode = trigger?.result_mode ?? initialResultMode;
+  const [chatMode, setChatMode] = useState<RoutineChatMode>(
+    trigger?.chat_mode ??
+      (trigger
+        ? trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+          ? "shared"
+          : "per_run"
+        : "shared"),
   );
-  const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
-    trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
-  );
-  // A new trigger is the caller's own; an existing one is whoever made it.
-  const me = useAuthStore((state) => state.user?.id ?? null);
-  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
-  // An administrator acting as the creator is not the creator, as the server sees it.
-  const isCreator = trigger === null || (trigger.created_by_user_id === me && !impersonating);
+  // Impersonation never supplies the creator's own authority.
+  const isCreator =
+    me !== null && !impersonating && (trigger === null || trigger.created_by_user_id === me);
   // The server refuses anybody else resuming, moving the end of or loosening a routine
   // that acts as its creator; tightening a limit stays theirs to do.
   const limitsLocked = !isCreator && runsAsCreator;
@@ -377,7 +388,12 @@ export function TriggerFormDialog({
   // type, not Trigger: `reveal_secret` exists only on the create response, and
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
-  const [reviewing, setReviewing] = useState<TriggerCreated | null>(null);
+  const [reviewBeforeActivation, setReviewBeforeActivation] = useState(false);
+  const [approvalChoice, setApprovalChoice] = useState<"automatic" | "manual" | "custom" | null>(
+    null,
+  );
+  const [reviewing, setReviewing] = useState<Trigger | null>(null);
+  const [activateAfterReview, setActivateAfterReview] = useState(false);
 
   const pending = create.isPending || update.isPending || savingLocal;
 
@@ -515,6 +531,27 @@ export function TriggerFormDialog({
     };
   }
 
+  function selectSource(source: ReusableSource | null) {
+    if (!editing && agentId === null) {
+      // Going back to change the source can disqualify the previously chosen agent.
+      // Its environment and pinned version must not follow the replacement target.
+      if (source && !sourceTargets.some((agent) => agent.id === effectiveAgentId)) {
+        setPickedAgentId("");
+        changeEnvironment(DEFAULT_ENV);
+      } else {
+        setPickedAgentId(effectiveAgentId ?? "");
+      }
+    }
+    setSourceId(source?.id ?? null);
+    if (source) {
+      setSecret("");
+      setEventSource(source.provider);
+      setExtraConfig({});
+      setFilterA("");
+      setFilterB("");
+    }
+  }
+
   function buildCreate(): TriggerCreate {
     const base = {
       prompt,
@@ -526,15 +563,23 @@ export function TriggerFormDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
       ...(end ? { ends_at: end } : {}),
-      // Only when asked for: off is the server's default, and the request then
-      // says nothing about acting as anybody.
-      ...(runsAsCreator ? { runs_as_creator: true } : {}),
-      is_active: false,
-      review_before_activation: true,
+      // Send the explicit choice, including an opt-out from creator identity.
+      runs_as_creator: runsAsCreator,
+      action_mode:
+        approvalChoice === "manual"
+          ? ("manual" as const)
+          : approvalChoice === "custom"
+            ? ("per_tool" as const)
+            : ("agent" as const),
+      source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
+      ...(reviewBeforeActivation || approvalChoice === "custom" || (runsAsCreator && localTarget)
+        ? { is_active: false }
+        : {}),
+      ...(reviewBeforeActivation || approvalChoice === "custom"
+        ? { review_before_activation: true }
+        : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
-      // Only when it is not the server's default, so a plain create says nothing new.
-      ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
-      ...(answerTo === "conversation" ? { delivery_conversation_id: originConversationId } : {}),
+      chat_mode: chatMode,
       ...(budgetLimit !== null && budgetLimit !== undefined
         ? { monthly_budget_usd: budgetLimit }
         : {}),
@@ -545,9 +590,10 @@ export function TriggerFormDialog({
     return {
       ...base,
       event_source: eventSource,
-      event_secret: secret,
-      event_config:
-        eventSource === "webhook" && Object.keys(extraConfig).length
+      ...(sourceId ? { source_id: sourceId } : { event_secret: secret }),
+      event_config: sourceId
+        ? { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) }
+        : eventSource === "webhook" && Object.keys(extraConfig).length
           ? extraConfig
           : eventFilterConfig(eventSource, [filterA, filterB]),
     };
@@ -622,9 +668,23 @@ export function TriggerFormDialog({
         // it is sent, so echoing `environment_id` back on a prompt-only edit
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
+        if (approvalChoice !== null)
+          patch.action_mode =
+            approvalChoice === "automatic"
+              ? "agent"
+              : approvalChoice === "manual"
+                ? "manual"
+                : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
+        if (sourceId !== (trigger.source_id ?? null)) {
+          patch.source_id = sourceId;
+          patch.event_config = {
+            ...extraConfig,
+            ...eventFilterConfig(eventSource, [filterA, filterB]),
+          };
+        }
         const nextName = name.trim() || null;
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
@@ -647,12 +707,12 @@ export function TriggerFormDialog({
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         if (resultMode !== (trigger.result_mode ?? "report")) patch.result_mode = resultMode;
-        if (answerTo !== (trigger.answer_to ?? "run_log")) {
-          patch.answer_to = answerTo;
-          if (answerTo === "conversation")
-            patch.delivery_conversation_id =
-              trigger.delivery_conversation_id ?? originConversationId;
-        }
+        const previousChatMode =
+          trigger.chat_mode ??
+          (trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+            ? "shared"
+            : "per_run");
+        if (chatMode !== previousChatMode) patch.chat_mode = chatMode;
         if (endTouched && end !== undefined) patch.ends_at = end;
         if (
           JSON.stringify(notificationChannels) !==
@@ -676,7 +736,11 @@ export function TriggerFormDialog({
         // keys and nothing else: the server stores the config whole, so sending
         // only the slots dropped what this form does not show - a Gmail label,
         // an Outlook folder or shared mailbox - and moved the trigger.
-        if (trigger.trigger_type === "event" && trigger.event_source) {
+        if (
+          trigger.trigger_type === "event" &&
+          trigger.event_source &&
+          sourceId === (trigger.source_id ?? null)
+        ) {
           const keys: readonly string[] = FILTER_KEYS[trigger.event_source] ?? [];
           const changed = keys.some(
             (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
@@ -692,7 +756,10 @@ export function TriggerFormDialog({
           }
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
-        onOpenChange(false);
+        if (approvalChoice === "custom") {
+          setActivateAfterReview(false);
+          setReviewing({ ...trigger, ...patch });
+        } else onOpenChange(false);
       } else {
         let result = preparedLocal ?? (await create.mutateAsync(buildCreate()));
         if (runsAsCreator && localTarget) {
@@ -713,8 +780,26 @@ export function TriggerFormDialog({
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
+        if (
+          runsAsCreator &&
+          localTarget &&
+          !reviewBeforeActivation &&
+          approvalChoice !== "custom"
+        ) {
+          const activated = await update.mutateAsync({
+            triggerId: result.id,
+            patch: { is_active: true },
+          });
+          result = { ...result, ...activated };
+          if (!stillHere()) return;
+        }
         onCreated?.(result);
-        setReviewing(result);
+        if (reviewBeforeActivation || approvalChoice === "custom") {
+          setActivateAfterReview(true);
+          if (result.trigger_type === "event") setCreated(result);
+          setReviewing(result);
+        } else if (result.trigger_type === "event") setCreated(result);
+        else onOpenChange(false);
       }
     } catch (error) {
       if (error instanceof ShellError) toast.error(t("local.permissionFailed"));
@@ -746,16 +831,15 @@ export function TriggerFormDialog({
     taskValid &&
     (type !== "schedule" || scheduleValid) &&
     eventOptionsValid(extraConfig) &&
-    (type !== "event" || eventSource !== "webhook" || webhookSignatureValid(extraConfig)) &&
+    (type !== "event" ||
+      sourceId !== null ||
+      eventSource !== "webhook" ||
+      webhookSignatureValid(extraConfig)) &&
     !pending;
 
   const steps: WizardStep[] =
     type === "schedule"
-      ? [
-          { id: "configure", label: t("stepConfigure") },
-          { id: "message", label: t("stepMessage") },
-          { id: "schedule", label: t("stepSchedule") },
-        ]
+      ? [{ id: "configure", label: t("stepConfigure") }]
       : [
           { id: "event", label: t("stepEvent") },
           { id: "configure", label: t("stepConfigure") },
@@ -767,13 +851,18 @@ export function TriggerFormDialog({
   // final Create would refuse.
   const canAdvance =
     step === "configure"
-      ? effectiveAgentId !== null && versionValid && !invalidEnd && budgetLimit !== undefined
+      ? effectiveAgentId !== null &&
+        versionValid &&
+        !invalidEnd &&
+        budgetLimit !== undefined &&
+        (type !== "schedule" || (prompt.trim().length > 0 && scheduleValid))
       : step === "message"
-        ? prompt.trim().length > 0
+        ? prompt.trim().length > 0 && (!sourceId || (effectiveAgentId !== null && canAttachSource))
         : step === "schedule"
           ? scheduleValid
-          : secret.length >= MIN_SECRET &&
-            (eventSource !== "webhook" || webhookSignatureValid(extraConfig));
+          : sourceId !== null ||
+            (secret.length >= MIN_SECRET &&
+              (eventSource !== "webhook" || webhookSignatureValid(extraConfig)));
   const onFirstStep = stepIdx === 0;
 
   function handleNext() {
@@ -789,16 +878,79 @@ export function TriggerFormDialog({
     if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
   }
 
+  const approvalField = (
+    <FormField
+      label={t("approvalMode.label")}
+      htmlFor="routine-approval-mode"
+      description={t("approvalMode.hint")}
+    >
+      <Select
+        disabled={!isCreator}
+        value={
+          approvalChoice ??
+          (trigger
+            ? trigger.action_mode === "agent"
+              ? "automatic"
+              : trigger.action_mode === "manual"
+                ? "manual"
+                : trigger.action_mode === "per_tool"
+                  ? "custom"
+                  : "existing"
+            : "automatic")
+        }
+        onValueChange={(value) => {
+          if (value === "automatic" || value === "manual" || value === "custom")
+            setApprovalChoice(value);
+        }}
+      >
+        <SelectTrigger id="routine-approval-mode">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {trigger && !trigger.action_mode && (
+            <SelectItem value="existing">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="size-4 shrink-0" aria-hidden />
+                {t("approvalMode.existing")}
+              </span>
+            </SelectItem>
+          )}
+          <SelectItem value="automatic">
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.automatic")}
+            </span>
+          </SelectItem>
+          <SelectItem value="manual">
+            <span className="inline-flex items-center gap-2">
+              <Hand className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.manual")}
+            </span>
+          </SelectItem>
+          <SelectItem value="custom">
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.custom")}
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+
   if (reviewing !== null) {
     return (
       <ActionConsentsDialog
         trigger={reviewing}
-        onSaved={async () => {
-          await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
-        }}
+        onSaved={
+          activateAfterReview
+            ? async () => {
+                await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
+              }
+            : undefined
+        }
         onClose={() => {
-          if (reviewing.trigger_type === "event") setCreated(reviewing);
-          else onOpenChange(false);
+          if (!created) onOpenChange(false);
           setReviewing(null);
         }}
       />
@@ -806,22 +958,27 @@ export function TriggerFormDialog({
   }
 
   if (created !== null) {
+    const setupSecret = created.source_id ? null : (created.reveal_secret ?? secret);
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
-            <DialogTitle>{t("createdTitle")}</DialogTitle>
+            <DialogTitle>{t(created.source_id ? "created" : "createdTitle")}</DialogTitle>
             <DialogDescription>
-              {eventSource === "linear" ? t("createdDescriptionLinear") : t("createdDescription")}
+              {created.source_id
+                ? t("createdDescriptionShared")
+                : created.event_source === "linear"
+                  ? t("createdDescriptionLinear")
+                  : t("createdDescription")}
             </DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
           {/* A generated secret must be copied before this dialog closes. The
               raw form's local state holds the caller's secret; `reveal_secret`
               covers a server-minted one. */}
-          {(created.reveal_secret ?? secret) && (
+          {setupSecret && (
             <SecretRevealField
-              secret={created.reveal_secret ?? secret}
+              secret={setupSecret}
               label={t("secret")}
               note={t("createdSecretNote")}
               id="created-secret"
@@ -885,23 +1042,41 @@ export function TriggerFormDialog({
                 {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
               </legend>
               <NameField value={name} onChange={setName} />
+              {type === "event" && trigger.source_id && (
+                <SourceSelector
+                  value={sourceId}
+                  onChange={selectSource}
+                  disabled={pending || !canUseSourceTarget}
+                />
+              )}
+              {sourceId && eventSource !== "webhook" && (
+                <SubscriptionFields
+                  provider={eventSource}
+                  config={extraConfig}
+                  onChange={setExtraConfig}
+                  disabled={pending}
+                />
+              )}
+              {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
               <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
 
               {scheduleFields}
 
-              {trigger.trigger_type === "event" && trigger.webhook_url && (
+              {trigger.trigger_type === "event" && !sourceId && trigger.webhook_url && (
                 <WebhookField url={trigger.webhook_url} />
               )}
-              {trigger.trigger_type === "event" && trigger.event_source === "webhook" && (
-                <WebhookSignatureFields config={extraConfig} onChange={setExtraConfig} />
-              )}
+              {trigger.trigger_type === "event" &&
+                !sourceId &&
+                trigger.event_source === "webhook" && (
+                  <WebhookSignatureFields config={extraConfig} onChange={setExtraConfig} />
+                )}
 
-              {/* The source stays fixed; filters and webhook signature settings
-                can be edited, and eligible secrets can be rotated below. */}
+              {/* Dedicated endpoint settings remain on the routine; shared sources
+                own their credentials and verification settings. */}
               {trigger.trigger_type === "event" &&
                 trigger.event_source &&
                 (() => {
-                  const filters = FILTER_KEYS[trigger.event_source];
+                  const filters = FILTER_KEYS[eventSource];
                   return filters ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <FormField
@@ -932,9 +1107,9 @@ export function TriggerFormDialog({
                   ) : null;
                 })()}
 
-              {trigger.trigger_type === "event" && trigger.event_source && (
+              {trigger.trigger_type === "event" && !sourceId && trigger.event_source && (
                 <EventOptions
-                  source={trigger.event_source}
+                  source={eventSource}
                   config={extraConfig}
                   onChange={setExtraConfig}
                   canManageConnections={can("mcp:manage")}
@@ -942,6 +1117,7 @@ export function TriggerFormDialog({
               )}
               {trigger.trigger_type === "event" &&
                 trigger.can_manage &&
+                !sourceId &&
                 trigger.event_source !== "linear" &&
                 trigger.delivery_mode !== "polling" &&
                 trigger.delivery_mode !== "app_webhook" && (
@@ -951,7 +1127,8 @@ export function TriggerFormDialog({
                 <p className="text-muted-foreground text-xs">{t("linearSecretRotation")}</p>
               )}
 
-              <ResultModeField value={resultMode} onChange={setResultMode} />
+              {approvalField}
+              <ChatModeField value={chatMode} onChange={setChatMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
@@ -974,14 +1151,6 @@ export function TriggerFormDialog({
 
                 {resultMode === "report" && (
                   <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-                )}
-
-                {resultMode === "report" && (
-                  <AnswerToField
-                    value={answerTo}
-                    onChange={setAnswerTo}
-                    hasConversation={hasConversation}
-                  />
                 )}
                 <FailurePolicyField
                   value={maxFailures}
@@ -1057,7 +1226,7 @@ export function TriggerFormDialog({
       <RoutineDialogFrame
         title={type === "event" ? t("newEvent") : t("newSchedule")}
         description={t("createDescription")}
-        progress={{ steps, current: step }}
+        progress={type === "schedule" ? undefined : { steps, current: step }}
         pending={pending}
         disabled={preparedLocal !== null || pending}
         bodyKey={step}
@@ -1077,18 +1246,37 @@ export function TriggerFormDialog({
         }
       >
         {step === "event" && (
-          <EventFields
-            eventSource={eventSource}
-            onEventSource={setEventSource}
-            secret={secret}
-            onSecret={setSecret}
-            config={extraConfig}
-            onConfig={setExtraConfig}
-            filterA={filterA}
-            onFilterA={setFilterA}
-            filterB={filterB}
-            onFilterB={setFilterB}
-          />
+          <div className="space-y-4">
+            {(canAttachSource || sourceId) && (
+              <SourceSelector
+                value={sourceId}
+                onChange={selectSource}
+                allowDedicated={!reusableSourceOnly}
+              />
+            )}
+            {!sourceId && !reusableSourceOnly && (
+              <EventFields
+                eventSource={eventSource}
+                onEventSource={setEventSource}
+                secret={secret}
+                onSecret={setSecret}
+                config={extraConfig}
+                onConfig={setExtraConfig}
+                filterA={filterA}
+                onFilterA={setFilterA}
+                filterB={filterB}
+                onFilterB={setFilterB}
+              />
+            )}
+            {sourceId && eventSource !== "webhook" && (
+              <SubscriptionFields
+                provider={eventSource}
+                config={extraConfig}
+                onChange={setExtraConfig}
+              />
+            )}
+            {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
+          </div>
         )}
 
         {step === "configure" && (
@@ -1131,8 +1319,44 @@ export function TriggerFormDialog({
 
             <NameField value={name} onChange={setName} />
 
-            <ResultModeField value={resultMode} onChange={setResultMode} />
+            {type === "schedule" && (
+              <PromptField value={prompt} onChange={setPrompt} rows={5} disabled={pending} />
+            )}
+            {approvalField}
+            {type === "schedule" && scheduleFields}
+            <ChatModeField value={chatMode} onChange={setChatMode} />
+            <p role="note" className="text-muted-foreground text-sm">
+              {t(runsAsCreator ? "sourceConsents.runsAsYou" : "sourceConsents.agentIdentity")}
+            </p>
             <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+              {type === "schedule" && (
+                <TriggerTemplateSelector
+                  triggerType={type}
+                  selectedKey={templateKey}
+                  onPick={applyTemplate}
+                  onScratch={scratchTemplate}
+                />
+              )}
+              <div className="flex items-start gap-3 text-sm">
+                <Checkbox
+                  id="routine-review-before-activation"
+                  aria-describedby="routine-review-before-activation-hint"
+                  checked={reviewBeforeActivation}
+                  onCheckedChange={(checked) => setReviewBeforeActivation(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="routine-review-before-activation">
+                    {t("sourceConsents.reviewBeforeActivation")}
+                  </Label>
+                  <p
+                    id="routine-review-before-activation-hint"
+                    className="text-muted-foreground text-xs"
+                  >
+                    {t("sourceConsents.reviewBeforeActivationHint")}
+                  </p>
+                </div>
+              </div>
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
                   value={environmentId}
@@ -1156,13 +1380,6 @@ export function TriggerFormDialog({
                 <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
               )}
 
-              {resultMode === "report" && (
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
-                />
-              )}
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}
@@ -1360,7 +1577,7 @@ function ScheduleFields({
  * The "at a set time" builder: a repeat preset and a clock time, compiled to cron
  * by `composeCron` in the parent. A non-technical user picks "every day at 09:00"
  * rather than writing `0 9 * * *`; "Custom (cron)" still takes a raw expression for
- * anything the presets miss. A live summary states what the current choices mean.
+ * anything the presets miss.
  */
 function CronBuilder({
   freq,
@@ -1538,7 +1755,7 @@ interface CadenceFieldsProps extends ScheduleFieldsProps {
 
 /**
  * A schedule's cadence, asked in order: how often, then only what that choice
- * needs, then what it means in one sentence. What happens when a run is still
+ * needs. What happens when a run is still
  * going is rarely changed, so it waits under More options.
  */
 function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: CadenceFieldsProps) {
@@ -1559,78 +1776,16 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
         />
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
-      <CadenceSummary {...schedule} />
-      <details className="group">
+      <NativeDisclosure className="group">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
           {t("moreOptions")}
         </summary>
         <div className="pt-3">
           <OverlapField value={overlap} onChange={onOverlap} />
         </div>
-      </details>
+      </NativeDisclosure>
     </div>
   );
-}
-
-/** What the cadence means, in a sentence - for every choice, the builder's included. */
-function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: ScheduleFieldsProps) {
-  const t = useTranslations("triggers");
-  if (scheduleKind === "interval") {
-    // An invalid count says so under its own field; there is nothing to restate.
-    if (!intervalCountValid(intervalCount)) return null;
-    return (
-      <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-        {t("summaryInterval", { unit: intervalUnit, count: Number(intervalCount) })}
-      </p>
-    );
-  }
-  if (cron.freq === "advanced") return null;
-  return (
-    <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-      <CronSummary
-        freq={cron.freq}
-        time={cron.time}
-        zone={cron.timeZone}
-        everyDays={cron.everyDays}
-        weekdays={cron.weekdays}
-        dayOfMonth={cron.dayOfMonth}
-      />
-    </p>
-  );
-}
-
-/** A plain-language restatement of the builder's current choices, for reassurance. */
-function CronSummary({
-  freq,
-  time,
-  zone,
-  everyDays,
-  weekdays,
-  dayOfMonth,
-}: {
-  freq: CronFrequency;
-  time: string;
-  zone: string;
-  everyDays: string;
-  weekdays: number[];
-  dayOfMonth: string;
-}) {
-  const t = useTranslations("triggers");
-  if (freq === "everyNDays") {
-    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1) })}</>;
-  }
-  if (freq === "weekly") {
-    const chosen = weekdays.length ? weekdays : [1];
-    const days = [...chosen]
-      .sort((a, b) => a - b)
-      .map((value) => t(weekdayKey(value)))
-      .join(", ");
-    return <>{t("summaryWeekly", { time, zone, days })}</>;
-  }
-  if (freq === "monthly") {
-    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time, zone })}</>;
-  }
-  return <>{t("summaryDaily", { time, zone })}</>;
 }
 
 interface EventFieldsProps {

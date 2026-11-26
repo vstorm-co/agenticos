@@ -33,7 +33,12 @@ async def approve_consent_request(
     request_id: UUID, data: OAuthConsentApprove, service: OAuthServerSvc, ctx: Auth
 ) -> Any:
     """Let the application act as the caller, within the chosen permissions."""
-    return await service.approve(ctx, request_id, data.scopes)
+    return await service.approve(
+        ctx,
+        request_id,
+        data.scopes,
+        deployment_admin=data.deployment_admin,
+    )
 
 
 @router.post("/requests/{request_id}/deny", response_model=OAuthConsentAnswer)

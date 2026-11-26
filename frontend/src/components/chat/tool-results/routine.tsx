@@ -7,6 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { TriggerRow } from "@/components/triggers/trigger-row";
 import { Button } from "@/components/ui/button";
 import { useTriggers } from "@/hooks/use-triggers";
+import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
 import type { ToolCall } from "@/types";
 
 export interface RoutineReference {
@@ -57,6 +58,7 @@ export function RoutineResult({ routine }: { routine: RoutineReference }) {
   const t = useTranslations("triggers");
   const format = useFormatter();
   const { triggers, isLoading, error, refetch } = useTriggers(routine.agentId);
+  const readiness = useRoutinesReadiness(triggers.filter((item) => item.id === routine.id));
   if (isLoading)
     return (
       <p role="status" className="text-muted-foreground text-sm">
@@ -76,7 +78,7 @@ export function RoutineResult({ routine }: { routine: RoutineReference }) {
   if (!trigger) return <p className="text-muted-foreground text-sm">{t("routineUnavailable")}</p>;
   return (
     <div className="space-y-1">
-      <TriggerRow trigger={trigger} showAgent />
+      <TriggerRow trigger={trigger} showAgent blockers={readiness(trigger)} />
       {trigger.is_active && !trigger.paused_for_budget && trigger.next_fire_at && (
         <p className="text-muted-foreground text-xs">
           {t("nextActivation", {

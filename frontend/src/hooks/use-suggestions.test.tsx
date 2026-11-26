@@ -84,3 +84,23 @@ describe("usePersonalStarterQuery", () => {
     await waitFor(() => expect(result.current.data).toEqual(["Plan my week"]));
   });
 });
+
+it("reuses fresh inbox data immediately across mounts and refreshes after invalidation", async () => {
+  api.listSuggestions.mockClear();
+  api.listSuggestions.mockResolvedValue([{ id: "cached" }]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const shared = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const first = renderHook(() => useSuggestions(), { wrapper: shared });
+  await waitFor(() => expect(first.result.current.suggestions).toEqual([{ id: "cached" }]));
+  first.unmount();
+  const second = renderHook(() => useSuggestions(), { wrapper: shared });
+  expect(second.result.current.isLoading).toBe(false);
+  expect(second.result.current.suggestions).toEqual([{ id: "cached" }]);
+  expect(api.listSuggestions).toHaveBeenCalledTimes(1);
+  await second.result.current.dismiss("cached");
+  await waitFor(() => expect(api.listSuggestions).toHaveBeenCalledTimes(2));
+  second.unmount();
+  client.clear();
+});

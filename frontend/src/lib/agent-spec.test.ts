@@ -15,6 +15,7 @@ import {
   SUBAGENTS_ID,
   VERSION_HISTORY_LIMIT,
   withCapability,
+  withCapabilitySettings,
   withContextFiles,
   withResource,
   hasResource,
@@ -95,6 +96,43 @@ describe("withCapability", () => {
     expect(withCapability([binding("charts"), binding("clock")], "charts", false)).toEqual([
       binding("clock"),
     ]);
+  });
+});
+
+describe("withCapabilitySettings", () => {
+  it.each([{}, { strategy: "auto" }])(
+    "restores Tool search's published configuration (%j) after Auto → Keywords → Auto",
+    (strategy) => {
+      const config = { ...strategy, exclude_tools: ["second_tool", "first_tool"] };
+      const published = [binding("clock"), binding("tool_search", { config }), binding("charts")];
+      const keywords = binding("tool_search", { config: { ...config, strategy: "keywords" } });
+      const automatic = binding("tool_search", { config: { ...config, strategy: "auto" } });
+      // The published base stays the same across both autosaves.
+      const edit = (draft: CapabilityBindingSpec[], change: CapabilityBindingSpec) =>
+        withCapabilitySettings(draft, change, published);
+
+      const changed = edit(published, keywords);
+      expect(changed).toEqual([published[0], keywords, published[2]]);
+      expect(edit(changed, automatic)).toStrictEqual(published);
+    },
+  );
+
+  it("keeps an explicit strategy when changing another Tool search setting", () => {
+    const published = binding("tool_search");
+    const current = binding("tool_search", { config: { strategy: "auto" } });
+    const updated = { ...current, config: { strategy: "auto", max_results: 3 } };
+
+    expect(withCapabilitySettings([current], updated, [published])).toEqual([updated]);
+  });
+
+  it("does not strip an Auto setting from a newly added binding or another capability", () => {
+    const toolSearch = binding("tool_search", { config: { strategy: "keywords" } });
+    const toolSearchAuto = { ...toolSearch, config: { strategy: "auto" } };
+    expect(withCapabilitySettings([toolSearch], toolSearchAuto, [])).toEqual([toolSearchAuto]);
+
+    const other = binding("custom_search");
+    const otherAuto = { ...other, config: { strategy: "auto" } };
+    expect(withCapabilitySettings([other], otherAuto, [other])).toEqual([otherAuto]);
   });
 });
 

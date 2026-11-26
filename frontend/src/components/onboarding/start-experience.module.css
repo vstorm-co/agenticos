@@ -1,0 +1,644 @@
+.experience {
+  min-block-size: 100dvh;
+}
+.variantPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.variantPicker button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--color-muted-foreground);
+  font-size: 11px;
+}
+.variantPicker button[aria-pressed="true"] {
+  background: var(--color-control-active);
+  color: var(--color-foreground);
+}
+.journey {
+  min-inline-size: 0;
+}
+.journeyIntro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.journeyIntro strong {
+  font-size: 15px;
+  font-weight: 550;
+}
+.journeyIntro p,
+.journeyTeam p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+  margin-block-start: 5px;
+}
+.journeyFace {
+  display: block;
+  inline-size: 52px;
+  block-size: 52px;
+  flex: 0 0 52px;
+}
+.journey ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.journey nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: start;
+  inline-size: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.journey nav button > span:nth-child(2) {
+  flex: 1;
+}
+.journey nav button[aria-current="step"] {
+  color: var(--color-foreground);
+  background: var(--color-control-active);
+  font-weight: 550;
+}
+.journey nav button:disabled {
+  opacity: 0.45;
+}
+.journey nav button:not(:disabled):hover {
+  background: var(--color-muted);
+}
+.stepNumber {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.journeyTeam {
+  display: flex;
+  gap: 12px;
+  padding-block-start: 24px;
+  border-top: 1px solid var(--color-border);
+}
+.journeyTeam > span {
+  inline-size: 40px;
+  block-size: 40px;
+  flex: 0 0 40px;
+}
+.journeyTeam strong {
+  display: block;
+  font-weight: 550;
+  color: var(--color-foreground);
+}
+.connectionStage {
+  min-inline-size: 0;
+}
+.connectionHint {
+  max-inline-size: 660px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-muted-foreground);
+  margin-block-end: 24px;
+}
+.connectionFootnote {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--color-muted-foreground);
+  margin-block-start: 20px;
+}
+.agentCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.agentCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  padding: clamp(24px, 3vw, 40px);
+  background: var(--color-card);
+  min-inline-size: 0;
+}
+.agentCard h2 {
+  font-size: 28px;
+  font-weight: 550;
+  letter-spacing: -0.035em;
+  margin-block: 6px 12px;
+}
+.agentCard p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-muted-foreground);
+}
+.agentCard > :last-child {
+  margin-block-start: auto;
+  min-block-size: 44px;
+}
+.agentFace {
+  display: block;
+  inline-size: 96px;
+  block-size: 96px;
+}
+.eyebrow {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+}
+.launchLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 550;
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.launchLink:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 4px;
+}
+
+/* Each design changes composition while reusing the console's tokens and forms. */
+.experience:not([data-onboarding-variant="classic"]) :global([data-start-frame]) {
+  max-inline-size: 1440px;
+}
+.experience:not([data-onboarding-variant="classic"]) :global([data-start-topbar]) {
+  flex-wrap: wrap;
+}
+.experience:not([data-onboarding-variant="classic"]) :global([data-start-content]) {
+  padding-block: 12px 28px;
+}
+.experience:not([data-onboarding-variant="classic"]) :global([data-start-content] > section > h1) {
+  font-size: clamp(30px, 3.1vw, 46px);
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+/* Conversation: one calm reading column, guide bubbles and answer panels. */
+.experience[data-onboarding-variant="conversation"] :global([data-start-frame]) {
+  max-inline-size: 960px;
+}
+.experience[data-onboarding-variant="conversation"] .journeyIntro,
+.experience[data-onboarding-variant="conversation"] .journeyTeam {
+  display: none;
+}
+.experience[data-onboarding-variant="conversation"] .journey nav ol {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-block-end: 10px;
+  scrollbar-width: thin;
+}
+.experience[data-onboarding-variant="conversation"] .journey nav li {
+  flex: 0 0 auto;
+}
+.experience[data-onboarding-variant="conversation"] .journey nav button {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+}
+.experience[data-onboarding-variant="conversation"] .journey nav button svg {
+  display: none;
+}
+.experience[data-onboarding-variant="conversation"] :global([data-start-studio]) {
+  grid-template-columns: minmax(0, 1fr);
+  min-block-size: auto;
+}
+.experience[data-onboarding-variant="conversation"] :global([data-start-artwork]) {
+  display: none;
+}
+.experience[data-onboarding-variant="conversation"] :global([data-start-guide]) {
+  border: 1px solid var(--color-border);
+  border-radius: 22px 22px 22px 6px;
+  background: var(--color-muted);
+  padding: 20px;
+  margin-block: 24px;
+}
+.experience[data-onboarding-variant="conversation"] :global([data-start-content] > section > h1) {
+  max-inline-size: 720px;
+}
+
+/* Studio keeps the journey quiet and one decision in the reading column. */
+.experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  block-size: 100dvh;
+  max-inline-size: 1120px;
+  column-gap: 64px;
+  padding-inline: 32px;
+  padding-block-end: 0;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-topbar]),
+.experience[data-onboarding-variant="studio"] :global([data-start-header]) {
+  grid-column: 1 / -1;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-header]) {
+  margin-block: 28px 16px;
+}
+.experience[data-onboarding-variant="studio"] .journey {
+  grid-column: 1;
+  grid-row: 3 / span 2;
+  align-self: start;
+  position: static;
+  max-block-size: 100%;
+  overflow-y: auto;
+  padding-block: 20px;
+}
+.experience[data-onboarding-variant="studio"] .journey nav {
+  margin: 0;
+}
+.experience[data-onboarding-variant="studio"] .journey nav ol {
+  display: grid;
+  gap: 6px;
+}
+.experience[data-onboarding-variant="studio"] .journey nav button {
+  position: relative;
+  isolation: isolate;
+  gap: 10px;
+  min-block-size: 42px;
+  border-radius: 7px;
+  padding: 10px;
+}
+.experience[data-onboarding-variant="studio"] .journey nav button[aria-current="step"] {
+  background: transparent;
+}
+.phaseMarker {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-muted);
+}
+.experience[data-onboarding-variant="studio"] .journey nav button:disabled {
+  opacity: 0.65;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content]),
+.experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
+  grid-column: 2;
+  inline-size: 100%;
+  max-inline-size: 760px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content]) {
+  grid-row: 3;
+  min-block-size: 0;
+  padding-block: 0 28px;
+  padding-inline: 4px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content] > section) {
+  padding-block-start: 20px;
+}
+.experience[data-onboarding-variant="studio"]
+  :global([data-start-content] > section):has([data-start-catalog], [data-chat-model-library]) {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 20rem;
+}
+.experience[data-onboarding-variant="studio"] .connectionStage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+.experience[data-onboarding-variant="studio"] .catalogViewport {
+  flex: 1;
+  block-size: auto;
+  min-block-size: 0;
+  padding-inline-end: 20px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content]),
+.experience[data-onboarding-variant="studio"] .catalogViewport {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-foreground) 18%, transparent) transparent;
+}
+@media (forced-colors: active) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-content]),
+  .experience[data-onboarding-variant="studio"] .catalogViewport {
+    scrollbar-color: auto;
+  }
+}
+.experience[data-onboarding-variant="studio"] .connectionFootnote {
+  flex-shrink: 0;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content] > section > h1) {
+  font-size: clamp(26px, 2.4vw, 32px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin-block-end: 12px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-studio]),
+.experience[data-onboarding-variant="studio"] :global([data-start-workspace]) {
+  grid-template-columns: minmax(0, 1fr);
+  min-block-size: auto;
+  gap: 0;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-workspace-form]),
+.experience[data-onboarding-variant="studio"] :global([data-start-profile]) {
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.experience[data-onboarding-variant="studio"]
+  :global([data-start-profile] > div > section > header) {
+  display: none;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
+  grid-row: 4;
+  position: static;
+  min-block-size: 80px;
+  margin-block-start: 0;
+  padding-inline: 4px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
+  min-inline-size: 136px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-forward]) {
+  min-inline-size: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-forward] > *) {
+  min-inline-size: 0;
+  min-block-size: 44px;
+  block-size: auto;
+  white-space: normal;
+}
+.experience[data-onboarding-variant="studio"] .connectionHint {
+  display: none;
+}
+.helper {
+  max-inline-size: 620px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-muted-foreground);
+  margin-block: 0 28px;
+}
+.mobileProgress {
+  display: none;
+}
+
+/* Launchpad: wide, airy canvas with an illustrated mission strip. */
+.experience[data-onboarding-variant="launchpad"] .journey {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 2fr);
+  gap: 28px;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  background: var(--color-muted);
+  margin-block-end: 36px;
+}
+.experience[data-onboarding-variant="launchpad"] .journeyIntro {
+  align-self: start;
+}
+.experience[data-onboarding-variant="launchpad"] .journeyFace {
+  inline-size: 80px;
+  block-size: 80px;
+  flex-basis: 80px;
+}
+.experience[data-onboarding-variant="launchpad"] .journey nav ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.experience[data-onboarding-variant="launchpad"] .journey nav button {
+  background: var(--color-card);
+  border: 1px solid transparent;
+  block-size: 100%;
+}
+.experience[data-onboarding-variant="launchpad"] .journey nav button[aria-current="step"] {
+  border-color: var(--color-foreground);
+}
+.experience[data-onboarding-variant="launchpad"] .journeyTeam {
+  border: 0;
+  padding: 0;
+  grid-column: 1;
+}
+.experience[data-onboarding-variant="launchpad"] .journey nav {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.experience[data-onboarding-variant="launchpad"] :global([data-start-content]) {
+  padding-inline: 24px;
+}
+.experience[data-onboarding-variant="launchpad"] :global([data-start-content] > section > h1) {
+  font-size: clamp(36px, 4vw, 56px);
+}
+.experience[data-onboarding-variant="launchpad"] :global([data-start-guide]) {
+  max-inline-size: 800px;
+  margin-block: 16px;
+}
+
+@media (max-width: 950px) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+  .experience[data-onboarding-variant="studio"] .journey {
+    grid-column: 1;
+    grid-row: 3;
+    position: static;
+  }
+  .experience[data-onboarding-variant="studio"] .journey {
+    padding-block: 0;
+  }
+  .experience[data-onboarding-variant="studio"] .journey nav {
+    display: none;
+  }
+  .experience[data-onboarding-variant="studio"] .mobileProgress {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding-block: 4px 12px;
+    font-size: 12px;
+    color: var(--color-muted-foreground);
+  }
+  .mobileProgress > div {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+  }
+  .mobileProgress > div > span {
+    block-size: 3px;
+    flex: 1;
+    border-radius: 99px;
+    background: var(--color-border);
+  }
+  .mobileProgress > div > span[data-current="true"] {
+    background: var(--color-foreground);
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-content]),
+  .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
+    grid-column: 1;
+    max-inline-size: none;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-content]) {
+    grid-row: 4;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
+    grid-row: 5;
+    min-block-size: 96px;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
+    min-inline-size: min(136px, 36vw);
+  }
+  .experience[data-onboarding-variant="launchpad"] .journey {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    padding: 20px;
+  }
+  .experience[data-onboarding-variant="launchpad"] .journey nav {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .experience[data-onboarding-variant="launchpad"] .journeyTeam {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .variantPicker {
+    inline-size: 100%;
+  }
+  .variantPicker button {
+    flex: 1;
+    justify-content: center;
+    padding-inline: 5px;
+  }
+  .agentCards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .experience[data-onboarding-variant="launchpad"] .journey nav ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .experience[data-onboarding-variant="launchpad"] :global([data-start-content]) {
+    padding-inline: 0;
+  }
+  .journey nav button {
+    gap: 8px;
+    padding: 10px 8px;
+  }
+}
+:global(html:not([data-motion="reduce"]))
+  .experience:is([data-onboarding-variant="conversation"], [data-onboarding-variant="launchpad"])
+  :global([data-start-content] > section:not([hidden])) {
+  animation: stage-forward var(--duration-base) var(--ease-out) both;
+}
+:global(html:not([data-motion="reduce"]))
+  .experience:is([data-onboarding-variant="conversation"], [data-onboarding-variant="launchpad"])
+  :global([data-start-frame][data-direction="back"] [data-start-content] > section:not([hidden])) {
+  animation-name: stage-back;
+}
+:global(html:not([data-motion="reduce"]))
+  .experience:not([data-onboarding-variant="studio"])
+  .agentCard {
+  animation: stage-forward var(--duration-slow) var(--ease-out) both;
+}
+:global(html:not([data-motion="reduce"]))
+  .experience:not([data-onboarding-variant="studio"])
+  .agentCard:nth-child(2) {
+  animation-delay: calc(var(--duration-fast) / 2);
+}
+@keyframes stage-forward {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes stage-back {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.experience:not([data-onboarding-variant="classic"]) :global([data-start-header] > ol) {
+  display: none;
+}
+.experience[data-onboarding-variant="launchpad"] .journey {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+}
+.experience[data-onboarding-variant="launchpad"] .journeyTeam {
+  padding-block-start: 12px;
+}
+.teammates {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding-block: 24px;
+}
+.teammates > span {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 550;
+}
+.teammates > span > span {
+  display: block;
+  inline-size: 84px;
+  block-size: 84px;
+}
+@media (max-width: 950px) {
+  .experience[data-onboarding-variant="launchpad"] .journey {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.catalogViewport {
+  display: flex;
+  flex-direction: column;
+  block-size: min(38rem, 70dvh);
+  min-block-size: 24rem;
+  min-inline-size: 0;
+}
+
+.catalogViewport {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 4px;
+}
+
+@media (max-width: 600px) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
+    padding-inline: 20px;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-header]) {
+    margin-block: 20px 12px;
+  }
+}
+
+.experience[data-onboarding-variant="studio"] :global([data-start-welcome]) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-welcome] h1) {
+  font-size: clamp(26px, 2.4vw, 32px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}

@@ -38,6 +38,7 @@ export function RemoteAgentList({
   const tErrors = useTranslations("errors");
   const [removing, setRemoving] = useState<ExternalAgent | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [removingBusy, setRemovingBusy] = useState(false);
 
   const refresh = async (agent: ExternalAgent) => {
     setBusy(agent.id);
@@ -120,13 +121,17 @@ export function RemoteAgentList({
           description={t("removeDescription")}
           confirmLabel={t("remove")}
           destructive
+          loading={removingBusy}
           onConfirm={async () => {
+            setRemovingBusy(true);
             try {
               await onRemove(removing.id);
+              setRemoving(null);
             } catch (error) {
               toast.error(getErrorMessage(error, tErrors));
+            } finally {
+              setRemovingBusy(false);
             }
-            setRemoving(null);
           }}
         />
       )}

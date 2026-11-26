@@ -95,5 +95,5 @@ export function ConnectorIcon({
 
 /** Whether a catalog's icon name is one this set actually draws. */
 export function isBrandName(value: string): value is BrandName {
-  return value in BRAND_GLYPHS;
+  return Object.hasOwn(BRAND_GLYPHS, value);
 }

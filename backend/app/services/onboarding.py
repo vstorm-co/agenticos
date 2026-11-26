@@ -13,12 +13,14 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_repo,
+    deployment_settings_repo,
     member_repo,
     onboarding_repo,
     organization_assistant_repo,
     organization_repo,
     user_repo,
 )
+from app.schemas.console_experience import OnboardingReminderOverrides, resolve_onboarding_reminders
 from app.schemas.onboarding import (
     MemberStartRead,
     OnboardingAgent,
@@ -72,13 +74,18 @@ class OnboardingService:
         person = await user_repo.get_by_id(self.db, member.user_id)
         owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
         owner = await user_repo.get_by_id(self.db, owner_id) if owner_id is not None else None
-        completed = member.onboarding_completed_at is not None or (
-            person is not None
-            and person.onboarding_completed_at is not None
-            and member.joined_at <= person.onboarding_completed_at
+        completed_at = onboarding_repo.effective_completed_at(
+            member, person.onboarding_completed_at if person else None
+        )
+        completed = completed_at is not None
+        deployment = await deployment_settings_repo.get(self.db)
+        reminders = resolve_onboarding_reminders(
+            deployment.onboarding_reminders_available if deployment else None,
+            OnboardingReminderOverrides.model_validate(org.onboarding_reminders or {}),
+            OnboardingReminderOverrides.model_validate(member.onboarding_reminders or {}),
         )
         snoozed_until = (
-            member.onboarding_dismissed_at + timedelta(days=1)
+            member.onboarding_dismissed_at + timedelta(days=reminders.effective.snooze_days)
             if member.onboarding_dismissed_at is not None
             else None
         )
@@ -90,6 +97,9 @@ class OnboardingService:
             goal=member.onboarding_goal,
             dismissed=completed or snoozed_until is not None,
             completed=completed,
+            completed_at=completed_at,
+            current_step=None if completed else member.onboarding_current_step,
+            updated_at=member.onboarding_updated_at,
             snoozed_until=snoozed_until,
             can_prepare=ctx.has(Perm.AGENTS_EDIT) and ctx.has(Perm.AGENTS_PUBLISH),
             can_configure_model=ctx.has(Perm.CONNECTIONS_MANAGE),

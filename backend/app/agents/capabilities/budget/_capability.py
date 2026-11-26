@@ -46,6 +46,7 @@ from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.model_resolver import otari_price_identity
+from app.core.exceptions import BadRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,28 @@ class BudgetExceeded(Exception):
         )
 
 
+UNMETERED_PROVIDERS = frozenset(
+    {
+        "github_copilot",
+        "github-copilot",
+        "openai_chatgpt",
+        "openai-chatgpt",
+        "native-codex",
+        "native-claude_code",
+        "native-external",
+        "kimi_code",
+        "alibaba_coding_plan",
+        "opencode_go",
+        "ollama_cloud",
+        "cliproxyapi",
+        "subscription_accounts",
+        "nous_portal",
+        "chutes",
+        "synthetic",
+    }
+)
+
+
 def price_request(
     usage: RequestUsage | RunUsage, model_name: str, provider: str | None
 ) -> Decimal | None:
@@ -166,6 +189,9 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
+    if provider in UNMETERED_PROVIDERS:
+        # Subscription allowances have no verified per-token USD contract.
+        return None
     if (reported := _provider_reported_cost(usage)) is not None:
         return reported
     for name, provider_id in _price_lookups(model_name, provider):
@@ -446,7 +472,11 @@ class SpendLedger:
         self, model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
     ) -> SpendEntry:
         cost = price_request(usage, model_name, provider)
-        reported = _provider_reported_cost(usage)
+        reported = (
+            None
+            if provider in {"github_copilot", "github-copilot"}
+            else _provider_reported_cost(usage)
+        )
         reported_requests = _reported_requests(usage)
         incomplete = reported is not None and 0 < reported_requests < usage.requests
         if cost is None:
@@ -599,6 +629,26 @@ def guarded_by(guard: BudgetGuard) -> Generator[None]:
         yield
     finally:
         _active_guard.reset(token)
+
+
+def require_ambient_price(provider: str, model_name: str) -> None:
+    """Refuse a price-dependent provider request when a USD ceiling cannot be enforced.
+
+    Called by providers whose new model IDs have no reviewed price snapshot.
+    Uncapped runs keep the existing partial-cost accounting contract.
+    """
+    guard = _active_guard.get()
+    if guard is None or not guard.limits:
+        return
+    if (
+        guard.ledger.has_unpriced_models
+        or price_request(RequestUsage(input_tokens=1, output_tokens=1), model_name, provider)
+        is None
+    ):
+        raise BadRequestError(
+            message="This request cannot enforce the active dollar budget because its price is unknown or earlier usage is unpriced. Choose a priced model and start a new run.",
+            details={"provider": provider, "model": model_name},
+        )
 
 
 async def assert_ambient_budget() -> None:
@@ -1017,4 +1067,12 @@ class BudgetGuard(AbstractCapability[Any]):
         model_name = getattr(response, "model_name", None) or "unknown"
         usage = getattr(response, "usage", None)
         if usage is not None:
-            self.ledger.record(model_name, usage, self.provider)
+            provider = self.provider
+            if (
+                provider in UNMETERED_PROVIDERS
+                and response.provider_name is not None
+                and response.provider_name not in UNMETERED_PROVIDERS
+            ):
+                # An explicitly configured fallback may have billed a metered API.
+                provider = response.provider_name
+            self.ledger.record(model_name, usage, provider)

@@ -4,6 +4,8 @@ import {
   hasKey,
   modelDetail,
   modelInUse,
+  modelName,
+  catalogModelName,
   modelShortName,
   runsAgents,
   usableForAgents,
@@ -43,6 +45,25 @@ describe("modelDetail", () => {
 
   it("still names the model where only the provider is in the name", () => {
     expect(modelDetail(profile({ label: "openai default" }))).toBe("openai · gpt-4.1");
+  });
+});
+
+describe("modelName", () => {
+  it("uses the catalog's spelling for a profile with an automatic label", () => {
+    expect(
+      modelName(
+        profile({
+          label: "OpenRouter · anthropic/claude-sonnet-5",
+          provider: "openrouter",
+          model: "anthropic/claude-sonnet-5",
+        }),
+        "Anthropic: Claude Sonnet 5",
+      ),
+    ).toBe("Claude Sonnet 5");
+  });
+
+  it("keeps a custom profile label when a catalog name is available", () => {
+    expect(modelName(profile(), "GPT-4.1")).toBe("the cheap one");
   });
 });
 
@@ -124,4 +145,27 @@ describe("modelInUse", () => {
     expect(modelInUse(new ApiError(404, "gone", { error: { code: "NOT_FOUND" } }))).toBeNull();
     expect(modelInUse(new Error("network"))).toBeNull();
   });
+});
+
+it("keeps opaque subscription account routes out of the displayed model name", () => {
+  const model = "account-" + "a".repeat(24) + "/openai/gpt-test";
+  expect(
+    modelName({ provider: "subscription_accounts", model, label: `ChatGPT (Codex) · ${model}` }),
+  ).toBe("gpt-test");
+  expect(
+    modelName(
+      { provider: "subscription_accounts", model, label: `ChatGPT (Codex) · ${model}` },
+      "GPT Test",
+    ),
+  ).toBe("GPT Test");
+  expect(modelName({ provider: "subscription_accounts", model, label: "My account model" })).toBe(
+    "My account model",
+  );
+});
+
+it("removes account routing from catalog captions used by the chat composer", () => {
+  const routed = "account-" + "a".repeat(24) + "/gemini-3-flash";
+  expect(catalogModelName(routed, routed)).toBe("gemini-3-flash");
+  expect(catalogModelName(routed)).toBe("gemini-3-flash");
+  expect(catalogModelName(routed, "Gemini Flash")).toBe("Gemini Flash");
 });

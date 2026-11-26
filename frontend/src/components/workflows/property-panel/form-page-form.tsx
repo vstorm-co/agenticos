@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 
 import { FormSurface } from "../form-surface";
@@ -118,14 +120,14 @@ export function FormPageForm({ node, disabled, updateNodeConfig }: FormPageFormP
           </div>
         ))}
       </div>
-      <details className="rounded-xl border">
+      <NativeDisclosure className="rounded-xl border">
         <summary className="cursor-pointer p-4 text-sm font-medium">{t("preview")}</summary>
         <div className="bg-muted/20 p-4">
           <FormSurface appearance={page.appearance} preview>
             <PublicForm page={page} preview />
           </FormSurface>
         </div>
-      </details>
+      </NativeDisclosure>
     </section>
   );
 }

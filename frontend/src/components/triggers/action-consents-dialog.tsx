@@ -1,12 +1,12 @@
 "use client";
 
-import { ActionSelection } from "./action-selection";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { SourceConsentsPanel } from "@/components/triggers/source-consents-panel";
-import { useState } from "react";
-import { useTranslations } from "next-intl";
-import { useRoutineActions } from "@/hooks/use-routine-actions";
+import { RoutineToolSelection } from "@/components/triggers/routine-tool-selection";
+import { useRoutineTools } from "@/hooks/use-routine-tools";
 import { useRoutineSources } from "@/hooks/use-routine-sources";
 import {
   Button,
@@ -21,12 +21,18 @@ import {
 import { ErrorState } from "@/components/states/error-state";
 import type { Trigger } from "@/types/triggers";
 import {
-  routineActionIdentity as identity,
-  routineActionKey,
-  type RoutineActionOptions,
-} from "@/lib/routine-actions-api";
-import type { RoutineSourceReview } from "@/lib/routine-sources-api";
+  routineToolIdentity,
+  routineToolKey,
+  type RoutineToolOptions,
+  type RoutineToolSettingValue,
+} from "@/lib/routine-tools-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceMode,
+  type RoutineSourceReview,
+} from "@/lib/routine-sources-api";
 
+/** Source access and per-tool restrictions are saved explicitly, without waiving agent approvals. */
 export function ActionConsentsDialog({
   trigger,
   onClose,
@@ -34,49 +40,68 @@ export function ActionConsentsDialog({
 }: {
   trigger: Trigger;
   onClose: () => void;
-  /** Finish a newly created routine only after its displayed access is saved. */
   onSaved?: () => Promise<void>;
 }) {
-  const t = useTranslations("triggers.actionConsents");
+  const t = useTranslations("triggers.toolSettings");
   const setup = useTranslations("triggers");
+  const common = useTranslations("common");
   const sources = useRoutineSources(trigger.agent_id, trigger.id);
-  const sourcesData = sources.data;
-  const [saving, setSaving] = useState(false);
-  const { data, isLoading, error, replace, refetch } = useRoutineActions(
-    trigger.agent_id,
-    trigger.id,
-  );
-  const [chosen, setChosen] = useState<{ token: string; keys: Set<string> } | null>(null);
+  const sourceReview = sources.data;
+  const [sourceChoice, setSourceChoice] = useState<{
+    token: string;
+    mode: RoutineSourceMode;
+  } | null>(null);
+  const sourceMode =
+    (sourceChoice?.token === sourceReview?.review_token ? sourceChoice?.mode : undefined) ??
+    sourceReview?.mode ??
+    "restricted";
+  const tools = useRoutineTools(trigger.agent_id, trigger.id, { enabled: !!sourceReview });
+  const data = tools.data;
+  const [choice, setChoice] = useState<{
+    data: RoutineToolOptions;
+    selected: Map<string, RoutineToolSettingValue>;
+  } | null>(null);
   const selected =
-    (chosen?.token === data?.review_token ? chosen?.keys : null) ??
-    new Set(data?.items.filter((item) => item.consented && item.waivable).map(identity));
-  const maxActions = data?.max_actions ?? 100;
-  const overLimit = selected.size > maxActions;
-  const pending = saving || replace.isPending || sources.replace.isPending;
+    choice !== null && choice.data === data
+      ? choice.selected
+      : new Map(
+          data === undefined
+            ? []
+            : [
+                ...data.items.flatMap((item) =>
+                  item.setting === null ? [] : [[routineToolIdentity(item), item.setting] as const],
+                ),
+                ...data.unavailable_settings.map(
+                  (item) => [routineToolIdentity(item), item.setting] as const,
+                ),
+              ],
+        );
+  const [saving, setSaving] = useState(false);
+  const pending = saving || tools.replace.isPending || sources.replace.isPending;
   const sourceUnavailable =
-    !sources.data ||
+    !sourceReview ||
     !!sources.error ||
     sources.isLoading ||
-    sources.data.unavailable_sources.length > 0;
-  async function save(data: RoutineActionOptions, sourceReview: RoutineSourceReview) {
+    routineSourceBlockers(sourceReview, sourceMode).length > 0;
+  async function save(data: RoutineToolOptions, sourceReview: RoutineSourceReview) {
     setSaving(true);
     try {
-      if (onSaved || !sourceReview.current)
-        await sources.replace.mutateAsync(sourceReview.review_token);
-      if (data.can_waive || onSaved) {
-        await replace.mutateAsync(
-          data.can_waive
-            ? data.items
-                .filter((item) => item.waivable && selected.has(identity(item)))
-                .map(routineActionKey)
-            : [],
-        );
+      if (onSaved || !sourceReview.current || sourceMode !== (sourceReview.mode ?? "restricted")) {
+        await sources.replace.mutateAsync({
+          review_token: sourceReview.review_token,
+          mode: sourceMode,
+        });
       }
+      await tools.replace.mutateAsync(
+        [...data.items, ...data.unavailable_settings].flatMap((item) => {
+          const setting = selected.get(routineToolIdentity(item));
+          return setting ? [{ ...routineToolKey(item), setting }] : [];
+        }),
+      );
       await onSaved?.();
       onClose();
     } catch {
-      // Each mutation reports its refusal and refreshes its review; keep the
-      // displayed selection available for correction instead of closing it.
+      // The mutation reports the refusal; keep the dialog open for correction.
     } finally {
       setSaving(false);
     }
@@ -86,100 +111,92 @@ export function ActionConsentsDialog({
       <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{onSaved ? setup("setupReviewTitle") : t("title")}</DialogTitle>
-          <DialogDescription>
-            {onSaved ? setup("setupReviewDescription") : t("description")}
-          </DialogDescription>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          <SourceConsentsPanel trigger={trigger} showApprove={false} />
-          {isLoading ? (
+          <SourceConsentsPanel
+            trigger={trigger}
+            showApprove={false}
+            mode={sourceMode}
+            disabled={pending}
+            onModeChange={(mode) =>
+              sourceReview && setSourceChoice({ token: sourceReview.review_token, mode })
+            }
+          />
+          {tools.isLoading ? (
             <Spinner />
-          ) : error ? (
-            <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
+          ) : tools.error ? (
+            <ErrorState cta={{ label: common("retry"), onClick: () => void tools.refetch() }} />
           ) : (
             data && (
-              <div className="space-y-4">
-                {!data.can_waive && (
-                  <p className="text-muted-foreground text-sm">{t("notAllowed")}</p>
+              <>
+                {trigger.action_mode !== "agent" && (
+                  <p className="bg-muted/50 rounded-lg border p-3 text-sm">{t("legacyMode")}</p>
                 )}
-                {!!data.unavailable_sources?.length && (
+                {data.unavailable_sources.length > 0 && (
                   <p className="text-muted-foreground text-sm">
-                    {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
+                    {t("unavailable", { names: data.unavailable_sources.join(", ") })}
                   </p>
                 )}
-                {data.items.length === 0 && (
-                  <p className="text-muted-foreground text-sm">{t("empty")}</p>
-                )}
-                {data.review_changes?.map((change) => (
-                  <p key={change} role="status" className="text-sm">
-                    {t(`changed.${change}`)}
-                  </p>
-                ))}
-                {data.items.some(
-                  (item) => item.previously_consented && !item.consented && item.waivable,
+                {data.unavailable_settings.some((item) =>
+                  selected.has(routineToolIdentity(item)),
                 ) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending || !data.can_waive}
-                    onClick={() =>
-                      setChosen({
-                        token: data.review_token,
-                        keys: new Set([
-                          ...selected,
-                          ...data.items
-                            .filter((item) => item.previously_consented && item.waivable)
-                            .map(identity),
-                        ]),
-                      })
-                    }
-                  >
-                    {t("reselectPrevious")}
-                  </Button>
+                  <section className="space-y-2 rounded-lg border p-3">
+                    <h3 className="text-sm font-medium">{t("unavailableSettings")}</h3>
+                    <p className="text-muted-foreground text-xs">{t("unavailableSettingsBody")}</p>
+                    {data.unavailable_settings
+                      .filter((item) => selected.has(routineToolIdentity(item)))
+                      .map((item) => (
+                        <div
+                          key={routineToolIdentity(item)}
+                          className="flex items-center justify-between gap-3 text-sm"
+                        >
+                          <span className="min-w-0 break-words">
+                            {item.tool_id} · {t(item.setting)}
+                            <span className="text-muted-foreground block text-xs break-all">
+                              {routineToolIdentity(item)}
+                            </span>
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            aria-label={t("removeRestriction", {
+                              name: `${item.tool_id} (${routineToolIdentity(item)})`,
+                            })}
+                            onClick={() => {
+                              const next = new Map(selected);
+                              next.delete(routineToolIdentity(item));
+                              setChoice({ data, selected: next });
+                            }}
+                          >
+                            {common("delete")}
+                          </Button>
+                        </div>
+                      ))}
+                  </section>
                 )}
-                <p role={overLimit ? "alert" : "status"} className="text-sm">
-                  {t(overLimit ? "tooMany" : "selected", {
-                    count: selected.size,
-                    limit: maxActions,
-                  })}
-                </p>
-                <ActionSelection
+                <RoutineToolSelection
                   items={data.items}
                   selected={selected}
-                  disabled={pending || !data.can_waive}
-                  onChange={(keys) => setChosen({ token: data.review_token, keys })}
+                  disabled={pending}
+                  onChange={(settings) => setChoice({ data, selected: settings })}
                 />
-              </div>
+              </>
             )
           )}
         </div>
         <DialogFooter>
-          {onSaved && (
-            <Button variant="outline" disabled={pending} onClick={onClose}>
-              {setup("finishLater")}
-            </Button>
-          )}
-          {!onSaved && (
-            <Button
-              variant="outline"
-              disabled={!data || pending}
-              onClick={() => replace.mutate([], { onSuccess: onClose })}
-            >
-              {t("revokeAll")}
-            </Button>
-          )}
+          <Button variant="outline" disabled={pending} onClick={onClose}>
+            {onSaved ? setup("finishLater") : common("cancel")}
+          </Button>
           <Button
-            disabled={
-              !data ||
-              (!data.can_waive && !onSaved && sources.data?.current !== false) ||
-              pending ||
-              !!error ||
-              overLimit ||
-              sourceUnavailable
-            }
-            onClick={data && sourcesData ? () => void save(data, sourcesData) : undefined}
+            disabled={!data || !!tools.error || pending || sourceUnavailable}
+            loading={pending}
+            onClick={data && sourceReview ? () => void save(data, sourceReview) : undefined}
           >
-            {onSaved ? setup("enableRoutine") : t("save")}
+            {onSaved ? setup("enableRoutine") : common("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

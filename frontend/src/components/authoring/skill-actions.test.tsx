@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
     name: string;
   } | null,
   ask: vi.fn(),
+  open: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView }),
@@ -32,8 +33,9 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
 }));
 vi.mock("@/hooks/use-assistant", () => ({ useAssistant: () => ({ assistant: state.assistant }) }));
 vi.mock("@/stores/architect-ask-store", () => ({
-  useArchitectAskStore: (select: (value: { ask: (text: string) => void }) => unknown) =>
-    select({ ask: state.ask }),
+  useArchitectAskStore: (
+    select: (value: { ask: (text: string) => void; open: () => void }) => unknown,
+  ) => select({ ask: state.ask, open: state.open }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -77,8 +79,19 @@ describe("the assistant's Improve button", () => {
     expect(screen.getByRole("button", { name: "Reading the runs…" })).toBeDisabled();
     second.unmount();
     state.latest = authoringRequest({ status: "failed", error: "No runs opened it" });
-    render(<ImproveContextButton contextId="context-1" />);
+    const third = render(<ImproveContextButton contextId="context-1" />);
     expect(screen.getByRole("alert")).toHaveTextContent("No runs opened it");
+    third.unmount();
+    state.latest = authoringRequest({
+      status: "failed",
+      error: "Lost the right to edit it.",
+      error_code: "no_edit_context",
+    });
+    render(<ImproveContextButton contextId="context-1" />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Whoever started this may no longer edit the context file.",
+    );
+    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
   });
 
   it("says when what it proposed is what the skill already says", () => {
@@ -147,15 +160,14 @@ describe("the context file buttons", () => {
 });
 
 describe("DescribeWithArchitect", () => {
-  it("hands the description to the Architect and closes the dialog", async () => {
+  it("opens the widget without a prompt or a second form", async () => {
     const onAsked = vi.fn();
     render(<DescribeWithArchitect onAsked={onAsked} />);
-    const send = screen.getByRole("button", { name: "Describe it to the Architect" });
-    expect(send).toBeDisabled();
-    await userEvent.type(screen.getByRole("textbox"), "A refund helper");
-    await userEvent.click(send);
-    expect(state.ask).toHaveBeenCalledWith("Draft an agent for me: A refund helper");
-    expect(onAsked).toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Create with Architect" }));
+    expect(state.open).toHaveBeenCalledOnce();
+    expect(state.ask).not.toHaveBeenCalled();
+    expect(onAsked).toHaveBeenCalledOnce();
   });
 
   it("is absent while the Architect is unavailable", () => {

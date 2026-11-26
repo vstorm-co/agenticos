@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 
 import { JsonView } from "@/components/ui/json-view";
@@ -113,12 +115,12 @@ export function RunAnswer({ output }: { output: Record<string, unknown> }) {
         </p>
       )}
       {!empty && (
-        <details>
+        <NativeDisclosure>
           <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
             {t("runAnswerRaw")}
           </summary>
           <JsonView value={output} className="mt-2" />
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );

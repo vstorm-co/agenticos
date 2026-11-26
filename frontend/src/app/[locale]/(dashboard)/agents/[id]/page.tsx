@@ -1,12 +1,16 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { canonicalJson, sameJson } from "@/lib/canonical-json";
+import { BuildSection } from "@/components/agents/build-section";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   SlidersHorizontal,
   Wrench,
@@ -14,11 +18,10 @@ import {
   Archive,
   ArchiveRestore,
   Copy,
-  Database,
   Download,
+  Pencil,
   FlaskConical,
   History,
-  Lock,
   ImagePlus,
   MoreHorizontal,
   Network,
@@ -27,6 +30,7 @@ import {
   TrendingUp,
   Upload,
   Radio,
+  RotateCcw,
   SearchX,
   UserPlus,
   X,
@@ -38,9 +42,9 @@ import {
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { ExportAgentDialog } from "@/components/agents/export-dialog";
 import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
-import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
   AgentMap,
   capabilityMark,
@@ -61,9 +65,10 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
-import { usableForAgents } from "@/lib/model-profiles";
+import { runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
+import { useAgentTabAttention } from "@/hooks/use-agent-tab-attention";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AssistantStrip } from "@/components/authoring/assistant-strip";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -86,7 +91,7 @@ import {
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
@@ -94,6 +99,7 @@ import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { VoiceCard } from "@/components/agents/voice-card";
+import { ShippedUpdateDialog } from "@/components/agents/shipped-update-dialog";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
@@ -113,6 +119,7 @@ import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcu
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { gapStatus } from "@/lib/knowledge-gap-status";
+import { AttentionDot } from "@/components/agents/attention-dot";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -163,6 +170,7 @@ import {
   useAgentEnvironments,
   useAgents,
   useAgentVersions,
+  useDraftBase,
   useCapabilityCatalog,
   usePromptVariables,
   useDelegationTree,
@@ -185,6 +193,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withCapabilitySettings,
   enableMcpToolSearch,
   withContextFiles,
   withSkills,
@@ -201,14 +210,14 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn, setUrlParam } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -259,6 +268,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const tGaps = useTranslations("knowledgeGaps");
+  const tAttention = useTranslations("attention");
   const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
@@ -268,7 +278,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const testedRun = searchParams.get("run");
   const testedArm = searchParams.get("arm");
   const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
-  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
+  const { spec: testedSpec, error: testedSpecError } = useEvalArmSpec(testedRun, testedArm);
   const publishAsked = searchParams.get("publish") === "1";
   const router = useRouter();
   const {
@@ -278,6 +288,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     error: agentError,
     refetch: refetchAgent,
     saveDraft,
+    discardDraft,
     validate,
     publish,
     rollback,
@@ -316,6 +327,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
+  const { base: draftBase } = useDraftBase(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -326,7 +338,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     test: probeMcpConnection,
     isLoading: connectionsLoading,
     error: connectionsError,
-  } = useOrgMcpConnections();
+  } = useOrgMcpConnections({ enabled: can(Perm.mcpManage) });
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
   const connectServer = useConnectEntry("organization", {
@@ -352,6 +364,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
+  const [adoptedBudget, setAdoptedBudget] = useState<AgentSpec["budget"]>(null);
+  const [adoptedCapabilities, setAdoptedCapabilities] = useState<AgentSpec["capabilities"]>([]);
+  const [draftRevision, setDraftRevision] = useState<string | null>(null);
+  const [draftConflict, setDraftConflict] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState<{
+    id: string;
+    version: number;
+    revision: string;
+  } | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   // The subset of them that names an input, so the capability whose
   // configuration was refused marks the box rather than only saying so in
@@ -361,8 +382,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const tPortability = useTranslations("portability");
+  const [shippedUpdateOpen, setShippedUpdateOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const moreActions = useRef<HTMLButtonElement>(null);
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
@@ -415,13 +441,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // A system agent's stored draft can hold what its save refuses and its page
   // cannot show, so none of that is adopted, compared or sent.
+  const draftSpec = agent?.draft_spec;
+  const kind = agent?.kind;
   const storedDraft = useMemo(
-    () =>
-      agent?.draft_spec && isSystemAgent(agent.kind)
-        ? forSystemAgent(agent.draft_spec)
-        : agent?.draft_spec,
-    [agent?.draft_spec, agent?.kind],
+    () => (draftSpec && isSystemAgent(kind) ? forSystemAgent(draftSpec) : draftSpec),
+    [draftSpec, kind],
   );
+
+  function adoptDraft(next: AgentSpec, revision: string | null) {
+    setSpec(next);
+    setDraftRevision(revision);
+    setAdoptedBudget(next.budget);
+    setAdoptedCapabilities(next.capabilities);
+  }
+
+  // A blank limit may have been saved as an empty budget object. Until the
+  // published base is known, preserve the shape from the draft we opened, not
+  // from an autosave that may already contain the temporary limit.
+  const budgetBase = draftBase === undefined ? adoptedBudget : draftBase.spec.budget;
+  const clearedBudget = budgetBase?.monthly_usd == null ? (budgetBase ?? null) : null;
 
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
@@ -431,8 +469,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // draft. Rolling back to a version structurally equal to the current draft
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
-  if (storedDraft && spec === null) {
-    setSpec(storedDraft);
+  if (agent && storedDraft && spec === null) {
+    adoptDraft(storedDraft, agent.draft_revision);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -456,10 +494,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSystemAgentPage(isSystem);
     return () => setSystemAgentPage(false);
   }, [isSystem, setSystemAgentPage]);
-  // Changing a system agent takes `org:settings`, so an editor of agents may still
-  // only read this one: the server answers `can_edit: false`, and this says why.
-  const systemReadOnly = isSystem && !canEdit && can(Perm.agentsEdit) && !can(Perm.orgSettings);
-  const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
@@ -471,17 +505,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !isSystem &&
       environments.some((environment) => environment.guard_suite_ids.length > 0),
   });
-  // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
-  // link naming one they lack - Evals without runs:view, a judge's MCP servers -
-  // opens the first.
+  // The Builder's tabs, as `?tab=` names them, for this caller; a link naming one
+  // they lack - Knowledge gaps without runs:view - opens the first.
   const tabs = [
     "build",
     "toolbox",
-    ...(isSystem ? [] : ["mcp", "availability"]),
+    "mcp",
+    "availability",
     "limits",
-    ...(isJudge ? ["datasets"] : []),
-    ...(!isSystem ? ["evals"] : []),
-    ...(canViewRuns && !isSystem ? ["gaps"] : []),
+    "evals",
+    ...(canViewRuns ? ["gaps"] : []),
     "history",
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
@@ -490,6 +523,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const couldStartEvals = !isSystem && agent?.can_run === true;
   const runsADataset = useRunsADataset({ enabled: couldStartEvals && (canViewRuns || canEdit) });
   const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
+  // Said by a description rather than a label: the tab keeps its own name.
+  const tabAttention = useAgentTabAttention(id, {
+    enabled: canViewRuns && agent !== undefined && !isSystem,
+    canEdit,
+  });
+  const evalsWhy = useId();
+  const gapsWhy = useId();
+  const evalsReason =
+    tabAttention.evals.length > 0
+      ? tAttention("tabLabel", { reasons: tabAttention.evals.join(", ") })
+      : undefined;
+  const gapsReason =
+    tabAttention.gaps > 0 ? tAttention("gapsLabel", { count: tabAttention.gaps }) : undefined;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
@@ -505,7 +551,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // each defaults to `[]` while loading and stays `[]` when the request fails, so
   // gating on "no longer loading" alone would still declare every reference stale
   // when a list 403s - which the org-connections read does for an editor without
-  // `connections:manage` (#1472).
+  // `mcp:manage` (#1472).
   const referenceListsLoaded =
     !collectionsLoading &&
     !collectionsError &&
@@ -513,6 +559,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     !contextError &&
     !skillsLoading &&
     !skillsError &&
+    can(Perm.mcpManage) &&
     !connectionsLoading &&
     !connectionsError &&
     !catalogLoading &&
@@ -526,7 +573,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
     profilesStatus === "loaded" &&
-    !profiles.some(usableForAgents) &&
+    !profiles.some(spec?.model_credential_mode === "personal" ? runsAgents : usableForAgents) &&
     permissionsLoaded &&
     !can(Perm.connectionsManage);
 
@@ -564,9 +611,93 @@ export default function AgentBuilderPage({ params }: PageProps) {
     local: spec,
     stored: storedDraft,
     fetchedAt,
-    adopt: setSpec,
+    adopt: (next) => adoptDraft(next, agent?.draft_revision ?? null),
   });
+  const saveEditedDraft = useCallback(
+    async (next: AgentSpec): Promise<boolean> => {
+      if (discardTarget !== null || draftConflict || draftRevision === null) return false;
+      try {
+        const saved = await storeDraft({ spec: next, expected_revision: draftRevision });
+        setDraftRevision(saved.draft_revision);
+        setSpec((current) =>
+          sameJson(current, next)
+            ? isSystem
+              ? forSystemAgent(saved.draft_spec)
+              : saved.draft_spec
+            : current,
+        );
+        return true;
+      } catch (error) {
+        if (error instanceof ApiError && error.details?.reason === "draft_changed") {
+          setDraftConflict(true);
+        }
+        return false;
+      }
+    },
+    [discardTarget, draftConflict, draftRevision, storeDraft, isSystem],
+  );
+  const reloadDraft = async (): Promise<void> => {
+    const latest = await refetchAgent();
+    if (latest.error) {
+      toast.error(getErrorMessage(latest.error, tErrors));
+      return;
+    }
+    if (!latest.data) return;
+    const fresh = latest.data;
+    adoptDraft(fresh.draft_spec, fresh.draft_revision);
+    setDraftConflict(false);
+    remote.keepMine();
+    attempts.current = { payload: "", tries: 0 };
+  };
   const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
+  function showRefusal(found: SpecRefusal) {
+    setProblems(found.problems);
+    setConfigProblems(found.fields);
+    setFixes(found.fixes);
+  }
+
+  /**
+   * Store the draft, and stop if it did not store.
+   *
+   * `validate` asks the server about the draft it holds, so running it after a
+   * failed save reports on a spec nobody is looking at - and reports it as the
+   * verdict on the one on screen. `saveDraft` has already said what went wrong.
+   */
+  async function persist(): Promise<boolean> {
+    if (!spec || remote.held || storing) return false;
+    return saveEditedDraft(spec);
+  }
+
+  /**
+   * Store, validate, and then *ask* - publishing is the one click on this page
+   * that changes what every channel, widget and API call answers with, and the
+   * dialog is where that is said before it happens rather than after.
+   */
+  async function handlePublish() {
+    if (!(await persist())) return;
+    const found = await validate();
+    showRefusal(found);
+    if (found.problems.length === 0) setPublishOpen(true);
+  }
+
+  const discard = async (): Promise<void> => {
+    if (discardTarget === null || storing || discardDraft.isPending) return;
+    try {
+      const saved = await discardDraft.mutateAsync({
+        expected_revision: discardTarget.revision,
+        expected_version_id: discardTarget.id,
+      });
+      adoptDraft(saved.draft_spec, saved.draft_revision);
+      attempts.current = { payload: "", tries: 0 };
+      showRefusal({ problems: [], fields: [], fixes: [] });
+      setDiscardTarget(null);
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.details?.reason : null;
+      if (reason === "draft_changed") setDraftConflict(true);
+      if (reason === "draft_changed" || reason === "published_version_changed")
+        setDiscardTarget(null);
+    }
+  };
   useEffect(() => {
     // A blank name is a 422 from the spec, so it waits here with the field
     // saying why rather than spending both attempts on a refusal.
@@ -576,7 +707,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !storedDraft ||
       !isDirty ||
       storing ||
+      discardTarget !== null ||
       remote.held ||
+      draftConflict ||
       !spec.name.trim()
     )
       return;
@@ -589,20 +722,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
           : { payload, tries: 1 };
       // Errors already toast in the hook; the badge only needs to keep saying
       // "unsaved", which `isDirty` staying true does on its own.
-      void storeDraft(spec)
-        .then((saved) => {
-          setSpec((current) =>
-            sameJson(current, spec)
-              ? isSystem
-                ? forSystemAgent(saved.draft_spec)
-                : saved.draft_spec
-              : current,
-          );
-        })
-        .catch(() => null);
+      void saveEditedDraft(spec);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held, isSystem]);
+  }, [
+    spec,
+    storedDraft,
+    isDirty,
+    canEdit,
+    saveEditedDraft,
+    storing,
+    discardTarget,
+    remote.held,
+    draftConflict,
+  ]);
 
   // Asked once per visit, and only of someone who may publish: the dialog still
   // validates first and still asks before anything goes live.
@@ -920,13 +1053,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
-      <div role="alert" className="space-y-3">
-        <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void refetchAgent()}>
-            {tAgents("retryLoad")}
-          </Button>
-        </div>
+      <div role="alert" className="flex min-h-0 flex-1 flex-col gap-3">
+        <ResourceUnavailable
+          back={ROUTES.AGENTS}
+          label={t("backToAgents")}
+          retry={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+        />
       </div>
     );
   if (!agent)
@@ -941,6 +1073,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
+  const canDiscard =
+    canEdit &&
+    isPublished &&
+    draftBase !== undefined &&
+    draftRevision !== null &&
+    (!sameJson(agent.draft_spec, draftBase.spec) || !sameJson(spec, draftBase.spec));
 
   // The Memory tab exists only when the capability is bound; a bare binding reads as
   // what the builder returns for one (native, both shapes on).
@@ -964,8 +1102,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const updateCapability = (updated: CapabilityBindingSpec) =>
     update({
-      capabilities: spec.capabilities.map((capability) =>
-        capability.id === updated.id ? updated : capability,
+      capabilities: withCapabilitySettings(
+        spec.capabilities,
+        updated,
+        draftBase?.spec.capabilities ?? adoptedCapabilities,
       ),
     });
 
@@ -996,41 +1136,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
   };
 
-  /**
-   * Store the draft, and stop if it did not store.
-   *
-   * `validate` asks the server about the draft it holds, so running it after a
-   * failed save reports on a spec nobody is looking at - and reports it as the
-   * verdict on the one on screen. `saveDraft` has already said what went wrong.
-   */
-  async function persist(): Promise<boolean> {
-    if (!spec) return false;
-    try {
-      await saveDraft.mutateAsync(spec);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Store, validate, and then *ask* - publishing is the one click on this page
-   * that changes what every channel, widget and API call answers with, and the
-   * dialog is where that is said before it happens rather than after.
-   */
-  async function handlePublish() {
-    if (!(await persist())) return;
-    const found = await validate();
-    showRefusal(found);
-    if (found.problems.length === 0) setPublishOpen(true);
-  }
-
-  function showRefusal(found: SpecRefusal) {
-    setProblems(found.problems);
-    setConfigProblems(found.fields);
-    setFixes(found.fixes);
-  }
-
   /** Rewrite the draft as the refusal offered, save it and check it again - publishing stays a click of its own. */
   async function handleFix(fix: SpecFix) {
     if (!spec) return;
@@ -1038,8 +1143,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(next);
     setFixing(true);
     try {
-      await saveDraft.mutateAsync(next);
-      showRefusal(await validate());
+      if (await saveEditedDraft(next)) showRefusal(await validate());
     } catch {
       // `saveDraft` has already said what went wrong.
     } finally {
@@ -1109,36 +1213,33 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         )}
         <PageHeader
+          icon={
+            <span className="group relative shrink-0">
+              <AgentAvatar
+                agentId={id}
+                slug={agent.slug}
+                hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
+                size="lg"
+                version={avatarVersion}
+              />
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => avatarInput.current?.click()}
+                  disabled={setAvatar.isPending}
+                  aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
+                  title={t("squareImagesLookBest")}
+                  className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+              )}
+            </span>
+          }
           title={
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="group relative shrink-0">
-                <AgentAvatar
-                  agentId={id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="lg"
-                  version={avatarVersion}
-                />
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => avatarInput.current?.click()}
-                    disabled={setAvatar.isPending}
-                    aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
-                    title={t("squareImagesLookBest")}
-                    className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
-                  >
-                    <ImagePlus className="h-5 w-5" />
-                  </button>
-                )}
-              </span>
-              {/* One line, whatever the width: the actions wrap under it before
-                the name is broken, and a name longer than the column ends in
-                an ellipsis with the whole of it on hover. */}
-              <span className="truncate" title={agent.name}>
-                {agent.name}
-              </span>
+            <span className="truncate" title={agent.name}>
+              {agent.name}
             </span>
           }
           badges={
@@ -1224,6 +1325,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   <Button
                     variant="outline"
                     size="icon"
+                    ref={moreActions}
                     aria-label={t("moreActions")}
                     data-tour="agent-share"
                   >
@@ -1231,6 +1333,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>
+                    <Pencil className="size-4" />
+                    {tc("details")}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={continueConversation} disabled={!isPublished}>
                     <History className="size-4" />
                     {t("continueConversation")}
@@ -1243,15 +1349,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <UserPlus className="size-4" />
                     {tSharing("share")}
                   </DropdownMenuItem>
+                  {agent.can_review_shipped_update && (
+                    <DropdownMenuItem
+                      disabled={isDirty || saveDraft.isPending}
+                      onSelect={() => setShippedUpdateOpen(true)}
+                    >
+                      <History className="h-4 w-4" />
+                      {t("shippedUpdate.review")}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
-                    <a href={`/api/agents/${id}/spec.yaml`} download>
-                      <Download className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("exportYaml")}
-                        description={tMenu("menuExportHint")}
-                      />
-                    </a>
+                  <DropdownMenuItem
+                    className={DESCRIBED_ITEM}
+                    disabled={isDirty || saveDraft.isPending}
+                    onSelect={() => setExportOpen(true)}
+                  >
+                    <Download className="h-4 w-4" />
+                    <DropdownMenuItemText
+                      label={tPortability("exportTitle")}
+                      description={tMenu("menuExportHint")}
+                    />
                   </DropdownMenuItem>
                   {canDuplicate && (
                     <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
@@ -1264,6 +1381,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   )}
                   {canEdit && (
                     <>
+                      {canDiscard && (
+                        <DropdownMenuItem
+                          className={DESCRIBED_ITEM}
+                          disabled={storing || draftConflict || remote.held}
+                          onSelect={() =>
+                            setDiscardTarget({
+                              id: draftBase.id,
+                              version: draftBase.version,
+                              revision: draftRevision,
+                            })
+                          }
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("discardDraft")}
+                            description={t("discardDraftHint")}
+                          />
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         className={DESCRIBED_ITEM}
                         onSelect={() => avatarInput.current?.click()}
@@ -1347,7 +1483,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             canPublish && (
               <Button
                 onClick={handlePublish}
-                disabled={publish.isPending || !spec?.name.trim()}
+                disabled={publish.isPending || storing || draftConflict || !spec?.name.trim()}
                 data-tour="agent-publish"
               >
                 <Upload className="h-4 w-4" />
@@ -1357,20 +1493,93 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
         />
 
-        {remote.conflict && (
+        {draftConflict && (
+          <Alert variant="warning" role="alert">
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{t("draftChanged")}</span>
+              <Button size="sm" onClick={() => void reloadDraft()}>
+                {t("reloadDraft")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {!draftConflict && remote.conflict && (
           <RemoteChangeBanner
             change={remote.conflict}
-            onReload={remote.reload}
-            onKeepMine={remote.keepMine}
+            onReload={() => void reloadDraft()}
+            onKeepMine={() => {
+              setDraftRevision(agent.draft_revision);
+              remote.keepMine();
+            }}
           />
         )}
 
-        {systemReadOnly && (
-          <div className="border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3">
-            <Lock className="text-muted-foreground size-4 shrink-0" aria-hidden />
-            <p className="min-w-0 flex-1 text-sm">{t("systemAgentReadOnly")}</p>
-          </div>
-        )}
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent
+            className={cn(DIALOG_SCROLL, DIALOG_FORM)}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              moreActions.current?.focus();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{tc("details")}</DialogTitle>
+              <DialogDescription>{t("identityHelp", { slug: agent.slug })}</DialogDescription>
+            </DialogHeader>
+            {draftConflict && (
+              <Alert variant="warning" role="alert">
+                <AlertDescription className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-0 flex-1">{t("draftChanged")}</span>
+                  <Button size="sm" onClick={() => void reloadDraft()}>
+                    {t("reloadDraft")}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">{t("identity")}</h3>
+              <div className="space-y-2">
+                <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
+                <Input
+                  id="agent-name"
+                  value={spec.name}
+                  maxLength={128}
+                  disabled={!canEdit}
+                  aria-invalid={!spec.name.trim()}
+                  aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
+                  onChange={(event) => update({ name: event.target.value })}
+                />
+                {!spec.name.trim() && (
+                  <p id="agent-name-error" className="text-destructive text-xs">
+                    {t("agentNameRequired")}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
+                <Textarea
+                  id="agent-description"
+                  value={spec.description ?? ""}
+                  maxLength={1000}
+                  rows={2}
+                  disabled={!canEdit}
+                  onChange={(event) => update({ description: event.target.value || null })}
+                />
+              </div>
+            </section>
+            {canEdit && (
+              <section className="border-border space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold">{t("discovery")}</h3>
+                <p className="text-muted-foreground text-xs">{t("discoveryHelp")}</p>
+                <MetadataEditor
+                  agentId={id}
+                  categories={agent.categories ?? []}
+                  tags={agent.tags ?? []}
+                />
+              </section>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
           <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
@@ -1408,7 +1617,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <DialogTitle>{t("connectMcpServer")}</DialogTitle>
               <DialogDescription>{t("connectServerOrganizationBecomes")}</DialogDescription>
             </DialogHeader>
-            <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
+            <McpServerList canManageOrganization={can(Perm.mcpManage)} />
           </DialogContent>
         </Dialog>
 
@@ -1416,24 +1625,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
           toolPicker={toolPicker}
           setToolPicker={setToolPicker}
           submitting={false}
-          // Written into the spec rather than onto the connection: this is the
-          // agent's narrowing, and the connection's own allowlist is everybody's.
-          // Every tool checked means "no narrowing from here", which is null - not
-          // a list that would freeze out a tool the server adds later.
           onSave={() => {
             if (toolPicker === null) return;
-            const allowed = narrowedSelection(
+            const next = applyMcpToolSelection(
+              spec.mcp_servers,
+              toolBinding,
               toolPicker.checked,
               toolPicker.tools,
-              // Only a real probe can mean "everything": where the catalogue is
-              // the binding's own names, all-checked is true by construction.
-              toolPicker.connection.last_tools !== null,
             );
-            update({
-              mcp_servers: spec.mcp_servers.map((ref) =>
-                bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-              ),
-            });
+            if (next !== spec.mcp_servers) update({ mcp_servers: next });
             setToolPicker(null);
             setToolBinding(null);
           }}
@@ -1467,6 +1667,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }}
         />
 
+        {shippedUpdateOpen && (
+          <ShippedUpdateDialog agentId={id} onClose={() => setShippedUpdateOpen(false)} />
+        )}
+        {exportOpen && <ExportAgentDialog agentId={id} open onOpenChange={setExportOpen} />}
         <PublishDialog
           open={publishOpen}
           onOpenChange={setPublishOpen}
@@ -1506,6 +1710,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </PublishDialog>
         {testingDraft && (
           <StartEvalDialog agentId={id} target="compare" onOpenChange={setTestingDraft} />
+        )}
+
+        {discardTarget !== null && (
+          <ConfirmDialog
+            open
+            onOpenChange={(open) => !open && setDiscardTarget(null)}
+            title={t("discardDraftTitle")}
+            description={t("discardDraftBody", { version: discardTarget.version })}
+            confirmLabel={t("discardDraft")}
+            loading={discardDraft.isPending || storing}
+            destructive
+            onConfirm={discard}
+          />
         )}
 
         {confirming === "archive" && (
@@ -1607,52 +1824,72 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
+        {evalsReason && (
+          <span id={evalsWhy} className="sr-only">
+            {evalsReason}
+          </span>
+        )}
+        {gapsReason && (
+          <span id={gapsWhy} className="sr-only">
+            {gapsReason}
+          </span>
+        )}
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
-              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
-              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <Wrench className="size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             {
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
-                <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Plug className="size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
             }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
-              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             {
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
-                <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Radio className="size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
             }
             {(canViewRuns || tab === "evals") && (
-              <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="evals"
+                data-tour="agent-tab-evals"
+                aria-describedby={evalsReason ? evalsWhy : undefined}
+                title={evalsReason}
+              >
+                <span className="relative inline-flex shrink-0" aria-hidden>
+                  <FlaskConical className="size-4" />
+                  {evalsReason && <AttentionDot testId="evals-attention" />}
+                </span>
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && (
-              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="gaps"
+                data-tour="agent-tab-gaps"
+                aria-describedby={gapsReason ? gapsWhy : undefined}
+                title={gapsReason}
+              >
+                <span className="relative inline-flex shrink-0" aria-hidden>
+                  <SearchX className="size-4" />
+                  {gapsReason && <AttentionDot testId="gaps-attention" />}
+                </span>
                 {tGaps("tab")}
               </TabsTrigger>
             )}
-            {isJudge && (
-              <TabsTrigger value="datasets">
-                <Database className="mr-1.5 size-4 shrink-0" aria-hidden />
-                {t("judgeDatasets")}
-              </TabsTrigger>
-            )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
-              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <History className="size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1676,7 +1913,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         </CardTitle>
                         <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
                       </div>
-                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                      <MarkdownModeToggle
+                        compact
+                        mode={instructionsMode}
+                        onChange={setInstructionsMode}
+                      />
                     </>
                   }
                   value={spec.instructions}
@@ -1696,172 +1937,169 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <PromptVariablesPanel
-              system={promptVariables}
-              custom={spec.variables ?? []}
-              timeZone={spec.time_zone ?? "system"}
-              disabled={!canEdit}
-              onInsert={insertVariableAtCaret}
-              onCustomChange={(variables) => update({ variables })}
-              onTimeZoneChange={(time_zone) => update({ time_zone })}
-            />
-
-            {/* The model, then how it is asked: one card, apart from the
-                instructions, which are a thing to read rather than to set. */}
-            <Card
-              ref={attachModelCard}
-              data-tour="agent-model"
-              className="scroll-mt-4 rounded-none border-0 border-b bg-transparent [&>div]:px-0"
+            <div
+              data-agent-build-settings
+              className="bg-card divide-border divide-y rounded-xl border"
             >
-              <CardHeader>
-                <CardTitle>{t("model")}</CardTitle>
-                <CardDescription>{t("howAgentAsksIts")}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2" data-tour="agent-model-picker">
-                  <ModelProfilePicker
-                    // A model profile is `connections:manage`, which somebody who
-                    // may edit this agent need not hold - and both halves of this
-                    // panel write one: the form posts `/providers/model-profiles`
-                    // and the bin deletes one from under every agent pointed at
-                    // it. Ungated, they were a 403 dressed as a control, the same
-                    // way Connect server below would be without its own gate.
-                    allowAdd={can(Perm.connectionsManage)}
-                    // The Builder is where an organization's models are managed,
-                    // so it is the one panel that also takes one away.
-                    allowRemove={can(Perm.connectionsManage)}
-                    profiles={profiles}
-                    profilesStatus={profilesStatus}
-                    value={spec.model_profile_id ?? null}
-                    onChange={(model_profile_id) => update({ model_profile_id })}
-                    disabled={!canEdit}
-                  />
-                  {/* Said where the missing control would be, because publish
-                    would otherwise be the first thing to say it. */}
-                  {modelDeadEnd && (
-                    <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
-                  )}
-                </div>
-                <MoreOptions label={t("modelSettings")}>
-                  <ModelSettingsForm
-                    value={spec.model_settings}
-                    onChange={(model_settings) => update({ model_settings })}
-                    disabled={!canEdit}
-                    verdict={verdictKind(agent.kind)}
-                  />
-                </MoreOptions>
-                <ThinkingSetting
-                  definition={capabilities.find((entry) => entry.id === THINKING_ID)}
-                  binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
-                  onToggle={() => toggleCapability(THINKING_ID)}
-                  onChange={updateCapability}
-                  disabled={!canEdit}
-                />
-              </CardContent>
-            </Card>
-
-            {
-              <>
-                <Card data-tour="agent-answer-format">
-                  <CardHeader>
-                    <CardTitle>{tAnswer("title")}</CardTitle>
-                    <CardDescription>{tAnswer("description")}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AnswerFormatForm
-                      value={spec.output_schema ?? null}
-                      onChange={(output_schema) => update({ output_schema })}
+              {/* The model, then how it is asked: one card, apart from the
+                instructions, which are a thing to read rather than to set. */}
+              <BuildSection
+                ref={attachModelCard}
+                data-tour="agent-model"
+                title={t("model")}
+                summary={
+                  profilesStatus === "failed"
+                    ? tAgents("modelsCouldNotBeListed")
+                    : profilesStatus === "pending"
+                      ? tc("loading")
+                      : (profiles.find((profile) => profile.id === spec.model_profile_id)?.label ??
+                        (spec.model_profile_id
+                          ? t("namedMissing", { name: spec.model_profile_id })
+                          : t("organizationDefault")))
+                }
+                headerEnd={<ContextHelp>{t("howAgentAsksIts")}</ContextHelp>}
+                collapsible={false}
+                framed={false}
+                className="scroll-mt-4"
+              >
+                <div className="space-y-4">
+                  <div className="space-y-2" data-tour="agent-model-picker">
+                    <ModelProfilePicker
+                      // A model profile is `connections:manage`, which somebody who
+                      // may edit this agent need not hold - and both halves of this
+                      // panel write one: the form posts `/providers/model-profiles`
+                      // and the bin deletes one from under every agent pointed at
+                      // it. Ungated, they were a 403 dressed as a control, the same
+                      // way Connect server below would be without its own gate.
+                      allowAdd={can(Perm.connectionsManage)}
+                      // The Builder is where an organization's models are managed,
+                      // so it is the one panel that also takes one away.
+                      allowRemove={can(Perm.connectionsManage)}
+                      requireOrganizationKey={spec.model_credential_mode !== "personal"}
+                      profiles={profiles}
+                      profilesStatus={profilesStatus}
+                      value={spec.model_profile_id ?? null}
+                      onChange={(model_profile_id) => update({ model_profile_id })}
                       disabled={!canEdit}
                     />
-                  </CardContent>
-                </Card>
-
-                <VoiceCard
-                  value={spec.speech_to_text}
-                  onChange={(speech_to_text) => update({ speech_to_text })}
-                  conversation={{
-                    agentId: id,
-                    value: spec.voice,
-                    onChange: (voice) => update({ voice }),
-                    hasGuardrails: spec.capabilities.some(
-                      (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                    ),
-                  }}
-                  disabled={!canEdit}
-                />
-              </>
-            }
-
-            <StartersPanel
-              starters={spec.starters ?? []}
-              icons={spec.starter_icons ?? {}}
-              titles={spec.starter_titles ?? {}}
-              disabled={!canEdit}
-              onChange={(starters, starter_icons, starter_titles) =>
-                update({ starters, starter_icons, starter_titles })
-              }
-            />
-
-            {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same `canEdit` every other editing
-              control on this page does. */}
-            {canEdit && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("discovery")}</CardTitle>
-                  <CardDescription>{t("discoveryHelp")}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <MetadataEditor
-                    agentId={id}
-                    categories={agent.categories ?? []}
-                    tags={agent.tags ?? []}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Last on the tab: what the agent does comes first, what it is called is
-                set once. The name is spec like everything else here, and autosaves with it:
-                a duplicate arrives as "<name> (copy)" and this is where it stops
-                being one. The handle is the row's, fixed at creation, so renaming
-                never breaks a delegation or an @mention wired to it. */}
-            <Card data-tour="agent-identity">
-              <CardHeader>
-                <CardTitle>{t("identity")}</CardTitle>
-                <CardDescription>{t("identityHelp", { slug: agent.slug })}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
-                  <Input
-                    id="agent-name"
-                    value={spec.name}
-                    maxLength={128}
-                    disabled={!canEdit}
-                    aria-invalid={!spec.name.trim()}
-                    aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
-                    onChange={(event) => update({ name: event.target.value })}
-                  />
-                  {!spec.name.trim() && (
-                    <p id="agent-name-error" className="text-destructive text-xs">
-                      {t("agentNameRequired")}
-                    </p>
-                  )}
+                    {/* Said where the missing control would be, because publish
+                    would otherwise be the first thing to say it. */}
+                    {modelDeadEnd && (
+                      <p className="text-muted-foreground text-xs">
+                        {t("noModelNeedsConnections")}
+                      </p>
+                    )}
+                  </div>
+                  <MoreOptions
+                    label={`${t("modelCredentialMode")} · ${t(spec.model_credential_mode === "personal" ? "personalModelKey" : "organizationModelKey")}`}
+                  >
+                    <fieldset className="space-y-2" data-tour="agent-model-credentials">
+                      <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        {(["organization", "personal"] as const).map((mode) => (
+                          <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              className={NATIVE_CHOICE}
+                              name="model-credential-mode"
+                              value={mode}
+                              checked={(spec.model_credential_mode ?? "organization") === mode}
+                              disabled={!canEdit}
+                              onChange={() => update({ model_credential_mode: mode })}
+                            />
+                            {t(
+                              mode === "organization" ? "organizationModelKey" : "personalModelKey",
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      {spec.model_credential_mode === "personal" && (
+                        <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
+                      )}
+                    </fieldset>
+                  </MoreOptions>
+                  <MoreOptions label={t("modelSettings")}>
+                    <ModelSettingsForm
+                      value={spec.model_settings}
+                      onChange={(model_settings) => update({ model_settings })}
+                      disabled={!canEdit}
+                    />
+                    {capabilities
+                      .filter((entry) => entry.id === THINKING_ID)
+                      .map((definition) => (
+                        <div key={definition.id} className="border-t pt-4">
+                          <ThinkingSetting
+                            definition={definition}
+                            binding={spec.capabilities.find(
+                              (binding) => binding.id === THINKING_ID,
+                            )}
+                            onToggle={() => toggleCapability(THINKING_ID)}
+                            onChange={updateCapability}
+                            disabled={!canEdit}
+                          />
+                        </div>
+                      ))}
+                    <div data-tour="agent-answer-format" className="space-y-3 border-t pt-4">
+                      <div>
+                        <h3 className="text-sm font-medium">{tAnswer("title")}</h3>
+                        <p className="text-muted-foreground text-xs">{tAnswer("description")}</p>
+                      </div>
+                      <AnswerFormatForm
+                        value={spec.output_schema ?? null}
+                        onChange={(output_schema) => update({ output_schema })}
+                        disabled={!canEdit}
+                      />
+                    </div>
+                  </MoreOptions>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
-                  <Textarea
-                    id="agent-description"
-                    value={spec.description ?? ""}
-                    maxLength={1000}
-                    rows={2}
-                    disabled={!canEdit}
-                    onChange={(event) => update({ description: event.target.value || null })}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              </BuildSection>
+
+              <PromptVariablesPanel
+                framed={false}
+                system={promptVariables}
+                custom={spec.variables ?? []}
+                timeZone={spec.time_zone ?? "system"}
+                disabled={!canEdit}
+                onInsert={insertVariableAtCaret}
+                onCustomChange={(variables) => update({ variables })}
+                onTimeZoneChange={(time_zone) => update({ time_zone })}
+              />
+
+              <VoiceCard
+                framed={false}
+                collapsible
+                value={spec.speech_to_text}
+                onChange={(speech_to_text) => update({ speech_to_text })}
+                conversation={{
+                  agentId: id,
+                  value: spec.voice,
+                  onChange: (voice) => update({ voice }),
+                  hasGuardrails: spec.capabilities.some(
+                    (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                  ),
+                }}
+                disabled={!canEdit}
+              />
+              <StartersPanel
+                framed={false}
+                draws={spec.capabilities.some(
+                  (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
+                )}
+                starters={spec.starters ?? []}
+                showStarters={spec.show_starters ?? true}
+                onShowStartersChange={(show_starters) => update({ show_starters })}
+                icons={spec.starter_icons ?? {}}
+                titles={spec.starter_titles ?? {}}
+                disabled={!canEdit}
+                onChange={(starters, starter_icons, starter_titles) =>
+                  update({
+                    starters,
+                    starter_icons,
+                    starter_titles,
+                  })
+                }
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="toolbox" className="mt-4 space-y-4">
@@ -1931,7 +2169,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     than a second copy of the connect form - one flow, one set
                     of refusals, and the connection it creates lands in the same
                     cache this picker reads. */}
-                  {can(Perm.connectionsManage) && (
+                  {can(Perm.mcpManage) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1980,7 +2218,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     try {
                       const { connection: probed, error } = await toolsForBinding(
                         connection,
-                        can(Perm.connectionsManage) ? probeMcpConnection : null,
+                        can(Perm.mcpManage) ? probeMcpConnection : null,
                       );
                       if (error !== null) toast.error(error);
                       setToolPicker(toolChoice(ref, probed, name));
@@ -2022,10 +2260,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                       onChange={(event) =>
                         update({
-                          budget: {
-                            ...spec.budget,
-                            monthly_usd: event.target.value ? Number(event.target.value) : null,
-                          },
+                          budget: event.target.value
+                            ? { monthly_usd: Number(event.target.value) }
+                            : clearedBudget,
                         })
                       }
                       placeholder={t("noLimit")}
@@ -2104,13 +2341,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           <TabsContent value="availability" className="mt-4 space-y-4">
+            {spec.model_credential_mode === "personal" && (
+              <p role="status" className="bg-muted text-muted-foreground rounded-xl p-4 text-sm">
+                {t("personalModelLimits")}
+              </p>
+            )}
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
             <div data-tour="agent-availability">
-              <EmbedsPanel agentId={id} canManage={canPublish} />
+              <EmbedsPanel
+                agentId={id}
+                canManage={canPublish}
+                personalModel={spec.model_credential_mode === "personal"}
+              />
             </div>
             <ExposuresPanel
+              personalModel={spec.model_credential_mode === "personal"}
               agentId={id}
               canManage={canPublish}
               hasWorkspace={spec.capabilities.some(
@@ -2122,7 +2369,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel
               agentId={id}
-              canCreate={agent.can_run}
+              canCreate={agent.can_run && spec.model_credential_mode !== "personal"}
               reachesPersonal={
                 spec.capabilities.some(
                   (binding) =>
@@ -2175,6 +2422,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   compareFrom={compareFrom}
                   compareTo={compareTo}
                   testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
+                  testedSpecError={testedSpecError}
                 />
               </CardContent>
             </Card>
@@ -2182,7 +2430,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           {
-            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
+            <TabsContent value="evals" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               {canViewRuns ? (
                 <>
                   {canEdit && (
@@ -2215,14 +2463,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
               )}
             </TabsContent>
           }
-          {isJudge && (
-            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
-              <JudgeDatasetsCard judgeId={id} />
-            </TabsContent>
-          )}
           {canViewRuns && (
-            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
-              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
+            <TabsContent value="gaps" className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex min-h-0 flex-1 flex-col gap-4">
                 {canEdit && (
                   <ImproveLink
                     agentId={id}

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -18,11 +18,13 @@ export function OrganizationProfileSettings({
   org,
   onContinue,
   saveLabel,
+  renderActions,
   inDialog = false,
 }: {
   org: Organization;
   onContinue?: () => void;
   saveLabel?: string;
+  renderActions?: (actions: ReactNode) => ReactNode;
   inDialog?: boolean;
 }) {
   const t = useTranslations("pages.orgs");
@@ -86,7 +88,7 @@ export function OrganizationProfileSettings({
 
   const colors = canManage && (
     <div>
-      <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
+      {!onContinue && <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>}
       <AvatarColorPicker
         value={org.avatar_color}
         onChange={handleColorChange}
@@ -104,6 +106,17 @@ export function OrganizationProfileSettings({
     </div>
   );
 
+  const continueAction = onContinue && (
+    <Button
+      data-continue
+      disabled={savingName || avatarUploading || !name.trim()}
+      onClick={async () => {
+        if (await handleSaveName()) onContinue();
+      }}
+    >
+      {saveLabel ?? tc("save")}
+    </Button>
+  );
   return (
     <section
       data-tour="org-profile"
@@ -123,6 +136,9 @@ export function OrganizationProfileSettings({
           org.avatar_url ? "bg-muted text-foreground" : avatarPalette(org.id, org.avatar_color).bg,
         )}
         title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
+        aria-label={
+          onContinue ? t(canManage ? "changeWorkspaceAvatar" : "onlyOwnersAdminsCan") : undefined
+        }
       >
         {org.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -139,7 +155,7 @@ export function OrganizationProfileSettings({
           </span>
         )}
         {canManage && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
             {avatarUploading ? (
               <Loader2 className="h-5 w-5 animate-spin text-white" />
             ) : (
@@ -163,15 +179,12 @@ export function OrganizationProfileSettings({
         )}
       >
         {!onContinue && !inDialog && heading}
-        {canManage && (
+        {canManage && !onContinue && (
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={avatarUploading}
-            data-guidance={
-              (!!onContinue && !org.avatar_url && org.avatar_color == null) || undefined
-            }
             onClick={() => avatarInputRef.current?.click()}
           >
             <Camera size={14} aria-hidden />
@@ -199,17 +212,7 @@ export function OrganizationProfileSettings({
         </div>
         {!canManage && <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>}
         {!onContinue && colors}
-        {onContinue && (
-          <Button
-            data-continue
-            disabled={savingName || avatarUploading || !name.trim()}
-            onClick={async () => {
-              if (await handleSaveName()) onContinue();
-            }}
-          >
-            {saveLabel ?? tc("save")}
-          </Button>
-        )}
+        {renderActions ? renderActions(continueAction) : continueAction}
       </div>
     </section>
   );

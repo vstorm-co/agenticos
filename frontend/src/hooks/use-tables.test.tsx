@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTable, useTables, useAllTables } from "./use-tables";
+import { useTable, useTableRecord, useTables, useAllTables } from "./use-tables";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -62,6 +62,24 @@ describe("useTables", () => {
     expect(toastSuccess).toHaveBeenCalled();
     // Create sets no onError - a taken name is shown in the dialog itself.
     expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe("useTableRecord", () => {
+  it.each([
+    ["t1", null],
+    [null, "r1"],
+  ])("waits for both ids before reading (%s, %s)", (tableId, recordId) => {
+    const { result } = renderHook(() => useTableRecord(tableId, recordId), { wrapper });
+    expect(result.current.record).toBeUndefined();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("reads one record of a table", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "r1", values: {}, revision: 3 });
+    const { result } = renderHook(() => useTableRecord("t1", "r1"), { wrapper });
+    await waitFor(() => expect(result.current.record?.revision).toBe(3));
+    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1");
   });
 });
 

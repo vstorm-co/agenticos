@@ -59,3 +59,55 @@ async def test_anything_else_gets_a_conversation_of_its_own(chat_type, user, bin
     assert result == FRESH
     assert create.await_args.kwargs["organization_id"] == ORG
     assert create.await_args.kwargs["user_id"] == user
+
+
+@pytest.mark.parametrize(
+    ("platform", "title"),
+    [
+        ("sms", "SMS Chat"),
+        ("imessage", "iMessage Chat"),
+        ("whatsapp", "WhatsApp Chat"),
+        ("teams", "Microsoft Teams Chat"),
+        ("telegram", "Telegram Chat"),
+    ],
+)
+async def test_a_chats_conversation_is_titled_with_the_platforms_own_name(
+    platform: str, title: str
+) -> None:
+    incoming = SimpleNamespace(platform=platform, chat_type="group")
+
+    _, create = await _first(incoming, SimpleNamespace(user_id=USER), binding=None)
+
+    assert create.await_args.kwargs["title"] == title
+
+
+def test_every_chat_platform_has_a_name_and_an_unknown_one_is_capitalised() -> None:
+    from app.services.channels.base import platform_name
+
+    assert [
+        platform_name(key)
+        for key in (
+            "slack",
+            "telegram",
+            "mattermost",
+            "teams",
+            "discord",
+            "matrix",
+            "whatsapp",
+            "sms",
+            "imessage",
+            "email",
+        )
+    ] == [
+        "Slack",
+        "Telegram",
+        "Mattermost",
+        "Microsoft Teams",
+        "Discord",
+        "Matrix",
+        "WhatsApp",
+        "SMS",
+        "iMessage",
+        "Email",
+    ]
+    assert platform_name("acme") == "Acme"

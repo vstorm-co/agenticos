@@ -40,3 +40,8 @@ describe("useArchitectAskStore", () => {
     expect(useArchitectAskStore.getState().request!.id).toBeGreaterThan(first.id);
   });
 });
+
+it("opens without sending or drafting any text", () => {
+  useArchitectAskStore.getState().open();
+  expect(useArchitectAskStore.getState().request).toMatchObject({ openOnly: true, text: "" });
+});

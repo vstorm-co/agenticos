@@ -23,6 +23,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -42,6 +43,7 @@ from app.services.knowledge_gaps import (
     _filename,
     _flags,
     _private,
+    _test_question,
     _verdicts,
 )
 from app.worker.jobs import ClassifyGaps, DraftTopic
@@ -127,8 +129,8 @@ class TestAssign:
         assert near.moved and not far.moved
 
 
-def _search(query: str) -> MagicMock:
-    return MagicMock(id=uuid.uuid4(), query=query)
+def _search(query: str, subject: str | None = None) -> MagicMock:
+    return MagicMock(id=uuid.uuid4(), query=query, subject=subject)
 
 
 def _kb(*, organization_id: uuid.UUID = ORG) -> MagicMock:
@@ -542,9 +544,24 @@ class TestTheRepository:
             db, [], KB, organization_id=ORG, run_id=uuid.uuid4()
         )
         kept = await knowledge_gap_repo.still_asked(db, [], organization_id=ORG)
+        candidates = await knowledge_gap_repo.eval_answer_candidates(
+            db, KB, organization_id=ORG, run_ids=[], limit=10
+        )
 
-        assert (recorded, kept) == (0, set())
+        assert (recorded, kept, candidates) == (0, set(), [])
         db.execute.assert_not_awaited()
+
+    def test_only_a_miss_with_no_message_holds_a_test_question(self):
+        asked = "How long does a standard order take?"
+        eval_answer = KnowledgeSearch(query=asked, signal="answer", message_id=None)
+        chat_answer = KnowledgeSearch(query=asked, signal="answer", message_id=uuid.uuid4())
+        own_search = KnowledgeSearch(query="lead times", signal="retrieval", message_id=None)
+
+        assert [_test_question(miss) for miss in (eval_answer, chat_answer, own_search)] == [
+            asked,
+            None,
+            None,
+        ]
 
     def test_rows_name_themselves(self):
         search = KnowledgeSearch(id=uuid.uuid4(), run_id=uuid.uuid4(), top_similarity=0.2)
@@ -552,7 +569,9 @@ class TestTheRepository:
         member = KnowledgeGapMember(topic_id=topic.id, search_id=search.id)
 
         read = KnowledgeGapClassification(message_id=uuid.uuid4(), signal="none")
+        eval_read = KnowledgeGapEvalClassification(run_id=uuid.uuid4(), signal="answer")
         assert "none" in repr(read)
+        assert "answer" in repr(eval_read)
         assert "0.2" in repr(search)
         assert "open" in repr(topic)
         assert str(search.id) in repr(member)
@@ -761,6 +780,7 @@ class TestTheDraftingJob:
             assert await draft_knowledge_gap(job)
 
         assert draft.await_args.args == (asker, job.topic_id)
+        assert draft.await_args.kwargs == {"quoted_usd": None}
         worker.assert_awaited_once_with(ORG)
 
     async def test_a_refused_draft_fails_the_job_and_the_page_still_hears_of_it(self, worker):
@@ -793,8 +813,8 @@ class TestTheSessionsKnowledgeStep:
             message_ids=[uuid.uuid4()],
             improvement_run_id=uuid.uuid4(),
         )
-        frozen = _SessionSources(MagicMock(), [KB], list(job.message_ids or []), [])
-        gone = _SessionSources(frozen.ctx, [], [], [])
+        frozen = _SessionSources(MagicMock(), [KB], list(job.message_ids or []), [], [])
+        gone = _SessionSources(frozen.ctx, [], [], [], [])
         sources = AsyncMock(side_effect=[frozen, gone, gone])
         with (
             patch(f"{_TASKS}.get_worker_db_context", new=_Context),
@@ -812,6 +832,38 @@ class TestTheSessionsKnowledgeStep:
         classify.assert_not_awaited()
         group.assert_not_awaited()
         spend.assert_not_awaited()
+
+    async def test_a_session_with_eval_answers_alone_has_them_read(self):
+        """A session that learns from evals has no chat answer: its failed training
+        answers are what the classifier reads."""
+        answers = [uuid.uuid4(), uuid.uuid4()]
+        job = ClassifyGaps(
+            organization_id=ORG,
+            knowledge_base_ids=[KB],
+            user_id=_ASKER,
+            message_ids=[],
+            eval_run_ids=answers,
+            improvement_run_id=uuid.uuid4(),
+        )
+        frozen = _SessionSources(MagicMock(), [KB], [], answers, answers)
+        with (
+            patch(f"{_TASKS}.get_worker_db_context", new=_Context),
+            patch(f"{_TASKS}.change_feed.connect_in_worker", new=AsyncMock()),
+            patch(f"{_TASKS}.change_feed.publish_knowledge_gaps_grouped", new=AsyncMock()),
+            patch(f"{_TASKS}._session_sources", new=AsyncMock(return_value=frozen)),
+            patch(f"{_TASKS}._session_affords", new=AsyncMock(return_value=True)),
+            patch(f"{_TASKS}._wake_session", new=AsyncMock()),
+            patch.object(
+                KnowledgeGapService, "classify_batch", new=AsyncMock(return_value=(2, 1))
+            ) as classify,
+            patch.object(KnowledgeGapService, "group_pending", new=AsyncMock()) as group,
+            patch(f"{_TASKS}.ingestion_spend_repo.record", new=AsyncMock()),
+        ):
+            assert await classify_knowledge_gaps(job) == 1
+
+        assert classify.await_args.kwargs["message_ids"] == []
+        assert classify.await_args.kwargs["eval_run_ids"] == answers
+        assert group.await_args.kwargs["source_run_ids"] == answers
 
 
 def _owner() -> AuthContext:
@@ -921,3 +973,96 @@ class TestTheImprovementEstimate:
             await self._estimate(
                 self._embeddings("no-such-embedder", EmbeddingKeySource.ORGANIZATION)
             )
+
+
+@pytest.mark.parametrize(
+    ("legacy", "current"),
+    [("answer", "did_not_know"), ("rating", "missing_information"), ("none", "no_gap")],
+)
+def test_legacy_classifier_labels_pass_transport_validation_before_normalization(
+    legacy: str, current: str
+) -> None:
+    from jsonschema import Draft202012Validator
+
+    from app.schemas.knowledge_gap import KnowledgeGapClassification as ClassificationOutput
+    from app.services.system_agent_runner import output_schema, read_output
+
+    answer = {"answers": [{"number": 1, "signal": legacy}]}
+    Draft202012Validator(output_schema(ClassificationOutput)).validate(answer)
+    assert read_output(answer, ClassificationOutput).answers[0].signal == current
+
+
+def test_the_classifier_is_shown_no_credential_a_question_answer_or_comment_held() -> None:
+    from app.services.knowledge_gaps import _classification_prompt
+
+    candidate = _candidate(missed=True)._replace(
+        question="Use postgres://app:Kanar3kAsk@db/app",
+        answer="Call https://x.test/?token=Kanar3kSaid1 now",
+        comments=["My key is ghp_" + "c" * 36],
+    )
+
+    prompt = _classification_prompt("Handbook", [candidate])
+
+    assert "Kanar3k" not in prompt and "ghp_" not in prompt
+    assert prompt.count("[redacted:") == 3
+
+
+@pytest.mark.anyio
+async def test_draft_worker_keeps_the_approved_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    from decimal import Decimal
+
+    quoted = _draft_job().model_copy(update={"quoted_usd": Decimal("0.40")})
+    draft = AsyncMock()
+    monkeypatch.setattr(f"{_TASKS}.get_worker_db_context", _Context)
+    monkeypatch.setattr(f"{_TASKS}.change_feed.connect_in_worker", AsyncMock())
+    monkeypatch.setattr(f"{_TASKS}.change_feed.publish_knowledge_gaps_grouped", AsyncMock())
+    monkeypatch.setattr(f"{_TASKS}.job_context", AsyncMock(return_value=MagicMock()))
+    monkeypatch.setattr(KnowledgeGapService, "draft", draft)
+    assert await draft_knowledge_gap(quoted)
+    assert draft.await_args.kwargs == {"quoted_usd": Decimal("0.40")}
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("current", [None, Decimal("0.41")])
+async def test_a_queued_quote_is_rechecked_before_retrieval_or_model_work(
+    current: Decimal | None,
+) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+    from app.schemas.knowledge_gap import KnowledgeGapDraftEstimate
+
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner")
+    service = KnowledgeGapService(MagicMock())
+    with (
+        patch.object(
+            service,
+            "draft_estimate",
+            AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=current)),
+        ),
+        patch(
+            "app.services.knowledge_gaps.knowledge_gap_repo.drafting_material", AsyncMock()
+        ) as material,
+        patch("app.services.knowledge_gaps.SystemAgentRunner.run", AsyncMock()) as run,
+        pytest.raises(ConcurrentChangeError),
+    ):
+        await service.draft(ctx, uuid.uuid4(), quoted_usd=Decimal("0.40"))
+    material.assert_not_awaited()
+    run.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("price", [Decimal("0.39"), Decimal("0.40")])
+async def test_a_draft_quote_accepts_an_unchanged_or_lower_estimate(price: Decimal) -> None:
+    from app.schemas.knowledge_gap import KnowledgeGapDraftEstimate
+
+    service = KnowledgeGapService(MagicMock())
+    with patch.object(
+        service,
+        "draft_estimate",
+        AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=price)),
+    ):
+        await service._check_draft_quote(
+            AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner"),
+            uuid.uuid4(),
+            Decimal("0.40"),
+        )

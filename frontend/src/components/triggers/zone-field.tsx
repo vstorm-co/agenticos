@@ -6,7 +6,7 @@ import { Check, ChevronDown, Globe2, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { FormField, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 const ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
@@ -95,10 +95,7 @@ export function ZoneField({
                     onChange(zone);
                     setOpen(false);
                   }}
-                  className={cn(
-                    COMMAND_ITEM_FOCUS,
-                    "flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2.5 text-sm",
-                  )}
+                  className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer justify-between")}
                 >
                   {zone.replaceAll("_", " ")}
                   {zone === value && <Check aria-hidden className="size-4 shrink-0" />}

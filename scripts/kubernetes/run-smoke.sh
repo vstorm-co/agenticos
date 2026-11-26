@@ -28,6 +28,7 @@ trap cleanup EXIT
 kind create cluster --name "$cluster" --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 --wait 180s
 # Imported local images need this policy; a nonempty array also supports Bash 3.
 image_options=(--set image.pullPolicy=IfNotPresent)
+if [ -n "${SMOKE_IMAGE_TAG:-}" ]; then image_options+=(--set "image.tag=$SMOKE_IMAGE_TAG"); fi
 if [ -n "${SMOKE_BACKEND_IMAGE:-}" ]; then
   kind load docker-image --name "$cluster" "$SMOKE_BACKEND_IMAGE"
   image_options+=(--set "image.backend=${SMOKE_BACKEND_IMAGE%:*}" --set "image.backendTag=${SMOKE_BACKEND_IMAGE##*:}")
@@ -69,7 +70,7 @@ kubectl -n agenticos-smoke port-forward service/smoke-agenticos-api 18000:8000 >
 api_forward=$!
 kubectl -n agenticos-smoke port-forward service/smoke-agenticos-frontend 13000:3000 > "$scratch/site-forward.log" 2>&1 &
 site_forward=$!
-for attempt in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:18000/api/v1/health/ready >/dev/null && curl -fsS http://127.0.0.1:13000/login >/dev/null; then break; fi
   sleep 1
 done
@@ -111,7 +112,7 @@ kubectl -n agenticos-smoke port-forward service/smoke-agenticos-api 18000:8000 >
 api_forward=$!
 kubectl -n agenticos-smoke port-forward service/smoke-agenticos-frontend 13000:3000 > "$scratch/site-forward.log" 2>&1 &
 site_forward=$!
-for attempt in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:18000/api/v1/health/ready >/dev/null && curl -fsS http://127.0.0.1:13000/login >/dev/null; then break; fi
   sleep 1
 done

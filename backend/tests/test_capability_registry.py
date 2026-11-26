@@ -277,6 +277,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "external_acp": {"agent_id": "test-agent"},
         "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
@@ -630,7 +631,6 @@ class TestReadOnlyDeclarations:
             ("background_tasks", "stop_background_task"),
             ("drafts", "write_draft"),
             ("memory_files", "correct_memory"),
-            ("memory_files", "recall"),
             ("memory_files", "remember"),
             ("memory_files", "share_memory"),
             ("mirage", "mirage_edit_file"),
@@ -669,6 +669,8 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_switch_tab"),
             ("browser_use", "browser_close_tab"),
             ("coding_agent", "run_coding_agent"),
+            ("external_acp", "run_acp_agent"),
+            ("external_acp", "inspect_acp_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),
             ("monitor", "stop_monitor"),
@@ -683,6 +685,8 @@ class TestReadOnlyDeclarations:
             ("sandbox", "write_file"),
             ("sandbox", "edit_file"),
             ("sandbox", "execute"),
+            ("projects", "write_project_file"),
+            ("projects", "transfer_project_file"),
             ("visuals", "draw"),
             ("visuals", "revise_visual"),
             ("visuals", "read_visual"),
@@ -698,6 +702,20 @@ class TestReadOnlyDeclarations:
         }
 
         assert writes == self.WRITES
+
+    def test_the_capabilities_page_lists_exactly_the_tools_an_eval_holds(self):
+        """`docs/reference/capabilities.md` is where an eval's author reads what is held."""
+        page = (
+            Path(__file__).resolve().parents[2] / "docs" / "reference" / "capabilities.md"
+        ).read_text(encoding="utf-8")
+        table = page.split("| id | Tools that write |\n|---|---|\n", 1)[1].split("\n\n", 1)[0]
+        listed = {
+            (capability, tool)
+            for capability, tools in re.findall(r"^\| `([a-z0-9_]+)` \| (.+) \|$", table, re.M)
+            for tool in re.findall(r"`([a-z0-9_]+)`", tools)
+        }
+
+        assert listed == self.WRITES
 
     def test_a_capability_that_declares_nothing_writes(self):
         tool = CapabilityToolInfo(id="send_email", description="Send it.")
@@ -1312,6 +1330,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "background_tasks",
             "coding_agent",
+            "external_acp",
             "video_generation",
             "monitor",
         },

@@ -1,12 +1,14 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { CatalogLoading } from "@/components/states/catalog-loading";
 
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useEffect, useRef, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
@@ -39,6 +41,7 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { TableRead } from "@/types/tables";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 type Shown = "live" | "all";
 const SHOWN: readonly Shown[] = ["live", "all"];
@@ -121,7 +124,10 @@ export default function TablesPage() {
         aria-label={t("catalog")}
         className={
           galleryFullscreen
-            ? "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6"
+            ? cn(
+                "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6",
+                FULLSCREEN_SAFE_PADDED,
+              )
             : undefined
         }
         namedByPage

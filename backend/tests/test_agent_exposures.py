@@ -1059,6 +1059,12 @@ async def test_saving_automatic_participation_rotates_authority_and_records_the_
         validate.assert_not_awaited()
 
 
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_exposure.require_organization_agent", AsyncMock())
+
+
 class TestSayingThatALineAnswersStrangers:
     """The Builder is told when binding an agent opens it to people with no account."""
 

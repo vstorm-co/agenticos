@@ -7,10 +7,12 @@ and - the one the whole no-double-fire design rests on - that a second heartbeat
 claiming at the same instant takes none of the rows the first one locked.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import String, literal_column, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -25,7 +27,13 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
 from app.repositories.conversation import create_conversation
-from app.schemas.agent_trigger import _POLLED_SOURCES, TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import (
+    _POLLED_SOURCES,
+    GithubFilteredEvent,
+    TriggerCreate,
+    TriggerRead,
+    TriggerUpdate,
+)
 from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
@@ -62,7 +70,7 @@ async def _agent(db, org: Organization) -> Agent:
         organization_id=org.id,
         slug=f"a-{uuid.uuid4().hex[:8]}",
         name="Nightly",
-        draft_spec={},
+        draft_spec={"name": "Nightly"},
     )
     db.add(agent)
     await db.flush()
@@ -770,7 +778,7 @@ class TestWithdrawingRunAsCreator:
         await db.flush()
 
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
-            db, agent_id=agent.id, kept_for=member.id
+            db, agent_id=agent.id, kept_for=member.id, environment_ids=[], include_unscoped=True
         )
 
         await db.refresh(owners)
@@ -779,3 +787,281 @@ class TestWithdrawingRunAsCreator:
         await db.refresh(members)
         assert withdrawn == 1
         assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)
+
+    async def test_only_triggers_in_the_reached_environments_lose_it(self, db):
+        """A trigger whose environment the new version does not reach goes on
+        running what its creator agreed to, so it keeps "run as me" (#3290)."""
+        from app.repositories import agent_environment_repo
+
+        org = await _org(db)
+        agent = await _agent(db, org)
+        member = await _member(db, org)
+        environments = {
+            name: await agent_environment_repo.create(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                name=name,
+                version_id=agent.current_version_id,
+                is_default=name == "production",
+                tracks_latest=name == "dev",
+                created_by_user_id=member.id,
+            )
+            for name in ("production", "dev")
+        }
+
+        def routine(environment_id: uuid.UUID | None) -> AgentTrigger:
+            return _trigger(
+                org,
+                agent,
+                runs_as_creator=True,
+                created_by_user_id=member.id,
+                environment_id=environment_id,
+            )
+
+        on_dev = routine(environments["dev"].id)
+        on_production = routine(environments["production"].id)
+        unscoped = routine(None)
+        db.add_all([on_dev, on_production, unscoped])
+        await db.flush()
+
+        async def withdraw(*names: str, include_unscoped: bool) -> int:
+            return await agent_trigger_repo.withdraw_creator_consent(
+                db,
+                agent_id=agent.id,
+                kept_for=None,
+                environment_ids=[environments[name].id for name in names],
+                include_unscoped=include_unscoped,
+            )
+
+        assert await withdraw("dev", include_unscoped=False) == 1
+        for trigger in (on_dev, on_production, unscoped):
+            await db.refresh(trigger)
+        assert (on_dev.runs_as_creator, on_production.runs_as_creator) == (False, True)
+        assert unscoped.runs_as_creator is True
+
+        # The default reached: a trigger naming no environment runs it, so it goes too.
+        assert await withdraw("production", include_unscoped=True) == 2
+        for trigger in (on_production, unscoped):
+            await db.refresh(trigger)
+        assert (on_production.runs_as_creator, unscoped.runs_as_creator) == (False, False)
+
+
+async def test_a_filtered_event_snapshot_replaces_the_previous_one_without_a_run(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.flush()
+    first = {"received_at": "2026-11-17T09:00:00Z", "reason": "author", "authors": "members"}
+    second = {"received_at": "2026-11-17T10:00:00Z", "reason": "mention", "authors": "contributors"}
+    for snapshot in (first, second):
+        await agent_trigger_repo.update(
+            db, trigger=trigger, update_data={"last_filtered_event": snapshot}
+        )
+    await db.refresh(trigger)
+    assert trigger.last_filtered_event == second
+    assert trigger.last_run_id is None
+    assert trigger.last_fired_at is None
+
+
+async def test_an_older_delivery_finishing_last_cannot_replace_a_newer_diagnostic(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.commit()
+    factory = async_sessionmaker(db.bind, expire_on_commit=False)
+    older_loaded = asyncio.Event()
+    newer_saved = asyncio.Event()
+    earlier = GithubFilteredEvent(
+        received_at=datetime(2026, 11, 17, 9, tzinfo=UTC), reason="author", authors="members"
+    )
+    later = GithubFilteredEvent(
+        received_at=datetime(2026, 11, 17, 10, tzinfo=UTC), reason="mention", authors="contributors"
+    )
+
+    async def older_delivery() -> None:
+        async with factory() as session:
+            stale = await agent_trigger_repo.get_by_id(session, trigger.id)
+            assert stale is not None
+            older_loaded.set()
+            await newer_saved.wait()
+            await agent_trigger_repo.record_filtered_event(
+                session, trigger=stale, diagnostic=earlier
+            )
+            await session.commit()
+
+    async def newer_delivery() -> None:
+        await older_loaded.wait()
+        async with factory() as session:
+            current = await agent_trigger_repo.get_by_id(session, trigger.id)
+            assert current is not None
+            await agent_trigger_repo.record_filtered_event(
+                session, trigger=current, diagnostic=later
+            )
+            await session.commit()
+        newer_saved.set()
+
+    async with asyncio.TaskGroup() as group:
+        group.create_task(older_delivery())
+        group.create_task(newer_delivery())
+    await db.refresh(trigger)
+    assert GithubFilteredEvent.model_validate(trigger.last_filtered_event).model_dump(
+        mode="json"
+    ) == later.model_dump(mode="json")
+    assert trigger.last_run_id is None
+
+
+async def test_filtered_delivery_bursts_write_one_diagnostic_per_minute(db: AsyncSession) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.flush()
+    began = datetime(2026, 11, 17, 9, tzinfo=UTC)
+    first = GithubFilteredEvent(received_at=began, reason="author", authors="members")
+    await agent_trigger_repo.record_filtered_event(db, trigger=trigger, diagnostic=first)
+    position = (
+        select(literal_column("ctid::text", String))
+        .select_from(AgentTrigger)
+        .where(AgentTrigger.id == trigger.id)
+    )
+    original_version = await db.scalar(position)
+    assert original_version is not None
+    for index in range(100):
+        await agent_trigger_repo.record_filtered_event(
+            db,
+            trigger=trigger,
+            diagnostic=GithubFilteredEvent(
+                received_at=began + timedelta(milliseconds=index * 10),
+                reason="mention",
+                authors="members",
+            ),
+        )
+    # A sampled-out delivery must not create another physical row version.
+    assert await db.scalar(position) == original_version
+    await db.refresh(trigger)
+    assert GithubFilteredEvent.model_validate(trigger.last_filtered_event).model_dump(
+        mode="json"
+    ) == first.model_dump(mode="json")
+    # Move only the DB-written cooldown into the past; the host clock is irrelevant.
+    await db.execute(
+        text(
+            "UPDATE agent_triggers SET last_filtered_event = last_filtered_event || jsonb_build_object('recorded_at', clock_timestamp() - interval '61 seconds') WHERE id = :id"
+        ),
+        {"id": trigger.id},
+    )
+    original_version = await db.scalar(position)
+    next_window = GithubFilteredEvent(
+        received_at=began + timedelta(minutes=1), reason="mention", authors="members"
+    )
+    await agent_trigger_repo.record_filtered_event(db, trigger=trigger, diagnostic=next_window)
+    assert await db.scalar(position) != original_version
+    await db.refresh(trigger)
+    assert GithubFilteredEvent.model_validate(trigger.last_filtered_event).model_dump(
+        mode="json"
+    ) == next_window.model_dump(mode="json")
+    assert trigger.last_run_id is None and trigger.last_fired_at is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["event_config", "approved_sources", "is_active"])
+async def test_a_filtered_delivery_cannot_write_after_its_admitted_configuration_changes(
+    db: AsyncSession,
+    change: str,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.commit()
+    factory = async_sessionmaker(db.bind, expire_on_commit=False)
+    async with factory() as stale_session:
+        stale = await agent_trigger_repo.get_by_id(stale_session, trigger.id)
+        assert stale is not None
+        async with factory() as editor:
+            current = await agent_trigger_repo.get_by_id(editor, trigger.id)
+            assert current is not None
+            await agent_trigger_repo.update(
+                editor,
+                trigger=current,
+                update_data={change: False if change == "is_active" else {"review": "changed"}},
+            )
+            await editor.commit()
+        await agent_trigger_repo.record_filtered_event(
+            stale_session,
+            trigger=stale,
+            diagnostic=GithubFilteredEvent(
+                received_at=datetime.now(UTC), reason="author", authors="members"
+            ),
+        )
+        await stale_session.commit()
+    await db.refresh(trigger)
+    assert trigger.last_filtered_event is None
+
+
+async def test_a_host_clock_jump_cannot_bypass_the_filtered_diagnostic_cooldown(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.flush()
+    first = GithubFilteredEvent(received_at=datetime.now(UTC), reason="author", authors="members")
+    await agent_trigger_repo.record_filtered_event(db, trigger=trigger, diagnostic=first)
+    await agent_trigger_repo.record_filtered_event(
+        db,
+        trigger=trigger,
+        diagnostic=first.model_copy(update={"received_at": first.received_at + timedelta(hours=1)}),
+    )
+    await db.refresh(trigger)
+    stored = GithubFilteredEvent.model_validate(trigger.last_filtered_event)
+    assert stored.received_at == first.received_at
+    assert stored.recorded_at is not None
+
+
+async def test_concurrent_filtered_deliveries_share_one_database_cooldown(db: AsyncSession) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.commit()
+    factory = async_sessionmaker(db.bind, expire_on_commit=False)
+    first_written, second_started = asyncio.Event(), asyncio.Event()
+    first = GithubFilteredEvent(received_at=datetime.now(UTC), reason="author", authors="members")
+
+    async def writer(earlier: bool):
+        async with factory() as session:
+            current = await agent_trigger_repo.get_by_id(session, trigger.id)
+            assert current is not None
+            if not earlier:
+                await first_written.wait()
+                second_started.set()
+            diagnostic = (
+                first
+                if earlier
+                else first.model_copy(
+                    update={"received_at": first.received_at + timedelta(seconds=1)}
+                )
+            )
+            await agent_trigger_repo.record_filtered_event(
+                session, trigger=current, diagnostic=diagnostic
+            )
+            snapshot = await session.scalar(
+                select(AgentTrigger.last_filtered_event).where(AgentTrigger.id == trigger.id)
+            )
+            if earlier:
+                first_written.set()
+                await second_started.wait()
+            await session.commit()
+            return snapshot
+
+    initial, following = await asyncio.gather(writer(True), writer(False))
+    assert initial == following
+    assert GithubFilteredEvent.model_validate(following).received_at == first.received_at

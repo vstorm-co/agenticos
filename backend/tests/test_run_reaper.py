@@ -122,11 +122,16 @@ class TestTheFlow:
 
 class TestAbandonedEvals:
     async def test_runs_and_attempts_idle_past_the_setting_are_closed(self, monkeypatch):
-        fail = AsyncMock(return_value=[MagicMock()])
+        from app.services.skill_check import SkillCheckService
+
+        closed = MagicMock()
+        fail = AsyncMock(return_value=[closed])
         close = AsyncMock(return_value=2)
+        moved = AsyncMock()
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
         monkeypatch.setattr(eval_run_repo, "close_orphaned_attempts", close)
         monkeypatch.setattr(run_reaper.NotificationService, "eval_run_finished", AsyncMock())
+        monkeypatch.setattr(SkillCheckService, "after_run", moved)
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 30.0)
 
         before = datetime.now(UTC)
@@ -139,6 +144,7 @@ class TestAbandonedEvals:
         assert asked["job_kind"] == RUN_EVAL.kind
         assert before <= asked["now"] <= after
         assert close.await_args.kwargs["ended_before"] == asked["idle_since"]
+        moved.assert_awaited_once_with(closed.organization_id, closed.id)
 
     async def test_zero_switches_it_off(self, monkeypatch):
         fail = AsyncMock()
@@ -203,14 +209,14 @@ class TestLostJobs:
         assert not [r for r in caplog.records if r.message == "eval_run_job_lost"]
 
     @pytest.mark.parametrize(
-        ("why", "error"),
+        ("why", "error", "code"),
         [
-            ("cancelled", "The request was cancelled before it started. Try again."),
-            ("worker killed", "The assistant stopped without finishing. Try again."),
+            ("cancelled", "The request was cancelled before it started. Try again.", "withdrawn"),
+            ("worker killed", "The assistant stopped without finishing. Try again.", "stalled"),
         ],
     )
     async def test_a_lost_authoring_job_fails_its_request(
-        self, monkeypatch, caplog, why: str, error: str
+        self, monkeypatch, caplog, why: str, error: str, code: str
     ):
         fail = AsyncMock(return_value=True)
         monkeypatch.setattr(authoring_repo, "fail_unfinished", fail)
@@ -224,6 +230,7 @@ class TestLostJobs:
         assert fail.await_args.args[1] == request
         assert fail.await_args.kwargs["organization_id"] == org
         assert fail.await_args.kwargs["error"] == error
+        assert fail.await_args.kwargs["error_code"] == code
         assert [r for r in caplog.records if r.message == "authoring_request_job_lost"]
 
     async def test_a_request_a_worker_still_holds_is_settled_later(self, monkeypatch):

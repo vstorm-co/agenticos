@@ -1,17 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 import { useSavedVisualsStore } from "@/stores/visual-stream-store";
 import { VisualSaveDialog } from "./visual-save-dialog";
 
-const { mutateAsync, push, toast } = vi.hoisted(() => ({
+const { mutateAsync, push, toast, pending } = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
+  pending: { value: false },
   push: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/hooks/use-publish-visual", () => ({
-  usePublishVisual: () => ({ mutateAsync, isPending: false }),
+  usePublishVisual: () => ({ mutateAsync, isPending: pending.value }),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("sonner", () => ({ toast }));
@@ -44,6 +46,7 @@ const APP = {
 describe("VisualSaveDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pending.value = false;
     useSavedVisualsStore.setState({ saved: {} });
   });
 
@@ -135,4 +138,22 @@ describe("VisualSaveDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+});
+
+it("keeps a pending save stable and prevents duplicate submissions", () => {
+  pending.value = true;
+  const close = open();
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByLabelText("Title")).toBeDisabled();
+  fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(mutateAsync).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+});
+
+it("closes an idle dialog through its standard Escape action", async () => {
+  pending.value = false;
+  const close = open();
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledWith(false);
 });

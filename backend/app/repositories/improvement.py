@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AppAdminAuditLog
@@ -15,7 +16,9 @@ from app.db.models.improvement import (
     OPEN_STATUSES,
     ImprovementIteration,
     ImprovementRun,
+    ImprovementSearchVariant,
     ImprovementStatus,
+    SearchVariantStatus,
 )
 
 _ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
@@ -35,6 +38,7 @@ async def create_run(
     base_draft_hash: str,
     dataset_id: UUID,
     dataset_version: int,
+    holdout_share: Decimal,
     suite_id: UUID | None,
     suite_hash: str | None,
     scoring_hash: str,
@@ -61,6 +65,7 @@ async def create_run(
         base_draft_hash=base_draft_hash,
         dataset_id=dataset_id,
         dataset_version=dataset_version,
+        holdout_share=holdout_share,
         suite_id=suite_id,
         suite_hash=suite_hash,
         scoring_hash=scoring_hash,
@@ -92,6 +97,21 @@ async def get_run(
         statement = statement.with_for_update()
     result = await db.execute(statement)
     return result.scalar_one_or_none()
+
+
+async def datasets_of(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """The datasets these sessions ran on; a session that no longer exists names none."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(ImprovementRun.dataset_id).where(
+            ImprovementRun.id.in_(list(run_ids)),
+            ImprovementRun.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())
 
 
 async def get_active(
@@ -195,9 +215,13 @@ async def list_deciding(
 
 
 async def list_for_person(
-    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str]
 ) -> list[ImprovementRun]:
-    """The organization's sessions in these statuses, newest first."""
+    """The organization's sessions in these open statuses, newest first.
+
+    All of them: an agent holds at most one open session, so there are never more
+    than the organization has agents.
+    """
     result = await db.execute(
         select(ImprovementRun)
         .where(
@@ -205,7 +229,6 @@ async def list_for_person(
             ImprovementRun.status.in_(statuses),
         )
         .order_by(ImprovementRun.created_at.desc(), ImprovementRun.id.desc())
-        .limit(limit)
     )
     return list(result.scalars().all())
 
@@ -406,3 +429,110 @@ async def runs_for_checks(
         .order_by(ImprovementIteration.run_id)
     )
     return list(rows.all())
+
+
+async def add_variants(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    iteration_id: UUID,
+    generation: int,
+    variants: Sequence[tuple[UUID | None, str, str, str]],
+) -> int:
+    """Queue variants to score, as `(parent_id, instructions, text_hash, rationale)`.
+
+    A text the attempt already tried is left out, so the same variant is never
+    paid for twice. Returns how many were added.
+    """
+    if not variants:
+        return 0
+    result = await db.execute(
+        insert(ImprovementSearchVariant)
+        .values(
+            [
+                {
+                    "organization_id": organization_id,
+                    "iteration_id": iteration_id,
+                    "generation": generation,
+                    "parent_id": parent_id,
+                    "instructions": instructions,
+                    "text_hash": text_hash,
+                    "rationale": rationale,
+                    "status": SearchVariantStatus.PENDING.value,
+                    "cases_scored": 0,
+                    "cases_passed": 0,
+                    "estimate_usd": Decimal(0),
+                    "cost_usd": Decimal(0),
+                }
+                for parent_id, instructions, text_hash, rationale in variants
+            ]
+        )
+        .on_conflict_do_nothing(constraint="uq_improvement_search_variant_text")
+        .returning(ImprovementSearchVariant.id)
+    )
+    return len(result.all())
+
+
+async def list_variants(
+    db: AsyncSession, *, organization_id: UUID, iteration_id: UUID
+) -> list[ImprovementSearchVariant]:
+    """An attempt's variants, best scored first, then the pending and failed ones."""
+    result = await db.execute(
+        select(ImprovementSearchVariant)
+        .where(
+            ImprovementSearchVariant.organization_id == organization_id,
+            ImprovementSearchVariant.iteration_id == iteration_id,
+        )
+        .order_by(
+            ImprovementSearchVariant.train_score.desc().nulls_last(),
+            func.length(ImprovementSearchVariant.instructions),
+            ImprovementSearchVariant.created_at,
+            ImprovementSearchVariant.id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_variant(
+    db: AsyncSession, variant_id: UUID, *, organization_id: UUID, iteration_id: UUID
+) -> ImprovementSearchVariant | None:
+    result = await db.execute(
+        select(ImprovementSearchVariant).where(
+            ImprovementSearchVariant.id == variant_id,
+            ImprovementSearchVariant.organization_id == organization_id,
+            ImprovementSearchVariant.iteration_id == iteration_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def next_pending_variant(
+    db: AsyncSession, *, organization_id: UUID, iteration_id: UUID
+) -> ImprovementSearchVariant | None:
+    """The oldest variant still to score, locked so two jobs never score it at once."""
+    result = await db.execute(
+        select(ImprovementSearchVariant)
+        .where(
+            ImprovementSearchVariant.organization_id == organization_id,
+            ImprovementSearchVariant.iteration_id == iteration_id,
+            ImprovementSearchVariant.status == SearchVariantStatus.PENDING.value,
+        )
+        .order_by(
+            ImprovementSearchVariant.generation,
+            ImprovementSearchVariant.created_at,
+            ImprovementSearchVariant.id,
+        )
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_variant(
+    db: AsyncSession, *, variant: ImprovementSearchVariant, values: dict[str, Any]
+) -> ImprovementSearchVariant:
+    for field, value in values.items():
+        setattr(variant, field, value)
+    await db.flush()
+    await db.refresh(variant)
+    return variant

@@ -69,6 +69,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.file_upload import FileUploadService
 from app.services.ml import MLService
+from app.services.personal_model_surfaces import require_organization_agent
 from app.services.realtime_models import Transport
 from app.services.speech_to_text import RecordingFormat
 from app.services.transcription_usage import TranscriptionCall
@@ -194,6 +195,7 @@ class AgentEmbedService:
                 that contradicts the kind - see `_check_origins`.
         """
         agent = await self.agents.get(ctx, data.agent_id, perm=Perm.AGENTS_PUBLISH)
+        await require_organization_agent(self.db, ctx, data.agent_id)
         refuse_system_agent(agent, action="an embed or a public page")
 
         kind = data.config.kind
@@ -249,6 +251,8 @@ class AgentEmbedService:
         # used to be a hand-kept list of five field names here; the column decides
         # now, so a field added to the schema is covered the day it is added (#637).
         changes = writable(data, over=AgentEmbed)
+        if changes.get("is_active", embed.is_active):
+            await require_organization_agent(self.db, ctx, embed.agent_id)
 
         mode = changes.get("auth_mode", embed.auth_mode)
         if "auth_mode" in changes or "jwt_secret" in changes:

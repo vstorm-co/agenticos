@@ -21,17 +21,19 @@ import functools
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+import httpx
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.workspaces import Workspace, WorkspaceError
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.blocking import run_blocking
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError
 from app.db.models.chat_file import ChatFile
 from app.db.session import get_db_context
 from app.repositories import chat_file_repo
@@ -627,29 +629,17 @@ class AttachmentRouter:
         path = workspace_path(chat_file)
         data: bytes | None = None
 
-        if not await workspace.exists(path):
+        try:
+            exists = await workspace.exists(path)
+        except (OSError, WorkspaceError, ExternalServiceError, httpx.TransportError) as refused:
+            return await self._workspace_refused(chat_file, path, inline_budget, refused)
+
+        if not exists:
             data = await get_file_storage().load(chat_file.storage_path)
             try:
                 await _put(workspace, chat_file, path, data)
-            except (OSError, WorkspaceError) as refused:
-                # A full workspace, most likely - and that is exactly why this
-                # must not fall back to pasting the file. The write is refused
-                # when the document has no room for it, so this branch only ever
-                # runs for a file too large to store; with a 50 MB upload limit
-                # against a 4 MB document, pasting it would have put up to fifty
-                # megabytes of text into one message. A file small enough to paste
-                # safely would have fitted in the workspace.
-                #
-                # An image is the exception, and the reason is the same one that
-                # makes images go both ways: the model can still *see* it, and
-                # `_inline_images` has its own, much smaller per-image ceiling.
-                logger.info("attachment_not_written", extra={"path": path, "reason": str(refused)})
-                if chat_file.file_type == "image":
-                    plan = await self._without_workspace(chat_file)
-                    return AttachmentPlan(
-                        reference=plan.reference, inline=plan.inline, refused=True
-                    )
-                return AttachmentPlan(reference=_unstored(chat_file), inline=[], refused=True)
+            except (OSError, WorkspaceError, ExternalServiceError, httpx.TransportError) as refused:
+                return await self._workspace_refused(chat_file, path, inline_budget, refused)
 
             await self._write_extracted_text(workspace, chat_file, path)
 
@@ -661,6 +651,20 @@ class AttachmentRouter:
         if result.note is not None:
             reference += result.note
         return AttachmentPlan(reference=reference, inline=result.images)
+
+    async def _workspace_refused(
+        self,
+        chat_file: ChatFile,
+        path: str,
+        inline_budget: int | None,
+        error: OSError | WorkspaceError | ExternalServiceError | httpx.TransportError,
+    ) -> AttachmentPlan:
+        logger.info("attachment_not_written", extra={"path": path, "reason": str(error)})
+        # Vision does not require a workspace copy. Reuse the standalone image
+        # path so both the per-image and remaining per-turn limits still apply.
+        if chat_file.file_type == "image":
+            return replace(await self._without_workspace(chat_file, inline_budget), refused=True)
+        return AttachmentPlan(reference=_unstored(chat_file), inline=[], refused=True)
 
     async def restore(self, files: list[ChatFile]) -> None:
         """Write each of `files`, which the caller found missing, or its text beside it.

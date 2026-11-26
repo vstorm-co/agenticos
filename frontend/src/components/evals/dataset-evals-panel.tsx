@@ -107,16 +107,19 @@ export function DatasetEvalsPanel({
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : (
-        <Groups
-          datasetId={datasetId}
-          groups={groups}
-          known={known}
-          error={error}
-          onRetry={() => void refetch()}
-        />
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Groups
+            datasetId={datasetId}
+            groups={groups}
+            known={known}
+            error={error}
+            onRetry={() => void refetch()}
+          />
+        </div>
       )}
       {!isLoading && !error && (
         <Pager
+          showSinglePage
           page={page}
           pageCount={Math.ceil(total / RUN_PAGE)}
           matched={total}

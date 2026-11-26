@@ -26,6 +26,7 @@ import {
   VERSIONS_PAGE_SIZE,
 } from "@/hooks";
 import { useOrgStore } from "@/stores";
+import { getErrorMessage } from "@/lib/api-error";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
 import type { PromotionOverride } from "@/types/promotion-gate";
@@ -56,6 +57,8 @@ interface VersionHistoryProps {
    * as it was then, which the draft may no longer be.
    */
   testedSpec?: { spec: AgentSpec; label: string } | null;
+  /** Why the spec an eval run tested could not be read, when a link asked to compare with it. */
+  testedSpecError?: Error | null;
 }
 
 /** The draft is a comparison target with no version id of its own. */
@@ -206,8 +209,10 @@ export function VersionHistory({
   compareFrom = null,
   compareTo = "draft",
   testedSpec = null,
+  testedSpecError = null,
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
+  const tErrors = useTranslations("errors");
   // `timeAgo` reads its words from the shared `time` namespace, not this one.
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -406,6 +411,11 @@ export function VersionHistory({
       )}
 
       <div className="space-y-2 rounded-md border p-3">
+        {compareTo === "tested" && testedSpecError && (
+          <p role="alert" className="text-destructive-ink text-sm">
+            {t("testedSpecUnread", { reason: getErrorMessage(testedSpecError, tErrors) })}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">{t("comparing")}</span>
           <Select value={leftId ?? ""} onValueChange={setLeftId}>

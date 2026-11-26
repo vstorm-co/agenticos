@@ -58,6 +58,8 @@ export interface ConversationWorkspace {
    * configuration somebody chose, and it has a one-line fix the message names.
    */
   unreadable_reason: string | null;
+  /** Missing archive, with no retained session reference; does not assert the files never existed. */
+  unreadable_code?: "workspace_not_retained" | null;
 }
 
 export interface ConversationFileContent {
@@ -120,4 +122,33 @@ export async function readConversationFolderZip(
     `/conversations/${conversationId}/workspace/archive?path=${encodeURIComponent(path)}`,
   );
   return response.blob();
+}
+
+/** Exact file locations retained by this chat; paths never identify a location. */
+export interface ConversationWorkspaceOrigin {
+  kind: "agent" | "project";
+  workspace_id: string;
+  project_id: string | null;
+  scope: string;
+  backend: string;
+  owner_label: string;
+}
+
+export interface ConversationWorkspaceOrigins {
+  default_origin: "agent" | "project" | null;
+  default_workspace_id: string | null;
+  items: ConversationWorkspaceOrigin[];
+  truncated: boolean;
+}
+
+export async function readConversationWorkspaceOrigins(
+  conversationId: string,
+): Promise<ConversationWorkspaceOrigins> {
+  return apiClient.get<ConversationWorkspaceOrigins>(
+    `/conversations/${conversationId}/workspace-origins`,
+  );
+}
+
+export function workspaceOriginKey(origin: ConversationWorkspaceOrigin): string {
+  return JSON.stringify([origin.kind, origin.workspace_id, origin.project_id]);
 }

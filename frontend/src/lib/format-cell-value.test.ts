@@ -115,6 +115,9 @@ describe("formatCellValue", () => {
     const col = column({ type: "rating" });
     expect(formatCellValue(col, 3, boolLabel)).toBe("★★★☆☆");
     expect(formatCellValue(col, "3", boolLabel)).toBe("");
+    for (const value of [-1, 6, 0.5, NaN, Infinity]) {
+      expect(formatCellValue(col, value, boolLabel)).toBe("");
+    }
   });
 
   it("joins what a lookup read, and counts a link it cannot name", () => {

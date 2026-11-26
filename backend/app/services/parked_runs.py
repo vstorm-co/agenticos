@@ -24,8 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext
+from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
@@ -37,7 +37,7 @@ from app.repositories import agent_run_repo, channel_prompt_repo
 from app.repositories.channel_prompt import SettledBy
 from app.schemas.agent import AgentRunResult, RunStep, SettledCall, SettledDelegation
 from app.services.agent_runner import AgentRunnerService, RunSegment
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, past_own_platform_call
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
 from app.services.channels.handback_jobs import queue_segment
@@ -83,7 +83,7 @@ class ParkedRunService:
     ) -> DecidedApproval:
         """Approve or reject a parked call; on a chat run, continue it there when it was the last.
 
-        Errors are `ApprovalService.decide`'s, unchanged. A decision on a run
+        Decision conflicts also identify a server-owned chat continuation. A decision on a run
         that is not a chat's is exactly that call, with the flag false.
         """
         run = await self._claimed_chat_run(ctx, approval_id)
@@ -101,15 +101,38 @@ class ParkedRunService:
         await channel_prompt_repo.settle_open(
             self.db, run_id=run.id, approval_id=approval_id, by="decided"
         )
-        decided = await self.approvals.decide(
-            ctx,
-            approval_id,
-            approved=approved,
-            note=note,
-            remember_scope=remember_scope,
-        )
+        try:
+            decided = await self.approvals.decide(
+                ctx,
+                approval_id,
+                approved=approved,
+                note=note,
+                remember_scope=remember_scope,
+            )
+        except BadRequestError as error:
+            if error.details and "status" in error.details:
+                state = run.paused_state
+                queued = state.get("chat_continuation_approval_id") if state else None
+                calls = state.get("tool_call_ids", {}) if state else {}
+                error.details["continues_in_chat"] = (
+                    isinstance(queued, str)
+                    and isinstance(calls, dict)
+                    and queued in calls
+                    and chat_destination(run) is not None
+                )
+            raise
         destination = chat_destination(run)
         if flag and destination is not None and not await self._anything_pending(run):
+            # Ownership belongs to the queued continuation, not a later caller's identity.
+            assert run.paused_state is not None
+            await agent_run_repo.keep_paused_state(
+                self.db,
+                run=run,
+                paused_state={
+                    **run.paused_state,
+                    "chat_continuation_approval_id": str(approval_id),
+                },
+            )
             spawn_after_commit(
                 self.db,
                 continue_in_chat(
@@ -148,8 +171,22 @@ class ParkedRunService:
         return any(a.status == ApprovalStatus.PENDING.value for a in approvals)
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> Continued:
-        """Continue a run whose calls were decided, inline; post to its chat when it has one."""
+        """Continue a run whose calls were decided, inline; post to its chat when it has one.
+
+        Needs `approvals:decide`, or to be the run's own person continuing it past
+        their own platform call - which nobody else may continue it past.
+
+        Raises:
+            AuthorizationError: The caller is neither.
+        """
         run = await self.runner.get_run(ctx, run_id)
+        if not ctx.has(Perm.APPROVALS_DECIDE) and not await past_own_platform_call(
+            self.db, ctx, run
+        ):
+            raise AuthorizationError(
+                message="Continuing a parked run needs approvals:decide",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
         if run.surface == RunSurface.WORKFLOW.value:
             raise BadRequestError(
                 message="This run is continued by its workflow",

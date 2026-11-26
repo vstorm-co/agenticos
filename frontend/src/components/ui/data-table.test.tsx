@@ -33,6 +33,16 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
 }
 
 describe("DataTable", () => {
+  it("reserves the configured row height while a virtual list is loading", () => {
+    renderTable({ loading: true, skeletonRows: 3, rowHeight: 64, fillHeight: true });
+    const body = screen.getByRole("table").querySelector("tbody");
+    if (!body) throw new Error("The loading table must retain its row group");
+    const rows = within(body).getAllByRole("row");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row).toHaveStyle({ height: "64px" });
+    expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+  });
+
   it("keeps table relationships and cell labels when stacked in a narrow container", () => {
     renderTable({ stackOnNarrow: true, rows: [{ id: "one", name: "Existing member" }] });
     expect(screen.getByRole("table")).toHaveAttribute("role", "table");
@@ -383,4 +393,80 @@ it("keeps an empty or failed full-height table inside its row scrollport", () =>
   expect(failed.container.querySelector(".overflow-y-auto")).toContainElement(
     screen.getByRole("alert"),
   );
+});
+
+describe("DataTable client pagination", () => {
+  const rows = Array.from({ length: 53 }, (_, index) => ({
+    id: String(index),
+    name: `Record ${String(index).padStart(2, "0")}`,
+  }));
+  it("pages the complete sorted collection and keeps both bounds disabled", async () => {
+    const user = userEvent.setup();
+    renderTable({
+      clientPagination: true,
+      fillHeight: true,
+      rows,
+      columns: [
+        {
+          key: "name",
+          header: "Name",
+          cell: (row) => row.name,
+          sortable: true,
+          sortValue: (row) => row.name,
+        },
+      ],
+    });
+    expect(screen.getByText("Record 00")).toBeInTheDocument();
+    expect(screen.queryByText("Record 52")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /Name/ }));
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByText("Record 00")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("clamps synchronously when filtering removes later pages and keeps an empty footer", async () => {
+    const user = userEvent.setup();
+    const view = renderTable({ clientPagination: true, rows });
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DataTable
+          columns={[{ key: "name", header: "Name", cell: (row: Row) => row.name }]}
+          rows={[]}
+          clientPagination
+          getRowKey={(row) => row.id}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByText("0–0 of 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("does not slice embedded or server-paged tables by default", () => {
+    renderTable({ rows });
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: messages.ui.nextPage })).not.toBeInTheDocument();
+  });
+});
+
+it("paginates tall account rows with an explicit page size", async () => {
+  renderTable({
+    clientPagination: true,
+    pageSize: 2,
+    rows: [
+      { id: "a", name: "Account A" },
+      { id: "b", name: "Account B" },
+      { id: "c", name: "Account C" },
+    ],
+  });
+  expect(screen.queryByText("Account C")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+  expect(screen.getByText("Account C")).toBeVisible();
+  expect(screen.queryByText("Account A")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: messages.ui.previousPage }));
+  expect(screen.getByText("Account A")).toBeVisible();
 });

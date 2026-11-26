@@ -5,8 +5,10 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+import os
 from collections.abc import Mapping
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -25,7 +27,9 @@ from app.agents.model_resolver import (
     is_decision_api,
     lacks_key,
 )
+from app.clients.subscription_gateway import configured_gateway
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -37,9 +41,14 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
+    AwsCredentialsSecret,
+    AzureOpenAISecret,
+    GcpServiceAccountSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
+    SecretValue,
     unseal_secret,
 )
 from app.core.vault import VaultScope
@@ -54,12 +63,16 @@ from app.repositories import (
     organization_secret_repo,
     system_agent_repo,
 )
-from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.model_profile import ModelProfileUpdate, NativeRuntimeAvailability
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
 from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
+from app.services.subscription_accounts import bind_to_person
+
+if TYPE_CHECKING:
+    from app.services.chatgpt_plan import VaultChatGPTCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +86,20 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 # `create_profile` validated, and fails loudly on a value it never wrote.
 _stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
 _stored_region = TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python
+
+
+def _credential_routing(secret: SecretValue) -> Mapping[str, str | None]:
+    """The provider's routing fields, excluding tokens and authentication material."""
+    if isinstance(secret, AzureOpenAISecret):
+        return {"azure_endpoint": secret.azure_endpoint, "api_version": secret.api_version}
+    if isinstance(secret, AwsCredentialsSecret):
+        return {"region_name": secret.region_name}
+    if isinstance(secret, GcpServiceAccountSecret):
+        return {
+            "project": secret.project,
+            "location": secret.location or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1",
+        }
+    return {}
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -156,9 +183,13 @@ def usable_for_agents(profile: ModelProfile) -> bool:
 
 
 def is_sign_in(profile: ModelProfile) -> bool:
-    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    """Whether the profile runs on a person's own subscription: a ChatGPT sign-in,
+    or the subscription accounts each runner signs in to themselves."""
     provider = PROVIDERS.get(profile.provider)
-    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+    return provider is not None and (
+        provider.personal_gateway
+        or provider.secret_kind in {SecretKind.OPENAI_CODEX, SecretKind.OPENAI_CHATGPT}
+    )
 
 
 def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
@@ -206,7 +237,7 @@ async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
             "provider's own API, so a custom URL here would be ignored",
             provider=spec.id,
         )
-    return await validate_endpoint_url(base_url)
+    return spec.endpoint(await validate_endpoint_url(base_url))
 
 
 def _check_shape(
@@ -223,6 +254,28 @@ def _check_shape(
     arriving at a new combination: a key removed from an OpenAI profile with no
     endpoint is the same unrunnable model creation refuses.
     """
+    if spec.personal_gateway:
+        for name, value in (
+            ("secret_id", secret_id),
+            ("base_url", base_url),
+            ("api", api),
+            ("region", region),
+        ):
+            if value is not None:
+                raise refused_field(
+                    name,
+                    f"{spec.name} run on each person's own signed-in accounts, "
+                    "so the model takes no key, endpoint, API or region",
+                    provider=spec.id,
+                )
+        if configured_gateway() is None:
+            raise refused_field(
+                "provider",
+                f"{spec.name} are off on this deployment: the operator sets "
+                "SUBSCRIPTION_GATEWAY_URL and SUBSCRIPTION_GATEWAY_TOKEN",
+                provider=spec.id,
+            )
+        return
     if spec.requires_base_url and base_url is None:
         raise refused_field(
             "base_url", f"{spec.name} requires an explicit gateway endpoint", provider=spec.id
@@ -328,10 +381,14 @@ class ModelProfileService:
         if region is None:
             region = spec.default_region()
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
-        if is_decision_api(provider, api) and fallback_profile_ids:
+        if (
+            is_decision_api(provider, api) or provider == "openai_chatgpt"
+        ) and fallback_profile_ids:
             raise refused_field(
                 "fallback_profile_ids",
-                "Decision model probabilities require an explicit model; automatic fallbacks are not supported",
+                "Official ChatGPT plan usage cannot switch accounts or billing through automatic fallbacks"
+                if provider == "openai_chatgpt"
+                else "Decision model probabilities require an explicit model; automatic fallbacks are not supported",
             )
         await self._check_label_free(ctx, label)
         if secret_id is not None:
@@ -384,6 +441,14 @@ class ModelProfileService:
         api: ModelApi | None = None,
     ) -> CatalogModel | None:
         """Read creation-time metadata using the selected authenticated gateway credential."""
+        if provider == "openai_chatgpt":
+            if secret_id is None:
+                raise refused_field("secret_id", "Choose the official ChatGPT grant first")
+            choices = await OrganizationSecretService(self.db).chatgpt_models(ctx, secret_id)
+            selected = next((entry for entry in choices if entry.id == model), None)
+            if selected is None:
+                raise refused_field("model", "Select a model available to this ChatGPT account")
+            return selected
         endpoint = base_url if CUSTOM_LISTINGS.get(provider) else None
         secrets = OrganizationSecretService(self.db)
         api_key = (
@@ -501,10 +566,14 @@ class ModelProfileService:
             region = changes.region if changes.region is not None else spec.default_region()
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
 
-        if is_decision_api(profile.provider, api) and profile.fallback_profile_ids:
+        if (
+            is_decision_api(profile.provider, api) or profile.provider == "openai_chatgpt"
+        ) and profile.fallback_profile_ids:
             raise refused_field(
                 "api",
-                "This profile has fallbacks. Create a separate decision model profile without fallbacks",
+                "Official ChatGPT plan usage requires a profile without automatic fallbacks"
+                if profile.provider == "openai_chatgpt"
+                else "This profile has fallbacks. Create a separate decision model profile without fallbacks",
             )
 
         wanted: dict[str, object] = {
@@ -710,8 +779,16 @@ class ModelProfileService:
         return ResolvedCredential(
             provider=profile.provider,
             secret=value,
+            credential_id=secret.id,
+            authorization_generation=secret.authorization_generation,
+            routing=_credential_routing(value),
             # A ChatGPT sign-in rotates as it is used, so the provider is handed
             # the secret's place in the vault rather than only what it holds now.
+            chatgpt_source=(
+                _chatgpt_source(organization_id, secret.id, secret.authorization_generation)
+                if isinstance(value, OpenAIChatGPTSecret)
+                else None
+            ),
             credential_source=(
                 VaultCodexCredentials(organization_id=organization_id, secret_id=secret.id)
                 if isinstance(value, OpenAICodexSecret)
@@ -750,13 +827,27 @@ class ModelProfileService:
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
-                    f"Model '{spec.label}' runs on somebody's own ChatGPT sign-in, "
-                    "which only they can use"
+                    f"Model '{spec.label}' runs on a person's own subscription, "
+                    "which only they can use from their own signed-in session"
                 ),
                 details={"profile_id": str(spec.profile_id)},
             )
         usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], person)]
-        return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
+        if person is None or not any(
+            _personal_gateway(credential)
+            for credential in (spec.credential, *(entry[0] for entry in usable))
+        ):
+            return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
+        # Subscription accounts are the runner's own: bound only now, to the
+        # person `_may_spend` just admitted.
+        return replace(
+            spec,
+            credential=await bind_to_person(self.db, spec.credential, ctx.organization_id, person),
+            fallbacks=[
+                (await bind_to_person(self.db, credential, ctx.organization_id, person), model)
+                for credential, model in usable
+            ],
+        )
 
     async def resolve_for_organization(
         self,
@@ -778,7 +869,7 @@ class ModelProfileService:
         if not await _may_spend(spec.credential, None):
             raise BadRequestError(
                 message=(
-                    f"Model '{spec.label}' runs on somebody's own ChatGPT sign-in, which "
+                    f"Model '{spec.label}' runs on a person's own subscription, which "
                     "background work cannot use - pick a model on an API key"
                 ),
                 details={"profile_id": str(spec.profile_id)},
@@ -874,7 +965,8 @@ class ModelProfileService:
                     )
                     continue
                 if (
-                    is_decision_api(fallback.provider, fallback.api)
+                    fallback.provider == "openai_chatgpt"
+                    or is_decision_api(fallback.provider, fallback.api)
                     or not model_outputs(
                         fallback.provider, fallback.model, base_url=fallback.base_url
                     ).chat
@@ -883,7 +975,7 @@ class ModelProfileService:
                     # (#2487): publish refuses one, and a fallback added to the
                     # profile afterwards degrades the chain the same way.
                     logger.warning(
-                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        "Model profile %s lists fallback %s, which cannot be an automatic chat fallback; skipping",
                         profile.id,
                         fallback.id,
                     )
@@ -913,11 +1005,24 @@ class ModelProfileService:
         )
 
 
+def _personal_gateway(credential: ResolvedCredential) -> bool:
+    provider = PROVIDERS.get(credential.provider)
+    return provider is not None and provider.personal_gateway
+
+
 async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bool:
     """Whether this person's run may use the credential - only a sign-in is anyone's own.
 
     A caller with no person behind it reaches nobody's sign-in.
     """
+    if _personal_gateway(credential):
+        return user_id is not None
+    if credential.provider == "openai_chatgpt":
+        return (
+            user_id is not None
+            and credential.chatgpt_source is not None
+            and await credential.chatgpt_source.visible_to(user_id)
+        )
     source = credential.credential_source
     if not isinstance(source, VaultCodexCredentials):
         return True
@@ -942,3 +1047,22 @@ def sign_in_person(ctx: AuthContext) -> UUID | None:
     ):
         return None
     return ctx.user_id
+
+
+def _chatgpt_source(
+    organization_id: UUID, secret_id: UUID, generation: UUID
+) -> VaultChatGPTCredentials:
+    from app.services.chatgpt_plan import VaultChatGPTCredentials
+
+    return VaultChatGPTCredentials(
+        organization_id=organization_id, secret_id=secret_id, generation=generation
+    )
+
+
+def native_runtime_availability() -> NativeRuntimeAvailability:
+    """Report deployment eligibility switches without inspecting personal credentials."""
+    return NativeRuntimeAvailability(
+        codex=settings.CODEX_NATIVE_CONVERSATION_ENABLED,
+        claude_code=settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
+        external=settings.EXTERNAL_NATIVE_CONVERSATION_ENABLED,
+    )

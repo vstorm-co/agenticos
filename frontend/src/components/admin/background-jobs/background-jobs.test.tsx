@@ -48,7 +48,7 @@ beforeEach(() => {
     error: null,
     hasNextPage: false,
     isFetchingNextPage: false,
-    fetchNextPage,
+    fetchNextPage: fetchNextPage.mockResolvedValue({ data: { pages: [] } }),
   };
 });
 
@@ -164,11 +164,11 @@ describe("the jobs table", () => {
     expect(onPool).toHaveBeenLastCalledWith(undefined);
   });
 
-  it("loads the next page on request", () => {
+  it("loads the next page on request", async () => {
     jobsState = { ...jobsState, hasNextPage: true };
     render(<JobsTable status={undefined} pool="system" onPool={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(fetchNextPage).toHaveBeenCalled();
   });
 

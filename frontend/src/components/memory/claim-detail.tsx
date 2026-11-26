@@ -7,23 +7,29 @@ import {
   Badge,
   Button,
   ConfirmDialog,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui";
+import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import type { MemoryClaim, DecisionEpisode } from "@/lib/memory-api";
+import type { AgentUsage } from "@/types/agents";
 import { DecisionEvidence } from "./decision-evidence";
 import { ClaimEditor } from "./claim-editor";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
 export function ClaimDetail({
   claim,
+  agent,
   onClose,
   correct,
   retract,
 }: {
   claim: MemoryClaim;
+  agent?: AgentUsage;
   onClose: () => void;
   correct: (
     id: string,
@@ -41,28 +47,26 @@ export function ClaimDetail({
   const [pending, setPending] = useState(false);
   const live = claim.status === "current" || claim.status === "disputed";
   return (
-    <Sheet
+    <Dialog
       open
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <SheetContent side="right" className="w-full overflow-hidden sm:w-[32rem]">
-        <SheetHeader className="shrink-0 px-5 py-4 sm:px-7">
-          <SheetTitle className="flex min-w-0 items-center gap-2.5">
+      <DialogContent className={DIALOG_WIDE + " " + DIALOG_COLUMN}>
+        <DialogHeader>
+          <DialogTitle className="flex min-w-0 items-center gap-2.5">
             <Brain className="text-muted-foreground size-4 shrink-0" aria-hidden />
             {view(
               `type.${claim.kind === "fact" || claim.kind === "preference" || claim.kind === "decision" ? claim.kind : "other"}`,
             )}
-          </SheetTitle>
-          <div className="flex shrink-0 items-center gap-2">
             <Badge variant="secondary" className="font-normal">
               {t(`status.${claim.status}`)}
             </Badge>
-            <SheetClose onClick={onClose} />
-          </div>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-5 py-6 sm:px-7">
+          </DialogTitle>
+          <DialogDescription className="sr-only">{view("noteDetails")}</DialogDescription>
+        </DialogHeader>
+        <div className={DIALOG_BODY + " space-y-5"}>
           {editing ? (
             <ClaimEditor
               claim={claim}
@@ -84,7 +88,8 @@ export function ClaimDetail({
                   <UsersRound className="size-3.5" aria-hidden />
                   {view("scopeLabel")}
                 </dt>
-                <dd>
+                <dd className="flex min-w-0 items-center gap-1.5 wrap-anywhere">
+                  {claim.scope === "agent" && <MemoryAgentAvatar agent={agent} />}
                   {claim.scope === "profile"
                     ? t("scopeProfile")
                     : t("scopeAgent", { agent: claim.agent_name ?? t("anAgent") })}
@@ -124,7 +129,7 @@ export function ClaimDetail({
           {claim.episode && !editing && <DecisionEvidence claim={claim} />}
         </div>
         {live && !editing && (
-          <div className="border-foreground/8 bg-background/50 flex shrink-0 flex-wrap gap-2 border-t px-5 py-4 sm:px-7">
+          <DialogFooter>
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil className="size-4" aria-hidden />
               {t("correct")}
@@ -133,7 +138,7 @@ export function ClaimDetail({
               <Undo2 className="size-4" aria-hidden />
               {t("retract")}
             </Button>
-          </div>
+          </DialogFooter>
         )}
         <ConfirmDialog
           open={confirming}
@@ -154,7 +159,7 @@ export function ClaimDetail({
             }
           }}
         />
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

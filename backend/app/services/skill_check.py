@@ -38,6 +38,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -55,6 +56,7 @@ from app.db.models.dataset import Dataset
 from app.db.models.eval_run import EvalRunPurpose, EvalRunStatus
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
+    SKILL_CHECK_VERDICT_VERSION,
     AgentState,
     CheckMode,
     CheckOutcome,
@@ -73,6 +75,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_proposal_repo,
@@ -81,12 +84,14 @@ from app.repositories import (
 )
 from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetRead
 from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
+from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     AgentRef,
     CandidateText,
     CheckStage,
     LineRef,
+    RejudgedChecks,
     SkillCheckAgentRead,
     SkillCheckApplied,
     SkillCheckApply,
@@ -112,12 +117,16 @@ from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
+from app.services.criterion_access import readable_criterion_skill_ids
 from app.services.dataset import DatasetService
-from app.services.eval_run import EvalRunService
+from app.services.eval_comparison import CriterionMove
+from app.services.eval_run import EvalRunService, family_move
 from app.services.improvement_data import MIN_HOLDOUT_CASES
+from app.services.improvement_states import criterion_details, family_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
+from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
 from app.services.skill_versions import SkillVersionService, manifest_of
 
 logger = logging.getLogger(__name__)
@@ -280,6 +289,10 @@ class SkillCheckService:
             )
         if proposal.fork_id != data.fork_id:
             raise refused_field("fork_id", "The proposal is for another line of this skill")
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         return _proposal_candidate(proposal), proposal, proposal.fork_id
 
     async def _served(
@@ -457,6 +470,9 @@ class SkillCheckService:
                         purpose=EvalRunPurpose.GATE,
                         candidate_skills=body,
                         exclude_conversations=exclude_conversations,
+                        proposal_check=ProposalCheckRecord(
+                            kind="skill", base_version=user.agent_version, suggestions=1
+                        ),
                     )
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
@@ -472,7 +488,7 @@ class SkillCheckService:
                     skipped = skipped or reason
                     continue
                 asked.append(replace(stage, asked=quote.cases))
-                row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
+                row.expected += quote.expected_usd
                 row.at_most += quote.total_usd + quote.rerun_ceiling_usd
                 remaining = quote.agent_remaining_usd
                 org_remaining = quote.org_remaining_usd
@@ -592,7 +608,14 @@ class SkillCheckService:
         *,
         excluded: Collection[UUID] = (),
     ) -> list[Stage]:
-        """The skill's questions, then the agent's own, as far as each exists."""
+        """The skill's questions, then the agent's own, as far as each exists.
+
+        The agent's own are the dataset its newest improvement session measures on,
+        when that is one of the datasets testing it: a change to a skill it uses is
+        checked on the questions its own Improve already uses, and a dataset kept
+        back for a final measurement stays unasked. Without such a session, the
+        first dataset testing it.
+        """
         stages: list[Stage] = []
         kept = _kept(test_set, holdout)
         if test_set is not None and test_set.case_count and kept != []:
@@ -607,7 +630,14 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, own, Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        dataset = next((item for item in own if item.id in readable), None)
+        sessions = await improvement_repo.list_for_agent(
+            self.db, organization_id=ctx.organization_id, agent_id=user.agent.id, limit=1
+        )
+        improving = sessions[0].dataset_id if sessions else None
+        dataset = next(
+            (item for item in own if item.id in readable and item.id == improving),
+            next((item for item in own if item.id in readable), None),
+        )
         if dataset is None:
             if mode is CheckMode.QUICK:
                 row.sample = SampleKind.SKILL_SET_ONLY
@@ -758,7 +788,24 @@ class SkillCheckService:
 
         Its result is accepted by moving the agent to main - see `checked_update` -
         never by changing the skill. Raises as :meth:`start` does, and as `_pinned`.
+
+        Raises:
+            ConcurrentChangeError: The check would now cost more than `quoted_usd`,
+                or check another version than `base_version_id`.
         """
+        if data.quoted_usd is not None or data.base_version_id is not None:
+            quote = await self.estimate_update(ctx, skill_id, agent_id, data)
+            if (
+                data.base_version_id is not None and quote.base_version.id != data.base_version_id
+            ) or (data.quoted_usd is not None and quote.at_most_usd > data.quoted_usd):
+                raise ConcurrentChangeError(
+                    message="This check now costs more or checks another version than was "
+                    "quoted; estimate it again",
+                    details={
+                        "at_most_usd": str(quote.at_most_usd),
+                        "base_version_id": quote.base_version.id,
+                    },
+                )
         return await self.start(
             ctx, skill_id, _update_start(data), source=CheckSource.CATCH_UP, pinned=agent_id
         )
@@ -943,11 +990,7 @@ class SkillCheckService:
                 else (isinstance(refused, BadRequestError) and _skipped(refused))
                 or UnknownReason.FAILED
             )
-            await skill_check_repo.update_agent(
-                self.db,
-                row=row,
-                values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
-            )
+            await self._end_unjudged(ctx, check, row, reason)
             return
         column = "skill_set_run_id" if stage.kind == "skill_set" else "dataset_run_id"
         await skill_check_repo.update_agent(
@@ -965,9 +1008,6 @@ class SkillCheckService:
         )
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
-        if check.created_at < datetime.now(UTC) - STALE_AFTER:
-            await self._expire(check)
-            return
         try:
             ctx = await job_context(
                 self.db,
@@ -978,6 +1018,9 @@ class SkillCheckService:
         except AuthenticationError:
             # Started with a key revoked or expired since: no further stage runs on it.
             ctx = None
+        if check.created_at < datetime.now(UTC) - STALE_AFTER:
+            await self._expire(check, ctx)
+            return
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
@@ -996,9 +1039,9 @@ class SkillCheckService:
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent
     ) -> None:
         if row.dataset_version is not None and row.dataset_id is None:
-            # The agent's own dataset was deleted: a verdict from the skill's questions
-            # alone would pass for the check that was planned.
-            await self._unknown(row, UnknownReason.FAILED)
+            # The agent's own dataset was deleted: only a regression the skill's
+            # questions already confirmed is a verdict for the check that was planned.
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         current = row.dataset_run_id or row.skill_set_run_id
         run = (
@@ -1008,12 +1051,12 @@ class SkillCheckService:
         )
         if current is None or run is None:
             # Deleting a dataset deletes its eval runs, so the stage has nothing to show.
-            await self._unknown(row, UnknownReason.FAILED)
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         if EvalRunStatus(run.status) not in _SETTLED_RUNS:
             return
         if run.status != EvalRunStatus.COMPLETED.value:
-            await self._unknown(row, UnknownReason.FAILED)
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         try:
             await self._carry_on(ctx, check, row, current)
@@ -1052,12 +1095,30 @@ class SkillCheckService:
         """Whether a first stage alone makes the agent worse, by the rule it is judged by."""
         comparison = await self.evals.compare(ctx, run_id, holdout_minimum=False)
         stage = _stage_comparison(comparison)
-        return rules.agent_state([stage], minimum=MIN_HOLDOUT_CASES) is AgentState.WORSE
+        return (
+            rules.agent_state([stage], minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE)
+            is AgentState.WORSE
+        )
 
-    async def _judge(self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent) -> None:
+    async def _judge(
+        self,
+        ctx: AuthContext,
+        check: SkillCheck,
+        row: SkillCheckAgent,
+        *,
+        unfinished: UnknownReason | None = None,
+    ) -> None:
         """An agent's result from every stage it ran, their held-out questions pooled, and
-        what each stage's questions came to on its own."""
-        runs: list[tuple[StageKind, UUID]] = [
+        what each stage's questions came to on its own.
+
+        Only stages whose run completed are judged. When a planned stage did not
+        finish - `unfinished` says why, or its run says it did not complete, or the
+        agent's own questions were planned and never asked - a regression the
+        finished stages confirmed still makes the agent worse; any other result
+        leaves it unknown, with what the finished stages counted. Read from the row
+        and its runs, so judging it again gives the same answer.
+        """
+        planned: list[tuple[StageKind, UUID]] = [
             (kind, run_id)
             for kind, run_id in (
                 ("skill_set", row.skill_set_run_id),
@@ -1065,6 +1126,12 @@ class SkillCheckService:
             )
             if run_id is not None
         ]
+        runs = [(kind, run_id) for kind, run_id in planned if await self._completed(ctx, run_id)]
+        if unfinished is None and (len(runs) < len(planned) or _own_unasked(row)):
+            unfinished = _unfinished_reason(row)
+        if not runs:
+            await self._unknown(row, unfinished or UnknownReason.FAILED)
+            return
         compared = [
             (kind, run_id, await self.evals.compare(ctx, run_id, holdout_minimum=False))
             for kind, run_id in runs
@@ -1074,13 +1141,23 @@ class SkillCheckService:
             await self._stage_counts(ctx, kind, run_id, comparison)
             for kind, run_id, comparison in compared
         ]
-        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
-        state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
-        reason = UnknownReason.INCONCLUSIVE if state is AgentState.UNKNOWN else None
+        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE)
+        state = rules.agent_state(
+            stages, minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE
+        )
+        reason = (
+            None
+            if state is not AgentState.UNKNOWN
+            else UnknownReason.TOO_FEW_QUESTIONS
+            if rules.too_few_questions(stages, minimum=MIN_HOLDOUT_CASES)
+            else UnknownReason.INCONCLUSIVE
+        )
         if row.sample == SampleKind.OWN_NOT_ASKED.value and state is not AgentState.WORSE:
             # Its own questions were left for the regression the skill's showed; without
             # it they are what would decide the agent, and nothing asks them by itself.
             state, reason = AgentState.UNKNOWN, UnknownReason.OWN_NOT_ASKED
+        elif unfinished is not None and state is not AgentState.WORSE:
+            state, reason = AgentState.UNKNOWN, unfinished
         await skill_check_repo.update_agent(
             self.db,
             row=row,
@@ -1094,6 +1171,9 @@ class SkillCheckService:
                 "regressions_confirmed": result.check.regressions_confirmed,
                 "noisy": rules.noisy(result),
                 "stages": counted,
+                "criteria": criterion_details(result.check.criteria, {}),
+                "families": family_details(result.check.families, {}),
+                "verdict_version": SKILL_CHECK_VERDICT_VERSION,
             },
         )
 
@@ -1118,11 +1198,29 @@ class SkillCheckService:
             **counts.model_dump(),
         }
 
+    async def _completed(self, ctx: AuthContext, run_id: UUID) -> bool:
+        run = await eval_run_repo.get(self.db, run_id, organization_id=ctx.organization_id)
+        return run is not None and run.status == EvalRunStatus.COMPLETED.value
+
+    async def _end_unjudged(
+        self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, reason: UnknownReason
+    ) -> None:
+        """End an agent whose stage did not finish on the stages that did, as `_judge`
+        does, or unknown when the check's starter may not read them."""
+        try:
+            await self._judge(ctx, check, row, unfinished=reason)
+        except AuthorizationError, NotFoundError:
+            await self._unknown(row, UnknownReason.NO_ACCESS)
+
     async def _unknown(self, row: SkillCheckAgent, reason: UnknownReason) -> None:
         await skill_check_repo.update_agent(
             self.db,
             row=row,
-            values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
+            values={
+                "state": AgentState.UNKNOWN.value,
+                "unknown_reason": reason.value,
+                "verdict_version": SKILL_CHECK_VERDICT_VERSION,
+            },
         )
 
     async def _settle(self, check: SkillCheck, *, no_readers: bool = False) -> None:
@@ -1154,10 +1252,16 @@ class SkillCheckService:
             )
 
     async def sweep(self, *, limit: int = 50) -> int:
-        """Queue one advance per running check, so one that fails rolls back alone."""
+        """Queue one advance per running check that can move, so one that fails rolls back
+        alone; a check waiting on runs still going leaves its place to one that can."""
         from app.worker import jobs
 
-        found = await skill_check_repo.running(self.db, limit=limit)
+        found = await skill_check_repo.needing_advance(
+            self.db,
+            settled=[status.value for status in _SETTLED_RUNS],
+            stale_before=datetime.now(UTC) - STALE_AFTER,
+            limit=limit,
+        )
         for organization_id, check_id in found:
             await enqueue(
                 self.db,
@@ -1169,12 +1273,13 @@ class SkillCheckService:
             )
         return len(found)
 
-    async def _expire(self, check: SkillCheck) -> None:
-        """End a check whose agents never settled: their runs are stopped, the agents are
-        unknown, and the check is decided on.
+    async def _expire(self, check: SkillCheck, ctx: AuthContext | None) -> None:
+        """End a check whose agents never settled: their runs are stopped, each agent is
+        judged on the stages it finished, and the check is decided on.
 
         The platform ends its own runs here, so whether the starter may still read or
-        stop them does not matter - a check stuck on that is the loop expiry ends.
+        stop them does not matter - a check stuck on that is the loop expiry ends. A
+        starter who may no longer act leaves every unsettled agent unknown.
         """
         unsettled = [
             row
@@ -1185,7 +1290,10 @@ class SkillCheckService:
         ]
         await self._end_runs(check, unsettled, now=datetime.now(UTC))
         for row in unsettled:
-            await self._unknown(row, UnknownReason.FAILED)
+            if ctx is None:
+                await self._unknown(row, UnknownReason.FAILED)
+            else:
+                await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
         await self._settle(check)
 
     async def _end_runs(
@@ -1258,7 +1366,9 @@ class SkillCheckService:
                 dedupe_key=f"{row.check_id}:{eval_run_id}",
             )
 
-    async def recompute_after_review(self, organization_id: UUID, eval_run_ids: list[UUID]) -> None:
+    async def recompute_after_review(
+        self, organization_id: UUID, eval_run_ids: list[UUID]
+    ) -> RejudgedChecks:
         """Judge again the agents whose stage runs a person's verdict just changed.
 
         Each check is read as the person who started it, never with the reviewer's
@@ -1266,14 +1376,19 @@ class SkillCheckService:
         its decision and shows what its runs now say. A check still running gets its
         verdict when its last agent settles.
         """
+        result = RejudgedChecks()
         rows = await skill_check_repo.agents_for_runs(
             self.db, eval_run_ids, organization_id=organization_id
         )
         for check_id in sorted({row.check_id for row in rows}):
+            affected = [
+                row for row in rows if row.check_id == check_id and _rejudged(row, eval_run_ids)
+            ]
             check = await skill_check_repo.get(
                 self.db, check_id, organization_id=organization_id, lock=True
             )
             if check is None or check.status == CheckStatus.CANCELLED.value:
+                result.skipped += len(affected)
                 continue
             try:
                 ctx = await job_context(
@@ -1285,6 +1400,7 @@ class SkillCheckService:
             except AuthenticationError:
                 ctx = None
             if ctx is None:
+                result.skipped += len(affected)
                 continue
             agents = await skill_check_repo.list_agents(
                 self.db, [check.id], organization_id=organization_id
@@ -1294,7 +1410,9 @@ class SkillCheckService:
                     try:
                         await self._judge(ctx, check, row)
                     except AuthorizationError, NotFoundError:
+                        result.skipped += 1
                         continue
+                    result.judged += 1
             states = [AgentState(row.state) for row in agents]
             if check.status == CheckStatus.RUNNING.value or not all(s.settled for s in states):
                 continue
@@ -1306,6 +1424,8 @@ class SkillCheckService:
                 from app.services.skill_improvement import SkillImprovementService
 
                 await SkillImprovementService(self.db).refresh_check_verdict(check, verdict)
+
+        return result
 
     async def _check(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, lock: bool = False
@@ -1417,6 +1537,14 @@ class SkillCheckService:
         by_check: dict[UUID, list[SkillCheckAgent]] = {}
         for row in rows:
             by_check.setdefault(row.check_id, []).append(row)
+        moved = await agent_repo.get_many(
+            self.db,
+            sorted({check.agent_id for check in checks if check.agent_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        shown_agents = await accessible_ids(
+            self.db, ctx, list(moved.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
         reads: list[SkillCheckRead] = []
         for check in checks:
             mine = by_check.get(check.id, [])
@@ -1446,7 +1574,7 @@ class SkillCheckService:
                     id=check.id,
                     skill_id=check.skill_id,
                     source=CheckSource(check.source),
-                    agent_id=check.agent_id,
+                    agent_id=check.agent_id if check.agent_id in shown_agents else None,
                     candidate_version_id=check.candidate_version_id,
                     candidate=CandidateText(
                         description=check.candidate_description, content=check.candidate_content
@@ -1554,6 +1682,16 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
+        owners = await readable_criterion_skill_ids(
+            self.db,
+            ctx,
+            {
+                parsed.skill_id
+                for row in rows
+                for item in row.criteria or []
+                if (parsed := VerdictCriterion.model_validate(item)).skill_id is not None
+            },
+        )
         reads: list[SkillCheckAgentRead] = []
         hidden = hidden_unknown = 0
         for row in rows:
@@ -1563,6 +1701,34 @@ class SkillCheckService:
                 hidden_unknown += row.state == AgentState.UNKNOWN.value
                 continue
             counted = {entry["eval_run_id"]: entry for entry in row.stages}
+            mine = stages.get(row.agent_id, [])
+            # FK columns can be cleared by retention; the stored result still
+            # remembers every source that contributed to its pooled criteria.
+            expected_runs = {
+                str(run_id)
+                for run_id in (row.skill_set_run_id, row.dataset_run_id)
+                if run_id is not None
+            } | set(counted)
+            represented_runs = {
+                str(run_id) for stage in mine if (run_id := _run_of(row, stage.kind)) is not None
+            }
+            expected_datasets = {entry["dataset_id"] for entry in row.stages}
+            criteria = [VerdictCriterion.model_validate(item) for item in row.criteria or []]
+            families = [VerdictFamily.model_validate(item) for item in row.families or []]
+            if (
+                not ctx.has(Perm.RUNS_VIEW)
+                or not expected_runs
+                or not expected_runs <= represented_runs
+                or not expected_datasets <= {str(stage.dataset.id) for stage in mine}
+                or any(stage.dataset.id not in readable for stage in mine)
+                or any(
+                    (item.skill is not None or item.skill_id is not None)
+                    and (item.skill_id is None or item.skill_id not in owners)
+                    for item in criteria
+                )
+            ):
+                criteria = []
+                families = []
             reads.append(
                 SkillCheckAgentRead(
                     agent=AgentRef(id=agent.id, name=agent.name),
@@ -1576,7 +1742,7 @@ class SkillCheckService:
                     stages=[
                         CheckStage(
                             kind=stage.kind,
-                            dataset_id=stage.dataset.id,
+                            dataset_id=stage.dataset.id if stage.dataset.id in readable else None,
                             dataset_name=stage.dataset.name
                             if stage.dataset.id in readable
                             else None,
@@ -1585,7 +1751,9 @@ class SkillCheckService:
                             else len(stage.case_ids)
                             if stage.case_ids is not None
                             else stage.dataset.case_count,
-                            eval_run_id=_run_of(row, stage.kind),
+                            eval_run_id=_run_of(row, stage.kind)
+                            if stage.dataset.id in readable
+                            else None,
                             counts=StageCounts.model_validate(
                                 counted[str(_run_of(row, stage.kind))]
                             )
@@ -1601,6 +1769,8 @@ class SkillCheckService:
                     fixed_confirmed=row.fixed_confirmed or 0,
                     regressions_confirmed=row.regressions_confirmed or 0,
                     noisy=bool(row.noisy),
+                    criteria=criteria,
+                    families=families,
                     expected_usd=row.expected_usd,
                     at_most_usd=row.at_most_usd,
                 )
@@ -2175,7 +2345,15 @@ class SkillCheckService:
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
     ) -> SkillCheckRead:
         """Refuse the change; a pending proposal it checked is discarded with it."""
-        await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        # The skill first, as every decision on a check takes it, so an apply and a discard
+        # queue; then the proposal before the check, as discarding the proposal does.
+        await skill_repo.lock(self.db, skill.id)
+        proposal_id = (await self._check(ctx, skill_id, check_id)).proposal_id
+        if proposal_id is not None:
+            await skill_proposal_repo.lock(
+                self.db, proposal_id, organization_id=ctx.organization_id
+            )
         check = await self._check(ctx, skill_id, check_id, lock=True)
         await self._refuse_session_owned(check, from_session=from_session)
         if CheckStatus(check.status).decided:
@@ -2325,9 +2503,13 @@ class SkillCheckService:
     ) -> DatasetRead:
         """Give the skill its test questions, empty or from recent answers that loaded it.
 
+        The set is named after the skill, numbered when a dataset already has the name -
+        a set a deleted skill of the same name left behind, say.
+
         Raises:
             AuthorizationError: The caller may not create datasets.
             AlreadyExistsError: The skill has its test questions already.
+            BadRequestError: Every name the set could take is taken.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         if not ctx.has(Perm.DATASETS_EDIT):
@@ -2342,7 +2524,7 @@ class SkillCheckService:
         created = await self.datasets.create(
             ctx,
             DatasetCreate(
-                name=f"{skill.name} · test questions",
+                name=await self._test_set_name(ctx, skill),
                 description=f"Questions every agent using '{skill.name}' is checked on.",
                 # Every question is held out: the set measures a change, and nothing
                 # learns from it.
@@ -2358,6 +2540,24 @@ class SkillCheckService:
             return await self.datasets.read(ctx, created.id)
         return created
 
+    async def _test_set_name(self, ctx: AuthContext, skill: Skill) -> str:
+        base = f"{skill.name} · test questions"
+        for attempt in range(1, _NAME_TRIES + 1):
+            name = base if attempt == 1 else f"{base} ({attempt})"
+            if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
+                continue
+            return name
+        raise BadRequestError(
+            message="Every name for this skill's test questions is taken. Rename one of them.",
+            details={"skill_id": skill.id},
+        )
+
+
+_NAME_TRIES = 10
+"""Names a skill's test questions may take, numbered after the first, before giving up."""
+
+_HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
+
 
 def _chosen_for_fork(
     rows: Sequence[SkillCheckAgent], agent_ids: Sequence[UUID] | None
@@ -2367,9 +2567,7 @@ def _chosen_for_fork(
     One reading the skill through a specialist is moved in its Builder, never here.
     """
     if agent_ids is None:
-        return [
-            row for row in rows if row.state == AgentState.BETTER.value and not row.via_specialist
-        ]
+        return [row for row in rows if row.state in _HELPED and not row.via_specialist]
     by_agent = {row.agent_id: row for row in rows}
     picked = list(dict.fromkeys(agent_ids))
     if unknown := [agent_id for agent_id in picked if agent_id not in by_agent]:
@@ -2395,15 +2593,47 @@ def _skipped(refused: BadRequestError) -> UnknownReason | None:
     return _SKIPPED_FOR.get(str((refused.details or {}).get("reason")))
 
 
+def _own_unasked(row: SkillCheckAgent) -> bool:
+    """Whether the agent's own questions were planned after the skill's and never asked,
+    other than by a quick check that stopped at the skill's regression.
+
+    A thorough check plans the dataset without a version, so the dataset's id says it
+    was planned as much as a version does.
+    """
+    return (
+        row.skill_set_run_id is not None
+        and (row.dataset_id is not None or row.dataset_version is not None)
+        and row.dataset_run_id is None
+        and row.sample != SampleKind.OWN_NOT_ASKED.value
+    )
+
+
+_MEASURED = frozenset(
+    {UnknownReason.INCONCLUSIVE, UnknownReason.TOO_FEW_QUESTIONS, UnknownReason.OWN_NOT_ASKED}
+)
+"""Reasons a check reaches from the stages it measured, rather than a stage left unfinished."""
+
+
+def _unfinished_reason(row: SkillCheckAgent) -> UnknownReason:
+    """Why a stage of this row did not finish, as judging it the first time recorded it.
+
+    A row already unknown for an unfinished stage keeps that reason when judged again;
+    one judged worse kept none, and reads as failed.
+    """
+    if row.state == AgentState.UNKNOWN.value and row.unknown_reason is not None:
+        return UnknownReason(row.unknown_reason)
+    return UnknownReason.FAILED
+
+
 def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
     """Whether a verdict on one of these runs changes what this agent's row says."""
     if not {row.skill_set_run_id, row.dataset_run_id} & set(eval_run_ids):
         return False
     state = AgentState(row.state)
     if state is AgentState.UNKNOWN:
-        return row.unknown_reason in (
-            UnknownReason.INCONCLUSIVE.value,
-            UnknownReason.OWN_NOT_ASKED.value,
+        # A stage the row was judged on is stored with its counts; one ended unjudged has none.
+        return bool(row.stages) or (
+            row.unknown_reason is not None and UnknownReason(row.unknown_reason) in _MEASURED
         )
     return state.settled
 
@@ -2435,6 +2665,8 @@ def _stage_comparison(comparison: EvalComparisonRead) -> rules.StageComparison:
         compared=comparison.compared,
         candidate_pass_rate=mine.pass_rate,
         baseline_pass_rate=None if theirs is None else theirs.pass_rate,
+        criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
+        families=tuple(family_move(move) for move in comparison.families),
     )
 
 

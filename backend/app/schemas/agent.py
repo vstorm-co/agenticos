@@ -1,12 +1,15 @@
 """Schemas for the agent registry and the tool catalog."""
 
+import hashlib
+import json
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
@@ -311,10 +314,10 @@ class AgentRead(BaseSchema):
     personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
         default=None,
         description=(
-            "The coding agent this agent's published version runs as a private cloud task "
-            "on the initiating person's own account, or null when it runs none that way. "
-            "Filled by the listing, so the chat can offer to connect that account where "
-            "the agent needs it."
+            "The default coding harness for this agent's personal cloud tasks, or null "
+            "when it does not use personal cloud coding. Each task may choose Claude Code "
+            "or Codex with the initiating person's own enabled account. Filled by the "
+            "listing so the chat can offer both personal connection doors."
         ),
     )
     local_workspace: bool = Field(
@@ -326,6 +329,7 @@ class AgentRead(BaseSchema):
             "before its first run. Filled by the listing."
         ),
     )
+    personal_model_key: bool = False
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -345,6 +349,9 @@ class AgentRead(BaseSchema):
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    show_starters: bool = Field(
+        default=True, description="Whether the published agent offers chat openers."
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description="Published opener card titles keyed by starter text; the message is their description.",
@@ -357,10 +364,45 @@ class AgentRead(BaseSchema):
     updated_at: datetime | None = None
 
 
+def agent_draft_revision(spec: AgentSpec) -> str:
+    """An opaque content revision, including changes made outside the Builder.
+
+    Normalize stored specs through AgentSpec before hashing, so omitted defaults
+    and JSON object ordering do not create conflicts on an unchanged draft.
+    """
+    content = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
 class AgentDetail(AgentRead):
     """An agent plus the spec currently being edited."""
 
     draft_spec: AgentSpec
+    can_review_shipped_update: bool = False
+
+    @computed_field
+    @property
+    def draft_revision(self) -> str:
+        """Opaque revision to send as expected_revision when saving this draft."""
+        return agent_draft_revision(self.draft_spec)
+
+
+class ShippedAgentChange(BaseSchema):
+    """One field replaced in the saved draft or the version serving live traffic."""
+
+    version: Literal["draft", "published"]
+    field: str
+    before: str
+    after: str
+
+
+class ShippedAgentUpdate(BaseSchema):
+    revision: str
+    changes: list[ShippedAgentChange]
+
+
+class ApplyShippedAgentUpdate(BaseSchema):
+    expected_revision: str = Field(min_length=64, max_length=64)
 
 
 class AgentCeiling(BaseSchema):
@@ -402,7 +444,9 @@ class AgentList(BaseSchema):
     )
 
 
-SystemAgentKindLiteral = Literal["judge", "drafter", "generator", "classifier", "improver"]
+SystemAgentKindLiteral = Literal[
+    "judge", "drafter", "generator", "classifier", "improver", "extractor", "coverage"
+]
 
 
 class SystemAgentCreate(BaseSchema):
@@ -446,8 +490,30 @@ class AgentCreate(AudienceChoice):
         return normalize_labels_strict(v)
 
 
+class AgentDraftRevision(BaseSchema):
+    """The current draft token, available to callers authorized to edit it."""
+
+    draft_revision: str
+
+
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="draft_revision from the draft this edit is based on; stale edits return 409",
+    )
+
+
+class AgentDraftDiscard(BaseSchema):
+    """Discard against both the draft and publication the editor confirmed."""
+
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="Revision of the draft being discarded; a stale revision returns 409.",
+    )
+    expected_version_id: UUID = Field(
+        description="Latest published version shown at confirmation; a newer publication returns 409."
+    )
 
 
 class AgentAvatarColorRequest(BaseSchema):
@@ -669,6 +735,7 @@ class AgentSpecImport(BaseSchema):
     """Import a spec written by hand or exported from another deployment."""
 
     yaml: str = Field(min_length=1)
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CapabilityToolContract(BaseSchema):
@@ -821,6 +888,10 @@ class McpCatalogEntry(BaseSchema):
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
     )
+    gallery_visible: bool = Field(
+        default=True,
+        description="False for metadata retained only to resolve an existing accessible account",
+    )
     custom: bool = Field(
         default=False, description="A saved server with no catalog or registry entry"
     )
@@ -846,17 +917,57 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformToolGroup(StrEnum):
+    """What a platform tool works on, as the Builder groups the tools.
+
+    Declared order is the order the Builder shows the groups in.
+    """
+
+    TABLES = "tables"
+    TASKS = "tasks"
+    WORKFLOWS = "workflows"
+    AGENTS = "agents"
+    KNOWLEDGE = "knowledge"
+    SKILLS = "skills"
+    PROJECTS = "projects"
+    AUTOMATIONS = "automations"
+    APPS = "apps"
+    RUNS = "runs"
+    CONNECTIONS = "connections"
+    ACCOUNT = "account"
+    ADMINISTRATION = "administration"
+
+
 class PlatformMcpTool(BaseSchema):
     name: str = Field(description="The tool's name on the platform's MCP server")
     description: str = Field(description="The first line of what the model reads")
+    group: PlatformToolGroup = Field(description="What the tool works on")
     writes: bool = Field(
-        description="Whether it changes something - held for approval under `approval: writes`"
+        description="Whether it changes persisted state; approval defaults are declared separately"
     )
     ungated: bool = Field(
         default=False,
         description=(
             "Whether it runs without approval under every policy - a write that changes "
             "only the caller's own preference, such as the console's language"
+        ),
+    )
+    default_approval_free: bool = Field(
+        default=False,
+        description=(
+            "Whether an authorized write runs under the default writes policy without confirmation; "
+            "an explicit per-tool required or binding all policy still asks"
+        ),
+    )
+    conditional_approval: bool = Field(
+        default=False,
+        description="Whether a task write still asks when it may start or reschedule agent work",
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether every binding asks before it, whatever the binding or the tool's own "
+            "approval says; every call requires a fresh human confirmation"
         ),
     )
     held: bool = Field(
@@ -890,6 +1001,11 @@ MAX_RUN_FILES = 20
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None,
+        exclude_if=lambda target: target is None,
+        description="Shell executor only: agent keeps its configured toolchain, project uses the conversation project runtime; file context stays separate",
+    )
     prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,
@@ -899,6 +1015,14 @@ class AgentRunRequest(BaseSchema):
             "conversation-scoped workspace is that conversation's. Left out, the run "
             "opens a new conversation and returns its id. Unknown, or somebody "
             "else's, answers 404"
+        ),
+    )
+    steer: bool = Field(
+        default=False,
+        description=(
+            "With Prefer: respond-async and an existing conversation_id, offer this text "
+            "to the matching active asynchronous run at its next model request. If not "
+            "consumed, it runs as a separate turn. Not supported with files or a draft."
         ),
     )
     environment_id: UUID | None = Field(
@@ -967,6 +1091,17 @@ class ParkedCall(BaseSchema):
             "As `ApprovalRead.always_asks`. With `content_hidden`, the caller may reject the "
             "call but not approve it"
         ),
+    )
+    may_decide: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may answer this call at all: `approvals:decide`, or being "
+            "the run's own person answering their own platform call that always asks"
+        ),
+    )
+    may_approve: bool = Field(
+        default=False,
+        description="As `ApprovalRead.may_approve`: whether an approval from the caller is accepted",
     )
 
 
@@ -1052,9 +1187,10 @@ class AgentRunResult(BaseSchema):
         ),
     )
     status: str
-    cost_usd: Decimal
-    cost_is_partial: bool = Field(
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
+    cost_is_partial: bool | None = Field(
         default=False,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether `cost_usd` is a floor - true when the run reached a model with no "
             "price entry, whose request the ledger books at zero. The chat draws the "
@@ -1125,7 +1261,7 @@ class AgentRunResult(BaseSchema):
     )
 
 
-RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled", "steered"]
 
 
 class RunRequestRead(BaseSchema):
@@ -1133,6 +1269,13 @@ class RunRequestRead(BaseSchema):
 
     id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
     status: RunRequestStatus
+    steered_into_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "For a steered request, the active run that took the correction. This "
+            "request has no separate result; the original request owns the answer."
+        ),
+    )
     conversation_id: UUID = Field(
         description="The conversation the run files under, known from the moment it is queued."
     )
@@ -1152,6 +1295,10 @@ class AgentTemplateRead(BaseSchema):
 
     key: str = Field(description="`<industry>/<folder>`, how an install request names it")
     name: str
+    slug: str
+    avatar_url: str | None = Field(
+        default=None, description="Bundled PNG as a data URL, if present"
+    )
     description: str
     capabilities: list[str] = Field(description="Capability ids it switches on")
     skills: list[str] = Field(description="Gallery keys installed with it, if missing")

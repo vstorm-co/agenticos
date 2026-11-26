@@ -168,6 +168,7 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebSearchResult]:
     """
     try:
         from ddgs import DDGS
+        from ddgs.exceptions import DDGSException
     except ImportError as exc:  # pragma: no cover - shipped as a hard dependency
         raise SearchUnavailable(
             "DuckDuckGo search is unavailable: the 'ddgs' package is not installed."
@@ -185,6 +186,9 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebSearchResult]:
     try:
         rows = await to_thread.run_sync(_run)
     except Exception as exc:
+        # DDGS uses this exact sentinel only when it has neither hits nor an upstream error.
+        if isinstance(exc, DDGSException) and str(exc) == "No results found.":
+            return []
         logger.exception("DuckDuckGo search failed")
         raise SearchUnavailable(_unavailable("DuckDuckGo", exc)) from exc
 

@@ -41,11 +41,18 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_present_in_the_shipped_app_and_generator": "native microphone purpose metadata consistency, not a runtime authorization decision",
+    "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_translated_in_every_existing_native_locale": "native purpose-string localization coverage, not a runtime authorization decision",
+    "tests/test_platform_describers.py::test_invalid_nested_eval_references_do_not_break_the_approval_card": "malformed display-reference handling, not permission to decide the approval",
+    "tests/test_matrix_adapter.py::TestPrompts::test_an_approval_is_numbered_in_its_thread": "numbered prompt rendering, not an authorization decision or refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_run_history_preserves_the_real_pending_approval_contract": "preserves pending-call metadata in a bounded response, not an approval authorization refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link": "bounds pending-call payloads and hands full review to the console, not an approval decision",
     "tests/api/test_workflow_run_routes.py::TestNodesRoute::test_an_approval_step_says_who_decided_and_when": "decision metadata serialization, not an authorization refusal",
     "tests/test_sandbox_workspace.py::TestRecordedTaskWorkspace::test_reading_undo_permissions_never_opens_a_provider_client": "authorized metadata reads must not create a provider client; no access refusal",
     "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",
     "tests/test_notification_params.py::test_a_budget_stop_hands_over_its_numbers_and_none_of_the_rest": "budget notification allowlist, not spend enforcement",
     "tests/test_notification_params.py::test_a_department_s_budget_stop_names_the_department": "budget notification wording, not spend enforcement",
+    "tests/test_notification_params.py::test_worded_budget_rows_do_not_expose_legacy_budget_params": "budget notification backward compatibility, not spend enforcement",
     "tests/test_notification_params.py::test_an_approval_request_hands_over_only_the_agent_name": "approval notification allowlist, not an authorization refusal",
     "tests/test_notification_params.py::test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothing": "workflow approval notification allowlist, not an authorization refusal",
     "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",

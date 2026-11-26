@@ -10,6 +10,41 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  portability: {
+    exportPreview: (
+      org: string | null,
+      user: string | null,
+      kind: "agent" | "workflow",
+      id: string,
+    ) => ["portability", org, user, kind, id, "export-preview"] as const,
+    destinations: (
+      org: string | null,
+      user: string | null,
+      query: { kind: string; parent_id?: string; search: string; skip: number; limit: number },
+    ) => ["portability", org, user, "destinations", query] as const,
+    transfer: (org: string | null, user: string | null, id: string | null) =>
+      ["portability", org, user, id] as const,
+  },
+  eventSources: {
+    all: () => ["event-sources"] as const,
+    list: () => ["event-sources", "list"] as const,
+    detail: (id: string) => ["event-sources", id] as const,
+    usage: (id?: string) =>
+      id === undefined
+        ? (["event-sources", "usage"] as const)
+        : (["event-sources", "usage", id] as const),
+    capture: (id: string, token: string) => ["event-sources", id, "capture", token] as const,
+  },
+  consoleExperience: {
+    all: () => ["console-experience"] as const,
+    member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,
+  },
+  accountPreferences: (userId: string | null) => ["account-preferences", userId] as const,
+  personalModelKeys: {
+    all: (scope: string) => ["personal-model-keys", scope] as const,
+    agent: (scope: string, agentId: string | null) =>
+      ["personal-model-keys", scope, agentId] as const,
+  },
   improvements: {
     all: () => ["improvements"] as const,
     awaiting: () => ["improvements", "awaiting"] as const,
@@ -31,6 +66,15 @@ export const qk = {
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
+  },
+  subscriptionAccounts: {
+    usage: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "usage", name] as const,
+    mine: (scope: string) => ["subscription-accounts", scope] as const,
+    models: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "models", name] as const,
+    signIn: (scope: string, state: string) =>
+      ["subscription-accounts", scope, "sign-in", state] as const,
   },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
@@ -146,6 +190,7 @@ export const qk = {
     ceiling: () => ["agents", "ceiling"] as const,
     create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
+    shippedUpdate: (id: string) => ["agents", id, "shipped-update"] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
@@ -281,6 +326,14 @@ export const qk = {
     requests: (agentId: string) => ["exposures", agentId, "requests"] as const,
   },
   triggers: {
+    toolSettings: (
+      ownerId: string | null,
+      orgId: string | null,
+      agentId: string,
+      triggerId: string,
+    ) => ["triggers", "tool-settings", ownerId, orgId, agentId, triggerId] as const,
+    filteredEvent: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "filtered-event", triggerId] as const,
     activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
       ["triggers", agentId, "activation", triggerId, activationId, jobId] as const,
     attempts: (agentId: string, triggerId: string, page: number) =>
@@ -289,6 +342,10 @@ export const qk = {
       ["triggers", agentId, "sources", triggerId] as const,
     actionConsents: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "action-consents", triggerId] as const,
+    // Every routine one screen shows, read together; the prefix is what a run,
+    // an agent or a membership change refreshes without touching the listings.
+    readinessAll: () => ["triggers", "readiness"] as const,
+    readiness: (triggerIds: string[]) => ["triggers", "readiness", ...triggerIds] as const,
     all: () => ["triggers"] as const,
     // One agent's schedules and event triggers, for the Builder's panel.
     list: (agentId: string) => ["triggers", agentId] as const,
@@ -387,6 +444,7 @@ export const qk = {
         modelLabel?: string;
         userId?: string;
         conversationId?: string;
+        triggerId?: string;
         agentVersionId?: string;
         isTest?: boolean;
         skip?: number;
@@ -410,6 +468,7 @@ export const qk = {
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
+        ...(opts.triggerId ? ["trigger", opts.triggerId] : []),
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers
@@ -460,6 +519,7 @@ export const qk = {
     usageByHour: (scope: string, from: string, to: string, filter?: unknown) =>
       ["stats", "usage", "hour", scope, from, to, filter ?? null] as const,
     attention: (from: string, to: string) => ["stats", "attention", from, to] as const,
+    attentionAll: () => ["stats", "attention"] as const,
   },
   ratings: {
     summary: (scope: string, from: string, to: string) =>
@@ -581,7 +641,6 @@ export const qk = {
       skip: number;
       limit: number;
       editable: boolean;
-      judge: string;
       asksRun: string;
       agent: string;
     }) => ["datasets", "list", query] as const,
@@ -591,6 +650,9 @@ export const qk = {
       ["datasets", id, "cases", query] as const,
     case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
     generations: (id: string) => ["datasets", id, "generations"] as const,
+    keyDraft: (id: string, caseId: string) => ["datasets", id, "key-draft", caseId] as const,
+    keyCoverage: (id: string, agentId: string) =>
+      ["datasets", id, "key-coverage", agentId] as const,
     proposals: (id: string, query: { skip: number; limit: number }) =>
       ["datasets", id, "proposals", query] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,
@@ -608,7 +670,6 @@ export const qk = {
       },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
-    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
@@ -680,6 +741,8 @@ export const qk = {
     list: (orgId: string) => ["invitations", orgId] as const,
   },
   conversations: {
+    search: (term: string) => ["conversations", "search", term] as const,
+    waitingQuestions: () => ["conversations", "waiting-questions"] as const,
     all: () => ["conversations"] as const,
     /**
      * One page of the sidebar, under the filters it was fetched with.
@@ -839,6 +902,8 @@ export const qk = {
     detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
+    context: (ownerId: string | null, orgId: string | null, conversationId: string | null) =>
+      ["conversation-workspace", "context", ownerId, orgId, conversationId] as const,
     all: () => ["conversation-workspace"] as const,
     files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
     file: (conversationId: string, path: string) =>
@@ -882,6 +947,8 @@ export const qk = {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
+    resources: (id: string, search: string) => ["projects", id, "resources", search] as const,
+    candidates: (kind: string) => ["projects", "candidates", kind] as const,
     tracking: (id: string) => ["projects", id, "tracking"] as const,
     trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
     trackingReview: (id: string, agentId: string | null, versionId: string | null) =>
@@ -1007,7 +1074,10 @@ export const qk = {
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
+    externalAgents: () => ["desktop", "external-agents"] as const,
     codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    externalOptionsAll: () => ["desktop", "external-options"] as const,
+    externalOptions: (id: string | null) => ["desktop", "external-options", id] as const,
     skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,

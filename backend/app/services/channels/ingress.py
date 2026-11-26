@@ -2,6 +2,8 @@
 
 import hashlib
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from uuid import UUID, uuid4
 
@@ -20,6 +22,7 @@ from app.repositories import background_job as job_repo
 from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingAttachment, IncomingMessage, is_run_control
 from app.services.channels.dedupe import edited_delivery_is_eligible
+from app.services.channels.identity_scope import canonical_matrix_server, identity_scope
 from app.worker.jobs import (
     PROCESS_CHANNEL_CONTROL,
     PROCESS_CHANNEL_MESSAGE,
@@ -74,6 +77,7 @@ def normalize(bot: ChannelBot, incoming: IncomingMessage) -> ChannelMessage:
             "organization_id": bot.organization_id,
             "bot_id": bot.id,
             "authorization_generation": bot.authorization_generation,
+            "server_url": identity_scope(bot).get("server_url", ""),
             "interaction_handle": None if interaction is None else interaction.ciphertext,
             "interaction_key_version": 1 if interaction is None else interaction.key_version,
             **{
@@ -137,7 +141,10 @@ def restore(message: ChannelMessage) -> IncomingMessage:
             )
         ),
         bot_id=str(message.bot_id),
-        raw=dict(message.metadata),
+        raw={
+            **dict(message.metadata),
+            **({"server_url": message.server_url} if message.platform == "matrix" else {}),
+        },
         attachments=[
             IncomingAttachment(
                 **file.model_dump(exclude={"handle", "handle_key_version"}),
@@ -164,11 +171,18 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     edited = incoming.platform == "mattermost" and incoming.raw.get("event") == "post_edited"
     if native is not None and edited:
         native += ":edit"
+    # Matrix event ids are globally unique. Its private audience can change the
+    # conversation key on a redelivery, which must not release a second run.
+    native_scope = (
+        f"{identity_scope(bot)['server_url']}:"
+        if incoming.platform == "matrix"
+        else f"{incoming.platform_chat_id}:"
+    )
     key = (
         None
         if native is None
         else "channel-message:"
-        + hashlib.sha256(f"{bot.id}:{incoming.platform_chat_id}:{native}".encode()).hexdigest()
+        + hashlib.sha256(f"{bot.id}:{native_scope}{native}".encode()).hexdigest()
     )
     if key and await job_repo.get_by_idempotency_key(
         db, organization_id=bot.organization_id, idempotency_key=key
@@ -252,6 +266,46 @@ async def admit_message(incoming: IncomingMessage) -> None:
             await queue_message(db, bot, incoming)
 
 
+async def invite_admitted(
+    bot_id: str, inviter: str, chat_id: str, *, direct: bool, server_url: str
+) -> bool:
+    """Whether a bot's access policy would answer the person inviting it, where it is invited.
+
+    For a platform whose bot joins a room on an invitation (Matrix): the same
+    `_check_access` a message passes, so an invitation can bring the bot nowhere a
+    message from the same person could not reach it. Linking is not asked here: a
+    person with no linked account is answered in a room and offered the link in a
+    direct chat, as on every other platform.
+    """
+    from app.services.channels.router import ChannelMessageRouter
+
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(bot_id))
+    if bot is None or not bot.is_active:
+        return False
+    probe = IncomingMessage(
+        platform=bot.platform,
+        bot_id=bot_id,
+        platform_user_id=inviter,
+        platform_chat_id=chat_id,
+        chat_type="private" if direct else "group",
+        text="",
+        raw={"server_url": canonical_matrix_server(server_url)},
+    )
+    try:
+        ChannelMessageRouter()._check_access(probe, bot)
+    except AuthorizationError:
+        return False
+    return True
+
+
+@asynccontextmanager
+async def poll_steering(
+    receipt_id: UUID, incoming: IncomingMessage, deps: AgentDeps
+) -> AsyncGenerator[list[str]]:
+    yield await collect_steering(receipt_id, incoming, deps)
+
+
 async def collect_steering(
     receipt_id: UUID,
     incoming: IncomingMessage,
@@ -298,7 +352,7 @@ async def collect_steering(
             if router._is_overheard(next_message):
                 continue
             if command in {"stop", "/stop"}:
-                await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+                await job_repo.finish_run_addition(db, job_id=job.id, run_id=run.id)
                 stopped = True
                 break
             text = next_message.text
@@ -310,7 +364,7 @@ async def collect_steering(
                 )
             else:
                 raise BadRequestError(message="A queued addition needs its native message id")
-            await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+            await job_repo.finish_run_addition(db, job_id=job.id, run_id=run.id)
             added.append(text)
     if stopped:
         raise ChannelTurnStopped()

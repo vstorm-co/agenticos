@@ -116,6 +116,7 @@ async def test_its_draft_is_not_held_to_the_only_model_it_was_installed_beside(
     ready = await service.state(ctx)
 
     assert ready.status == "ready"
+    assert ready.agent_id is not None
     agent = await agent_repo.get(db, ready.agent_id, organization_id=organization.id)
     assert agent is not None
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == second.id
@@ -132,9 +133,8 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert waiting.status == "needs_model"
     assert waiting.name == "Architect"
     assert waiting.named_by_default
-    # It wears its mark from the start, as a picture any agent surface can draw,
-    # and the console knows the picture is the mark (drawn in the theme's colours).
-    assert waiting.avatar_url is not None
+    # Every surface uses the ordinary generated face until an organization uploads a picture.
+    assert waiting.avatar_url is None
     assert waiting.wears_mark
     assert not waiting.can_configure
 
@@ -560,8 +560,8 @@ async def test_a_model_chosen_in_the_builder_is_the_one_it_publishes_on(
     assert again == published
 
 
-async def test_a_picture_of_its_own_replaces_the_mark(db: AsyncSession) -> None:
-    from app.services.assistant import AVATAR
+async def test_an_uploaded_picture_replaces_the_generated_face(db: AsyncSession) -> None:
+    from app.services.agent_templates import TEMPLATES_ROOT
 
     organization, owner = await _organization(db)
     admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
@@ -570,10 +570,56 @@ async def test_a_picture_of_its_own_replaces_the_mark(db: AsyncSession) -> None:
     assert installed.agent_id is not None
 
     await AgentRegistryService(db).set_avatar(
-        admin, installed.agent_id, file_data=AVATAR.read_bytes(), content_type="image/png"
+        admin,
+        installed.agent_id,
+        file_data=(TEMPLATES_ROOT / "general/agenticos/avatar.png").read_bytes(),
+        content_type="image/png",
     )
 
     assert not (await service.state(admin)).wears_mark
+
+
+async def test_avatar_backfill_clears_only_recorded_shipped_pictures(db: AsyncSession) -> None:
+    import runpy
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from sqlalchemy.orm import Session
+
+    rows: list[tuple[Agent, str | None]] = []
+    for avatar, expected in (
+        ("marks/default.png", None),
+        ("uploads/custom.png", "uploads/custom.png"),
+        (None, None),
+    ):
+        organization, owner = await _organization(db)
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+        state = await AssistantService(db).state(ctx)
+        assert state.agent_id is not None
+        agent = await agent_repo.get(db, state.agent_id, organization_id=organization.id)
+        assert agent is not None
+        row = await organization_assistant_repo.get(db, organization.id)
+        assert row is not None
+        row.mark_path = "marks/default.png"
+        agent.avatar_url = avatar
+        rows.append((agent, expected))
+    await db.flush()
+
+    migration = runpy.run_path(
+        str(Path(__file__).parents[2] / "alembic/versions/0348_architect_generated_avatar.py")
+    )
+    upgrade = migration["upgrade"]
+    assert callable(upgrade)
+
+    def run(session: Session) -> None:
+        with patch("alembic.op.execute", session.execute):
+            upgrade()
+            upgrade()
+
+    await db.run_sync(run)
+    for agent, expected in rows:
+        await db.refresh(agent)
+        assert agent.avatar_url == expected
 
 
 def test_the_row_names_its_organization_and_agent() -> None:

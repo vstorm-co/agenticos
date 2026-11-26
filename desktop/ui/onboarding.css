@@ -511,6 +511,7 @@ select {
   text-align: start;
 }
 .instance-row {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -520,7 +521,7 @@ select {
   border-block-start: 1px solid var(--separator);
 }
 .instance-row > div {
-  flex: 1;
+  flex: 1 1 12rem;
   min-inline-size: 0;
 }
 .instance-row p {

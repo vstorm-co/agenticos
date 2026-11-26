@@ -59,9 +59,26 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof BackendApiError) {
       if (error.status === 429) return forwardRateLimit(error);
-      const detail = (error.data as { detail?: string })?.detail;
-      if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
-      return bffJson({ detail }, { status: error.status });
+      const data = error.data;
+      if (data !== null && typeof data === "object") {
+        if ("error" in data) {
+          const refusal = data.error;
+          if (
+            refusal !== null &&
+            typeof refusal === "object" &&
+            "code" in refusal &&
+            typeof refusal.code === "string" &&
+            "message" in refusal &&
+            typeof refusal.message === "string"
+          ) {
+            return bffJson({ error: refusal }, { status: error.status });
+          }
+        }
+        if ("detail" in data && typeof data.detail === "string" && data.detail) {
+          return bffJson({ detail: data.detail }, { status: error.status });
+        }
+      }
+      return bffRefusal("LOGIN_FAILED", error.status);
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }

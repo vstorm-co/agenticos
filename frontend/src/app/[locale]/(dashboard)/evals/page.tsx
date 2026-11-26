@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { FlaskConical, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -30,7 +30,12 @@ export default function EvalRunsPage() {
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
-  const { can, isLoading: isLoadingPermissions } = usePermissions();
+  const {
+    can,
+    isLoading: isLoadingPermissions,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
   const [page, setPage] = useState(0);
   const mayRead = can(Perm.runsView);
   const { runs, total, isLoading, error, refetch } = useRecentEvalRuns(PAGE, {
@@ -53,9 +58,20 @@ export default function EvalRunsPage() {
     />
   );
 
+  if (permissionsError)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {header}
+        <ErrorState
+          description={getErrorMessage(permissionsError, tErrors)}
+          cta={{ label: tc("retry"), onClick: () => void retryPermissions() }}
+        />
+      </div>
+    );
+
   if (!isLoadingPermissions && !mayRead) {
     return (
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
       </div>
@@ -63,7 +79,7 @@ export default function EvalRunsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {header}
       <ListCard
         fill
@@ -84,16 +100,21 @@ export default function EvalRunsPage() {
             icon={FlaskConical}
             title={t("empty.title")}
             description={t("empty.body")}
-            cta={{ label: t("empty.cta"), onClick: () => router.push(ROUTES.DATASETS) }}
+            cta={
+              can(Perm.datasetsView)
+                ? { label: t("empty.cta"), onClick: () => router.push(ROUTES.DATASETS) }
+                : undefined
+            }
           />
         ) : (
-          <div className="flex flex-1 flex-col gap-4">
-            <ul className="divide-border divide-y">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
+            <ul className="divide-border min-h-0 flex-1 divide-y overflow-auto">
               {runs.map((run) => (
                 <EvalRunRow key={run.id} run={run} agentName={names.get(run.agent_id)} />
               ))}
             </ul>
             <Pager
+              showSinglePage
               page={page}
               pageCount={Math.max(1, Math.ceil(total / PAGE))}
               matched={total}

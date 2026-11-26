@@ -527,3 +527,56 @@ def test_every_api_shape_the_catalog_accepts_has_a_client():
     from app.services.text_to_speech_models import SUPPORTED_APIS
 
     assert frozenset(CLIENTS) == SUPPORTED_APIS
+
+
+@pytest.mark.parametrize("audio_format", ["mp3", "wav"])
+async def test_eleven_v4_uses_dialogue_transport_and_bounded_chunks(audio_format: str) -> None:
+    voice = "JBFqnCBsd6RMkjVDRZzb"
+    with _answering(lambda _: httpx.Response(200, content=b"\x00\x00")) as seen:
+        await synthesize(
+            _provider("elevenlabs"),
+            model="eleven_v4",
+            voice=voice,
+            text="a" * 4001,
+            audio_format=audio_format,
+            api_key=KEY,
+        )
+    assert len(seen) == 3
+    spoken = []
+    for request in seen:
+        assert request.url.path == "/v1/text-to-dialogue"
+        assert request.headers["xi-api-key"] == KEY
+        assert KEY not in str(request.url)
+        payload = json.loads(request.content)
+        assert payload["model_id"] == "eleven_v4"
+        assert payload["inputs"][0]["voice_id"] == voice
+        text = payload["inputs"][0]["text"]
+        assert len(text) <= 2000
+        spoken.append(text)
+        assert request.url.params["output_format"] == (
+            "mp3_44100_128" if audio_format == "mp3" else "pcm_24000"
+        )
+    assert "".join(spoken) == "a" * 4001
+
+
+@pytest.mark.parametrize(
+    "status,content,reason",
+    [(401, b"api_key_invalid", SpeechFailure.CREDENTIALS), (200, b"", SpeechFailure.UNAVAILABLE)],
+)
+async def test_eleven_v4_refuses_provider_errors_without_leaking_the_key(
+    status: int, content: bytes, reason: SpeechFailure
+) -> None:
+    with (
+        _answering(lambda _: httpx.Response(status, content=content)),
+        pytest.raises(SpeechProviderError) as caught,
+    ):
+        await synthesize(
+            _provider("elevenlabs"),
+            model="eleven_v4",
+            voice="JBFqnCBsd6RMkjVDRZzb",
+            text="Hello",
+            audio_format="mp3",
+            api_key=KEY,
+        )
+    assert caught.value.failure == reason
+    assert KEY not in str(caught.value)

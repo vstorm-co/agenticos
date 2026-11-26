@@ -265,7 +265,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
 
   if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
     return <LoadingState variant="pending" />;
-  if (error || !table) return <ErrorState />;
+  if (error || !table)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refreshTable() }}
+      />
+    );
 
   const canEdit = table.can_edit;
   // On a task board everyone in its audience edits tasks, but only an administrator or
@@ -734,7 +740,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <>
               {tab === "table" && (
                 // A bounded height, so the grid scrolls its own rows and draws only those in view.
-                <div className={cn("flex min-h-80 flex-col", "min-h-80 flex-1")}>
+                <div className="flex min-h-0 flex-1 flex-col">
                   <TableGridView
                     recordColumns={liveColumns}
                     tableId={id}

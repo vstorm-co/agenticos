@@ -1,5 +1,5 @@
 ---
-source_sha: "ae118943abf0"
+source_sha: "250edf9ea8a8"
 ---
 
 # Governance { #governance }
@@ -16,8 +16,8 @@ GitHub-Issue, eine eingehende E-Mail (siehe [Konzepte](concepts.md#trigger)).
 
 Er nutzt dieselbe Kostenerfassung, Bestätigungswarteschlange und Prüfungsspur.
 Die [Richtlinie für unbeaufsichtigte Aktionen](#routine-action-consent) verschärft,
-welche Aufrufe eine Bestätigung brauchen; ausdrückliche dauerhafte Zustimmung
-benennt einzelne Aktionen und eine Version.
+welche Aufrufe eine Bestätigung brauchen; Werkzeugeinstellungen der Routine
+erhalten oder verschärfen die Regeln des Agenten.
 
 Unbeaufsichtigte Arbeit bestimmt auch den Umgang mit einer **Ablehnung**:
 
@@ -48,18 +48,36 @@ Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
+GitHub-Routinen zeigen beim Erstellen und Bearbeiten von Issue-, Pull-Request-
+und Kommentar-Triggern einen Autorenfilter. **Repository-Mitglieder (Standard)**
+lässt `OWNER`, `MEMBER` und `COLLABORATOR` zu; **Mitglieder und Beitragende**
+zusätzlich `CONTRIBUTOR`. **Alle** umfasst erstmalig Beitragende und andere
+Meldende. Dies sind GitHub-Autorenzuordnungen, keine AgenticOS-Organisationsrollen.
+Bots und ein ausdrücklich ausgeschlossener verbundener Login bleiben bei jeder
+Option gesperrt. Der Autorenfilter gilt nicht für Pushes, Workflow-Runs oder
+Releases. Bestehende Routinen behalten ihre Richtlinie; fehlt `authors` in der
+Konfiguration, gilt weiterhin `members`.
+
+Im Verlauf der Routine sieht ihr angemeldeter Eigentümer das **Zuletzt gefilterte
+GitHub-Ereignis**: Zeitpunkt und Grund der Filterablehnung eines verifizierten
+Webhooks sowie die Autorenrichtlinie beim Empfang. Sowohl Routinen-Webhooks als
+auch GitHub-App-Zustellungen erfassen diese Diagnose. Gespeichert wird die letzte
+Stichprobe, höchstens einmal pro Minute je Routine anhand der Datenbankuhr
+aktualisiert. Payload, Autorentext und Secrets werden nicht gespeichert; es wird
+kein Run erstellt und kein Kontingent für Run-Zulassungen verbraucht. Keine Diagnose bedeutet lediglich, dass keine Ablehnung erfasst wurde;
+sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben unverändert.
+
 ## Zustellung von Routinen { #routine-delivery }
 
-Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in diesem
-Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
-die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
-und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+Neue Routinen speichern standardmäßig alle Ausführungen in einem gemeinsamen schreibgeschützten Verlauf. Die erstellende Person kann eine Antwort in einen privaten Chat verzweigen. Alternativ erhält jede Ausführung einen eigenen bearbeitbaren privaten Chat. Die Routinenkarte behält ihre Aktionen zum Bearbeiten, Pausieren und Entfernen. Routines zeigt alle Ausführungen mit Links zu Chat und Ausführungsdetails.
 
-Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive Mitgliedschaft der erstellenden Person und ihr aktuelles Schreibrecht im gewählten Chat. Ein gelöschtes oder unzugängliches Ziel lässt die Antwort im Ausführungsprotokoll und zeigt **Letzte Antwort im Chat nicht verfügbar** an der Routine. Ein Datenbankfehler während der Nachrichtenzustellung wird isoliert, sodass der abgeschlossene Lauf weder rückgängig gemacht noch der Agent erneut ausgeführt wird.
+Vor dem Chat-Modus-Upgrade zugelassene Läufe behalten ihren bisherigen Zustellungsvertrag. Nur diese älteren Läufe kopieren eine fertige Antwort in das zuvor gewählte Ziel, nachdem aktive Mitgliedschaft und aktuelles Schreibrecht erneut geprüft wurden. Fehlt das Ziel, bleibt die Antwort im Protokoll. Zustellungsfehler machen die abgeschlossene Ausführung nicht rückgängig und starten den Agenten nicht erneut.
 
 Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
 `last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
+
+Für eine Routine, die in einem privaten Chat in einer Chat-App angelegt wurde und für jeden Lauf einen neuen Chat öffnet (`chat_mode=per_run`), lautet der Status `pending`, bis der Bot die Antwort gepostet hat, danach `delivered` oder `unavailable` mit einer Benachrichtigung an die besitzende Person. Die Migration `0363_trigger_delivery_pending.py` ergänzt `pending`; ihr Downgrade liest `pending` als `delivered`. Siehe [Routine-Antworten in einem privaten Chat](channels.md#routine-answers-in-a-private-chat).
 
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
@@ -67,6 +85,8 @@ beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routi
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
 Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
 ebenfalls keine solche Zustimmung.
+
+Wenn eine andere Person eine Version veröffentlicht, zurücksetzt oder befördert, wird **Act as creator** bei den Routinen ausgeschaltet, die diese Version erreicht: auf einer Umgebung, auf die sie wechselt, auch einer durch Prüfungen geschützten, die nach bestandenen Prüfungen wechselt, und bei Routinen ohne Umgebung, wenn sie die Standardumgebung bewegt. Eine solche Routine wartet auf die Prüfung ihres Eigentümers. Eine angeheftete Routine oder eine auf einer Umgebung, die die Version nicht erreicht, führt weiter aus, was ihr Ersteller genehmigt hat.
 
 Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
 
@@ -86,9 +106,17 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
-Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
+
+Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Quellenprüfung, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und Aktionen ohne dauerhafte Zustimmung.
+
+Eine Routine, die keinen Run starten würde, ist rot umrandet; eine mit Aktionen, die bei Verwendung eine Freigabe benötigen, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund und bietet dem Ersteller die passende Abhilfe. Während einer Prüfung oder bei fehlendem Ergebnis erscheint ein neutraler Hinweis statt einer vermeintlichen Bereitschaft. Eine fehlgeschlagene Prüfung lässt sich wiederholen; Jetzt ausführen prüft die Zulassung weiterhin selbst.
+
+Die Dashboard-Karte Routines stellt eine Routine, die nicht laufen würde, an den Anfang und nennt den Grund in ihrem Status. `POST /triggers/readiness` liefert dieselben Gründe als begrenzte Codes für bis zu 100 Routinen auf einmal, lässt Routinen aus, die der Aufrufer nicht sehen darf, und nennt keine Quellen, Konten oder Zugangsdaten. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
+
+Pro Person innerhalb einer Organisation kann nur eine Bereitschaftsprüfung gleichzeitig laufen. Ein zweiter Tab wartet oder versucht es erneut, statt parallele umfangreiche Prüfungen zu starten. Änderungen an Quellressourcen aktualisieren die sichtbare Bereitschaft. Ein auf eine Person wartender Haupt-Run wird im Routineverlauf auch dann gefunden, wenn der Worker vor dem Speichern seiner Verknüpfung als letzter Run gestoppt wurde. Bei einem Redis-Ausfall gilt diese Nebenläufigkeitsgrenze je API-Prozess.
 
 ## Budgets { #budgets }
 
@@ -849,51 +877,40 @@ oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
 ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
-### Aktionsfreigaben { #routine-action-consent }
+### Werkzeuge der Routine { #routine-action-consent }
 
-Aktionen sind nach Capability oder konkretem MCP-Konto gruppiert und durchsuchbar.
-Wähle eine Gruppe oder alle zulässigen Aktionen aus oder ab; die Sammelauswahl umfasst
-auch ausgefilterte Einträge. Einzelne Ausnahmen bleiben möglich. Ein Review unterstützt
-bis zu 1.000 ausgewählte Aktionen; eine größere Auswahl wird angezeigt und muss vor
-dem Speichern verkleinert werden, statt still gekürzt zu werden.
+Neue Routinen laufen als ihr Ersteller mit dessen aktuellen Berechtigungen. Standardmäßig laufen zulässige Werkzeuge automatisch nach den Genehmigungsregeln des Agenten (`action_mode=agent`); Ausführungen werden in einem gemeinsamen, schreibgeschützten Chat gesammelt. Ein eigener bearbeitbarer Chat je Ausführung bleibt wählbar. Identität, Gesprächsverlauf und Werkzeugfreigaben sind unabhängige Einstellungen.
 
-Nur Titel oder Zeitplan zu ändern erhält die Zustimmung. Ändern sich Version, Aufgabe,
-Anweisungen oder Konto, erklärt der Dialog die betroffene Grenze. **Zuvor geprüfte
-Aktionen erneut auswählen** ist eine ausdrückliche neue Wahl passender zulässiger
-Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue Aktionen
-und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
-Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
+**Werkzeuge der Routine** gruppiert Fähigkeiten, AgenticOS-Werkzeuge und konkrete MCP-Konten. Eine Suche und folgende Einstellungen stehen zur Verfügung:
 
-Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
-und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
-lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
-Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
-ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+| Einstellung | Wirkung in dieser Routine |
+|---|---|
+| **Agent folgen** | Die Genehmigungsregeln des Agenten gelten weiter. Eine erforderliche Genehmigung bleibt erforderlich. |
+| **Jedes Mal fragen** | Fügt vor jeder Nutzung eine Genehmigung hinzu, auch beim Lesen. Die Option erscheint, wenn der Agent nicht bereits fragt. |
+| **Aus** | Verhindert die Nutzung dieses Werkzeugs durch die Routine. Es bedeutet nicht, Genehmigungen zu überspringen. |
 
-Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
+Diese Einstellungen schränken den Agenten nur ein. Explizite Anforderungen des Agenten oder einer MCP-Verbindung sowie obligatorische Plattform- und native Genehmigungen bleiben wirksam. Delegierte Agenten behalten ihre eigenen Regeln; Einstellungen des übergeordneten Agenten erlauben keine Aktionen eines Delegierten. Vom Anbieter ausgeführte Werkzeuge fehlen, wenn die Plattform diese Einschränkungen nicht durchsetzen kann. Der Codemodus bleibt für Routinen deaktiviert.
 
-Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
+Nur der als er selbst angemeldete Ersteller kann diese Einschränkungen ändern. API-Schlüssel, andere Administratoren, Identitätsübernahme, Agenten oder eine als Ersteller laufende Routine dürfen diese Prüfung nicht vornehmen. Zusätzliche Einschränkungen benötigen weder `approvals:decide` noch den Organisationsschalter für Genehmigungsverzicht: Sie gewähren keine neue Befugnis.
 
-Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
+Speichern ersetzt die Werkzeugbeschränkungen der Routine, mit höchstens 1.000 Einträgen. **Agent für alle Werkzeuge folgen** entfernt diese Abweichungen, nicht die Regeln des Agenten. Einschränkungen nicht verfügbarer Werkzeuge bleiben bis zur ausdrücklichen Entfernung gespeichert. Das erneute Verbinden eines MCP-Kontos entfernt seine Werkzeugbeschränkungen nicht stillschweigend.
 
-Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
-entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile
-Fähigkeits- und Werkzeugkennungen sowie die Routinenkonfiguration. Geänderte Arbeit
-oder Ziele machen sie ungültig. Jeder Lauf behält seine zugelassenen Freigabe-IDs;
-eine spätere Zustimmung gibt keinen geparkten Lauf frei, und Widerruf mit erneuter
-Zustimmung erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationspolitik
-und Zustimmung werden vor jedem Werkzeug erneut geprüft. Jeder freigegebene Aufruf
-zeichnet eine genehmigte Zeile mit zustimmender Person und Argumenten auf.
-Delegierte brauchen eigene Entscheidungen und erben keine Ausnahme des Elternlaufs.
+!!! warning "Speichern einer älteren Routine entfernt dauerhafte Genehmigungen"
+    Der Dialog warnt vor dem Speichern: Die Routine übernimmt die Genehmigungsregeln des Agenten und entfernt atomar alle bisherigen dauerhaften Aktionsfreigaben. Gespeicherte ältere Richtlinien gelten bis zum Speichern dieser Prüfung; **Agent folgen** erhält keine frühere Ausnahme.
 
-Eine dauerhafte Aktionsfreigabe speichert auch die aktuellen Revisionen der gebundenen Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht die Ausnahme ungültig, selbst wenn die veröffentlichte Agentenversion gleich bleibt oder der alte Text später wiederhergestellt wird. Prüfen Sie die Aktionen erneut, um eine neue Ausnahme zu erteilen. Bestehende Ausnahmen ohne Revisionsfingerabdruck gelten nur für Agenten ohne solche veränderlichen Anweisungsquellen weiter.
+**Geprüfte Quellen** zeigt Fähigkeiten, Skills, Wissensbasen, Tabellen und Konten nach Art und Name. Jede Art ist auf eine Anzahl eingeklappt; fehlende Quellen sind gekennzeichnet. Werkzeugbeschränkungen umgehen weder Quellenprüfung noch aktuelle Ressourcenzugriffe oder den genehmigten Quellen- und Verhaltensrahmen.
 
-`0267_routine_action_consents.py` erzeugt keine Ausnahmen für bestehende Routinen.
-Eine bisher unbeaufsichtigte Aktion kann nun auf Bestätigung warten. Alte Worker
-abwickeln lassen und API sowie Worker gemeinsam aktualisieren, bevor Aufgaben
-weiterlaufen; ein alter Worker erzwingt diese Kontrolle nicht. Ein Downgrade
-entfernt gespeicherte Ausnahmen; Bestätigungsprotokolle und bereits ausgeführte
-Wirkungen bleiben bestehen.
+Schreibzugriffe auf AgenticOS Virtual Tables verwenden weiterhin aktuelle Tabellen- und Operationsrechte. Eine Routinenbeschränkung kann eine zusätzliche Entscheidung verlangen; eine ausdrückliche Genehmigungsrichtlinie des Agenten gilt immer.
+
+**Ältere dauerhafte Genehmigungen.** Gespeicherte ältere Routinen und die Kompatibilitäts-API können Richtlinien mit `manual`, `per_tool` oder ohne Aktionsmodus enthalten. Diese unterscheiden sich von den neuen Einschränkungen. Eine ältere Ausnahme erfordert den Ersteller, `approvals:decide` und `chat_may_waive_approvals`; explizit erforderliche Genehmigungen sind nicht ausnehmbar. Änderungen nur an Name oder Rhythmus erhalten die Zustimmung, Änderungen an Arbeit oder Ziel machen sie ungültig.
+
+Eine ältere Ausnahme bindet geprüfte veröffentlichte Version, Routinenkonfiguration und stabile Aktionsidentität. Eine MCP-Ausnahme benennt zusätzlich Konto, Endpoint-Hash und Autorisierungsgeneration. Sie erlaubt weder eine andere Aktion noch ein anderes Konto. Persönliche Konten sind nur beim Handeln als Ersteller verfügbar; Zustimmung lässt sich auch ohne verfügbare gespeicherte Werkzeugliste widerrufen.
+
+Jede Ausführung behält ihre beim Start zugelassenen Zustimmungs-IDs. Spätere Zustimmung entsperrt keine bereits wartende Ausführung; Widerrufen und erneutes Erteilen erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationsrichtlinie und Zustimmung werden vor jedem Werkzeug geprüft. Jeder freigestellte Aufruf hat einen Audit-Eintrag mit zustimmender Person und Argumenten. Delegierte übernehmen keine Ausnahme des übergeordneten Agenten.
+
+Ältere Zustimmung bindet auch Revisionen von Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht sie ungültig, selbst nach Wiederherstellung des alten Texts. Ausnahmen ohne diesen Fingerabdruck bleiben nur für Agenten ohne solche veränderlichen Quellen gültig. Das Speichern neuer Werkzeugbeschränkungen entfernt ältere Ausnahmen, statt sie zu erneuern.
+
+`0267_routine_action_consents.py` legte keine Ausnahmen für bestehende Routinen an. Diese Genehmigungsschranke für unbeaufsichtigte Arbeit erfordert ein gemeinsames Upgrade von API und Workern nach dem Leeren alter Worker. Ein Downgrade entfernt gespeicherte Ausnahmen, aber weder Genehmigungsprotokolle noch bereits ausgeführte Effekte.
 
 ### Antworten fortgesetzter Routinen { #resumed-routine-answers }
 
@@ -958,7 +975,7 @@ Manche Arbeit gehört der Plattform selbst und braucht dennoch ein Modell. Eine
 **Systemrolle** gibt ihr einen Eigentümer, den ein Betreiber sehen kann: eine
 Konfiguration je Organisation und Rolle, nie eine Agent-Zeile, nie eine je Job und
 nie dem Starter-Agent oder einem Agent zugeschrieben, dessen Anweisungen nicht
-liefen (#2575). **Organisationen → KI und Dienste → Hintergrunddienste** (`budgets:manage`)
+liefen (#2575). **Organisationen → KI und Dienste** (`budgets:manage`)
 listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
 Ausführungen.
 
@@ -966,6 +983,8 @@ Ausführungen.
 | --- | --- | --- |
 | `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
 | `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
+
+Daily briefing liest den aktuellen persönlichen Profilspeicher, den Speicher der Person mit dem Standardagenten und ältere Notizen. Vorschläge für Routinen und Agenten brauchen Belege aus mehreren Unterhaltungen oder Tagen und werden mit früheren Vorschlägen und vorhandenen Routinen verglichen. Memory maintenance gleicht aktuelle Einträge im Bereich der Quellunterhaltung ab und verlangt vor dem Speichern ein Zitat aus einer Nutzernachricht.
 
 Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
 
@@ -1470,6 +1489,10 @@ und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
 des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
 Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
 
+Ein Reviewer erhält die Regel, dass der Run, den er liest, Material zum Prüfen
+ist und keine Anweisung an ihn; sein Anliegen wird dieser Regel angefügt und
+ersetzt sie nie.
+
 Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
 und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
 Reviewers. Ein wegen des Budgets abgelehnter Aufruf wird übersprungen, und ein
@@ -1558,6 +1581,19 @@ wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
+
+Wählen Sie im Webchat, unter Aktivität → Freigaben oder im Posteingang
+**Mit Feedback ablehnen**, um den Grund oder eine Alternative anzugeben. Die
+vorgeschlagene Aktion wird nicht ausgeführt. Der Kommentar wird mit der Ablehnung
+gespeichert. Bei mehreren Aufrufen im Chat werden alle abgelehnt, aber jeder
+Kommentar gilt nur für den jeweiligen Aufruf. Ohne Kommentar wählen Sie **Ablehnen**.
+
+Bei einem normalen abgelehnten Agenten-Toolaufruf erhält der Agent den Kommentar,
+wenn der Lauf fortgesetzt wird. Benötigt die überarbeitete Aktion eine Freigabe,
+fragt er erneut. Beim Workflow-Schritt **Um Freigabe bitten** kann der Pfad
+**Abgelehnt** den Kommentar als `note` lesen, etwa um einen Entwurf zu überarbeiten.
+Eine Ablehnung startet keinen automatischen Wiederholungsversuch. Ein abgelehnter
+MCP-Tool-Schritt schlägt weiterhin fehl, ohne das Tool aufzurufen.
 
 Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
 **Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch
@@ -1724,6 +1760,14 @@ Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dies
 Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
 
 Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
+
+Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, die Version, die eine Veröffentlichung erzeugt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
+
+Ein Plattform-Aufruf, der jedes Mal fragt - eine Verbesserung annehmen, einen Agent veröffentlichen, ein Mitglied einladen -, läuft mit den Plattform-Rechten der Person, für die sein Run handelt. Deshalb gibt ihn nur diese Person frei, angemeldet als sie selbst: kein anderes Mitglied mit `approvals:decide`, kein API-Schlüssel, auch nicht ihr eigener, und kein Administrator per Impersonierung. Wer `approvals:decide` hat, kann ihn weiterhin ablehnen. Die Person braucht dafür keine Berechtigung außer dieser Person zu sein, also gibt ein Builder oder ein Member die Karte des Architect im eigenen Chat frei und setzt den Run dort fort. Nur sie kann einen Run nach einem freigegebenen Plattform-Aufruf fortsetzen.
+
+Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat.
+
+Ein Run ohne Person - der eines Besuchers auf einem Widget oder einer öffentlichen Seite, eines nicht verknüpften Kanalmitglieds oder einer gelöschten Person - hat niemanden, dessen Antwort zählt, also wartet sein Plattform-Aufruf, bis er abläuft; so ein Run hat ohnehin keine Plattform-Rechte. Eine Änderung des Deployments (`change_deployment`) braucht beide Regeln zugleich: die Person des Runs, die außerdem Anwendungsadministrator ist. Der Architect jeder anderen Person ändert es nicht.
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was
@@ -2232,7 +2276,8 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit einem Link zur Unterhaltung, in der gefragt wurde, solange dieser Aufruf wartet |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, jemand, der über Freigaben entscheiden darf, muss ihn beantworten, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
@@ -2647,9 +2692,15 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
 
-Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
+Eine ausgeschaltete Capability und das, was nur sie erreicht - Skills bei ausgeschalteter **Skills**, Kontextdateien bei ausgeschalteter **Context**, Sammlungen bei ausgeschalteter **Knowledge**, Delegierte und Remote-Agenten bei ausgeschalteter **Subagents** -, sind keine Quellen: Kein Run erreicht sie. Die Prüfung führt sie deshalb nicht auf, eine gelöschte blockiert die Routine nicht, und die Bearbeitung eines solchen Skills oder einer solchen Kontextdatei erfordert keine neue Zustimmung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft.
+
+Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
+
+Der Eigentümer kann stattdessen `restricted` wählen. Dieser Modus fixiert die geprüfte Quellenkonfiguration, konkrete MCP-Konten, Autorisierungsgenerationen und bekannte Werkzeugnamen. Die Prüfung umfasst fixierte Delegaten, Wissen, Skills, Kontext, Capabilities und entfernte A2A-Registrierungen. Neue Quellen oder geänderte Kontoautorisierung erfordern eine erneute Prüfung. Bestehende Richtlinien ohne Modus bleiben eingeschränkt; ein Upgrade erweitert sie nicht stillschweigend.
+
+Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt. Der Eigentümer kann den Modus einer bestehenden Routine ausdrücklich über die durch Prüftoken geschützten Zugriffseinstellungen ändern.
 
 Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
 
@@ -2664,15 +2715,21 @@ Vorlagen zur lesenden Überwachung gemeinsam. Ein Trigger bestimmt, _wann_ eine
 Routine läuft; die Überwachungsvorlage begrenzt, _was_ sie tun darf. Für eine
 Verantwortung genügt eine Routine, statt Watch und Zeitplan für dasselbe Postfach.
 
-Wählen Sie **Nach jeder abgeschlossenen Ausführung** (`result_mode: report`, der
-bisherige Standard) für Berichte oder **Nur wenn etwas Aufmerksamkeit braucht**
-(`result_mode: inbox`) für stille Prüfungen. Der Agent liefert relevante
-Quellelemente mit stabilen Element- und Revisionskennungen, Kontext und dem
-vollständigen angeforderten Entwurf. Ein leeres Ergebnis erzeugt weder Gespräch
-noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
-einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
-nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
-Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+Inbox-Ergebnisse werden ausschließlich über das AgenticOS-MCP-Werkzeug `publish_inbox_finding` veröffentlicht. Jede Routine und jeder Monitor erhält es automatisch, auch ohne Plattformbindung. Ein impliziter Berichtsschlüssel hat keine allgemeinen Plattformrechte: Er ist an einen laufenden Run gebunden und veröffentlicht nur für die besitzende Person. Andere Empfänger, private Inbox-Lesezugriffe und Organisationsverwaltung sind damit nicht möglich. Jede Veröffentlichung prüft Mitgliedschaft, Quellenfreigabe, Pause und Ablauf erneut. Monitore müssen ihre Quelle zuerst erfolgreich lesen; ungelöste Lesefehler verhindern die Meldung. Dringlichkeit respektiert die Einstellung der besitzenden Person.
+
+Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angeforderte vollständige Entwürfe. Unveränderte Revisionen bleiben still; neue aktualisieren denselben Arbeitschat und öffnen den Fall erneut, stummgeschaltete Elemente bleiben stumm. Ein Run kann höchstens acht Ergebnisse veröffentlichen. Endantworten bleiben im Protokoll oder ausdrücklich gewählten Chat und werden nie in Inbox-Karten geparst. Das alte Feld `result_mode` bleibt lesbar, aktiviert aber keine automatische strukturierte Zustellung mehr. Ohne Änderungen wird nichts veröffentlicht, außer ein Monitor soll jede Prüfung melden.
+
+Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
+
+Neue Routinen verwenden standardmäßig **einen gemeinsamen schreibgeschützten Verlauf** (`chat_mode=shared`). Wähle **einen neuen privaten Chat pro Ausführung** (`chat_mode=per_run`), um jeden vollständigen Verlauf mit Werkzeugaufrufen in einem eigenen bearbeitbaren Chat zu behalten. Weitere Nachrichten ändern die Routine nicht und werden nicht zum Gesprächsverlauf der nächsten Ausführung; die konfigurierte Erinnerung gilt weiterhin. Der Chat erscheint in deiner Seitenleiste.
+
+Wähle **gemeinsamen Verlauf** (`chat_mode=shared`), um Ausführungen an eine schreibgeschützte Systemunterhaltung anzuhängen. Die erstellende Person sieht sie mit `runs:view` und aktuellem Agentenzugriff in der Seitenleiste; Projektprotokolle bleiben durch den Projektzugriff geregelt. Sie kann eine Antwort in einen privaten Chat verzweigen. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch; Speicher und explizite Quellenabfragen stellen Kontinuität her.
+
+Migration `0351_routine_chat_modes.py` ordnet bisherige Hauptchat- und Einzelchat-Zustellung separaten Ausführungschats zu; reine Protokolle und der bisherige Inbox-Modus werden gemeinsame Verläufe. Unterhaltungen, Zeitpläne, Pausen, Budgets und Quellen-/Werkzeugfreigaben bleiben erhalten. Bestehende Protokolle werden schreibgeschützt; bereits zugelassene Runs ohne Modus-Snapshot behalten ihre bisherige Zustellung. API und Worker gemeinsam aktualisieren. Alte Zielfelder bleiben für Kompatibilität und Downgrade lesbar.
+
+Inbox-Ergebnisse behalten eigene Arbeitsunterhaltungen je stabilem Quellelement. Nicht jede Ausführung erzeugt eine Inbox-Karte.
+
+Unbeaufsichtigte Ausführungen haben keinen aktiven `ask_user`-Kanal. Fehlen notwendige Angaben, soll der Agent die Frage und die blockierte Arbeit als Inbox-Befund veröffentlichen, statt eine Antwort anzunehmen. Dadurch entsteht kein pausiertes, fortsetzbares Frageformular.
 
 Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
 Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den

@@ -26,6 +26,7 @@ import type { AgentRun } from "@/types/runs";
 
 const useRunMock = vi.fn();
 const prefetched = vi.fn();
+const refetch = vi.fn();
 const useResumeRunMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useRun: (runId: string) => useRunMock(runId),
@@ -85,6 +86,7 @@ function serve(answer: { run?: AgentRun; isLoading?: boolean; error?: unknown })
     run: answer.run,
     isLoading: answer.isLoading ?? false,
     error: answer.error ?? null,
+    refetch,
   });
 }
 
@@ -453,4 +455,46 @@ describe("scoring a run against a case", () => {
     renderRun();
     expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
   });
+});
+
+it.each(["loading", "error", "gone"] as const)(
+  "keeps a visible close action for %s run details",
+  async (state) => {
+    serve(
+      state === "loading"
+        ? { isLoading: true }
+        : { error: state === "gone" ? new ApiError(404, "gone") : new Error("down") },
+    );
+    const close = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <FocusedRun runId="run-2" onFocusRun={vi.fn()} onClose={close} />
+      </NextIntlClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close the run detail" }));
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+it("retries a run read without leaving the inspector", async () => {
+  serve({ error: new Error("down") });
+  renderRun();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(refetch).toHaveBeenCalled();
+});
+
+it("shows the recorded reason a run stopped before its timeline", () => {
+  serve({ run: run({ status: "failed", error: "Provider refused this model" }) });
+  renderRun();
+  const failure = screen.getByRole("region", { name: "Why this run stopped" });
+  expect(failure).toHaveTextContent("Provider refused this model");
+  expect(
+    failure.compareDocumentPosition(screen.getByTestId("timeline")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
+it("does not invent a failure reason for a completed run", () => {
+  serve({ run: run() });
+  renderRun();
+  expect(screen.queryByRole("region", { name: "Why this run stopped" })).not.toBeInTheDocument();
 });

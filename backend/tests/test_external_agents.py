@@ -479,24 +479,42 @@ class TestDelegatingToOne:
 class TestServingOurs:
     async def test_serving_takes_publish_and_a_published_version(self) -> None:
         service = AgentRegistryService(MagicMock())
-        agent = MagicMock(id=uuid.uuid4(), kind="agent", current_version_id=None)
+        agent = MagicMock(
+            id=uuid.uuid4(),
+            kind="agent",
+            current_version_id=None,
+            draft_spec=AgentSpec(name="Service", model_profile_id=uuid.uuid4()).model_dump(
+                mode="json"
+            ),
+        )
         service.get = AsyncMock(return_value=agent)
         with pytest.raises(BadRequestError, match="Publish the agent"):
             await service.set_a2a(CTX, agent.id, enabled=True)
-        assert service.get.await_args.kwargs == {"perm": Perm.AGENTS_PUBLISH}
+        assert service.get.await_args.kwargs == {"perm": Perm.AGENTS_PUBLISH, "for_update": True}
 
     @pytest.mark.parametrize(
         ("enabled", "action"), [(True, "agent.a2a_served"), (False, "agent.a2a_withdrawn")]
     )
     async def test_switching_it_is_recorded(self, enabled: bool, action: str) -> None:
         service = AgentRegistryService(MagicMock())
-        agent = MagicMock(id=uuid.uuid4(), kind="agent", current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=uuid.uuid4(),
+            kind="agent",
+            current_version_id=uuid.uuid4(),
+            draft_spec=AgentSpec(name="Service", model_profile_id=uuid.uuid4()).model_dump(
+                mode="json"
+            ),
+        )
         service.get = AsyncMock(return_value=agent)
         with (
             patch(
                 "app.services.agent_registry.agent_repo.update", AsyncMock(return_value=agent)
             ) as update,
             patch("app.services.agent_registry.record_audit", AsyncMock()) as audited,
+            patch(
+                "app.services.agent_registry.agent_repo.get_version",
+                AsyncMock(return_value=SimpleNamespace(spec=agent.draft_spec)),
+            ),
         ):
             await service.set_a2a(CTX, agent.id, enabled=enabled)
         assert update.await_args.kwargs["update_data"] == {"a2a_enabled": enabled}

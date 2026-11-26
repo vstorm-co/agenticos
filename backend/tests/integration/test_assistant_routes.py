@@ -367,8 +367,9 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
 
 
 @pytest.mark.security
-async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not(
-    db: AsyncSession, served: None
+@pytest.mark.parametrize("policy", ["writes", "all", "required"])
+async def test_architect_skill_drafts_are_free_by_default_but_strict_policies_still_ask(
+    db: AsyncSession, served: None, policy: str
 ) -> None:
     from app.agents.mcp import NEEDS_APPROVAL
     from app.agents.spec import PlatformMcpServerRef
@@ -379,7 +380,17 @@ async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not
     resolved = await build_toolsets_for_agent(
         db,
         organization_id=organization.id,
-        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
+        refs=[
+            PlatformMcpServerRef(
+                account="platform",
+                approval="all" if policy == "all" else "writes",
+                tool_approval=dict.fromkeys(
+                    ("create_skill", "update_skill", "add_skill_resource"), "required"
+                )
+                if policy == "required"
+                else {},
+            )
+        ],
         platform_credential=key,
     )
     [toolset] = resolved.toolsets
@@ -390,4 +401,12 @@ async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not
 
     skill_tools = [tool for tool in platform_tool_catalog() if "skill" in tool.name]
     assert skill_tools
-    assert all(held(tool.name) is tool.writes for tool in skill_tools)
+    default_free_drafts = {"create_skill", "update_skill", "add_skill_resource"}
+    assert all(
+        held(tool.name)
+        is (
+            policy == "all"
+            or (tool.writes and (policy == "required" or tool.name not in default_free_drafts))
+        )
+        for tool in skill_tools
+    )

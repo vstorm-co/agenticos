@@ -1,7 +1,10 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Button,
@@ -17,18 +20,20 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { DIALOG_BODY } from "@/lib/dialog-sizes";
+import { DatasetGuidance } from "./dataset-guidance";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
+import { MIN_SEARCH_QUESTIONS, StartMode } from "./start-search";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
-import { useDatasets } from "@/hooks/use-datasets";
+import { useDataset, useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
-import { getErrorMessage, problemList } from "@/lib/api-error";
+import { ApiError, getErrorMessage, problemList } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
-import type { Improvement, ImprovementEstimate } from "@/types/improvement";
+import type { Improvement, ImprovementEstimate, ImprovementMode } from "@/types/improvement";
 
 /**
  * Configure a session over the Agent Builder, with its dataset and price visible.
@@ -39,6 +44,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const t = useTranslations("improvement");
   const tc = useTranslations("common");
   const tr = useTranslations("authoring.improve");
+  const ts = useTranslations("improvement.startSearch");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
@@ -64,33 +70,65 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [searchMode, setSearchMode] = useState<ImprovementMode>("steps");
+  // Kept across re-pricing, so the Search option does not flicker while a new quote loads.
+  const [trainQuestions, setTrainQuestions] = useState<number | null>(null);
+  const [searchBudget, setSearchBudget] = useState("");
+  const [gradingModel, setGradingModel] = useState<string | null>(null);
+  const searchLimit = limitValue(searchBudget);
+  const searchReady = searchMode === "steps" || Number(searchLimit) > 0;
   // A set made for this agent wins over one it was only run against or guarded by.
   const runnable = own.datasets.filter((dataset) => dataset.can_run);
-  const target =
-    chosen ?? (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
+  const listed = [
+    ...own.datasets,
+    ...datasets.datasets.filter((dataset) => !own.datasets.some((item) => item.id === dataset.id)),
+  ].filter((dataset) => dataset.can_run);
+  const listsRead = !own.isLoading && !datasets.isLoading;
+  // A dataset only the address names - a link, or questions just written - is read
+  // before it is priced: it may be gone, or one this person may not run.
+  const unlisted = chosen !== null && !listed.some((dataset) => dataset.id === chosen);
+  const linked = useDataset(unlisted && listsRead ? chosen : "");
+  // A failed refetch keeps the earlier answer, which is not priced on.
+  const usable =
+    unlisted && linked.error === null && linked.dataset?.id === chosen && linked.dataset.can_run
+      ? linked.dataset
+      : null;
+  // Only a definite answer - gone, refused or not runnable - moves to the usual dataset; a
+  // failed read is shown and prices nothing, so an outage never changes what is measured.
+  const linkedGone =
+    linked.error instanceof ApiError &&
+    (linked.error.status === 403 || linked.error.status === 404);
+  const linkedRefused = unlisted && (linkedGone || linked.dataset?.can_run === false);
+  const linkedFailed = unlisted && linked.error !== null && !linkedGone;
+  const choices = usable ? [usable, ...listed] : listed;
+  const fallback =
+    (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
+  const target = chosen === null || linkedRefused ? fallback : usable || !unlisted ? chosen : "";
+  const targetName = choices.find((dataset) => dataset.id === target)?.name;
   const body = {
     dataset_id: target,
     max_iterations: 3,
+    ...(searchMode === "search" && {
+      mode: searchMode,
+      search: { budget_usd: searchLimit, grading_model_profile_id: gradingModel },
+    }),
   };
   const asked = JSON.stringify(body);
   const key = `${asked}:${written}`;
   const quote = quoted?.key === key ? quoted.value : null;
   const refused = refusal?.key === key ? refusal.message : null;
   const limit = budget !== null ? limitValue(budget) : quote ? sessionLimit(quote) : "";
-  const choices = [
-    ...own.datasets,
-    ...datasets.datasets.filter((dataset) => !own.datasets.some((item) => item.id === dataset.id)),
-  ].filter((dataset) => dataset.can_run);
   const estimateSession = sessions.estimate.mutateAsync;
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
   useEffect(() => {
-    if (!target) return;
+    if (!target || !searchReady) return;
     let current = true;
     estimateSession(JSON.parse(asked)).then(
       (priced) => {
         if (current) {
           setQuote({ key, value: priced });
+          setTrainQuestions(priced.train_questions ?? null);
           setRefusal(null);
         }
       },
@@ -106,7 +144,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
     return () => {
       current = false;
     };
-  }, [asked, key, target, estimateSession, tErrors]);
+  }, [asked, key, target, searchReady, estimateSession, tErrors]);
   const questionsReady = useCallback((datasetId: string) => {
     setChosen(datasetId);
     setWritten((count) => count + 1);
@@ -137,17 +175,32 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         </SelectContent>
       </Select>
       <p className="text-muted-foreground text-xs">{t("startDatasetHint")}</p>
+      {linkedRefused && (
+        <p role="status" className="text-muted-foreground text-xs">
+          {t("linkedDatasetUnusable", { usual: fallback ? "yes" : "no" })}
+        </p>
+      )}
+      {linkedFailed && (
+        <div role="alert" className="flex flex-wrap items-center gap-2">
+          <p className="text-destructive-ink min-w-0 flex-1 text-xs">
+            {t("linkedDatasetUnread", { reason: getErrorMessage(linked.error, tErrors) })}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => void linked.refetch()}>
+            {t("retryRead")}
+          </Button>
+        </div>
+      )}
     </div>
   );
   const writeOwn = (
-    <details className="text-sm">
+    <NativeDisclosure className="text-sm">
       <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
         {t("writeOwnInstead")}
       </summary>
       <div className="mt-3">
         <WriteQuestions agentId={agentId} onReady={questionsReady} />
       </div>
-    </details>
+    </NativeDisclosure>
   );
   async function start() {
     setError(null);
@@ -200,6 +253,21 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         ) : (
           <WriteQuestions agentId={agentId} onReady={questionsReady} />
         )}
+        {target && (
+          <StartMode
+            mode={searchMode}
+            onModeChange={(chosenMode) => {
+              if (chosenMode === "search" && !searchBudget && quote)
+                setSearchBudget(limitText(sessionLimit(quote), locale));
+              setSearchMode(chosenMode);
+            }}
+            trainQuestions={trainQuestions}
+            budget={searchBudget}
+            onBudgetChange={setSearchBudget}
+            gradingModelId={gradingModel}
+            onGradingModelChange={setGradingModel}
+          />
+        )}
         {refused !== null && (
           <div
             role="alert"
@@ -243,9 +311,22 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 </dd>
               </div>
             </dl>
+            {targetName && (
+              <p className="text-muted-foreground text-xs">
+                {t("measuredOn", { name: targetName })}
+              </p>
+            )}
             <p className="text-muted-foreground text-xs">
               {t("startCostHint", { cost: usd(quote.per_round_usd, locale) })}
             </p>
+            {Number(quote.search_usd ?? 0) > 0 && (
+              <p className="text-muted-foreground text-xs">
+                {ts("quote", {
+                  search: usd(quote.search_usd ?? "0", locale),
+                  check: usd(quote.eval_usd, locale),
+                })}
+              </p>
+            )}
             {quote.reason && (
               <p role="status" className="text-sm">
                 {tr(`reason.${quote.reason}`)}
@@ -253,9 +334,10 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             )}
           </section>
         )}
-        <StartSignals agentId={agentId} datasetId={target} />
+        {quote?.guidance && <DatasetGuidance guidance={quote.guidance} />}
+        {!loading && <StartSignals agentId={agentId} datasetId={target} />}
         {target && (
-          <details
+          <NativeDisclosure
             className="border-t pt-4"
             data-tour="improvement-details"
             onToggle={(event) => setDetails(event.currentTarget.open)}
@@ -312,7 +394,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 </Link>
               )}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
         {error && (
           <p role="alert" className="text-destructive-ink text-sm">
@@ -332,6 +414,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             quote.reason !== null ||
             !Number.isFinite(Number(limit)) ||
             Number(limit) <= 0 ||
+            (searchMode === "search" && (trainQuestions ?? 0) < MIN_SEARCH_QUESTIONS) ||
             startedId !== null
           }
           onClick={() => void start()}

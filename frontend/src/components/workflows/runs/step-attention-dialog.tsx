@@ -60,7 +60,7 @@ export function StepAttentionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      <DialogContent data-workflow-fields className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("stepResolveTitle", { step: stepName })}</DialogTitle>
           <DialogDescription>{t(reason, { step: stepName })}</DialogDescription>

@@ -83,13 +83,17 @@ export function AddShare({
           value={subject}
           onChange={setSubject}
           placeholder={empty ? t("everyoneAlreadyHasAccess") : t("chooseSubject")}
-          disabled={empty}
+          disabled={empty || pending}
         />
       </div>
       <div className="w-36 space-y-2">
         <Label htmlFor="share-level">{t("access")}</Label>
-        <Select value={level} onValueChange={(value) => setLevel(toLevel(value))}>
-          <SelectTrigger id="share-level">
+        <Select
+          value={level}
+          onValueChange={(value) => setLevel(toLevel(value))}
+          disabled={pending}
+        >
+          <SelectTrigger id="share-level" className="h-10 pointer-coarse:h-11">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -102,6 +106,7 @@ export function AddShare({
         </Select>
       </div>
       <Button
+        className="h-10 pointer-coarse:h-11"
         onClick={() => (level === "edit_data" ? setAsking(true) : send())}
         disabled={subject === "" || pending}
       >

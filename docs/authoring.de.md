@@ -1,5 +1,5 @@
 ---
-source_sha: "0184c2dd65d3"
+source_sha: "67639049734c"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -28,11 +28,11 @@ Er tut drei Dinge:
 
 Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
+**Improve** öffnet eine Verbesserungssitzung. Modell und eventuelle Dataset-Hinweise stehen in den **Einstellungen** des gewählten Datasets; die Hinweise kommen unter die Plattformregeln des Helfers und ersetzen sie nie; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
-Der Assistent hat keine Tools. Was er liest, wird für ihn zusammengestellt, aus
+Was der Assistent liest, wird für ihn zusammengestellt, aus
 den Runs des Agents der letzten 30 Tage:
 
 - negativ bewertete Antworten, die mit Kommentar zuerst;
@@ -43,6 +43,15 @@ den Runs des Agents der letzten 30 Tage:
 Ein unbewerteter, erfolgreicher Run sagt nichts aus und wird nicht gelesen.
 Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
+
+Der eingebaute Assistent hat keine Tools. Ein an seiner Stelle gewählter
+Hilfsagent darf `thinking`, `knowledge`, `context` oder `skills` binden und nichts, das
+weiter reicht; einer, der sucht, bekommt die Wissensdatenbanken des Agents, den
+er verbessert. Beim Verbessern eines Agents sind seine Anweisungen die
+Verbesserungsanweisungen aus den Einstellungen des Datasets oder die
+eingebauten - nie die seiner eigenen veröffentlichten Version. Eine
+Verbessern-Sitzung eines Skills führt ihn so aus, wie er veröffentlicht ist, mit
+seinen eigenen Anweisungen.
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
@@ -157,11 +166,13 @@ benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
 selbst. Eine Skill- oder Kontextänderung, die auf einer Suite des Agents geprüft
 wird, auf dem sie läuft, bekommt dasselbe.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%); die eigenen Testfragen eines Skills sind alle Kontrollfragen, und ihr Anteil lässt sich nicht senken. Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche mit dem Anteil neu auf, den das Dataset beim Start der Sitzung hatte, und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
 Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus einer nur vorgeschlagenen Fassung, die der Entwurf nicht enthält: der eines früheren Versuchs, der von einer Wissensprüfung gemessenen oder einer, die eine Skill- oder Kontextdatei-Änderung liefert. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
@@ -178,6 +189,10 @@ den Eval Runs, die die Vorschläge geprüft haben, sodass Sie die Vorhersage mit
 dem vergleichen können, was die Runs ergaben.
 
 ## Konfiguration { #configuration }
+
+Abgeschlossene Improve-Sitzungen zeigen Ergebnis, gespeicherte Änderungen und geänderte Antworten gemeinsam. Die erste Antwort ist zum Vergleich geöffnet; Verschlechterungen stehen zuerst. Eine wiederverwendete Ausgangsantwort wird aus ihrem ursprünglichen Run gelesen. Skill-Ergebnisse zeigen die Auswirkungen je Agent neben den Änderungen; Anwendung bedeutet keine Verbesserung für alle. Registerkarten über dem Ergebnis bieten **Ergebnis**, **Änderungen**, **Testfragen** und **Versuche**. **Analyse** und **Entscheidung** bleiben unter **Sitzungsdetails**; bestehende Links funktionieren weiter. Entscheidungsaktionen erscheinen nur bei einer verfügbaren Entscheidung.
+
+**Versuche** öffnet standardmäßig die erste Karte, **Testfragen** den Abschnitt **Fragen prüfen**. Historische **Änderungen** nutzen die volle Breite und lassen einen leeren Wissensabschnitt weg.
 
 Neben dem Text kann der Assistent eine Änderung an einigen Teilen der
 Konfiguration eines Agents vorschlagen. Jede ist ein Vorschlag wie jeder andere,
@@ -291,10 +306,7 @@ sich seitdem geändert hat - bei einer Skill-Änderung wie bei einer Datei.
 
 ## Einen neuen Agent beschreiben { #describing-a-new-agent }
 
-Der Dialog zum Anlegen bietet an, den Agent zu beschreiben, statt das Formular
-auszufüllen. Die Beschreibung geht an den [Architekten](console.md#the-assistant),
-der Agents entwirft und fragt, bevor er einen anlegt; das Ergebnis ist ein
-gewöhnlicher Entwurf.
+Die Aktion **Mit Architect erstellen** im Dialog öffnet das [Architekt](console.md#the-assistant)-Widget, ohne einen Prompt zu senden oder einen Agent anzulegen. Beschreiben Sie dort Ihren Bedarf; der Architekt fragt, bevor er einen gewöhnlichen Entwurf anlegt.
 
 ## Kosten und Budget { #cost-and-budget }
 
@@ -320,10 +332,12 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 | Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
 | Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill und `runs:view` |
 | Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei und `runs:view` |
-| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
+| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent; bei einer Änderung an einem Skill oder einer Kontextdatei Bearbeitungsrechte am Skill oder an der Datei und Ausführungsrechte am Agent, auf dem sie geprüft wird |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
-diesen Agent verbessern.
+diesen Agent verbessern, wenn seine Rolle auch `runs:view` hat - Owner, Admin,
+Builder oder Operator. Member und Viewer haben kein `runs:view`, also lässt ein
+Grant allein sie keine Sitzung starten oder lesen.
 
 Wenn eine API-Anfrage einen Hilfsagent auswählt, brauchen Sie sowohl Lese- als
 auch Ausführungsrechte für ihn. Ein fehlender oder nicht zugänglicher Hilfsagent
@@ -363,9 +377,14 @@ Schritt darf enden; tatsächliche Kosten bleiben auch nach einem Abbruch sichtba
 
 Der Test läuft von selbst: Die heutige und die geänderte Fassung des Agents
 beantworten dieselben Fragen, und ein unentschiedener Vergleich wird im Preis des
-Tests einmal wiederholt. Er endet beim Ergebnis: `ready`, wenn der Versuch den
+Tests einmal wiederholt. Eine Antwort, bei der der Modellanbieter in eine
+Zeitüberschreitung lief oder scheiterte, wird zuerst einzeln noch einmal gestellt,
+einmal, im selben Test, wenn das restliche Budget sie deckt, damit wenige verlorene
+Antworten nicht den ganzen Test wiederholen. Er endet beim Ergebnis: `ready`, wenn der Versuch den
 Agent verbessert hat - seine Änderungen werden dann zum wartenden
 Vorschlagspaket -, sonst `stopped`, mit dem Urteil als Grund.
+
+Ersatzantworten werden je Modell anhand der gespeicherten Schätzung pro Frage einschließlich Bewerter berechnet; Bestätigungswiederholungen bleiben reserviert. Kosten, Tokens und Latenz enthalten den fehlgeschlagenen Versuch. Ältere Prüfungen ohne gespeicherte Preise je Modell lassen verlorene Antworten unvollständig, statt ein Wiederholungsbudget zu schätzen.
 
 Kein Versuch
 startet von selbst. **Erneut versuchen** ist dasselbe `/continue` vom Ergebnis
@@ -377,9 +396,9 @@ oder ein unentschiedenes samt Wiederholung erscheinen im Ergebnis als Hinweis,
 dass ein weiterer Versuch kaum hilft, nicht als Halt.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
- -, darf auch ihren nächsten Schritt ausführen oder
-es erneut versuchen. Die Sitzung hält fest, wer das tat, und die folgenden
-Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person; eine
+ -, darf auch ihren nächsten Schritt ausführen,
+es erneut versuchen oder eine ihrer kostenpflichtigen Prüfungen bestätigen: der gewählten Änderungen, eines Wissensentwurfs oder dessen, was jede Änderung bewirkt hat. Die Sitzung hält fest, wer das tat, und die folgenden
+Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person und werden unter ihr protokolliert; eine
 vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführen.
 
 Der Worker prüft vor jedem Übergang Entwurf, letzte Veröffentlichung, Bewertung
@@ -392,6 +411,8 @@ hat jeweils eine offene Sitzung - in der Warteschlange, laufend, wartend, fertig
 angehalten oder fehlgeschlagen -, daher beantwortet der Start einer weiteren
 `409`, bis die offene endet. Ersteller oder Organisationsadministratoren können
 `/{run_id}/cancel` aufrufen.
+
+Das Stoppen erfordert kein `runs:view`. Ohne diese Berechtigung enthält die Antwort nur `id` und `status`, ohne Budget, Dataset, Fortschritt oder Fehler-Metadaten.
 
 Wer den letzten Schritt ausgeführt hat, wird an jedem Halt und bei jedem Ende
 benachrichtigt: Analyse gelesen, Änderungen zur Prüfung bereit, geprüftes
@@ -455,21 +476,23 @@ nicht das gemeinsame Urteil des Versuchs.
 
 Öffnen Sie **Verbessern** in der Werkzeugleiste des Agententabs **Evals**, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über **Wissenslücken**. Hatte die aktuelle veröffentlichte Version in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt Verbessern einen Hinweispunkt. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** zeigt Sitzungen, die auf eine Entscheidung warten.
 
+Derselbe Punkt markiert die Tabs des Agenten, in denen etwas auf Sie wartet. **Evals** trägt ihn aus diesen Gründen, bei einer durchgefallenen Suite oder einer Verbessern-Sitzung, die auf Sie wartet, und **Wissenslücken** bei offenen Lücken; den Grund nennen der Hinweis beim Überfahren des Tabs und der Screenreader. Ein Agent mit **Braucht Aufmerksamkeit** in der Agentenliste oder auf der Dashboard-Karte öffnet sich im Tab **Evals**.
+
 Jedes **Verbessern** öffnet die offene Sitzung des Agents - laufend, auf Sie wartend, beim Ergebnis oder angehalten oder fehlgeschlagen - und startet eine neue, sobald diese Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder geschlossen wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents. **Beenden und eine neue starten** neben einer offenen Sitzung beendet sie zuerst.
 
 Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**. Jeder Bildschirm beginnt mit Zahlen und kleinen Diagrammen, jeder Zustand ist mit einem Symbol und nicht nur einer Farbe markiert; vollständige Antworten, Zitate und Gründe warten in aufklappbaren Karten. Eine Zeile über den Schritten nennt den Zustand der Sitzung - **In Bearbeitung**, solange ein Schritt läuft, und an einem Halt, worauf sie wartet: **Wartet auf Sie: sehen Sie sich an, was schiefging** oder **Wartet auf Sie: prüfen Sie die Änderungen** - und was sie von ihrem Limit ausgegeben hat.
 
 Ein Schritt öffnet sich, sobald er Arbeit zu zeigen oder eine Entscheidung zu erfragen hat. Die Seite folgt dem Schritt, auf dem die Sitzung steht; nachdem Sie einen anderen geöffnet haben, führt **Zum aktuellen Schritt** dorthin zurück. An einem Halt trägt die Fußzeile den nächsten Schritt mit seinem Preis, zum Beispiel **Nächster Schritt: Änderungen schreiben · ca. $0.04**; nichts wird ausgegeben, bevor Sie ihn drücken. Hat sich der Preis seit der Anzeige bewegt, sagt die Fußzeile das - **Der Preis hat sich auf ca. $0.05 geändert. Drücken Sie erneut, um fortzufahren.** -, und kostet der Schritt mehr, als der Sitzung bleibt, lässt sich ihr Limit gleich dort erhöhen.
 
-**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird.
+**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird. Hat das Dataset Hinweise für den Verbesserungshelfer, zeigt der Dialog sie mit der Person, die sie zuletzt geändert hat: ein Mitglied mit Namen, wer gegangen ist, als ehemaliges Mitglied.
 
 Analysekosten und Ausgabenlimit der gesamten Sitzung erscheinen vor **Verbesserung starten**. Jeder weitere Schritt hat eine eigene Schätzung und wartet auf Ihre Entscheidung. **Details anzeigen** enthält das Ausgabenlimit, die Fragenaufteilung, den heutigen Test und einen Link zu den Helfereinstellungen des Datasets. Nach dem Start öffnet die laufende Sitzung ihre eigene Seite. Das Schließen des Einrichtungsdialogs führt zum Agent zurück; bestehende `/improve/new`-Links öffnen denselben Dialog.
 
-1. **Verstehen.** Ein Satz und ein Balken zählen die Probleme, die im Agent zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte, ebenso eine Frage, die sowohl als Testfrage als auch in einem Gespräch gestellt wurde. Eine Karte zeigt die Frage und lässt sich zur Antwort, zu den Kommentaren, zur Bewertung einer Testantwort - der Note, die der Bewerter jedem Kriterium gab, und ob jede Regel erfüllt ist - und zum Grund aufklappen, warum sie zählt: die Bewertungen, bei denen sie durchfiel, wie eine Person sie bewertete und warum der Klassifikator sie dort einordnete. Positiv bewertete Antworten und solche, an denen der Klassifikator nichts auszusetzen fand, landen automatisch unter **Kein zu behebendes Problem**; in diesem Schritt wird nichts von Hand eingestellt. Eine Antwort, deren Thema inzwischen ein Dokument abdeckt, zählt unter **Schon in der Wissensdatenbank**, mit diesem Dokument und dem Tag, an dem es hinzugefügt wurde: Für sie gibt es nichts mehr zu entwerfen. Die Sitzung hält hier immer an; **Nächster Schritt: Änderungen schreiben** bittet den Helfer um Änderungen.
-2. **Änderungen.** Wie viele Änderungen vorgeschlagen und wie viele enthalten sind, dann jede Änderung als Diff mit Soll beheben, darunter eingeklappt Warum und Grundlage. Am Halt hat jede Änderung **Änderung N im Test berücksichtigen**, wovon mindestens eine angehakt bleibt, und **Formulierung ändern**, das Ihre Formulierung statt der des Helfers testet: Die Änderung ist dann mit **Von Ihnen umformuliert** markiert, und **Zurück zur vorgeschlagenen Formulierung** macht das rückgängig. **Nächster Schritt: ausgewählte Änderungen testen** startet den Test, bepreist mit dem Höchstbetrag, darunter, was er wahrscheinlich kostet - ohne die Wiederholung, die ein unentschiedenes Ergebnis bekommt; solange er läuft, lässt sich die Liste lesen, aber nicht ändern. Wissensentwürfe bilden eine eigene Spalte mit den Entwürfen, die jemand angefordert hat. Wurde keine Änderung gefunden, listet der Bildschirm auf, was jeder Versuch probiert hat.
+1. **Verstehen.** Ein Satz und ein Balken zählen die Probleme, die im Agent oder seinen Skills zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen; sobald ein Versuch geprüft ist, nennt eine Zeile die noch fehlschlagenden Kriterien, die der Helfer einem Skill zugeordnet hat - sie werden im Skill behoben, nicht in den Anweisungen des Agents. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte, ebenso eine Frage, die sowohl als Testfrage als auch in einem Gespräch gestellt wurde. Eine Karte zeigt die Frage und lässt sich zur Antwort, zu den Kommentaren, zur Bewertung einer Testantwort - der Note, die der Bewerter jedem Kriterium gab, und ob jede Regel erfüllt ist - und zum Grund aufklappen, warum sie zählt: die Bewertungen, bei denen sie durchfiel, wie eine Person sie bewertete und warum der Klassifikator sie dort einordnete. Positiv bewertete Antworten und solche, an denen der Klassifikator nichts auszusetzen fand, landen automatisch unter **Kein zu behebendes Problem**; in diesem Schritt wird nichts von Hand eingestellt. Eine Antwort, deren Thema inzwischen ein Dokument abdeckt, zählt unter **Schon in der Wissensdatenbank**, mit diesem Dokument und dem Tag, an dem es hinzugefügt wurde: Für sie gibt es nichts mehr zu entwerfen. Die Sitzung hält hier immer an; **Nächster Schritt: Änderungen schreiben** bittet den Helfer um Änderungen.
+2. **Änderungen.** Wie viele Änderungen vorgeschlagen und wie viele enthalten sind, dann jede Änderung als Diff mit Soll beheben, darunter eingeklappt Warum und Grundlage. Am Halt hat jede Änderung **Änderung N im Test berücksichtigen**, wovon mindestens eine angehakt bleibt, und **Formulierung ändern**, das Ihre Formulierung statt der des Helfers testet: Die Änderung ist dann mit **Von Ihnen umformuliert** markiert, und **Zurück zur vorgeschlagenen Formulierung** macht das rückgängig. **Nächster Schritt: ausgewählte Änderungen testen** startet den Test, bepreist mit dem Höchstbetrag, darunter, was er wahrscheinlich kostet - ein Test, der etwa die Hälfte der zurückgelegten Antworten erneut fragt, die er erneut fragen darf, ohne die Wiederholung, die ein unentschiedenes Ergebnis bekommt; solange er läuft, lässt sich die Liste lesen, aber nicht ändern. Wissensentwürfe bilden eine eigene Spalte mit den Entwürfen, die jemand angefordert hat. Wurde keine Änderung gefunden, listet der Bildschirm auf, was jeder Versuch probiert hat.
 3. **Prüfung.** Die heutige und die geänderte Fassung des Agents beantworten dieselben Fragen in einem Test, jede mit einem Balken, wie weit sie ist; Antworten aus einem Test vor Beginn der Sitzung füllen den Balken der heutigen Fassung sofort. Dann die Phasen, jede als erledigt, laufend oder nicht begonnen markiert: fragen, bewerten und die Antworten mit geändertem Ergebnis erneut stellen. Der Test läuft von selbst, und das Ergebnis öffnet sich, wenn er fertig ist. **Vollständige Prüfung öffnen** führt zum Eval-Run.
-4. **Ergebnis.** Zuerst, was die Sitzung ergeben hat, in Sätzen aus den Urteilen - welcher Versuch den Agent verbessert hat, oder dass keiner es tat und welcher ihn verschlechtert hat - mit den Themen, die in der Wissensdatenbank fehlen, und dem Grund, warum die Sitzung angehalten hat; nach der Entscheidung sagt es, welcher Versuch als welche Version veröffentlicht oder als Entwurf behalten wurde. Unter **Was Sie tun können** steht eine Hauptaktion: **Änderungen prüfen und übernehmen**, wenn ein geprüfter Kandidat wartet, **Erneut versuchen**, solange Versuche oder Budget übrig sind, **Die benötigten Dokumente entwerfen**, wenn nur Wissen fehlt, und sonst **Ohne Änderungen beenden**, neben **Neue Sitzung starten** und dem Hinweis, Testfragen dort zu ergänzen, wo der Agent schlecht antwortet. Ein fehlgeschlagener Schritt bietet zuerst an, ihn innerhalb des Ausgabenlimits zu wiederholen. Wurden zwei oder mehr Versuche gemessen, listet **Welcher Versuch bleiben soll** sie mit dem behaltenen markiert; ein anderer wird mit **Versuch N behalten** gewählt, und ein Versuch, der nicht besser war, sagt vorher, was seine Übernahme kostet - die Fragen, die er verschlechtert hat, oder dass er keinen gemessenen Gewinn bringt. Eine entschiedene Sitzung listet sie ohne Auswahl. **Erneut versuchen** nimmt einen optionalen **Hinweis für den Helfer** - was zu ändern oder zu behalten ist - und zeigt seinen Preis, bevor es startet; der neue Versuch hält bei **Änderungen** an. Ein Schritt, der anhielt, weil die Person, die ihn ausführte, den nötigen Zugriff verlor, bietet **Diesen Schritt mit meinem Zugriff fortsetzen** jedem an, der eine Sitzung starten darf. Dann die Zahlen: neu behoben und neu verschlechtert zählen nur durch erneutes Fragen bestätigte Änderungen, die noch nicht bestätigten - einmal geändert, beim erneuten Fragen aber nicht auf dieselbe Weise - stehen klein darunter, und die Zahl fehlender Wissensthemen führt zu ihrer Liste. Jeder Versuch ist eine geschlossene Zeile - sein Urteil, was er gegenüber seiner eigenen Ausgangsversion auf den von ihm zurückgelegten Fragen behoben und verschlechtert hat, was Schreiben und Testen gekostet haben - die Gesamtkosten der Sitzung samt Analyse stehen über der Liste - der beste Versuch markiert - oder, wenn jemand einen Versuch gewählt hat, der nicht besser war, als gewählt markiert. Jeder Versuch legt eigene Fragen zurück, daher werden Versuche nach ihrer Änderung verglichen und nicht nach ihren Bestehensquoten, die nur in den Details einer Zeile stehen. Eine Zeile öffnet sich zu den Balken der vorher und nachher gut beantworteten Fragen, den Kosten pro Antwort, wenn sie sich geändert haben, und jeder geänderten Frage mit ihren Antworten vorher und nachher; eine von den wiederholten Antworten nicht bestätigte Änderung wartet unter **Noch nicht bestätigt** und ist nur als möglicherweise behoben oder möglicherweise verschlechtert markiert. Ein Balken ist nur bei einer durch erneutes Fragen bestätigten Änderung grün oder rot; sonst bleibt er grau, und ein Unterschied von einer Frage oder Balken in entgegengesetzte Richtungen gilt als Rauschen. Unter **Details anzeigen** in der Zeile: **Wie wir es gemessen haben**, ein Satz dazu, wie viele Fragen der Helfer sah und wie viele zurückgelegt wurden, um das Ergebnis zu entscheiden; **Welche Änderung hat geholfen?**, wenn der Versuch zwei oder mehr Änderungen gemacht hat, mit dem Preis, jede einzeln zu testen; und nur wenn die Sitzung einen Entwurf zum Testen hat, **Prüfen, ob der Entwurf helfen würde** - als ob die Suche ihn fände oder über die echte Suche. Waren die Prüfungen Rauschen - Antworten wurden innerhalb eines Versuchs beim erneuten Stellen verschieden bewertet, oder die heutige Version erreichte zwischen Versuchen auf ihren gemeinsamen zurückgelegten Fragen unterschiedliche Werte - und war kein Versuch besser, sagt die Karte zuerst, dass der Test eine bessere Version nicht von einer schlechteren unterscheiden kann, nennt, was ihn verlässlich macht - Bewertungskriterien als Ja/Nein statt einer Skala, eine Regel für Länge und Format statt des Bewerters, mehr Fragen bis etwa 30 zurückgelegte, ein stärkeres Bewerter-Modell - und listet die verschieden bewerteten Fragen mit den Bewertungen jedes Versuchs. Neben einem besseren Versuch vermerkt sie das Rauschen nur. Versuche mit weniger als fünf gemeinsamen zurückgelegten Fragen werden nicht auf Rauschen verglichen, und die Karte sagt das. Zwei Versuche hintereinander, die nichts geändert haben oder sich nicht verlässlich bewerten ließen, bringen den Hinweis, dass ein weiterer wahrscheinlich nicht hilft; die Sitzung hält vor ihrem Versuchslimit nie von selbst an, und die Karte nennt dieses Limit erst, wenn es erreicht ist. Siehe [wenn sich die Bewertung selbst bewegt](evals.md#a-flip-is-confirmed-before-it-counts) und [wie beständig die Antworten sind](evals.md#how-steady-the-answers-are).
-5. **Annehmen.** Zahlen dazu, was die neue Version behebt, verschlechtert und pro Antwort kostet und mit wie vielen Fragen sie getestet wurde, mit den Kosten pro Antwort gegenüber der heutigen Version auf den zurückgelegten Fragen. Darunter die Änderung, die übernommen wird, so wie sie gemessen wurde - eine Formulierung der Person ist als **Von Ihnen umformuliert** markiert. Ein Versuch, der nicht besser war, wiederholt die Warnung aus dem Ergebnis, lässt die automatische Prüfung abgewählt und macht **Als Entwurf behalten** zur ersten Wahl. Die Themen, die laut dieser Sitzung noch in der Wissensdatenbank fehlen, werden gezählt - mit der Zahl derer, deren Entwurf bereit zum Hinzufügen ist, und derer mit veraltetem Entwurf - und stehen mit ihren Fragen da. Die Sitzung entwirft keines davon: Jedes bietet **Entwerfen** mit dem, was ein Entwurf höchstens kostet, zeigt **Wird entworfen…**, während der Entwurf geschrieben wird, und bietet danach **Prüfen und hinzufügen** oder **Nicht jetzt**, das ihn für die Sitzung beiseitelegt (`PUT /{run_id}/topics/{topic_id}/later`). Jeder Ort, an dem Leute den Agent nutzen, sagt, ob er sofort wechselt, nach bestandener automatischer Prüfung oder bei seiner Version bleibt. Dann **Version N veröffentlichen** oder **Als Entwurf behalten**. Beides beendet die Sitzung, und dieser Schritt sagt dann, was entschieden wurde, von wem und wann, mit einem Link zur Version und der Änderung im übernommenen Wortlaut; **Änderungen** listet dann jeden Versuch. Gibt es nichts zu übernehmen, wird der Schritt übersprungen.
+4. **Ergebnis.** Zuerst, was die Sitzung ergeben hat, in Sätzen aus den Urteilen - welcher Versuch den Agent verbessert hat, oder dass keiner es tat und welcher ihn verschlechtert hat - mit den Themen, die in der Wissensdatenbank fehlen, und dem Grund, warum die Sitzung angehalten hat. Eine Frage besteht erst, wenn jedes Kriterium besteht, nach dem sie bewertet wird; ein Versuch, der ein Kriterium behoben hat, während andere weiter nicht erfüllt sind, lässt deshalb keine Frage kippen: Sein Urteil ist **Besser bei Kriterien**, und der Satz nennt jedes Kriterium mit der Zahl der zurückgelegten Fragen, die es vorher und nachher bestanden haben - *Versuch 1 hat Quote Builder bei 1 Kriterium verbessert: price break 9/40 → 40/40* -, dann die Kriterien, die weiter nicht erfüllt sind, mit dem Skill, dem der Helfer jedes zugeordnet hat - *Noch besteht keine weitere Frage, weil andere Kriterien weiter nicht erfüllt sind: validity (Skill „Quote rules“)*. Ein solcher Versuch ist ein geprüfter Kandidat wie ein besserer. Einer, der ein Kriterium verschlechtert hat, ohne eine Frage zu verschlechtern, ist **Schlechter bei Kriterien** und wird genauso benannt, und ein besserer Versuch, der nebenbei ein Kriterium verschlechtert hat, sagt das neben seinen Behebungen; die Warnung beim Behalten eines solchen Versuchs nennt die verschlechterten Kriterien. Kriterien werden nach [Familie](evals.md#a-flip-is-confirmed-before-it-counts) gezählt, sodass sich die Checks einer Sache in allen Fällen gemeinsam bewegen. Eine Familie, die der Helfer einem Skill zugeordnet hat und die schlechter wurde, macht einen Versuch nicht schlechter: Der Satz sagt, dass der Agent dem Skill jetzt genauer folgt und dass der Skill das ist, was korrigiert werden muss. Ein Versuch, der Fragen verschlechtert hat, nennt trotzdem die Familien, die er verbessert hat, sodass sich der hilfreiche Teil behalten lässt, indem man es mit einem Hinweis erneut versucht. Die Zahlen ergänzen **Erfüllte Kriterien**, wie oft die Kriterien vorher und nachher auf den zurückgelegten Fragen bestanden haben, und **Noch von einem Skill blockiert**, wie viele wegen eines Skills weiter nicht erfüllt sind und welcher Skill es ist. Beide zählen die Änderung eines Kriteriums erst, wenn das erneute Fragen sie bestätigt hat, wie bei ganzen Fragen. Die Zeile eines Versuchs nennt, wie viele Kriterien besser oder schlechter wurden, und öffnet sich zu einer Tabelle aller Kriterien mit ihren Treffern vorher und nachher und ihrer bestätigten Änderung; nach der Entscheidung sagt es, welcher Versuch als welche Version veröffentlicht oder als Entwurf behalten wurde. Unter **Was Sie tun können** steht eine Hauptaktion: **Änderungen prüfen und übernehmen**, wenn ein geprüfter Kandidat wartet, **Erneut versuchen**, solange Versuche oder Budget übrig sind, **Die benötigten Dokumente entwerfen**, wenn nur Wissen fehlt, und sonst **Ohne Änderungen beenden**, neben **Neue Sitzung starten** und dem Hinweis, Testfragen dort zu ergänzen, wo der Agent schlecht antwortet. Ein fehlgeschlagener Schritt bietet zuerst an, ihn innerhalb des Ausgabenlimits zu wiederholen. Wurden zwei oder mehr Versuche gemessen, listet **Welcher Versuch bleiben soll** sie mit dem behaltenen markiert; ein anderer wird mit **Versuch N behalten** gewählt, und ein Versuch, der nicht besser war, sagt vorher, was seine Übernahme kostet - die Fragen, die er verschlechtert hat, oder dass er keinen gemessenen Gewinn bringt. Eine entschiedene Sitzung listet sie ohne Auswahl. **Erneut versuchen** nimmt einen optionalen **Hinweis für den Helfer** - was zu ändern oder zu behalten ist - und zeigt seinen Preis, bevor es startet; der neue Versuch hält bei **Änderungen** an. Ein Schritt, der anhielt, weil die Person, die ihn ausführte, den nötigen Zugriff verlor, bietet **Diesen Schritt mit meinem Zugriff fortsetzen** jedem an, der eine Sitzung starten darf. Dann die Zahlen: neu behoben und neu verschlechtert zählen nur durch erneutes Fragen bestätigte Änderungen, die noch nicht bestätigten - einmal geändert, beim erneuten Fragen aber nicht auf dieselbe Weise - stehen klein darunter, und die Zahl fehlender Wissensthemen führt zu ihrer Liste. Jeder Versuch ist eine geschlossene Zeile - sein Urteil, was er gegenüber seiner eigenen Ausgangsversion auf den von ihm zurückgelegten Fragen behoben und verschlechtert hat, was Schreiben und Testen gekostet haben - die Gesamtkosten der Sitzung samt Analyse stehen über der Liste - der beste Versuch markiert - oder, wenn jemand einen Versuch gewählt hat, der nicht besser war, als gewählt markiert. Jeder Versuch legt eigene Fragen zurück, daher werden Versuche nach ihrer Änderung verglichen und nicht nach ihren Bestehensquoten, die nur in den Details einer Zeile stehen. Eine Zeile öffnet sich zu den Balken der vorher und nachher gut beantworteten Fragen, den Kosten pro Antwort, wenn sie sich geändert haben, und jeder geänderten Frage mit ihren Antworten vorher und nachher; eine von den wiederholten Antworten nicht bestätigte Änderung wartet unter **Noch nicht bestätigt** und ist nur als möglicherweise behoben oder möglicherweise verschlechtert markiert. Ein Balken ist nur bei einer durch erneutes Fragen bestätigten Änderung grün oder rot; sonst bleibt er grau, und ein Unterschied von einer Frage oder Balken in entgegengesetzte Richtungen gilt als Rauschen. Unter **Details anzeigen** in der Zeile: **Wie wir es gemessen haben**, ein Satz dazu, wie viele Fragen der Helfer sah und wie viele zurückgelegt wurden, um das Ergebnis zu entscheiden; **Welche Änderung hat geholfen?**, wenn der Versuch zwei oder mehr Änderungen gemacht hat, mit dem Preis, jede einzeln zu testen; und nur wenn die Sitzung einen Entwurf zum Testen hat, **Prüfen, ob der Entwurf helfen würde** - als ob die Suche ihn fände oder über die echte Suche. Waren die Prüfungen Rauschen - Antworten wurden innerhalb eines Versuchs beim erneuten Stellen verschieden bewertet, oder die heutige Version erreichte zwischen Versuchen auf ihren gemeinsamen zurückgelegten Fragen unterschiedliche Werte - und war kein Versuch besser, sagt die Karte zuerst, dass der Test eine bessere Version nicht von einer schlechteren unterscheiden kann, nennt, was ihn verlässlich macht - Bewertungskriterien als Ja/Nein statt einer Skala, eine Regel für Länge und Format statt des Bewerters, mehr Fragen bis etwa 30 zurückgelegte, ein stärkeres Bewerter-Modell - und listet die verschieden bewerteten Fragen mit den Bewertungen jedes Versuchs. Neben einem besseren Versuch vermerkt sie das Rauschen nur. Versuche mit weniger als fünf gemeinsamen zurückgelegten Fragen werden nicht auf Rauschen verglichen, und die Karte sagt das. Zwei Versuche hintereinander, die nichts geändert haben oder sich nicht verlässlich bewerten ließen, bringen den Hinweis, dass ein weiterer wahrscheinlich nicht hilft; die Sitzung hält vor ihrem Versuchslimit nie von selbst an, und die Karte nennt dieses Limit erst, wenn es erreicht ist. Siehe [wenn sich die Bewertung selbst bewegt](evals.md#a-flip-is-confirmed-before-it-counts) und [wie beständig die Antworten sind](evals.md#how-steady-the-answers-are).
+5. **Annehmen.** Zahlen dazu, was die neue Version behebt, verschlechtert und pro Antwort kostet und mit wie vielen Fragen sie getestet wurde, mit den Kosten pro Antwort gegenüber der heutigen Version auf den zurückgelegten Fragen. Darunter die Änderung, die übernommen wird, so wie sie gemessen wurde - eine Formulierung der Person ist als **Von Ihnen umformuliert** markiert. Ein Versuch, der nicht besser war, wiederholt die Warnung aus dem Ergebnis, lässt die automatische Prüfung abgewählt und macht **Als Entwurf behalten** zur ersten Wahl; ein Versuch, der bei Kriterien besser war, heißt nicht so und wiederholt stattdessen, was er behoben hat und was weiter nicht besteht. Die Themen, die laut dieser Sitzung noch in der Wissensdatenbank fehlen, werden gezählt - mit der Zahl derer, deren Entwurf bereit zum Hinzufügen ist, und derer mit veraltetem Entwurf - und stehen mit ihren Fragen da. Die Sitzung entwirft keines davon: Jedes bietet **Entwerfen** mit dem, was ein Entwurf höchstens kostet, zeigt **Wird entworfen…**, während der Entwurf geschrieben wird, und bietet danach **Prüfen und hinzufügen** oder **Nicht jetzt**, das ihn für die Sitzung beiseitelegt (`PUT /{run_id}/topics/{topic_id}/later`). Jeder Ort, an dem Leute den Agent nutzen, sagt, ob er sofort wechselt, nach bestandener automatischer Prüfung oder bei seiner Version bleibt. Dann **Version N veröffentlichen** oder **Als Entwurf behalten**. Beides beendet die Sitzung, und dieser Schritt sagt dann, was entschieden wurde, von wem und wann, mit einem Link zur Version und der Änderung im übernommenen Wortlaut; **Änderungen** listet dann jeden Versuch. Gibt es nichts zu übernehmen, wird der Schritt übersprungen.
 
 Ein Link auf einen Schritt, den es nicht mehr gibt - `?step=testSet` oder `?step=today` -, öffnet den Schritt, der an seine Stelle trat, **Verstehen** oder **Prüfung**, ohne einen Verlaufseintrag hinzuzufügen.
 
@@ -477,7 +500,9 @@ Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit
 
 Eine als Entwurf behaltene Sitzung ist abgeschlossen: Den Entwurf veröffentlicht das übliche **Veröffentlichen** des Agents, und wenn diese Version die von der Sitzung gemessene ist, wird sie in der Sitzung eingetragen. Der Abschluss kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiter, und geschützte Umgebungen warten auf ihre Prüfungen. Nach ihrem Test bearbeitete Änderungen müssen erneut getestet werden.
 
-Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten anhand bearbeitbarer Wissensbasen des Agenten und die Gruppierung ihrer Lücken zu [Themen](knowledge-gaps.md#topics). Entwürfe enthält sie nicht: Ein Entwurf entsteht nur, wenn ein Mensch ihn anfordert, und wird als eigener Run bezahlt. Jeder Schritt prüft vor dem Start erneut seine vollständige Schätzung. Nur festgelegte, nicht gelöschte Quellchats erreichen Klassifizierung oder Gruppierung; Trainingsfehler bleiben Agentenbelege, Kontrolltexte erreichen diese Helfer nie.
+Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten und fehlgeschlagener Trainingsantworten anhand bearbeitbarer Wissensbasen des Agenten und die Gruppierung ihrer Lücken zu [Themen](knowledge-gaps.md#topics). Entwürfe enthält sie nicht: Ein Entwurf entsteht nur, wenn ein Mensch ihn anfordert, und wird als eigener Run bezahlt. Jeder Schritt prüft vor dem Start erneut seine vollständige Schätzung. Nur festgelegte, nicht gelöschte Quellchats und die Trainingsantworten, aus denen die Sitzung lernt, erreichen Klassifizierung oder Gruppierung; eine Trainingsantwort mit fehlendem Wissen bleibt auch Agentenbeleg, Kontrolltexte erreichen diese Helfer nie.
+
+Eine fehlgeschlagene Trainingsantwort, der nur Schlüssel fehlen, die laut dem Bericht zur [Schlüsselabdeckung](datasets.md#key-coverage) des Agenten für dieses Dataset keine seiner Quellen enthält, zählt als fehlendes Wissen statt als Fehler des Agenten. Der Helfer liest, welche Schlüssel das sind, nach Bezeichnung, und dass der Nutzer sie liefern muss: Keine Änderung der Anweisungen kann es.
 
 Ein Klassifizierungsfehler wird angezeigt, Quellgespräche bleiben verfügbar, und die Sitzung hält trotzdem bei **Verstehen** an. Eine reine Wissenssitzung hält an und listet die Themen auf, die in der Wissensdatenbank fehlen, damit Sie die gewünschten entwerfen, ohne leere Agentenversion. Ein Entwurf veraltet, sobald nach ihm ein Dokument zur Wissensdatenbank hinzugefügt wird, und **Neu entwerfen** schreibt ihn erneut (siehe [Den fehlenden Inhalt entwerfen](knowledge-gaps.md#drafting-the-missing-content)). Eine Entwurfsprüfung erfordert weiterhin eine eigene Schätzung und Bestätigung; das Hinzufügen bleibt eine gesonderte menschliche Entscheidung.
 
@@ -497,7 +522,7 @@ Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, 
 
 Eine Sitzung, die auf Sie wartet, beim Ergebnis steht, angehalten oder fehlgeschlagen ist, bleibt offen: **Verbessern** und ihr Eintrag im Verlauf führen zu ihr zurück, um ihren nächsten Schritt auszuführen, ihr Limit zu erhöhen und fortzufahren, einen Versuch zu wählen, den fehlgeschlagenen Schritt zu wiederholen oder sie zu verwerfen.
 
-Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent.
+Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent. Ihre Änderungen und die Vorschläge, die sie im Builder hinterlässt, entstehen aus den Fragen des Datasets, daher braucht ihr Lesen auch Lesezugriff auf das Dataset.
 
 #### Den Architekten fragen { #asking-the-architect }
 
@@ -521,6 +546,79 @@ Aktionen wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geändert
 Agent lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check,
 und das Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
 
+### Viele Varianten suchen { #searching-many-variants }
+
+Eine Sitzung kann viele Fassungen der Anweisungen des Agenten durchsuchen, statt
+pro Versuch um einen Vorschlag zu bitten. Wählen Sie beim Start von Verbessern
+**Varianten suchen**, oder senden Sie `mode: "search"` mit `search`-Einstellungen
+an die Schätzung und den Start. Die Suche braucht mindestens zehn
+Trainingsfragen im Dataset. Mit weniger ist die Option aus, und die API
+antwortet mit `422`.
+
+Nach **Verstehen** führt der nächste Schritt die Suche aus. Der Helfer schreibt
+jeweils einige vollständige Fassungen der Anweisungen. Jede Fassung beantwortet
+dieselbe Ziehung der Trainingsfragen des Versuchs, und ihre Antworten werden
+bewertet. Die nächsten Fassungen schreibt der Helfer aus den besten und den
+Fragen, an denen sie noch scheitern. Die Suche liest nie die Fragen, die für die
+Prüfung zurückgehalten werden.
+
+Die Suche endet an ihrem eigenen Budget, an ihrer Variantengrenze
+(`max_variants`, standardmäßig 40) oder nach Runden ohne bessere Variante
+(`patience`, standardmäßig 3). Die beste Variante, die besser abschneidet als die
+aktuellen Anweisungen, kommt als gewöhnliche Änderungen zu **Änderungen**, und
+ihre Prüfung, ihr Ergebnis und ihre Annahme laufen wie bei jedem Versuch. Ein
+Wert aus der Suche ist der Anteil erfüllter Pflichtkriterien an Trainingsfragen,
+kein Urteil. Bei **Änderungen**, vor der Prüfung, bringt
+`PUT /{run_id}/search/choice` mit `variant_id` stattdessen eine andere der drei
+besten Varianten. Schneidet keine Variante besser ab, hält die Sitzung mit
+`no_variant` an.
+
+Die Suche hat ein eigenes Budget, `search.budget_usd`, innerhalb des Limits der
+Sitzung, und die Schätzung beim Start rechnet es und die Prüfung der gefundenen
+Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung, samt dem, was ihre längeren
+Anweisungen zu lesen kosten, in den Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
+begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
+Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
+Rest.
+
+Das Limit einer Antwort deckt auch ab, was die längeren Anweisungen der Variante
+zu lesen kosten, und ein Agent, dessen bisherige Antworten nichts kosteten, wird
+auf den Preis eines nicht bepreisten Falls begrenzt. Eine Antwort, die an ihrem
+eigenen Limit anhält, gilt für diese Variante als unbeantwortet; nur ein
+erschöpftes Budget der Suche, der Sitzung oder des Monats beendet die Suche.
+
+Eine Bewertungseinheit beginnt keine Antworten mehr, bevor die Zeit ihres Jobs
+abläuft, bricht eine Antwort ab, die kurz vor dem Ende des Jobs noch läuft, und
+behält, was sie beantwortet hat; die nächste fragt den Rest, sodass jede Frage
+einmal bezahlt wird. Eine behaltene Antwort auf eine inzwischen gelöschte Frage
+fällt mit ihr weg. Vor jeder Einheit prüft die Suche, ob die
+handelnde Person noch Bearbeitungsrecht am Agenten, `runs:view` und das Recht hat,
+das Dataset auszuführen; sonst hält die Sitzung an wie bei ihrem nächsten
+Schritt. Eine Notiz zu **Try again** erreicht auch den Helfer, der die Varianten
+schreibt.
+
+Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
+die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und
+dem Recht, das Dataset auszuführen; alle anderen sehen die Zahlen. Eine Frage,
+die eine Variante nicht beantworten oder nicht bewerten lassen konnte, gilt als
+nicht bestanden.
+
+Eine Vorschlagsrunde, die das Modell nicht beantwortet - der Anbieter lehnte ab,
+überschritt die Zeit oder war nicht erreichbar -, wird bis zu dreimal erneut
+gestellt; danach endet die Suche, weil der Helfer keine weiteren Varianten
+schreiben konnte, und die Kosten der fehlgeschlagenen Runden zählen zu ihren
+Ausgaben. Eine Suche ohne Fortschritt über eine Stunde schlägt als
+`stalled` fehl und kann erneut versucht werden.
+
+Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen
+Modell; `grading_model_profile_id` bewertet sie stattdessen auf einem günstigeren
+oder lokalen Modell. Die Prüfung nach **Änderungen** bewertet immer der Bewerter
+des Datasets. Die Antworten
+einer Variante sind keine Eval-Runs: Sie erscheinen weder auf dem Tab **Evals**
+noch in Vergleichen, und die Sitzung zeigt, was sie gekostet haben. Die Jobs der
+Suche laufen einer nach dem anderen pro Organisation und belegen keine Plätze
+von Eval-Runs. Die Suche im Inhalt eines Skills ist noch nicht verfügbar.
+
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 
 Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverwendbarer Ablauf in mindestens drei verschiedenen Quellantworten vorkommt. Jede Textstelle muss in der Antwort selbst stehen; Kommentare allein belegen keinen wiederholten Ablauf. Die Karte zeigt Name, Beschreibung, vollständigen Inhalt, Begründung und geprüfte Belege. Eine Evaluation bindet einen temporären Skill nur an den Kandidaten: Sie erstellt weder einen Skill-Datensatz noch eine veröffentlichte Version.
@@ -543,7 +641,13 @@ Andere Agents können denselben Skill lesen, deshalb ändert Agent-Improve nie e
 
 Eine Änderung, die eine Passage von 200 Zeichen eines gebundenen Skills wiederholt, wird abgelehnt, ebenso ein neuer Skill mit dem Namen oder Text eines gebundenen Skills. Ein gemeldetes Problem bleibt nur, wenn es einen Skill des Agents nennt und einen Run zitiert, der die Version genutzt hat, die der Agent jetzt liest; Zitate aus anderen Runs werden daraus entfernt. Ein Run, der eine ältere Version oder einen anderen Fork bekam, ist kein Beleg gegen den Text, den der Helfer liest.
 
+Ein Kriterium gehört nur dann dem Skill, wenn eine Zeile des Skills den falschen Wert oder die falsche Regel nennt, sodass der Agent es nicht beheben könnte, ohne dem Skill zu widersprechen - *Angebote gelten 30 Tage* gegen ein Kriterium, das 14 verlangt. Der Helfer kopiert diese Zeile mit dem Problem, und das Problem behält das Kriterium nur, wenn der Text des Skills die Zeile enthält, Leerraum, Listenzeichen und Groß- und Kleinschreibung beiseite.
+
+Schweigt der Skill nur oder verbietet er nur weitere Abschnitte, und stehen die Fakten, die das Kriterium braucht, in den Anweisungen, dem Kontext oder dem Wissen des Agents, bleibt das Kriterium beim Agent: Der Helfer schlägt die Änderung am Agent vor und kann das Problem des Skills weiter als Rat melden. Nur die eigenen Kriterien des Skills legt das Urteil beiseite und zählt sie unter **Noch von einem Skill blockiert**.
+
 Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
+
+Die fehlgeschlagenen Trainingsantworten, die diese Session gelesen hat und die den Skill verwendet haben, zählen ebenfalls als Belege des Skills: Testfragen aus dem gespeicherten Trainingsteil des eigenen Datasets der Session, auf dem eine Skill-Prüfung nie misst. Ein so gestartetes Improve des Skills braucht zum Beginnen keine negativ bewerteten Chat-Antworten mehr; wer dieses Dataset nicht ausführen darf, liest keine dieser Antworten.
 
 Liegt der Agent hinter Main, öffnet eine Karte **Auf vN aktualisieren** oder **Fork auf Main bringen** die Seite des Skills. Lassen sich die Skills nicht lesen, sagt der Abschnitt das, statt zu verschwinden.
 
@@ -568,6 +672,10 @@ Eine neue Korrektur gilt nur als nachgewiesen, wenn der Entwurf jede bestätigen
 Manuelle Tests und die Erstellung von Testfragen benachrichtigen die anfordernde Person nach Abschluss, auch bei Fehlern. Erneute Jobzustellungen erzeugen keine doppelten Meldungen. Untergeordnete Tests einer Testsuite oder Verbesserungssitzung verwenden deren übergeordnete Benachrichtigung. Die Einstellungen stehen unter **Einstellungen → Benachrichtigungen**. Offene Test- und Datensatzseiten werden nach dem Speichern des Ergebnisses über den Änderungsstrom aktualisiert.
 
 Der Schritt Verstehen zeigt eine begrenzte Quellenstichprobe, die gespeicherte Ursache, Antwort, Bewertungskommentare und einen Gesprächslink. Unbekannte Ursachen bleiben ausdrücklich unklassifiziert. Der Schritt Testfragen liest die angeheftete Fragenversion der Sitzung und kennzeichnet Trainingsfragen sowie zurückgehaltene Fragen. Heute zeigt die Ausgangsmessung erst nach einem erfolgreich abgeschlossenen Test; teilweise oder fehlgeschlagene Tests gelten nicht als gemessener Ausgangswert. Quellenansichten erfordern `runs:view`, prüfen den aktuellen Zugriff auf Wissensbasen und entfernen Zugangsdaten aus jedem Textfeld.
+
+Die Belege, die das Modell des Helfers erhält - Fragen, Antworten, Bewertungskommentare, Argumente von Tool-Aufrufen und Fehler -, werden ebenso geschwärzt, bevor sie hinausgehen, sodass auch die Zitate geschwärzt sind, die eine Änderung behält. Früher gespeicherte Zitate und Zusammenfassungen werden bei jedem Lesen geschwärzt.
+
+Alles, was ein Vorschlag schreiben würde und Zugangsdaten zitiert - Anweisungs- oder Skill-Text, Name oder Beschreibung eines Tools, der Wert eines Felds, ein neuer Skill, eine vorgeschlagene Kontextdatei oder ein Skill-Text -, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen, Anwenden oder eine Prüfung wird abgelehnt. Eine vorgeschlagene Passage lässt sich ohne die Zugangsdaten bearbeiten und annehmen; eine vorgeschlagene Datei oder ein Skill-Text wird verworfen und die Änderung von Hand gemacht.
 
 
 Der Annahmeschritt nennt die nächste Versionsnummer und wiederholt das gemessene Ergebnis der ausgewählten Runde. Die automatische Prüfung wird nur für Agenten ohne Prüfungssuite angeboten. Eine Veröffentlichung speichert Versionsidentität und Nummer in der Sitzung: Nach erneutem Öffnen führt der Abschluss weiterhin zu dieser Veröffentlichung. Alte Sitzungen ohne diese Verknüpfung zeigen ihren Zustand, ohne eine Version zu erraten. Ein Lesefehler bei Vorschlägen bietet einen erneuten Versuch; ersetzte Vorschläge bleiben nicht endlos im Ladezustand. Geschützte folgende Umgebungen warten auf ihre Prüfungen, fixierte behalten ihre aktuelle Version.

@@ -26,6 +26,57 @@ MAX_EVIDENCE_ITEMS = 12
 MAX_REJECTED = 20
 """How many of the changes the improver proposed and nothing recorded a report lists."""
 
+StepFailure = Literal[
+    "system_agent_not_seeded",
+    "system_agent_missing",
+    "system_agent_unpublished",
+    "system_agent_archived",
+    "system_agent_no_access",
+    "system_agent_no_model",
+    "system_agent_failed",
+    "only_anonymised",
+    "all_evidence",
+    "no_scorer",
+    "no_reruns",
+    "evidence_too_large",
+    "budget",
+    "not_found",
+    "not_allowed",
+    "changed",
+    "run_failed",
+    "refused",
+    "failed",
+]
+"""Why a background step stopped on one of the platform's own refusals.
+
+The last six name only the kind of refusal; the stored English sentence holds the
+specifics, such as which dataset or agent it was about.
+"""
+
+AuthoringFailure = Literal[
+    StepFailure,
+    "no_runs_view",
+    "evidence_erased",
+    "no_edit_agent",
+    "agent_gone",
+    "no_published_version",
+    "skill_gone",
+    "no_edit_skill",
+    "session_moved_on",
+    "conflicts_unanswered",
+    "session_stopped",
+    "context_gone",
+    "no_edit_context",
+    "unknown_skill_use",
+    "no_evidence",
+    "key_revoked",
+    "not_a_member",
+    "unexpected",
+    "stalled",
+    "withdrawn",
+]
+"""Why an assistant request failed, as the code beside its English `error`."""
+
 
 class Rejection(StrEnum):
     """Why a change the improver proposed was not recorded - one wording everywhere.
@@ -179,6 +230,24 @@ class FieldChange(BaseModel):
     )
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _added_capability_by_its_own_path(self) -> FieldChange:
+        """Read `add capabilities/<id>` as adding that capability.
+
+        The prompt lists a bound capability under `capabilities/<id>`, so a model
+        adding one often names it there; the only path an addition can take is
+        `capabilities`, with the id in the binding.
+        """
+        parts = self.path.strip("/").split("/")
+        if self.op != "add" or len(parts) != 2 or parts[0] != "capabilities":
+            return self
+        binding = self.value if isinstance(self.value, dict) else {}
+        if binding.get("id", parts[1]) != parts[1]:
+            return self
+        self.path = "capabilities"
+        self.value = {**binding, "id": parts[1]}
+        return self
+
 
 class CreatedSkillBinding(BaseSchema):
     """The resource created by Accept, retained across Undo to avoid duplicates."""
@@ -205,7 +274,24 @@ class SkillProblem(BaseModel):
 
     skill: str = Field(description="The skill's name, exactly as listed.")
     problem: str = Field(description="What the skill gets wrong, in terms of the evidence.")
+    skill_line: str = Field(
+        default="",
+        max_length=500,
+        description=(
+            "The line of the skill's body that states the wrong value or rule, copied "
+            "exactly. Empty when the skill is only silent or only forbids other sections: "
+            "the problem is then advice to the skill, and its criteria stay the agent's."
+        ),
+    )
     evidence: list[EvidenceQuote] = Field(default_factory=list)
+    criteria: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "The graded criteria this problem makes fail, by the names the grades use; "
+            "empty when no grade names it."
+        ),
+    )
 
 
 class ImprovementProposal(BaseModel):
@@ -225,7 +311,10 @@ class ImprovementProposal(BaseModel):
     skill_problems: list[SkillProblem] = Field(
         default_factory=list,
         max_length=4,
-        description="Problems to fix in a skill rather than in the agent; never both.",
+        description=(
+            "Problems in a skill's own text. One that quotes the skill's line is fixed "
+            "in the skill rather than in the agent; one without a line is advice."
+        ),
     )
 
 
@@ -332,7 +421,15 @@ class AuthoringRequestRead(BaseSchema):
     skill_id: UUID | None
     context_id: UUID | None = None
     status: str
-    error: str | None
+    error: str | None = Field(description="Why the request failed, as an English sentence")
+    error_code: AuthoringFailure | None = Field(
+        default=None,
+        description="`error` as a code, for a client to put in its own words; null on a "
+        "request that failed before codes were recorded",
+    )
+    error_params: dict[str, int] | None = Field(
+        default=None, description="The numbers `error` names: `runs` for `unknown_skill_use`"
+    )
     estimate_usd: Decimal
     cost_usd: Decimal
     run_ids: list[UUID]
@@ -436,6 +533,13 @@ class HunkRead(BaseSchema):
     )
     applies: bool
     decided_at: datetime | None
+    contains_credential: bool = Field(
+        default=False,
+        description=(
+            "The text Accept would write quotes a credential. The texts are shown redacted, "
+            "and Accept is refused until a person edits the credential out"
+        ),
+    )
 
 
 class BatchRead(BaseSchema):

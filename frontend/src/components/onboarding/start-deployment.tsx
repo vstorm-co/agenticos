@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { rememberStartQuestion } from "./start-position";
 import {
   useDeploymentSettings,
@@ -55,12 +56,7 @@ export function StartDeployment({
       </StartStepPending>
     );
   if (error || !settings) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
-  const changes: DeploymentSettingsPatch = {
-    ...(question === "announcement" && !settings.announcement
-      ? { announcement: t("announcementPlaceholder") }
-      : {}),
-    ...edits,
-  };
+  const changes = edits;
   const draft = { ...settings, ...changes };
   const set = (patch: DeploymentSettingsPatch) => {
     setFailed(false);
@@ -89,8 +85,8 @@ export function StartDeployment({
   };
   return (
     <StartQuestion
+      stage="deployment"
       index={index}
-      total={QUESTIONS.length}
       title={t(`${question}Title`)}
       message={t(`${question}Guide`)}
       pending={save.isPending}
@@ -132,7 +128,9 @@ export function StartDeployment({
           onChange={set}
         />
       )}
-      {question === "extras" && <DeploymentExtras maintenance={settings.maintenance_mode} />}
+      {question === "extras" && (
+        <DeploymentExtras maintenance={settings.maintenance_mode} orgId={org.id} />
+      )}
       {failed && (
         <p role="alert" className="text-destructive-ink mt-4 text-sm">
           {t("saveFailed")}

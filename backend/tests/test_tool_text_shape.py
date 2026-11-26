@@ -141,7 +141,10 @@ class TestEveryToolSaysWhatItReturns:
             "<returns>" in (tool.tool_def.description or "") for tool in toolset.tools.values()
         )
 
-    async def test_a_toolset_it_cannot_rewrite_is_refused_rather_than_left_alone(self) -> None:
+    @pytest.mark.parametrize("per_run", [False, True])
+    async def test_a_toolset_it_cannot_rewrite_is_refused_rather_than_left_alone(
+        self, per_run: bool
+    ) -> None:
         """Left alone, the model reads one text and the Builder shows another."""
         from dataclasses import dataclass
         from typing import Any
@@ -155,7 +158,7 @@ class TestEveryToolSaysWhatItReturns:
         @dataclass
         class _PerRun(AbstractCapability[Any]):
             def get_toolset(self) -> Any:
-                return lambda ctx: FunctionToolset()
+                return (lambda ctx: FunctionToolset()) if per_run else FunctionToolset()
 
         wrapped = MeteredToolOutputLimits(wrapped=_PerRun(id="per_run"))
 
@@ -302,3 +305,41 @@ class TestEveryCapabilityHasContracts:
             "these capabilities offer tools the Builder cannot describe; give the "
             "documentation prober whatever their build needs"
         )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("available", [False, True])
+async def test_documentation_resolves_a_context_dependent_toolset(
+    asynchronous: bool, available: bool
+) -> None:
+    from dataclasses import replace
+
+    from app.services.capability_contracts import _contracts_for
+
+    toolset = FunctionToolset()
+    toolset.add_function(lambda: "unused", name="probe", description="A described tool")
+    built = MagicMock()
+
+    async def resolve(_ctx: object) -> object:
+        return toolset if available else None
+
+    built.get_toolset.return_value = (
+        resolve if asynchronous else lambda _ctx: toolset if available else None
+    )
+    definition = replace(get("external_acp"), builder=MagicMock(return_value=built))
+    result = await _contracts_for(definition)
+    assert set(result) == ({"probe"} if available else set())
+
+
+async def test_invalid_toolset_contract_is_reported_instead_of_inventing_tool_documentation() -> (
+    None
+):
+    from dataclasses import replace
+
+    from app.services.capability_contracts import _contracts_for
+
+    built = MagicMock()
+    built.get_toolset.return_value = object()
+    definition = replace(get("external_acp"), builder=MagicMock(return_value=built))
+    with pytest.raises(TypeError, match="requires a toolset"):
+        await _contracts_for(definition)

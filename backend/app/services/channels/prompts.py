@@ -28,6 +28,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import all_capabilities
+from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -44,7 +45,7 @@ from app.repositories import (
     member_repo,
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, may_decide
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import (
@@ -62,9 +63,11 @@ from app.services.channels.formatting import (
     WAITS_FOR_A_PERSON,
 )
 from app.services.channels.handback import for_the_run, notice_key
+from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
+from app.services.mcp_catalog import CATALOG
 from app.services.transcript import RecordedToolCall
 
 logger = logging.getLogger(__name__)
@@ -106,7 +109,9 @@ async def linked_member(
     db: AsyncSession, bot: ChannelBot, platform: str, platform_user_id: str
 ) -> AuthContext | None:
     """A chat user, as a member acting with their own role, or `None` if unlinked."""
-    identity = await channel_identity_repo.get_by_platform_user(db, platform, platform_user_id)
+    identity = await channel_identity_repo.get_by_platform_user(
+        db, platform, platform_user_id, **identity_scope(bot)
+    )
     if identity is None or identity.user_id is None:
         return None
     membership = await member_repo.get_active(
@@ -139,8 +144,16 @@ def call_action(tool_name: str) -> str:
         service, _, action = tool_name.partition("_")
         words = [w for w in re.split(r"[-_]+", action) if w and w.lower() != service.lower()]
         if service and words:
-            return f"{' '.join(words)} in {service.capitalize()}"
+            return f"{' '.join(words)} in {_service_name(service)}"
     return tool_name.replace("_", " ")
+
+
+def _service_name(prefix: str) -> str:
+    """A server's name as people write it: the product's own, a catalog entry's, else the prefix."""
+    if prefix == PLATFORM_MCP_PREFIX:
+        return "AgenticOS"
+    named = next((entry.name for entry in CATALOG if tool_prefix(entry.key) == prefix), None)
+    return named or prefix.capitalize()
 
 
 def call_summary(args: dict[str, object]) -> str | None:
@@ -700,10 +713,10 @@ class ChannelPrompts:
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
     ) -> RunSegment | None:
         """Record the decision; continue the run once nothing else is pending."""
-        if not ctx.has(Perm.APPROVALS_DECIDE):
-            raise AuthorizationError(message=NOT_YOURS)
         if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
             return None
+        if not await self._may_decide(ctx, prompt.approval_id, prompt.run_id):
+            raise AuthorizationError(message=NOT_YOURS)
         approved = choice == 0
         await ApprovalService(self.db).decide(ctx, prompt.approval_id, approved=approved)
         await channel_prompt_repo.answer(self.db, prompt=prompt, value={"approved": approved})
@@ -713,6 +726,26 @@ class ChannelPrompts:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return None
         return await self.runner.resume(ctx, prompt.run_id)
+
+    async def _may_decide(self, ctx: AuthContext, approval_id: UUID, run_id: UUID) -> bool:
+        """`approvals:decide`, or the run's own person pressing on their own platform call."""
+        if ctx.has(Perm.APPROVALS_DECIDE):
+            return True
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=ctx.organization_id
+        )
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return (
+            approval is not None
+            and run is not None
+            and may_decide(
+                ctx,
+                tool_id=approval.tool_id,
+                always_asks=approval.always_asks,
+                person_id=run.user_id,
+                context=approval.context,
+            )
+        )
 
     async def _answer(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None, typed: str | None

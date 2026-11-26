@@ -1,6 +1,12 @@
 "use client";
 
-import { MENU_ITEM_FOCUS } from "./control-styles";
+import {
+  MENU_ITEM_FOCUS,
+  FLOATING_PANEL,
+  MENU_ROW,
+  MENU_LABEL,
+  MENU_SEPARATOR,
+} from "./control-styles";
 
 import * as React from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
@@ -18,8 +24,7 @@ const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 const ContextMenuGroup = ContextMenuPrimitive.Group;
 const ContextMenuSub = ContextMenuPrimitive.Sub;
 
-const MENU_PANEL =
-  "panel text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 z-50 min-w-[8rem] overflow-hidden rounded-xl p-1";
+const MENU_PANEL = `${FLOATING_PANEL} data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50 min-w-[8rem] max-h-[var(--radix-context-menu-content-available-height)] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain p-1.5`;
 
 const ContextMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof ContextMenuPrimitive.SubTrigger>,
@@ -27,11 +32,7 @@ const ContextMenuSubTrigger = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <ContextMenuPrimitive.SubTrigger
     ref={ref}
-    className={cn(
-      MENU_ITEM_FOCUS,
-      "data-[state=open]:bg-foreground/[0.09] flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-      className,
-    )}
+    className={cn(MENU_ITEM_FOCUS, MENU_ROW, "data-[state=open]:bg-foreground/[0.09]", className)}
     {...props}
   >
     {children}
@@ -70,7 +71,7 @@ const ContextMenuItem = React.forwardRef<
     ref={ref}
     className={cn(
       MENU_ITEM_FOCUS,
-      "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
+      MENU_ROW,
       variant === "destructive" && "text-destructive focus:text-destructive",
       className,
     )}
@@ -83,14 +84,7 @@ const ContextMenuLabel = React.forwardRef<
   React.ComponentRef<typeof ContextMenuPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Label>
 >(({ className, ...props }, ref) => (
-  <ContextMenuPrimitive.Label
-    ref={ref}
-    className={cn(
-      "text-muted-foreground px-2 pt-2 pb-1 text-[11px] font-medium tracking-wide uppercase",
-      className,
-    )}
-    {...props}
-  />
+  <ContextMenuPrimitive.Label ref={ref} className={cn(MENU_LABEL, className)} {...props} />
 ));
 ContextMenuLabel.displayName = ContextMenuPrimitive.Label.displayName;
 
@@ -98,11 +92,7 @@ const ContextMenuSeparator = React.forwardRef<
   React.ComponentRef<typeof ContextMenuPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <ContextMenuPrimitive.Separator
-    ref={ref}
-    className={cn("bg-muted -mx-1 my-1 h-px", className)}
-    {...props}
-  />
+  <ContextMenuPrimitive.Separator ref={ref} className={cn(MENU_SEPARATOR, className)} {...props} />
 ));
 ContextMenuSeparator.displayName = ContextMenuPrimitive.Separator.displayName;
 

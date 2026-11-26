@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { CONTROL_FOCUS } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 export type SortDirection = "asc" | "desc";
@@ -47,6 +48,7 @@ export function SortButton({ active, direction, onClick, children }: SortButtonP
       onClick={onClick}
       title={label}
       className={cn(
+        CONTROL_FOCUS,
         "hover:text-foreground touch:min-h-11 inline-flex min-h-7 touch-manipulation items-center gap-1 rounded text-left transition-colors",
         active && "text-foreground",
       )}
