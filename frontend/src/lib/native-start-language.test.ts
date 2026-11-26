@@ -9,10 +9,12 @@ afterEach(() => {
 it("recognizes supported languages without accepting a URL as a locale", () => {
   expect(languageOf("pl-PL")).toBe("pl");
   expect(languageOf("TR-tr")).toBe("tr");
+  expect(languageOf("nl-BE")).toBe("nl");
   expect(languageOf("https://example.com")).toBe("en");
   expect(translated("Get started", "pl")).toBe("Zacznij");
   expect(translated(" Get started ", "pl")).toBe(" Zacznij ");
   expect(translated("Preparing AgenticOS… 50%", "de")).toBe("AgenticOS wird vorbereitet… 50%");
+  expect(translated("Welcome to AgenticOS", "nl")).toBe("Welkom bij AgenticOS");
   expect(translated("Provider detail", "pl")).toBe("Provider detail");
 });
 it("localizes shell controls and passes the language to the native connection", async () => {

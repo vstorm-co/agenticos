@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Choose Nederlands on the desktop app's start screen. Local setup, permissions and workspace updates are translated, and the choice is carried to the console.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
