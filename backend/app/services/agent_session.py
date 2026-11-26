@@ -1384,11 +1384,6 @@ class AgentSession:
                     },
                 )
                 return
-            if accepted.state not in {"pending", "sent"}:
-                await self._emit(
-                    "error", {"message": "This queued message was already claimed or cancelled"}
-                )
-                return
             data = dict(data)
             data.update(
                 {

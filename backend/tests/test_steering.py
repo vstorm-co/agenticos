@@ -100,6 +100,25 @@ def test_take_hands_each_message_over_once():
     assert inbox.take() == []
 
 
+def test_receipt_replays_keep_one_shared_correction_while_a_child_is_listening():
+    receipt_id = uuid4()
+    inbox = SteeringInbox()
+    original = inbox.add("use the reviewed figures", accepted_queue_id=receipt_id)
+    assert not inbox.has_active_listeners
+
+    with inbox.listen("api") as child:
+        assert inbox.has_active_listeners
+        replay = inbox.add("stale replay text", accepted_queue_id=receipt_id)
+        assert replay is original
+        assert inbox.unapplied_steers() == [original]
+        assert child.unapplied() == ["use the reviewed figures"]
+        assert child.take()[0].consumption is original.consumption
+        assert original.consumption.consumed
+
+    assert not inbox.has_active_listeners
+    assert inbox.receipt(receipt_id) is original
+
+
 def _request(messages: list[ModelMessage]) -> ModelRequestContext:
     return ModelRequestContext(
         model=TestModel(),

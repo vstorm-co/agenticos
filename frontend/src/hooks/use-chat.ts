@@ -5811,7 +5811,6 @@ export function useChat(options: UseChatOptions = {}) {
   useEffect(() => {
     if (!queueReceiptsEnabled || !activeConversationId || !queueReceiptRecoveryReady()) return;
     const scope = captureQueueReceiptScope();
-    if (!scope.enabled || scope.conversationId !== activeConversationId) return;
     for (const item of queuedMessages) {
       if (
         !item.acceptedQueueId ||

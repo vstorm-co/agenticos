@@ -9,7 +9,7 @@ mock the receipt or task repositories.
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
@@ -38,6 +38,7 @@ from app.db.models.room_participant import RoomParticipant
 from app.db.models.user import User
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import conversation as conversation_repo
+from app.repositories import queued_message_receipt as queued_receipt_repo
 from app.schemas.accepted_queued_message import AcceptedQueuedMessageCreate
 from app.schemas.conversation import ChatPageContext
 from app.schemas.local_target import LocalTarget
@@ -212,6 +213,107 @@ async def test_same_queue_key_is_idempotent_and_rejects_changed_payload(db: Asyn
     )
     with pytest.raises(AlreadyExistsError, match="different queued message"):
         await service.accept(seed.ctx, seed.conversation.id, contextual)
+
+
+@pytest.mark.security
+async def test_receipt_repository_scopes_and_pages_persisted_queue_state(
+    db: AsyncSession,
+) -> None:
+    seed, other_owner = await _seed(db), await _seed(db)
+    service = AcceptedQueuedMessageService(db)
+    pending_rows: list[AcceptedQueuedMessage] = []
+    base_time = datetime(2026, 11, 25, 12, 0, tzinfo=UTC)
+
+    for index in range(3):
+        accepted = await service.accept(
+            seed.ctx,
+            seed.conversation.id,
+            _plain_payload(seed, content=f"Queued message {index}"),
+        )
+        row = await db.get(AcceptedQueuedMessage, accepted.id)
+        assert row is not None
+        row.created_at = base_time + timedelta(seconds=index)
+        pending_rows.append(row)
+    await db.flush()
+
+    first = pending_rows[0]
+    unfiltered = await queued_receipt_repo.get(
+        db, first.id, organization_id=seed.ctx.organization_id
+    )
+    assert unfiltered is not None and unfiltered.requester_id == seed.ctx.subject_id
+    assert (
+        await queued_receipt_repo.get(
+            db,
+            first.id,
+            organization_id=seed.ctx.organization_id,
+            requester_id=other_owner.ctx.subject_id,
+        )
+        is None
+    )
+    assert (
+        await queued_receipt_repo.get(db, first.id, organization_id=other_owner.ctx.organization_id)
+        is None
+    )
+    by_client_key = await queued_receipt_repo.for_client_key(
+        db,
+        organization_id=seed.ctx.organization_id,
+        requester_id=seed.ctx.subject_id,
+        conversation_id=seed.conversation.id,
+        client_queue_id=first.client_queue_id,
+        lock=False,
+    )
+    assert by_client_key is not None and by_client_key.id == first.id
+
+    scope = {
+        "organization_id": seed.ctx.organization_id,
+        "requester_id": seed.ctx.subject_id,
+        "conversation_id": seed.conversation.id,
+    }
+    page = await queued_receipt_repo.pending_for_owner(db, **scope)
+    assert [row.id for row in page] == [row.id for row in pending_rows]
+    following = await queued_receipt_repo.pending_for_owner(db, **scope, cursor=first.id)
+    assert [row.id for row in following] == [row.id for row in pending_rows[1:]]
+    assert await queued_receipt_repo.pending_for_owner(db, **scope, cursor=uuid4()) == []
+    assert (
+        await queued_receipt_repo.pending_for_owner(
+            db,
+            organization_id=seed.ctx.organization_id,
+            requester_id=other_owner.ctx.subject_id,
+            conversation_id=seed.conversation.id,
+        )
+        == []
+    )
+
+    owned_files = await queued_receipt_repo.files_for_owner(
+        db,
+        {seed.file.id, other_owner.file.id},
+        user_id=seed.ctx.subject_id,
+        lock=False,
+    )
+    assert [file.id for file in owned_files] == [seed.file.id]
+
+    task_receipt = await service.accept(
+        seed.ctx, seed.conversation.id, _plain_payload(seed, content="Run this as a task")
+    )
+    task = await service.run_as_task(seed.ctx, seed.conversation.id, task_receipt.id)
+    assert (
+        await queued_receipt_repo.task_id_for_receipt(
+            db, organization_id=seed.ctx.organization_id, receipt_id=task_receipt.id
+        )
+        == task.id
+    )
+    assert await queued_receipt_repo.unresolved_for_owner(db, **scope) is True
+
+    file_receipt = await service.accept(seed.ctx, seed.conversation.id, _payload(seed))
+    await db.refresh(seed.file)
+    assert seed.file.queue_receipt_id == file_receipt.id
+    await service.cancel(seed.ctx, seed.conversation.id, file_receipt.id)
+    await db.refresh(seed.file)
+    assert seed.file.queue_receipt_id is None
+
+    for row in pending_rows:
+        await service.cancel(seed.ctx, seed.conversation.id, row.id)
+    assert await queued_receipt_repo.unresolved_for_owner(db, **scope) is False
 
 
 async def test_server_caps_pending_receipts_per_conversation(db: AsyncSession) -> None:

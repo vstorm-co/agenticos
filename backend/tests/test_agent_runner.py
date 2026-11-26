@@ -541,6 +541,93 @@ class TestPrepare:
         execute_provider.assert_not_awaited()
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("origin", ["channel", "background", "subthread"])
+    async def test_accepted_queue_work_requires_a_personal_top_level_turn(self, origin: str):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=AsyncMock()) as resolve,
+            patch(
+                "app.services.agent_runner.agent_run_repo.for_accepted_queue", new=AsyncMock()
+            ) as existing_run,
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run", new=AsyncMock()
+            ) as create_run,
+            pytest.raises(AuthorizationError, match="top-level personal web chat"),
+        ):
+            await service.prepare(
+                ctx,
+                agent.id,
+                surface=RunSurface.SLACK if origin == "channel" else RunSurface.WEB,
+                conversation_id=uuid.uuid4(),
+                accepted_queue_id=uuid.uuid4(),
+                acts_for_sender=origin != "background",
+                thread_root_message_id=uuid.uuid4() if origin == "subthread" else None,
+            )
+
+        existing_run.assert_not_awaited()
+        resolve.assert_not_awaited()
+        create_run.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_fresh_accepted_queue_turn_links_the_opened_run_to_its_receipt(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        receipt_id, conversation_id = uuid.uuid4(), uuid.uuid4()
+        run, built = MagicMock(id=uuid.uuid4()), MagicMock()
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=_resolved_model())),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.for_accepted_queue",
+                new=AsyncMock(return_value=None),
+            ) as existing_run,
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=run),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent", return_value=built),
+        ):
+            prepared = await service.prepare(
+                ctx,
+                agent.id,
+                surface=RunSurface.WEB,
+                conversation_id=conversation_id,
+                accepted_queue_id=receipt_id,
+                acts_for_sender=True,
+            )
+
+        existing_run.assert_awaited_once_with(
+            service.db, organization_id=ctx.organization_id, accepted_queue_id=receipt_id
+        )
+        assert create_run.await_args.kwargs["accepted_queue_id"] == receipt_id
+        assert create_run.await_args.kwargs["conversation_id"] == conversation_id
+        assert create_run.await_args.kwargs["user_id"] == ctx.user_id
+        assert prepared.run is run
+        assert prepared.deps is built.deps
+
+    @pytest.mark.anyio
     async def test_a_conversation_override_onto_a_speech_model_is_refused_before_the_run(self):
         """The override comes from a socket frame or an API body, past every
         picker and past publish (#2487): a model the catalogs know is not a chat

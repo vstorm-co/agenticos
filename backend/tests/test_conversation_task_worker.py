@@ -95,6 +95,78 @@ async def test_a_result_waiting_for_its_source_turn_spends_nothing(status: str) 
         claim.assert_not_called()
 
 
+async def test_a_personal_task_without_a_source_run_never_opens_a_return_turn() -> None:
+    row = task(status="completed", source_run_id=None, queue_receipt_id=uuid4())
+    with (
+        patch.object(module, "get_worker_db_context", database),
+        patch.object(module.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(module.run_repo, "get_run", new=AsyncMock()) as get_run,
+        patch.object(module, "claim") as claim,
+    ):
+        await module.return_task(
+            ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
+        )
+    get_run.assert_not_awaited()
+    claim.assert_not_called()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("available", [False, True])
+async def test_queued_task_input_is_reauthorized_before_execution(available: bool) -> None:
+    from app.core.permissions import AuthContext
+
+    row = task(queue_receipt_id=uuid4(), source_run_id=None, prompt="")
+    auth = AuthContext(user_id=row.user_id, organization_id=row.organization_id, role="member")
+    service = MagicMock(authority=AsyncMock(return_value=auth))
+    saved_prompt_id = uuid4()
+    attachments = [object()]
+    input_for_worker = AsyncMock(
+        return_value=("Accepted task instructions", saved_prompt_id, attachments),
+        side_effect=None if available else AuthorizationError(message="File access was revoked"),
+    )
+    db = MagicMock(commit=AsyncMock())
+
+    @asynccontextmanager
+    async def worker_database():
+        yield db
+
+    execute = AsyncMock()
+    with (
+        patch.object(module, "get_worker_db_context", worker_database),
+        patch.object(module.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(module.task_repo, "save", new=AsyncMock()) as save,
+        patch.object(module, "claim", admitted),
+        patch.object(module, "ConversationTaskService", return_value=service),
+        patch.object(
+            module,
+            "AcceptedQueuedMessageService",
+            return_value=MagicMock(task_input_for_worker=input_for_worker),
+        ),
+        patch.object(module.AgentRunnerService, "execute", new=execute),
+    ):
+        await module.run_task(
+            ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
+        )
+
+    input_for_worker.assert_awaited_once_with(auth, row)
+    save.assert_awaited_once_with(db, row)
+    db.commit.assert_awaited_once()
+    if available:
+        assert (row.status, row.delivery) == ("running", "running")
+        execute.assert_awaited_once()
+        assert execute.await_args.args == (auth, row.agent_id, "Accepted task instructions")
+        options = execute.await_args.kwargs
+        assert options["said"] == "Accepted task instructions"
+        assert options["saved_prompt_id"] == saved_prompt_id
+        assert options["attachments"] is attachments
+        assert options["conversation_id"] == row.conversation_id
+        assert options["conversation_task_id"] == row.id
+    else:
+        assert (row.status, row.delivery) == ("failed", "delivered")
+        assert row.outcome == "Accepted task content is no longer available or authorized."
+        execute.assert_not_awaited()
+
+
 @pytest.mark.parametrize("returning", [False, True])
 async def test_busy_topics_defer_without_replaying_a_model_attempt(returning: bool) -> None:
     row = task(status="completed" if returning else "queued")
