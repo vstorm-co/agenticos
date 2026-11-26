@@ -34,6 +34,9 @@ NavigationEntry = Literal[
     "sandboxes",
 ]
 NAVIGATION_ENTRIES: tuple[NavigationEntry, ...] = get_args(NavigationEntry)
+DEFAULT_NAVIGATION: tuple[NavigationEntry, ...] = tuple(
+    entry for entry in NAVIGATION_ENTRIES if entry != "eventSources"
+)
 SIMPLE_NAVIGATION: tuple[NavigationEntry, ...] = ("chat", "inbox", "allProjects", "documents")
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
@@ -113,7 +116,13 @@ class ConsolePresentationRead(BaseSchema):
     organization_navigation: list[NavigationEntry] = Field(
         default_factory=lambda: list(NAVIGATION_ENTRIES)
     )
-    navigation: list[NavigationEntry] = Field(default_factory=lambda: list(NAVIGATION_ENTRIES))
+    navigation_base_default: list[NavigationEntry] = Field(
+        default_factory=lambda: list(DEFAULT_NAVIGATION)
+    )
+    navigation_default: list[NavigationEntry] = Field(
+        default_factory=lambda: list(DEFAULT_NAVIGATION)
+    )
+    navigation: list[NavigationEntry] = Field(default_factory=lambda: list(DEFAULT_NAVIGATION))
     preferences: StoredConsolePreferences = Field(default_factory=StoredConsolePreferences)
     notices_available: ConsoleNotices = Field(default_factory=ConsoleNotices)
     organization_notices: ConsoleNotices = Field(default_factory=ConsoleNotices)
@@ -136,11 +145,13 @@ def resolve_console_presentation(
     organization = [
         entry for entry in ceiling if role.navigation is None or entry in role.navigation
     ]
-    effective = [
+    inherited = [
         entry
         for entry in organization
-        if personal.navigation is None or entry in personal.navigation
+        if role.navigation is not None or entry in DEFAULT_NAVIGATION
     ]
+    selected = inherited if personal.navigation is None else personal.navigation
+    effective = [entry for entry in organization if entry in selected]
     return ConsolePresentationRead(
         available_mcp_gallery=available.mcp_gallery or CatalogPolicy(),
         available_skill_gallery=available.skill_gallery or CatalogPolicy(),
@@ -149,6 +160,8 @@ def resolve_console_presentation(
         organization_skill_gallery=role.skill_gallery or CatalogPolicy(),
         navigation_available=ceiling,
         organization_navigation=organization,
+        navigation_base_default=[entry for entry in ceiling if entry in DEFAULT_NAVIGATION],
+        navigation_default=inherited,
         navigation=effective,
         preferences=personal,
         notices_available=ConsoleNotices(

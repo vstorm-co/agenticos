@@ -1,5 +1,5 @@
 ---
-source_sha: "44ac71fe5475"
+source_sha: "40313f92dbc9"
 ---
 
 # Workflows { #workflows }
@@ -1078,6 +1078,8 @@ vuelve a comprobar la sesión y el acceso del miembro antes de cada frame y de c
 lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-over-a-websocket).
 
 ### Fuentes de webhooks reutilizables { #reusable-webhook-sources }
+
+El selector enlaza a la administración de fuentes sin añadir otro destino predeterminado a la barra lateral. Las credenciales de una fuente nueva se seleccionan o crean en Vault: `api_key` visible para la organización para claves de firma y tokens, o `webhook_credentials` para Basic Auth entrante. El workflow conserva solo su vínculo con la fuente; la rotación de credenciales permanece en Vault.
 
 Los pasos **Webhook** nuevos en el editor de workflows empiezan pidiéndote que elijas o crees una fuente de eventos. Puedes guardar el borrador y probarlo con JSON pegado antes de elegir una fuente, pero para publicar debes seleccionar una fuente o elegir expresamente un **endpoint dedicado**. Elige un endpoint dedicado cuando el remitente necesite una respuesta síncrona. Los pasos dedicados existentes conservan su configuración y sus URL.
 

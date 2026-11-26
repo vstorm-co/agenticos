@@ -10285,6 +10285,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Webhook credentials",
     "access": "Access",
     "actions": "Actions",
     "addKeyNamed": "Add a key: {name}",
@@ -11788,6 +11789,7 @@
     "needsAttention": "Needs attention"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook credentials",
     "created": "Workflow created",
     "duplicated": "Workflow duplicated",
     "publishedVersion": "Published version {version}",
@@ -22004,6 +22006,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Username and password for checking incoming webhook requests. These credentials are never sent to an external URL.",
+    "vaultCredentialHelp": "Choose an organization credential from the Vault. The source uses its current value, including future rotations.",
+    "manageSources": "Manage event sources",
     "title": "Event sources",
     "description": "Receive authenticated events once and share them with routines and workflows.",
     "name": "Name",
@@ -22025,7 +22030,6 @@
     "username": "Username",
     "password": "Password",
     "secret": "Secret",
-    "secretHelp": "Leave blank to generate a secret, or enter the sender’s existing secret. Credentials are stored in the vault and never returned by reads.",
     "manualSetup": "Configure the sender manually to POST JSON to the source URL.",
     "visibility": "Visibility",
     "private": "Private",
@@ -22085,7 +22089,6 @@
     "sourceRoutine": "Create routine from an event source",
     "privateRoutine": "Private routine",
     "privateWorkflow": "Private workflow",
-    "credentialHelp": "Enter the sender’s secret. Existing credentials are never shown.",
     "filters": {
       "event_types": "Event types",
       "actions": "Actions",

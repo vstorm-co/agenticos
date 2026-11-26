@@ -83,3 +83,24 @@ it("does not allow editing while a navigation save is pending", () => {
   expect(screen.getByRole("checkbox", { name: "Chat" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Use inherited navigation" })).toBeDisabled();
 });
+
+it("keeps optional event sources available without selecting them in inherited navigation", async () => {
+  const save = vi.fn();
+  render(
+    <ConsoleNavigationControls
+      value={null}
+      allowed={["chat", "eventSources"]}
+      inherited={["chat"]}
+      disabled={false}
+      onSave={save}
+    />,
+  );
+  expect(screen.getByRole("checkbox", { name: "Chat" })).toBeChecked();
+  const optional = screen.getByRole("checkbox", { name: "Event sources" });
+  expect(optional).not.toBeChecked();
+  await userEvent.click(optional);
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(save.mock.calls[0]?.[0]).toEqual(["chat", "eventSources"]);
+  await userEvent.click(screen.getByRole("button", { name: "Use inherited navigation" }));
+  expect(optional).not.toBeChecked();
+});

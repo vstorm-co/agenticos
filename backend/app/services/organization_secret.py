@@ -15,6 +15,8 @@ flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
 straight into its transport, never returning credentials to an API caller.
 `native_runtime_key` exports a selected key only to a native template whose initiating
 member independently has vault visibility; it is never an HTTP secret reader.
+`event_source_credentials` opens only an organization-wide ingress credential
+for the live webhook verifier, never for an API response.
 """
 
 import hashlib
@@ -37,6 +39,7 @@ from app.core.secret_kinds import (
     SecretValue,
     SmtpAccountSecret,
     StorableSecret,
+    WebhookCredentialsSecret,
     describe_kind,
     normalized_mcp_server,
     seal_secret,
@@ -739,6 +742,36 @@ class OrganizationSecretService:
                 "revision": hashlib.sha256(row.sealed_secret.encode()).hexdigest(),
             }
         )
+
+    async def event_source_credentials(
+        self, organization_id: UUID, secret_id: UUID, *, lock: bool = False
+    ) -> ApiKeySecret | WebhookCredentialsSecret:
+        """Open only an organization-wide ingress credential for webhook verification.
+
+        The source's durable binding is authority; personal and team credentials
+        cannot silently become webhook infrastructure. Re-read each delivery so
+        Vault rotation and visibility revocation apply immediately.
+        """
+        row = await organization_secret_repo.event_source_secret(
+            self.db, secret_id, organization_id=organization_id, lock=lock
+        )
+        if (
+            row is None
+            or row.organization_id != organization_id
+            or row.visibility != Visibility.ORG.value
+            or row.owner_user_id is not None
+            or row.kind not in (SecretKind.API_KEY.value, SecretKind.WEBHOOK_CREDENTIALS.value)
+        ):
+            raise NotFoundError(message="Organization webhook secret not found")
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind(row.kind),
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+        if not isinstance(value, ApiKeySecret | WebhookCredentialsSecret):
+            raise BadRequestError(message="The webhook credential has an unsupported kind")
+        return value
 
     async def get_usable(
         self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind

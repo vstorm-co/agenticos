@@ -2830,21 +2830,30 @@ body .tour-spotlight {
     font-size: 16px;
   }
 
-  .page-actions,
-  .page-actions > div:not([data-secondary-actions]) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 0.5rem;
-  }
-
   .page-actions :where(button, a) {
     min-block-size: 2.75rem;
     min-inline-size: 0;
-    white-space: nowrap;
     text-align: center;
     padding-inline: 0.75rem;
     font-size: 0.8125rem;
+  }
+}
+
+/* Header layout defaults belong below utilities, so a page can choose a grid
+   or wrap long button labels without fighting the phone's fallback layout. */
+@layer components {
+  @media (max-width: 767px) {
+    .page-actions,
+    .page-actions > div:not([data-secondary-actions]) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .page-actions :where(button, a) {
+      white-space: nowrap;
+    }
   }
 }
 

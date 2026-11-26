@@ -1038,6 +1038,8 @@ or a session to its run lands on a row the list shows.
 
 ## What each area is for
 
+**Event sources** remains available at `/event-sources`, but is not shown in the default sidebar. Open its management page from the source picker in a routine or workflow. You can add it through navigation customization; explicit organization-role and personal choices are retained.
+
 **Overview** (Dashboard), **Chat** and **Inbox** lead the sidebar. **Build & manage**
 keeps Agents, Workflows, Routines and Apps visible; Projects follow.
 

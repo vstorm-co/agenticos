@@ -10165,6 +10165,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Webhook-Zugangsdaten",
     "access": "Zugriff",
     "actions": "Aktionen",
     "addKeyNamed": "Schlüssel hinzufügen: {name}",
@@ -11474,6 +11475,7 @@
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook-Zugangsdaten",
     "autosaveConflict": "Entwurf wurde anderswo geändert",
     "autosaveError": "Speichern fehlgeschlagen - wird wiederholt",
     "conflictTitle": "Jemand anderes hat diesen Workflow ebenfalls bearbeitet",
@@ -21690,6 +21692,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Benutzername und Passwort zur Prüfung eingehender Webhook-Anfragen. Diese Zugangsdaten werden nie an eine externe URL gesendet.",
+    "vaultCredentialHelp": "Wählen Sie Zugangsdaten der Organisation aus dem Vault. Die Quelle verwendet den aktuellen Wert, auch nach einer Rotation.",
+    "manageSources": "Ereignisquellen verwalten",
     "title": "Ereignisquellen",
     "description": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen.",
     "name": "Name",
@@ -21711,7 +21716,6 @@
     "username": "Benutzername",
     "password": "Passwort",
     "secret": "Geheimnis",
-    "secretHelp": "Leer lassen, um ein Geheimnis zu erzeugen, oder das vorhandene Geheimnis des Absenders eingeben. Zugangsdaten werden im Vault gespeichert und bei Lesezugriffen nie zurückgegeben.",
     "manualSetup": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet.",
     "visibility": "Sichtbarkeit",
     "private": "Privat",
@@ -21771,7 +21775,6 @@
     "sourceRoutine": "Routine aus einer Ereignisquelle erstellen",
     "privateRoutine": "Private Routine",
     "privateWorkflow": "Privater Workflow",
-    "credentialHelp": "Gib das Geheimnis des Absenders ein. Vorhandene Zugangsdaten werden nie angezeigt.",
     "filters": {
       "event_types": "Ereignistypen",
       "actions": "Aktionen",

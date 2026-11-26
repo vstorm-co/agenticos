@@ -10,6 +10,7 @@ export interface SourceAuth {
   legacy?: boolean;
 }
 export interface SourceCredentials {
+  vault_secret_id?: string;
   secret?: string;
   username?: string;
   password?: string;

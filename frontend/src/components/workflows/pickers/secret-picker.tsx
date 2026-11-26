@@ -34,6 +34,8 @@ export interface SecretPickerProps {
    * build has no type for simply offers nothing rather than everything.
    */
   kind?: StorableSecretKind | (string & {});
+  /** Background ingress uses only credentials shared with the organization. */
+  organizationOnly?: boolean;
   /** A validation message from the property panel, shown under the control. */
   error?: string;
   /** Non-secret defaults shown for review when a credential is created. */
@@ -62,6 +64,7 @@ export function SecretPicker({
   error,
   label,
   initialValue,
+  organizationOnly = false,
 }: SecretPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerSecretLabel");
@@ -78,7 +81,11 @@ export function SecretPicker({
   const { secrets, kinds, isLoading, create } = useSecrets();
   const { can } = usePermissions();
   const [adding, setAdding] = useState(false);
-  const offered = kind === undefined ? secrets : secrets.filter((secret) => secret.kind === kind);
+  const offered = secrets.filter(
+    (secret) =>
+      (kind === undefined || secret.kind === kind) &&
+      (!organizationOnly || (secret.visibility === "org" && secret.owner_user_id === null)),
+  );
   // The field's kind as this build knows it. One it has no form for offers no
   // dialog; a field naming none takes any shape, so the whole vault form opens.
   const shape = kind === undefined ? undefined : kinds.find((entry) => entry.kind === kind);
@@ -119,7 +126,11 @@ export function SecretPicker({
                 <KeyRound className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{secret.name}</span>
                 {!smtp && kind !== "http_credential" && (
-                  <Badge variant="outline">{secret.kind}</Badge>
+                  <Badge variant="outline">
+                    {secret.kind === "webhook_credentials"
+                      ? t("pickerWebhookCredentials")
+                      : secret.kind}
+                  </Badge>
                 )}
               </span>
             </SelectItem>
@@ -168,6 +179,7 @@ export function SecretPicker({
           initial={{ name: caption, value: initialValue }}
           kinds={kinds}
           kind={shape?.kind}
+          fixedVisibility={organizationOnly ? "org" : undefined}
           isPending={create.isPending}
           onSubmit={async (data) => onChange((await create.mutateAsync(data)).id)}
         />

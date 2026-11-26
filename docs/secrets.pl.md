@@ -1,5 +1,5 @@
 ---
-source_sha: "7c24a7a450df"
+source_sha: "62a1e2196945"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -111,10 +111,13 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
+| `webhook_credentials` | Nazwa użytkownika i hasło tylko do zapisu dla Basic Auth przychodzących webhooków, bez podpowiedzi wartości; nie służy do wychodzących żądań HTTP |
 | `smtp_account` | Serwer SMTP, port, TLS, nadawca i dane logowania zapieczętowane razem dla poczty workflow |
 | `microsoft_oauth_app` | Te same trzy pola, dla rejestracji aplikacji, przez którą ludzie się logują |
 | `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
+
+**Źródła zdarzeń wielokrotnego użytku.** Źródło może wskazywać sekret Vault widoczny w organizacji przez `credentials.vault_secret_id`. Uwierzytelnianie dostawcy, HMAC i klucz API używają `api_key`; przychodzące Basic Auth używa `webhook_credentials`. Źródło odczytuje aktualną wartość przy każdej dostawie, więc rotacja Vault nie wymaga kopiowania poświadczeń do źródeł ani definicji workflow. Wybór klucza wymaga `secrets:view`; klucze osobiste, z innej organizacji lub niezgodnego rodzaju są odrzucane. `webhook_credentials` nie zastępuje ograniczonego do originów `http_credential` dla wychodzących żądań HTTP.
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
 człowieka — proces łączenia z GitHubem czyta go po stronie serwera, żeby

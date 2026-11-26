@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useConsoleExperience } from "@/hooks/use-console-experience";
 import {
@@ -37,7 +37,7 @@ export function ConsoleNavigationDialog({
         className={
           sidebar
             ? compact
-              ? "mx-auto size-9 shrink-0 p-0"
+              ? "text-muted-foreground hover:text-foreground size-9 shrink-0 rounded-lg p-0"
               : "text-muted-foreground mx-3 mb-1 justify-start gap-2"
             : "gap-2"
         }
@@ -46,7 +46,11 @@ export function ConsoleNavigationDialog({
         data-tour={sidebar ? "sidebar-navigation-customize" : "personal-console-navigation-open"}
         onClick={() => setOpen(true)}
       >
-        <PanelLeft className="size-4 shrink-0" aria-hidden />
+        {sidebar ? (
+          <Settings2 className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+        ) : (
+          <PanelLeft className="size-4 shrink-0" aria-hidden />
+        )}
         {!compact && t("customizeNavigation")}
       </Button>
       <Dialog
@@ -73,6 +77,7 @@ export function ConsoleNavigationDialog({
               scrollable
               value={presentation.preferences.navigation}
               allowed={presentation.organization_navigation}
+              inherited={presentation.navigation_default}
               disabled={experience.save.isPending}
               onDirtyChange={setDirty}
               onSave={(navigation, saved) =>

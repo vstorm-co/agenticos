@@ -1,5 +1,5 @@
 ---
-source_sha: "44ac71fe5475"
+source_sha: "40313f92dbc9"
 ---
 
 # Workflows { #workflows }
@@ -1134,6 +1134,8 @@ prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen
 Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
 
 ### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
+
+Die Quellenauswahl verlinkt zur Quellenverwaltung, ohne einen weiteren Standardeintrag in der Seitenleiste hinzuzufügen. Zugangsdaten neuer Quellen wählen oder erstellen Sie im Vault: organisationsweit sichtbare `api_key` für Signierschlüssel und Token oder `webhook_credentials` für eingehende Basic Auth. Der Workflow behält nur seine Quellenbindung; die Rotation der Zugangsdaten erfolgt im Vault.
 
 Neue **Webhook**-Schritte im Workflow-Editor fragen zuerst nach einer vorhandenen oder neuen Ereignisquelle. Sie können den Entwurf speichern und mit eingefügtem JSON testen, auch bevor Sie eine Quelle ausgewählt haben. Zum Veröffentlichen müssen Sie eine Quelle oder ausdrücklich einen **dedizierten Endpunkt** wählen. Verwenden Sie einen dedizierten Endpunkt, wenn der Absender eine synchrone Antwort benötigt. Vorhandene dedizierte Schritte behalten ihre Einstellungen und URLs.
 

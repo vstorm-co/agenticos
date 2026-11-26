@@ -855,6 +855,7 @@
     }
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook kimlik bilgileri",
     "conditionOps": {
       "eq": "eşittir",
       "ne": "eşit değil",
@@ -12831,6 +12832,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Webhook kimlik bilgileri",
     "access": "Erişim",
     "actions": "İşlemler",
     "addKeyNamed": "Key ekle: {name}",
@@ -17329,6 +17331,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Gelen webhook isteklerini doğrulamak için kullanıcı adı ve parola. Bu kimlik bilgileri hiçbir zaman harici bir URL’ye gönderilmez.",
+    "vaultCredentialHelp": "Vault’tan kuruluşa ait kimlik bilgilerini seçin. Kaynak, bilgiler yenilendiğinde de güncel değerlerini kullanır.",
+    "manageSources": "Olay kaynaklarını yönet",
     "title": "Olay kaynakları",
     "description": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın.",
     "name": "Ad",
@@ -17350,7 +17355,6 @@
     "username": "Kullanıcı adı",
     "password": "Parola",
     "secret": "Gizli anahtar",
-    "secretHelp": "Bir gizli anahtar oluşturmak için boş bırakın veya gönderenin mevcut anahtarını girin. Kimlik bilgileri vault'ta saklanır ve okumalarda hiçbir zaman döndürülmez.",
     "manualSetup": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın.",
     "visibility": "Görünürlük",
     "private": "Özel",
@@ -17410,7 +17414,6 @@
     "sourceRoutine": "Olay kaynağından rutin oluştur",
     "privateRoutine": "Özel rutin",
     "privateWorkflow": "Özel workflow",
-    "credentialHelp": "Gönderenin gizli anahtarını girin. Mevcut kimlik bilgileri hiçbir zaman gösterilmez.",
     "filters": {
       "event_types": "Olay türleri",
       "actions": "Eylemler",

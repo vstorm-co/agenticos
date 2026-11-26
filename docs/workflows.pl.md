@@ -1,5 +1,5 @@
 ---
-source_sha: "44ac71fe5475"
+source_sha: "40313f92dbc9"
 ---
 
 # Workflows { #workflows }
@@ -1044,6 +1044,8 @@ uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka prz
 ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
 
 ### Źródła webhooków wielokrotnego użytku { #reusable-webhook-sources }
+
+Selektor źródła prowadzi do zarządzania źródłami bez dodawania kolejnej domyślnej pozycji paska bocznego. Poświadczenia nowego źródła wybiera się lub tworzy w Vault: widoczny w organizacji `api_key` dla podpisów i tokenów albo `webhook_credentials` dla przychodzącego Basic Auth. Workflow zachowuje tylko powiązanie ze źródłem; rotacja poświadczeń pozostaje w Vault.
 
 Nowe kroki **Webhook** w edytorze workflow zaczynają od wyboru lub utworzenia źródła zdarzeń. Przed wybraniem źródła możesz zapisać wersję roboczą i przetestować ją za pomocą wklejonego JSON-a. Publikacja wymaga wybrania źródła lub jawnego wybrania **dedykowanego endpointu**. Wybierz dedykowany endpoint, gdy nadawca potrzebuje odpowiedzi synchronicznej. Istniejące dedykowane kroki zachowują ustawienia i adresy URL.
 

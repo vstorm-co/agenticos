@@ -56,6 +56,8 @@ export interface ConsolePresentation {
   simple_navigation: string[];
   navigation_available: string[];
   organization_navigation: string[];
+  navigation_base_default?: string[];
+  navigation_default?: string[];
   navigation: string[];
   preferences: ConsolePreferences;
   notices_available: ConsoleNotices;

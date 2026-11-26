@@ -1013,6 +1013,8 @@ The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
 
 ### Reusable webhook sources { #reusable-webhook-sources }
 
+The source picker links to source management without adding another default sidebar destination. New source credentials are selected or created in Vault: organization-visible `api_key` for signing keys and tokens, or `webhook_credentials` for inbound Basic Auth. The workflow keeps only its source binding; credential rotation stays in Vault.
+
 New **Webhook** steps in the workflow editor start by asking you to choose or create an event source. Drafts can be saved and tested with pasted JSON before a source is selected, but publishing requires a source or an explicit choice of **Dedicated endpoint**. Choose a dedicated endpoint when the sender needs a synchronous response. Existing dedicated steps keep their settings and URLs.
 
 In a **Webhook** trigger, choose an existing **Event source** or create one. Publishing subscribes that specific workflow entry to the source; later publications keep the subscription when the source and entry are unchanged. The source holds the credentials, outside the workflow definition. Its other routines and workflows receive the same authenticated events independently. [Event sources](triggers.md#reusable-event-sources) explains providers, authentication, permissions, pause and retention.

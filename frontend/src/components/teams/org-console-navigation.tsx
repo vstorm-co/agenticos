@@ -90,6 +90,7 @@ export function OrganizationConsoleNavigation({
         onDirtyChange={setDirty}
         value={defaults?.[role]?.navigation}
         allowed={presentation.navigation_available}
+        inherited={presentation.navigation_base_default}
         simple={presentation.simple_navigation}
         disabled={disabled}
         onSave={(navigation, onSaved) => onSave(role, { navigation }, onSaved)}

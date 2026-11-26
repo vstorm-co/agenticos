@@ -104,6 +104,7 @@ decides which fields exist.
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `http_credential` | A token a workflow's HTTP step sends, an optional username, and the origins it may be sent to |
+| `webhook_credentials` | Write-only username and password for inbound webhook Basic Auth, without a value hint; not an outbound HTTP credential |
 | `smtp_account` | SMTP host, port, TLS mode, sender and login credentials, sealed together for workflow email |
 | `microsoft_oauth_app` | The same three fields, for an app registration people sign in through |
 | `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
@@ -254,6 +255,8 @@ stored inline on the trigger row with the `key_version` that sealed it, the same
 as a channel bot's signing secret. It is never returned or logged in the clear; the
 verification unseals it, compares in constant time, and a delivery that fails is a 403.
 See [Concepts](concepts.md#trigger).
+
+**Reusable event sources.** The source can reference an organization-visible Vault secret with `credentials.vault_secret_id`. Provider, HMAC and API-key authentication use `api_key`; inbound Basic Auth uses `webhook_credentials`. The source resolves the live value for each delivery, so Vault rotation applies without copying credentials into sources or workflow definitions. Selecting the key requires `secrets:view`; personal, cross-organization and incompatible keys are refused. `webhook_credentials` does not replace the origin-restricted `http_credential` used for outbound HTTP requests.
 
 **Workflow webhooks.** The HMAC key a workflow webhook's deliveries are signed with,
 minted by the platform, sealed to the organization and stored on the webhook's row

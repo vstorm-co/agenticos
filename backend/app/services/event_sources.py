@@ -5,6 +5,7 @@ import json
 import secrets
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from typing import Literal, NoReturn, cast
 from uuid import UUID, uuid4
 
@@ -22,6 +23,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import ApiKeySecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.locks import LockScope, hold_subject
 from app.db.models.event_source import (
@@ -61,6 +63,7 @@ from app.services.access import (
 )
 from app.services.background_jobs import enqueue
 from app.services.event_source_auth import standard_key, verify_source
+from app.services.organization_secret import OrganizationSecretService
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowInlineStorageLimitError,
@@ -76,6 +79,8 @@ def _non_json_number(value: str) -> NoReturn:
 
 def credential_json(credentials: SourceCredentials) -> str:
     """Plaintext exists only at the vault boundary, never in model dumps or repr."""
+    if credentials.vault_secret_id is not None:
+        return json.dumps({"vault_secret_id": str(credentials.vault_secret_id)})
     return json.dumps(
         {
             name: value.get_secret_value()
@@ -123,6 +128,64 @@ def prepare_credentials(
 class EventSourceService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _prepare_credentials(
+        self,
+        ctx: AuthContext,
+        auth: SourceAuth,
+        credentials: SourceCredentials,
+        *,
+        generate: bool,
+        check_access: bool = True,
+    ) -> tuple[SourceCredentials, str | None]:
+        if credentials.vault_secret_id is None:
+            return prepare_credentials(auth, credentials, generate=generate)
+        service = OrganizationSecretService(self.db)
+        if check_access:
+            await service.get_usable(
+                ctx,
+                credentials.vault_secret_id,
+                kind=SecretKind.WEBHOOK_CREDENTIALS
+                if auth.method == "basic"
+                else SecretKind.API_KEY,
+            )
+        resolved = await self._vault_credentials(
+            ctx.organization_id, credentials.vault_secret_id, auth
+        )
+        prepare_credentials(auth, resolved, generate=False)
+        return credentials, None
+
+    async def _vault_credentials(
+        self, organization_id: UUID, secret_id: UUID, auth: SourceAuth, *, lock: bool = False
+    ) -> SourceCredentials:
+        value = await OrganizationSecretService(self.db).event_source_credentials(
+            organization_id, secret_id, lock=lock
+        )
+        if isinstance(value, ApiKeySecret):
+            if auth.method == "basic":
+                raise BadRequestError(message="Choose webhook credentials for Basic authentication")
+            return SourceCredentials(secret=value.api_key)
+        if auth.method != "basic":
+            raise BadRequestError(message="Choose an API key for webhook signatures or tokens")
+        return SourceCredentials(username=value.username, password=value.password)
+
+    async def _runtime_credentials(
+        self, source: EventSource, credential: EventSourceCredential, *, lock: bool = False
+    ) -> SourceCredentials:
+        credentials = SourceCredentials.model_validate_json(
+            unseal(
+                credential.sealed_secret,
+                scope=VaultScope.organization(source.organization_id),
+                key_version=credential.secret_key_version,
+            )
+        )
+        if credentials.vault_secret_id is not None:
+            auth = SourceAuth.model_validate(source.auth)
+            resolved = await self._vault_credentials(
+                source.organization_id, credentials.vault_secret_id, auth, lock=lock
+            )
+            return prepare_credentials(auth, resolved, generate=False)[0]
+        return credentials
 
     @staticmethod
     def webhook_url(source_id: UUID) -> str:
@@ -205,7 +268,9 @@ class EventSourceService:
         )
 
     async def create(self, ctx: AuthContext, data: EventSourceCreate) -> EventSourceCreated:
-        credentials, reveal = prepare_credentials(data.auth, data.credentials, generate=True)
+        credentials, reveal = await self._prepare_credentials(
+            ctx, data.auth, data.credentials, generate=True
+        )
         sealed = seal(
             credential_json(credentials), scope=VaultScope.organization(ctx.organization_id)
         )
@@ -271,7 +336,13 @@ class EventSourceService:
                 message="The source authentication configuration is invalid",
                 details={"fields": fields},
             ) from exc
-        credentials, _ = prepare_credentials(config.auth, config.credentials, generate=False)
+        credentials, _ = await self._prepare_credentials(
+            ctx,
+            config.auth,
+            config.credentials,
+            generate=False,
+            check_access=data.credentials is not None or data.auth is not None,
+        )
         source.auth = config.auth.model_dump(mode="json")
         source.delivery_id_header = config.delivery_id_header
         if data.credentials is not None:
@@ -295,8 +366,8 @@ class EventSourceService:
         self, ctx: AuthContext, source_id: UUID, data: SourceCredentials
     ) -> None:
         source = await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_EDIT, lock=True)
-        credentials, _ = prepare_credentials(
-            SourceAuth.model_validate(source.auth), data, generate=False
+        credentials, _ = await self._prepare_credentials(
+            ctx, SourceAuth.model_validate(source.auth), data, generate=False
         )
         credential = await repo.credential(
             self.db, source.secret_id, organization_id=ctx.organization_id
@@ -449,13 +520,8 @@ class EventSourceService:
         if credential is None:
             raise NotFoundError(message="Source credential not found")
         verified_envelope = credential.sealed_secret
-        credentials = SourceCredentials.model_validate_json(
-            unseal(
-                credential.sealed_secret,
-                scope=VaultScope.organization(source.organization_id),
-                key_version=credential.secret_key_version,
-            )
-        )
+        credentials = await self._runtime_credentials(source, credential)
+        verified_key = sha256(credential_json(credentials).encode()).digest()
         auth = SourceAuth.model_validate(source.auth)
         headers = {key.lower(): value for key, value in headers.items()}
         if not verify_source(
@@ -487,6 +553,11 @@ class EventSourceService:
             current is None
             or current.sealed_secret != verified_envelope
             or SourceAuth.model_validate(source.auth) != auth
+        ):
+            raise AuthorizationError(message="Webhook authentication changed during delivery")
+        current_credentials = await self._runtime_credentials(source, current, lock=True)
+        if not secrets.compare_digest(
+            sha256(credential_json(current_credentials).encode()).digest(), verified_key
         ):
             raise AuthorizationError(message="Webhook authentication changed during delivery")
         if auth.method == "standard_webhooks":

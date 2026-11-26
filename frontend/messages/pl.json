@@ -8963,6 +8963,7 @@
     "requestSentNobody": "Prośba wysłana. Nikt nie może jeszcze jej zatwierdzić."
   },
   "vault": {
+    "webhookCredentials": "Dane logowania webhooka",
     "access": "Dostęp",
     "actions": "Akcje",
     "addKeyNamed": "Dodaj klucz: {name}",
@@ -11954,6 +11955,7 @@
     "needsAttention": "Wymaga uwagi"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Dane logowania webhooka",
     "autosaveConflict": "Wersję roboczą zmieniono gdzie indziej",
     "autosaveError": "Nie udało się zapisać - spróbujemy ponownie",
     "conflictTitle": "Ktoś inny też edytował ten workflow",
@@ -21777,6 +21779,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Nazwa użytkownika i hasło do weryfikowania przychodzących żądań webhooka. Te dane nigdy nie są wysyłane na zewnętrzny URL.",
+    "vaultCredentialHelp": "Wybierz dane uwierzytelniające organizacji z Vault. Źródło korzysta z ich bieżącej wartości, także po rotacji.",
+    "manageSources": "Zarządzaj źródłami zdarzeń",
     "title": "Źródła zdarzeń",
     "description": "Odbieraj uwierzytelnione zdarzenia raz i udostępniaj je rutynom i workflowom.",
     "name": "Nazwa",
@@ -21798,7 +21803,6 @@
     "username": "Nazwa użytkownika",
     "password": "Hasło",
     "secret": "Sekret",
-    "secretHelp": "Pozostaw puste, aby wygenerować sekret, lub wpisz istniejący sekret nadawcy. Dane uwierzytelniające są przechowywane w vault i nigdy nie są zwracane podczas odczytu.",
     "manualSetup": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła.",
     "visibility": "Widoczność",
     "private": "Prywatne",
@@ -21858,7 +21862,6 @@
     "sourceRoutine": "Utwórz rutynę ze źródła zdarzeń",
     "privateRoutine": "Prywatna rutyna",
     "privateWorkflow": "Prywatny workflow",
-    "credentialHelp": "Wpisz sekret nadawcy. Istniejące dane uwierzytelniające nigdy nie są wyświetlane.",
     "filters": {
       "event_types": "Typy zdarzeń",
       "actions": "Akcje",

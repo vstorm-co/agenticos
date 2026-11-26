@@ -284,8 +284,7 @@ function ReplaceCredentialsDialog({
   const { credentials: replacement } = useEventSourceWrites();
   const [credentials, setCredentials] = useState<SourceCredentials>({});
   const method = source.auth.method;
-  const ready =
-    method === "basic" ? !!credentials.username && !!credentials.password : !!credentials.secret;
+  const ready = !!credentials.vault_secret_id;
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent

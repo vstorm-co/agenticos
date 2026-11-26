@@ -1,5 +1,5 @@
 ---
-source_sha: "13b2c5710e80"
+source_sha: "d9973864c59a"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1136,6 +1136,8 @@ Link aus einem Entwurf oder einer Sitzung zu ihrem Run auf einer Zeile landet,
 die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
+
+**Ereignisquellen** bleiben unter `/event-sources` verfügbar, stehen aber nicht standardmäßig in der Seitenleiste. Öffnen Sie die Verwaltung über die Quellenauswahl einer Routine oder eines Workflows. Sie können den Eintrag über die Navigationsanpassung hinzufügen; ausdrückliche Organisationsrollen- und persönliche Auswahlen bleiben erhalten.
 
 **Overview** (Dashboard), **Chat** und **Inbox** stehen oben in der Seitenleiste.
 **Build & manage** zeigt Agents, Workflows, Routines und Apps ohne Aufklappen;

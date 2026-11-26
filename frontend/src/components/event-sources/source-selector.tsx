@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+import { EventSourceMark } from "@/components/triggers/event-source-mark";
+import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -72,13 +76,24 @@ export function SourceSelector({
             ?.filter((source) => source.can_use || source.id === value)
             .map((source) => (
               <SelectItem key={source.id} value={source.id} disabled={!source.can_use}>
-                {source.name}
-                {!source.is_active ? ` (${t("paused")})` : ""}
+                <span className="flex items-center gap-2">
+                  <EventSourceMark source={source.provider} className="size-4 shrink-0" />
+                  {source.name}
+                  {!source.is_active ? ` (${t("paused")})` : ""}
+                </span>
               </SelectItem>
             ))}
           {allowDedicated && <SelectItem value="dedicated">{t("dedicated")}</SelectItem>}
         </SelectContent>
       </Select>
+      {canViewSources && (
+        <Button asChild type="button" variant="ghost" size="sm">
+          <Link href={ROUTES.EVENT_SOURCES} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="size-4" aria-hidden />
+            {t("manageSources")}
+          </Link>
+        </Button>
+      )}
       {selected && (
         <CopyableValue id="source-live-url" label={t("liveUrl")} value={selected.webhook_url} />
       )}

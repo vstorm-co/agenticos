@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.console_presentation import (
+    DEFAULT_NAVIGATION,
     NAVIGATION_ENTRIES,
     SIMPLE_NAVIGATION,
     ConsoleNotices,
@@ -52,7 +53,9 @@ def test_default_and_retired_navigation_keys() -> None:
         ConsoleNotices(),
         StoredConsolePreferences(),
     )
-    assert default.navigation == list(NAVIGATION_ENTRIES)
+    assert default.navigation == list(DEFAULT_NAVIGATION)
+    assert default.navigation_default == list(DEFAULT_NAVIGATION)
+    assert "eventSources" in default.organization_navigation
     assert default.desktop_install_prompt and default.product_notices
     result = resolve_console_presentation(
         StoredConsolePreferences(),
@@ -84,6 +87,7 @@ def test_navigation_cannot_widen_a_parent_and_empty_is_intentional(
         if (ceiling is None or entry in ceiling)
         and (organization is None or entry in organization)
         and (personal is None or entry in personal)
+        and (personal is not None or organization is not None or entry in DEFAULT_NAVIGATION)
     ]
     assert result.navigation == expected
 
@@ -149,3 +153,15 @@ def test_role_dashboard_inherits_until_a_person_saves_a_layout_and_retains_retir
     )
     assert result.dashboard_default is not None
     assert result.dashboard_default.entries[0].widget == "retired-card"
+
+
+def test_optional_event_sources_can_be_chosen_personally_or_by_role() -> None:
+    for role, personal in (
+        (StoredRoleConsole(), StoredConsolePreferences(navigation=["eventSources"])),
+        (StoredRoleConsole(navigation=["eventSources"]), StoredConsolePreferences()),
+    ):
+        result = resolve_console_presentation(
+            StoredConsolePreferences(), role, ConsoleNotices(), personal
+        )
+        assert result.navigation == ["eventSources"]
+        assert "eventSources" in result.organization_navigation

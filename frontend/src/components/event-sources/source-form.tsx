@@ -19,6 +19,8 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { SecretPicker } from "@/components/workflows/pickers/secret-picker";
+import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { useEventSourceWrites } from "@/hooks/use-event-sources";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -42,48 +44,22 @@ export function SourceCredentialsFields({
   method,
   value,
   onChange,
-  generate = false,
 }: {
-  generate?: boolean;
   method: SourceAuth["method"];
   value: SourceCredentials;
   onChange: (value: SourceCredentials) => void;
 }) {
   const t = useTranslations("eventSources");
   return (
-    <div className="space-y-3">
-      {method === "basic" ? (
-        <>
-          <FormField htmlFor="source-username" label={t("username")}>
-            <Input
-              autoComplete="off"
-              value={value.username ?? ""}
-              onChange={(e) => onChange({ ...value, username: e.target.value })}
-            />
-          </FormField>
-          <FormField htmlFor="source-password" label={t("password")}>
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={value.password ?? ""}
-              onChange={(e) => onChange({ ...value, password: e.target.value })}
-            />
-          </FormField>
-        </>
-      ) : (
-        <FormField
-          htmlFor="source-secret"
-          label={t("secret")}
-          description={generate ? t("secretHelp") : t("credentialHelp")}
-        >
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={value.secret ?? ""}
-            onChange={(e) => onChange({ secret: e.target.value })}
-          />
-        </FormField>
-      )}
+    <div className="space-y-2">
+      <SecretPicker
+        kind={method === "basic" ? "webhook_credentials" : "api_key"}
+        organizationOnly
+        label={t("secret")}
+        value={value.vault_secret_id ?? null}
+        onChange={(id) => onChange(id ? { vault_secret_id: id } : {})}
+      />
+      <p className="text-muted-foreground text-xs">{t("vaultCredentialHelp")}</p>
     </div>
   );
 }
@@ -116,14 +92,8 @@ export function SourceForm({ source, onSaved, onCancel }: SourceFormProps) {
   const supportsCustomDeliveryId = auth.method !== "standard_webhooks";
   const changesAuth = !!source && source.auth.method !== auth.method;
   const needsCredentials = !source || changesAuth;
-  const hasCredentials =
-    auth.method === "basic"
-      ? !!credentials.username && !!credentials.password
-      : !!credentials.secret;
-  const canSave =
-    !!name.trim() &&
-    (!(changesAuth || (!source && (auth.method === "provider" || auth.method === "basic"))) ||
-      hasCredentials);
+  const hasCredentials = !!credentials.vault_secret_id;
+  const canSave = !!name.trim() && (!needsCredentials || hasCredentials);
   const save = () => {
     const input = {
       name: name.trim(),
@@ -197,16 +167,26 @@ export function SourceForm({ source, onSaved, onCancel }: SourceFormProps) {
                 <SelectContent>
                   {SOURCE_PROVIDERS.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {t(`providers.${value}`)}
+                      <span className="flex items-center gap-2">
+                        <EventSourceMark source={value} className="size-4 shrink-0" />
+                        {t(`providers.${value}`)}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {provider === "webhook" && <SourceAuthFields auth={auth} onChange={setAuth} />}
+              {provider === "webhook" && (
+                <SourceAuthFields
+                  auth={auth}
+                  onChange={(next) => {
+                    if (next.method !== auth.method) setCredentials({});
+                    setAuth(next);
+                  }}
+                />
+              )}
               {needsCredentials && (
                 <SourceCredentialsFields
                   method={auth.method}
-                  generate={!source && auth.method !== "provider"}
                   value={credentials}
                   onChange={setCredentials}
                 />

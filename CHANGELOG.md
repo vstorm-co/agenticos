@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
+
 - Choose Nederlands on the desktop app's start screen. Local setup, permissions and workspace updates are translated, and the choice is carried to the console.
 
 - Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
@@ -112,6 +114,8 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Changed
+
+- Keep Event sources as a contextual management page linked from routines and workflows instead of a default sidebar destination. Provider marks, Vault selection and inherited navigation controls make setup consistent with the console.
 
 - Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
 

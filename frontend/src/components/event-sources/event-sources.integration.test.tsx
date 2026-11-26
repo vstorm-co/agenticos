@@ -23,6 +23,37 @@ vi.mock("@/lib/api-client", async () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks")>()),
+  useSecrets: () => ({
+    secrets: [
+      {
+        id: "vault-signing-key",
+        name: "Webhook signing key",
+        kind: "api_key",
+        visibility: "org",
+        owner_user_id: null,
+      },
+      {
+        id: "vault-basic-key",
+        name: "Webhook Basic credentials",
+        kind: "webhook_credentials",
+        visibility: "org",
+        owner_user_id: null,
+      },
+    ],
+    kinds: [
+      { kind: "api_key", name: "API key", json_schema: {} },
+      { kind: "webhook_credentials", name: "Webhook credentials", json_schema: {} },
+    ],
+    isLoading: false,
+    create: { isPending: false, mutateAsync: vi.fn() },
+  }),
+}));
+async function chooseSigningKey() {
+  await userEvent.click(screen.getByRole("combobox", { name: "Secret" }));
+  await userEvent.click(screen.getByRole("option", { name: /Webhook signing key/ }));
+}
 const source: EventSource = {
   id: "s1",
   name: "Issues",
@@ -288,16 +319,18 @@ describe("event source management", () => {
     await user.click(await screen.findByRole("button", { name: "More actions for Issues" }));
     await user.click(screen.getByRole("menuitem", { name: "Replace credentials" }));
     const dialog = within(screen.getByRole("dialog", { name: "Replace credentials" }));
-    await user.type(dialog.getByLabelText("Secret"), "replacement");
+    await chooseSigningKey();
     const submit = dialog.getByRole("button", { name: "Replace credentials" });
     await user.click(submit);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Credential replacement refused"));
-    expect(screen.getByLabelText("Secret")).toHaveValue("replacement");
+    expect(screen.getByRole("combobox", { name: "Secret" })).toHaveTextContent(
+      "Webhook signing key",
+    );
 
     await user.click(submit);
     await waitFor(() => expect(screen.queryByLabelText("Secret")).not.toBeInTheDocument());
     expect(apiClient.post).toHaveBeenLastCalledWith("/event-sources/s1/credentials", {
-      secret: "replacement",
+      vault_secret_id: "vault-signing-key",
     });
   });
 
@@ -317,11 +350,12 @@ describe("event source management", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Issues" })).toBeNull());
     expect(apiClient.delete).toHaveBeenCalledExactlyOnceWith("/event-sources/s1");
   });
-  it("creates a private HMAC source and reveals its generated secret only in creation state", async () => {
+  it("creates a private HMAC source using a Vault reference and handles a legacy creation receipt", async () => {
     render(<SourceSelector value={null} onChange={vi.fn()} />, { wrapper });
     await userEvent.click(await screen.findByRole("button", { name: "Create new source" }));
     expect(screen.getByRole("group", { name: "Create new source" })).toBeVisible();
     await userEvent.type(screen.getByLabelText("Name"), "Incoming");
+    await chooseSigningKey();
     await userEvent.click(screen.getByRole("button", { name: "Create source" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
@@ -330,7 +364,7 @@ describe("event source management", () => {
           name: "Incoming",
           provider: "webhook",
           visibility: "private",
-          credentials: {},
+          credentials: { vault_secret_id: "vault-signing-key" },
           auth: expect.objectContaining({ method: "hmac" }),
         }),
       ),
@@ -358,6 +392,7 @@ describe("event source management", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Create new source" }));
       const dialog = within(await screen.findByRole("dialog", { name: "Create new source" }));
       await userEvent.type(dialog.getByLabelText("Name"), "Incoming");
+      await chooseSigningKey();
       await userEvent.click(dialog.getByRole("button", { name: "Create source" }));
       expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
       expect(dialog.getByRole("button", { name: "Close" })).toBeDisabled();
@@ -386,34 +421,39 @@ describe("source authentication form", () => {
       render(<SourceForm onSaved={vi.fn()} onCancel={vi.fn()} />, { wrapper });
       await userEvent.type(screen.getByLabelText("Name"), "Events");
       await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
-      await userEvent.click(screen.getByRole("option", { name: provider }));
+      const providerOption = screen.getByRole("option", { name: provider });
+      expect(providerOption.querySelector("svg")).not.toBeNull();
+      await userEvent.click(providerOption);
       expect(screen.queryByRole("combobox", { name: "Authentication" })).toBeNull();
       expect(screen.getByRole("button", { name: "Create source" })).toBeDisabled();
-      await userEvent.type(screen.getByLabelText("Secret"), "provider-secret");
+      await chooseSigningKey();
       await userEvent.click(screen.getByRole("button", { name: "Create source" }));
       expect(apiClient.post).toHaveBeenCalledWith(
         "/event-sources",
         expect.objectContaining({
           provider: provider.toLowerCase(),
           auth: { method: "provider" },
-          credentials: { secret: "provider-secret" },
+          credentials: { vault_secret_id: "vault-signing-key" },
         }),
       );
     },
   );
-  it("submits Basic Auth credentials only in the source creation request", async () => {
+  it("submits only the Basic Auth Vault reference in the source creation request", async () => {
     render(<SourceForm onSaved={vi.fn()} onCancel={vi.fn()} />, { wrapper });
     await userEvent.type(screen.getByLabelText("Name"), "Basic");
     await userEvent.click(screen.getByRole("combobox", { name: "Authentication" }));
     await userEvent.click(screen.getByRole("option", { name: "Basic Auth" }));
-    await userEvent.type(screen.getByLabelText("Username"), "sender");
-    await userEvent.type(screen.getByLabelText("Password"), "password");
+    expect(screen.queryByLabelText("Username")).toBeNull();
+    expect(screen.queryByLabelText("Password")).toBeNull();
+    await userEvent.click(screen.getByRole("combobox", { name: "Secret" }));
+    expect(screen.queryByRole("option", { name: /Webhook signing key/ })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /Webhook Basic credentials/ }));
     await userEvent.click(screen.getByRole("button", { name: "Create source" }));
     expect(apiClient.post).toHaveBeenCalledWith(
       "/event-sources",
       expect.objectContaining({
         auth: { method: "basic" },
-        credentials: { username: "sender", password: "password" },
+        credentials: { vault_secret_id: "vault-basic-key" },
       }),
     );
   });
@@ -425,6 +465,7 @@ describe("source authentication form", () => {
     await userEvent.type(screen.getByLabelText("Name"), "Events");
     await userEvent.click(screen.getByRole("combobox", { name: "Authentication" }));
     await userEvent.click(screen.getByRole("option", { name: label }));
+    await chooseSigningKey();
     if (method === "api_key")
       expect(screen.getByLabelText("Signature or key prefix (optional)")).toHaveValue("");
     await userEvent.click(screen.getByRole("button", { name: "Create source" }));
@@ -530,4 +571,32 @@ describe("editor samples", () => {
     });
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+});
+
+it("offers source management beside the shared routine and workflow source picker", async () => {
+  render(<SourceSelector value="s1" onChange={vi.fn()} />, { wrapper });
+  expect(await screen.findByRole("link", { name: "Manage event sources" })).toHaveAttribute(
+    "href",
+    "/event-sources",
+  );
+});
+
+it("does not offer source management without source visibility", async () => {
+  permissions = [];
+  render(<SourceSelector value={null} onChange={vi.fn()} />, { wrapper });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
+  expect(screen.queryByRole("link", { name: "Manage event sources" })).toBeNull();
+});
+
+it("requires another compatible Vault selection after changing authentication method", async () => {
+  render(<SourceForm onSaved={vi.fn()} onCancel={vi.fn()} />, { wrapper });
+  await userEvent.type(screen.getByLabelText("Name"), "Events");
+  await chooseSigningKey();
+  expect(screen.getByRole("button", { name: "Create source" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("combobox", { name: "Authentication" }));
+  await userEvent.click(screen.getByRole("option", { name: "Basic Auth" }));
+  expect(screen.getByRole("button", { name: "Create source" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Secret" })).not.toHaveTextContent(
+    "Webhook signing key",
+  );
 });

@@ -3,7 +3,7 @@ import type { ArtifactDetail } from "../src/types/artifact";
 import type { CostSummary } from "../src/types/runs";
 
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, SEEDED_CONTEXT_NAME, SEEDED_SKILL_NAME } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, SEEDED_CONTEXT_NAME, SEEDED_SKILL_NAME } from "./helpers";
 
 async function expectTouchTarget(control: Locator) {
   await expect(control).toBeVisible();
@@ -220,6 +220,45 @@ for (const platform of ["ios", "android"] as const) {
         );
         await expectContained(page);
         await page.screenshot({ path: test.info().outputPath(`agent-filters-${width}.png`) });
+      }
+    });
+
+    test("keeps organization primary actions together while secondary actions remain reachable", async ({
+      page,
+    }) => {
+      await page.goto("/orgs");
+      const open = page.getByRole("link", { name: /^Open / }).first();
+      await expect(open).toBeVisible();
+      const href = await open.getAttribute("href");
+      if (!href) throw new Error("Expected the seeded organization's member link");
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(href);
+        await expect(page.getByRole("main").getByText(OWNER_EMAIL, { exact: true })).toBeVisible();
+        const edit = page.getByRole("button", { name: "Edit workspace", exact: true });
+        const invite = page.getByRole("button", { name: "Invite teammate", exact: true });
+        await expectTouchTarget(edit);
+        await expectTouchTarget(invite);
+        const primary = await page
+          .getByRole("button", { name: /^(Edit workspace|Invite teammate)$/ })
+          .evaluateAll((buttons) =>
+            buttons.map((button) => ({
+              top: button.getBoundingClientRect().top,
+              width: button.getBoundingClientRect().width,
+            })),
+          );
+        expect(primary).toHaveLength(2);
+        expect(primary[0]!.top).toBe(primary[1]!.top);
+        expect(primary[0]!.width).toBe(primary[1]!.width);
+        await expect(page.getByRole("link", { name: "Roles", exact: true })).toBeHidden();
+        await page.getByRole("button", { name: "More page actions", exact: true }).tap();
+        await expect(page.getByRole("link", { name: "Roles", exact: true })).toBeVisible();
+        await expect(edit).toBeVisible();
+        await expect(invite).toBeVisible();
+        await expectContained(page);
+        await page.screenshot({
+          path: test.info().outputPath(`organization-actions-${width}.png`),
+        });
       }
     });
 

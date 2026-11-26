@@ -389,6 +389,11 @@ describe("ProjectChats", () => {
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
     expect(screen.queryByText("2 chats")).not.toBeInTheDocument();
+    const table = screen.getByRole("table");
+    const frame = table.closest('[data-list-layout="panel"]');
+    expect(frame?.parentElement).toHaveClass("flex-1", "min-h-0");
+    expect(table.parentElement).not.toHaveClass("flex-1");
+
     expect(screen.queryByRole("link", { name: /New chat/ })).not.toBeInTheDocument();
   });
 

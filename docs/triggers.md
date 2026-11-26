@@ -114,6 +114,8 @@ see the agents sees their routines; the outcome and cost on each row need
 
 ## Reusable event sources { #reusable-event-sources }
 
+The **Event sources** management page remains at `/event-sources` and is linked from routine and workflow source pickers. It is not a default sidebar destination; add it through navigation customization if you use it frequently.
+
 Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
 
 Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
@@ -129,7 +131,11 @@ Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom
 | API Key | Header name, secret key and optional prefix |
 | Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists, a five-minute timestamp tolerance and 24–64 byte base64-encoded keys |
 
-Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
+In the source form, select an organization-visible Vault key or create one in place. The source stores `credentials.vault_secret_id`, not a copy of its value. HMAC, API-key and provider authentication use `api_key`; inbound Basic Auth uses `webhook_credentials` with a username and password. Do not combine `vault_secret_id` with inline `secret`, `username` or `password`. Binding a key requires `secrets:view`; personal, cross-organization and incompatible secrets are refused.
+
+Each incoming webhook resolves the current Vault value again. Rotate the key in Vault without resaving every source that references it. A deleted key or withdrawn organization visibility prevents authentication; the source does not fall back to an older copied credential. Existing inline API credentials and automatically generated source credentials remain compatible.
+
+Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Keep them in Vault or the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
 
 An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching sources pauses the routine. Its owner must review the new source before resuming it.
 

@@ -290,3 +290,20 @@ async def mcp_oauth_client(
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
+
+
+async def event_source_secret(
+    db: AsyncSession, secret_id: UUID, *, organization_id: UUID, lock: bool = False
+) -> OrganizationSecret | None:
+    """Fresh ingress authority; optional shared lock keeps verification valid until receipt."""
+    query = (
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.id == secret_id,
+            OrganizationSecret.organization_id == organization_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+    if lock:
+        query = query.with_for_update(read=True)
+    return await db.scalar(query)

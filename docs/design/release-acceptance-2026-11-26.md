@@ -59,6 +59,18 @@ requires another inspection. Validation regexes cover identifiers, paths and
 hashes, not inferred user intent. Transfers remain explicit copies; their digest
 checks do not claim an atomic compare-and-swap against arbitrary shell writers.
 
+Event sources remain available at their management route and through contextual
+routine/workflow selectors, but are optional in the default sidebar. Their forms
+use provider marks and organization Vault references; inbound Basic credentials
+have a separate typed Vault kind. Legacy inline clients remain supported. Live
+admission rechecks current secret scope, kind and value under a shared row lock,
+so rotation or revocation cannot be ignored by an in-flight delivery. Ingress
+credentials are excluded from transcription keys.
+
+Project cards fill their available height while keeping compact table rows.
+Mobile page-action layout defaults live in the components cascade layer, allowing
+page utilities to arrange controls without page-specific priority overrides.
+
 ## Acceptance evidence and limits
 
 The maintainer's subsequent acceptance feedback separates Project files from the

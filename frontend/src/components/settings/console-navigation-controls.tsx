@@ -13,6 +13,7 @@ const GROUPS = NAV_GROUPS.filter((group) => !group.adminOnly && !group.switcherO
 export function ConsoleNavigationControls({
   value,
   allowed,
+  inherited,
   simple,
   disabled,
   onSave,
@@ -23,6 +24,7 @@ export function ConsoleNavigationControls({
 }: {
   value: readonly string[] | null | undefined;
   allowed: readonly string[];
+  inherited?: readonly string[];
   simple?: readonly string[];
   disabled: boolean;
   onSave: (value: string[] | null, onSaved: () => void) => void;
@@ -35,7 +37,7 @@ export function ConsoleNavigationControls({
   const t = useTranslations("consoleExperience.presentation");
   const common = useTranslations("common");
   const [draft, setDraft] = useState<string[] | null | undefined>(undefined);
-  const selected = (draft === undefined ? value : draft) ?? allowed;
+  const selected = (draft === undefined ? value : draft) ?? inherited ?? allowed;
   const selection = allowed.filter((entry) => selected.includes(entry));
   const dirty = draft !== undefined;
   useEffect(() => {

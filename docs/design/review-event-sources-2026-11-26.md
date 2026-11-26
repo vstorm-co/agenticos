@@ -8,6 +8,10 @@ against this head, including receipt-time consent, retries, auth-before-lock,
 credential/header exclusion, sample atomicity, literal prompts and pending reveal.
 The historical automated-review failure is not treated as a clean review.
 
+The validation results below describe that reviewed head. The current source-selection
+and live Vault-reference changes are described in the follow-up section; historical
+results are not evidence that the follow-up has passed its own checks.
+
 ## What it adds
 
 Reusable Event sources have a private-by-default management page, provider presets,
@@ -81,3 +85,31 @@ the isolated source branch does not import the workflow-portability parent.
 
 Final combined-sha CI, browser screenshots and deployment are separate evidence.
 No paid model calls, external provider deliveries or production changes were made.
+
+## Follow-up: contextual entry points and live Vault credentials
+
+The management route `/event-sources` remains available through routine and workflow
+source pickers and optional navigation customization. It is no longer selected in
+the default sidebar. Explicit organization-role and personal navigation choices
+remain authoritative; the change does not remove a destination or permission.
+
+New source credentials select an organization-visible Vault secret using
+`credentials.vault_secret_id`, mutually exclusive with inline secret/username/password.
+The reference itself is retained in the existing organization-sealed credential
+envelope; no credential value is copied and no schema migration is needed.
+Provider, HMAC, API-key and Standard Webhooks authentication use `api_key`.
+Inbound Basic Auth uses the new `webhook_credentials` kind, whose username/password
+are write-only with no value hint. It does not bypass the origin restrictions of
+outbound `http_credential`.
+
+Binding requires `secrets:view`; personal, cross-organization and incompatible
+secrets are refused. Runtime resolves the live secret for each webhook, takes a
+shared secret lock and rechecks after the source admission lock. Deletion,
+withdrawn organization visibility and rotation cannot authorize dispatch with an
+older copied value. Missing/ineligible references refuse before admission;
+rotation during verification refuses that delivery. Existing inline API credentials
+and automatically generated source credentials retain their compatibility contract.
+
+Follow-up validation and exact-head browser captures belong to the aggregate train's
+current CI and acceptance evidence. No historical test counts above are attributed
+to these new paths.

@@ -97,6 +97,7 @@ class SecretKind(StrEnum):
 
     NONE = "none"
     API_KEY = "api_key"
+    WEBHOOK_CREDENTIALS = "webhook_credentials"
     AZURE_OPENAI = "azure_openai"
     AWS_CREDENTIALS = "aws_credentials"
     GCP_SERVICE_ACCOUNT = "gcp_service_account"
@@ -192,6 +193,25 @@ class ApiKeySecret(_SecretBase):
     @property
     def hint(self) -> str:
         return self.api_key.get_secret_value()[-4:]
+
+
+class WebhookCredentialsSecret(_SecretBase):
+    """Basic authentication checked on inbound webhooks, never an outbound token."""
+
+    kind: Literal[SecretKind.WEBHOOK_CREDENTIALS] = SecretKind.WEBHOOK_CREDENTIALS
+    username: SealedStr = Field(min_length=1, max_length=255, title="Username")
+    password: SealedStr = Field(min_length=1, title="Password")
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: SecretStr) -> SecretStr:
+        if ":" in value.get_secret_value():
+            raise ValueError("Basic authentication usernames cannot contain ':'")
+        return value
+
+    @property
+    def hint(self) -> str:
+        return ""
 
 
 class AzureOpenAISecret(_SecretBase):
@@ -710,6 +730,7 @@ StorableSecret = Annotated[
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
     | OpenAICodexSecret
@@ -730,6 +751,7 @@ TypedSecret = Annotated[
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret,
     Field(discriminator="kind"),
 ]
@@ -754,6 +776,7 @@ SecretValue = Annotated[
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
+    | WebhookCredentialsSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
     | OpenAICodexSecret
@@ -852,6 +875,7 @@ class SecretKindInfo(BaseModel):
 
 _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.API_KEY: ApiKeySecret,
+    SecretKind.WEBHOOK_CREDENTIALS: WebhookCredentialsSecret,
     SecretKind.AZURE_OPENAI: AzureOpenAISecret,
     SecretKind.AWS_CREDENTIALS: AwsCredentialsSecret,
     SecretKind.GCP_SERVICE_ACCOUNT: GcpServiceAccountSecret,
@@ -869,6 +893,10 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.WEBHOOK_CREDENTIALS: (
+        "Webhook credentials",
+        "A username and password for verifying incoming webhooks only.",
+    ),
     SecretKind.MCP_OAUTH_CLIENT: (
         "MCP OAuth client",
         "A pre-registered OAuth application for one MCP server. Store it organization-visible so each member only signs in.",

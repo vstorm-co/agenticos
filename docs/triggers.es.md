@@ -1,5 +1,5 @@
 ---
-source_sha: "6caba3f57617"
+source_sha: "22fac73d07b1"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -126,6 +126,8 @@ cada fila necesitan `runs:view` y sin ese permiso sencillamente no aparecen.
 
 ## Fuentes de eventos reutilizables { #reusable-event-sources }
 
+La administración de **Fuentes de eventos** sigue en `/event-sources` y está enlazada desde los selectores de fuentes de rutinas y workflows. No es un destino predeterminado de la barra lateral; añádelo al personalizar la navegación si lo usas con frecuencia.
+
 Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuentes a las que tienes acceso están activas o pausadas.
 
 Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Una fuente conserva su URL activa, credenciales y configuración del proveedor. Varias rutinas y entradas publicadas de workflows pueden suscribirse a esa URL, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
@@ -141,7 +143,11 @@ Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o *
 | Clave API | Nombre de cabecera, clave secreta y prefijo opcional |
 | Standard Webhooks | Firmas simétricas `v1` sobre ID, marca de tiempo y cuerpo; listas de firmas, tolerancia de cinco minutos y claves de 24–64 bytes codificadas en Base64 |
 
-Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Sustitúyelas en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
+En el formulario de la fuente, selecciona una clave de Vault visible para la organización o créala allí mismo. La fuente guarda `credentials.vault_secret_id`, no una copia del valor. La autenticación HMAC, por clave API y de proveedor usa `api_key`; Basic Auth entrante usa `webhook_credentials` con nombre de usuario y contraseña. No combines `vault_secret_id` con campos `secret`, `username` o `password` enviados directamente. Vincular la clave exige `secrets:view`; se rechazan secretos personales, de otra organización o de tipo incompatible.
+
+Cada webhook entrante consulta de nuevo el valor actual de Vault. Rota la clave en Vault sin volver a guardar todas las fuentes que la referencian. Una clave eliminada o sin visibilidad para la organización impide la autenticación; la fuente no recurre a una copia anterior. Las credenciales existentes enviadas directamente por API y las generadas automáticamente para fuentes siguen siendo compatibles.
+
+Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Guárdalas en Vault o en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
 
 La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Al cambiar de fuente, la rutina queda en pausa. Su propietario debe revisar la nueva fuente antes de reanudarla.
 

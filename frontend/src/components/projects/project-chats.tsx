@@ -36,12 +36,7 @@ export function ProjectChats({ project }: { project: Project }) {
   const router = useRouter();
 
   return (
-    <ListCard
-      namedByPage
-      className="shrink-0"
-      title={t("chats")}
-      empty={!isLoading && !error && total === 0}
-    >
+    <ListCard namedByPage fill title={t("chats")} empty={!isLoading && !error && total === 0}>
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : error ? (

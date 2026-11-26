@@ -10169,6 +10169,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Credenciais de webhook",
     "access": "Acesso",
     "actions": "Ações",
     "addKeyNamed": "Adicionar uma chave: {name}",
@@ -11672,6 +11673,7 @@
     "needsAttention": "Requer atenção"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Credenciais de webhook",
     "created": "Workflow criado",
     "duplicated": "Workflow duplicado",
     "publishedVersion": "Versão publicada {version}",
@@ -22226,6 +22228,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Nome de usuário e senha para verificar solicitações de webhook recebidas. Essas credenciais nunca são enviadas a uma URL externa.",
+    "vaultCredentialHelp": "Escolha uma credencial da organização no Vault. A fonte usa o valor atual, inclusive após a rotação.",
+    "manageSources": "Gerenciar fontes de eventos",
     "title": "Fontes de eventos",
     "description": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows.",
     "name": "Nome",
@@ -22247,7 +22252,6 @@
     "username": "Nome de usuário",
     "password": "Senha",
     "secret": "Segredo",
-    "secretHelp": "Deixe em branco para gerar um segredo ou informe o segredo que o remetente já usa. As credenciais ficam no vault e nunca são retornadas em consultas.",
     "manualSetup": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte.",
     "visibility": "Visibilidade",
     "private": "Privada",
@@ -22307,7 +22311,6 @@
     "sourceRoutine": "Criar rotina a partir de uma fonte de eventos",
     "privateRoutine": "Rotina privada",
     "privateWorkflow": "Workflow privado",
-    "credentialHelp": "Informe o segredo do remetente. As credenciais existentes nunca são exibidas.",
     "filters": {
       "event_types": "Tipos de evento",
       "actions": "Ações",

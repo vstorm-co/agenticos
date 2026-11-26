@@ -84,6 +84,8 @@ interface AddSecretDialogProps {
    * made, and cleared with everything else once stored.
    */
   initial?: { name?: string; value?: Record<string, unknown> };
+  /** Constrain credentials used by an organization-owned background integration. */
+  fixedVisibility?: SecretVisibility;
 }
 
 /**
@@ -124,6 +126,7 @@ export function AddSecretDialog({
   purposeId,
   kind: fixedKind,
   initial,
+  fixedVisibility,
 }: AddSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
@@ -168,7 +171,7 @@ export function AddSecretDialog({
   const visibility =
     effectiveKind === "openai_chatgpt"
       ? "private"
-      : (chosenVisibility ?? (signsIn ? "private" : "org"));
+      : (fixedVisibility ?? chosenVisibility ?? (signsIn ? "private" : "org"));
   const pending = isPending || chatgpt.create.isPending;
   // What the field shows: what was typed, or the service's own name. Switching
   // from OpenAI to Anthropic with the field still reading "OpenAI" leaves a key
@@ -453,7 +456,9 @@ export function AddSecretDialog({
                         .filter((entry) => !isChatGPTSignInKind(entry.kind))
                         .map((entry) => (
                           <SelectItem key={entry.kind} value={entry.kind}>
-                            {entry.name}
+                            {entry.kind === "webhook_credentials"
+                              ? t("webhookCredentials")
+                              : entry.name}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -466,7 +471,7 @@ export function AddSecretDialog({
               <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
               <Select
                 value={visibility}
-                disabled={effectiveKind === "openai_chatgpt"}
+                disabled={effectiveKind === "openai_chatgpt" || fixedVisibility !== undefined}
                 onValueChange={(next) => setVisibility(next as SecretVisibility)}
               >
                 <SelectTrigger id="secret-visibility">

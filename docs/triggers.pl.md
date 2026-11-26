@@ -1,5 +1,5 @@
 ---
-source_sha: "6caba3f57617"
+source_sha: "22fac73d07b1"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -122,6 +122,8 @@ wymagają `runs:view` i po prostu ich nie ma bez tego uprawnienia.
 
 ## Źródła zdarzeń wielokrotnego użytku { #reusable-event-sources }
 
+Strona zarządzania **Źródłami zdarzeń** pozostaje pod `/event-sources`; prowadzą do niej selektory źródeł w rutynach i workflow. Nie jest domyślną pozycją paska bocznego. Jeśli często jej używasz, dodaj ją przez dostosowanie nawigacji.
+
 Dodaj widżet **Źródła zdarzeń** do pulpitu, aby sprawdzić, ile widocznych dla Ciebie źródeł jest aktywnych lub wstrzymanych.
 
 Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Źródło przechowuje swój adres URL, poświadczenia i konfigurację dostawcy. Wiele rutyn i opublikowanych wejść workflow może subskrybować ten sam URL, zachowując własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
@@ -137,7 +139,11 @@ Wybierz GitHub, Linear, HubSpot lub Zendesk do weryfikacji właściwej dla dosta
 | Klucz API | Nazwa nagłówka, tajny klucz i opcjonalny prefiks |
 | Standard Webhooks | Symetryczne podpisy `v1` obejmujące ID, znacznik czasu i body; listy podpisów, pięć minut tolerancji czasu i klucze o długości 24–64 bajtów kodowane w Base64 |
 
-Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Zmieniaj je w źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
+W formularzu źródła wybierz klucz Vault widoczny w organizacji albo utwórz go na miejscu. Źródło zapisuje `credentials.vault_secret_id`, bez kopiowania wartości. HMAC, klucz API i uwierzytelnianie dostawcy używają `api_key`; przychodzące Basic Auth używa `webhook_credentials` z nazwą użytkownika i hasłem. Nie łącz `vault_secret_id` z polami `secret`, `username` ani `password` przekazywanymi bezpośrednio. Powiązanie klucza wymaga `secrets:view`; sekrety osobiste, z innej organizacji lub niezgodnego rodzaju są odrzucane.
+
+Każdy przychodzący webhook ponownie odczytuje aktualną wartość Vault. Obróć klucz w Vault bez ponownego zapisywania wszystkich źródeł, które go wskazują. Usunięty klucz lub odebrana widoczność w organizacji uniemożliwia uwierzytelnienie; źródło nie wraca do starszej kopii poświadczeń. Istniejące poświadczenia przekazywane bezpośrednio przez API i poświadczenia automatycznie generowane dla źródeł zachowują zgodność.
+
+Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Przechowuj je w Vault lub źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
 
 Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źródło potwierdzi odbiór. Błędy subskrybentów są niezależne. Worker ponawia próbę dostarczenia, gdy subskrybent tymczasowo osiągnie limit częstotliwości lub liczby równoczesnych wykonań. Zdarzenie w kolejce może użyć tylko zgody na źródło rutyny obowiązującej w chwili odbioru. Zmiana źródła wstrzymuje rutynę. Przed jej wznowieniem właściciel musi zatwierdzić nowe źródło.
 

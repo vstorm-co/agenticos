@@ -67,6 +67,15 @@ class SourceCredentials(BaseModel):
     secret: SecretStr | None = None
     username: SecretStr | None = None
     password: SecretStr | None = None
+    vault_secret_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_credential_origin(self) -> Self:
+        if self.vault_secret_id is not None and any(
+            value is not None for value in (self.secret, self.username, self.password)
+        ):
+            raise ValueError("Choose a Vault secret or supply inline credentials, not both")
+        return self
 
 
 class EventSourceCreate(BaseModel):

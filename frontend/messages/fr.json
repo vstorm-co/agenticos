@@ -10044,6 +10044,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Identifiants de webhook",
     "access": "Accès",
     "actions": "Actions",
     "addKeyNamed": "Ajouter une clé : {name}",
@@ -11435,6 +11436,7 @@
     "needsAttention": "Requiert votre attention"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Identifiants de webhook",
     "created": "Workflow créé",
     "duplicated": "Workflow dupliqué",
     "publishedVersion": "Version {version} publiée",
@@ -21710,6 +21712,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Nom d’utilisateur et mot de passe pour vérifier les requêtes webhook entrantes. Ces identifiants ne sont jamais envoyés à une URL externe.",
+    "vaultCredentialHelp": "Choisissez des identifiants de l’organisation dans le Vault. La source utilise leur valeur actuelle, y compris après rotation.",
+    "manageSources": "Gérer les sources d’événements",
     "title": "Sources d’événements",
     "description": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows.",
     "name": "Nom",
@@ -21731,7 +21736,6 @@
     "username": "Nom d’utilisateur",
     "password": "Mot de passe",
     "secret": "Secret",
-    "secretHelp": "Laissez ce champ vide pour générer un secret, ou saisissez celui de l’expéditeur. Les identifiants sont stockés dans le vault et ne sont jamais renvoyés à la lecture.",
     "manualSetup": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source.",
     "visibility": "Visibilité",
     "private": "Privée",
@@ -21791,7 +21795,6 @@
     "sourceRoutine": "Créer une routine à partir d’une source d’événements",
     "privateRoutine": "Routine privée",
     "privateWorkflow": "Workflow privé",
-    "credentialHelp": "Saisissez le secret de l’expéditeur. Les identifiants existants ne sont jamais affichés.",
     "filters": {
       "event_types": "Types d’événements",
       "actions": "Actions",

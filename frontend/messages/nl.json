@@ -10169,6 +10169,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Webhook-inloggegevens",
     "access": "Toegang",
     "actions": "Acties",
     "addKeyNamed": "Een sleutel toevoegen: {name}",
@@ -11672,6 +11673,7 @@
     "needsAttention": "Vraagt aandacht"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook-inloggegevens",
     "created": "Workflow aangemaakt",
     "duplicated": "Workflow gedupliceerd",
     "publishedVersion": "Versie {version} gepubliceerd",
@@ -22226,6 +22228,9 @@
     }
   },
   "eventSources": {
+    "vaultBasicHelp": "Gebruikersnaam en wachtwoord voor het controleren van inkomende webhookverzoeken. Deze gegevens worden nooit naar een externe URL verzonden.",
+    "vaultCredentialHelp": "Kies inloggegevens van de organisatie uit de Vault. De bron gebruikt de actuele waarde, ook na rotatie.",
+    "manageSources": "Gebeurtenisbronnen beheren",
     "title": "Gebeurtenisbronnen",
     "description": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows.",
     "name": "Naam",
@@ -22247,7 +22252,6 @@
     "username": "Gebruikersnaam",
     "password": "Wachtwoord",
     "secret": "Geheim",
-    "secretHelp": "Laat dit leeg om een geheim te genereren of voer het bestaande geheim van de afzender in. De inloggegevens worden in de vault opgeslagen en bij het opvragen nooit teruggegeven.",
     "manualSetup": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt.",
     "visibility": "Zichtbaarheid",
     "private": "Privé",
@@ -22307,7 +22311,6 @@
     "sourceRoutine": "Routine maken vanuit een gebeurtenisbron",
     "privateRoutine": "Privéroutine",
     "privateWorkflow": "Privéworkflow",
-    "credentialHelp": "Voer het geheim van de afzender in. Bestaande inloggegevens worden nooit getoond.",
     "filters": {
       "event_types": "Gebeurtenistypen",
       "actions": "Acties",

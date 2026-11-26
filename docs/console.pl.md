@@ -1,5 +1,5 @@
 ---
-source_sha: "13b2c5710e80"
+source_sha: "d9973864c59a"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1063,6 +1063,8 @@ Filtr **Pochodzenie** zawęża listę do **Rozmów**, **Improve i ewaluacji** al
 szkicu albo z sesji do jej runa trafia na wiersz, który lista pokazuje.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
+
+**Źródła zdarzeń** pozostają dostępne pod `/event-sources`, ale nie są domyślną pozycją paska bocznego. Stronę zarządzania otworzysz z wyboru źródła w rutynie lub workflow. Możesz dodać ją przez dostosowanie nawigacji; jawne wybory roli w organizacji i osobiste zostają zachowane.
 
 **Overview** (Dashboard), **Chat** i **Inbox** są na początku sidebara.
 **Build & manage** pokazuje Agents, Workflows, Routines i Apps bez rozwijania;
