@@ -197,7 +197,7 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     # Version 7 changes persisted maximum-step expressions; migrate them first.
-    "croniter>=6.2.4,<7",
+    "croniter>=7.0.0,<8",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
