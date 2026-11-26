@@ -182,9 +182,10 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     ) -> str:
         """Save a new note under a name, so a later conversation can find it.
 
-        Save substantial material, such as a briefing about a person or a checklist.
-        A one-line fact, preference or decision belongs in `remember`. Notes appear
-        in the overview automatically. Use `edit_memory` to update an existing note.
+        Use for a requested working note or reusable context such as a handoff,
+        checklist or reference you will need in a later conversation. Notes can
+        be short and appear in the overview automatically. Use `edit_memory` to
+        update an existing note.
 
         Args:
             name: A short handle to find it by, unique among your notes here.

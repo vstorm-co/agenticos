@@ -1,5 +1,5 @@
 ---
-source_sha: "90ec5bd904a8"
+source_sha: "7e2b4bb75313"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -482,8 +482,11 @@ może istnieć bez przestrzeni w module Projects. Bieżące członkostwo w grupa
 wyznacza widoczność publikacji grupowych. Udostępniasz sprawdzoną wersję notatki.
 Usunięcie osobistego źródła usuwa udostępnione kopie notatki.
 
-Do jawnego polecenia służy `remember`, a do notatek roboczych agenta
-`write_memory`. Opcjonalny `object_ref` wskazuje obiekt biznesowy, a `value`
+Do trwałych faktów, preferencji i decyzji służy `remember`. Do notatek
+roboczych, takich jak wskazówki do przekazania pracy czy listy kontrolne,
+służy `write_memory`, również gdy mieszczą się w jednym zdaniu.
+
+Opcjonalny `object_ref` wskazuje obiekt biznesowy, a `value`
 przechowuje typowaną wartość prostą. `recall(as_of=…)` podaje stan na datę,
 a `known_at` ogranicza wiedzę do chwili przed późniejszą korektą. Przedziały
 są półotwarte. Wpis bez daty początku można znaleźć w aktualnym wyszukiwaniu.

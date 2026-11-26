@@ -31,6 +31,24 @@ Sol's fast tier charges $4/$20 and OpenRouter lists other DeepSeek providers at
 different prices. Prefer one provider route per model if the eval profile can
 pin it. Mark runs with incomplete cost in the scorecard.
 
+## Selected configuration
+
+Use Sonnet 5.5 for the published AgenticOS starter and GPT-6 Luna at low
+effort for Memory maintenance. Bootstrap a fresh organization with the two
+profiles backed by the same OpenRouter vault credential:
+
+```sh
+# From backend/, with BOOTSTRAP_API_KEY set in the environment.
+uv run agenticos cmd bootstrap --org "AgenticOS Local Memory Eval" \
+  --provider openrouter --model anthropic/claude-sonnet-5.5 \
+  --memory-maintenance-model openai/gpt-6-luna
+```
+
+The maintenance flag expressly enables the job and keeps the role's configured
+monthly budget on a rerun. Existing agent publications retain their chosen
+profile. For a previously configured organization, select Sonnet on the agent
+and publish the version, then select Luna in Memory maintenance settings.
+
 ## Run the paired comparison
 
 Prepare the disposable [personal eval stack](../personal/README.md#run-agenticos-in-docker)

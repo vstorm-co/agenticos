@@ -109,6 +109,26 @@ class TraceTests(unittest.TestCase):
             [],
         )
 
+    def test_self_note_requires_a_valid_scoped_note_attempt(self) -> None:
+        case = next(item for item in runner.load("agenticos") if item.id == "agenticos-self-note")
+        note = EvalCallRead(
+            tool="write_memory",
+            args={"name": "xyz-handoff", "content": "The user handles the XYZ handoff."},
+            outcome="blocked",
+            reason="writes",
+        )
+        self.assertEqual(runner.trace_errors(case, answer="Draft.", calls=[note]), [])
+        invalid = note.model_copy(update={"args": {"content": "XYZ"}})
+        self.assertIn(
+            "no valid isolated write for the XYZ working note",
+            runner.trace_errors(case, answer="Draft.", calls=[invalid]),
+        )
+        remember = note.model_copy(update={"tool": "remember"})
+        self.assertIn(
+            "forbidden call: remember",
+            runner.trace_errors(case, answer="Draft.", calls=[note, remember]),
+        )
+
     def test_tools_use_normalized_arguments_and_record_blocked_attempts(self):
         scenario = next(item for item in runner.load("agenticos") if item.id == "inbox-direct")
         call = EvalCallRead(

@@ -7,6 +7,8 @@ rather than an agent that silently cannot run.
 """
 
 import uuid
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import click
@@ -16,6 +18,7 @@ from app.agents.model_resolver import PROVIDERS
 from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
+    _configure_memory_maintenance,
     _organization_name,
     _resolve_model,
     _resolve_organization,
@@ -24,12 +27,107 @@ from app.commands.bootstrap import (
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import Visibility
+from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.schemas.organization import OrganizationCreate
+from app.schemas.system_agent import SystemAgentUpdate
 from app.services.agent_templates import STARTER_TEMPLATE
 
 
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+
+class TestMemoryMaintenance:
+    @pytest.mark.anyio
+    async def test_configures_a_separate_model_and_preserves_the_role_budget(self) -> None:
+        ctx = _ctx()
+        db = MagicMock()
+        default_id, secret_id, maintenance_id = (uuid.uuid4() for _ in range(3))
+        model = "openai/gpt-6-luna"
+        default = SimpleNamespace(provider="openrouter", secret_id=secret_id)
+        current = SimpleNamespace(
+            enabled=True, model_profile_id=uuid.uuid4(), monthly_budget_usd=Decimal("2.50")
+        )
+        with (
+            patch.object(
+                bootstrap_cmd.credential_repo, "get_profile", AsyncMock(return_value=default)
+            ),
+            patch.object(
+                bootstrap_cmd.credential_repo, "get_profile_by_label", AsyncMock(return_value=None)
+            ),
+            patch.object(bootstrap_cmd.system_agent_repo, "get", AsyncMock(return_value=current)),
+            patch.object(
+                bootstrap_cmd.ModelProfileService,
+                "create_profile",
+                AsyncMock(return_value=SimpleNamespace(id=maintenance_id)),
+            ) as create,
+            patch.object(bootstrap_cmd.SystemAgentService, "update", AsyncMock()) as update,
+        ):
+            await _configure_memory_maintenance(db, ctx, default_id, model)
+
+        create.assert_awaited_once_with(
+            ctx,
+            label=f"openrouter memory maintenance ({model})",
+            provider="openrouter",
+            model=model,
+            secret_id=secret_id,
+            params={"thinking": "low"},
+        )
+        update.assert_awaited_once_with(
+            ctx,
+            MEMORY_MAINTENANCE,
+            SystemAgentUpdate(
+                enabled=True, model_profile_id=maintenance_id, monthly_budget_usd=Decimal("2.50")
+            ),
+        )
+
+    @pytest.mark.anyio
+    async def test_reuses_the_existing_selected_model_without_writing(self) -> None:
+        ctx = _ctx()
+        model = "openai/gpt-6-luna"
+        profile = SimpleNamespace(
+            id=uuid.uuid4(), provider="openrouter", model=model, secret_id=uuid.uuid4()
+        )
+        current = SimpleNamespace(enabled=True, model_profile_id=profile.id)
+        with (
+            patch.object(
+                bootstrap_cmd.credential_repo, "get_profile", AsyncMock(return_value=profile)
+            ),
+            patch.object(
+                bootstrap_cmd.credential_repo,
+                "get_profile_by_label",
+                AsyncMock(return_value=profile),
+            ),
+            patch.object(bootstrap_cmd.system_agent_repo, "get", AsyncMock(return_value=current)),
+            patch.object(
+                bootstrap_cmd.ModelProfileService, "create_profile", AsyncMock()
+            ) as create,
+            patch.object(bootstrap_cmd.SystemAgentService, "update", AsyncMock()) as update,
+        ):
+            await _configure_memory_maintenance(MagicMock(), ctx, uuid.uuid4(), model)
+        create.assert_not_awaited()
+        update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_refuses_a_missing_key_and_a_mismatched_label(self) -> None:
+        ctx = _ctx()
+        with pytest.raises(click.ClickException, match="needs a keyed bootstrap model"):
+            await _configure_memory_maintenance(MagicMock(), ctx, None, "openai/gpt-6-luna")
+
+        default = SimpleNamespace(provider="openrouter", secret_id=uuid.uuid4())
+        mismatched = SimpleNamespace(provider="openrouter", model="another-model")
+        with (
+            patch.object(
+                bootstrap_cmd.credential_repo, "get_profile", AsyncMock(return_value=default)
+            ),
+            patch.object(
+                bootstrap_cmd.credential_repo,
+                "get_profile_by_label",
+                AsyncMock(return_value=mismatched),
+            ),
+            pytest.raises(click.ClickException, match="label already exists"),
+        ):
+            await _configure_memory_maintenance(MagicMock(), ctx, uuid.uuid4(), "openai/gpt-6-luna")
 
 
 class TestProviderDefaults:
@@ -504,11 +602,23 @@ class TestEndToEnd:
                 new=AsyncMock(return_value=profile_id),
             ) as resolve_model,
             patch("app.commands.bootstrap._resolve_starter_agents", new=AsyncMock()) as demo,
+            patch(
+                "app.commands.bootstrap._configure_memory_maintenance", new=AsyncMock()
+            ) as maintenance,
         ):
             await _bootstrap(
-                "admin@example.com", "password123", "Acme", "openai", "sk-test-1234", None
+                "admin@example.com",
+                "password123",
+                "Acme",
+                "openai",
+                "sk-test-1234",
+                None,
+                memory_maintenance_model="gpt-6-luna",
             )
 
+        maintenance.assert_awaited_once()
+        assert maintenance.await_args is not None
+        assert maintenance.await_args.args[-2:] == (profile_id, "gpt-6-luna")
         register.assert_awaited_once()
         # The agent must be given the model the previous step produced.
         assert demo.call_args.args[2] == profile_id
@@ -579,8 +689,27 @@ class TestEndToEnd:
 
         from app.commands.bootstrap import bootstrap
 
-        with patch("app.commands.bootstrap.asyncio.run") as run:
-            result = CliRunner().invoke(bootstrap, ["--email", "a@b.c"])
+        with patch.object(bootstrap_cmd, "_bootstrap", AsyncMock()) as run:
+            result = CliRunner().invoke(
+                bootstrap,
+                [
+                    "--email",
+                    "a@b.c",
+                    "--provider",
+                    "openrouter",
+                    "--model",
+                    "anthropic/claude-sonnet-5.5",
+                ],
+                env={"BOOTSTRAP_MEMORY_MAINTENANCE_MODEL": "openai/gpt-6-luna"},
+            )
 
         assert result.exit_code == 0
-        run.assert_called_once()
+        run.assert_awaited_once_with(
+            "a@b.c",
+            "admin123",
+            None,
+            "openrouter",
+            None,
+            "anthropic/claude-sonnet-5.5",
+            memory_maintenance_model="openai/gpt-6-luna",
+        )

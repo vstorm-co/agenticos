@@ -468,6 +468,18 @@ def trace_errors(
             for call in calls
         ):
             errors.append(f"missing expected call: {expected.tool}")
+    if scenario.id == "agenticos-self-note" and not any(
+        call.tool == "write_memory"
+        and call.outcome == "blocked"
+        and call.reason == "writes"
+        and isinstance(name := call.args.get("name"), str)
+        and bool(name.strip())
+        and isinstance(content := call.args.get("content"), str)
+        and bool(content.strip())
+        and "xyz" in f"{name} {content}".casefold()
+        for call in calls
+    ):
+        errors.append("no valid isolated write for the XYZ working note")
     if watch_source is not None:
         agent_id, connection_id = watch_source
         if not any(

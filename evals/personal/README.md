@@ -35,11 +35,11 @@ evals/personal/stack.sh build app
 evals/personal/stack.sh up -d app worker sandboxd artifact-render eval-notion
 evals/personal/stack.sh exec -T app sh -c '
   BOOTSTRAP_API_KEY="$OPENROUTER_API_KEY" exec agenticos cmd bootstrap \
-    --org "AgenticOS Local Eval DeepSeek Baseline" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
+    --org "AgenticOS Local Memory Eval" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
 '
 ```
 
-Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
+The local example publishes AgenticOS with Sonnet 5.5 and enables Memory maintenance with GPT-6 Luna. Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
 
 Read the organization and user IDs from the eval database. Copy the two values, separated by `|`, into `AGENTICOS_EVAL_ORG_ID` and `AGENTICOS_EVAL_USER_ID` in `evals/personal/.env`:
 
@@ -49,7 +49,7 @@ evals/personal/stack.sh exec -T db sh -c '
 ' -- "SELECT o.id, u.id FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 JOIN users u ON u.id = m.user_id
-WHERE o.slug = 'agenticos-local-eval-deepseek-baseline' AND u.email = 'admin@example.com'"
+WHERE o.slug = 'agenticos-local-memory-eval' AND u.email = 'admin@example.com'"
 ```
 
 Without `--max-usd`, the command only checks the published AgenticOS and selected model. Omit `--limit` to select every case. This example checks three cases without making model calls:
@@ -76,7 +76,7 @@ Candidate results have no published `agent_version`. They record `source_agent_v
 
 ```sh
 mkdir -p evals/personal/results
-report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-agenticos.jsonl"
+report="evals/personal/results/$(date +%F-%H%M%S)-agenticos.jsonl"
 
 evals/personal/stack.sh run --rm --no-deps -T app sh -c '
   exec /app/.venv/bin/python /personal-eval/run.py --suite agenticos \
@@ -109,10 +109,15 @@ Run from the repository root with the configured `evals/personal/.env`.
 
 ```sh
 for suite in memory briefing; do
-  report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-$suite.jsonl"
+  report="evals/personal/results/$(date +%F-%H%M%S)-$suite.jsonl"
   uv run --directory backend --env-file ../evals/personal/.env sh -c '
+    if [ "$1" = memory ]; then
+      model=${BOOTSTRAP_MEMORY_MAINTENANCE_MODEL:-$AGENTICOS_EVAL_MODEL}
+    else
+      model=${AGENTICOS_EVAL_BRIEFING_MODEL:-$AGENTICOS_EVAL_MODEL}
+    fi
     exec python ../evals/personal/run.py --suite "$1" \
-      --model "openrouter:$AGENTICOS_EVAL_MODEL" --limit 50
+      --model "openrouter:$model" --limit 53
   ' sh "$suite" > "$report"
 done
 ```

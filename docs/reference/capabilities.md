@@ -459,8 +459,10 @@ workspace in Projects. The current member's group memberships determine which
 group publications are visible. Publishing a note takes a snapshot at the
 reviewed revision. Deleting the personal source removes its published notes.
 
-Use `remember` on an explicit request and `write_memory` for the agent's working
-notes. An optional `object_ref` names a business object, and `value` carries an
+Use `remember` for durable facts, preferences and decisions. Use `write_memory`
+for working notes such as handoffs and checklists, even if they fit on one line.
+
+An optional `object_ref` names a business object, and `value` carries an
 exact scalar property. Use `recall(as_of=…)` for validity on a date and
 `known_at` to cut off knowledge before a later correction. Explicit time ranges
 are half-open. A claim with no start date remains available in current search.

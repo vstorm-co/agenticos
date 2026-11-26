@@ -1,5 +1,5 @@
 ---
-source_sha: "90ec5bd904a8"
+source_sha: "7e2b4bb75313"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -493,8 +493,11 @@ y puede existir sin un espacio en Projects. Las publicaciones de un grupo son
 visibles para sus miembros actuales. Al compartir se guarda una versión revisada
 de la nota. Al eliminar la fuente personal se eliminan sus notas publicadas.
 
-Usa `remember` para una petición explícita y `write_memory` para las notas de
-trabajo del agente. `object_ref` indica un objeto y `value` un valor simple
+Usa `remember` para hechos, preferencias y decisiones duraderos. Usa
+`write_memory` para notas de trabajo, como traspasos y listas de comprobación,
+aunque ocupen una sola línea.
+
+`object_ref` indica un objeto y `value` un valor simple
 con tipo. `recall(as_of=…)` consulta la validez en una fecha y `known_at`
 limita el conocimiento anterior a una corrección. Los intervalos excluyen su
 fecha final. Los registros sin fecha inicial siguen en la búsqueda actual. Una

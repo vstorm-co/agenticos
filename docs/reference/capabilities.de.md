@@ -1,5 +1,5 @@
 ---
-source_sha: "90ec5bd904a8"
+source_sha: "7e2b4bb75313"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -504,8 +504,11 @@ richten sich nach der aktuellen Mitgliedschaft. Eine Freigabe speichert die
 geprüfte Notizversion. Beim Löschen der persönlichen Quelle entfallen auch
 die veröffentlichten Notizkopien.
 
-`remember` verarbeitet explizite Anfragen. `write_memory` hält Arbeitsnotizen
-des Agents fest. `object_ref` benennt optional ein Geschäftsobjekt und
+`remember` speichert dauerhafte Fakten, Präferenzen und Entscheidungen.
+`write_memory` hält Arbeitsnotizen wie Übergaben und Checklisten fest, auch
+wenn sie nur eine Zeile lang sind.
+
+`object_ref` benennt optional ein Geschäftsobjekt und
 `value` einen typisierten Wert. `recall(as_of=…)` liest den Stand zu einem
 Datum. `known_at` beschränkt ihn auf den Wissensstand vor einer späteren
 Korrektur. Zeitintervalle schließen ihr Ende aus. Einträge ohne Startdatum

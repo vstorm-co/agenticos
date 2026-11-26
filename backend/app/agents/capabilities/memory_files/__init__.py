@@ -48,7 +48,9 @@ MEMORY_FILES_CAPABILITY_ID = "memory_files"
         ),
         CapabilityToolInfo(
             id="write_memory",
-            description="Save a new note under a name, so a later conversation can find it.",
+            description=(
+                "Save a named working note, handoff, checklist or reference for a later conversation."
+            ),
             side_effecting=True,
         ),
         CapabilityToolInfo(

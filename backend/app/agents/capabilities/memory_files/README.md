@@ -5,8 +5,8 @@ decisions with provenance and correction history. Named notes hold longer
 material, such as a briefing on a person or a checklist.
 
 Use `remember` for a new short memory, `correct_memory` for a correction and
-`recall` for a specific topic. Use `write_memory` for longer material and
-`read_memory` to open it. The automatic overview lists recent available notes
+`recall` for a specific topic. Use `write_memory` for named working notes,
+including short handoffs, and `read_memory` to open them. The automatic overview lists recent available notes
 by name, so writing one does not require a second write to an index. Existing
 `MEMORY.md` notes, including short inline entries, remain editable.
 

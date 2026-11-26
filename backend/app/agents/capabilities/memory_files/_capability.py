@@ -46,8 +46,9 @@ def _preamble(*, allow_personal: bool) -> str:
         "and `read_memory` for a relevant note. Use `list_memory` to find additional notes."
     )
     writing = (
-        "Record short, durable facts, preferences and decisions with `remember`. Use "
-        "`write_memory` for longer context, checklists or material worth opening separately. "
+        "Use `write_memory` for a requested note or a useful handoff, checklist or reference "
+        "for another conversation, even when the note is short. Use `remember` for durable "
+        "facts, preferences and decisions in the claim ledger. "
         f"The overview indexes notes automatically; avoid copying the same information into "
         f"`{INDEX_NAME}`. Do not save secrets or material the person would not expect you to keep."
     )
