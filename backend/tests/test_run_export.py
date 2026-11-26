@@ -328,6 +328,7 @@ class TestApprovalsExport:
             "triggered_by_user_id": uuid4(),
             "triggered_by_email": "who@example.com",
             "acts_for_user_id": None,
+            "platform_call": False,
             "decided_by_user_id": None,
             "decided_by_email": None,
             "decided_at": None,
