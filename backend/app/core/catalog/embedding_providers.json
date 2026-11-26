@@ -37,5 +37,13 @@
       { "model": "snowflake-arctic-embed", "dim": 1024 },
       { "model": "all-minilm", "dim": 384 }
     ]
+  },
+  {
+    "provider": "openai_compatible",
+    "name": "Custom (OpenAI-compatible)",
+    "base_url": null,
+    "keyless": false,
+    "any_model": true,
+    "models": []
   }
 ]

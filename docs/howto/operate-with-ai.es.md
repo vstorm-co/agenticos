@@ -1,5 +1,5 @@
 ---
-source_sha: "d2ccce975127"
+source_sha: "f20102760a53"
 ---
 
 # Gestionar AgenticOS con un cliente de IA { #operate-agenticos-with-an-ai-client }
@@ -37,7 +37,7 @@ onboarding son ejemplos, no una lista cerrada de casos compatibles.
 Los perfiles de modelo pueden usar IDs existentes del vault.
 `list_secret_references` muestra solo nombres, IDs, tipos y propósitos accesibles,
 sin valores ni fragmentos de claves. El descubrimiento de endpoints identifica
-servicios locales de embeddings. `get_setup_link` devuelve la entrada de secretos
+conexiones de servicio de embeddings. `get_setup_link` devuelve la entrada de secretos
 y el consentimiento OAuth a la sesión propia de la persona en la consola.
 Nunca pegue credenciales ni la dirección de callback OAuth en una conversación o paquete.
 

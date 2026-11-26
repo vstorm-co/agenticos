@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "cd212335ec61"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -203,6 +203,14 @@ zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego, tak
 profil przed gatewayem. Bez klucza dalej działa tylko profil celowo zapisany bez
 klucza ([Profil bez klucza](models.md#a-profile-without-a-key)).
 
+**Połączenia usług.** Połączenie embeddingowe w stylu zgodnym z OpenAI może wskazywać klucz z
+vaultu, klucz API o przeznaczeniu `openai_compatible`. Tylko połączenie należące do organizacji może go
+mieć; połączenie ogólnowdrożeniowe jest bezkluczowe. Przypięcie klucza to jego użyczenie, jak przy
+profilu modelu: jego wybór, przy tworzeniu i przy każdej zmianie klucza, wymaga `secrets:view` na tym
+kluczu. Usunięty klucz sprawia, że połączenie odmawia z nazwą zamiast wysyłać żądania bez niego, a
+wartość klucza nigdy nie trafia do wiersza połączenia, jego odpowiedzi API ani wpisów audytu. Rotacja
+wartości w miejscu nie testuje połączenia ponownie.
+
 **Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
 wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie
 konfiguruje się zamianę mowy na tekst: w domyślnym ustawieniu organizacji,
@@ -299,6 +307,7 @@ przynieść własny klucz:
 | Exa | `web_research` |
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
+| Docling Serve (cel `docling`) | Parsowanie dokumentów na Docling Serve hostowanym przez organizację; klucz jest opcjonalny, należy do połączenia należącego do organizacji i jest wysyłany jako `X-Api-Key` |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — mowa głosami z konta ElevenLabs organizacji |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — modele wideo Seedance od ByteDance |
 

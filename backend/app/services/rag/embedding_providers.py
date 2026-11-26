@@ -27,19 +27,25 @@ released this quarter should not be a diff in three modules. What interprets an
 entry stays here.
 
 An entry states what the provider's own documentation states it serves through an
-OpenAI-compatible `/embeddings` route. Three are listed today, and a fourth is one
+OpenAI-compatible `/embeddings` route. Four are listed today, and a fifth is one
 file entry: the models nobody can reach - `voyage-3`, the `bge-*` and
 `all-MiniLM-*` sentence-transformer weights - were offered by the create form for
 months on the strength of a width map, and the width of a model this build cannot
 call is not an answer to "can I use it".
 
-One of the three is not a vendor. `ollama` is an endpoint on the deployment's own
+One of the four is not a vendor. `ollama` is an endpoint on the deployment's own
 network, reached through Ollama's OpenAI-compatible root, and it takes no
 credential - so the file holds no address for it, and a collection embedding
-through it names a local service (`app/services/local_service.py`) that does, the
+through it names a service connection (`app/services/service_connection.py`) that does, the
 way a keyed collection names the vault key that pays. It is what lets a knowledge
 base stay on the deployment's own hardware (#1632), and the one way an app-scoped
 collection, which has no vault to hold a key, can embed at all (#1631).
+
+Another is not a vendor either. `openai_compatible` is any endpoint that speaks
+that route - a gateway, a self-hosted server - so the file states neither a model
+nor a width: the model is whatever the organization types, and the width is what the
+connection's test measured. It is reached through a service connection that may hold
+the key the endpoint wants.
 """
 
 from dataclasses import dataclass
@@ -49,6 +55,9 @@ from pydantic import TypeAdapter
 from app.core import catalog
 from app.core.field_errors import refused_field
 from app.services import model_catalog
+
+MAX_MEASURED_DIM = 4000
+"""The widest vector the vector store can index: HNSW over `halfvec` stops there."""
 
 
 @dataclass(frozen=True)
@@ -67,7 +76,7 @@ class EmbeddingProviderEntry:
     name: str
     # The OpenAI-compatible root the `/embeddings` call is made against. None for
     # a keyless provider: the file cannot know where somebody's Ollama runs, so a
-    # collection on one names a local service (`local_services`) that carries the
+    # collection on one names a service connection (`service_connections`) that carries the
     # address, the way a keyed collection names the vault key that pays.
     base_url: str | None
     # An endpoint on the deployment's own network that takes no credential. A
@@ -75,9 +84,21 @@ class EmbeddingProviderEntry:
     # collection - which has no vault - may embed only through one (#1631).
     keyless: bool
     models: tuple[EmbeddingModelEntry, ...]
+    # An endpoint whose model list the file cannot state: any model, at whatever
+    # width the endpoint answers with, measured when the connection is tested.
+    # Like a keyless provider it is reached through a service connection, which
+    # carries the address and - unlike one - may carry the key.
+    any_model: bool = False
+
+    @property
+    def via_connection(self) -> bool:
+        """Whether a collection on this provider names a service connection."""
+        return self.keyless or self.any_model
 
     def serves(self, model: str, dim: int) -> bool:
         """Whether this provider answers for `model` at exactly `dim`."""
+        if self.any_model:
+            return bool(model) and 1 <= dim <= MAX_MEASURED_DIM
         return any(entry.model == model and entry.dim == dim for entry in self.models)
 
 

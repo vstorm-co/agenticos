@@ -38,7 +38,7 @@ import { gapStatus } from "@/lib/knowledge-gap-status";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
 import { useUrlOverlay } from "@/hooks/use-url-state";
 import { overrideSize } from "@/lib/ingestion-config";
-import type { SyncSourceRead } from "@/lib/rag-api";
+import { retryKBDocument, type SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -236,7 +236,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           isLoading={isLoading}
           isUploading={isUploading}
           onRefresh={() => refresh()}
-          onEditParseOptions={() => setOverrideOpen(true)}
+          onEditSettings={() => setIngestionOpen(true)}
+          onUploadWithSettings={() => setOverrideOpen(true)}
           onChooseFiles={() => fileInputRef.current?.click()}
           onDelete={() => setDeletingCollection(true)}
         />
@@ -309,7 +310,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 setUploadUnit("");
               }}
             >
-              {t("clear")}
+              {t("revertPendingChanges")}
             </Button>
           </div>
         </div>
@@ -361,6 +362,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             onLoadMore={() => loadMoreDocuments()}
             onPreview={setViewerDoc}
             onRemove={setRemovingDocument}
+            onRetry={async (doc) => {
+              // A retry adds the file again, so it carries the departures pending
+              // for the next uploads, as the three upload paths do.
+              await retryKBDocument(doc.id, uploadOverride);
+              await refreshIngestion();
+            }}
             onChooseFiles={() => fileInputRef.current?.click()}
           />
         </TabsContent>

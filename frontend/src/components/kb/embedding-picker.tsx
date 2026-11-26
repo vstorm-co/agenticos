@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { InlineLocalService } from "@/components/kb/inline-local-service";
+import { InlineServiceConnection } from "@/components/kb/inline-service-connection";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -15,9 +15,13 @@ import {
   SelectValue,
   useDebounced,
 } from "@/components/ui";
-import { useLocalServices, usePermissions, useSecrets } from "@/hooks";
+import { useServiceConnections, usePermissions, useSecrets } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import { apiClient } from "@/lib/api-client";
+import {
+  SERVICE_CONNECTION_STYLES,
+  type ServiceConnectionStyle,
+} from "@/lib/service-connections-api";
 import type { EmbeddingModels, EndpointEmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -76,6 +80,11 @@ export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
   return { served: asks && typed === url ? data : undefined, checking };
 }
 
+/** The connection style a catalog provider is reached through, or null for a keyed provider. */
+function connectionStyle(provider: string): ServiceConnectionStyle | null {
+  return SERVICE_CONNECTION_STYLES.embedding.find((style) => style === provider) ?? null;
+}
+
 /**
  * Whose endpoint serves a collection's embedding model, and whose key pays.
  *
@@ -90,8 +99,13 @@ export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
  *
  * A keyless provider - an Ollama on the deployment's own network - asks a
  * different question: not whose key, but *which server*. It is drawn as a select
- * over the local services registered for that provider, the organization's own
- * and the deployment-wide ones, with the same way to add one in place.
+ * over the service connections registered for that provider, the organization's
+ * own and the deployment-wide ones, with the same way to add one in place.
+ *
+ * A custom provider (`any_model`) is reached the same way - through a connection
+ * of the OpenAI-compatible style, which holds its key - but serves whatever model
+ * its endpoint names, so the model is typed rather than chosen. Where the model
+ * is fixed by vectors already stored (`allowFreeModel` off) it is not offered.
  */
 export function EmbeddingProviderFields({
   models,
@@ -103,19 +117,27 @@ export function EmbeddingProviderFields({
   onProvider,
   onSecretId,
   onEndpointId,
+  model,
+  onModel,
+  allowFreeModel,
   idPrefix,
 }: {
   models: EmbeddingModels;
   provider: string;
   /** The chosen vault key, or null while none is. */
   secretId: string | null;
-  /** The chosen local service for a keyless provider, or null while none is. */
+  /** The chosen service connection for a keyless or custom provider, or null while none is. */
   endpointId: string | null;
   baseUrl: string;
   onBaseUrl: (url: string) => void;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
   onEndpointId: (endpointId: string | null) => void;
+  /** The typed model of a custom provider. */
+  model: string;
+  onModel: (model: string) => void;
+  /** Whether a custom provider's model may be typed here. */
+  allowFreeModel: boolean;
   /** So two of these on one screen do not share an input id. */
   idPrefix: string;
 }) {
@@ -123,12 +145,14 @@ export function EmbeddingProviderFields({
   const { secrets } = useSecrets();
   const { can } = usePermissions();
   const entry = models.providers.find((item) => item.provider === provider);
-  const keyless = entry?.keyless === true;
-  const { services } = useLocalServices(keyless);
+  const anyModel = entry?.any_model === true;
+  const viaConnection = entry?.keyless === true || anyModel;
+  const { connections } = useServiceConnections(viaConnection);
   const keys = secrets.filter((secret) => secret.purpose === provider);
-  const servers = services.filter(
+  const servers = connections.filter(
     (service) => service.kind === "embedding" && service.provider === provider && service.is_active,
   );
+  const style = connectionStyle(provider);
 
   return (
     <>
@@ -172,7 +196,7 @@ export function EmbeddingProviderFields({
           <p className="text-muted-foreground text-xs">{t("embeddingEndpointHint")}</p>
         </div>
       )}
-      {keyless ? (
+      {viaConnection ? (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-server`}>{t("server")}</Label>
           <Select value={endpointId ?? ""} onValueChange={onEndpointId}>
@@ -194,10 +218,26 @@ export function EmbeddingProviderFields({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-muted-foreground text-xs">
-            {t("keylessProvider", { provider: entry.name })}
-          </p>
-          <InlineLocalService kind="embedding" provider={provider} onCreated={onEndpointId} />
+          {!anyModel && (
+            <p className="text-muted-foreground text-xs">
+              {t("keylessProvider", { provider: entry?.name ?? provider })}
+            </p>
+          )}
+          {style !== null && (
+            <InlineServiceConnection kind="embedding" provider={style} onCreated={onEndpointId} />
+          )}
+          {anyModel && allowFreeModel && (
+            <div className="space-y-1.5 pt-2">
+              <Label htmlFor={`${idPrefix}-custom-model`}>{t("customModel")}</Label>
+              <Input
+                id={`${idPrefix}-custom-model`}
+                value={model}
+                onChange={(event) => onModel(event.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-muted-foreground text-xs">{t("customModelHint")}</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-1.5">

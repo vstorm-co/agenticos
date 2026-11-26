@@ -12,8 +12,8 @@ from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
 from app.schemas.eval_suite import EvalSuiteCreate, EvalSuiteEstimateRequest, EvalSuiteUpdate
-from app.schemas.local_service import LocalServiceCreate
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
+from app.schemas.service_connection import ServiceConnectionCreate
 from app.schemas.solution import SolutionInstall, SolutionManifest
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.platform_mcp._tools import platform_tools
@@ -62,11 +62,11 @@ def tools(api: MagicMock) -> dict[str, Tool]:
             "PATCH",
             f"/providers/model-profiles/{PATH_ID}",
         ),
-        ("list_embedding_endpoints", {}, "GET", "/local-services"),
+        ("list_embedding_endpoints", {}, "GET", "/service-connections"),
         (
             "create_embedding_endpoint",
             {
-                "service": LocalServiceCreate(
+                "service": ServiceConnectionCreate(
                     name="Embeddings",
                     kind="embedding",
                     provider="ollama",
@@ -74,7 +74,7 @@ def tools(api: MagicMock) -> dict[str, Tool]:
                 )
             },
             "POST",
-            "/local-services",
+            "/service-connections",
         ),
         ("get_knowledge_base", {"kb_id": IDENTITY}, "GET", f"/kb/{PATH_ID}"),
         (
@@ -260,7 +260,7 @@ async def test_partial_updates_preserve_omitted_fields_and_explicit_nulls(api: M
 async def test_embedding_tool_refuses_other_kinds_and_deployment_authority(
     api: MagicMock, kind: str, wide: bool
 ) -> None:
-    service = LocalServiceCreate.model_validate(
+    service = ServiceConnectionCreate.model_validate(
         {
             "name": "Service",
             "kind": kind,

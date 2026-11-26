@@ -751,6 +751,7 @@ export const qk = {
     // three sources feeding it - in one call.
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
+    probeEstimate: (id: string) => ["kb", id, "embedding-probe-estimate"] as const,
     // The three sources feeding a collection, each its own key so a failure in
     // one is that section's rather than the page's. They sit behind
     // `connections:manage`, so a member who may read the collection but not the
@@ -894,9 +895,10 @@ export const qk = {
     // showing every decided proposal must not overwrite it in the cache.
     list: (status: string) => ["skill-changes", "list", status] as const,
   },
-  localServices: {
-    all: () => ["local-services"] as const,
-    list: () => ["local-services", "list"] as const,
+  serviceConnections: {
+    all: () => ["service-connections"] as const,
+    list: () => ["service-connections", "list"] as const,
+    probeEstimate: (id: string) => ["service-connections", id, "probe-estimate"] as const,
   },
   wikiGraph: {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,

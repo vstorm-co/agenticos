@@ -1909,7 +1909,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         There is no deployment-wide embedding default: name the provider, and the
         vault key that pays for it (`embedding_secret_id`) - or, for a keyless
-        provider, the local service it answers at (`embedding_endpoint_id`). The
+        provider, the service connection it answers at (`embedding_endpoint_id`). The
         easiest source is a knowledge base that already works: `list_knowledge_bases`
         shows each one's `embedding_provider`, `embedding_model`, `embedding_secret_id`
         and `embedding_endpoint_id`. `list_embedding_models` lists what this

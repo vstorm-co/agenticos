@@ -108,6 +108,7 @@ class TestWhatAnUploadRecords:
         ):
             config_service.return_value.check_embedding_model = MagicMock()
             config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
+            config_service.return_value.check_docling_connection = AsyncMock(return_value=None)
             await service.dispatch_upload(
                 ctx=MagicMock(organization_id=uuid.uuid4(), user_id=uuid.uuid4()),
                 collection=collection,

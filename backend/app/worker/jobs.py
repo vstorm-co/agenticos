@@ -204,6 +204,8 @@ class IngestDocument(Payload):
     replace: bool
     attempt: int
     """Which dispatch of the document this is (#1598) - not the job's attempt."""
+    replace_own_only: bool = False
+    """A retry's replace: only what no *other* row tracks, never another upload's copy."""
 
 
 class SyncCollection(Payload):

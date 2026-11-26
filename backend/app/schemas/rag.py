@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import Field, computed_field, field_validator
 
 from app.schemas.base import BaseSchema
+from app.services.ingestion_config import IngestionOverride
 from app.services.rag.citation import cited_page
 from app.services.rag.config import DEFAULT_COLLECTION_NAME
 from app.services.rag.filters import RetrievalFilters
@@ -227,6 +228,20 @@ class RAGIngestResponse(BaseSchema):
     document_id: str | None = None
 
 
+class RAGRetryRequest(BaseSchema):
+    """What a retry parses with, beyond the collection's current settings."""
+
+    ingestion_override: IngestionOverride | None = Field(
+        default=None,
+        description=(
+            "Departures from the collection's settings for this file, the same ones an "
+            "upload takes. They replace the ones the file was uploaded with; empty or "
+            "null means the collection's settings alone. Send no body to keep the "
+            "file's own."
+        ),
+    )
+
+
 class RAGRetryResponse(BaseSchema):
     """Response for document retry."""
 
@@ -305,6 +320,9 @@ class EmbeddingProviderEntry(BaseSchema):
     # An endpoint on the deployment's own network that takes no key, so the form
     # asks for none - and the only kind an app-scoped collection may embed through.
     keyless: bool
+    # The model is typed rather than listed, and its width is measured: `models` is
+    # empty and the form asks for a name.
+    any_model: bool
 
 
 class EmbeddingModelsResponse(BaseSchema):

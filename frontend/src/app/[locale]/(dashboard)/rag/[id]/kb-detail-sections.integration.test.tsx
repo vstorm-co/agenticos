@@ -466,12 +466,10 @@ describe("write controls follow access to this base", () => {
     await renderPage();
     await screen.findByRole("button", { name: "pages.kb.refresh" });
     if (canEdit) {
-      expect(screen.getByRole("button", { name: "pages.kb.parseOptions" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "pages.kb.settings" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "pages.kb.moreActions" })).toBeInTheDocument();
     } else {
-      expect(
-        screen.queryByRole("button", { name: "pages.kb.parseOptions" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "pages.kb.settings" })).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "pages.kb.moreActions" }),
       ).not.toBeInTheDocument();

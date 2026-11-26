@@ -99,7 +99,7 @@ from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
-from app.services.local_service import LocalServiceService
+from app.services.service_connection import ServiceConnectionService
 from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
@@ -211,11 +211,11 @@ def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
 SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
 
 
-def get_local_service_service(db: DBSession) -> LocalServiceService:
-    return LocalServiceService(db)
+def get_service_connection_service(db: DBSession) -> ServiceConnectionService:
+    return ServiceConnectionService(db)
 
 
-LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+ServiceConnectionSvc = Annotated[ServiceConnectionService, Depends(get_service_connection_service)]
 
 
 def get_ml_service(db: DBSession) -> MLService:
@@ -2185,6 +2185,18 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
+
+from app.services.embedding_probe import EmbeddingProbeService
+
+
+def get_embedding_probe_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> EmbeddingProbeService:
+    """Create EmbeddingProbeService with the database session and the vector store."""
+    return EmbeddingProbeService(db, vector_store)
+
+
+EmbeddingProbeSvc = Annotated[EmbeddingProbeService, Depends(get_embedding_probe_service)]
 
 from app.services.case_generation import CaseGenerationService
 

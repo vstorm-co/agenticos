@@ -973,7 +973,7 @@ class Settings(BaseSettings):
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local
-    # embedding or OCR server answers is a `local_services` row an organization
+    # embedding or OCR server answers is a `service_connections` row an organization
     # (or the deployment's administrator) registers in the product; a LlamaParse
     # key is a vault entry the collection's ingestion configuration names. Each
     # of these was an environment variable once, and each was one address or one

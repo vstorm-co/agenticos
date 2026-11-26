@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronDown,
   Loader2,
   MoreHorizontal,
   RefreshCw,
@@ -38,7 +39,8 @@ export function KBDetailHeader({
   isLoading,
   isUploading,
   onRefresh,
-  onEditParseOptions,
+  onEditSettings,
+  onUploadWithSettings,
   onChooseFiles,
   onDelete,
 }: {
@@ -47,7 +49,10 @@ export function KBDetailHeader({
   isLoading: boolean;
   isUploading: boolean;
   onRefresh: () => void;
-  onEditParseOptions: () => void;
+  /** Opens the collection's own settings - how every later document is read. */
+  onEditSettings: () => void;
+  /** Opens the departures for the next uploads only; the collection is unchanged. */
+  onUploadWithSettings: () => void;
   onChooseFiles: () => void;
   /** Asks for the deletion; the page owns the confirmation and the call. */
   onDelete: () => void;
@@ -76,9 +81,9 @@ export function KBDetailHeader({
           </Button>
           {mayEdit && (
             <>
-              <Button variant="outline" onClick={onEditParseOptions} disabled={isUploading}>
+              <Button variant="outline" onClick={onEditSettings}>
                 <SlidersHorizontal className="h-4 w-4" />
-                {t("parseOptions")}
+                {t("settings")}
               </Button>
 
               {/* Behind a menu, not beside Refresh: destroying the collection
@@ -114,14 +119,37 @@ export function KBDetailHeader({
       }
       actions={
         mayEdit && (
-          <Button onClick={onChooseFiles} disabled={isUploading}>
-            {isUploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="h-4 w-4" />
-            )}
-            {isUploading ? t("uploading") : t("upload")}
-          </Button>
+          // The per-upload departures sit on the action they modify, behind the
+          // arrow: the collection's own settings are the header's Settings, and a
+          // one-off is the exception, not the way settings are changed.
+          <div className="flex items-center">
+            <Button onClick={onChooseFiles} disabled={isUploading} className="rounded-r-none">
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {isUploading ? t("uploading") : t("upload")}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  disabled={isUploading}
+                  className="border-primary-foreground/20 rounded-l-none border-l"
+                  aria-label={t("uploadOptions")}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={onUploadWithSettings}>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {t("uploadWithDifferentSettings")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )
       }
     />

@@ -82,6 +82,7 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
             provider: "openrouter",
             name: "OpenRouter",
             keyless: false,
+            any_model: false,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],
@@ -365,7 +366,9 @@ describe("search", () => {
     await waitFor(() => expect(screen.getByText("handbook.pdf")).toBeInTheDocument());
     expect(screen.getByText("0.874")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Handbook/ })).toHaveAttribute("href", "/rag/kb-1");
-    expect(screen.getByText("Vacations are requested through the portal.")).toBeInTheDocument();
+    // The query's word is marked inside the chunk, and the chunk still reads whole.
+    const marked = screen.getByText("Vacation", { selector: "mark" });
+    expect(marked.parentElement).toHaveTextContent("Vacations are requested through the portal.");
     expect(screen.getByText("rag.search.page")).toBeInTheDocument();
   });
 

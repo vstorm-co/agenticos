@@ -38,10 +38,11 @@ class TestTheCatalog:
 
     def test_a_keyed_provider_states_a_vendor_address_and_a_keyless_one_states_none(self):
         """The file cannot know where somebody's Ollama runs, so a keyless entry
-        carries no address - the collection names a local service that does; a
-        keyed entry is a vendor across the internet, reached over TLS."""
+        carries no address - the collection names a service connection that does; a
+        keyed entry is a vendor across the internet, reached over TLS. The custom
+        entry is neither: its connection holds the address."""
         for entry in embedding_providers.providers():
-            if entry.keyless:
+            if entry.via_connection:
                 assert entry.base_url is None
             else:
                 assert entry.base_url is not None
@@ -50,7 +51,7 @@ class TestTheCatalog:
 
 class TestAKeylessProvider:
     def test_is_offered_and_carries_no_address_of_its_own(self):
-        """A collection on it names a local service for the address (#1632)."""
+        """A collection on it names a service connection for the address (#1632)."""
         offered = embedding_providers.get("ollama")
 
         assert offered is not None
@@ -79,6 +80,39 @@ class TestTheFirstEntry:
         org-scoped and waits for a key, and the first entry is the one it waits
         for a key *for*."""
         assert not embedding_providers.first().keyless
+
+
+class TestTheCustomProvider:
+    def test_the_custom_provider_is_appended_last_and_first_is_unchanged(self):
+        assert embedding_providers.providers()[-1].provider == "openai_compatible"
+        assert embedding_providers.first().provider == "openrouter"
+
+    def test_the_custom_provider_serves_any_model_at_a_width_from_1_to_4000(self):
+        entry = embedding_providers.get("openai_compatible")
+
+        assert entry is not None
+        assert entry.any_model and entry.via_connection and not entry.keyless
+        assert entry.serves("my-embed", 1)
+        assert entry.serves("x", 4000)
+        assert not entry.serves("x", 0)
+        assert not entry.serves("x", 4001)
+        assert not entry.serves("", 768)
+
+    def test_a_catalog_provider_still_refuses_an_unknown_model(self):
+        with pytest.raises(BadRequestError):
+            embedding_providers.require("openai", model="my-embed", dim=1024)
+
+    def test_requiring_the_custom_provider_accepts_a_typed_model(self):
+        assert (
+            embedding_providers.require("openai_compatible", model="corp", dim=1024).provider
+            == "openai_compatible"
+        )
+
+    def test_only_a_provider_with_no_address_of_its_own_is_reached_through_a_connection(self):
+        assert [e.provider for e in embedding_providers.providers() if e.via_connection] == [
+            "ollama",
+            "openai_compatible",
+        ]
 
 
 class TestRequiringOne:

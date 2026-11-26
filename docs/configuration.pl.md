@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "af9646108f6e"
 ---
 
 # Konfiguracja { #configuration }
@@ -738,14 +738,17 @@ przypina tutaj każdy plik compose.
 
 Nic tutaj. Każda kolekcja sama wskazuje providera, przez którego embeduje,
 model, oraz albo klucz w vaulcie organizacji, który za to płaci, albo — dla
-bezkluczowego providera `ollama` — **usługę lokalną**, wiersz w
+bezkluczowego providera `ollama` — **połączenie usługi**, wiersz w
 Knowledge → Integrations mówiący, gdzie odpowiada Ollama wdrożenia albo
-organizacji. Zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+organizacji. Własny provider `openai_compatible` też bierze połączenie, z modelem wpisanym jako tekst
+i opcjonalnym kluczem z vaultu organizacji; klucz może mieć tylko połączenie należące do organizacji,
+połączenie, które go ma, nie może go stracić, a połączenie ogólnowdrożeniowe jest bezkluczowe. API to
+`/api/v1/service-connections`. Zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Były tu kiedyś dwie zmienne. `EMBEDDING_MODEL` preselekcjonowała model dla nowych
 kolekcji i została usunięta: formularz oferuje modele, które serwuje wybrany
 provider. `EMBEDDING_OLLAMA_BASE_URL` wskazywała jedną Ollamę dla całego
-wdrożenia, a teraz jest usługą lokalną, per organizacja albo ogólnowdrożeniową.
+wdrożenia, a teraz jest połączeniem usługi, per organizacja albo ogólnowdrożeniową.
 
 ### Parsowanie dokumentów — konfigurowane per kolekcja, nie tutaj { #document-parsing-configured-per-collection-not-here }
 
@@ -766,7 +769,7 @@ Dwie rzeczy, które kiedyś tu zostawały, są teraz wierszami w produkcie. Kluc
 LlamaParse to wpis w vaulcie, wskazywany przez konfigurację ingestii kolekcji
 (`llamaparse_secret_id`), a kolekcja na LlamaParse bez niego jest odrzucana już
 przy formularzu — `LLAMAPARSE_API_KEY` zniknęła. Serwer OCR, do którego LiteParse
-wysyła strony, to usługa lokalna rodzaju `ocr` w Knowledge → Integrations,
+wysyła strony, to połączenie usługi rodzaju `ocr` w Knowledge → Integrations,
 wybierana per kolekcja (`ocr_endpoint_id`), zarejestrowana przez operatora
 organizacji albo — dla wszystkich organizacji — przez administratora wdrożenia;
 `LITEPARSE_OCR_SERVER_URL` też zniknęła. Żadna z nich nie była widoczna dla

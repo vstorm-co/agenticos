@@ -1187,14 +1187,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsManage,
     optional: true,
   },
-  // The servers on the deployment's own network a collection may embed through
-  // or OCR with. Same tab and same gate as the integrations above: the section
+  // The endpoints - an Ollama, an OpenAI-compatible gateway, an OCR server - a
+  // collection may embed through or OCR with. Same tab and same gate as the integrations above: the section
   // renders only for `connections:manage`, and its header always does once it
   // renders, so the stop is not optional.
   {
-    id: "knowledge-local-services",
+    id: "knowledge-service-connections",
     page: ROUTES.RAG,
-    target: "knowledge-local-services",
+    target: "knowledge-service-connections",
     activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
   },

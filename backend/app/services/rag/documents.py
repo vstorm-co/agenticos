@@ -24,6 +24,7 @@ from app.services.rag.config import (
     LITEPARSE_PDF_FORMATS,
     LLAMAPARSE_PDF_FORMATS,
     PYMUPDF_PDF_FORMATS,
+    TEXT_FORMATS,
     DocumentExtensions,
     PdfParser,
     RAGSettings,
@@ -40,6 +41,8 @@ from app.services.rag.models import (
 if TYPE_CHECKING:
     from pymupdf import Document as PDFDocument
     from pymupdf import Page as PDFPage
+
+    from app.services.rag.docling import ParserTaskStore
 
 
 logger = logging.getLogger(__name__)
@@ -132,52 +135,87 @@ class TextDocumentParser(BaseDocumentParser):
         return self._parse_text_file(filepath)
 
 
-class DocxDocumentParser(BaseDocumentParser):
-    """Parser for DOCX documents using python-docx.
+def _markdown_cell(text: str) -> str:
+    """One table cell's text, safe inside a markdown row."""
+    return " ".join(text.split()).replace("|", "\\|")
 
-    Extracts text content from Microsoft Word documents by reading
-    all paragraphs and joining them with newline characters.
+
+def _markdown_table(table: Any) -> str:
+    """A Word table as a markdown table, its first row as the header.
+
+    Merged cells repeat their text in every grid position they span - that is
+    how python-docx reports them, and it keeps every row the same width.
+    """
+    rows = [[_markdown_cell(cell.text) for cell in row.cells] for row in table.rows]
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * width]
+    lines += ["| " + " | ".join(row) + " |" for row in rows[1:]]
+    return "\n".join(lines)
+
+
+def _markdown_heading(paragraph: Any) -> str:
+    """A paragraph's text, as a markdown heading when its style is one."""
+    text = paragraph.text.strip()
+    if not text:
+        return ""
+    style = (paragraph.style.name if paragraph.style is not None else "") or ""
+    if style == "Title":
+        return f"# {text}"
+    if style.startswith("Heading "):
+        level = style.removeprefix("Heading ")
+        if level.isdigit():
+            return f"{'#' * min(int(level), 6)} {text}"
+    return text
+
+
+class DocxDocumentParser(BaseDocumentParser):
+    """Reads a Word document when the collection's parser does not.
+
+    PyMuPDF opens a `.docx` but lays it out without its tables - a free MuPDF
+    renders a Word table as a column of cells with no borders and no structure
+    (`find_tables` finds nothing), and only the commercial PyMuPDF Pro reads
+    Office layout faithfully. So a `.docx` under PyMuPDF comes here instead, and
+    the body is read in document order: headings as markdown headings, tables
+    as markdown tables, every other paragraph as text. One page: Word has no
+    pages until something lays it out, and citations treat `.docx` as unpaged.
     """
 
     allowed = [".docx"]
 
-    def _parse_docx_file(self, filepath: Path) -> Document:
-        """Extract raw text from the DOCX file.
-
-        Args:
-            filepath: Path to the DOCX file.
-
-        Returns:
-            Document object with the file content.
-        """
-        # Imported where a .docx is parsed: every API worker and background worker loads
-        # this module, and most never parse a document (#2225).
-        from docx import Document as DOCXDocument
-
-        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
-        # and a few megabytes of upload can inflate to gigabytes in python-docx -
-        # a child the memory watchdog kills, over and over (Codex, #2248). Over a
-        # bound is a `ValueError`, the document's own failure, not a death.
-        file: Any = DOCXDocument(safe_unzip(filepath.read_bytes()))
-        page = DocumentPage(page_num=1, content="\n".join([p.text for p in file.paragraphs]))
-        return Document(pages=[page], metadata=self.get_document_metadata(filepath))
-
     async def parse(self, filepath: Path) -> Document:
-        """Parse a DOCX file.
-
-        Args:
-            filepath: Path to the DOCX file.
-
-        Returns:
-            Document object with parsed content.
+        """Read a `.docx` into one page of markdown.
 
         Raises:
-            ValueError: If the file is not a DOCX file.
+            ValueError: If the file is not a `.docx`, or unpacks past the
+                archive bounds.
         """
         if not self.is_extension_allowed(filepath):
             raise ValueError(f"Extension {filepath.suffix} not supported by DocxDocumentParser")
+        # Unzipping and parsing a large document is CPU work; off the event loop.
+        return await asyncio.to_thread(self._read, filepath)
 
-        return self._parse_docx_file(filepath)
+    def _read(self, filepath: Path) -> Document:
+        # Imported where a .docx is read: every worker loads this module, and most
+        # never read one (#2225).
+        from docx import Document as WordDocument
+        from docx.table import Table
+
+        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
+        # and a few megabytes can inflate to gigabytes (#2248). Over a bound is a
+        # `ValueError`, the document's own failure.
+        word: Any = WordDocument(safe_unzip(filepath.read_bytes()))
+        blocks = [
+            _markdown_table(block) if isinstance(block, Table) else _markdown_heading(block)
+            for block in word.iter_inner_content()
+        ]
+        content = "\n\n".join(block for block in blocks if block)
+        return Document(
+            pages=[DocumentPage(page_num=1, content=content)],
+            metadata=self.get_document_metadata(filepath),
+        )
 
 
 class PyMuPDFParser(BaseDocumentParser):
@@ -194,8 +232,8 @@ class PyMuPDFParser(BaseDocumentParser):
 
     MIN_TEXT_LENGTH = 50  # below this -> likely a scan, try OCR
 
-    # PDFs only. The base class allows what the *pipeline* reads, which includes
-    # the three formats the Python-native parsers take; this parser is never
+    # PDFs and `.docx`. The base class allows what the *pipeline* reads, which
+    # includes the formats the built-in text reader takes; this parser is never
     # routed them, and saying so here keeps `is_extension_allowed` honest.
     allowed = sorted(PYMUPDF_PDF_FORMATS)
 
@@ -305,7 +343,9 @@ class PyMuPDFParser(BaseDocumentParser):
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
-        # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
+        # Imported where a PDF is parsed: every API worker and background worker loads
+        # this module, and most never parse a document (#2225). The OOXML bound for
+        # `.docx` is applied by `DocumentProcessor.process_file` before this runs.
         import pymupdf
 
         with pymupdf.open(filepath) as doc:
@@ -645,12 +685,18 @@ class LiteParseParser(BaseDocumentParser):
         )
 
 
+_OOXML_FORMATS = frozenset({".docx", ".pptx", ".xlsx"})
+
+
 class PdfParserFactory:
     """Builds the parser a collection's stored configuration asks for."""
 
     @staticmethod
     def create(
-        parser_name: str, settings: RAGSettings | None = None, image_describer: Any = None
+        parser_name: str,
+        settings: RAGSettings | None = None,
+        image_describer: Any = None,
+        task_store: ParserTaskStore | None = None,
     ) -> BaseDocumentParser:
         if parser_name == "llamaparse":
             if not settings or not settings.pdf_parser.api_key:
@@ -673,10 +719,36 @@ class PdfParserFactory:
                 dpi=pdf.liteparse_dpi,
                 max_pages=pdf.liteparse_max_pages,
             )
-        return PyMuPDFParser(
-            enable_ocr=settings.enable_ocr if settings else False,
-            image_describer=image_describer,
-        )
+        if parser_name == "docling":
+            # Imported here: `docling` builds on this module's parser base class.
+            from app.services.rag.docling import DoclingOptions, DoclingParser, DoclingTarget
+
+            pdf = settings.pdf_parser if settings else PdfParser()
+            if settings is None or not pdf.docling_base_url:
+                raise ValueError("Docling needs the collection's connection, and none was resolved")
+            return DoclingParser(
+                target=DoclingTarget(
+                    connection_id=pdf.docling_connection_id,
+                    base_url=pdf.docling_base_url,
+                    api_key=pdf.docling_api_key or None,
+                ),
+                options=DoclingOptions(
+                    do_ocr=settings.enable_ocr,
+                    force_ocr=settings.enable_ocr and not pdf.liteparse_auto_ocr,
+                    ocr_languages=tuple(pdf.docling_ocr_languages),
+                    ocr_preset=pdf.docling_ocr_preset,
+                    table_mode=pdf.docling_table_mode,
+                    max_pages=pdf.liteparse_max_pages,
+                    timeout_seconds=pdf.liteparse_timeout_seconds,
+                ),
+                task_store=task_store,
+            )
+        if parser_name == "pymupdf":
+            return PyMuPDFParser(
+                enable_ocr=settings.enable_ocr if settings else False,
+                image_describer=image_describer,
+            )
+        raise ValueError(f"Unknown parser {parser_name!r}")
 
 
 class DocumentProcessor:
@@ -687,12 +759,17 @@ class DocumentProcessor:
     2. Parse document content
     3. Chunk document pages using RecursiveCharacterTextSplitter
     Supported file types:
-    - TXT, MD: TextDocumentParser (Python native)
-    - DOCX: DocxDocumentParser (Python native)
-    - PDF: PdfParserFactory selects PyMuPDF, LlamaParse, or LiteParse at runtime
+    - TXT, MD: TextDocumentParser (built in)
+    - everything else the chosen parser claims, DOCX included:
+      PdfParserFactory selects PyMuPDF, LlamaParse, LiteParse or Docling at runtime
     """
 
-    def __init__(self, settings: RAGSettings, image_describer: BaseImageDescriber | None = None):
+    def __init__(
+        self,
+        settings: RAGSettings,
+        image_describer: BaseImageDescriber | None = None,
+        parser_task_store: ParserTaskStore | None = None,
+    ):
         """Initialize the document processor.
 
         Args:
@@ -704,6 +781,9 @@ class DocumentProcessor:
                 sealed for that collection's organization - neither of which
                 this class can see. See
                 :class:`app.services.ingestion_config.IngestionConfigService`.
+            parser_task_store: Where a parser that hands the file to a remote
+                service keeps the task it started, so a retry collects it
+                instead of submitting the file again. Only Docling uses it.
         """
         self.settings = settings
         self.splitter = self._create_splitter(settings)
@@ -715,6 +795,7 @@ class DocumentProcessor:
             parser_name=settings.pdf_parser.method,
             settings=settings,
             image_describer=self.image_describer,
+            task_store=parser_task_store,
         )
 
     @staticmethod
@@ -771,17 +852,26 @@ class DocumentProcessor:
             ValueError: If the configured parser cannot read the file type.
         """
         suffix = filepath.suffix.lower()
-        if suffix in (".txt", ".md"):
+        if suffix in TEXT_FORMATS:
             document = await self.text_parser.parse(filepath)
-        elif suffix == ".docx":
-            document = await self.docx_parser.parse(filepath)
         elif suffix in self.pdf_parser.allowed:
             # Not only `.pdf`: LlamaParse is routed the spreadsheets, decks and
             # images it accepts. Asking the parser what it takes, rather than
             # naming extensions here, is what keeps this branch in step with
             # `PARSER_FORMATS` - the set the upload endpoint validated against
             # before the file ever reached a worker.
+            if suffix in _OOXML_FORMATS:
+                # A DOCX, PPTX or XLSX is a ZIP: a few megabytes of upload can
+                # inflate to gigabytes in a parser, a child the memory watchdog
+                # kills on every attempt (#2248). Unzipped under the chat's
+                # bounds first and the result discarded, so over a bound is a
+                # `ValueError`, the document's own failure, whichever parser
+                # reads it.
+                safe_unzip(filepath.read_bytes())
             document = await self.pdf_parser.parse(filepath)
+        elif suffix in self.docx_parser.allowed:
+            # The chosen parser does not read Word; the built-in reader does.
+            document = await self.docx_parser.parse(filepath)
         else:
             raise ValueError(
                 f"Unsupported file type: {suffix}. "

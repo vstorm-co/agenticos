@@ -87,6 +87,15 @@ class TestTheCatalog:
         assert entry is not None
         assert entry.kind is SecretKind.API_KEY
 
+    def test_docling_can_be_keyed_and_has_a_consumer(self):
+        """A Docling connection's key is chosen from the vault by this id."""
+        from app.services.service_connection import KEY_PURPOSES
+
+        entry = secret_purposes.get("docling")
+        assert entry is not None
+        assert entry.kind is SecretKind.API_KEY
+        assert entry.id in KEY_PURPOSES.values()
+
     def test_custom_is_last_and_is_not_a_model_provider(self):
         purposes = secret_purposes.all_purposes()
         assert purposes[-1].id == "custom"

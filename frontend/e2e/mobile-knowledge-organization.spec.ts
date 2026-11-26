@@ -24,7 +24,7 @@ test("phone knowledge forms preserve a refused save, then index and search a fil
   test.setTimeout(150_000);
   await page.goto("/rag");
   const serverName = `Embedding fixture ${Date.now().toString(36)}`;
-  const createdServer = await page.request.post("/api/local-services", {
+  const createdServer = await page.request.post("/api/service-connections", {
     data: {
       name: serverName,
       kind: "embedding",
@@ -158,7 +158,7 @@ test("phone knowledge forms preserve a refused save, then index and search a fil
   await query.fill("Annual leave entitlement");
   await expect(page.getByRole("main").getByText(policy, { exact: true })).toHaveCount(0);
   expect((await page.request.delete(`/api/kb/${kbId}`)).ok()).toBe(true);
-  expect((await page.request.delete(`/api/local-services/${server.id}`)).ok()).toBe(true);
+  expect((await page.request.delete(`/api/service-connections/${server.id}`)).ok()).toBe(true);
 });
 
 test("phone organization forms save identity, budget, voice and retention", async ({ page }) => {

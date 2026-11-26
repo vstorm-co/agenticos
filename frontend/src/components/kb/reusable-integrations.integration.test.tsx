@@ -75,7 +75,7 @@ function serve(
   role: OrgRole,
   sources: SyncSourceRead[],
   connectorsAvailable = true,
-  localServices = false,
+  serviceConnections = false,
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions")
@@ -90,9 +90,9 @@ function serve(
             ? [{ permission: "connections:manage", scope: "all" }]
             : [],
       };
-    if (path === "/local-services")
+    if (path === "/service-connections")
       return {
-        items: localServices
+        items: serviceConnections
           ? [
               {
                 id: "local-1",
@@ -107,7 +107,7 @@ function serve(
               },
             ]
           : [],
-        total: localServices ? 1 : 0,
+        total: serviceConnections ? 1 : 0,
       };
     if (path === `/orgs/${ORG_ID}/integrations`) return { items: sources, total: sources.length };
     if (path === `/orgs/${ORG_ID}/integrations/connectors`)
@@ -151,9 +151,9 @@ describe("KnowledgeIntegrations", () => {
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(within(table).getByText("Handbook drive")).toBeVisible();
     expect(within(table).getByText("Google Drive")).toBeVisible();
-    expect(within(table).getByText("Embedding server (Ollama)")).toBeVisible();
+    expect(within(table).getByText("Embedding server")).toBeVisible();
     const serviceRow = screen.getByText("Office embeddings").closest("tr");
-    if (!serviceRow) throw new Error("Missing local service row");
+    if (!serviceRow) throw new Error("Missing service connection row");
     expect(
       within(serviceRow).queryByRole("button", { name: "Use in knowledge base" }),
     ).not.toBeInTheDocument();

@@ -542,6 +542,12 @@ profile with an endpoint: a key filed under a vendor names that vendor.
 the dropdown offers what your server actually serves. The model id stays free
 text: a server that publishes no list can still be used by typing the id.
 
+**Embeddings through the same gateway.** A gateway reached by a `openai_compatible` chat profile can
+embed too: register it under Knowledge → Integrations as a **service connection** with API style
+*OpenAI-compatible* and choose the same vault key (its purpose is `openai_compatible`). The collection
+then uses the **Custom (OpenAI-compatible)** embedding provider with a model you type, after a Test
+against its stored chunks. See [File processing](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
+
 ### When the credential is not an API key
 
 | Provider | id | Credential |

@@ -1,5 +1,5 @@
 ---
-source_sha: "bd9c21e1a80b"
+source_sha: "c07aa10da6a0"
 ---
 
 # Zbuduj bazę wiedzy { #set-up-a-knowledge-base }
@@ -39,11 +39,14 @@ formularz obok listy go zapisze. Providera i klucz można zmienić później, mo
 nie — zobacz [Przetwarzanie plików](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Na liście providerów jest też **Ollama**. Nie bierze klucza: wybierz ją, jeden z
-jej modeli i **serwer**, pod którym odpowiada — usługę lokalną zarejestrowaną w
+jej modeli i **serwer**, pod którym odpowiada — połączenie usługi zarejestrowane w
 Knowledge → Integrations, własną organizacji albo taką, którą administrator
 wdrożenia zarejestrował dla wszystkich — a dokumenty kolekcji nigdy nie opuszczą
 sieci samego wdrożenia. Ta sama zakładka trzyma serwery OCR dla LiteParse,
-wybierane w ustawieniach parsowania.
+wybierane w ustawieniach parsowania. Aby embedować przez gateway zgodny z OpenAI, dodaj go tam jako
+połączenie ze stylem API *OpenAI-compatible* i, jeśli chce klucza, kluczem z vaultu organizacji; potem
+wybierz **Custom (OpenAI-compatible)**, wpisz model i naciśnij **Test** przed utworzeniem kolekcji.
+Późniejsze przeniesienie na inny endpoint jest testowane na zapisanych chunkach tak samo.
 
 Knowledge base utworzona na nazwie kolekcji, która już istnieje, przejmuje
 zamiast tego providera i klucz tamtej kolekcji — łącznie z brakiem klucza, bo

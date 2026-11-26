@@ -10,7 +10,7 @@
 import { apiClient } from "./api-client";
 import { saveBlob, type FileAccess } from "./file-access";
 import { qk } from "./query-keys";
-import type { KBDocument, KBDocumentList, KBParsedContent } from "@/types";
+import type { IngestionOverride, KBDocument, KBDocumentList, KBParsedContent } from "@/types";
 import type { JsonSchema } from "@/types/agents";
 
 /** Narrowing-only business filters (FA-039). None of these can widen access:
@@ -102,6 +102,17 @@ export async function findKBDocument(kbId: string, filename: string): Promise<KB
  */
 export async function getParsedKBDocument(kbId: string, docId: string): Promise<KBParsedContent> {
   return apiClient.get<KBParsedContent>(`/kb/${kbId}/documents/${docId}/parsed`);
+}
+
+/**
+ * Parse a failed document again, with its collection's settings as they are now
+ * and `override` - the departures pending for the next uploads - in place of the
+ * ones the file was uploaded with. Empty means the collection's settings alone,
+ * which is what a Revert leaves. Refused (400) when the parser no longer reads
+ * the file's format.
+ */
+export async function retryKBDocument(docId: string, override: IngestionOverride): Promise<void> {
+  await apiClient.post(`/rag/documents/${docId}/retry`, { ingestion_override: override });
 }
 
 export interface SyncSourceCreate {

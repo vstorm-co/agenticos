@@ -1,5 +1,5 @@
 ---
-source_sha: "f73ea6abcad6"
+source_sha: "cca49070e3d9"
 ---
 
 # Funktionen { #features }
@@ -154,7 +154,7 @@ tatsächlich gewonnen wird:
 
 | | |
 |---|---|
-| **PDF-Parser** | `pymupdf` — lokal, schnell und der einzige, der eingebettete Bilder für eine Beschreibung extrahiert · `liteparse` — lokal und layoutbewusst, hält Tabellen als ASCII-Raster, statt sie plattzumachen · `llamaparse` — ein Cloud-Dienst, pro Seite abgerechnet, der Markdown zurückgibt |
+| **PDF-Parser** | `pymupdf` — lokal, schnell und der einzige, der eingebettete Bilder für eine Beschreibung extrahiert · `liteparse` — lokal und layoutbewusst, hält Tabellen als ASCII-Raster, statt sie plattzumachen · `llamaparse` — ein Cloud-Dienst, pro Seite abgerechnet, der Markdown zurückgibt · `docling` — ein Docling Serve, den Sie selbst betreiben und der Layout, Tabellen und Seiten erhält |
 | **Chunking** | `recursive`, `markdown` oder `fixed`, mit Ihrer eigenen Größe und Überlappung |
 | **OCR** | Auf Wunsch oder automatisch, mit einer Sprache |
 | **Bilder in Dokumenten** | Beschrieben von einem Modellprofil Ihrer Wahl, mit Ihrem eigenen Prompt |

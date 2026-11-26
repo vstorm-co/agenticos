@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 from app.core import config as config_module
-from app.services.rag.documents import DocxDocumentParser
+from app.services.rag.config import PdfParser, RAGSettings
+from app.services.rag.documents import DocumentProcessor
 
 pytestmark = pytest.mark.anyio
 
@@ -27,13 +28,16 @@ def _docx(path: Path, body: str) -> Path:
 
 
 async def test_an_ordinary_docx_is_read(tmp_path: Path) -> None:
-    parsed = await DocxDocumentParser().parse(_docx(tmp_path / "memo.docx", "Quarterly memo"))
+    parsed = await DocumentProcessor(RAGSettings()).process_file(
+        _docx(tmp_path / "memo.docx", "Quarterly memo")
+    )
 
     assert "Quarterly memo" in parsed.pages[0].content
 
 
+@pytest.mark.parametrize("parser", ["pymupdf", "liteparse"])
 async def test_a_docx_that_inflates_past_the_bound_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    parser: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 50_000)
     path = _docx(tmp_path / "bomb.docx", "x")
@@ -43,4 +47,4 @@ async def test_a_docx_that_inflates_past_the_bound_is_refused(
     path.write_bytes(buffer.getvalue())
 
     with pytest.raises(ValueError, match="too large"):
-        await DocxDocumentParser().parse(path)
+        await DocumentProcessor(RAGSettings(pdf_parser=PdfParser(method=parser))).process_file(path)

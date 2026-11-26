@@ -1,12 +1,26 @@
+import logging
 from abc import ABC, abstractmethod
 
-from openai import NotFoundError, OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    AsyncOpenAI,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    OpenAI,
+    OpenAIError,
+    PermissionDeniedError,
+    UnprocessableEntityError,
+)
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import record_ambient_usage
-from app.core.exceptions import ConfigurationError
+from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
+
+logger = logging.getLogger(__name__)
 
 # What a keyless endpoint is sent as its bearer token. The OpenAI SDK refuses to
 # build a client on an empty key and Ollama reads none, so the value only has to
@@ -16,6 +30,77 @@ _KEYLESS_PLACEHOLDER = "keyless"
 # Inputs per `/embeddings` request. Ollama drops the connection somewhere
 # between 320 and 384; OpenAI caps a request at 2048 inputs.
 EMBED_BATCH_SIZE = 64
+
+
+class EmbeddingProbeError(ExternalServiceError):
+    """A test call that did not return a vector, and why, in words with no endpoint in them.
+
+    `outcome` is one of `unreachable`, `key_refused` or `model_unknown`. The SDK's
+    own message is dropped: it can quote the address and the response body, and a
+    probe's refusal goes back to a browser.
+    """
+
+    code = "EMBEDDING_PROBE_FAILED"
+
+    def __init__(self, outcome: str) -> None:
+        super().__init__(message=_PROBE_FAILURES[outcome], details={"outcome": outcome})
+        self.outcome = outcome
+
+
+_PROBE_FAILURES = {
+    "unreachable": "The embedding endpoint did not answer in time or could not be reached.",
+    "key_refused": "The embedding endpoint refused the key.",
+    "model_unknown": "The embedding endpoint does not serve that model, or did not answer with a vector.",
+}
+
+PROBE_TIMEOUT_SECONDS = 30.0
+"""How long one test request may take."""
+
+
+async def embed_for_probe(
+    *, base_url: str, api_key: str, keyless: bool, model: str, text: str
+) -> list[float]:
+    """Embed one text, once, for a test, and say in an outcome why it could not.
+
+    One request and no SDK retry: the caller counts requests, and retries once itself.
+    The request is the one a real document makes - same client, same route - so a
+    gateway that serves it for a test serves it for an upload.
+
+    Raises:
+        EmbeddingProbeError: `unreachable` for a connection, a timeout, a rate limit
+            or any server fault; `key_refused` for a 401 or 403; `model_unknown` for
+            a 400, 404 or 422, or for an answer with no vector in it.
+    """
+    client = AsyncOpenAI(
+        api_key=_KEYLESS_PLACEHOLDER if keyless else api_key or _KEYLESS_PLACEHOLDER,
+        base_url=base_url,
+        timeout=PROBE_TIMEOUT_SECONDS,
+        max_retries=0,
+    )
+    try:
+        response = await client.embeddings.create(model=model, input=[text])
+    except (AuthenticationError, PermissionDeniedError) as error:
+        raise _probe_failure("key_refused", error) from error
+    except (NotFoundError, BadRequestError, UnprocessableEntityError) as error:
+        raise _probe_failure("model_unknown", error) from error
+    except (APIConnectionError, APIStatusError) as error:
+        raise _probe_failure("unreachable", error) from error
+    except OpenAIError as error:
+        # An answer the SDK could not read as an embeddings response.
+        raise _probe_failure("model_unknown", error) from error
+    finally:
+        await client.close()
+    vector = response.data[0].embedding if response.data else None
+    if not isinstance(vector, list) or not vector:
+        logger.warning("embedding_probe_no_vector")
+        raise EmbeddingProbeError("model_unknown")
+    return [float(value) for value in vector]
+
+
+def _probe_failure(outcome: str, error: Exception) -> EmbeddingProbeError:
+    """The failure to raise, with only the exception's class kept for the log."""
+    logger.warning("embedding_probe_failed", extra={"cause": type(error).__name__})
+    return EmbeddingProbeError(outcome)
 
 
 def _chunk_texts(document: Document) -> list[str]:

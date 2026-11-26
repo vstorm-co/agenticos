@@ -199,3 +199,21 @@ describe("finding the document a citation names", () => {
     await expect(rag.findKBDocument("kb1", "gone.md")).resolves.toBeNull();
   });
 });
+
+describe("retrying a failed document", () => {
+  it("sends an empty change after a Revert, so the collection's settings alone apply", async () => {
+    await rag.retryKBDocument("doc-1", {});
+
+    expect(apiClient.post).toHaveBeenCalledWith("/rag/documents/doc-1/retry", {
+      ingestion_override: {},
+    });
+  });
+
+  it("carries the changes pending for the next uploads", async () => {
+    await rag.retryKBDocument("doc-1", { ocr: true });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/rag/documents/doc-1/retry", {
+      ingestion_override: { ocr: true },
+    });
+  });
+});

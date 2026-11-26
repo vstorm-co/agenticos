@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "c092f6e7b73c"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -127,7 +127,7 @@ Los ajustes del chat muestran Browser y Work on antes de Permissions. Las
 notificaciones de la conversación y las conexiones de cuentas quedan debajo de los
 permisos.
 
-Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el contenido desplazable. Los iconos de información explican el modelo, Browser, Work on y los modos de permisos cuando se solicitan; la explicación del modo seleccionado permanece visible. En **Knowledge bases → Integrations**, los paneles compactos de integraciones y servicios locales se ajustan al contenido, con explicaciones en los iconos de información.
+Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el contenido desplazable. Los iconos de información explican el modelo, Browser, Work on y los modos de permisos cuando se solicitan; la explicación del modo seleccionado permanece visible. En **Knowledge bases → Integrations**, los paneles compactos de integraciones y conexiones de servicio se ajustan al contenido, con explicaciones en los iconos de información.
 
 Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
 

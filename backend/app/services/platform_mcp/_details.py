@@ -202,8 +202,8 @@ def detail_operations(api: PlatformApi) -> tuple[Operation, ...]:
         return await selected("/providers/catalog", provider_id)
 
     async def get_embedding_endpoint(endpoint_id: UUID) -> dict[str, JsonValue]:
-        """Read one accessible local endpoint's kind, provider and configuration before binding it."""
-        return await selected("/local-services", endpoint_id)
+        """Read one accessible service connection's kind, provider and configuration before binding it."""
+        return await selected("/service-connections", endpoint_id)
 
     async def get_agent_environment(agent_id: UUID, environment_id: UUID) -> dict[str, JsonValue]:
         """Read one environment's full version pointer, test connections and promotion guards."""

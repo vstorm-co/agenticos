@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "75b237584572"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -80,8 +80,8 @@ hash del archivo:
 
 `POST /api/v1/ml/documents/analyze` lee lo que el documento ya lleva. El campo
 `parser` elige entre `liteparse`, que conserva la maquetación y lee formatos de
-ofimática donde LibreOffice está instalado, y `pymupdf`, que lee PDF y es más
-rápido. `chunk_size`, `chunk_overlap` y `chunking_strategy` dan forma a los
+ofimática donde LibreOffice está instalado, y `pymupdf`, que lee PDF y `.docx` y es más
+rápido. Un `.docx` lo lee el motor elegido, no un lector integrado aparte. `chunk_size`, `chunk_overlap` y `chunking_strategy` dan forma a los
 chunks preparados; las estrategias son `recursive`, `fixed` y `markdown`, y una
 cuarta grafía se rechaza en vez de tratarse en silencio como `recursive`.
 
@@ -107,16 +107,15 @@ endpoint acepta: un código sin paquete de idioma detrás falla dentro del parse
 así que se rechaza en la frontera. Un despliegue que instale más paquetes amplía
 la lista en el mismo cambio.
 
-`ocr_service_id` nombra un servidor OCR registrado entre los
-[servicios locales](configuration.md), de modo que un despliegue con su propio
+`ocr_service_id` nombra un servidor OCR registrado entre las
+[conexiones de servicio](configuration.md), de modo que un despliegue con su propio
 sidecar de reconocimiento envía allí las páginas; omítelo y las lee el motor
 incluido con el parser. En cualquier caso las páginas se quedan en la red del
 propio despliegue.
 
-**Un `.docx` se rechaza aquí**, aunque el parser lea uno. La ingesta encamina los
-documentos de ofimática al lector nativo antes de consultar el parser de OCR, así
-que aceptar uno extraería sus párrafos existentes, se saltaría sus páginas
-escaneadas y no diría nada de la diferencia. Conviértelo a PDF.
+Un `.docx` se reconoce como cualquier otro documento: lo lee el motor elegido
+(LiteParse lo convierte con LibreOffice), así que también se reconoce una página
+escaneada dentro de uno.
 
 Una llamada reconoce como mucho **200 páginas** y tiene **120 segundos**, ambos
 más estrechos que los de la ingesta, porque aquí alguien espera y a una ingesta no
@@ -156,7 +155,7 @@ de OpenAI en el vault, paga la nombrada.
     Cada proveedor del catálogo se alcanza en su propia dirección, con una
     clave. Un servidor sin clave en tu propia red - un Whisper detrás de una API
     compatible con OpenAI - no es alcanzable hoy. Es un paso previsto: un
-    [servicio local](configuration.md) de un tipo nuevo, `speech`, nombrado en
+    [conexión de servicio](configuration.md) de un tipo nuevo, `speech`, nombrado en
     lugar de una clave, como las colecciones ya nombran un servidor de
     embeddings o de OCR.
 

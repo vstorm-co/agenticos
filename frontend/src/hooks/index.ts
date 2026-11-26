@@ -36,7 +36,7 @@ export { useNotificationInbox, useUnreadNotificationCount } from "./use-notifica
 export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
-export { useLocalServices } from "./use-local-services";
+export { useServiceConnections } from "./use-service-connections";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";

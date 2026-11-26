@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "af9646108f6e"
 ---
 
 # Konfiguration { #configuration }
@@ -772,14 +772,18 @@ worauf jede Compose-Datei hier pinnt.
 
 Nichts hier. Jede Collection benennt selbst den Provider, über den sie embeddet,
 das Model, und entweder den Vault-Schlüssel der Organisation, der dafür zahlt,
-oder — beim schlüssellosen Provider `ollama` — einen **lokalen Dienst**, eine
+oder — beim schlüssellosen Provider `ollama` — eine **Dienstverbindung**, eine
 Zeile unter Knowledge → Integrations, die sagt, wo das Ollama des Deployments
-oder der Organisation antwortet. Siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+oder der Organisation antwortet. Der eigene Provider `openai_compatible` nimmt ebenfalls eine Verbindung,
+mit einem als Text eingegebenen Model und einem optionalen Vault-Schlüssel der Organisation; nur eine
+Verbindung der Organisation kann einen Schlüssel halten, eine Verbindung, die einen hat, kann ihn nicht
+verlieren, und eine deploymentweite Verbindung ist schlüssellos. Die API ist
+`/api/v1/service-connections`. Siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Früher standen hier zwei Variablen. `EMBEDDING_MODEL` wählte für neue Collections
 ein Model vor und ist weg: Das Formular bietet die Models an, die der gewählte
 Provider bereitstellt. `EMBEDDING_OLLAMA_BASE_URL` benannte ein Ollama für das
-ganze Deployment und ist jetzt ein lokaler Dienst, pro Organisation oder
+ganze Deployment und ist jetzt eine Dienstverbindung, pro Organisation oder
 deploymentweit.
 
 ### Dokument-Parsing — je Collection konfiguriert, nicht hier { #document-parsing-configured-per-collection-not-here }
@@ -803,7 +807,7 @@ Zwei Dinge, die früher hier blieben, sind jetzt Zeilen im Produkt. Ein
 LlamaParse-Schlüssel ist ein Vault-Eintrag, den die Ingestion-Konfiguration der
 Collection benennt (`llamaparse_secret_id`), und eine Collection auf LlamaParse
 ohne einen wird schon am Formular abgelehnt — `LLAMAPARSE_API_KEY` ist weg. Ein
-OCR-Server, an den LiteParse Seiten schickt, ist ein lokaler Dienst der Art `ocr`
+OCR-Server, an den LiteParse Seiten schickt, ist eine Dienstverbindung der Art `ocr`
 unter Knowledge → Integrations, pro Collection gewählt (`ocr_endpoint_id`),
 registriert vom Betreiber einer Organisation oder — für jede Organisation — vom
 Administrator des Deployments; `LITEPARSE_OCR_SERVER_URL` ist ebenfalls weg.

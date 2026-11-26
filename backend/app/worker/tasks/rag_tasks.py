@@ -49,6 +49,7 @@ from app.services.ingestion_config import (
 from app.services.notifications import NotificationService
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing, WithdrawnFile
+from app.services.rag.docling import ParserTask
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -225,6 +226,31 @@ async def _source_knowledge_base(db: AsyncSession, source: SyncSource) -> Knowle
     return kb
 
 
+async def _untracked_by_others(
+    vector_document_id: str, document_id: str, collection_name: str
+) -> bool:
+    """Whether a retry may replace this stored document: no *other* row tracks it.
+
+    What a failed attempt of this same row left behind is fair game; a document
+    another upload of the same file indexed is a row somebody can see, and a
+    retry deleting it was a row vanishing from the list. Fail-safe the other way
+    from `_still_ingestable`: an error answers no, because a duplicate is visible
+    and removable while a deleted document is gone.
+    """
+    try:
+        async with get_worker_db_context() as db:
+            others = await rag_document_repo.get_superseded(
+                db,
+                collection_name=collection_name,
+                vector_document_id=vector_document_id,
+                keep_id=UUID(document_id),
+            )
+            return not others
+    except Exception:
+        logger.warning("Could not check who tracks %s; keeping it", vector_document_id)
+        return False
+
+
 async def _still_ingestable(document_id: str, collection_name: str) -> bool:
     """Whether a parsed file may still be indexed: its tracking row exists and its
     collection is not mid-teardown.
@@ -275,9 +301,9 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     re-raised - which is also what lets the queue retry it.
 
     A refused ingest is the exception: its collection or knowledge base was
-    removed while the file parsed, so `_run_ingestion` fails the row with the
-    written reason and returns, logged at INFO, and the queue does not retry it
-    (#2561).
+    removed while the file parsed, or Docling refused the document, so
+    `_run_ingestion` fails the row with the written reason and returns, logged
+    at INFO, and the queue does not retry it (#2561).
 
     So is a run of a dispatch that already ended: its copy went with it, and a
     rescued attempt or a requeued payload finding the row settled, or a newer
@@ -305,6 +331,7 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             job.source_path,
             job.replace,
             job.attempt,
+            replace_own_only=job.replace_own_only,
         )
         ended = True
         return outcome
@@ -412,6 +439,51 @@ async def dispatch_due_syncs() -> int:
     return queued
 
 
+class _DocumentParserTasks:
+    """Where a document's parse keeps the remote task it started, on its own row.
+
+    Each call opens its own worker session, which commits on exit: a task id
+    must be durable before the parse waits on it, so a crash or a queue retry
+    collects the task instead of submitting the file again.
+    """
+
+    def __init__(self, rag_document_id: str, attempt: int) -> None:
+        self._id = rag_document_id
+        self._attempt = attempt
+
+    async def load(self) -> ParserTask | None:
+        from app.services.rag_document import RAGDocumentService
+
+        async with get_worker_db_context() as db:
+            try:
+                record = await RAGDocumentService(db).get_document(self._id)
+            except NotFoundError:
+                return None
+        stored = record.parser_task
+        if not stored:
+            return None
+        return ParserTask(
+            provider=str(stored["provider"]),
+            task_id=str(stored["task_id"]),
+            fingerprint=str(stored["fingerprint"]),
+            submitted_at=str(stored["submitted_at"]),
+        )
+
+    async def save(self, task: ParserTask) -> bool:
+        return await self._record(dict(task))
+
+    async def clear(self) -> bool:
+        return await self._record(None)
+
+    async def _record(self, parser_task: dict[str, object] | None) -> bool:
+        from app.services.rag_document import RAGDocumentService
+
+        async with get_worker_db_context() as db:
+            return await RAGDocumentService(db).record_parser_task(
+                self._id, parser_task, attempt=self._attempt
+            )
+
+
 async def _run_ingestion(
     rag_document_id: str,
     collection_name: str,
@@ -419,6 +491,8 @@ async def _run_ingestion(
     source_path: str,
     replace: bool,
     attempt: int,
+    *,
+    replace_own_only: bool = False,
 ) -> dict[str, Any]:
     """Parse and index one uploaded document, exactly as its record says to.
 
@@ -452,7 +526,11 @@ async def _run_ingestion(
         # resolved configuration is: what this upload decided, off its own row,
         # rather than a flow parameter a queued run would not carry (#1777).
         organizational_unit = record.organizational_unit
-        processor = await IngestionConfigService(db).build_processor(organization_id, config)
+        processor = await IngestionConfigService(db).build_processor(
+            organization_id,
+            config,
+            task_store=_DocumentParserTasks(rag_document_id, attempt),
+        )
         # The collection's own scope, off the knowledge base this document is
         # tracked under: the base itself (#2537) and its tenant - its organization
         # for an org base, None for an app-scoped one every organization reads.
@@ -483,6 +561,15 @@ async def _run_ingestion(
                     replace=replace,
                     source_path=source_path,
                     still_wanted=lambda: _still_ingestable(rag_document_id, collection_name),
+                    may_replace=(
+                        (
+                            lambda found: _untracked_by_others(
+                                found, rag_document_id, collection_name
+                            )
+                        )
+                        if replace_own_only
+                        else None
+                    ),
                     source=Source.UPLOAD,
                     doc_date=iso_doc_date(upload_mtime),
                     organizational_unit=organizational_unit,
@@ -535,7 +622,8 @@ async def _run_ingestion(
         # it yet cannot read it (#2681).
         if result.refused or not await _still_ingestable(rag_document_id, collection_name):
             # Skipped on purpose: the collection or its base went while the file
-            # parsed. A retry cannot index it, so this ends the job instead of
+            # parsed, or the parser refused the document for good. A retry cannot
+            # index it, so this ends the job instead of
             # raising into one, and it is not an error worth a traceback (#2561).
             logger.info("Ingestion of %s refused: %s", source_path, reason)
             await _fail_document(rag_document_id, error_message=reason, attempt=attempt, final=True)

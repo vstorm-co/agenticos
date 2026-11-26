@@ -13,6 +13,7 @@ import logging
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi.exceptions import RequestValidationError
 
 from app.core import background
 from app.core.exceptions import ExternalServiceError, NotFoundError
@@ -50,6 +51,27 @@ async def test_a_domain_refusal_rolls_back_without_an_error_log(
     session.rollback.assert_awaited_once()
     session.commit.assert_not_awaited()
     assert caplog.records == []
+
+
+async def test_a_rejected_request_body_rolls_back_without_logging_what_was_sent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A body the schema refused is the caller's mistake, answered 422 by its own
+    # handler - and its errors carry the submitted input verbatim.
+    session = _FakeSession()
+    refused = RequestValidationError(
+        [{"type": "value_error", "loc": ("body", "value"), "msg": "too short", "input": "sk-123"}]
+    )
+    with (
+        caplog.at_level(logging.DEBUG, logger="app.db.session"),
+        pytest.raises(RequestValidationError),
+    ):
+        async with _managed_session(_factory(session)) as _db:
+            raise refused
+
+    session.rollback.assert_awaited_once()
+    assert "sk-123" not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 async def test_an_unexpected_error_still_logs_at_error_with_a_traceback(
