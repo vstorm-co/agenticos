@@ -3,8 +3,11 @@ vi.mock("@/components/projects/project-tracking-control", () => ({
 }));
 import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { qk } from "@/lib/query-keys";
+import type { InfiniteData } from "@tanstack/react-query";
+import type { ProjectChatList } from "@/lib/projects-api";
 import type { Project } from "@/types/projects";
 import ProjectPage from "./page";
 
@@ -38,8 +41,9 @@ vi.mock("@/hooks/use-projects", async () => {
     }),
   };
 });
+let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
     <QueryClientProvider client={client}>
       <Suspense fallback={null}>{children}</Suspense>
@@ -123,7 +127,7 @@ it("opens a project on Chats while keeping explicit Files links", async () => {
   expect(await screen.findByRole("tab", { selected: true })).toHaveTextContent("Files");
 });
 
-it("keeps just the header New chat action and its walkthrough anchor on the Chats tab", async () => {
+it.each([0, 12])("shows %s chats in the tab without a separate count toolbar", async (count) => {
   tab = "chats";
   project = {
     id: "p-1",
@@ -136,7 +140,7 @@ it("keeps just the header New chat action and its walkthrough anchor on the Chat
     visibility: "private",
     backend: "state",
     runtime: null,
-    chat_count: 0,
+    chat_count: count,
     last_active_at: null,
     shared_groups: [],
     can_use: true,
@@ -146,6 +150,21 @@ it("keeps just the header New chat action and its walkthrough anchor on the Chat
   };
   await mount(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
   expect(await screen.findAllByRole("link", { name: "New chat" })).toHaveLength(1);
+  const chatsTab = screen.getByRole("tab", { name: "Chats" });
+  expect(chatsTab).toHaveAccessibleName("Chats");
+  expect(chatsTab).toHaveAccessibleDescription(count === 0 ? "No chats yet" : `${count} chats`);
+  act(() =>
+    client.setQueryData<InfiniteData<ProjectChatList>>(qk.conversations.inProject("p-1"), {
+      pages: [{ items: [], total: count + 1 }],
+      pageParams: [0],
+    }),
+  );
+  await waitFor(() =>
+    expect(chatsTab).toHaveAccessibleDescription(`${count + 1} ${count === 0 ? "chat" : "chats"}`),
+  );
+  expect(chatsTab).toHaveAccessibleName("Chats");
+  expect(chatsTab.querySelector("[aria-hidden] + .sr-only")).toHaveTextContent(String(count + 1));
+  expect(screen.getByRole("tabpanel").querySelector("[hidden]")).toHaveAttribute("hidden");
   expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute(
     "href",
     "/chat?project=p-1",

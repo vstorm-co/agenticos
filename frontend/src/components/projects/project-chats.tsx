@@ -40,7 +40,6 @@ export function ProjectChats({ project }: { project: Project }) {
       namedByPage
       className="shrink-0"
       title={t("chats")}
-      counted={error ? null : t("chatCount", { count: total })}
       empty={!isLoading && !error && total === 0}
     >
       {isLoading ? (

@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -21,6 +27,7 @@ import {
   removeProjectPath,
   updateProject,
   uploadProjectFile,
+  type ProjectChatList,
 } from "@/lib/projects-api";
 import type { UploadProgress } from "@/hooks/use-knowledge-bases";
 import { useTenantId } from "@/hooks/use-organizations";
@@ -241,6 +248,16 @@ export function useProjectOfConversation(conversationId: string | null) {
     queryFn: () => projectOfConversation(conversationId as string),
     enabled: conversationId !== null,
   });
+}
+
+/** Observe the list's current total without fetching or starting another poller. */
+export function useProjectChatCount(projectId: string): number | undefined {
+  const { data } = useQuery<InfiniteData<ProjectChatList>, Error, number | undefined>({
+    queryKey: qk.conversations.inProject(projectId),
+    enabled: false,
+    select: (listing) => listing.pages[0]?.total,
+  });
+  return data;
 }
 
 /**

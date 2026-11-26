@@ -43,6 +43,22 @@ The practical result is a more configurable console, portable agents/workflows w
 | [#3303](https://github.com/vstorm-co/agenticos/issues/3303) | Show configured sign-in providers and optionally disable local password admission at deployment level. | Deployment settings, login, register and recovery/email-link pages. | Enforce policy server-side, including old reset/email tokens; refuse disabling without a configured provider. Separate saved policy from the operator recovery override. | Existing sessions/directory authentication keep their contracts. Recovery override neither creates accounts nor grants roles. Preview SSO is a dummy local provider, not live IdP acceptance evidence. [R4] |
 | [#3382](https://github.com/vstorm-co/agenticos/issues/3382) | A saved chat answer replaces its interrupted live fragment after reconnection; still-running answers are followed again. | Chat recovery and interruption notice. | Covered by #3383 with the saved-segment/detached-run regression, rather than a second overlapping implementation. | No fabricated completion while the run is still missing/unavailable. [R4] |
 
+## Final interaction and mechanism review
+
+Project chat counts use a badge on the Chats tab without a second list toolbar or
+an additional query. Navigation editing keeps Save/Discard pinned outside the
+scrolling choices. Organization actions use responsive grids on phones; Architect
+no longer squeezes its description beside the Builder action. Speech-to-text
+writes lock their own fields while pending, retain stored catalog selections
+when discovery fails and expose Retry without changing saved configuration.
+
+The workspace audit found and repaired one binary continuation defect: a
+successful Project-to-agent inspection now records the observed Project digest,
+so a later revised binary can be published. A competing Project change still
+requires another inspection. Validation regexes cover identifiers, paths and
+hashes, not inferred user intent. Transfers remain explicit copies; their digest
+checks do not claim an atomic compare-and-swap against arbitrary shell writers.
+
 ## Acceptance evidence and limits
 
 The maintainer's subsequent acceptance feedback separates Project files from the

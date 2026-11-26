@@ -561,7 +561,8 @@ describe("organization settings tabs", () => {
       headers.push(header!);
       expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
       if (title === "AI Architect") {
-        expect(within(header!).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(card).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(header!).queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
         expect(within(header!).queryByRole("button", { name: title })).toBeNull();
         expect(within(header!).getByRole("switch")).toBeVisible();
         continue;

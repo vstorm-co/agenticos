@@ -480,3 +480,35 @@ async def test_failed_staging_commit_does_not_accept_a_baseline_or_open_the_read
     assert not bridge.port._project_initialized
     settled.assert_not_called()
     setup.service.open_project.assert_not_awaited()
+
+
+async def test_binary_transfer_observation_allows_fresh_publication_after_continuation(
+    bridge: Bridge,
+) -> None:
+    original = b"\x00\xfforiginal"
+    updated = b"\x00\xffupdated"
+    await bridge.project.write_bytes("report.bin", original)
+    bridge.port._require_continuation_reads = True
+
+    receipt = json.loads(await bridge.port.transfer_file("to_agent", "report.bin", "report.bin"))
+    await bridge.agent.write_bytes("report.bin", updated)
+    await bridge.port.transfer_file("from_agent", "report.bin", "report.bin", receipt["sha256"])
+
+    assert await bridge.project.read_bytes("report.bin") == updated
+
+
+async def test_binary_transfer_observation_does_not_allow_an_unobserved_project_change(
+    bridge: Bridge,
+) -> None:
+    await bridge.project.write_bytes("report.bin", b"\x00\xfforiginal")
+    bridge.port._require_continuation_reads = True
+    await bridge.port.transfer_file("to_agent", "report.bin", "report.bin")
+    changed = b"\x00\xffchanged by another writer"
+    await bridge.project.write_bytes("report.bin", changed)
+    await bridge.agent.write_bytes("report.bin", b"\x00\xffupdated")
+
+    with pytest.raises(WorkspaceUnavailableError, match="changed since it was read"):
+        await bridge.port.transfer_file(
+            "from_agent", "report.bin", "report.bin", sha256(changed).hexdigest()
+        )
+    assert await bridge.project.read_bytes("report.bin") == changed

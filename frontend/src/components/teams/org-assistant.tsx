@@ -40,17 +40,12 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
       <ServiceCard
         icon={Bot}
         action={
-          <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={ROUTES.AGENT_DETAIL(agentId)}>{t("openBuilder")}</Link>
-            </Button>
-            <Switch
-              checked={assistant.status !== "disabled"}
-              disabled={update.isPending}
-              onCheckedChange={(on) => update.mutate({ enabled: on })}
-              aria-label={t("enabled")}
-            />
-          </div>
+          <Switch
+            checked={assistant.status !== "disabled"}
+            disabled={update.isPending}
+            onCheckedChange={(on) => update.mutate({ enabled: on })}
+            aria-label={t("enabled")}
+          />
         }
         status={<SetupIndicator hints={architectSetupHints(assistant)} />}
         title={t("title")}
@@ -59,6 +54,16 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
         {assistant.status === "needs_model" && (
           <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
         )}
+        <div className="flex sm:justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-auto min-h-11 w-full whitespace-normal sm:min-h-9 sm:w-auto"
+            asChild
+          >
+            <Link href={ROUTES.AGENT_DETAIL(agentId)}>{t("openBuilder")}</Link>
+          </Button>
+        </div>
       </ServiceCard>
     </div>
   );

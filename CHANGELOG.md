@@ -68,6 +68,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Record binary Project inputs inspected through the agent transfer tool, so resumed runs can publish a revised file while still rejecting intervening changes.
+
 - Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission returns only the session ID and status; cached session details are cleared.
 - Complete French and Turkish Improve/eval/assistant translations. Translate comparison, merge-refusal and stored failure reasons from stable codes while retaining technical details and compatibility with uncoded historical results.
 

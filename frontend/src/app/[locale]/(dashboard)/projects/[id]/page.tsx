@@ -2,7 +2,7 @@
 
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
-import { use } from "react";
+import { use, useId } from "react";
 import Link from "next/link";
 import { Plus, AppWindow, FileText, Layers } from "lucide-react";
 import { DocumentIcon as Files, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
@@ -23,7 +23,7 @@ import { AudienceChip } from "@/components/sharing/audience-chip";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useUrlState } from "@/hooks";
-import { useProject } from "@/hooks/use-projects";
+import { useProject, useProjectChatCount } from "@/hooks/use-projects";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -38,9 +38,11 @@ type Tab = (typeof TABS)[number];
  */
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const chatCountId = useId();
   const t = useTranslations("projects");
   const tErrors = useTranslations("errors");
   const { project, isLoading, error } = useProject(id);
+  const chatCount = useProjectChatCount(id) ?? project?.chat_count;
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab: Tab = TABS.find((entry) => entry === tabParam) ?? "chats";
 
@@ -129,9 +131,27 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="project-tabs" className="shrink-0">
-          <TabsTrigger disabled={isLoading} value="chats">
+          <TabsTrigger
+            disabled={isLoading}
+            value="chats"
+            aria-label={t("chats")}
+            aria-describedby={project ? chatCountId : undefined}
+          >
             <MessageSquare className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("chats")}
+            {project && (
+              <>
+                <span
+                  className="bg-muted text-muted-foreground ml-1.5 rounded-md px-1.5 py-0.5 text-xs tabular-nums"
+                  aria-hidden
+                >
+                  {chatCount}
+                </span>
+                <span id={chatCountId} className="sr-only">
+                  {t("chatCount", { count: chatCount ?? 0 })}
+                </span>
+              </>
+            )}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="resources" data-tour="project-tab-resources">
             <Layers className="mr-1.5 size-4 shrink-0" aria-hidden />

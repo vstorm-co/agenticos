@@ -388,6 +388,7 @@ describe("ProjectChats", () => {
     const row = screen.getByRole("row", { name: /Press release/ });
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
+    expect(screen.queryByText("2 chats")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /New chat/ })).not.toBeInTheDocument();
   });
 

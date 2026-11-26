@@ -100,25 +100,24 @@ function ExportResourceContent({
       }}
     >
       <DialogContent className={expanded ? DIALOG_WINDOW : `${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-3 pr-7">
-            <DialogTitle>
-              {t(rootKind === "workflow" ? "exportWorkflowTitle" : "exportTitle")}
-            </DialogTitle>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={common(expanded ? "workspaceCollapse" : "workspaceExpand")}
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? (
-                <Minimize2 className="size-4" aria-hidden />
-              ) : (
-                <Maximize2 className="size-4" aria-hidden />
-              )}
-            </Button>
-          </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-14 hidden size-11 rounded-lg sm:flex sm:size-9"
+          aria-label={common(expanded ? "workspaceCollapse" : "workspaceExpand")}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? (
+            <Minimize2 className="size-4" aria-hidden />
+          ) : (
+            <Maximize2 className="size-4" aria-hidden />
+          )}
+        </Button>
+        <DialogHeader className="sm:pr-20">
+          <DialogTitle>
+            {t(rootKind === "workflow" ? "exportWorkflowTitle" : "exportTitle")}
+          </DialogTitle>
           <DialogDescription>
             {t(rootKind === "workflow" ? "exportWorkflowDescription" : "exportDescription")}
           </DialogDescription>

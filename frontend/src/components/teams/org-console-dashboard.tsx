@@ -57,7 +57,7 @@ export function OrganizationConsoleDashboard({
       ) : (
         <>
           {privateFilters && <p className="text-muted-foreground text-xs">{t("privateFilters")}</p>}
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
             <Button
               type="button"
               variant="outline"
@@ -109,7 +109,7 @@ export function OrganizationConsoleDashboard({
           {current.entries.length === 0 && <p className="text-sm">{t("empty")}</p>}
         </div>
       )}
-      <div className="flex justify-end gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
         <Button
           type="button"
           variant="ghost"

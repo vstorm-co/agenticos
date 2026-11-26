@@ -50,7 +50,9 @@ under Advanced. Personal coding accounts are a separate disclosure. Project
 resources and export use typed groups, real authorized avatar metadata and
 responsive dialogs. Python Actions presents inputs, callable functions and its
 result together. Personal navigation is edited from the sidebar or the same
-profile dialog; organization role defaults remain in organization settings.
+profile dialog, with actions pinned below its scrolling options. Project chat
+counts sit beside the Chats tab instead of adding a second toolbar. Organization
+role defaults remain in organization settings.
 
 Unrelated settings stay enabled while another section saves. Organization writes
 are serialized and retain their original organization identity. Optional

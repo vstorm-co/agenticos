@@ -66,10 +66,11 @@ export function ConsoleNavigationDialog({
             </DialogTitle>
             <DialogDescription>{t("personalHint")}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 overflow-y-auto overscroll-contain">
+          <div className="flex min-h-0 flex-1 flex-col">
             <ConsoleNavigationControls
               key={`${experience.organizationId}-${experience.userId}`}
               showUnavailable={false}
+              scrollable
               value={presentation.preferences.navigation}
               allowed={presentation.organization_navigation}
               disabled={experience.save.isPending}

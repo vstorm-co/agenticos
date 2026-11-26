@@ -456,3 +456,24 @@ it("keeps a running export open and offers an explicit fresh start after failure
     sessionStorage.getItem(transferSessionKey("org", "owner", "export:workflow:workflow-id") ?? ""),
   ).toBeNull();
 });
+
+it("keeps selected export content while expanding from the dialog controls", async () => {
+  render(
+    <ExportResourceDialog
+      resourceId="workflow-id"
+      rootKind="workflow"
+      open
+      onOpenChange={vi.fn()}
+    />,
+    { wrapper: Wrapper },
+  );
+  await screen.findByText("Policy documents");
+  const definition = screen.getByRole("checkbox", { name: /^Policy documents/ });
+  await userEvent.click(definition);
+  expect(definition).not.toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(screen.getByRole("checkbox", { name: /^Policy documents/ })).toBe(definition);
+  expect(definition).not.toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+  expect(definition).not.toBeChecked();
+});

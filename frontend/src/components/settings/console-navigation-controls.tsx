@@ -19,6 +19,7 @@ export function ConsoleNavigationControls({
   preview,
   onDirtyChange,
   showUnavailable = true,
+  scrollable = false,
 }: {
   value: readonly string[] | null | undefined;
   allowed: readonly string[];
@@ -28,6 +29,7 @@ export function ConsoleNavigationControls({
   preview?: (selection: readonly string[]) => ReactNode;
   onDirtyChange?: (dirty: boolean) => void;
   showUnavailable?: boolean;
+  scrollable?: boolean;
 }) {
   const id = useId();
   const t = useTranslations("consoleExperience.presentation");
@@ -41,41 +43,53 @@ export function ConsoleNavigationControls({
   }, [dirty, onDirtyChange]);
   useUnsavedChanges(id, { dirty, discard: () => setDraft(undefined) });
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {simple && (
+    <div className={cn("space-y-4", scrollable && "flex min-h-0 flex-1 flex-col space-y-0")}>
+      <div
+        className={cn(
+          "space-y-4",
+          scrollable && "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1",
+        )}
+      >
+        <div className="flex flex-wrap gap-2">
+          {simple && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => setDraft(allowed.filter((entry) => simple.includes(entry)))}
+            >
+              {t("simple")}
+            </Button>
+          )}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={disabled}
-            onClick={() => setDraft(allowed.filter((entry) => simple.includes(entry)))}
+            onClick={() => setDraft(null)}
           >
-            {t("simple")}
+            {t("inheritNavigation")}
           </Button>
+        </div>
+        <p className="text-muted-foreground text-xs leading-5">{t("navigationHint")}</p>
+        <div className={cn("grid gap-6", preview && "lg:grid-cols-2")}>
+          <ConsoleNavigationSelection
+            value={selection}
+            allowed={allowed}
+            disabled={disabled}
+            onChange={setDraft}
+            showUnavailable={showUnavailable}
+          />
+          {preview?.(selection)}
+        </div>
+      </div>
+      <div
+        className={cn(
+          "flex flex-wrap justify-end gap-2 border-t pt-4",
+          scrollable && "mt-4 shrink-0",
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={() => setDraft(null)}
-        >
-          {t("inheritNavigation")}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-xs leading-5">{t("navigationHint")}</p>
-      <div className={cn("grid gap-6", preview && "lg:grid-cols-2")}>
-        <ConsoleNavigationSelection
-          value={selection}
-          allowed={allowed}
-          disabled={disabled}
-          onChange={setDraft}
-          showUnavailable={showUnavailable}
-        />
-        {preview?.(selection)}
-      </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+      >
         <Button
           type="button"
           variant="ghost"

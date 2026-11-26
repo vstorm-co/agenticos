@@ -771,10 +771,9 @@ class RunProjectWorkspace(Workspace):
                 raise ConcurrentChangeError(
                     message="The destination changed while verifying the transfer.", details={}
                 )
-            if direction == "from_agent":
-                self._read_versions[(selected, await self._version_path(project, project_file))] = (
-                    sha256(data).digest()
-                )
+            self._read_versions[(selected, await self._version_path(project, project_file))] = (
+                sha256(data).digest()
+            )
             actual_agent_path = await agent.resolve(agent_file)
         return json.dumps(
             {
