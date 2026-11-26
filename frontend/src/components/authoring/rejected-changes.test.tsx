@@ -53,6 +53,24 @@ describe("RejectedChanges", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("says a capability that reaches beyond the deployment is added in the Builder", async () => {
+    const rejected: RejectedChange[] = [
+      {
+        kind: "spec_field",
+        reason: "reaches_network",
+        change: { path: "capabilities", op: "add", value: { id: "web_fetch" } },
+      },
+    ];
+    render(<RejectedChanges report={report({ proposed: 1, rejected })} />);
+    await userEvent.click(screen.getByText("1 more idea the assistant did not add"));
+
+    expect(
+      screen.getByText(
+        "It adds a capability that reaches beyond this deployment. Add it in the Builder, where its limits are set",
+      ),
+    ).toBeVisible();
+  });
+
   it("says how many were not recorded, why, and what each proposed", async () => {
     render(<RejectedChanges report={report({ rejected: REJECTED, rejected_more: 2 })} />);
     await userEvent.click(screen.getByText("11 more ideas the assistant did not add"));

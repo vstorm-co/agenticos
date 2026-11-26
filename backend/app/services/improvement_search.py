@@ -50,6 +50,7 @@ from app.agents.system_agents import IMPROVER, with_dataset_guidance
 from app.agents.untrusted_text import fenced_section
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
+from app.core.hidden_text import Proposed, holds_refused
 from app.core.permissions import AuthContext
 from app.core.redaction import redact_secrets
 from app.db.models.agent import Agent, AgentStatus
@@ -179,7 +180,7 @@ unanswered by the model, which is tried again up to `MAX_PROPOSAL_ATTEMPTS` time
 class InstructionVariant(BaseModel):
     """One complete rewrite of the instructions."""
 
-    instructions: str = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
+    instructions: Proposed = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
     rationale: str = Field(default="", max_length=1000)
 
 
@@ -212,6 +213,16 @@ def case_share(results: Sequence[ScorerResult]) -> float | None:
     if not graded:
         return None
     return sum(1 for r in graded if r.status == "pass") / len(graded)
+
+
+def usable_variant(seed: str, variant: str) -> bool:
+    """Whether a rewrite may be answered with: it keeps the seed's placeholders, changes
+    something, and carries no character a person reading the winner could not see."""
+    return (
+        keeps_placeholders(seed, variant)
+        and not holds_refused(variant)
+        and variant.strip() != seed.strip()
+    )
 
 
 def keeps_placeholders(seed: str, variant: str) -> bool:
@@ -1136,8 +1147,7 @@ class SearchWorker:
             kept = [
                 variant
                 for variant in proposed.variants
-                if keeps_placeholders(unit.seed, variant.instructions)
-                and variant.instructions.strip() != unit.seed.strip()
+                if usable_variant(unit.seed, variant.instructions)
             ][: unit.count]
             parent = unit.parent_ids[0] if unit.parent_ids else None
             await improvement_repo.add_variants(

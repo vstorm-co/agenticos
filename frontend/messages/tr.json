@@ -18208,6 +18208,9 @@
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     },
+    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
+    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
+    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla",
     "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
   },
   "personalModelKeys": {
@@ -18240,6 +18243,7 @@
       "tool": "{tool} tool'u",
       "instructions": "Talimatlar",
       "fromVerify": "Düzenlemelerinizin doğrulanmasından",
+      "reworded": "Değişiklikler adımında yeniden ifade edildi",
       "status": {
         "accepted": "Taslağa kabul edildi",
         "dismissed": "Reddedildi"
@@ -18434,6 +18438,7 @@
         "no_change": "Hiçbir şeyi değiştirmiyor",
         "unknown_tool": "Agent'ın böyle bir tool'u yok",
         "invalid_tool_change": "Agent'ın kullanamayacağı bir tool adı veya açıklaması",
+        "hidden_characters": "Metni, bir kişinin göremeyeceği karakterler içeriyor",
         "not_a_target": "Asistanın değiştirebileceği bir şey değil",
         "operation": "Bu ayarın izin verdiği bir değişiklik değil",
         "loosens_approval": "Onayı gevşetirdi",
@@ -18441,6 +18446,7 @@
         "unknown_capability": "Böyle bir capability yok",
         "invalid_config": "Ayarları geçerli değil",
         "does_not_apply": "Taslağa uymuyor",
+        "reaches_network": "Bu dağıtımın dışına uzanan bir capability ekliyor. Onu, sınırlarının ayarlandığı Builder'da ekleyin",
         "not_grantable": "İsteyen kişinin veremeyeceği bir şey ekliyor",
         "dismissed_before": "Biri bunu daha önce reddetti",
         "unsupported": "Düzenlemenin desteklendiğini söyledi, ancak kontrol edilebilecek bir kanıt yok",
@@ -19806,6 +19812,7 @@
       "context_gone": "Bağlam dosyası artık yok.",
       "no_edit_context": "Bunu başlatan kişi artık bağlam dosyasını düzenleyemez.",
       "unknown_skill_use": "Bu aralıktaki hiçbir run'ın skill'i kullandığı bilinmiyor. {runs, plural, one {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadığı bilinmiyor.} other {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadıkları bilinmiyor.}}",
+      "hidden_characters": "Önerilen metin görülemeyen karakterler içeriyor, bu yüzden kaydedilmedi. Yeniden isteyin.",
       "no_evidence": "Henüz öğrenilecek bir şey yok: bu aralıktaki hiçbir run puanlanmadı veya başarısız olmadı. Aralığı genişletin ya da birkaç yanıt puanlandığında geri gelin.",
       "key_revoked": "Bunu başlatan API anahtarı iptal edildi veya artık yok, bu yüzden durduruldu.",
       "not_a_member": "Bunu başlatan kişi artık üye değil.",

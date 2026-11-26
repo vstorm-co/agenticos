@@ -851,6 +851,10 @@ within the spending limit** runs it again, as whoever retries it, once that is
 fixed. A step past the spending limit stops on its budget. Neither is asked again
 on its own.
 
+A proposed change to the skill's description shows the old and the new
+description, as a change to its text does. A change with no text to show is left
+out, and a chosen one is refused before it is checked.
+
 A session opened from an agent's Improve starts from the problems that session
 reported. Only a problem that quotes a line of the skill stating the wrong value
 or rule takes the agent's criteria with it; where the skill is only silent the
@@ -908,6 +912,11 @@ What Accept offers comes from the result:
 - **Unknown agents** have to be acknowledged before anything is applied. **Add
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.
+
+Each decision names the check the person reviewed - its `check_id` and
+`result_hash`, or the main-alone check's for returning to main - and is refused
+with `409` when the session holds another result, or a review judged it again:
+read the session again and review it.
 
 When the line gets a new version, or its agents change, after the check, the
 result no longer holds and offers **Check again** in place of applying: the same

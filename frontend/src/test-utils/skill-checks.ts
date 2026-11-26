@@ -49,6 +49,7 @@ export function finishedCheck(overrides: Partial<SkillCheck> = {}): SkillCheck {
   return {
     id: "c-1",
     skill_id: "s-1",
+    result_hash: "e".repeat(64),
     status: "done",
     verdict: "passed",
     warnings: [],

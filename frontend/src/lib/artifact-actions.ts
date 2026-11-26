@@ -1,4 +1,5 @@
 import type { ArtifactActionField, ArtifactActionRun, ArtifactActionView } from "@/types/artifact";
+import { writtenOut } from "@/lib/hidden-characters";
 
 /** What the platform script inside a page posts to ask for an action. */
 export const RUN_REQUEST = "agenticos:run";
@@ -150,23 +151,12 @@ export function inputProblems(
 }
 
 /**
- * Control and format characters (Cc, Cf) other than a newline and a tab: the
- * ones that draw nothing or reorder what is around them, such as U+202E or a
- * zero-width space.
- */
-const HIDDEN = /(?![\n\t])[\p{Cc}\p{Cf}]/gu;
-
-/**
  * A value as the person reads it in the dialog: in full, as text, with every
  * character that would draw nothing or reorder the text around it written out
  * as `\u{202E}`.
  */
 export function showValue(value: unknown): string {
-  const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
-  return text.replace(
-    HIDDEN,
-    (char) => `\\u{${(char.codePointAt(0) ?? 0).toString(16).toUpperCase()}}`,
-  );
+  return writtenOut(typeof value === "string" ? value : (JSON.stringify(value) ?? String(value)));
 }
 
 /**

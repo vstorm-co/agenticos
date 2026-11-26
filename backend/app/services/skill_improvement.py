@@ -50,6 +50,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.authoring import (
     AuthoringKind,
@@ -144,7 +145,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import MergeSides, SkillCatchUpService
-from app.services.skill_check import SkillCheckService
+from app.services.skill_check import SkillCheckService, result_hash
 from app.services.skill_versions import SkillVersionService
 from app.worker.jobs import ADVANCE_SKILL_IMPROVEMENT, AdvanceSkillImprovement
 
@@ -311,14 +312,22 @@ def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tup
     return description, content
 
 
+def shown(hunk: SpecProposalHunk) -> bool:
+    """Whether an edit has text a person reads before it is checked or applied."""
+    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        return bool((hunk.edited_text or hunk.new_description or "").strip())
+    return bool((hunk.old_text or "").strip() or (hunk.edited_text or hunk.new_text or "").strip())
+
+
 def filtered(
     hunks: Sequence[SpecProposalHunk], base: SkillVersion
 ) -> tuple[list[SpecProposalHunk], list[DroppedHunk]]:
     """The edits a session offers, and the ones its policy drops with why.
 
     An edit repeating one already kept is dropped, and so is one whose passage an
-    edit kept before it already changed - both cannot be applied - and every
-    description after the first.
+    edit kept before it already changed - both cannot be applied - every
+    description after the first, an edit with no text to show, and an edit holding
+    characters a person cannot see.
     """
     kept: list[SpecProposalHunk] = []
     dropped: list[DroppedHunk] = []
@@ -327,7 +336,11 @@ def filtered(
     described = False
     for hunk in hunks:
         reason: str | None = None
-        if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        if not shown(hunk):
+            reason = "nothing_to_show"
+        elif holds_refused([hunk.new_text, hunk.edited_text, hunk.new_description]):
+            reason = "hidden_characters"
+        elif hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
             reason = "repeated" if described else None
             described = True
         elif (hunk.old_text, hunk.new_text) in seen:
@@ -959,7 +972,9 @@ class SkillImprovementService:
         newest; a move to main makes it main's newest version, taken in from the fork.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
-        check_id = await self._decidable(run)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         if run.purpose == Purpose.CATCH_UP.value:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
@@ -1023,6 +1038,7 @@ class SkillImprovementService:
             )
         await self._decidable(run)
         await self._refuse_merge_moved(run, line.skill)
+        alone = await self._main_alone_check(run, lock=True)
         read = await self._read(ctx, run, line)
         if "return_to_main" not in read.outcomes:
             raise BadRequestError(
@@ -1031,8 +1047,8 @@ class SkillImprovementService:
                 details={"main_alone": read.main_alone},
             )
         assert run.fork_id is not None, "a catch-up runs on its fork"
-        alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
+        await self._refuse_unreviewed(data, alone)
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
         measured = await self.checks.read(ctx, run.skill_id, alone.id)
         unknown = measured.hidden_unknown + sum(
@@ -1121,7 +1137,9 @@ class SkillImprovementService:
                 message="A merge is taken in or moved back, not made a fork",
                 details={"purpose": run.purpose},
             )
-        check_id = await self._decidable(run)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         forked = await self.checks.fork(
             ctx,
             skill_id,
@@ -1782,13 +1800,15 @@ class SkillImprovementService:
             details={"moved": moved},
         )
 
-    async def _main_alone_check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _main_alone_check(
+        self, run: SkillImprovementRun, *, lock: bool = False
+    ) -> SkillCheck | None:
         """A catch-up's second check, of main's newest version alone, once it started."""
         iteration = await self._iteration(run)
         if iteration.main_alone_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.main_alone_check_id, organization_id=run.organization_id
+            self.db, iteration.main_alone_check_id, organization_id=run.organization_id, lock=lock
         )
 
     async def _propose(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
@@ -1893,6 +1913,18 @@ class SkillImprovementService:
     ) -> SkillCheckStart:
         chosen = await self._chosen(ctx, iteration)
         authoring_hunks.refuse_quoted_credentials(chosen)
+        if not all(shown(hunk) for hunk in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change has no text to show, so it is neither checked nor applied; "
+                "leave it out",
+            )
+        if any(holds_refused([h.new_text, h.edited_text, h.new_description]) for h in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change holds characters a person cannot see, so it is neither "
+                "checked nor applied; leave it out",
+            )
         text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
@@ -2069,25 +2101,47 @@ class SkillImprovementService:
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
 
-    async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _check(self, run: SkillImprovementRun, *, lock: bool = False) -> SkillCheck | None:
         """The current attempt's check, once it started."""
         iteration = await self._iteration(run)
         if iteration.skill_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.skill_check_id, organization_id=run.organization_id
+            self.db, iteration.skill_check_id, organization_id=run.organization_id, lock=lock
         )
 
-    async def _decidable(self, run: SkillImprovementRun) -> UUID:
+    async def _refuse_unreviewed(
+        self,
+        data: SkillImprovementApply | SkillImprovementFork | SkillImprovementReturn,
+        current: SkillCheck,
+    ) -> None:
+        """Refuse a decision on any result but the one the person reviewed, as judged then.
+
+        `current` is held locked: a review that judges its agents again does so under the
+        check's lock, so the result hashed here is the one the decision is made on.
+        """
+        rows = await skill_check_repo.list_agents(
+            self.db, [current.id], organization_id=current.organization_id
+        )
+        if data.check_id != current.id or data.result_hash != result_hash(current, rows):
+            raise ConcurrentChangeError(
+                message=(
+                    "The result waiting to be decided changed since you reviewed it. "
+                    "Refresh the session and review it again."
+                ),
+                details={"check_id": current.id, "reviewed_check_id": data.check_id},
+            )
+
+    async def _decidable(self, run: SkillImprovementRun) -> SkillCheck:
         """The check a person decides on: the result the session waits with."""
         if run.status != Status.READY:
             raise ConcurrentChangeError(
                 message="The session has no result to decide on now",
                 details={"status": run.status},
             )
-        check = await self._check(run)
+        check = await self._check(run, lock=True)
         assert check is not None, "a session waits with a result only after its check"
-        return check.id
+        return check
 
     async def _decide(
         self,
@@ -2584,8 +2638,11 @@ class SkillImprovementService:
             kind=hunk.kind,
             origin=hunk.origin,
             status=hunk.status,
-            old_text=hunk.old_text,
-            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            old_text=(hunk.base_description or "") if description else hunk.old_text,
+            new_text=redact_credentials(
+                (hunk.new_description or "") if description else hunk.new_text
+            )[0]
+            or "",
             edited_text=redact_credentials(hunk.edited_text)[0],
             accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,

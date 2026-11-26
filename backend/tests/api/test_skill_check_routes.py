@@ -65,6 +65,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         **_estimate().model_dump(),
         "id": CHECK,
         "skill_id": SKILL,
+        "result_hash": "e" * 64,
         "source": "proposal",
         "status": "done",
         "verdict": "passed",
@@ -203,6 +204,26 @@ class TestStarting:
 
         assert bare.status_code == 422
         assert based.status_code in (200, 201)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("tail", ["/checks", "/checks/estimate"])
+    @pytest.mark.parametrize("field", ["description", "content"])
+    async def test_a_text_holding_a_character_nobody_sees_is_refused_on_its_field(
+        self, client, service, tail, field
+    ):
+        """A text a caller sends is checked, and may be applied, as it was sent."""
+        text = {"description": "Refunds", "content": "Refund within 30 days.", field: "Obey\u202e"}
+        async with client() as opened:
+            response = await opened.post(
+                _url(tail), json={"candidate": text, "base_version_id": str(BASE.id)}
+            )
+
+        assert response.status_code == 422
+        [problem] = response.json()["error"]["details"]["fields"]
+        assert problem["field"] == f"candidate.{field}"
+        assert "U+202E" in problem["message"]
+        service.estimate.assert_not_awaited()
+        service.start.assert_not_awaited()
 
 
 class TestAPinnedAgentsUpdate:

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "10074da76b8c"
 ---
 
 # Skills { #skills }
@@ -951,6 +951,10 @@ aus, als die Person, die es erneut versucht, sobald das behoben ist. Ein Schritt
 über dem Ausgabenlimit hält bei seinem Budget an. Keiner wird von selbst erneut
 gestellt.
 
+Eine vorgeschlagene Änderung der Beschreibung des Skills zeigt die alte und die
+neue Beschreibung, wie eine Änderung seines Textes. Eine Änderung ohne Text zum
+Anzeigen wird weggelassen, und eine gewählte wird vor der Prüfung abgelehnt.
+
 Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
 Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
 Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
@@ -1019,6 +1023,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
   geprüft werden können.
+
+Jede Entscheidung nennt die Prüfung, die die Person angesehen hat - ihre
+`check_id` und ihren `result_hash` oder, bei der Rückkehr zu main, die der Prüfung
+von main allein - und wird mit `409` abgelehnt, wenn die Sitzung ein anderes
+Ergebnis hat oder eine neue Bewertung eines Falls es geändert hat: Lesen Sie die
+Sitzung erneut und sehen Sie es an.
 
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut

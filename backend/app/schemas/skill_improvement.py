@@ -14,6 +14,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.core.hidden_text import Proposed
 from app.db.models.improvement import (
     DroppedHunk,
     ImprovementStage,
@@ -364,10 +365,24 @@ class SkillContinuationConsent(ContinuationConsent):
 
 class SkillImprovementApply(SkillCheckApply):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `check.result_hash`, from the session's read",
+    )
 
 
 class SkillImprovementReturn(BaseSchema):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `main_alone_check.id` that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `main_alone_check.result_hash`, from the session's read",
+    )
     acknowledge_unknown: bool = Field(
         default=False,
         description="Return the fork's agents although main alone could not be checked on "
@@ -377,6 +392,13 @@ class SkillImprovementReturn(BaseSchema):
 
 class SkillImprovementFork(SkillCheckFork):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `check.result_hash`, from the session's read",
+    )
 
 
 class SkillImprovementApplied(BaseSchema):
@@ -434,7 +456,7 @@ class SkillBodyEdit(BaseModel):
             "enough to occur only once. Empty to insert new text."
         )
     )
-    new_text: str = Field(description="What replaces it. Empty to delete the passage.")
+    new_text: Proposed = Field(description="What replaces it. Empty to delete the passage.")
     after: str = Field(
         default="",
         description=(
@@ -452,7 +474,7 @@ class SkillEdits(BaseModel):
     summary: str
     expected_effect: str
     edits: list[SkillBodyEdit] = Field(default_factory=list)
-    description: str | None = Field(
+    description: Proposed | None = Field(
         default=None,
         description=(
             "A new one-line description, only when the evidence shows agents opening the "
@@ -475,7 +497,7 @@ MERGE_ASK = (
 class MergeTexts(BaseModel):
     """The improver's combined text for each conflict of a merge, in the order asked."""
 
-    texts: list[str] = Field(
+    texts: list[Proposed] = Field(
         description="One text per numbered conflict, in order: the passage as it should "
         "read with both sides' changes kept"
     )

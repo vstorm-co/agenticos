@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "10074da76b8c"
 ---
 
 # Skille { #skills }
@@ -877,6 +877,10 @@ zapisanym w sesji, a **Retry this step within the spending limit** wykonuje go
 ponownie, jako osoba, która ponawia, gdy przyczyna zostanie usunięta. Krok ponad
 limitem wydatków zatrzymuje się na budżecie. Żaden nie jest ponawiany sam.
 
+Proponowana zmiana opisu skilla pokazuje stary i nowy opis, tak jak zmiana jego
+treści. Zmiana bez tekstu do pokazania jest pomijana, a wybrana jest odrzucana,
+zanim zostanie sprawdzona.
+
 Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
 Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,
 zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
@@ -938,6 +942,11 @@ To, co proponuje Akceptacja, wynika z wyniku:
   zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
   sprawdzić.
+
+Każda decyzja wskazuje check, który osoba obejrzała - jego `check_id` i
+`result_hash` albo, przy powrocie do main, te same pola checku samego main - i jest
+odrzucana z `409`, gdy sesja ma inny wynik albo przegląd ocenił go na nowo:
+odczytaj sesję jeszcze raz i obejrzyj go.
 
 Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
 przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te

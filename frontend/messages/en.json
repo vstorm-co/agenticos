@@ -17049,6 +17049,7 @@
       "tool": "Tool {tool}",
       "instructions": "Instructions",
       "fromVerify": "From verifying your edits",
+      "reworded": "Reworded at the Changes step",
       "status": {
         "accepted": "Accepted into the draft",
         "dismissed": "Dismissed"
@@ -17243,6 +17244,7 @@
         "no_change": "It changes nothing",
         "unknown_tool": "The agent has no such tool",
         "invalid_tool_change": "A tool name or description the agent cannot use",
+        "hidden_characters": "Its text holds characters a person cannot see",
         "not_a_target": "Not something the assistant may change",
         "operation": "Not a change that setting allows",
         "loosens_approval": "It would loosen approval",
@@ -17250,6 +17252,7 @@
         "unknown_capability": "No such capability",
         "invalid_config": "Its settings are not valid",
         "does_not_apply": "It does not fit the draft",
+        "reaches_network": "It adds a capability that reaches beyond this deployment. Add it in the Builder, where its limits are set",
         "not_grantable": "It adds something the person who asked may not grant",
         "dismissed_before": "Somebody dismissed it before",
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
@@ -17420,6 +17423,9 @@
     "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
+    "acceptChanged": "The attempt you were about to accept changed since you reviewed it. The session was refreshed; review it again.",
+    "unmeasuredEdits": "The draft held edits before this session started. Publishing releases them too, and no check measured them.",
+    "publishUnmeasuredEdits": "Publish those edits as well",
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
     "includeInTest": "Include in the test",
     "includeChange": "Include change {number} in the test",
@@ -22547,6 +22553,7 @@
       "context_gone": "The context file is gone.",
       "no_edit_context": "Whoever started this may no longer edit the context file.",
       "unknown_skill_use": "No run in this window is known to have used the skill. {runs, plural, one {# rated-down or failed run is from before uses were recorded, so whether it used the skill is unknown.} other {# rated-down or failed runs are from before uses were recorded, so whether they used it is unknown.}}",
+      "hidden_characters": "The proposed text holds characters that cannot be seen, so it was not recorded. Ask again.",
       "no_evidence": "Nothing to learn from yet: no run in this window was rated or failed. Widen the window, or come back once people have rated some answers.",
       "key_revoked": "The API key that started this was revoked or no longer exists, so it was stopped.",
       "not_a_member": "Whoever started this is no longer a member.",

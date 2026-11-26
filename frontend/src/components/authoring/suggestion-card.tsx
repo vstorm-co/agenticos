@@ -46,7 +46,9 @@ export function SuggestionCard({
   const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
   const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
-  const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
+  // A reword made at the Improve session's Changes step is what Accept writes.
+  const reworded = pending ? hunk.edited_text : null;
+  const proposed = field ? String(hunk.new_value ?? "") : (reworded ?? hunk.new_text);
   const placed =
     hunk.kind === "instructions" && instructions !== undefined
       ? locatePassage(instructions, hunk)
@@ -83,6 +85,7 @@ export function SuggestionCard({
             </Badge>
           )}
           {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
+          {reworded && <Badge variant="outline">{t("reworded")}</Badge>}
           {hunk.status !== "pending" && !folded && (
             <Badge variant="outline">{t(`status.${hunk.status}`)}</Badge>
           )}
@@ -121,9 +124,7 @@ export function SuggestionCard({
           <DiffView
             context={leadingContext(hunk.context_before)}
             before={hunk.old_text}
-            after={
-              hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : hunk.new_text
-            }
+            after={hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : proposed}
             trailing={trailingContext(hunk.context_after)}
           />
         )}

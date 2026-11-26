@@ -20,6 +20,8 @@ ONLINE = "00000000-0000-4000-8000-0000000005b1"
 COUNTER = "00000000-0000-4000-8000-0000000005b2"
 WHOLESALE = "00000000-0000-4000-8000-0000000005b3"
 VERSION = "00000000-0000-4000-8000-0000000005c1"
+CHECK = uuid.UUID("00000000-0000-4000-8000-0000000005e1")
+RESULT = "e" * 64
 BASE = f"/skills/{SKILL}"
 SESSIONS = f"{BASE}/improvements"
 SESSION_PATH = f"{SESSIONS}/{SESSION}"
@@ -1098,11 +1100,19 @@ class TestDeciding:
         )
 
         applied = await _call(
-            server, "accept_skill_improvement", skill_id=SKILL, session_id=SESSION, outcome=outcome
+            server,
+            "accept_skill_improvement",
+            skill_id=SKILL,
+            session_id=SESSION,
+            outcome=outcome,
+            check_id=CHECK,
+            result_hash=RESULT,
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/apply") == {
             "confirmed": True,
+            "check_id": str(CHECK),
+            "result_hash": RESULT,
             "acknowledge_unknown": False,
             "pin_worse": pin,
         }
@@ -1121,6 +1131,8 @@ class TestDeciding:
                 skill_id=SKILL,
                 session_id=SESSION,
                 outcome="fork_for_helped",
+                check_id=CHECK,
+                result_hash=RESULT,
             )
 
         api.request.assert_not_awaited()
@@ -1145,12 +1157,16 @@ class TestDeciding:
             skill_id=SKILL,
             session_id=SESSION,
             outcome="fork_for_helped",
+            check_id=CHECK,
+            result_hash=RESULT,
             fork_name="Online",
             acknowledge_unknown=True,
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/fork") == {
             "confirmed": True,
+            "check_id": str(CHECK),
+            "result_hash": RESULT,
             "name": "Online",
             "acknowledge_unknown": True,
         }
@@ -1178,12 +1194,16 @@ class TestDeciding:
             skill_id=SKILL,
             session_id=SESSION,
             outcome="fork_for_helped",
+            check_id=CHECK,
+            result_hash=RESULT,
             fork_name="Online",
             fork_agent_ids=[WHOLESALE],
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/fork") == {
             "confirmed": True,
+            "check_id": str(CHECK),
+            "result_hash": RESULT,
             "name": "Online",
             "acknowledge_unknown": False,
             "agent_ids": [WHOLESALE],
@@ -1674,6 +1694,8 @@ class TestCatchingUp:
             skill_id=SKILL,
             session_id=SESSION,
             outcome="catch_up",
+            check_id=CHECK,
+            result_hash=RESULT,
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/apply")["pin_worse"] is False
@@ -1698,10 +1720,14 @@ class TestCatchingUp:
             skill_id=SKILL,
             session_id=SESSION,
             outcome="return_to_main",
+            check_id=CHECK,
+            result_hash=RESULT,
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {
             "confirmed": True,
+            "check_id": str(CHECK),
+            "result_hash": RESULT,
             "acknowledge_unknown": False,
         }
         assert dropped["moved"] == [{"name": "Wholesale desk", "published": True}]
@@ -1754,6 +1780,8 @@ class TestCatchingUp:
                 skill_id=SKILL,
                 session_id=SESSION,
                 outcome="return_to_main",
+                check_id=CHECK,
+                result_hash=RESULT,
             )
         assert ("POST", f"{SESSION_PATH}/return-to-main") not in [
             call.args for call in api.request.await_args_list
@@ -1765,11 +1793,15 @@ class TestCatchingUp:
             skill_id=SKILL,
             session_id=SESSION,
             outcome="return_to_main",
+            check_id=CHECK,
+            result_hash=RESULT,
             acknowledge_unknown=True,
         )
         # The server asks the same of the return, so the person's acceptance goes with it.
         assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {
             "confirmed": True,
+            "check_id": str(CHECK),
+            "result_hash": RESULT,
             "acknowledge_unknown": True,
         }
 

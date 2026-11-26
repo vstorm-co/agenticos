@@ -108,6 +108,8 @@ export interface SkillCheckEstimate {
 export interface SkillCheck extends SkillCheckEstimate {
   id: string;
   skill_id: string;
+  /** A fingerprint of the verdict and every agent's result; a review judging a case again changes it. */
+  result_hash: string;
   /** `catch_up` for a pinned agent's update, accepted by moving that agent, never applied. */
   source?: "manual" | "proposal" | "session" | "catch_up";
   status: CheckStatus;

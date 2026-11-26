@@ -28,7 +28,6 @@ from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.improvement import (
     ImprovementContinue,
-    ImprovementFinish,
     ImprovementSelection,
     ImprovementStart,
 )
@@ -47,6 +46,7 @@ from tests.integration.test_improvement_pipeline import (
     _ready_proposal,
     _started,
     _until_child,
+    reviewed,
 )
 from tests.integration.test_improvement_rounds import _round
 from tests.integration.test_knowledge_gaps import _knowledge_base
@@ -193,7 +193,7 @@ async def test_finishing_a_round_without_a_recorded_selection_accepts_only_pendi
     iteration.included_hunk_ids = None
     await db.flush()
     result = await ImprovementPipelineService(db).finish(
-        ctx, agent.id, ready.id, ImprovementFinish(confirmed=True)
+        ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id)
     )
     assert result.session.status == "accepted"
     assert dropped.status == HunkStatus.DISMISSED.value

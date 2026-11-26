@@ -16735,6 +16735,7 @@
       "tool": "Tool {tool}",
       "instructions": "Anweisungen",
       "fromVerify": "Aus der Prüfung Ihrer Änderungen",
+      "reworded": "Im Schritt Änderungen umformuliert",
       "status": {
         "accepted": "In den Entwurf übernommen",
         "dismissed": "Verworfen"
@@ -16929,6 +16930,7 @@
         "no_change": "Sie ändert nichts",
         "unknown_tool": "Der Agent hat kein solches Tool",
         "invalid_tool_change": "Ein Tool-Name oder eine Beschreibung, die der Agent nicht verwenden kann",
+        "hidden_characters": "Sein Text enthält Zeichen, die ein Mensch nicht sehen kann",
         "not_a_target": "Nichts, was der Assistent ändern darf",
         "operation": "Keine Änderung, die diese Einstellung erlaubt",
         "loosens_approval": "Sie würde die Freigabe lockern",
@@ -16936,6 +16938,7 @@
         "unknown_capability": "Keine solche Capability",
         "invalid_config": "Ihre Einstellungen sind ungültig",
         "does_not_apply": "Sie passt nicht zum Entwurf",
+        "reaches_network": "Sie fügt eine Capability hinzu, die über dieses Deployment hinausreicht. Fügen Sie sie im Builder hinzu, wo ihre Grenzen festgelegt werden",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
         "dismissed_before": "Jemand hat sie schon verworfen",
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
@@ -17106,6 +17109,9 @@
     "gapsLabel": "{count, plural, =1 {1 offene Wissenslücke} other {# offene Wissenslücken}}"
   },
   "improvement": {
+    "acceptChanged": "Der Versuch, den Sie annehmen wollten, hat sich geändert, seit Sie ihn angesehen haben. Die Sitzung wurde aktualisiert; sehen Sie ihn erneut an.",
+    "unmeasuredEdits": "Der Entwurf enthielt Änderungen von vor dem Start dieser Sitzung. Die Veröffentlichung gibt auch sie frei, und keine Prüfung hat sie gemessen.",
+    "publishUnmeasuredEdits": "Diese Änderungen ebenfalls veröffentlichen",
     "attributionUnconfirmed": "Änderung {number}: Das Ergebnis ist nicht bestätigt.",
     "includeInTest": "Im Test berücksichtigen",
     "includeChange": "Änderung {number} im Test berücksichtigen",
@@ -22233,6 +22239,7 @@
       "context_gone": "Die Kontextdatei gibt es nicht mehr.",
       "no_edit_context": "Wer dies gestartet hat, darf die Kontextdatei nicht mehr bearbeiten.",
       "unknown_skill_use": "Von keinem Run in diesem Zeitraum ist bekannt, dass er den Skill verwendet hat. {runs, plural, one {# negativ bewerteter oder fehlgeschlagener Run stammt aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob er den Skill verwendet hat.} other {# negativ bewertete oder fehlgeschlagene Runs stammen aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob sie ihn verwendet haben.}}",
+      "hidden_characters": "Der vorgeschlagene Text enthält Zeichen, die man nicht sehen kann, deshalb wurde er nicht gespeichert. Fragen Sie erneut.",
       "no_evidence": "Noch nichts, woraus sich lernen lässt: Kein Run in diesem Zeitraum wurde bewertet oder ist fehlgeschlagen. Erweitern Sie den Zeitraum oder kommen Sie wieder, wenn Antworten bewertet wurden.",
       "key_revoked": "Der API-Schlüssel, mit dem dies gestartet wurde, wurde widerrufen oder existiert nicht mehr, daher wurde es angehalten.",
       "not_a_member": "Wer dies gestartet hat, ist kein Mitglied mehr.",
