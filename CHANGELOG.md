@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Remove an agent’s own environment guards before its suites, so deleting a guarded agent does not depend on PostgreSQL cascade ordering. Other agents’ guards and suite deletion protections stay in place.
+
 - A failed background job keeps only messages AgenticOS wrote as its last error. Another exception names its type, and its message stays in the worker log.
 - A manual eval checks before every case that its starter may still run the agent and the dataset.
 - Keep an Improve variant search going when a round of proposals is refused or unanswered: it is asked again up to three times, and a scoring answer the provider could not give counts as ungraded instead of failing the search.

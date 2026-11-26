@@ -4454,6 +4454,9 @@ class AgentRegistryService:
         await SandboxWorkspaceService(self.db).purge_personal_coding(
             organization_id=ctx.organization_id, agent_id=agent.id
         )
+        await promotion_gate_repo.delete_agent_guards(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
         await agent_repo.delete(self.db, agent)
         await record_audit(
             self.db,

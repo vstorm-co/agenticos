@@ -903,6 +903,33 @@ async def test_removing_an_agent_takes_its_guards_with_it(db) -> None:
     assert await db.get(Agent, agent.id) is None
 
 
+@pytest.mark.security
+async def test_deleting_one_agent_preserves_other_agents_and_tenants_guards(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    outsider = await _owner(db)
+    retained: list[tuple[AuthContext, Agent, EvalSuite, uuid.UUID]] = []
+    for authority in (ctx, ctx, outsider):
+        agent, version = await _agent(db, authority)
+        env_id, suite = await _guarded(db, authority, agent, version, await _dataset(db, authority))
+        retained.append((authority, agent, suite, env_id))
+    deleted = retained.pop(0)[1]
+
+    await AgentRegistryService(db).delete(ctx, deleted.id)
+    await db.flush()
+
+    assert await db.get(Agent, deleted.id) is None
+    guards = (await db.execute(select(EnvironmentGuard))).scalars().all()
+    assert {(row.environment_id, row.suite_id) for row in guards} == {
+        (env_id, suite.id) for _, _, suite, env_id in retained
+    }
+    for authority, agent, suite, _ in retained:
+        with pytest.raises(EvalSuiteInUseError):
+            await EvalSuiteService(db).delete(authority, agent.id, suite.id)
+        assert await db.get(Agent, agent.id) is not None
+
+
 async def test_a_suite_that_guards_an_environment_cannot_be_deleted(db) -> None:
     ctx = await _owner(db)
     agent, first = await _agent(db, ctx)
