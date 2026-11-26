@@ -4,7 +4,7 @@ import { AUTH_STATE, SEEDED_AGENT_NAME } from "./helpers";
 test.use({ storageState: AUTH_STATE });
 
 const CASES = [
-  { preference: null, system: "reduce", moving: true },
+  { preference: "system", system: "reduce", moving: false },
   { preference: "system", system: "no-preference", moving: true },
   { preference: "full", system: "reduce", moving: true },
   { preference: "reduce", system: "no-preference", moving: false },
@@ -16,10 +16,17 @@ for (const { preference, system, moving } of CASES) {
     await page.emulateMedia({ reducedMotion: system });
     await page.addInitScript((motion) => {
       localStorage.removeItem("agenticos:discover-tips:dismissed");
-      if (motion === null) localStorage.removeItem("motion-storage");
-      else
-        localStorage.setItem("motion-storage", JSON.stringify({ state: { motion }, version: 0 }));
+      localStorage.setItem("motion-storage", JSON.stringify({ state: { motion }, version: 0 }));
     }, preference);
+    // Signed-in motion follows the saved account setting, which wins on hydration.
+    await page.route("**/api/users/me/appearance", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object") throw new Error("Expected account appearance data");
+      await route.fulfill({ response, json: { ...body, motion: preference } });
+    });
     const response = await page.request.get("/api/me/onboarding");
     expect(response.ok()).toBe(true);
     const state: unknown = await response.json();

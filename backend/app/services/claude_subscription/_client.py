@@ -137,7 +137,7 @@ class ClaudeSubscriptionRuntime:
         self,
         owner: ClaudeSubscriptionOwner,
     ) -> ClaudeSubscriptionRead:
-        result = await self._post("status", owner.payload(), timeout=30)
+        result = await self._post("status", {**owner.payload()}, timeout=30)
         try:
             state = ClaudeSubscriptionRead.model_validate_json(result)
         except ValidationError:
