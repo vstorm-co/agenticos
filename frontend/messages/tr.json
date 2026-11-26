@@ -17116,7 +17116,13 @@
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     },
-    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
+    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin.",
+    "guidance": {
+      "title": "Yardımcı için dataset rehberi",
+      "hint": "Yardımcı bunu, her zaman geçerli olan platform kurallarının altında okur. Bu dataset'i düzenleyen kişi yazmıştır.",
+      "changed": "{who, select, named {Son değiştiren: {name}.} former {Son değiştiren: eski bir üye.} other {}}",
+      "changedOn": "{who, select, named {Son değiştiren: {name}, {date}.} former {Son değiştiren: eski bir üye, {date}.} other {Son değişiklik: {date}.}}"
+    }
   },
   "personalModelKeys": {
     "copilot": {
