@@ -22040,6 +22040,22 @@
       "preview": "Apenas prévia do layout. Os dados e as permissões são resolvidos para cada pessoa ao abrir.",
       "empty": "Este padrão da função intencionalmente não contém cartões.",
       "discard": "Descartar alterações"
+    },
+    "rolePreview": {
+      "open": "Abrir prévia do console",
+      "hint": "Padrões da função antes das escolhas pessoais. A navegação usa seu rascunho atual; dashboard, catálogos e avisos usam configurações salvas. Os cartões não carregam dados privados.",
+      "navigation": "Navegação",
+      "dashboard": "Dashboard",
+      "catalogs": "Catálogos",
+      "emptyDashboard": "Nenhum cartão do dashboard é exibido.",
+      "emptyNavigation": "Nenhuma entrada de navegação principal é exibida.",
+      "wholeCatalog": "Todas as entradas permitidas pelas permissões existentes",
+      "approvedLimit": "{count, plural, =0 {Nenhuma entrada} one {Até # entrada aprovada} other {Até # entradas aprovadas}}",
+      "mcp_galleryAvailable": "Somente servidores conectados pela organização",
+      "skill_galleryAvailable": "Somente Skills instalados visíveis",
+      "shown": "Visível",
+      "hidden": "Oculto",
+      "unavailable": "Indisponível com estas permissões"
     }
   },
   "modelSources": {

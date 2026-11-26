@@ -22024,6 +22024,22 @@
       "preview": "Podgląd samego układu. Dane i uprawnienia każdej osoby są sprawdzane przy otwarciu.",
       "empty": "Ten domyślny układ celowo nie zawiera kart.",
       "discard": "Odrzuć zmiany"
+    },
+    "rolePreview": {
+      "open": "Otwórz podgląd konsoli",
+      "hint": "Ustawienia roli przed osobistymi wyborami. Menu uwzględnia bieżący szkic; dashboard, katalogi i komunikaty korzystają z zapisanych ustawień. Karty nie wczytują prywatnych danych.",
+      "navigation": "Menu",
+      "dashboard": "Dashboard",
+      "catalogs": "Katalogi",
+      "emptyDashboard": "Brak widocznych kart dashboardu.",
+      "emptyNavigation": "Brak widocznych pozycji menu głównego.",
+      "wholeCatalog": "Wszystkie pozycje dozwolone przez uprawnienia",
+      "approvedLimit": "{count, plural, =0 {Brak pozycji} one {Maksymalnie # zatwierdzona pozycja} few {Maksymalnie # zatwierdzone pozycje} many {Maksymalnie # zatwierdzonych pozycji} other {Maksymalnie # zatwierdzonej pozycji}}",
+      "mcp_galleryAvailable": "Tylko serwery podłączone przez organizację",
+      "skill_galleryAvailable": "Tylko widoczne zainstalowane Skills",
+      "shown": "Widoczne",
+      "hidden": "Ukryte",
+      "unavailable": "Niedostępne przy tych uprawnieniach"
     }
   },
   "modelSources": {
