@@ -21,32 +21,181 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- See what an Improve session will read before starting it: the start dialog shows the dataset's guidance for the helper and who last changed it.
-- Read what a call of the platform's own tools does on its approval card: the agent, the attempt it accepts and its verdict, where a skill moves, the dataset version an eval runs on, and the price it was quoted at.
+- Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
+
+- Choose Nederlands on the desktop app's start screen. Local setup, permissions and workspace updates are translated, and the choice is carried to the console.
+
+- Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
+- Members can answer their own verified platform approval cards without organization-wide approval authority. Other approvers can reject those calls but cannot release work as another person. Conversation links in approval notices recheck the current run person and waiting call.
+
+- Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
+- Resource transfer dialogs select workflow dependencies and knowledge-base file layers, review omitted bindings and restore owner-scoped operations after a refresh. Completed imports refresh their new resource catalogs; existing workflow file formats remain available.
+
+- Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
+
+- Selectively transfer knowledge-base originals and parsed text in ZIP bundles. Imports stay private and unindexed, show parsed previews without model calls, and can be indexed explicitly after configuring destination providers.
+- Project file context and command execution can be selected separately. The
+  Projects capability searches accessible projects and reads/writes bounded text
+  from web chat and linked private channels without granting a shell. Chat Files
+  exposes authorized project and agent workspace origins separately.
+- Keep the agent's own tools and environment while opening selected project files live under `/project/<immutable lease UUID>` in supported private Docker conversation/run workspaces. Commands receive `PROJECT_DIR`; generic relative paths keep their agent-workspace meaning. Fresh project authorization and renewable run leases guard every filesystem operation. An explicit project executor and optional byte-copy tool remain available; live access requires no file transfer.
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
+
+- Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
+
+- Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
+
+- Configure provider-only sign-in in deployment settings. Local password,
+  registration, recovery and email-link endpoints enforce the policy. Show only
+  configured identity providers, retain the console display filter, and provide
+  an operator recovery override without changing the saved policy.
+
+- Send a correction to an asynchronous agent run by conversation ID. With `"steer": true`, the agent takes the message before its next model call or processes it as a new turn if no running request takes it. Webhooks can retry safely with the same `Idempotency-Key`.
+
+- Export selected agent dependencies as YAML, JSON or ZIP, then review which
+  resources to copy, reuse or skip during import. Context and exact Skill
+  snapshots retain their text and files. Private ZIP transfers run as durable,
+  expiring worker jobs; imports never publish or run agents.
+
+- Switch Chats between the default project grouping and a flat, most-recent-first
+  list. The preference persists per user, and server pagination does not pin
+  old favourites above recent activity in flat mode.
+
+- Group existing agents, workflows, apps and tables in projects without copying
+  resources or changing their permissions. Link several at once, search the
+  project, choose a main workflow and filter agent/workflow catalogs by project.
+- Store a shared MCP OAuth client in the organization Vault for servers without
+  dynamic client registration. Personal grants remain bound to the issuing
+  organization, membership and current Vault secret generation.
 - Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
 - Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
 
 ### Fixed
 
-- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
+- Resume ZIP uploads using their declared size and discard idle transfer journals when closing or changing a bundle, so abandoned reviews immediately release the open-transfer limit. Workflow-only API keys can start workflow transfers.
+- Preserve nested paths in Project file listings and load Event-source subscriber details only when opened.
+
+- Record binary Project inputs inspected through the agent transfer tool, so resumed runs can publish a revised file while still rejecting intervening changes.
+
+- Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission returns only the session ID and status; cached session details are cleared.
+- Complete French and Turkish Improve/eval/assistant translations. Translate comparison, merge-refusal and stored failure reasons from stable codes while retaining technical details and compatibility with uncoded historical results.
+
+- Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
+- Keep an Improve session's held-out share fixed across attempts, even after
+  dataset settings change. Skill test sets keep every question held out.
+- Show dataset helper guidance and its author before starting Improve. Retain
+  platform helper rules alongside dataset-specific guidance and show those
+  rules read-only in dataset settings.
+- Show the full binding of a proposed capability addition or removal, with an
+  explicit warning and visible codes for hidden or text-reordering characters.
+- Keep an unsent chat draft when a response finishes during a press on Stop.
+  Keyboard users retain focus on Stop after sending from its button.
+- Return fresh sign-ins to chat instead of a sign-in page, including encoded
+  and localized return paths. Repeated sign-out and sign-in no longer stalls.
+- Declare and translate microphone permission for iPhone dictation and voice
+  calls. Deliver app-icon quick actions to the connected iOS scene; cold-start
+  shortcut delivery remains outside this fix.
+
+- Document indexing honors knowledge-base edit grants, including viewers explicitly granted edit access, and the console exposes stored originals and parsed-only imports without claiming a vector index exists.
+- A chat whose connection dropped mid-answer - a phone locked while an agent
+  worked - now shows the answer once the turn lands, and the "connection
+  dropped" notice goes away. The half-written answer used to be kept in place
+  of the saved one, so "Check for it" changed nothing and the notice stayed.
+  Coming back while the turn still runs follows it again instead of drawing
+  it twice.
+
+- Panels and expanded views that cover the whole screen - Files, Sources and
+  the browser beside a chat on a phone, the agent test panel, expanded tables,
+  datasets, workflows, sandboxes, knowledge gaps, API keys and sign-ins - keep
+  their header clear of the phone's status bar and home indicator. In the
+  iPhone app the Files panel's close button sat beneath the clock.
+
+- Open projects on Chats by default and start a project chat directly from the
+  sidebar; explicit links to other tabs keep working.
+- Resize the iOS webview for the software keyboard instead of combining native
+  page panning with the console's viewport adjustment.
+- Refresh the backend dependency lock and verify compatibility with current SDKs.
+  Keep Daytona on its supported 0.x API until the workspace adapter supports the
+  SDK 2.x namespace migration.
+- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
+
+### Changed
+
+- Keep Event sources as a contextual management page linked from routines and workflows instead of a default sidebar destination. Provider marks, Vault selection and inherited navigation controls make setup consistent with the console.
+
+- Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
 
 ### Security
 
-- Let only the person an Architect run acts for, signed in as themselves, approve its platform call that always asks: not another approver, an API key or an impersonated session. They need no `approvals:decide` for it, in the chat, their Inbox, the approvals queue or the channel the run was asked in; without the permission, `GET /approvals` lists those calls of theirs and nothing else, so a routine's call reaches them too.
-- Show the description of a platform call's card only to the run's person; other approvers read its arguments.
+- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
+- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
 - Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
 - Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
 - Ask before the Architect edits a skill or a Context file that published agents read.
-- Keep the platform's improver and case generator rules in every Improve session: a dataset's helper guidance is added below them and cannot replace them, and run evidence reaches the improver fenced as data.
-- Require `runs:view` to read an Improve session, its list or its findings.
-- Mark platform MCP calls that need a person - every call that always asks, every task or table write that may start agent work, and every delete, discard, end or publish - with `destructiveHint: true` for outside clients.
-- Set text other people or models wrote apart in Improve and eval tool results, under `untrusted`, and treat it as data in the Architect.
-- Refuse a paid start - an eval run, a skill update check, a promotion gate run, a knowledge draft - once it would cost more than the price the person agreed to. A quoted knowledge draft runs on the drafter it was priced on.
-- Tell a platform call by the mark its binding puts on the tool, never by its name: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call.
+- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
+- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
+- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
 
 ### Upgrading
 
-- Migration `0370_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
+- Live project mounts require matching sandboxd SDK/image 0.2.40, retained containers,
+  a durable workspace root and the operator-configured filesystem gateway/exporter
+  pair. The gateway must be reachable from sandboxd and its isolated helper bridge;
+  Compose-only DNS and loopback-only host ports are insufficient. The feature stays
+  disabled until configured. Existing unmounted sessions need explicit recovery;
+  unsupported providers/scopes fail clearly. Native project storage needs durable
+  extended attributes and atomic hard links; database-backed state is supported.
+
+- New projects default to stored files, even when a sandbox connection is available.
+  API clients that want automatic sandbox selection must send `backend: auto`;
+  selecting a specific sandbox still uses `backend: service`. Existing projects
+  keep their configured storage and sandbox connection.
+
+- Apply `0369_run_error_code.py` to retain optional failure codes and numeric parameters for Improve sessions and assistant requests. Historical free-text failures remain readable when no exact code can be backfilled.
+
+- Apply `0366_improvement_holdout_share.py` with API admission and background
+  workers paused, then restart both on the updated code. Existing Improve
+  sessions receive their dataset's current share (0.5 if the dataset is gone);
+  skill test sets are repaired to hold out every question. Downgrade removes
+  the pinned-share column but intentionally keeps that test-set repair.
+
+- Migration `0371_portable_document_snapshots.py` records imported parsed-text files. Downgrading it requires deleting documents that own parsed snapshots through the application first, preserving file cleanup ownership.
+- Apply `0371_run_workspace_origins.py` for run workspace-reference metadata.
+  Historical runs start with an empty reference list; existing files are not copied
+  or backfilled. Updated built-in AgenticOS and Architect templates add Projects
+  through the normal template refresh, preserving local model choices.
+- `select_project_workspace` now selects file context only. Use
+  `select_execution_target` to change command execution explicitly. Switching
+  targets does not copy or synchronize files; supported private agent executors
+  independently expose the selected Project through the live `PROJECT_DIR` mount. New turns in existing project chats now
+  default to the agent executor; deliberately saved Project pins remain in force.
+  Use advanced settings to pin Project when the previous default is required.
+  `transfer_project_file` explicitly copies one file of up to 8 MiB between the
+  agent and project; an existing destination needs its current SHA-256 digest. Older dynamically selected approval checkpoints
+  without a workspace generation must select the project again or start a new turn.
+  Disabled Sandbox stays disabled, and run-scoped executor outputs remain temporary.
+  Shared-workspace delegation pins the project and executor until the run ends.
+  Legacy parks containing delegations without this pin marker must start a new
+  turn; pending child tools are never replayed on an unverified workspace.
+- Clients stopping an agent Improve session without `runs:view` must accept a minimal `{id, status}` receipt. Full session details are returned only to readers with that permission.
+- Apply `0365_reusable_event_sources.py` first. Drain and stop old workers before starting upgraded workers or schedulers, then roll out the API. This keeps old workers from claiming source dispatch and retention jobs they cannot execute. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
+
+- Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
+  administrator disables it. The console's provider filter now defaults to all
+  supported configured methods; an explicit `OAUTH_PROVIDERS` list keeps its
+  filtering behavior. Set `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` on all API
+  replicas only for operator recovery, then remove it after repairing sign-in.
+
+- If you roll out API replicas and workers separately, update all of them before clients start sending `"steer": true`. Older versions cannot process steering requests or read their receipts. Ordinary run requests do not need a coordinated upgrade.
+
+- Apply `0367_portability_operations.py` for private transfer journals and run
+  the updated worker for ZIP preparation, import and expiry cleanup. Preserve
+  the proxy's dedicated 512 MiB upload allowance on both hosts.
+
+- Apply `0365_project_resources.py` and `0366_shared_mcp_oauth_clients.py` to add
+  resource links and the unique organization MCP OAuth client identity. Existing
+  resources, projects, credentials and connection flows are preserved.
+- Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
 - A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.

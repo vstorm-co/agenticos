@@ -92,7 +92,13 @@ UNPUBLISHED: dict[tuple[str, str], Any] = {
 
 def _responder(responses: dict[tuple[str, str], Any]) -> AsyncMock:
     async def respond(method: str, path: str, **_: Any) -> Any:
-        return {**UNPUBLISHED, **responses}[(method, path)]
+        return {
+            ("GET", "/me/permissions"): {
+                "permissions": [{"permission": "runs:view", "scope": "all"}]
+            },
+            **UNPUBLISHED,
+            **responses,
+        }[(method, path)]
 
     return AsyncMock(side_effect=respond)
 

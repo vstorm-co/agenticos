@@ -8,11 +8,13 @@ built on real SQL (`ON CONFLICT`, a forced `IntegrityError`, `resolve_access`
 against a real grant-less row) that a mocked repository cannot exercise.
 """
 
+import dataclasses
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
@@ -108,6 +110,7 @@ async def _own_platform_call(db, org: Organization, person: User) -> ToolApprova
         run_id=run.id,
         agent_id=agent.id,
         tool_id="agenticos_accept_improvement",
+        platform_call=True,
         tool_args={},
         status=ApprovalStatus.PENDING.value,
         always_asks=True,
@@ -2726,3 +2729,50 @@ async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, 
             render_context={"routine_origin_id": str(uuid.uuid4())},
             use_savepoint=False,
         )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change",
+    [
+        "other_person",
+        "unbound",
+        "not_always",
+        "other_tenant",
+        "key",
+        "publisher",
+        "malformed_calls",
+    ],
+)
+async def test_an_own_call_notice_rechecks_the_current_call_and_person(
+    db: AsyncSession, change: str
+) -> None:
+    owner = await _user(db)
+    org = await _org(db, owner)
+    person = await _member(db, org, role="member")
+    call = await _own_platform_call(db, org, person)
+    reader = _ctx(person, org, role="member")
+    notice = Notification(
+        organization_id=org.id,
+        render_context={APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: [str(call.id)]},
+    )
+    service = NotificationCenterService(db)
+    assert await service.answers_own_call(reader, notice)
+    if change == "other_person":
+        run = await db.get(AgentRun, call.run_id)
+        assert run is not None
+        run.user_id = owner.id
+    elif change == "unbound":
+        call.platform_call = False
+    elif change == "not_always":
+        call.always_asks = False
+    elif change == "other_tenant":
+        notice.organization_id = uuid.uuid4()
+    elif change == "key":
+        reader = dataclasses.replace(reader, api_key_id=uuid.uuid4())
+    elif change == "malformed_calls":
+        notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: "not-a-list"}
+    else:
+        reader = dataclasses.replace(reader, subject_is_publisher_fallback=True)
+    await db.flush()
+    assert not await service.answers_own_call(reader, notice)

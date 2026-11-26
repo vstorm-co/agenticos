@@ -505,6 +505,13 @@ class ApprovalRead(BaseSchema):
             "reject the call but not approve it"
         ),
     )
+    platform_call: bool = Field(
+        default=False,
+        description=(
+            "Whether the call is one of the platform's own tools, as the platform binding "
+            "marked it when it parked - never read from its name"
+        ),
+    )
     may_approve: bool = Field(
         default=False,
         description=(

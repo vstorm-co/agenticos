@@ -84,6 +84,8 @@ describe("resolving what the administrator overrode", () => {
       footerText: "© Acme",
       termsUrl: "https://acme.com/terms",
       privacyUrl: "https://acme.com/privacy",
+      passwordSignInEnabled: true,
+      signInProviders: [],
       signupMode: "invite_only",
       allowedEmailDomains: ["acme.com"],
       maintenanceMode: true,
@@ -149,4 +151,12 @@ describe("where a branding image is fetched from", () => {
   it("keeps a zero version, which is a stamp and not an absence", () => {
     expect(brandingImageUrl("favicon", 0)).toBe("/api/branding/mark/favicon?v=0");
   });
+});
+
+it("preserves provider-only admission and only the configured provider names", () => {
+  const branding = resolveBranding(
+    response({ password_sign_in_enabled: false, sign_in_providers: ["oidc"] }),
+  );
+  expect(branding.passwordSignInEnabled).toBe(false);
+  expect(branding.signInProviders).toEqual(["oidc"]);
 });

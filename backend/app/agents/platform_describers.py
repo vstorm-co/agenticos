@@ -12,36 +12,53 @@ capabilities this module serves.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.deps import AgentDeps
 from app.agents.mcp import PLATFORM_MCP_NAME
-from app.core.exceptions import AppException
-from app.core.permissions import AuthContext
+from app.core.exceptions import AppException, AuthorizationError
+from app.core.permissions import AuthContext, Perm
 from app.db.session import get_db_context
+from app.schemas.base import BaseSchema
 from app.services.access import acting_member
 
-type PlatformDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
-type _Read = Callable[[AsyncSession, AuthContext, Mapping[str, Any]], Awaitable[dict[str, str]]]
+type PlatformDescriber = Callable[
+    [AgentDeps, Mapping[str, object]], Awaitable[dict[str, str] | None]
+]
+type _Read = Callable[[AsyncSession, AuthContext, Mapping[str, object]], Awaitable[dict[str, str]]]
+
+
+_ID = TypeAdapter(UUID)
+_NUMBER = TypeAdapter(int)
+_IDS = TypeAdapter(list[UUID])
 
 
 def _id(value: object) -> UUID:
-    return UUID(str(value))
+    return _ID.validate_python(value)
+
+
+class _EvalReference(BaseSchema):
+    dataset_id: UUID
+    dataset_version: int | None = None
 
 
 async def _accept_improvement(
-    db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
+    db: AsyncSession, ctx: AuthContext, args: Mapping[str, object]
 ) -> dict[str, str]:
     from app.services.agent_registry import AgentRegistryService
     from app.services.improvement_pipeline import ImprovementPipelineService
 
+    if not ctx.has(Perm.RUNS_VIEW):
+        raise AuthorizationError(
+            message="Reading an improvement session requires runs:view", details={}
+        )
     agent = await AgentRegistryService(db).get(ctx, _id(args["agent_id"]))
     session = await ImprovementPipelineService(db).read(ctx, agent.id, _id(args["session_id"]))
     # The attempt the call names, which the server holds the acceptance to.
-    number = int(args["attempt"])
+    number = _NUMBER.validate_python(args["attempt"])
     attempt = next((item for item in session.iterations if item.number == number), None)
     if attempt is None:
         raise KeyError("attempt")
@@ -54,7 +71,7 @@ async def _accept_improvement(
 
 
 async def _publish_agent(
-    db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
+    db: AsyncSession, ctx: AuthContext, args: Mapping[str, object]
 ) -> dict[str, str]:
     from app.services.agent_registry import AgentRegistryService
 
@@ -64,7 +81,7 @@ async def _publish_agent(
 
 
 async def _change_skill_version(
-    db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
+    db: AsyncSession, ctx: AuthContext, args: Mapping[str, object]
 ) -> dict[str, str]:
     from app.repositories import skill_version as skill_version_repo
     from app.services.agent_registry import AgentRegistryService
@@ -75,7 +92,7 @@ async def _change_skill_version(
     state = str(args.get("state", ""))
     described = {"skill": skill.name, "agent": agent.name, "state": state}
     if state == "pinned":
-        described["version"] = str(int(args["version"]))
+        described["version"] = str(_NUMBER.validate_python(args["version"]))
     elif state == "fork":
         fork = await skill_version_repo.get_fork(
             db, _id(args["fork_id"]), organization_id=ctx.organization_id, skill_id=skill.id
@@ -87,33 +104,32 @@ async def _change_skill_version(
 
 
 async def _accept_skill_improvement(
-    db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
+    db: AsyncSession, ctx: AuthContext, args: Mapping[str, object]
 ) -> dict[str, str]:
     from app.services.agent_registry import AgentRegistryService
     from app.services.skills import SkillService
 
     skill = await SkillService(db).get(ctx, _id(args["skill_id"]))
     outcome = str(args.get("outcome", ""))
-    chosen = args.get("fork_agent_ids") or []
+    chosen = _IDS.validate_python(args.get("fork_agent_ids") or [])
     if outcome != "fork_for_helped" or not chosen:
         return {"skill": skill.name, "outcome": outcome}
     # Named agents move instead of the helped ones, so the card names exactly them.
     registry = AgentRegistryService(db)
-    names = [(await registry.get(ctx, _id(agent_id))).name for agent_id in chosen]
+    names = [(await registry.get(ctx, agent_id)).name for agent_id in chosen]
     return {"skill": skill.name, "outcome": "fork_for_chosen", "agents": ", ".join(names)}
 
 
 async def _start_eval_run(
-    db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
+    db: AsyncSession, ctx: AuthContext, args: Mapping[str, object]
 ) -> dict[str, str]:
     from app.services.agent_registry import AgentRegistryService
     from app.services.dataset import DatasetService
 
-    run = args["run"]
-    run = run.model_dump(mode="json") if hasattr(run, "model_dump") else run
+    run = _EvalReference.model_validate(args["run"])
     agent = await AgentRegistryService(db).get(ctx, _id(args["agent_id"]))
-    dataset = await DatasetService(db).get(ctx, _id(run["dataset_id"]))
-    version = run.get("dataset_version")
+    dataset = await DatasetService(db).get(ctx, run.dataset_id)
+    version = run.dataset_version
     return {
         "agent": agent.name,
         "dataset": dataset.name,
@@ -136,7 +152,7 @@ def platform_describer(tool_name: str) -> PlatformDescriber | None:
     if read is None or not tool_name.startswith(f"{PLATFORM_MCP_NAME}_"):
         return None
 
-    async def describe(deps: AgentDeps, args: Mapping[str, Any]) -> dict[str, str] | None:
+    async def describe(deps: AgentDeps, args: Mapping[str, object]) -> dict[str, str] | None:
         person = None if deps.run_person is None else str(deps.run_person)
         async with get_db_context() as db:
             ctx = await acting_member(db, deps.organization_id, person)

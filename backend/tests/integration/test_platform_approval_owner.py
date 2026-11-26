@@ -638,3 +638,24 @@ class TestTheQueueOfAPersonWithoutApprovalsDecide:
         assert listed.status_code == 200, listed.text
         assert [item["id"] for item in listed.json()["items"]] == [str(approval.id)]
         assert decided.status_code == 200, decided.text
+
+
+@pytest.mark.parametrize("tool_id", [_ACCEPT, "agenticos_external_destructive_tool"])
+@pytest.mark.parametrize("context", [None, {"platform_tool": "true"}])
+async def test_a_platform_name_without_the_bindings_mark_grants_no_own_person_exception(
+    db: AsyncSession, tool_id: str, context: dict[str, str] | None
+) -> None:
+    """Neither a stored name nor anything its card's description says marks a call the
+    platform's own: only the mark the binding put on the tool when it parked."""
+    org = await _org(db)
+    member = await _member(db, org, OrgRoleName.MEMBER)
+    run, approval = await _parked(db, org, member, tool_id=tool_id, platform_call=False)
+    approval.context = context
+    await db.flush()
+
+    with pytest.raises(AuthorizationError):
+        await ApprovalService(db).decide(member, approval.id, approved=True)
+    with pytest.raises(AuthorizationError):
+        await _parked_runs(db).resume(member, run.id)
+    await db.refresh(approval)
+    assert approval.status == ApprovalStatus.PENDING.value

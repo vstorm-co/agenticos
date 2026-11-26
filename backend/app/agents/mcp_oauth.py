@@ -284,6 +284,7 @@ class McpOAuthPayload(BaseModel):
     provider: str | None = None
     browser_nonce_digest: str | None = None
     account_initiator_id: UUID | None = None
+    organization_oauth_client: bool = False
     account_source_organization_id: UUID | None = None
     account_source_secret_id: UUID | None = None
     account_source_generation: UUID | None = None

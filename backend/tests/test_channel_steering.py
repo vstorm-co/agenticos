@@ -186,14 +186,19 @@ async def test_a_correction_too_late_for_the_turn_is_answered_as_its_own():
 async def test_a_durable_turn_registers_a_worker_independent_steering_reader(monkeypatch):
     from uuid import uuid4
 
+    from app.agents.deps import AgentDeps
+    from app.services.channels import ingress
     from app.services.channels import router as routing
     from app.services.channels.steering import current_steering, queued_turn
 
     monkeypatch.setattr(routing, "claim_delivery", AsyncMock(return_value=True))
+    monkeypatch.setattr(ingress, "collect_steering", AsyncMock(return_value=["new deadline"]))
 
     async def inner(_incoming, _db):
         inbox = current_steering()
         assert inbox is not None and inbox.poll is not None
+        async with inbox.poll(AgentDeps()) as additions:
+            assert additions == ["new deadline"]
 
     router = ChannelMessageRouter()
     monkeypatch.setattr(router, "_route_inner", inner)

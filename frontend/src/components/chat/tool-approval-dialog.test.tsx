@@ -445,6 +445,18 @@ it("offers only Reject on a call this person may not approve unread", async () =
   expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
 });
 
+it("shows the price a paid platform call was quoted at", () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_start_eval_run",
+      args: { quoted_usd: "0.40" },
+      platform_call: true,
+      always_asks: true,
+    }),
+  ]);
+  expect(screen.getByText("Quoted estimate: $0.40")).toBeInTheDocument();
+});
+
 it("lets the run's person approve their own platform call without approvals:decide", async () => {
   held.permissions = [];
   const onDecisions = mount([
@@ -505,16 +517,19 @@ it("lets the run's person answer their own call of a mixed batch and leaves the 
   expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }], [own]);
 });
 
-it("shows the price a paid platform call was quoted at", () => {
+it("explains the application administration requirement for deployment changes", () => {
   mount([
-    action("a-1", {
-      tool_name: "agenticos_start_eval_run",
-      args: { quoted_usd: "0.40" },
+    action("deployment", {
+      tool_name: "agenticos_change_deployment",
       always_asks: true,
       may_decide: true,
-      may_approve: true,
+      may_approve: false,
     }),
   ]);
-
-  expect(screen.getByText("Quoted price: up to $0.40")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText(
+      "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    ),
+  ).toBeInTheDocument();
 });

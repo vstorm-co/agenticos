@@ -168,17 +168,20 @@ export function ApprovalDetails({
   toolName,
   args,
   fallback,
+  platformCall,
 }: {
   toolName: string;
   args: Record<string, unknown>;
   /** What a table write leads with instead while its table cannot be read. */
   fallback?: ReactNode;
+  /** One of the platform's own tools, as the server marked it; only such a call shows a quote. */
+  platformCall?: boolean;
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const fields = spokenArgs(args);
-  const price = quotedPrice(toolName, args);
+  const price = quotedPrice(toolName, args, platformCall);
   return (
     <div className="space-y-2">
       {price !== null && (

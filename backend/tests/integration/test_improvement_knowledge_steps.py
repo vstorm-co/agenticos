@@ -1,6 +1,6 @@
 """Knowledge work: a session sorts and groups on its own ledger, a person asks for each draft."""
 
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import record_ambient_cost
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
@@ -547,8 +548,7 @@ async def test_a_draft_dearer_than_its_quote_is_refused_and_one_within_it_is_que
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("priced", [True, False], ids=["priced", "unpriced"])
-async def test_the_drafter_priced_is_the_drafter_that_runs(db, knowledge_search, priced):
+async def test_the_drafter_priced_is_the_drafter_that_runs(db, knowledge_search):
     """Another drafter named while the draft searches does not run in place of the one
     the quote priced: the run is pinned to that drafter and its published version."""
     ctx, agent, kb, dataset, _ = await _world(db)
@@ -580,17 +580,12 @@ async def test_the_drafter_priced_is_the_drafter_that_runs(db, knowledge_search,
             asked.append(kwargs)
             return await run(self, *args, **kwargs)
 
-        unpriced = (
-            nullcontext()
-            if priced
-            else patch("app.services.knowledge_gaps.price_request", return_value=None)
-        )
         with (
-            unpriced,
             patch.object(KnowledgeGapService, "_search_now", search_then_swap),
             patch.object(SystemAgentRunner, "run", recorded),
         ):
-            quote = (await service.draft_estimate(ctx, gap.id)).total_usd or Decimal(0)
+            quote = (await service.draft_estimate(ctx, gap.id)).total_usd
+            assert quote is not None
             await service.draft(ctx, gap.id, quoted_usd=quote)
 
     assert [(call["agent_id"], call["version_id"]) for call in asked] == [
@@ -781,3 +776,39 @@ async def test_a_document_that_failed_to_ingest_leaves_the_knowledge_missing(db)
         await db.flush()
         items = (await ImprovementPipelineService(db).evidence(ctx, agent.id, run_id=read.id)).items
     assert all(item.knowledge_added is None for item in items)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("current_price", [None, Decimal("999")])
+async def test_a_queued_draft_refuses_an_unpriced_or_more_expensive_worker_start(
+    db: AsyncSession,
+    current_price: Decimal | None,
+) -> None:
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx) as model:
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        price = (await service.draft_estimate(ctx, gap.id)).total_usd
+        assert price is not None
+        await service.request_draft(ctx, gap.id, quoted_usd=price)
+        [job] = await _draft_jobs(db)
+        before = len(model.prompts)
+        with (
+            patch("app.services.knowledge_gaps.price_request", return_value=current_price),
+            pytest.raises(ConcurrentChangeError),
+        ):
+            await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
+        assert len(model.prompts) == before
+
+
+@pytest.mark.security
+async def test_an_unpriced_draft_cannot_be_queued_against_a_known_quote(db: AsyncSession) -> None:
+    ctx, agent, _kb, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        with (
+            patch("app.services.knowledge_gaps.price_request", return_value=None),
+            pytest.raises(ConcurrentChangeError),
+        ):
+            await KnowledgeGapService(db).request_draft(ctx, gap.id, quoted_usd=Decimal("0.40"))
+        assert await _draft_jobs(db) == []

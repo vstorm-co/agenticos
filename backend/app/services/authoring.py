@@ -693,6 +693,7 @@ class AuthoringService:
             values={
                 "status": AuthoringStatus.FAILED.value,
                 "error": "The assistant stopped without finishing. Try again.",
+                "error_code": "stalled",
                 "finished_at": datetime.now(UTC),
             },
         )

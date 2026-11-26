@@ -161,11 +161,16 @@ request still observes the monthly budgets; exhausting one ends the eval as
 
 A start may carry the estimate's `at_most_usd` - its first answers, the judge and
 every rerun - back as `quoted_usd`, and the estimate's `dataset_version` with it.
-Starting then refuses with `409` once the run could cost more, so a price agreed
-earlier is never exceeded unseen. The console's start dialog and the Architect
-always pass both, and the Architect's approval card shows that price. Skill update
-checks, knowledge drafts and a promotion gate's guards take a `quoted_usd` the same
-way, and `GET .../gate/estimate` prices the guards a gate run would start.
+Starting then refuses with `409` once the run could cost more than that quote. The
+console's start dialog and the Architect always pass both, and the Architect's
+approval card shows that price. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and a promotion
+gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
+the guards a gate run would start.
+
+A queued knowledge draft retains its quote. Its worker checks the estimate
+again before retrieval or model work, and refuses a higher or unknown price.
+Existing clients and jobs without a quote retain their previous behavior.
 
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
@@ -195,11 +200,11 @@ An unknown environment returns 404. Concurrent suite creates or renames with the
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
 A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 

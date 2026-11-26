@@ -39,3 +39,24 @@ describe("the dataset's guidance at the start of Improve", () => {
     expect(screen.queryByText(/Last changed/)).toBeNull();
   });
 });
+
+it("shows a recorded date without inventing an author", () => {
+  show({ text: "Keep it short.", updated_at: "2026-11-25T10:00:00Z" });
+  expect(screen.getByText(/11\/25\/2026/)).toBeVisible();
+});
+it("names an author even when an older record has no timestamp", () => {
+  show({ text: "Keep it short.", updated_by_name: "Ada Lovelace" });
+  expect(screen.getByText("Last changed by Ada Lovelace.")).toBeVisible();
+});
+it("gives each guidance section its own heading association", () => {
+  const { container } = render(
+    <>
+      <DatasetGuidance guidance={{ text: "First" }} />
+      <DatasetGuidance guidance={{ text: "Second" }} />
+    </>,
+  );
+  const sections = [...container.querySelectorAll("section")];
+  const headings = sections.map((section) => section.getAttribute("aria-labelledby"));
+  expect(new Set(headings).size).toBe(2);
+  for (const id of headings) expect(container.querySelector(`[id="${id}"]`)).not.toBeNull();
+});

@@ -154,6 +154,7 @@ async def _own_platform_call(db, org: Organization, person: User) -> ToolApprova
         run_id=run.id,
         agent_id=agent.id,
         tool_id="agenticos_accept_improvement",
+        platform_call=True,
         tool_args={},
         status=ApprovalStatus.PENDING.value,
         always_asks=True,

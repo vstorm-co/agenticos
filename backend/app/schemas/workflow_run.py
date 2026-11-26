@@ -216,10 +216,11 @@ class WorkflowStepDecision(BaseSchema):
 
 
 class WorkflowNodeRunRead(BaseSchema):
-    """One step of a run, in one loop iteration - what a run view colours its graph by.
+    """One execution of a graph step or of an action called from Python.
 
     `scope_path` is `[]` at the top level and names the loop and index inside a
-    `control.foreach` body. `error` is the latest failed attempt's typed error, the
+    `control.foreach` body. For a Python call its final segment holds the bound
+    action name and zero-based call index. `error` is the latest failed attempt's typed error, the
     same `WorkflowError` a run's own `error` carries - never a raw exception.
     """
 

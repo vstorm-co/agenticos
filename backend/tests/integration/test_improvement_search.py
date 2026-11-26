@@ -338,6 +338,7 @@ class TestSearch:
 
         assert run.status == "stopped" and run.stop_reason == "no_data"
         assert "10 training questions" in (run.error or "")
+        assert (run.error_code, run.error_params) == ("search_too_few_training", {"minimum": 10})
 
 
 class TestDraftEdits:

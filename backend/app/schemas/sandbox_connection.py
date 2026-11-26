@@ -204,6 +204,8 @@ class SandboxPolicyRead(BaseSchema):
     idle_timeout: int | None = None
     workspace_root: str | None = None
     persist_containers: bool | None = None
+    filesystem_mounts: bool = False
+    filesystem_mount_path: str | None = None
 
 
 class SandboxSessionUsage(BaseSchema):

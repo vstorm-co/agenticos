@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d4bd2b212d"
+source_sha: "32f24407d7b1"
 ---
 
 # Arquitectura { #architecture }
@@ -434,6 +434,25 @@ Dos entradas de ese dict son costuras hacia otros subsistemas y no datos sin má
 | --------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
 | `WORKSPACE_RESOURCE`        | el workspace abierto, que el run también recibe como `ctx.workspace` | `tool_output_limits` y un delegado que comparte `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | el árbol de delegación resuelto                                      | la capability `subagents`                                 |
+
+Los montajes en vivo usan una segunda frontera de servicio deliberadamente limitada.
+El runner inyecta un puerto de selección de proyecto; las capabilities no leen la
+base directamente. El gateway del sistema de archivos comprueba membresía, grants,
+concesión y generación del workspace en cada RPC, con su propia transacción. Una
+credencial de binding identifica un workspace privado del agente; los directorios
+inmutables de concesión identifican acceso autorizado al proyecto por ejecución.
+Las concesiones caducan a los 90 segundos, se renuevan cada 30 y se revocan al
+terminar, pausar o cambiar la selección.
+
+El broker de confianza del SDK verifica la identidad del binding antes de abrir o
+ejecutar una sesión, mantiene el exportador en un puente privado y monta solo un
+volumen NFS con nombre dentro del contenedor existente. El proveedor del proyecto
+sigue siendo la autoridad sobre archivos. State ofrece verificación transaccional
+de creación exclusiva; el almacenamiento nativo requiere atributos extendidos
+duraderos y enlaces duros atómicos. Proveedores y scopes incompatibles rechazan la
+admisión. La época del exportador es inmutable para los handles montados: cambiarla
+detiene al agente retenido hasta una recuperación explícita, sin reemplazos vacíos
+ni repetición automática de comandos interrumpidos.
 
 La delegación es el caso más afilado para la regla. Un delegado es una fila, y
 también lo son su versión fijada, sus colecciones, sus skills y sus secretos:

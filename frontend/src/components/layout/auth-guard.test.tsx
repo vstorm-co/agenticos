@@ -107,6 +107,17 @@ describe("the dashboard guard, refusing", () => {
     );
   });
 
+  it("sends a sign-out that already reached the login page there without a returnTo", async () => {
+    // Signing out moves to the login page before this guard's check comes back;
+    // a returnTo of /login sent the next sign-in back to the form.
+    window.history.replaceState(null, "", "/login");
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));
+
+    renderGuard();
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(ROUTES.LOGIN));
+  });
+
   it("carries the whole address to login - path, query and fragment", async () => {
     window.history.replaceState(null, "", "/agents/a-1?tab=spec#monthly");
     vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));

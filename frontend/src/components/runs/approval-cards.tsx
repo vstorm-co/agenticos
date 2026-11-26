@@ -148,6 +148,7 @@ export function PendingApproval({
             <ApprovalDetails
               toolName={approval.tool_id}
               args={approval.tool_args}
+              platformCall={approval.platform_call}
               fallback={
                 tableLine !== null && (
                   <p className="text-foreground/80 truncate text-sm" title={tableLine}>
@@ -166,7 +167,11 @@ export function PendingApproval({
             </Button>
           ) : (
             <p className="text-muted-foreground max-w-48 text-xs">
-              {hiddenFromThem ? t("approveNeedsTheRun") : t("approveNeedsItsPerson")}
+              {hiddenFromThem
+                ? t("approveNeedsTheRun")
+                : approval.tool_id === "agenticos_change_deployment"
+                  ? t("approveNeedsItsAdminPerson")
+                  : t("approveNeedsItsPerson")}
             </p>
           )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
@@ -264,7 +269,11 @@ export function DecidedApproval({
           </span>
         )}
         <div className="w-full pt-1">
-          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+          <ApprovalDetails
+            toolName={approval.tool_id}
+            args={approval.tool_args}
+            platformCall={approval.platform_call}
+          />
         </div>
       </div>
     </li>

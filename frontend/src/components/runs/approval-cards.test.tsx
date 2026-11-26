@@ -526,3 +526,24 @@ it("offers rejection but not approval on a platform call that runs as somebody e
   await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   expect(onDecide).toHaveBeenCalledWith(false);
 });
+
+it("explains the application administration requirement for deployment changes", () => {
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "agenticos_change_deployment",
+        always_asks: true,
+        may_approve: false,
+      })}
+      deciding={false}
+      onDecide={vi.fn()}
+      onOpenRun={vi.fn()}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText(
+      "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    ),
+  ).toBeInTheDocument();
+});

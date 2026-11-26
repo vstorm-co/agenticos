@@ -809,12 +809,16 @@ class TestApprovalRequested:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                run, agent=_agent(), spec=_spec(), approvals=_approvals("agenticos_publish_agent")
+                run,
+                agent=_agent(),
+                spec=_spec(),
+                approvals=_approvals("agenticos_publish_agent"),
             )
 
-        [call] = written.calls
-        assert call["recipients"] == [person]
-        assert call["render_context"][APPROVABLE_BY] == str(person)
+        [notice] = written.calls
+        assert notice["recipients"] == [person]
+        assert notice["render_context"][APPROVABLE_BY] == str(person)
+        assert f"/chat?id={run.conversation_id}" in notice["context_url"]
 
     @pytest.mark.anyio
     async def test_a_call_that_names_its_account_lists_it_beside_the_tool(self, written):

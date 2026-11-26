@@ -157,7 +157,7 @@ describe("the canvas toolbar", () => {
         expect(store.getState().graph!.nodes[0]!.config.table).toEqual(stale);
       } else {
         expect(
-          screen.getAllByText(/a column it reads was removed or changed type/).length,
+          screen.getAllByText(/Review the column names, types, and values/).length,
         ).toBeGreaterThan(0);
         await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
         expect(store.getState().graph!.nodes[0]!.config.table).toEqual(rebound);

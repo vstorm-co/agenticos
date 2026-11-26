@@ -60,15 +60,29 @@ async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_s
     ctx, agent, _, session = await _started(db)
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
-    row.error = "Private provider details"
+    row.error, row.error_code, row.error_params = "Private details", "refused", {"missing": 1}
     await db.flush()
     demoted = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
 
     stopped = await ImprovementPipelineService(db).cancel(demoted, agent.id, session.id)
 
     assert stopped.status == "cancelled"
-    assert stopped.iterations == [] and stopped.timeline == []
-    assert stopped.error is None
+    assert stopped.model_dump(mode="json") == {"id": str(session.id), "status": "cancelled"}
+    assert set(stopped.model_dump()).isdisjoint(
+        {
+            "budget_usd",
+            "spent_usd",
+            "estimate_usd",
+            "dataset_id",
+            "dataset_version",
+            "iteration",
+            "iterations",
+            "timeline",
+            "error",
+            "error_code",
+            "error_params",
+        }
+    )
 
 
 @pytest.mark.security

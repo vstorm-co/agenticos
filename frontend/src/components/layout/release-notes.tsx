@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { version } from "../../../package.json";
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useAuthStore } from "@/stores/auth-store";
 import { useReleaseNotesStore } from "@/stores/release-notes-store";
 import { useCurrentRelease } from "@/hooks/use-current-release";
@@ -21,7 +22,8 @@ import {
 /** Public release notes after sign-in, once per account and installed version on this device. */
 export function ReleaseNotes() {
   const userId = useAuthStore((s) => s.user?.id);
-  return userId ? <AccountReleaseNotes key={userId} userId={userId} /> : null;
+  const { productNotices } = useConsolePresentation();
+  return userId && productNotices ? <AccountReleaseNotes key={userId} userId={userId} /> : null;
 }
 function AccountReleaseNotes({ userId }: { userId: string }) {
   const t = useTranslations("nav");

@@ -136,6 +136,7 @@ def may_decide(
 def may_approve(
     ctx: AuthContext,
     *,
+    tool_id: str,
     always_asks: bool,
     platform_call: bool,
     person_id: UUID | None,
@@ -143,6 +144,8 @@ def may_approve(
 ) -> bool:
     """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
     if always_asks and content_hidden:
+        return False
+    if tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
         return False
     if runs_as_its_person(always_asks=always_asks, platform_call=platform_call):
         return answers_for(ctx, person_id)
@@ -345,6 +348,7 @@ class ApprovalService:
                 continues_in_chat=person and row.parked_in_chat,
                 may_approve=may_approve(
                     ctx,
+                    tool_id=row.tool_id,
                     always_asks=row.always_asks,
                     platform_call=row.platform_call,
                     person_id=row.acts_for_user_id,

@@ -160,14 +160,22 @@ it("names a platform operation and its nested task before opaque IDs", () => {
 
 describe("quotedPrice", () => {
   it("reads the price a paid platform call carries", () => {
-    expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" })).toBe("0.40");
-    expect(quotedPrice("agenticos_improve_again", { estimate_usd: 0.2 })).toBe("0.2");
-    expect(quotedPrice("agenticos_run_next_improvement_step", { total_usd: "1.5" })).toBe("1.5");
+    expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" }, true)).toBe("0.40");
+    expect(quotedPrice("agenticos_improve_again", { estimate_usd: 0.2 }, true)).toBe("0.2");
+    expect(quotedPrice("agenticos_run_next_improvement_step", { total_usd: "1.5" }, true)).toBe(
+      "1.5",
+    );
   });
 
   it("reads nothing from another tool or an argument that is not an amount", () => {
     expect(quotedPrice("send_email", { quoted_usd: "0.40" })).toBeNull();
-    expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "soon" })).toBeNull();
-    expect(quotedPrice("agenticos_publish_agent", {})).toBeNull();
+    expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "soon" }, true)).toBeNull();
+    expect(quotedPrice("agenticos_publish_agent", {}, true)).toBeNull();
   });
+});
+
+it("does not present a lookalike MCP service's argument as an enforced platform quote", () => {
+  expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: "0.40" })).toBeNull();
+  for (const value of [" ", "-1", -1, Infinity, NaN, null, {}])
+    expect(quotedPrice("agenticos_start_eval_run", { quoted_usd: value }, true)).toBeNull();
 });

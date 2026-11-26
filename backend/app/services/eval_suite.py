@@ -1822,6 +1822,8 @@ class EvalSuiteService:
             verdict=comparison.verdict,
             overall=comparison.overall,
             invalid_reason=comparison.invalid_reason,
+            invalid_reason_code=comparison.invalid_reason_code,
+            invalid_reason_params=comparison.invalid_reason_params,
             regressions_confirmed=comparison.regressions_confirmed,
             regressions_unconfirmed=comparison.regressions_unconfirmed,
             fixed_confirmed=comparison.fixed_confirmed,

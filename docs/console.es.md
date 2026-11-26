@@ -1,5 +1,5 @@
 ---
-source_sha: "678ac036437c"
+source_sha: "dab83ef866c1"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -213,6 +213,32 @@ Los ajustes de instalación también ofrecen una fecha opcional de **Caducidad d
 
 La administración se abre desde el menú de cuenta. Sus ajustes usan pestañas comunes y conservan borradores al cambiar de sección. Memorias y Notas llenan el espacio restante, desplazan sus propias filas y mantienen el pie **1 / 1**. El Architect normal usa la misma familia de retratos generados que otros agentes; las imágenes personales subidas se conservan. Las vistas de la bandeja comparten el diseño de filas, y al arrastrar Kanban se ve la tarjeta real. Los últimos pasos de configuración mantienen el mismo diseño de título, formulario e ilustración; continuar un perfil sin cambios no anuncia que se haya guardado.
 
+### Navegación y sugerencias del producto { #console-presentation }
+
+En **Admin → Deployment → Identidad → Disponibilidad de la consola**, el operador elige la navegación y las sugerencias opcionales que pueden ofrecer las organizaciones. En **IA y servicios → Consola por rol**, la organización elige un rol integrado, prepara su navegación, revisa la vista previa y guarda. **Asistente sencillo** selecciona Chat, Inbox, Proyectos y Documentos. Es una plantilla opcional, no un nuevo valor predeterminado para las cuentas existentes.
+
+Los miembros pueden reducir esa selección en **Ajustes → Perfil → Mi navegación**. Una selección vacía oculta intencionadamente todas las entradas principales; una heredada sigue la organización y el despliegue. Los borradores de navegación requieren **Guardar** y avisan antes de salir con cambios pendientes. Los ajustes de cuenta, el cambio de organización y el acceso del administrador siguen disponibles. Ocultar una página no revoca permisos: una persona autorizada aún puede abrir su URL. La comprobación normal de permisos se aplica después del filtro de presentación.
+
+La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. No suplanta a nadie ni carga contenido privado. **Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
+
+
+### Catálogos y paneles por rol { #console-catalogs }
+
+**Consola para cada rol** también controla las galerías MCP y de Skills. Se pueden ofrecer todas las entradas disponibles, una lista explícita o solo servidores conectados por la organización / Skills instalados visibles. Los límites de la organización se aplican a roles sin gestión del catálogo; quienes lo gestionan siguen sujetos a los límites del despliegue y personales. Cada miembro puede restringir sus galerías en **Ajustes → Perfil → Catálogos**. Una lista vacía no ofrece entradas de forma intencionada.
+
+Los límites del catálogo cambian el descubrimiento, no los permisos de herramientas. Las cuentas existentes accesibles siguen gestionándose en **Conectadas**, y los enlaces de agentes publicados conservan sus controles de acceso. El servidor filtra antes de contar y paginar. Un Skill privado de otra persona nunca se anuncia como copia instalada a quien no puede verlo. Al actualizar la política de la consola se invalidan los resultados de galería almacenados.
+
+Para el **Panel predeterminado** de un rol, primero organiza y guarda tu panel personal y después cópialo en los ajustes del rol. Revisa la vista previa de la disposición sin datos y guarda por separado. Antes de compartir se deben quitar los filtros fijados a una persona o agente, para no distribuir identificadores privados mediante los ajustes de la organización. Se conservan anchos, alturas, secciones y opciones compatibles; no se copian vectores ni datos de widgets.
+
+La disposición configurada del rol pasa a ser su página inicial. Una disposición personal guardada tiene prioridad, incluso si está vacía intencionadamente. Restablecerla vuelve a heredar la del rol. Sin una configuración del rol se mantiene la página inicial estándar. Los permisos de widgets se comprueban al final para cada persona. Un fallo al leer la disposición o política muestra error y reintento en lugar de otra disposición durante la carga.
+
+### Costes en el chat { #chat-cost-visibility }
+
+**Costes del chat** sigue una jerarquía más estricta: disponibilidad del despliegue → audiencia de la organización → elección personal. El despliegue puede ocultar costes en todo el chat. En **IA y servicios** de la organización, elige **Todos** (predeterminado), **Personas con acceso a gastos** (`budgets:manage` o `runs:view`) o **Nadie en el chat**. En **Ajustes → Perfil**, los miembros pueden ocultarlos para sí mismos, pero no superar una restricción superior.
+
+La regla cubre precios de respuestas, costes de delegaciones, totales de conversaciones y porcentajes de budget, incluidos historiales guardados, streams reconectados, chats compartidos y continuaciones Q&A. Los metadatos financieros ocultos se omiten de la respuesta del chat; los datos de tokens y contexto siguen disponibles. No se reescriben respuestas del agente ni contenidos arbitrarios de herramientas. La contabilidad y los límites de budget permanecen iguales. Los costes de Activity y del panel conservan sus permisos actuales.
+
+
 ## El dashboard { #the-dashboard }
 
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
@@ -309,6 +335,8 @@ instantánea que querías conservar.
 ## Rutinas y seguimientos { #routines-and-watches }
 
 Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
+
+Las nuevas rutinas usan automáticamente las herramientas permitidas según las reglas de aprobación del agente y reúnen ejecuciones en un chat de solo lectura. Un chat separado por ejecución permite continuar directamente; el historial compartido se puede bifurcar. En **Herramientas de la rutina**, **Seguir al agente**, **Preguntar siempre** y **Desactivada** conservan o restringen las reglas del agente; siguen vigentes las aprobaciones requeridas. Guardar restricciones de una rutina antigua elimina sus aprobaciones permanentes anteriores, con advertencia explícita del diálogo. Consulta [Herramientas de la rutina](governance.md#routine-action-consent).
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 
@@ -1064,6 +1092,8 @@ borrador o una sesión a su run llega a una fila que la lista muestra.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 
+**Fuentes de eventos** sigue disponible en `/event-sources`, pero no aparece en la barra lateral predeterminada. Abre su administración desde el selector de fuente de una rutina o workflow. Puedes añadirla al personalizar la navegación; se conservan las selecciones explícitas por rol de organización y las personales.
+
 **Overview** (Dashboard), **Chat** e **Inbox** encabezan la barra lateral.
 **Build & manage** muestra Agents, Workflows, Routines y Apps sin desplegar;
 después aparecen los Projects.
@@ -1333,3 +1363,8 @@ Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o inicia
 Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
 
 Cuando un agente hace una pregunta, su tarjeta y el editor normal permanecen visibles juntos. El editor conserva el borrador y los adjuntos; los mensajes nuevos esperan en la cola mientras respondes mediante la tarjeta. Detener una respuesta pausa los mensajes pendientes hasta que reanudes la cola explícitamente. La finalización normal sigue procesando la cola.
+
+
+## Lista plana de chats recientes { #flat-recent-chat-list }
+
+La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina chats de proyectos y normales en una lista ordenada por última actividad, sin encabezados de proyectos, no leídos o favoritos. Los favoritos conservan sus estrellas, pero no se fijan por encima de actividad más reciente. La paginación utiliza este orden en el servidor, de modo que los favoritos antiguos no desplazan los chats recientes de la primera página. Se mantienen los filtros existentes de agente, archivo y API. La elección se guarda en este navegador por separado para cada usuario; **Agrupar chats por proyecto** restaura la vista agrupada predeterminada.

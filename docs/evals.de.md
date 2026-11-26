@@ -1,5 +1,5 @@
 ---
-source_sha: "1a533c27efa2"
+source_sha: "bf3c7ff0c636"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -189,13 +189,17 @@ Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
 beendet den Run als `budget_exceeded`.
 
 Ein Start kann `at_most_usd` aus der Schätzung (erste Antworten, Bewertung und alle
-Wiederholungen) als `quoted_usd` zurückgeben und
-`dataset_version` aus der Schätzung dazu. Der Start lehnt dann mit `409` ab,
-sobald der Run mehr kosten würde, sodass ein vorher vereinbarter Preis nie
-unbemerkt überschritten wird. Der Startdialog der Konsole und der Architect übergeben
-immer beides, und die Freigabekarte des Architect zeigt diesen Preis. Skill-Update-Prüfungen, Wissensentwürfe und die
-Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso, und
-`GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
+Wiederholungen) als `quoted_usd` zurückgeben und `dataset_version` aus der Schätzung
+dazu. Der Start lehnt dann mit `409` ab, sobald der Run mehr als dieses Angebot
+kosten könnte. Der Startdialog der Konsole und der Architect übergeben immer beides,
+und die Freigabekarte des Architect zeigt diesen Preis. Dies vergleicht Schätzungen
+und begrenzt nicht die endgültige Rechnung des Anbieters. Skill-Update-Prüfungen,
+Wissensentwürfe und die Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso,
+und `GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
+
+Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
+Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder
+unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unverändert.
 
 Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
 Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende
@@ -226,11 +230,11 @@ Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen v
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%); die eigenen Testfragen eines Skills sind alle Kontrollfragen, und ihr Anteil lässt sich nicht senken. Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche mit dem Anteil neu auf, den das Dataset beim Start der Sitzung hatte, und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
 Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
 Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 

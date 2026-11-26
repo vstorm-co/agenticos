@@ -252,11 +252,14 @@ def _require_open(row: TopicRow) -> None:
 
 
 def _held_to_quote(price: Decimal | None, quoted_usd: Decimal) -> None:
-    """Refuse a draft priced above what the person agreed to; an unpriced one has no price."""
-    if price is not None and price > quoted_usd:
+    """Refuse a draft priced above what the person agreed to, or no longer priced at all."""
+    if price is None or price > quoted_usd:
         raise ConcurrentChangeError(
-            message="A draft now costs more than was quoted; estimate it again",
-            details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
+            message="The draft estimate is unavailable or higher than quoted; estimate it again",
+            details={
+                "estimate_usd": None if price is None else str(price),
+                "quoted_usd": str(quoted_usd),
+            },
         )
 
 

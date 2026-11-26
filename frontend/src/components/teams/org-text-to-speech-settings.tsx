@@ -248,7 +248,7 @@ export function OrgTextToSpeechSettings({
             orgVisibleOnly
           />
         )}
-        <div className="flex justify-end gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
           <Button variant="ghost" disabled={!dirty || saving} onClick={reset}>
             {t("cancel")}
           </Button>

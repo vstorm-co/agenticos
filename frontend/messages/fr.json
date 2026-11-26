@@ -1185,7 +1185,6 @@
     "confirmPassword": "Confirmer le mot de passe",
     "continueWithGithub": "Continuer avec GitHub",
     "continueWithGoogle": "Continuer avec Google",
-    "googleNotConfigured": "La connexion Google n'est pas configurée pour ce déploiement.",
     "continueWithProvider": "Continuer avec {provider}",
     "continueWithMicrosoft": "Continuer avec Microsoft",
     "createHeading": "Créer un compte",
@@ -1282,7 +1281,10 @@
     "directorySignIn": "Se connecter avec {provider}",
     "directoryUsername": "Nom d’utilisateur {provider}",
     "useEmailInstead": "Utiliser plutôt l’e-mail et le mot de passe",
-    "nativeLogoutFailed": "Déconnecté, mais l’application n’a pas pu effacer l’accès local."
+    "nativeLogoutFailed": "Déconnecté, mais l’application n’a pas pu effacer l’accès local.",
+    "providerSignInOnly": "Connectez-vous via le fournisseur d’identité de votre organisation. Les mots de passe locaux et les liens de connexion par e-mail sont désactivés.",
+    "providerSignInUnavailable": "Aucun fournisseur d’identité n’est disponible. Contactez l’administrateur du déploiement.",
+    "chooseSignInMethod": "Choisir une autre méthode de connexion"
   },
   "billing": {
     "description": "Gérez votre abonnement pour {org}.",
@@ -1476,7 +1478,24 @@
         "approve_all": "Tout approuver",
         "ask_all": "Toujours demander"
       },
-      "afterFirstMessage": "Disponible après le premier message."
+      "afterFirstMessage": "Disponible après le premier message.",
+      "projectExecution": {
+        "title": "Fichiers du projet",
+        "hint": "Les fichiers partagés restent dans le projet. L’agent conserve ses outils et peut utiliser le sandbox du projet si nécessaire.",
+        "filesOnly": "Les fichiers partagés du projet sont disponibles sans exécution de commandes.",
+        "projectFilesOnly": "Les fichiers partagés restent dans le projet. Ce projet n’a pas d’environnement de commandes ; l’agent conserve ses outils.",
+        "local": "Les fichiers du projet restent partagés. Les commandes utilisent toujours le dossier autorisé sur cet ordinateur.",
+        "loading": "Vérification du projet de ce chat…",
+        "unavailable": "Le projet n’a pas pu être vérifié. Réessayez pour voir son workspace actuel.",
+        "advanced": "Destination avancée des commandes",
+        "commandTarget": "Destination des commandes",
+        "automatic": "Automatique — l’agent choisit",
+        "agent": "Workspace de l’agent uniquement",
+        "project": "Sandbox du projet uniquement",
+        "overrideHint": "Facultatif : fixez la destination des commandes pour ce chat. Le mode automatique commence dans l’environnement propre de l’agent.",
+        "noProject": "L’agent utilise son workspace configuré. Demandez-lui d’utiliser un projet si nécessaire.",
+        "workspace": "Workspace de l’agent"
+      }
     },
     "conversationArchived": "Cette conversation est archivée",
     "conversationDeleted": "Conversation supprimée",
@@ -1586,7 +1605,16 @@
       "readNoticeBody": "Réessayez pour vérifier la connexion aux fichiers. Vous pouvez continuer à utiliser cette conversation.",
       "connectionSettings": "Connexions sandbox",
       "technicalDetails": "Détails techniques",
-      "zipFailed": "Le dossier n’a pas pu être téléchargé."
+      "zipFailed": "Le dossier n’a pas pu être téléchargé.",
+      "fileLocation": "Emplacement des fichiers",
+      "chooseLocation": "Choisir un emplacement",
+      "agentLocation": "Fichiers de l’agent · {name}",
+      "projectLocation": "Fichiers du projet · {name}",
+      "locationUnavailable": "Cet emplacement n’est plus disponible. Choisissez-en un autre.",
+      "locationsTruncated": "Certains emplacements sont omis de cette liste.",
+      "filesTruncated": "Cette liste de fichiers est incomplète.",
+      "loading": "Chargement des fichiers…",
+      "retry": "Réessayer"
     },
     "generateShareLink": "Générer un lien de partage",
     "helpful": "Utile",
@@ -1784,7 +1812,9 @@
       "retryShared": "Réessayer les conversations partagées",
       "searchFailed": "Impossible de rechercher dans les conversations.",
       "searchMatches": "{count, plural, one {# message correspondant} other {# messages correspondants}}",
-      "searchKeys": "↑ ↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer"
+      "searchKeys": "↑ ↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer",
+      "flatView": "Activité récente (liste à plat)",
+      "groupedView": "Grouper les chats par projet"
     },
     "skipComment": "Passer le commentaire",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -2137,7 +2167,13 @@
       "approvePublishAgent": "Publier {agent}",
       "approveChangeSkillVersion": "{state, select, main {Passer {agent} sur la ligne principale de {skill}} pinned {Épingler {agent} à {skill} v{version}} other {Passer {agent} sur le fork {fork} de {skill}}}",
       "approveAcceptSkillImprovement": "{outcome, select, apply {Appliquer le skill amélioré {skill}} apply_and_pin {Appliquer le skill amélioré {skill} et épingler les agents qu’il pénaliserait} fork_for_helped {Créer un fork de {skill} pour les agents qu’il a aidés} fork_for_chosen {Créer un fork de {skill} pour : {agents}} catch_up {Mettre le fork de {skill} à jour avec main} other {Ramener le fork de {skill} sur main}}",
-      "approveStartEvalRun": "Tester {agent} sur le dataset {dataset} v{version}"
+      "approveStartEvalRun": "Tester {agent} sur le dataset {dataset} v{version}",
+      "selectingProjectContext": "Sélection du contexte du projet…",
+      "selectedProjectContext": "Contexte du projet sélectionné",
+      "selectingExecutionTarget": "Sélection de la cible des commandes…",
+      "selectedExecutionTarget": "Cible des commandes sélectionnée",
+      "transferringProjectFile": "Transfert du fichier du projet…",
+      "transferredProjectFile": "Fichier du projet transféré"
     },
     "turnWasStopped": "arrêté",
     "unfavourite": "Retirer des favoris",
@@ -2644,8 +2680,6 @@
     "approvalRememberChat": "Autoriser cet outil dans ce chat",
     "approvalRememberAgent": "Toujours autoriser cet outil pour cet agent",
     "approvalNeedsTheRun": "Seule une personne qui peut voir le run peut approuver ceci. Vous pouvez le rejeter.",
-    "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
-    "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
     "approvalRememberedTitle": "Approbations d’outils mémorisées",
     "approvalRememberedEmpty": "Aucune approbation mémorisée.",
     "approvalRememberForget": "Redemander",
@@ -2702,7 +2736,10 @@
       "empty": "Vous êtes à jour. Les nouveaux constats et les sujets importants apparaîtront ici.",
       "failed": "Impossible de charger votre boîte de réception.",
       "refreshFailed": "Impossible d’actualiser votre boîte de réception. Affichage des derniers éléments chargés."
-    }
+    },
+    "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
+    "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
+    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
   },
   "common": {
     "archiveNamedConfirm": "Archiver {name} ?",
@@ -3605,6 +3642,13 @@
       "background-tasks": {
         "title": "Sujets d’arrière-plan",
         "description": "Votre travail délégué et ses résultats"
+      },
+      "event-sources": {
+        "title": "Sources d’événements",
+        "description": "Consultez le nombre de sources webhook actives ou en pause.",
+        "empty": "Aucune source d’événements pour le moment",
+        "active": "Active",
+        "paused": "En pause"
       }
     },
     "edit": {
@@ -4252,7 +4296,8 @@
     "citedFileGone": "Ce fichier n’est plus dans sa base de connaissances : il a été supprimé ou remplacé après avoir été cité.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Laissez vide pour l’API OpenRouter globale, ou saisissez une URL régionale telle que https://eu.openrouter.ai/api/v1. Le routage UE nécessite une offre OpenRouter éligible ; le ZDR se configure séparément sur OpenRouter.",
-    "noConnectorsAvailable": "Aucun connecteur de source n’est disponible. Un administrateur peut activer un connecteur pour ce déploiement."
+    "noConnectorsAvailable": "Aucun connecteur de source n’est disponible. Un administrateur peut activer un connecteur pour ce déploiement.",
+    "parsedSnapshotOnly": "Texte analysé importé. Le fichier original n’était pas inclus."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4282,7 +4327,8 @@
     "title": "Bases de connaissances",
     "updated": "Base de connaissances mise à jour",
     "uploadFailed": "Échec du téléversement",
-    "uploaded": "{name} téléversé"
+    "uploaded": "{name} téléversé",
+    "documentIndexingQueued": "Indexation du document mise en attente"
   },
   "layout": {
     "breadcrumb": "Fil d’Ariane",
@@ -4759,7 +4805,8 @@
     "whatsNewDone": "Compris",
     "monitoring": "Supervision",
     "backgroundWork": "Travail d’arrière-plan",
-    "developerAccess": "API et MCP"
+    "developerAccess": "API et MCP",
+    "eventSources": "Sources d’événements"
   },
   "navigation": {
     "dashboard": "Tableau de bord",
@@ -4844,6 +4891,10 @@
       "skill-improvement-session": {
         "title": "Parcourir cette session",
         "body": "Voyez les étapes, le résultat de chaque agent, et ce que vous pouvez faire de la modification."
+      },
+      "create-event-source": {
+        "title": "Créer une source",
+        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
       }
     },
     "steps": {
@@ -5590,7 +5641,7 @@
       },
       "project-tabs": {
         "title": "Chats, fichiers et instructions",
-        "body": "Démarrez un chat dans le projet, ajoutez les fichiers et dossiers dans lesquels ses agents travaillent, et définissez ce que chaque agent reçoit comme consigne. Dans l’application de bureau, vous pouvez aussi connecter un dossier local sans téléverser ses fichiers."
+        "body": "Regroupez agents, workflows, applications et tables existants dans Ressources. Chats s’ouvre en premier ; Fichiers et Instructions contiennent l’espace partagé des chats du projet."
       },
       "chat-visual": {
         "title": "Dessins",
@@ -6111,6 +6162,66 @@
       "channels-binding": {
         "title": "Choisir qui répond",
         "body": "Associez un agent à un bot ou retirez l’association. Un bot répond comme un seul agent ; son environnement, sa pause et ses recherches restent dans l’onglet Disponibilité de l’agent."
+      },
+      "deployment-password-sign-in": {
+        "title": "Méthodes de connexion",
+        "body": "Exigez le fournisseur d’identité configuré ou autorisez les mots de passe locaux et les liens par e-mail. Seul l’administrateur du déploiement peut modifier cette règle."
+      },
+      "deployment-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Autorisez les organisations à afficher les coûts dans le chat. Désactiver les masque pour tout le monde."
+      },
+      "organization-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Choisissez qui voit les coûts des réponses, délégations et conversations. La comptabilité, les budgets et les accès à Activity et au tableau de bord restent inchangés."
+      },
+      "personal-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Masquez les coûts dans vos chats. Les restrictions de votre organisation ou de votre déploiement restent applicables."
+      },
+      "deployment-console-navigation": {
+        "title": "Disponibilité de la console",
+        "body": "Choisissez la navigation et les suggestions facultatives accessibles aux organisations. Les droits sur les ressources restent inchangés."
+      },
+      "organization-console-navigation": {
+        "title": "Console par rôle",
+        "body": "Choisissez la navigation visible pour chaque rôle intégré. Cela change la présentation, jamais les droits d’accès."
+      },
+      "organization-console-notices": {
+        "title": "Suggestions du produit",
+        "body": "Choisissez les suggestions facultatives de cette organisation. Les avis de disponibilité et de sécurité restent inchangés."
+      },
+      "personal-console-navigation": {
+        "title": "Ma navigation",
+        "body": "Gardez les sections que vous utilisez. Les restrictions de votre organisation et de votre déploiement restent applicables."
+      },
+      "personal-console-notices": {
+        "title": "Suggestions du produit",
+        "body": "Gardez les suggestions utiles. Les restrictions de votre organisation et de votre déploiement restent applicables."
+      },
+      "personal-console-catalogs": {
+        "title": "Catalogues",
+        "body": "Choisissez les galeries à parcourir. Les limites de l’organisation et du déploiement restent applicables."
+      },
+      "event-sources-header": {
+        "title": "Sources d’événements",
+        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
+      },
+      "event-sources-create": {
+        "title": "Créer une source",
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+      },
+      "flow-event-source-create": {
+        "title": "Créer une source",
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+      },
+      "workflow-python-actions": {
+        "title": "Appeler des outils depuis Python",
+        "body": "Choisissez Python avec actions pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances. Donnez un nom de fonction à chaque action, puis insérez son appel dans le script avec le menu sous l’éditeur. Chaque appel a ses propres approbations et son propre historique d’exécution."
+      },
+      "project-resources": {
+        "title": "Regrouper les ressources liées",
+        "body": "Liez des agents, workflows, Apps et tables existants sans modifier leurs autorisations. Ouvrez-les ici ou choisissez un workflow lié comme point d'entrée du projet."
       }
     },
     "chooseLanguage": "Langue",
@@ -6366,7 +6477,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Un envoi HTTP signé d’un autre système démarre un run."
+          "description": "Un événement authentifié démarre un run. Sélectionnez ou créez une source d’événements dans l’éditeur."
         },
         "schedule": {
           "name": "Planification",
@@ -6755,7 +6866,9 @@
       "runQuestionsFailed": "Les questions n’ont pas pu être chargées.",
       "runQuestionsRetry": "Réessayer",
       "startRunSchema": "Schéma d’entrée attendu",
-      "nameRequired": "Saisissez un nom pour ce workflow."
+      "nameRequired": "Saisissez un nom pour ce workflow.",
+      "triggerSourceCredentials": "Gérer les identifiants dans Sources d’événements",
+      "runPythonCall": "Appel {index} : {name}"
     },
     "retention": {
       "title": "Conservation des données",
@@ -7046,7 +7159,11 @@
       "noMembers": "Aucun membre",
       "membersTruncated": "Affichage des {shown} premiers membres sur {total}",
       "serviceMapTiles": "Tuiles de carte",
-      "serviceMapTilesDetail": "D’où les cartes des visuels tirent leur fond"
+      "serviceMapTilesDetail": "D’où les cartes des visuels tirent leur fond",
+      "passwordSignInTitle": "Méthodes de connexion",
+      "passwordSignInHint": "La connexion locale comprend les mots de passe, l’inscription, la récupération du mot de passe et les liens de connexion par e-mail. Configurez un fournisseur d’identité avant de la désactiver.",
+      "passwordSignInEnabled": "Autoriser la connexion locale",
+      "passwordSignInForced": "Le paramètre de récupération de l’opérateur active actuellement la connexion locale."
     },
     "agentDetail": {
       "perMonth": "${amount} par mois"
@@ -7091,7 +7208,6 @@
       "duplicate": "Dupliquer",
       "eachPublishFreezesSpec": "Chaque publication fige un spec. Les runs enregistrent la version, donc ce qu’un agent a fait mardi dernier reste traçable après une douzaine de modifications. Restaurer publie une nouvelle version copiée de l’ancienne - la chronologie montre qu’un retour arrière a eu lieu au lieu de prétendre que la mauvaise version n’a jamais existé.",
       "environments": "Environnements",
-      "exportYaml": "Exporter en YAML",
       "filterByStatus": "Filtrer par statut",
       "filterByCategory": "Filtrer par catégorie",
       "filterByTag": "Filtrer par étiquette",
@@ -7540,7 +7656,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexation : 1 document en cours} other {Indexation : # documents en cours}}",
       "indexingComplete": "Indexation terminée",
       "indexingFailed": "{count, plural, =1 {1 document en échec} other {# documents en échec}}",
-      "moreUploads": "{count, plural, one {# fichier de plus dans la file de téléversement} other {# fichiers de plus dans la file de téléversement}}"
+      "moreUploads": "{count, plural, one {# fichier de plus dans la file de téléversement} other {# fichiers de plus dans la file de téléversement}}",
+      "indexDocument": "Indexer",
+      "retryDocument": "Réessayer",
+      "indexDocumentNamed": "Indexer {name}",
+      "retryDocumentNamed": "Réessayer {name}",
+      "indexDocumentHint": "Utilise les paramètres de cette base de connaissances et peut entraîner des frais du fournisseur."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Le catalogue est compilé dans le backend, et personne n’a ajouté de serveur propre. Une liste vide ici signifie que ce déploiement n’en fournit aucun.",
@@ -7921,7 +8042,7 @@
       "actionInService": "{action} dans {service}",
       "approvalDetails": "Détails",
       "approvalNoArguments": "Il ne prend rien.",
-      "approvalQuotedPrice": "Prix annoncé : jusqu’à {price}",
+      "approvalQuotedPrice": "Estimation annoncée : {price}",
       "cache": {
         "title": "Cache du prompt",
         "description": "Requêtes dont le prompt en cache n’a pas été relu. Une invalidation est un préfixe qui a bougé - outils réordonnés, horodatage dans les instructions - et a été facturé au plein tarif d’entrée ; une expiration a dépassé la durée du cache du provider.",
@@ -8035,7 +8156,8 @@
       "inputTokenCacheRead": "Lecture du cache",
       "inputTokenCacheWrite": "Écriture du cache",
       "inputTokenHint": "Totaux sur les requêtes au modèle consignées. Les tokens de cache sont inclus dans l’entrée, pas ajoutés en plus.",
-      "systemRoleChannelDecision": "Décision de participation au canal (système)"
+      "systemRoleChannelDecision": "Décision de participation au canal (système)",
+      "approveNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
     },
     "sandboxes": {
       "noAccess": "Aucun accès aux connexions sandbox",
@@ -8859,7 +8981,8 @@
     "done": "Terminé",
     "error": "Échec",
     "processing": "Traitement",
-    "running": "En cours"
+    "running": "En cours",
+    "stored": "Stocké · non indexé"
   },
   "sandboxes": {
     "activityLogUnreadable": "Ce journal d’activité n’a pas pu être lu",
@@ -9157,14 +9280,14 @@
     "share": "Partager",
     "sharingUpdated": "Partage mis à jour",
     "visibilityOrg": "Toute l’organisation",
-    "visibilityOrgReaches": "Toute personne de l’organisation pouvant voir {resource, select, agent {des agents} skill {des skills} collection {des collections} artifact {des apps} dataset {des datasets} context {des fichiers de contexte} mcp_connection {des serveurs MCP} project {des projets} workflow {des workflows} other {des secrets}}, quels qu’ils soient.",
+    "visibilityOrgReaches": "Toute personne de l’organisation pouvant voir {resource, select, agent {des agents} skill {des skills} collection {des collections} artifact {des apps} dataset {des datasets} context {des fichiers de contexte} mcp_connection {des serveurs MCP} project {des projets} workflow {des workflows} event_source {des sources d’événements} other {des secrets}}, quels qu’ils soient.",
     "visibilityPrivate": "Seulement les personnes ayant accès",
-    "visibilityPrivateReaches": "Seulement les personnes listées ci-dessus. Personne d’autre ne trouve {resource, select, agent {cet agent} skill {cette skill} collection {cette collection} artifact {cette app} dataset {ce dataset} context {ce fichier de contexte} mcp_connection {ce serveur MCP} project {ce projet} other {ce secret}} dans sa liste - et s’il n’a pas encore de propriétaire, il devient le vôtre.",
+    "visibilityPrivateReaches": "Seulement les personnes listées ci-dessus. Personne d’autre ne trouve {resource, select, agent {cet agent} skill {cette skill} collection {cette collection} artifact {cette app} dataset {ce dataset} context {ce fichier de contexte} mcp_connection {ce serveur MCP} project {ce projet} event_source {cette source d’événements} other {ce secret}} dans sa liste - et s’il n’a pas encore de propriétaire, il devient le vôtre.",
     "visibilityTeam": "Équipe (plus proposé)",
     "visibilityTeamReaches": "Toute personne dont le rôle atteint {resource, select, agent {les agents} skill {les skills} collection {les collections} artifact {les apps} dataset {les datasets} context {les fichiers de contexte} mcp_connection {les serveurs MCP} project {les projets} workflow {les workflows} other {les secrets}} d’équipe. Cette organisation n’a pas d’équipes - choisissez l’une des deux options ci-dessus.",
     "visibilityUpdated": "Visibilité mise à jour",
     "workflowPrivateReaches": "Le propriétaire, les personnes et les groupes listés ci-dessus, et les rôles ayant accès à tous les workflows. Les rôles limités aux workflows partagés peuvent perdre l’accès lorsque vous le rendez privé.",
-    "workflowRuntimeNote": "Le partage contrôle aussi l’accès aux runs passés. Il ne met pas en pause les planifications et ne désactive pas les webhooks.",
+    "workflowRuntimeNote": "Les personnes autorisées à consulter les runs du workflow peuvent voir les données des événements reçus, y compris lors des runs passés. Partager le workflow ne donne pas accès à la source d’événements, ne suspend pas les planifications et ne désactive pas les webhooks.",
     "groupsHeading": "Groupes",
     "membersHeading": "Membres",
     "groupSubject": "Groupe",
@@ -9173,7 +9296,8 @@
     "owner": "Propriétaire",
     "shareNamed": "Partager {name}",
     "requestSent": "Demande envoyée à {name}",
-    "requestSentNobody": "Demande envoyée. Personne ne peut encore l’approuver."
+    "requestSentNobody": "Demande envoyée. Personne ne peut encore l’approuver.",
+    "eventSourceRuntimeNote": "Le droit « Peut utiliser » permet aussi d’écouter les données de la source sans filtrage."
   },
   "skills": {
     "addFile": "Ajouter un fichier",
@@ -9920,6 +10044,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Identifiants de webhook",
     "access": "Accès",
     "actions": "Actions",
     "addKeyNamed": "Ajouter une clé : {name}",
@@ -10399,23 +10524,17 @@
     "endsAtHint": "Laissez vide pour exécuter jusqu’à l’arrêt. Cette heure utilise {zone}, indépendamment du fuseau de la planification.",
     "endsAtInvalid": "Choisissez une heure future valide, ou effacez le champ pour supprimer la fin.",
     "actionConsents": {
-      "checkConnections": "Vérifiez ces connexions pour revoir leurs actions : {names}.",
       "personalAccount": "{name} · votre compte",
       "organizationAccount": "{name} · compte de l’organisation",
       "title": "Consentement aux actions",
       "description": "Les actions d’une routine demandent une approbation par défaut. N’autorisez à s’exécuter sans demander que les actions listées. Le consentement s’applique à cette version publiée et à cette configuration de routine ; les approbations exigées par l’agent s’appliquent toujours. Chaque action MCP ne s’applique qu’au compte nommé.",
       "retry": "Réessayer",
-      "notAllowedPermission": "Vous n’avez pas la permission de décider des approbations ; vous ne pouvez donc pas donner de consentement permanent à cette routine. Demandez à un administrateur de l’organisation. Vous pouvez toujours révoquer tout consentement.",
-      "notAllowedOrganization": "Votre organisation a désactivé le consentement permanent ; cette routine ne peut donc pas se passer d’approbations. Il peut être activé sous Budget et approbations. Vous pouvez toujours révoquer tout consentement.",
-      "openApprovalSettings": "Ouvrir les paramètres d’approbation",
       "empty": "Cette version n’a aucune action éligible à autoriser ici.",
       "revokeAll": "Tout révoquer",
       "save": "Enregistrer le consentement",
       "search": "Rechercher des actions",
       "selectGroup": "Sélectionner les actions éligibles dans {name}",
       "noMatches": "Aucune action ne correspond à votre recherche.",
-      "reselectPrevious": "Resélectionner les actions déjà revues",
-      "tooMany": "{count} actions sélectionnées ; la limite est de {limit}. Désélectionnez des actions avant d’enregistrer.",
       "changed": {
         "version": "La version publiée de l’agent a changé. Revoyez ses actions.",
         "intent": "Le travail ou la destination de la routine a changé. Revoyez ses actions.",
@@ -10486,7 +10605,28 @@
       "conclusion": "La conclusion du workflow ne correspondait pas.",
       "not_branch": "Le push a supprimé une branche ou n’était pas un push de branche."
     },
-    "deliveryPending": "Envoi de la dernière réponse au chat"
+    "deliveryPending": "Envoi de la dernière réponse au chat",
+    "toolSettings": {
+      "title": "Outils de la routine",
+      "description": "Par défaut, les outils suivent les réglages de l’agent. Pour cette routine, demandez une confirmation ou désactivez un outil. Les approbations obligatoires restent requises ; les agents délégués gardent leurs réglages.",
+      "legacyMode": "L’enregistrement applique les règles d’approbation de l’agent et supprime les anciennes autorisations permanentes de cette routine.",
+      "agentAsks": "L’agent exige une approbation",
+      "agentFree": "L’agent autorise l’utilisation automatique",
+      "follow": "Suivre l’agent",
+      "ask": "Toujours demander",
+      "off": "Désactivé",
+      "search": "Rechercher un outil",
+      "reset": "Suivre l’agent pour tous les outils",
+      "empty": "Cette routine n’a aucun outil configurable.",
+      "noMatches": "Aucun outil ne correspond à cette recherche.",
+      "personalAccount": "Compte personnel · {name}",
+      "organizationAccount": "Compte de l’organisation · {name}",
+      "unavailable": "Vérifiez ces connexions pour voir leurs outils : {names}.",
+      "unavailableSettings": "Restrictions des outils indisponibles",
+      "unavailableSettingsBody": "Ces restrictions sont conservées même lorsqu’un outil n’est pas proposé actuellement. Supprimez explicitement une restriction pour ne plus la conserver.",
+      "removeRestriction": "Supprimer la restriction pour {name}"
+    },
+    "createdDescriptionShared": "Cette routine utilise l’URL et les identifiants de la source d’événements. Vous n’avez pas besoin d’enregistrer un autre webhook auprès du provider."
   },
   "portals": {
     "backToServices": "Retour aux services",
@@ -11296,6 +11436,7 @@
     "needsAttention": "Requiert votre attention"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Identifiants de webhook",
     "created": "Workflow créé",
     "duplicated": "Workflow dupliqué",
     "publishedVersion": "Version {version} publiée",
@@ -12144,8 +12285,32 @@
     },
     "stepEditorView": "Vue de l’étape",
     "stepEditorSettings": "Réglages de l’étape",
-    "problemTableSchemaChanged": "Cette table a changé depuis la configuration de l’étape : une colonne qu’elle lit a été supprimée ou a changé de type. Mettez-la à jour vers le schéma actuel et vérifiez ce qui lit cette étape.",
-    "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table."
+    "problemTableSchemaChanged": "Le schéma de la table a changé. Vérifiez les noms de colonnes, les types et les valeurs utilisés par cette étape avant de mettre à jour sa référence à la table.",
+    "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table.",
+    "webhookSourceAudience": "Toute personne autorisée à consulter les runs de ce workflow peut voir les données reçues de la source d’événements. Cela inclut les runs passés si vous partagez le workflow par la suite. Consulter un run ne donne pas accès à la source.",
+    "pythonActions": "Fonctions disponibles",
+    "pythonActionsHint": "Associez une action une seule fois, puis appelez sa fonction dans le script avec des arguments nommés.",
+    "pythonInputGuide": "Entrée · Lis les valeurs associées dans args : {keys}",
+    "pythonInputUnbound": "aucun champ d’entrée associé",
+    "pythonFunctionsGuide": "Fonctions · Appelle {names} avec des arguments nommés.",
+    "pythonFunctionsEmpty": "Fonctions · Ajoute une action ci-dessous pour rendre sa fonction disponible dans le script.",
+    "pythonOutputGuide": "Sortie · La dernière expression devient le résultat de cette étape.",
+    "pythonExampleGuide": "Écrire cette étape",
+    "pythonCallGuide": "Utilise args pour les entrées et appelle les fonctions associées par leur nom. Une fonction renvoie le résultat de son action ; termine par la valeur destinée à l’étape suivante.",
+    "pythonExamplePlaceholders": "Remplace chaque ... par une entrée ou une valeur littérale. Ajouter une fonction ou modifier le script n’exécute aucune action.",
+    "pythonActionsEmpty": "Aucune action associée. Choisis une action, donne-lui un nom Python, puis insère son appel dans le script. Tu peux aussi calculer à partir de args sans appeler d’action.",
+    "pythonActionsDiscover": "Pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances, ajoutez une étape Python avec actions et donnez un nom de fonction à chaque action.",
+    "pythonSelectAction": "Sélectionner une action",
+    "pythonInsertCall": "Insérer un appel de fonction",
+    "pythonInvalidName": "Utilisez un identifiant Python unique, différent des mots-clés et des noms prédéfinis.",
+    "pythonFunctionName": "Nom de la fonction Python",
+    "pythonBindAction": "Associer l’action",
+    "pythonActionUnavailable": "Action indisponible",
+    "pythonRemoveAction": "Supprimer {name}",
+    "pythonToolArguments": "Schéma des arguments de l’outil",
+    "pythonRequiredConfigArgs": "Fournissez {fields} à chaque appel ou définissez une valeur par défaut ci-dessous.",
+    "pythonOverrideFields": "Valeurs modifiables : {fields}. Omettez ces arguments pour utiliser les valeurs configurées.",
+    "pythonResultFields": "Champs du résultat : {fields}"
   },
   "artifacts": {
     "title": "Apps",
@@ -13668,6 +13833,14 @@
       "example2": "Planifier une mise à jour hebdomadaire dans un fil convenu",
       "needs": "Une liaison de bot active, des actions sélectionnées et l’appartenance à chaque destination. Les routines exigent une revue de la source et de l’action.",
       "never": "Ne rejoint jamais un canal, n’emprunte jamais le bot d’un autre agent et ne retente jamais en silence un envoi incertain."
+    },
+    "projects": {
+      "name": "Projets",
+      "does": "Recherche les projets accessibles, sélectionne leur contexte de référence et lit ou met à jour leurs fichiers texte partagés.",
+      "example1": "Trouver le projet Atlas et résumer son brief",
+      "example2": "Mettre à jour le rapport convenu sans exécuter de commandes",
+      "needs": "Un accès actuel au projet et à ses fichiers. Les commandes nécessitent séparément Sandbox et un environnement disponible.",
+      "never": "Sélectionner un contexte ne déplace pas le chat, ne monte pas de fichiers dans l’espace de l’agent et n’autorise pas de commandes. Accès et approbations restent applicables."
     }
   },
   "capabilityCategories": {
@@ -14630,7 +14803,27 @@
       "scopeHint": "Le projet réutilise un seul tableau de tâches. L’accès suit le projet ; les personnes et les agents sont des enregistrements liés, et le champ de prochaine étape contrôle le passage de relais.",
       "openTracker": "Agent de suivi"
     },
-    "initialSetup": "Instructions et valeurs par défaut"
+    "initialSetup": "Instructions et valeurs par défaut",
+    "newChatIn": "Nouveau chat dans {name}",
+    "resources": {
+      "title": "Ressources",
+      "search": "Rechercher des ressources",
+      "add": "Ajouter des ressources existantes",
+      "hint": "Les ressources conservent leurs propres autorisations. Supprimer un lien ne supprime pas la ressource.",
+      "empty": "Aucune ressource liée",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "Application",
+      "table": "Table",
+      "main": "Workflow principal",
+      "unsetMain": "Retirer le workflow principal",
+      "setMain": "Définir comme workflow principal",
+      "remove": "Retirer {name} du projet",
+      "kind": "Type de ressource",
+      "addSelected": "Ajouter la sélection ({count})",
+      "filterHint": "Choisissez un projet pour filtrer ce catalogue.",
+      "noMatches": "Aucune ressource correspondante."
+    }
   },
   "voiceGlow": {
     "title": "Halo vocal",
@@ -15693,6 +15886,16 @@
     "cancelRun": "Arrêter",
     "progress": "Cas traités",
     "comparisonFailed": "Le verdict n’a pas pu être lu.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "La recherche n’a pas renvoyé le brouillon pour chaque amélioration confirmée.",
+      "too_few_held_out": "{missing, plural, =1 {Ajoutez encore 1 question de test mise de côté pour mesurer un changement.} other {Ajoutez encore # questions de test mises de côté pour mesurer un changement.}}",
+      "scoring_changed": "Les deux runs ont été notés avec des paramètres de notation différents.",
+      "judge_changed_mid_run": "Le juge a changé pendant la notation des cas de ce run : ses notes ne sont pas comparables. Relancez-le.",
+      "judge_instructions_changed": "Les instructions du juge diffèrent entre les deux côtés : leurs notes ne sont pas comparables. Relancez la référence pour noter les deux de la même façon.",
+      "judge_differs": "Les deux côtés ont été notés par un juge, un modèle ou une grille différents.",
+      "knowledge_draft_changed": "Le brouillon de connaissances a changé ou a été supprimé. Vérifiez-le à nouveau.",
+      "held_out_ungraded": "Des questions mises de côté restent non notées ou incomplètes."
+    },
     "compareArm": "Comparer ce modèle",
     "draft": "Brouillon",
     "proposed": "Modifications proposées",
@@ -15810,7 +16013,9 @@
       "pending": "En attente",
       "reusedFrom": "résultat du run du {date}",
       "singleTitle": "Métriques du run",
-      "singleTitleTag": "Métriques du run sur #{tag}"
+      "singleTitleTag": "Métriques du run sur #{tag}",
+      "criteria": "Critères réussis",
+      "criteriaHint": "Chaque question compte la part de ses critères que sa première réponse a réussis : six sur sept compte pour 6/7, là où le taux de réussite la compte comme échouée."
     },
     "cases": {
       "title": "{count, plural, one {# question} other {# questions}}",
@@ -15839,6 +16044,14 @@
         "train": "Aide à rédiger les modifications",
         "holdout": "Mis de côté",
         "excluded": "Copie de preuve"
+      },
+      "criteria": "{passed}/{graded}",
+      "answerState": {
+        "passed": "Réussi",
+        "failed": "À examiner",
+        "undecided": "Non noté",
+        "incomplete": "N’a pas pu aboutir",
+        "pending": "En attente"
       }
     },
     "case": {
@@ -15880,7 +16093,8 @@
           "judge": "Jugé sur : {criterion}",
           "lengthAtMost": "{unit, select, words {Au plus {count, plural, one {# mot} other {# mots}}} other {Au plus {count, plural, one {# caractère} other {# caractères}}}}",
           "lengthAtLeast": "{unit, select, words {Au moins {count, plural, one {# mot} other {# mots}}} other {Au moins {count, plural, one {# caractère} other {# caractères}}}}",
-          "lengthBetween": "{unit, select, words {Entre {min} et {max} mots} other {Entre {min} et {max} caractères}}"
+          "lengthBetween": "{unit, select, words {Entre {min} et {max} mots} other {Entre {min} et {max} caractères}}",
+          "keys": "Contient {count, plural, =1 {son unique clé} other {toutes ses # clés}}"
         }
       },
       "notGraded": "non noté : {reason}",
@@ -16231,7 +16445,50 @@
       "pooled": "Ce run est une étape de la vérification. La vérification juge chaque agent sur les questions mises de côté de toutes ses étapes réunies : cette étape seule peut donc en dire moins que la vérification."
     },
     "notAsked": "{count, plural, =1 {1 question de ce dataset ne figurait pas dans l’échantillon de cette étape, elle n’a donc pas été posée.} other {# questions de ce dataset ne figuraient pas dans l’échantillon de cette étape, elles n’ont donc pas été posées.}}",
-    "runMetaStage": "{date} · {cost} dépensés"
+    "runMetaStage": "{date} · {cost} dépensés",
+    "resultTabs": {
+      "questions": "Réponses",
+      "criteria": "Ce qui a été vérifié",
+      "performance": "Détails",
+      "methodology": "Comment cela a été mesuré"
+    },
+    "resultSummary": "{fixed} corrections confirmées · {broken} régressions confirmées",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Réexécutions de confirmation ({count})",
+    "resultFailed": "Examiner les réponses ({count})",
+    "resultNoCriteria": "Aucun résultat par famille de critères n’est encore disponible pour ce run.",
+    "plain": {
+      "label": "Résumé du test",
+      "single": "{passed} réponses réussies sur {cases}",
+      "worse": "Certaines réponses se sont dégradées",
+      "incomplete": "Certaines réponses n’ont pas pu être vérifiées",
+      "improved": "L’agent mis à jour a mieux répondu",
+      "requirements": "Les réponses respectent davantage vos exigences",
+      "unchanged": "Aucune amélioration nette",
+      "invalid": "Nous ne pouvons pas encore comparer ces résultats",
+      "tooFew": "Ajoutez davantage de questions de test indépendantes avant de comparer les versions.",
+      "cannotCompare": "Les deux tests ne sont pas comparables. Ouvrez les détails du test pour voir ce qui doit changer.",
+      "changes": "{fixed} réponses améliorées · {broken} dégradées",
+      "singleBody": "{failed, plural, =0 {Aucune réponse incorrecte n’a été trouvée.} one {Une réponse nécessite votre examen.} other {# réponses nécessitent votre examen.}}",
+      "undecided": "{count, plural, one {Une réponse n’a pas pu être vérifiée.} other {# réponses n’ont pas pu être vérifiées.}}",
+      "unstable": "Certaines réponses ont varié d’un test à l’autre. Leur amélioration n’est pas confirmée.",
+      "details": "Détails du test",
+      "actions": "Plus d’actions",
+      "expectation": "Réponse attendue et règles de vérification",
+      "notCompared": "Aucune comparaison n’est encore disponible",
+      "before": "Avant",
+      "after": "Après",
+      "partial": "Ouvrez les réponses ci-dessous pour voir lesquelles ont pu être vérifiées.",
+      "overallWorseBody": "La qualité globale a baissé, même si aucune réponse prise isolément n’a été systématiquement moins bonne.",
+      "requirementsBody": "Davantage d’exigences ont été respectées, mais aucune réponse entière n’a été systématiquement corrigée.",
+      "reviewChanges": "Examiner les modifications",
+      "passedCount": "{passed} réponses réussies sur {cases}"
+    },
+    "workspace": {
+      "details": "Comment cela a été testé · critères, coût et détails du run",
+      "answers": "Examiner les réponses",
+      "answersHint": "Ouvrez une question pour lire la réponse et voir pourquoi elle a réussi ou demande votre attention."
+    }
   },
   "authoring": {
     "strip": {
@@ -16520,7 +16777,8 @@
       "view": "Comment afficher la modification",
       "unified": "Unifié",
       "split": "Côte à côte",
-      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}"
+      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}",
+      "hidden": "Cette modification contient des caractères qui n’affichent rien ou réordonnent le texte. Chacun est écrit par son code."
     },
     "instructionsEditor": {
       "current": "Instructions actuelles",
@@ -16765,7 +17023,9 @@
       "movedBroken": "{count} cassés",
       "movedBoth": "+{fixed} corrigés · {broken} cassés",
       "movedNone": "Aucun",
-      "skill": "Attribué au skill “{skill}”"
+      "skill": "Attribué au skill “{skill}”",
+      "betterBeside": "Outre les questions qu’elle a cassées, la tentative {number} a amélioré {agent} sur {count, plural, one {# critère} other {# critères}} : {list}. Conservez ce qui a aidé en réessayant avec une note.",
+      "skillWorse": "{agent} suit désormais le skill de plus près et échoue plus souvent sur {count, plural, one {# critère} other {# critères}} que le skill traite mal : {list}. Corrigez le skill plutôt que l’agent."
     },
     "noise": {
       "headlineSpread": "Le test ne distingue pas une meilleure version d’une moins bonne : la version actuelle de {agent} a obtenu {low} et {high} sur les questions que ses tentatives avaient en commun.",
@@ -16816,6 +17076,7 @@
       "cancelled": "Annulée",
       "stale": "Le point de départ a changé",
       "accepted": "Gardée comme brouillon",
+      "skillAccepted": "{outcome, select, applied {Appliquée} applied_pinned {Appliquée} forked {A créé un fork} caught_up {Rattrapée avec main} returned_to_main {Ramenée sur main} other {Acceptée}}",
       "published": "Publiée",
       "rejected": "Rejetée",
       "waiting": "En attente de vous",
@@ -16839,7 +17100,8 @@
       "knowledge_only": "Certains sujets manquent dans la base de connaissances. Rédigez ceux que vous voulez, vérifiez chaque ébauche et ajoutez-la.",
       "draft": "La rédaction des connaissances a échoué.",
       "expired": "Personne n’a poursuivi cette session pendant 7 jours, elle a donc été fermée. Démarrez-en une nouvelle pour réessayer.",
-      "criteria_worse": "Les modifications ont dégradé un critère sur lequel les réponses sont notées, bien qu’aucune question n’ait cassé."
+      "criteria_worse": "Les modifications ont dégradé un critère sur lequel les réponses sont notées, bien qu’aucune question n’ait cassé.",
+      "no_variant": "La recherche n’a trouvé aucune variante plus performante que les instructions actuelles sur les questions d’entraînement."
     },
     "before": "Avant",
     "after": "Après",
@@ -16930,6 +17192,7 @@
     "openVersion": "Ouvrir la version {version}",
     "publishVersion": "Publier la version {version}",
     "problemsFound": "Nous avons trouvé {total, plural, one {# problème} other {# problèmes}} : {agent} que nous pouvons corriger dans l’agent{knowledge, plural, =0 {} one {, # est une information manquante dans la base de connaissances} other {, # sont des informations manquantes dans la base de connaissances}}{added, plural, =0 {} other {, # manquaient de connaissances depuis ajoutées à la base de connaissances}}.",
+    "heldBySkillNote": "L’assistant a attribué {count, plural, =1 {un critère toujours en échec} other {# critères toujours en échec}} à {skills} : ceux-ci se corrigent dans le skill, pas dans les instructions de l’agent.",
     "topicExamples": "{count} conversations sur un même sujet",
     "otherExamples": "{count, plural, one {# conversation de plus} other {# conversations de plus}} à ce sujet",
     "questionSources": "{count, plural, one {# question de test} other {# questions de test}} : {down} issues de réponses mal notées par les gens, {liked} de réponses qu’ils ont appréciées, {written} rédigées pour des sujets sans exemple{other, plural, =0 {} other {, # ajoutées à la main ou importées}}.",
@@ -16963,8 +17226,6 @@
     "handledChange": "{before} → {after} questions sur {total} bien traitées.",
     "newlyFixed": "Nouvellement corrigées",
     "newlyBroken": "Nouvellement cassées",
-    "possiblyBroken": "Peut-être cassées",
-    "possiblyFixed": "Peut-être corrigées",
     "notConfirmedMore": "+{count} non confirmées",
     "notConfirmedHint": "Non confirmé : la réponse a changé une fois, mais pas dans le même sens lorsqu’elle a été reposée.",
     "notConfirmedYet": "Pas encore confirmées ({count})",
@@ -17057,7 +17318,11 @@
       "alreadyAdded": "{count, plural, one {# déjà ajouté} other {# déjà ajoutés}}",
       "partitionAbout": "Chaque tentative met environ {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; environ {train, plural, one {# aide} other {# aident}} à rédiger les modifications. Une question également posée dans les conversations dont elle s’inspire aide plutôt à les rédiger, il peut donc en rester moins de côté.",
       "partitionAttempt": "La tentative {attempt} a mis {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# a aidé} other {# ont aidé}} à rédiger les modifications.",
-      "partitionStart": "La première tentative met {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# aide} other {# aident}} à rédiger les modifications, en comptant celles également posées dans les conversations dont elle s’inspire."
+      "partitionStart": "La première tentative met {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# aide} other {# aident}} à rédiger les modifications, en comptant celles également posées dans les conversations dont elle s’inspire.",
+      "criteriaPassed": "Critères réussis",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {Aucun critère meilleur pour l’instant} one {# critère meilleur} other {# critères meilleurs}}",
+      "heldBySkill": "Toujours bloqué par un skill"
     },
     "sessionLine": "Session",
     "budgetUsed": "Limite de dépense utilisée",
@@ -17217,7 +17482,6 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choisissez les cas utilisés pour vérifier les réponses de cet agent.",
     "analysisEstimate": "Coût estimé de l’analyse",
-    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation.",
     "guidance": {
       "title": "Consignes du dataset pour l’assistant",
       "hint": "L’assistant les lit sous les règles de la plateforme, qui s’appliquent toujours. Elles ont été écrites par une personne qui modifie ce dataset.",
@@ -17245,7 +17509,65 @@
       "addQuestions": "Ajouter des questions d’autres conversations"
     },
     "likedSignals": "Réponses bien notées",
-    "reviewedSignals": "Autres réponses de test examinées"
+    "reviewedSignals": "Autres réponses de test examinées",
+    "startSearch": {
+      "label": "Comment trouver des modifications",
+      "steps": "Étape par étape",
+      "stepsHint": "L’assistant propose un ensemble de modifications par tentative, et vous vérifiez chacune.",
+      "search": "Rechercher des variantes",
+      "searchHint": "L’assistant rédige de nombreuses versions des instructions et note chacune sur les questions d’entraînement. La meilleure arrive dans Modifications, puis est vérifiée comme n’importe quelle tentative.",
+      "tooFew": "La recherche nécessite au moins {needed} questions d’entraînement ; {count, plural, =0 {ce dataset n’en a aucune} =1 {ce dataset en a 1} other {ce dataset en a #}}. Ajoutez des questions ou améliorez étape par étape.",
+      "budget": "Budget de recherche (USD)",
+      "budgetHint": "La recherche s’arrête dès que sa prochaine variante ne tiendrait plus dans le budget. Elle peut le dépasser d’au plus la seule variante qu’elle est en train de noter.",
+      "gradingModel": "Modèle qui note les variantes",
+      "datasetJudge": "Le modèle de juge du dataset",
+      "gradingHint": "Un modèle moins cher ou local limite le coût de la recherche. La vérification après Modifications note toujours avec le juge propre au dataset.",
+      "quote": "Comprend le budget de recherche ({search}) et la vérification de la variante trouvée ({check}).",
+      "unpriced": "La recherche devient disponible une fois que l’estimation a compté les questions d’entraînement de ce dataset."
+    },
+    "search": {
+      "title": "Recherche de variantes",
+      "progress": "{tried} variantes essayées sur {max} au maximum, chacune sur les mêmes {questions} questions d’entraînement.",
+      "spent": "{cost} dépensés sur le budget de recherche de {budget}.",
+      "scores": "Instructions actuelles : {seed} des vérifications obligatoires réussies · meilleure variante : {best}.",
+      "ended": {
+        "budget": "La recherche s’est arrêtée en atteignant son budget.",
+        "max_variants": "La recherche a essayé autant de variantes qu’elle y était autorisée.",
+        "patience": "La recherche s’est arrêtée après des tours qui n’ont rien trouvé de mieux.",
+        "proposal": "La recherche s’est arrêtée car l’assistant ne pouvait plus rédiger de variantes.",
+        "questions": "La recherche s’est arrêtée car ses questions d’entraînement ne peuvent plus recevoir de réponse.",
+        "no_variant": "Les instructions actuelles n’ont pas pu être notées, aucune variante n’a donc pu être démontrée meilleure."
+      },
+      "notVerdict": "Ces scores proviennent uniquement des questions d’entraînement. Le verdict vient de la vérification sur les questions mises de côté.",
+      "overshoot": "Une recherche peut dépasser son budget d’au plus la seule variante qu’elle était en train de noter.",
+      "variant": "Variante {number} : {score}",
+      "chosen": "Amenée dans Modifications",
+      "choose": "Amener plutôt dans Modifications"
+    },
+    "searchWorking": "Recherche de meilleures instructions. Vous pouvez fermer cette page — nous vous préviendrons quand la meilleure variante sera prête à être examinée.",
+    "record": {
+      "result": "Résultat",
+      "changes": "Modifications",
+      "check": "Questions de test",
+      "attempts": "Tentatives",
+      "understand": "Analyse",
+      "accept": "Décision",
+      "back": "Retour à la ressource",
+      "spent": "{spent} dépensés",
+      "passRateScope": "Sur toutes les questions de l’évaluation",
+      "more": "Détails de la session",
+      "answersPassed": "Réponses réussies",
+      "answerCount": "{passed} sur {cases}"
+    },
+    "workspace": {
+      "changes": "Ce qui a changé",
+      "evidence": "Les réponses se sont-elles améliorées ?",
+      "change": "Modification {number}",
+      "exactChange": "Comparer la formulation exacte",
+      "invalid": "Le test n’a pas pu comparer les versions de façon fiable. Examinez le test avant de tirer des conclusions.",
+      "noExamples": "Aucune réponse modifiée à afficher. Ouvrez le test complet pour voir chaque question."
+    },
+    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation."
   },
   "unsaved": {
     "title": "Vous avez des modifications non enregistrées",
@@ -17942,6 +18264,20 @@
       "openGovernanceSettings": "Ouvrir budget et approbations",
       "openAssistantSettings": "Ouvrir les réglages de l’assistant",
       "openVoiceSettings": "Ouvrir les réglages vocaux"
+    },
+    "configurationGuide": {
+      "title": "Découvrir les réglages facultatifs",
+      "hint": "Vous pouvez terminer la configuration maintenant et revenir à ces options plus tard. Ouvrir un lien ne modifie aucun réglage.",
+      "preferencesTitle": "Personnaliser la console",
+      "preferencesBody": "Choisissez la navigation, la découverte des catalogues, les coûts visibles dans le chat et les conseils selon les limites de votre organisation.",
+      "projectsTitle": "Regrouper le travail dans des projets",
+      "projectsBody": "Partagez fichiers, instructions et ressources liées entre les chats. Les agents gardent leurs outils ; un sandbox de projet facultatif exécute les builds communs.",
+      "transferTitle": "Exporter et importer des agents",
+      "transferBody": "Choisissez les Skills, Context et contenus de connaissances inclus. Vérifiez les dépendances avant l'import ; les secrets des comptes et les index de recherche sont exclus.",
+      "workflowTitle": "Créer des workflows avec des actions Python",
+      "workflowBody": "Associez des outils à des fonctions nommées et appelez-les depuis Python. Chaque action conserve ses autorisations, approbations et traces d'exécution.",
+      "organizationTitle": "Définir les réglages de l'organisation",
+      "organizationBody": "Configurez navigation, catalogues, tableau de bord et messages par rôle, ainsi que la visibilité des coûts. Les membres personnalisent les options autorisées."
     }
   },
   "skillImprovement": {
@@ -17983,7 +18319,8 @@
         "unscorable": "Non vérifié : rien ne peut noter ses questions - ni contrôle, ni appel d’outil attendu, ni juge.",
         "all_evidence": "Non vérifié : toutes les questions proviennent des conversations dont la modification a été tirée.",
         "cancelled": "Non vérifié : la vérification a été arrêtée avant la fin de ses runs.",
-        "own_not_asked": "Non vérifié : ses propres questions n’ont pas été posées, et ce sont elles qui tranchent désormais."
+        "own_not_asked": "Non vérifié : ses propres questions n’ont pas été posées, et ce sont elles qui tranchent désormais.",
+        "too_few_questions": "Pas assez de questions de test pour vérifier le changement. {heldOut} questions ont été vérifiées."
       },
       "skillSetOnly": "Vérifié uniquement sur les questions du skill : il n’en avait pas en propre là où il a chargé le skill.",
       "stage": {
@@ -18200,6 +18537,17 @@
       "live": "Déplacé sur main et publié : {names}.",
       "drafts": "{count, plural, =1 {Déplacé sur main dans son brouillon, qui attend d’être publié : {names}.} other {Déplacés sur main dans leurs brouillons, qui attendent d’être publiés : {names}.}}",
       "refused": "{name} reste sur le fork : {reason}",
+      "refusal": {
+        "agent_not_found": "vous ne pouvez pas le modifier, ou il n’existe plus",
+        "workflow_agent": "il est configuré dans son étape de workflow",
+        "architect_admin_only": "seul un administrateur peut modifier l’AI Architect",
+        "system_agent_admin_only": "c’est un agent système, que seul un administrateur peut modifier",
+        "via_specialist": "il n’utilise le skill qu’à travers un spécialiste, qui se modifie dans le Builder de l’agent",
+        "not_bound": "il n’utilise pas le skill",
+        "binding_problems": "le skill ne peut pas lui être lié ainsi",
+        "system_agent_parts": "un agent système ne peut pas contenir cela",
+        "does_not_publish": "il ne peut pas encore être publié"
+      },
       "hidden": "{count, plural, =1 {1 agent que vous ne pouvez pas voir a été laissé tel quel.} other {# agents que vous ne pouvez pas voir ont été laissés tels quels.}}",
       "archived": "Plus personne ne lit le fork, il a donc été archivé.",
       "remaining": "{count, plural, =0 {Le fork a été laissé tel quel.} =1 {1 agent lit encore le fork, il n’a donc pas été archivé.} other {# agents lisent encore le fork, il n’a donc pas été archivé.}}"
@@ -18221,6 +18569,12 @@
         "catch_up": "Mettre à jour avec main",
         "to_main": "Déplacer vers main"
       }
+    },
+    "workspace": {
+      "title": "Que signifie ce changement pour vos agents ?",
+      "hint": "Un skill est partagé. Vérifiez chaque agent ci-dessous : appliquer un changement ne signifie pas qu’il a aidé chaque agent.",
+      "agents": "Impact sur les agents",
+      "skillText": "Skill vérifié dans cette session"
     }
   },
   "resourceAppearance": {
@@ -18603,7 +18957,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Un envoi HTTP signé arrive à l’adresse propre de ce workflow."
+        "description": "Un événement JSON authentifié arrive sur une source réutilisable ou à l’adresse de ce workflow."
       },
       "trigger_workflow_call": {
         "name": "Appelé par un workflow",
@@ -18620,6 +18974,10 @@
       "workflow_run": {
         "name": "Exécuter un workflow",
         "description": "Exécute un autre workflow comme étape, et transmet ce qu’il répond."
+      },
+      "code_python_actions": {
+        "name": "Python avec actions",
+        "description": "Écrivez du code Python qui appelle les actions du workflow associées à des noms."
       }
     },
     "port": {
@@ -21041,6 +21399,41 @@
             "title": "Entrée"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Source obligatoire",
+            "description": "Pour publier un nouveau brouillon, sélectionnez d’abord une source réutilisable dans l’éditeur."
+          },
+          "source_id": {
+            "title": "Identifiant de la source",
+            "description": "Source d’événements réutilisable à laquelle le workflow s’abonne à sa publication."
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lisez les valeurs liées dans `args` ; la dernière expression est le résultat."
+          },
+          "timeout_seconds": {
+            "title": "Délai en secondes"
+          },
+          "max_memory_mb": {
+            "title": "Mémoire max. (Mo)"
+          },
+          "actions": {
+            "title": "Actions",
+            "description": "Noms des fonctions Python et versions des actions du workflow qu’elles appellent."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
+          }
+        }
       }
     }
   },
@@ -21101,6 +21494,316 @@
     "maintenanceEnd": "Fin de maintenance prévue",
     "maintenanceEndHint": "Facultatif. Heure en {zone}, enregistrée en UTC. À titre indicatif seulement ; un administrateur doit mettre fin à la maintenance.",
     "maintenanceEndInformational": "Il s’agit d’une estimation. L’accès revient lorsqu’un administrateur met fin à la maintenance.",
-    "invalidTime": "Choisissez une date et une heure locales valides."
+    "invalidTime": "Choisissez une date et une heure locales valides.",
+    "costs": {
+      "title": "Coûts du chat",
+      "audience": "Qui voit les coûts dans le chat",
+      "everyone": "Tout le monde",
+      "spend_privileged": "Personnes ayant accès aux dépenses",
+      "nobody": "Personne dans le chat",
+      "organizationHint": "Choisissez qui voit les coûts des réponses, délégations et conversations. La comptabilité, les budgets et les accès à Activity et au tableau de bord restent inchangés.",
+      "personalLabel": "Afficher les coûts dans mes chats",
+      "personalHint": "Masquez les coûts dans vos chats. Les restrictions de votre organisation ou de votre déploiement restent applicables.",
+      "restricted": "Votre organisation ou déploiement masque les coûts du chat pour ce compte.",
+      "deploymentHint": "Autorisez les organisations à afficher les coûts dans le chat. Désactiver les masque pour tout le monde.",
+      "available": "Autoriser les coûts dans le chat"
+    },
+    "presentation": {
+      "organizationTitle": "Console par rôle",
+      "organizationHint": "Choisissez la navigation visible pour chaque rôle intégré. Cela change la présentation, jamais les droits d’accès.",
+      "personalTitle": "Ma navigation",
+      "personalHint": "Gardez les sections que vous utilisez. Les restrictions de votre organisation et de votre déploiement restent applicables.",
+      "deploymentTitle": "Disponibilité de la console",
+      "deploymentHint": "Choisissez la navigation et les suggestions facultatives accessibles aux organisations. Les droits sur les ressources restent inchangés.",
+      "navigationHint": "Les pages masquées restent accessibles par URL avec les droits requis. Les réglages du compte et le changement d’organisation restent disponibles.",
+      "simple": "Assistant simple",
+      "inheritNavigation": "Utiliser la navigation héritée",
+      "role": "Rôle",
+      "preview": "Aperçu de la navigation",
+      "previewRole": "Aperçu en tant que {role}",
+      "previewHint": "Navigation uniquement, filtrée selon ce rôle et vos propres droits. Aucune identité n’est usurpée et aucune donnée privée n’est chargée.",
+      "saveBeforeRole": "Enregistrez ou annulez vos modifications avant de choisir un autre rôle.",
+      "noticesTitle": "Suggestions du produit",
+      "noticesHint": "Choisissez les suggestions facultatives de cette organisation. Les avis de disponibilité et de sécurité restent inchangés.",
+      "personalNoticesHint": "Gardez les suggestions utiles. Les restrictions de votre organisation et de votre déploiement restent applicables.",
+      "desktop_install_prompt": "Invitation à l’application de bureau",
+      "desktop_install_promptHint": "Suggérez l’installation de l’application de bureau. Les installations existantes et les refus locaux restent inchangés.",
+      "product_notices": "Actualités du produit",
+      "product_noticesHint": "Notes de version automatiques et suggestions d’installation sur mobile. Les avis de service et de sécurité restent affichés.",
+      "restricted": "Votre organisation ou déploiement restreint cette option.",
+      "discard": "Annuler les modifications",
+      "roles": {
+        "owner": "Propriétaire",
+        "admin": "Administrateur",
+        "builder": "Créateur",
+        "operator": "Opérateur",
+        "member": "Membre",
+        "viewer": "Lecteur"
+      },
+      "loadError": "Impossible de charger les préférences de la console.",
+      "customizeNavigation": "Personnaliser la barre latérale"
+    },
+    "catalogs": {
+      "personalTitle": "Catalogues",
+      "personalHint": "Choisissez les galeries à parcourir. Les limites de l’organisation et du déploiement restent applicables.",
+      "mcp_gallery": "Galerie MCP",
+      "skill_gallery": "Galerie de Skills",
+      "hint": "Le choix du catalogue ne modifie ni les permissions des outils ni les connexions existantes. Les choix personnels peuvent uniquement restreindre les limites héritées.",
+      "inherit": "Utiliser le catalogue hérité",
+      "all": "Toutes les entrées disponibles",
+      "mcp_galleryAvailable": "Uniquement les serveurs connectés par l’organisation",
+      "skill_galleryAvailable": "Uniquement les Skills installés visibles",
+      "allowList": "Choisir des entrées",
+      "selected": "{count, plural, =1 {1 entrée sélectionnée} other {# entrées sélectionnées}}",
+      "remove": "Retirer {name}",
+      "empty": "Aucune entrée correspondante",
+      "discard": "Annuler les modifications",
+      "previous": "Précédent",
+      "emptySelection": "Une sélection vide ne propose aucune entrée de galerie.",
+      "managerHint": "Ce rôle gère ce catalogue. Les limites de galerie de l’organisation concernent les rôles sans gestion du catalogue ; les limites du déploiement et personnelles restent applicables.",
+      "limit": "Choisissez jusqu’à {count, plural, one {# entrée} other {# entrées}}, ou toutes les entrées disponibles."
+    },
+    "dashboard": {
+      "title": "Tableau de bord par défaut",
+      "hint": "La disposition de ce rôle devient sa page d’accueil. Les dispositions personnelles enregistrées ont priorité. Les widgets respectent toujours les permissions de chaque personne.",
+      "arrange": "Organiser et enregistrer mon tableau de bord",
+      "privateFilters": "Retirez les filtres de personne et d’agent avant de partager cette disposition comme valeur par défaut.",
+      "copy": "Copier ma disposition enregistrée",
+      "inherit": "Utiliser le tableau de bord standard",
+      "standard": "Aucune disposition du rôle : l’accueil standard est utilisé.",
+      "preview": "Aperçu de la disposition uniquement. Les données et permissions sont résolues pour chaque personne à l’ouverture.",
+      "empty": "Cette disposition par défaut ne contient volontairement aucune carte.",
+      "discard": "Annuler les modifications"
+    }
+  },
+  "portability": {
+    "exportTitle": "Exporter l’agent",
+    "exportDescription": "Choisissez la définition de l’agent et les contenus liés à inclure.",
+    "secretsHint": "Les secrets du Vault et les partages restent ici. Reconnectez OAuth et configurez les paramètres d’URL et les en-têtes personnalisés à destination.",
+    "loading": "Chargement des dépendances…",
+    "includedContent": "Contenu inclus",
+    "rootDefinition": "Définition de l’agent · obligatoire",
+    "referenceOnly": "Référence uniquement · reconnectez ou choisissez lors de l’import",
+    "format": "Format du fichier",
+    "close": "Fermer",
+    "downloading": "Préparation du téléchargement…",
+    "download": "Télécharger",
+    "importComplete": "Import terminé",
+    "importCompleteHint": "Vos brouillons privés sont prêts à être vérifiés. Rien n’a été publié ni exécuté.",
+    "importTitle": "Importer un agent",
+    "mappingHint": "Choisissez ce qu’il faut créer, réutiliser ou ignorer. Les ressources existantes ne sont jamais écrasées.",
+    "importDescription": "Importez une archive ZIP AgenticOS, une configuration YAML ou JSON, ou collez une configuration ci-dessous.",
+    "fileTooLarge": "Les fichiers de configuration ne doivent pas dépasser 4 MiB.",
+    "readError": "Impossible de lire le fichier. Sélectionnez-le à nouveau.",
+    "importCounts": "Créés : {created} · réutilisés : {reused} · ignorés : {skipped}",
+    "skippedHint": "Les liens ignorés ont été supprimés. Vérifiez le brouillon avant publication.",
+    "actionFor": "Action pour {name}",
+    "reuse": "Utiliser une ressource existante",
+    "skip": "Ignorer cette ressource",
+    "newName": "Nom de la nouvelle copie",
+    "skipHint": "Les liens vers cette ressource seront supprimés du brouillon importé.",
+    "chooseFile": "Choisir un fichier ZIP, YAML ou JSON",
+    "pasteConfiguration": "Ou coller la configuration",
+    "openDraft": "Ouvrir le brouillon",
+    "back": "Retour",
+    "working": "Traitement…",
+    "importDrafts": "Importer les brouillons privés",
+    "review": "Vérifier les dépendances",
+    "operationError": "L’opération n’a pas pu être terminée. Réessayez.",
+    "createCopy": "Créer une copie",
+    "missingRoot": "La réponse d’import n’identifie pas le nouveau brouillon. Actualisez la liste avant de réessayer.",
+    "destinationResource": "Ressource de destination",
+    "searchDestinations": "Rechercher des ressources",
+    "chooseDestination": "Choisir une ressource",
+    "selectedDestination": "Ressource sélectionnée",
+    "noDestinations": "Aucune ressource correspondante.",
+    "previousDestinations": "Ressources précédentes",
+    "nextDestinations": "Ressources suivantes",
+    "chooseExistingOwner": "Choisissez d’abord un agent ou un Skill existant pour sélectionner sa version ou son fork.",
+    "zipFormat": "ZIP · avec fichiers",
+    "transferWorking": "Préparation du transfert en arrière-plan…",
+    "transferFailed": "Le transfert a échoué. Vérifiez la configuration et lancez un nouveau transfert.",
+    "zipTooLarge": "Les archives ZIP ne doivent pas dépasser 512 Mio.",
+    "noTransferSelected": "Aucun transfert sélectionné",
+    "noReviewedTransfer": "Aucun transfert vérifié sélectionné",
+    "exportWorkflowTitle": "Exporter le workflow",
+    "exportWorkflowDescription": "Choisissez la définition du workflow et les contenus liés.",
+    "workflowRootDefinition": "Définition du workflow · obligatoire",
+    "importWorkflowTitle": "Importer un workflow",
+    "omittedBefore": "Liaisons à supprimer : {count}.",
+    "omittedAfter": "Liaisons supprimées : {count}.",
+    "reviewBeforePublish": "Vérifiez le brouillon et reconnectez les ressources manquantes avant publication.",
+    "affectedBindings": "Afficher les liaisons concernées",
+    "publishedVersionHint": "Choisissez une version publiée existante de l’agent de destination. Les délégués ne sont jamais publiés automatiquement.",
+    "reselectZip": "L’envoi a été interrompu. Sélectionnez à nouveau le ZIP original pour le renvoyer entièrement.",
+    "layerDefinition": "Définition",
+    "layerSkillFiles": "Fichiers Skill",
+    "layerContext": "Contenu du contexte",
+    "layerOriginals": "Documents originaux",
+    "layerParsedText": "Instantanés du texte traité",
+    "unavailableLayer": "Couche de contenu indisponible",
+    "fileLayersZip": "Choisissez ZIP pour inclure des fichiers et du texte traité.",
+    "indexExcluded": "Les index et vecteurs ne sont pas inclus. Les documents importés restent stockés jusqu’au lancement explicite du traitement.",
+    "importLegacy": "Importer un ancien fichier workflow",
+    "exportLegacy": "Exporter un ancien fichier workflow",
+    "startNewTransfer": "Démarrer un nouveau transfert",
+    "unsupportedMapping": "Cette ressource n’a pas d’adaptateur d’import. Omettez sa liaison et configurez-la dans l’éditeur de destination.",
+    "searchResources": "Rechercher les ressources incluses",
+    "noResources": "Aucune ressource correspondante.",
+    "groups": {
+      "root": "Définition requise",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Bases de connaissances",
+      "connections": "Modèles et connexions",
+      "other": "Autres ressources"
+    }
+  },
+  "stepFailure": {
+    "technicalDetails": "Détails techniques",
+    "step": {
+      "system_agent_not_seeded": "Un agent système dont cette étape a besoin n’a pas pu être configuré.",
+      "system_agent_missing": "Un agent système dont cette étape a besoin, ou la version choisie pour lui, n’existe plus. Choisissez-en un autre.",
+      "system_agent_unpublished": "Un agent système dont cette étape a besoin n’a pas de version publiée. Choisissez un modèle et publiez-le.",
+      "system_agent_archived": "Un agent système dont cette étape a besoin est archivé. Restaurez-le pour l’utiliser à nouveau.",
+      "system_agent_no_access": "La personne qui a lancé ceci ne peut pas exécuter un agent système dont cette étape a besoin. Demandez-y l’accès.",
+      "system_agent_no_model": "Un agent système dont cette étape a besoin ne peut pas joindre son modèle.",
+      "system_agent_failed": "Un agent système dont cette étape a besoin n’a donné aucune réponse exploitable. Son run est conservé dans Activité.",
+      "only_anonymised": "Chaque cas du dataset a été anonymisé lorsque la personne dont il provenait a été effacée. Réécrivez ou supprimez d’abord ces cas.",
+      "all_evidence": "Chaque cas du dataset provient des conversations dont cette modification est tirée, donc aucun ne peut la mesurer. Ajoutez des cas issus d’autres conversations, ou choisissez un autre dataset.",
+      "no_scorer": "Rien dans la notation du dataset ne peut trancher un cas. Ajoutez une vérification, un appel d’outil attendu, ou activez le juge.",
+      "no_reruns": "Un run mesuré par rapport à une référence a besoin d’au moins une répétition, et ce déploiement n’en prévoit aucune.",
+      "evidence_too_large": "Les preuves de la proposition sont trop volumineuses pour isoler son test en toute sécurité. Demandez une nouvelle proposition.",
+      "budget": "Le budget a été épuisé avant la fin de cette étape.",
+      "not_found": "Un élément dont cette étape a besoin n’existe plus ou n’est plus visible.",
+      "not_allowed": "La personne qui a lancé ceci n’a plus le droit d’effectuer cette étape.",
+      "changed": "Un élément lu par cette étape a changé pendant son exécution. Réessayez.",
+      "run_failed": "Un run dont cette étape avait besoin a échoué, ou son fournisseur de modèle n’a pas répondu.",
+      "refused": "Cette étape a été refusée.",
+      "failed": "Cette étape a échoué sur le serveur."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Ajoutez encore # question de test mise de côté pour mesurer un changement.} other {Ajoutez encore # questions de test mises de côté pour mesurer un changement.}}",
+      "no_evidence": "Aucun run de chat noté ni aucun échec sur les questions d’entraînement n’est encore disponible.",
+      "search_too_few_training": "{minimum, plural, one {Une recherche a besoin d’au moins # question d’entraînement pour cette tentative.} other {Une recherche a besoin d’au moins # questions d’entraînement pour cette tentative.}}"
+    },
+    "request": {
+      "no_runs_view": "La personne qui a lancé ceci ne peut plus lire les runs.",
+      "evidence_erased": "Une source de preuves a été effacée pendant que l’assistant travaillait. Recommencez avec les preuves actuelles.",
+      "no_edit_agent": "La personne qui a lancé ceci ne peut plus modifier l’agent.",
+      "agent_gone": "L’agent n’existe plus.",
+      "no_published_version": "L’agent n’a pas de version publiée avec laquelle comparer.",
+      "skill_gone": "Le skill n’existe plus.",
+      "no_edit_skill": "La personne qui a lancé ceci ne peut plus modifier le skill.",
+      "session_moved_on": "La session d’amélioration est passée à la suite.",
+      "conflicts_unanswered": "L’assistant n’a pas répondu à chaque conflit ; réglez-les à l’étape Modifications.",
+      "session_stopped": "La session d’amélioration s’est arrêtée.",
+      "context_gone": "Le fichier de contexte n’existe plus.",
+      "no_edit_context": "La personne qui a lancé ceci ne peut plus modifier le fichier de contexte.",
+      "unknown_skill_use": "Aucun run de cette période n’est connu pour avoir utilisé le skill. {runs, plural, one {# run mal noté ou en échec date d’avant l’enregistrement des utilisations, on ne sait donc pas s’il a utilisé le skill.} other {# runs mal notés ou en échec datent d’avant l’enregistrement des utilisations, on ne sait donc pas s’ils l’ont utilisé.}}",
+      "no_evidence": "Rien à apprendre pour l’instant : aucun run de cette période n’a été noté ni n’a échoué. Élargissez la période, ou revenez quand des réponses auront été notées.",
+      "key_revoked": "La clé API qui a lancé ceci a été révoquée ou n’existe plus, ceci a donc été arrêté.",
+      "not_a_member": "La personne qui a lancé ceci n’est plus membre.",
+      "unexpected": "L’assistant s’est arrêté de manière inattendue. Réessayez.",
+      "stalled": "L’assistant s’est arrêté sans terminer. Réessayez.",
+      "withdrawn": "La demande a été annulée avant de commencer. Réessayez."
+    }
+  },
+  "eventSources": {
+    "vaultBasicHelp": "Nom d’utilisateur et mot de passe pour vérifier les requêtes webhook entrantes. Ces identifiants ne sont jamais envoyés à une URL externe.",
+    "vaultCredentialHelp": "Choisissez des identifiants de l’organisation dans le Vault. La source utilise leur valeur actuelle, y compris après rotation.",
+    "manageSources": "Gérer les sources d’événements",
+    "title": "Sources d’événements",
+    "description": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows.",
+    "name": "Nom",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Webhook personnalisé",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authentification",
+    "auth": {
+      "hmac": "HMAC personnalisé (SHA-256)",
+      "basic": "Authentification HTTP Basic",
+      "api_key": "Clé API",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Nom d’utilisateur",
+    "password": "Mot de passe",
+    "secret": "Secret",
+    "manualSetup": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source.",
+    "visibility": "Visibilité",
+    "private": "Privée",
+    "organization": "Organisation",
+    "deliveryHeader": "En-tête d’identifiant de livraison (facultatif)",
+    "deliveryHelp": "Les identifiants d’événement du provider sont détectés automatiquement. Sans identifiant, les nouvelles tentatives peuvent créer des runs supplémentaires.",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "create": "Créer la source",
+    "header": "Nom de l’en-tête",
+    "prefix": "Préfixe de signature ou de clé (facultatif)",
+    "encoding": "Encodage de la signature",
+    "legacy": "Utiliser l’ancien format de signature de l’horodatage",
+    "standardHelp": "Signatures symétriques v1 portant sur l’identifiant, l’horodatage et le corps de la requête, avec une tolérance de cinq minutes pour l’horodatage.",
+    "selectSource": "Source d’événements",
+    "dedicated": "Point de terminaison dédié (réponse synchrone)",
+    "chooseSource": "Sélectionner une source existante",
+    "paused": "En pause",
+    "active": "Active",
+    "liveUrl": "URL de réception des événements",
+    "revealOnce": "Copiez ce secret maintenant. Il ne sera plus affiché.",
+    "createNew": "Créer une source",
+    "loadError": "Impossible de charger les sources d’événements.",
+    "retry": "Réessayer",
+    "liveWarning": "L’écoute des événements sur cette URL dure deux minutes. Les abonnés actifs continuent de s’exécuter normalement. Les échantillons sont facultatifs et expirent après dix minutes.",
+    "noUse": "Vous devez avoir le droit d’utiliser la source pour capturer des événements.",
+    "captureError": "Impossible de capturer un échantillon de l’événement. Le traitement des livraisons se poursuit normalement.",
+    "expired": "L’écoute a expiré. Relancez-la lorsque l’expéditeur est prêt.",
+    "caught": "Événement capturé. L’échantillon est prêt à être utilisé.",
+    "listen": "Écouter les événements",
+    "listenTo": "Écouter {name}",
+    "sourceUnavailable": "Source actuelle (indisponible)",
+    "listening": "En attente d’un événement authentifié…",
+    "pasteExample": "Ou coller un exemple JSON",
+    "exampleJson": "Objet JSON d’exemple",
+    "invalidJson": "Saisissez un objet JSON valide.",
+    "sampleTooLarge": "Cet échantillon dépasse la limite de {limit} octets de l’éditeur.",
+    "useExample": "Utiliser l’exemple",
+    "noView": "Vous n’avez pas le droit de consulter les sources d’événements.",
+    "empty": "Aucune source d’événements pour le moment. Créez une source pour recevoir des événements destinés aux routines et aux workflows.",
+    "edit": "Modifier",
+    "done": "Terminé",
+    "pause": "Mettre la source en pause",
+    "resume": "Réactiver la source",
+    "pauseHelp": "Mettre cette source en pause interrompt les nouvelles livraisons. Chaque abonné peut aussi être mis en pause séparément.",
+    "replaceCredentials": "Remplacer les identifiants",
+    "status": "État",
+    "subscribers": "Abonnés",
+    "actions": "Actions",
+    "usageError": "Impossible de charger les abonnés.",
+    "usage": "{count, plural, =0 {Aucun abonné} =1 {1 abonné} other {# abonnés}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Supprimer la source",
+    "confirmDelete": "Confirmer la suppression",
+    "deleteBlocked": "Détachez les abonnés avant de supprimer cette source.",
+    "sourceRoutine": "Créer une routine à partir d’une source d’événements",
+    "privateRoutine": "Routine privée",
+    "privateWorkflow": "Workflow privé",
+    "filters": {
+      "event_types": "Types d’événements",
+      "actions": "Actions",
+      "subscription_types": "Types d’abonnements",
+      "property_names": "Noms des propriétés",
+      "help": "Séparez les valeurs par des virgules. Laissez un filtre vide pour accepter toutes les valeurs."
+    },
+    "eventPreset": "Événements de cette routine",
+    "currentFilters": "Filtres actuels ou par défaut",
+    "presetError": "Impossible de charger les préréglages d’événements."
   }
 }

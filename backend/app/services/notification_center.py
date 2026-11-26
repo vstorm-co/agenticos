@@ -1426,7 +1426,20 @@ class NotificationCenterService:
                     uuid.UUID(str(approval_id)),
                     organization_id=notification.organization_id,
                 )
-                if approval is not None and approval.status == ApprovalStatus.PENDING.value:
+                if approval is None or approval.status != ApprovalStatus.PENDING.value:
+                    continue
+                from app.services.approvals import answers_for, runs_as_its_person
+
+                run = await agent_run_repo.get_run(
+                    self.db, approval.run_id, organization_id=notification.organization_id
+                )
+                if (
+                    run is not None
+                    and answers_for(ctx, run.user_id)
+                    and runs_as_its_person(
+                        always_asks=approval.always_asks, platform_call=approval.platform_call
+                    )
+                ):
                     return True
         return False
 

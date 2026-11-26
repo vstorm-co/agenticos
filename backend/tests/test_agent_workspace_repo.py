@@ -9,7 +9,8 @@ the files in it are whatever somebody uploaded to a chat.
 """
 
 import uuid
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -279,3 +280,44 @@ async def test_project_file_mutations_refresh_the_snapshot_under_a_tenant_scoped
     assert "project" in compiled.params.values()
     assert "FOR UPDATE" in str(compiled)
     assert statement.get_execution_options()["populate_existing"] is True
+
+
+@pytest.mark.security
+async def test_project_origin_inventory_keeps_newest_row_and_excludes_unbound_rows() -> None:
+    organization_id, project_id = uuid.uuid4(), uuid.uuid4()
+    newest, older = _workspace(project_id=project_id), _workspace(project_id=project_id)
+    unbound = _workspace(project_id=None)
+    session = _RecordingSession(SimpleNamespace(scalars=lambda: [newest, unbound, older]))
+    found = await agent_workspace_repo.active_for_projects(
+        session, organization_id=organization_id, project_ids=[project_id]
+    )
+    assert found == {project_id: newest}
+    params = _filters(session)
+    assert organization_id in params.values()
+    assert [project_id] in params.values()
+
+
+async def test_project_chat_without_active_project_workspace_retains_its_conversation_files() -> (
+    None
+):
+    organization_id, conversation_id, project_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    own = _workspace()
+    session = SimpleNamespace(scalar=AsyncMock(return_value=project_id))
+    with (
+        patch.object(
+            agent_workspace_repo, "get_for_project", new=AsyncMock(return_value=None)
+        ) as project,
+        patch.object(
+            agent_workspace_repo, "list_for_conversation", new=AsyncMock(return_value=[own])
+        ) as conversation,
+    ):
+        found = await agent_workspace_repo.kept_for_conversation(
+            session, organization_id=organization_id, conversation_id=conversation_id
+        )
+    assert found is own
+    project.assert_awaited_once_with(
+        session, organization_id=organization_id, project_id=project_id
+    )
+    conversation.assert_awaited_once_with(
+        session, organization_id=organization_id, conversation_id=conversation_id
+    )

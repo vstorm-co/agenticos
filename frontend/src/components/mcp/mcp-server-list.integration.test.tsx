@@ -684,9 +684,15 @@ describe("McpServerList", () => {
       "href",
       catalogEntries[2]!.docs_url,
     );
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Client ID"), "google-app");
     await userEvent.type(screen.getByLabelText("Client secret"), "test-secret");
@@ -716,7 +722,10 @@ describe("McpServerList", () => {
     await mount();
     expect(await screen.findByLabelText("Client ID")).toBeVisible();
     expect(screen.queryByText(/Leave it empty for a public client/)).toBeNull();
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     expect(window.location.search).toBe("");
   });
 
@@ -1843,4 +1852,15 @@ it("shows a failed catalog request and retries without claiming an empty catalog
   refused = false;
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
+});
+
+it("does not advertise metadata retained only for an existing connection as an onboarding suggestion", async () => {
+  catalogEntries = [{ ...CATALOG.items[0]!, gallery_visible: false }, CATALOG.items[1]!];
+  serve([], []);
+  render(
+    <McpServerList canManageOrganization presentation="onboarding" persistSelection={false} />,
+    { wrapper },
+  );
+  await screen.findByRole("group", { name: "Linear" });
+  expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
 });

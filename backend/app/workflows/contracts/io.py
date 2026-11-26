@@ -63,9 +63,13 @@ class TableIORef(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     kind: Literal["table"] = "table"
-    table_id: UUID
-    column_ids: tuple[UUID, ...] | None = None
-    schema_version: int = Field(ge=1)
+    table_id: UUID = Field(json_schema_extra={"x-resource": "table"})
+    column_ids: tuple[UUID, ...] | None = Field(
+        default=None, json_schema_extra={"x-resource-unsupported": "table_columns"}
+    )
+    schema_version: int = Field(
+        ge=1, json_schema_extra={"x-resource": "table_version", "x-resource-parent": "table_id"}
+    )
 
 
 class NodeOutputRef(BaseModel):

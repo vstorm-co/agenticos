@@ -3,11 +3,13 @@
 Whoever edits a dataset steers the Improve sessions and case generations other
 people start on it, so the rules that keep the pipeline safe - held-out
 questions are not learning material, run text is data, personal details stay
-out of a case - reach the model whatever the dataset's guidance says. The run
-text the improver reads is fenced so that it cannot pose as those rules either.
+out of a case - reach the model whatever the dataset's guidance says. The guidance is
+separated from the platform rules at every model boundary, and the run text the
+improver reads is fenced so that it cannot pose as those rules either.
 """
 
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -113,7 +115,7 @@ class TestWhatReachesTheModel:
         from app.services.improvement_search import SearchWorker, _Propose
 
         @asynccontextmanager
-        async def sessions():
+        async def sessions() -> AsyncGenerator[MagicMock]:
             yield MagicMock()
 
         worker = SearchWorker(uuid.uuid4(), uuid.uuid4(), sessions=sessions)

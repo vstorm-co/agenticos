@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -29,7 +28,9 @@ def services(monkeypatch: pytest.MonkeyPatch) -> None:
     async def context() -> AsyncIterator[MagicMock]:
         yield MagicMock()
 
-    async def member(_db: object, organization_id: object, user_id: str | None) -> Any:
+    async def member(
+        _db: object, organization_id: object, user_id: str | None
+    ) -> AuthContext | None:
         if user_id is None:
             return None
         return AuthContext(user_id=uuid.UUID(user_id), organization_id=ORG, role="builder")
@@ -53,7 +54,9 @@ def services(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-async def _describe(tool: str, args: dict[str, Any], deps: AgentDeps = DEPS) -> Any:
+async def _describe(
+    tool: str, args: dict[str, object], deps: AgentDeps = DEPS
+) -> dict[str, str] | None:
     describe = platform_describer(tool)
     assert describe is not None
     return await describe(deps, args)
@@ -188,3 +191,50 @@ async def test_a_record_the_person_cannot_read_or_a_malformed_call_describes_not
 async def test_a_run_with_no_person_describes_nothing() -> None:
     nobody = AgentDeps(organization_id=ORG, run_person=None)
     assert await _describe("agenticos_publish_agent", {"agent_id": str(AGENT)}, nobody) is None
+
+
+@pytest.mark.security
+async def test_a_reader_without_run_access_gets_no_improvement_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    member = AuthContext(user_id=PERSON, organization_id=ORG, role="member")
+    monkeypatch.setattr(
+        "app.agents.platform_describers.acting_member", AsyncMock(return_value=member)
+    )
+    read = AsyncMock()
+    monkeypatch.setattr("app.services.improvement_pipeline.ImprovementPipelineService.read", read)
+    assert (
+        await _describe(
+            "agenticos_accept_improvement",
+            {"agent_id": str(AGENT), "session_id": str(uuid.uuid4())},
+        )
+        is None
+    )
+    read.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "run",
+    [None, [], {"dataset_id": []}, {"dataset_id": str(DATASET), "dataset_version": "invalid"}],
+)
+async def test_invalid_nested_eval_references_do_not_break_the_approval_card(run: object) -> None:
+    assert await _describe("agenticos_start_eval_run", {"agent_id": str(AGENT), "run": run}) is None
+
+
+async def test_an_unjudged_attempt_has_no_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
+    ctx = AuthContext(user_id=PERSON, organization_id=ORG, role="owner", is_app_admin=True)
+    monkeypatch.setattr("app.agents.platform_describers.acting_member", AsyncMock(return_value=ctx))
+    attempt = uuid.uuid4()
+    session = SimpleNamespace(
+        iterations=[SimpleNamespace(id=attempt, number=1, verdict=None)],
+        best_iteration_id=attempt,
+        next_version=None,
+    )
+    monkeypatch.setattr(
+        "app.services.improvement_pipeline.ImprovementPipelineService.read",
+        AsyncMock(return_value=session),
+    )
+    assert await _describe(
+        "agenticos_accept_improvement",
+        {"agent_id": str(AGENT), "session_id": str(uuid.uuid4()), "attempt": 1, "publish": False},
+    ) == {"agent": "Support", "attempt": "1", "verdict": "", "publish": "no"}

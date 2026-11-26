@@ -218,9 +218,14 @@ class ApiClient {
     // A FormData body carries its own multipart content type, boundary and all,
     // and is sent as-is. Anything else is JSON.
     const isMultipart = body instanceof FormData;
+    const isBinary = body instanceof Blob;
 
     const headers = {
-      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
+      ...(isMultipart
+        ? {}
+        : {
+            "Content-Type": isBinary ? body.type || "application/octet-stream" : "application/json",
+          }),
       // The active organization travels on every request so org-scoped
       // endpoints resolve the same tenant the UI is showing. The server
       // verifies membership; an id the user does not belong to is refused,
@@ -229,7 +234,12 @@ class ApiClient {
       [CONSOLE_TAB_HEADER]: CONSOLE_TAB,
       ...fetchOptions.headers,
     };
-    const payload = isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined;
+    const payload =
+      body instanceof FormData || body instanceof Blob
+        ? body
+        : body
+          ? JSON.stringify(body)
+          : undefined;
 
     // A fresh request each time, so the retry after a refresh reports its own
     // progress from zero.

@@ -269,7 +269,7 @@ class ProjectService:
         return reads
 
     async def create(self, ctx: AuthContext, data: ProjectCreate) -> Project:
-        """Create a project, in a container when this organization has a sandbox.
+        """Create a shared file workspace; a sandbox requires an explicit selection.
 
         Raises:
             BadRequestError: For a default agent the caller may not run, or an
@@ -277,10 +277,8 @@ class ProjectService:
         """
         if data.default_agent_id is not None:
             await self._check_default_agent(ctx, data.default_agent_id)
-        # A container where the organization has a sandbox to run one on, files
-        # the platform keeps where it has none; decided now, so the project does
-        # not change what it is because somebody registered a host later - and on
-        # that host, so a new organization default does not open it an empty one.
+        # Explicit automatic selection pins its current connection. Registering
+        # or changing a default host later must not move a project's files.
         connection = None
         if data.backend == "state":
             if data.sandbox_connection_id is not None:

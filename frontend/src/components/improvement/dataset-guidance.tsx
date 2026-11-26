@@ -1,10 +1,12 @@
 "use client";
 
+import { useId } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { HelperGuidance } from "@/types/improvement";
 
 /** The dataset's guidance the helper reads below the platform's rules, and who last changed it. */
 export function DatasetGuidance({ guidance }: { guidance: HelperGuidance }) {
+  const id = useId();
   const t = useTranslations("improvement.guidance");
   const locale = useLocale();
   const date = guidance.updated_at
@@ -16,8 +18,8 @@ export function DatasetGuidance({ guidance }: { guidance: HelperGuidance }) {
       ? "former"
       : "unknown";
   return (
-    <section className="space-y-2 rounded-lg border p-4" aria-labelledby="dataset-guidance">
-      <h3 id="dataset-guidance" className="text-sm font-medium">
+    <section className="space-y-2 rounded-lg border p-4" aria-labelledby={id}>
+      <h3 id={id} className="text-sm font-medium">
         {t("title")}
       </h3>
       <p className="text-muted-foreground text-xs leading-5">{t("hint")}</p>

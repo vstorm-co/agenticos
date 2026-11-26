@@ -42,15 +42,25 @@ const QUOTE_ARGUMENTS = ["quoted_usd", "estimate_usd", "total_usd"] as const;
 
 /**
  * The price a paid platform call was quoted at, as the decimal string it carries;
- * `null` for any other call. The server refuses the call once it would cost more,
- * so this is the most it spends.
+ * `null` for any other call. Paid starts compare their current estimate with this
+ * quote; the quote is not a provider bill cap.
  */
-export function quotedPrice(toolName: string, args: Record<string, unknown>): string | null {
-  if (!isPlatformTool(toolName)) return null;
+export function quotedPrice(
+  toolName: string,
+  args: Record<string, unknown>,
+  platformCall?: boolean,
+): string | null {
+  if (!isPlatformTool(toolName) || platformCall !== true) return null;
   for (const name of QUOTE_ARGUMENTS) {
     const value = args[name];
-    if (typeof value === "string" && value !== "" && Number.isFinite(Number(value))) return value;
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (
+      typeof value === "string" &&
+      value.trim() !== "" &&
+      Number.isFinite(Number(value)) &&
+      Number(value) >= 0
+    )
+      return value;
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return String(value);
   }
   return null;
 }

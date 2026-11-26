@@ -145,11 +145,11 @@ The check is not one of the suite's runs: it is in no suite's history and
 notifies nobody, and the run's own verdict is what Accept goes by. A skill or
 context change checked on a suite of the agent it runs on gets the same.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
 A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
@@ -369,6 +369,8 @@ with the reason `expired`. An agent has one open session at a time - queued,
 running, waiting, ready, stopped or failed - so starting another answers `409`
 until the open one ends. The creator or an organization administrator can post to
 `/{run_id}/cancel`.
+
+Stopping does not require `runs:view`. Without it, the response contains only `id` and `status`, with no budget, dataset, progress or error metadata.
 
 The person who took the last step is notified at each stop and each end: the
 analysis read, changes ready to review, a checked result, stopped, failed or stale,

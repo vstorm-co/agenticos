@@ -28,6 +28,7 @@ from app.services.routine_sources import (
     read_policy,
     source_scope,
 )
+from app.services.routine_tools import RoutineToolService
 
 _PARKED = frozenset({RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value})
 
@@ -95,15 +96,32 @@ async def blockers(
     parked = await _parked_run(db, trigger)
     if parked is not None:
         found.append(parked)
-    # A following review defers effects to the agent's own approval gate, where
-    # standing consent has no say (`RoutineAuthority.action_policy`).
-    if not following:
+    # Under the agent's own settings, only what the owner narrowed to ask first is
+    # theirs to change. A following review defers effects to the agent's approval
+    # gate, where standing consent has no say (`RoutineAuthority.action_policy`).
+    if trigger.action_mode == "agent":
+        waiting = await _narrowed_to_ask(db, creator, trigger)
+    elif not following:
         waiting = await _unconsented_actions(db, creator, trigger)
-        if waiting:
-            found.append(
-                RoutineBlocker(code="actions_need_approval", severity="attention", count=waiting)
-            )
+    else:
+        waiting = 0
+    if waiting:
+        found.append(
+            RoutineBlocker(code="actions_need_approval", severity="attention", count=waiting)
+        )
     return found
+
+
+async def _narrowed_to_ask(db: AsyncSession, creator: AuthContext, trigger: AgentTrigger) -> int:
+    """How many of the version's tools the owner set to ask first.
+
+    Only the routine's own: what the agent asks before, the routine cannot release.
+    """
+    try:
+        review = await RoutineToolService(db).tools(creator, trigger)
+    except NotFoundError, BadRequestError, AuthorizationError:
+        return 0
+    return sum(1 for item in review.items if item.setting == "ask")
 
 
 async def _parked_run(db: AsyncSession, trigger: AgentTrigger) -> RoutineBlocker | None:
