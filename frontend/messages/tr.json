@@ -5027,6 +5027,8 @@
     "removeStoredCredential": "Saklanan kimlik bilgisini kaldır",
     "includeServerInstructions": "Server'ın kendi talimatlarını Agent'ın talimatlarına ekle",
     "includeServerInstructionsHint": "Bazı server'lar tool'larının nasıl kullanılması gerektiğini açıklar. Varsayılan olarak kapalıdır: metin server operatörüne aittir ve Agent bunu kendi talimatlarıymış gibi okur.",
+    "showServerPages": "Server'ın kendi sayfalarını sohbette göster",
+    "showServerPagesHint": "Bazı tool'lar etkileşimli bir sayfayla gelir (MCP Apps), örneğin bir grafik veya bir dashboard. Açıkken sayfa web sohbetinde yanıtın altında görünür ve Agent'ın tool'ları ve onayları sınırları içinde bu server'ın tool'larını kullanabilir. Varsayılan olarak kapalıdır: sayfa server operatörünün kodudur.",
     "save": "Kaydet",
     "saveSelection": "Seçimi kaydet",
     "saving": "Kaydediliyor…",
@@ -10646,7 +10648,11 @@
     "resumeQueue": "Kuyruğu sürdür",
     "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
     "routineContinueChat": "Yeni sohbette devam et",
-    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
+    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz.",
+    "mcpApp": {
+      "title": "{tool} sayfası",
+      "unavailable": "Bu sonucun sayfası yüklenemedi."
+    }
   },
   "admin": {
     "actions": "Eylemler",

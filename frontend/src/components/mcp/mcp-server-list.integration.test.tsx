@@ -71,6 +71,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     allowed_tools: null,
     is_enabled: true,
     include_instructions: false,
+    mcp_apps: false,
     auth_type: "bearer",
     oauth_authorized: false,
     authorized: true,

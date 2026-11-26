@@ -68,6 +68,8 @@ export interface ConnectionFormValues {
   clearToken: boolean;
   /** Whether the server's own instructions join the agent's. Read only when editing. */
   includeInstructions: boolean;
+  /** Whether a tool's MCP Apps page shows in web chat. Read only when editing. */
+  mcpApps: boolean;
   scope: Scope;
   /**
    * A client registered at the provider by hand, read only when `auth` is

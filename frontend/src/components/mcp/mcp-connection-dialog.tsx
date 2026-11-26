@@ -140,6 +140,7 @@ function ConnectionForm({
   const [includeInstructions, setIncludeInstructions] = useState(
     draft.existing?.include_instructions ?? false,
   );
+  const [mcpApps, setMcpApps] = useState(draft.existing?.mcp_apps ?? false);
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -502,6 +503,22 @@ function ConnectionForm({
             </div>
           </div>
         )}
+        {draft.existing && (
+          <div className="flex items-start gap-2">
+            <Switch
+              id="mcp-apps"
+              checked={mcpApps}
+              onCheckedChange={setMcpApps}
+              className="mt-0.5"
+            />
+            <div className="min-w-0">
+              <Label htmlFor="mcp-apps" className="leading-snug font-normal">
+                {t("showServerPages")}
+              </Label>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("showServerPagesHint")}</p>
+            </div>
+          </div>
+        )}
 
         {(known || ownClient) && (
           <MoreOptions
@@ -551,6 +568,7 @@ function ConnectionForm({
               auth,
               clearToken,
               includeInstructions,
+              mcpApps,
               scope,
               clientId,
               clientSecret,

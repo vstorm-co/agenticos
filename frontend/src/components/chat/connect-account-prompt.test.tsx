@@ -99,6 +99,7 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     allowed_tools: null,
     is_enabled: true,
     include_instructions: false,
+    mcp_apps: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,

@@ -1,3 +1,4 @@
+import type { McpAppData } from "@/lib/mcp-apps-api";
 import type { ChatPerson } from "./conversation";
 import type { Mentionable } from "./mention";
 
@@ -183,6 +184,8 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
+  /** The page its MCP server shows with the result, where the connection shows pages (#3450). */
+  mcp_app?: McpAppData | null;
   status:
     | "pending"
     | "running"

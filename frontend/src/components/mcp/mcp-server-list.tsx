@@ -589,6 +589,7 @@ export function McpServerList({
           ...(values.includeInstructions !== existing.include_instructions
             ? { include_instructions: values.includeInstructions }
             : {}),
+          ...(values.mcpApps !== existing.mcp_apps ? { mcp_apps: values.mcpApps } : {}),
         });
         toast.success(t("serverUpdated", { name }));
         closeDraft();

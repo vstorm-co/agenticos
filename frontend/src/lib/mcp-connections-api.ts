@@ -20,6 +20,8 @@ export interface McpConnectionRecord {
   is_enabled: boolean;
   /** Whether the server's own instructions join the agent's. Off unless someone opted in. */
   include_instructions: boolean;
+  /** Whether a tool's MCP Apps page shows in web chat and may call the server. Off unless someone opted in. */
+  mcp_apps: boolean;
   /** "bearer" (static token) or "oauth" (authorization-code flow). */
   auth_type: "bearer" | "oauth";
   /** OAuth connection that finished consent and has usable tokens. */
@@ -140,6 +142,7 @@ export async function updateMcpConnection(
     clear_allowed_tools?: boolean;
     is_enabled?: boolean;
     include_instructions?: boolean;
+    mcp_apps?: boolean;
     /** Speak as this one where an agent asked for the member's own account. */
     is_default?: boolean;
     /** `""` clears it, back to showing the slug. */

@@ -2739,7 +2739,11 @@
     },
     "approvalOthersWait": "Votre réponse ne concerne que vos propres appels à la plateforme. Les autres attendent une personne habilitée à décider des approbations.",
     "approvalNeedsItsPerson": "Seule la personne pour qui ce run agit peut approuver ceci. Vous pouvez le rejeter.",
-    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser."
+    "approvalNeedsItsAdminPerson": "Seule la personne pour laquelle ce run agit, connectée en tant qu’administrateur de l’application, peut approuver. Vous pouvez refuser.",
+    "mcpApp": {
+      "title": "Page de {tool}",
+      "unavailable": "La page de ce résultat n’a pas pu être chargée."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archiver {name} ?",
@@ -4613,6 +4617,8 @@
     "removeStoredCredential": "Supprimer l’identifiant stocké",
     "includeServerInstructions": "Ajouter les instructions du serveur à celles de l’agent",
     "includeServerInstructionsHint": "Certains serveurs expliquent comment leurs outils doivent être utilisés. Désactivé par défaut : c’est le texte de l’opérateur du serveur, et l’agent le lit comme ses propres instructions.",
+    "showServerPages": "Afficher les pages propres du serveur dans le chat",
+    "showServerPagesHint": "Certains outils fournissent une page interactive (MCP Apps), comme un graphique ou un tableau de bord. Activée, elle s’affiche sous la réponse dans le chat web et peut utiliser les outils de ce serveur, dans les limites des outils et des approbations de l’agent. Désactivé par défaut : la page est du code de l’opérateur du serveur.",
     "save": "Enregistrer",
     "saveSelection": "Enregistrer la sélection",
     "saving": "Enregistrement…",

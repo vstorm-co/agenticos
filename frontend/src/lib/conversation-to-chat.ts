@@ -1,3 +1,4 @@
+import type { McpAppData } from "./mcp-apps-api";
 import { storedUsage } from "./message-usage";
 import type { MentionKind, Mentionable } from "@/types/mention";
 import type {
@@ -22,6 +23,7 @@ export interface RawToolCall {
   args: Record<string, unknown>;
   result?: unknown;
   status: string;
+  mcp_app?: McpAppData | null;
 }
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
@@ -234,6 +236,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     args: tc.args,
     result: tc.result,
     status: replayedStatus(tc.status),
+    mcp_app: tc.mcp_app ?? null,
   }));
 
   const parts: MessagePart[] | undefined =

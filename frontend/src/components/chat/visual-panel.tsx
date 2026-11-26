@@ -134,6 +134,11 @@ export function ConversationVisualsProvider({
   return <ConversationVisuals.Provider value={value}>{children}</ConversationVisuals.Provider>;
 }
 
+/** The conversation on screen, for a part of a turn that reads from it; null where none can. */
+export function useConversationOnScreen(): string | null {
+  return useContext(ConversationVisuals).conversationId;
+}
+
 /** A turn's drawings, each a panel under the message where the turn made it. */
 export function TurnVisuals({ calls }: { calls: ToolCall[] }) {
   if (calls.length === 0) return null;
