@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.94.0] - 2026-11-27
+
 ### Upgrading
 
 - Upstream v1.93.0 sync (including v1.91.0 and v1.92.0) applies upstream revisions `0346_personal_model_generations` through `0364_merge_routine_and_kb` after T3 `0349_personal_work_context` (no T3 revision is renumbered; T3's `0353_nav_pins`, `0355_magic_link_claims` and `0356_trigger_webhook_receipts` are joined to the merged head by merge revision `0365_merge_t3_v1930`; `0366_merge_t3_thread_context` then joins `0358_room_thread_context`, and `0367_merge_t3_chat_queue` joins `0358_defer_dataset_source_links` after `0357_accepted_queued_messages`; one head, `0367_merge_t3_chat_queue`). Note the upstream numbering quirk: three `0350`s and three `0351`s on parallel branches, joined by merge revisions; two `0363`s likewise. The fork stays English-only: the new Dutch and Brazilian Portuguese console catalogs are not taken (`locales = ["en"]`, `retiredLocales` gains `nl` and `pt`). Subscription accounts are on by default: the next `scripts/deploy.sh` run generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` and starts the `subscriptions` profile; set an empty `SUBSCRIPTION_GATEWAY_TOKEN` to keep the gateway off. CLIProxyAPI subscription credentials stay in their native token store and refresh journal on `subscription_accounts`, outside Vault — an explicit maintainer-approved exception; protect the volume and backups as credentials. Apply `0350_member_onboarding_progress` before starting the new API. Pydantic AI 2.71 and harness 0.71: finish paused code executions before upgrading — saved code checkpoints are rejected after a runtime change. Personal work moves to v7. Deploy API and workers together; routine/monitor Inbox publication is now MCP-only, and new routines act as their creator. Migration `0363_app_bases_have_no_org` sets `organization_id` to NULL on every app-scoped knowledge base; see the [1.93.0] notes below before upgrading.
@@ -23051,7 +23053,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/t3grp/agenticos/compare/v1.94.0-t3.1...HEAD
+[1.94.0]: https://github.com/t3grp/agenticos/compare/v1.85.0-t3.4...v1.94.0-t3.1
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
