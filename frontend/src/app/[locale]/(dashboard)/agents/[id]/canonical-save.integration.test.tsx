@@ -146,7 +146,10 @@ vi.mock("@/hooks", async () => {
     useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
     useRuns: () => ({ runs: [] }),
     useSecretPurposes: () => ({ purposes: [] }),
-    useSecrets: () => ({ secrets: [] }),
+    useSecrets: () => ({
+      secrets: [],
+      create: { error: null, isPending: false, mutate: vi.fn(), reset: vi.fn() },
+    }),
     useSkills: () => ({ skills: [], total: 0 }),
   };
 });

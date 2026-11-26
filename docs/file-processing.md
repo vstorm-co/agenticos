@@ -731,6 +731,9 @@ connection requires a key if one was given at creation or added later, and remov
 key from a keyed connection is refused. A deployment-wide connection is keyless. A
 deleted key makes the connection refuse by name instead of sending requests without it.
 
+Naming a keyed connection for a collection, a move or a Test needs `connections:view`,
+since every call spends its key; a Member without it can use keyless connections only.
+
 A custom endpoint may serve any model, so nothing about it can be assumed. Two Tests keep
 a collection's vector space from moving by accident:
 

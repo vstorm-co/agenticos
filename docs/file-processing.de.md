@@ -1,5 +1,5 @@
 ---
-source_sha: "ca66bcb14182"
+source_sha: "2468a2c12537"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -806,6 +806,10 @@ Eine Verbindung verlangt einen Schlüssel, wenn beim Anlegen einer angegeben ode
 einer hinzugefügt wurde; den Schlüssel aus einer Verbindung mit Schlüssel zu entfernen
 wird abgelehnt. Eine deploymentweite Verbindung ist schlüssellos. Ein gelöschter
 Schlüssel lässt die Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden.
+
+Eine Verbindung mit Schlüssel für eine Collection, einen Wechsel oder einen Test zu
+nennen braucht `connections:view`, weil jeder Aufruf ihren Schlüssel nutzt; ein Member
+ohne diese Berechtigung kann nur Verbindungen ohne Schlüssel verwenden.
 
 Ein eigener Endpunkt kann jedes Model bereitstellen, also darf nichts angenommen werden.
 Zwei Tests verhindern, dass sich der Vektorraum einer Collection versehentlich

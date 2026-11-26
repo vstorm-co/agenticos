@@ -448,11 +448,14 @@ class ParserTask(TypedDict):
 class ParserTaskStore(Protocol):
     """Where a parse keeps its task between attempts. A write returning False was fenced out."""
 
-    async def load(self) -> ParserTask | None: ...
+    async def load(self) -> ParserTask | None:
+        """The task this document waits on, or None."""
 
-    async def save(self, task: ParserTask) -> bool: ...
+    async def save(self, task: ParserTask) -> bool:
+        """Keep `task` for this attempt; False when a newer attempt fenced it out."""
 
-    async def clear(self) -> bool: ...
+    async def clear(self) -> bool:
+        """Forget the task for this attempt; False when a newer attempt fenced it out."""
 
 
 class DoclingParser(BaseDocumentParser):

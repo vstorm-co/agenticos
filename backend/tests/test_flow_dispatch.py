@@ -287,6 +287,7 @@ async def test_an_uploaded_document_is_queued_for_parsing_on_the_session_that_wr
         collection_name="handbooks",
         embedding_model="text-embedding-3-small",
         embedding_provider="openai",
+        scope="org",
         embedding_dim=1536,
         ingestion_config=IngestionConfig().model_dump(mode="json"),
     )
@@ -333,6 +334,7 @@ async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch)
         collection_name="handbooks",
         embedding_model="text-embedding-3-small",
         embedding_provider="openai",
+        scope="org",
         embedding_dim=1536,
         ingestion_config=IngestionConfig().model_dump(mode="json"),
     )
@@ -385,7 +387,7 @@ async def test_a_retry_parses_with_the_collections_settings_as_they_are_now(
     """
     document = _failed_document()
     retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
-    base = SimpleNamespace(ingestion_config={"pdf_parser": "liteparse", "ocr": True})
+    base = SimpleNamespace(scope="org", ingestion_config={"pdf_parser": "liteparse", "ocr": True})
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
     monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
@@ -409,7 +411,7 @@ async def test_a_retry_with_pending_upload_settings_uses_them_instead_of_the_fil
     uploads apply - and replace the ones the file was uploaded with."""
     document = _failed_document()
     retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
-    base = SimpleNamespace(ingestion_config={"pdf_parser": "liteparse", "ocr": False})
+    base = SimpleNamespace(scope="org", ingestion_config={"pdf_parser": "liteparse", "ocr": False})
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
     monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
@@ -439,7 +441,9 @@ async def test_a_retry_with_nothing_pending_uses_the_collections_settings_alone(
     monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
     monkeypatch.setattr(
         "app.services.rag_document.knowledge_base_repo.get_by_id",
-        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+        AsyncMock(
+            return_value=SimpleNamespace(scope="org", ingestion_config={"pdf_parser": "pymupdf"})
+        ),
     )
     storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
@@ -484,7 +488,9 @@ async def test_a_retry_the_current_parser_cannot_read_is_refused_and_changes_not
     monkeypatch.setattr(rag_document_repo, "update_status", update)
     monkeypatch.setattr(
         "app.services.rag_document.knowledge_base_repo.get_by_id",
-        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+        AsyncMock(
+            return_value=SimpleNamespace(scope="org", ingestion_config={"pdf_parser": "pymupdf"})
+        ),
     )
 
     with pytest.raises(BadRequestError, match=r"no longer reads '\.pptx'"):
@@ -505,7 +511,9 @@ async def test_a_retry_through_the_api_without_a_body_keeps_the_files_own(
     monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
     monkeypatch.setattr(
         "app.services.rag_document.knowledge_base_repo.get_by_id",
-        AsyncMock(return_value=SimpleNamespace(ingestion_config={"pdf_parser": "pymupdf"})),
+        AsyncMock(
+            return_value=SimpleNamespace(scope="org", ingestion_config={"pdf_parser": "pymupdf"})
+        ),
     )
     storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)

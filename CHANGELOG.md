@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Naming a keyed service connection for a knowledge base, a move or a Test needs `connections:view`, so a Member cannot spend a connection key that was never shared with them.
+- An upload or retry into an app-scoped knowledge base checks its Docling connection as the collection, so an organization's private connection cannot be reached through an upload override.
 - Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 

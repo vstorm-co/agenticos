@@ -776,7 +776,7 @@ class KnowledgeBaseService:
                         "holds no address for a server the deployment runs itself.",
                     )
                 await self._check_embedding_endpoint(
-                    embedding_endpoint_id, organization_id=org_id, provider=provider
+                    embedding_endpoint_id, organization_id=org_id, provider=provider, ctx=ctx
                 )
                 if provider.any_model:
                     await self._require_tested(
@@ -1100,9 +1100,10 @@ class KnowledgeBaseService:
                     data.embedding_endpoint_id,
                     organization_id=kb.organization_id,
                     provider=provider,
+                    ctx=ctx,
                 )
             elif data.embedding_provider is not None:
-                await self._check_kept_endpoint(kb, provider=provider)
+                await self._check_kept_endpoint(kb, provider=provider, ctx=ctx)
         else:
             _refuse_endpoint_for_keyed(provider, endpoint_id=data.embedding_endpoint_id)
             if data.embedding_secret_id is not None:
@@ -1229,6 +1230,7 @@ class KnowledgeBaseService:
         *,
         organization_id: UUID | None,
         provider: embedding_providers.EmbeddingProviderEntry,
+        ctx: AuthContext,
     ) -> None:
         """Refuse a service connection this collection may not name, or one of the wrong shape.
 
@@ -1236,6 +1238,12 @@ class KnowledgeBaseService:
         collection, with no organization, sees the deployment's alone. A service
         another organization registered is phrased as one that does not exist,
         so a refusal cannot enumerate another tenant's hosts.
+
+        A connection that carries a Vault key spends that key on every call, so
+        naming one - for a new base, a move, or a Test - needs `connections:view`,
+        the permission that lists connections at all. Without it a Member who can
+        read a base could reuse the id it exposes and send requests on a key that
+        was never shared with them.
         """
         row = await service_connection_repo.get_visible(
             self.db, endpoint_id, organization_id=organization_id
@@ -1256,9 +1264,19 @@ class KnowledgeBaseService:
                 "embedding_endpoint_id",
                 f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another.",
             )
+        if row.secret_id is not None and not ctx.has(Perm.CONNECTIONS_VIEW):
+            raise refused_field(
+                "embedding_endpoint_id",
+                f"'{row.name}' uses a Vault key, and naming it needs the connections permission. "
+                "Ask an administrator.",
+            )
 
     async def _check_kept_endpoint(
-        self, kb: KnowledgeBase, *, provider: embedding_providers.EmbeddingProviderEntry
+        self,
+        kb: KnowledgeBase,
+        *,
+        provider: embedding_providers.EmbeddingProviderEntry,
+        ctx: AuthContext,
     ) -> None:
         """Moving onto a keyless provider needs its address, in the same request or already on the row."""
         if kb.embedding_endpoint_id is None:
@@ -1268,7 +1286,7 @@ class KnowledgeBaseService:
                 "same request.",
             )
         await self._check_embedding_endpoint(
-            kb.embedding_endpoint_id, organization_id=kb.organization_id, provider=provider
+            kb.embedding_endpoint_id, organization_id=kb.organization_id, provider=provider, ctx=ctx
         )
 
     async def _check_kept_secret(

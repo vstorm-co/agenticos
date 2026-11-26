@@ -408,6 +408,9 @@ export function ServiceConnectionDialog({
                 onCheckedChange={(next) => {
                   setDeploymentWide(next);
                   if (next) setSecretId(null);
+                  // Who owns it decides whether a key goes with the Test, so a
+                  // passing Test no longer describes what would be registered.
+                  setTestResult(null);
                 }}
               />
             </div>

@@ -190,3 +190,34 @@ async def test_upload_to_a_docling_collection_with_a_paused_connection_refused(
     assert response.status_code == 400
     assert "turned off" in response.json()["error"]["message"]
     assert "fields" not in (response.json()["error"].get("details") or {})
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("path", _PATHS)
+async def test_an_app_collection_checks_its_docling_connection_as_the_collection(
+    client: AsyncClient, collection: KnowledgeBase, path: str
+) -> None:
+    """An app-scoped collection belongs to no organization, so the uploader's own
+    organization's private connection is not one it can reach - even through an
+    upload override that turns Docling on."""
+    collection.scope = KBScope.APP.value
+    collection.organization_id = None
+    collection.ingestion_config = {"docling_connection_id": str(uuid.uuid4())}
+    service = RAGDocumentService(MagicMock())
+    app.dependency_overrides[deps.get_rag_document_service] = lambda: service
+    lookup = AsyncMock(return_value=None)
+
+    with (
+        patch("app.services.rag_document.assert_organization_within_budget", new=AsyncMock()),
+        patch(
+            "app.services.rag_document.IngestionConfigService.check_embedding_model",
+            new=MagicMock(),
+        ),
+        patch("app.services.ingestion_config.service_connection_repo.get_visible", new=lookup),
+    ):
+        response = await client.post(
+            path, files=_upload(), data={"ingestion": '{"pdf_parser": "docling"}'}
+        )
+
+    assert response.status_code == 400
+    assert lookup.await_args.kwargs["organization_id"] is None

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
@@ -361,7 +361,13 @@ class RAGDocumentService:
         # Every upload, not only an overridden one: an override can switch a
         # collection to Docling, and a stored Docling collection's connection can
         # have been paused since. Refused here rather than in a worker.
-        await ingestion.check_docling_connection(ctx.organization_id, config, name_field=False)
+        # Checked as the collection: an app-scoped one belongs to no organization and
+        # may name only deployment-wide connections, whoever uploads to it.
+        await ingestion.check_docling_connection(
+            None if collection.scope == KBScope.APP.value else ctx.organization_id,
+            config,
+            name_field=False,
+        )
 
         allowed = get_supported_formats(config.pdf_parser.value)
         max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -852,7 +858,11 @@ class RAGDocumentService:
         elif doc.ingestion_override:
             config = IngestionOverride.model_validate(doc.ingestion_override).applied_to(config)
         ingestion = IngestionConfigService(self.db)
-        await ingestion.check_docling_connection(doc.organization_id, config, name_field=False)
+        await ingestion.check_docling_connection(
+            None if kb is not None and kb.scope == KBScope.APP.value else doc.organization_id,
+            config,
+            name_field=False,
+        )
         ext = f".{doc.filetype}".lower()
         if ext not in get_supported_formats(config.pdf_parser.value):
             raise BadRequestError(

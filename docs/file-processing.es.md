@@ -1,5 +1,5 @@
 ---
-source_sha: "ca66bcb14182"
+source_sha: "2468a2c12537"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -780,6 +780,10 @@ vincular una clave la presta a cada colección de la conexión, así que elegirl
 añadió después, y quitar la clave de una conexión con clave se rechaza. Una conexión de
 todo el deployment no tiene clave. Una clave eliminada hace que la conexión rechace con
 su nombre en lugar de enviar peticiones sin ella.
+
+Nombrar una conexión con clave para
+una colección, un cambio o un Test exige `connections:view`, porque cada llamada gasta
+su clave; un Member sin ese permiso solo puede usar conexiones sin clave.
 
 Un endpoint propio puede servir cualquier modelo, así que no se puede dar nada por hecho.
 Dos Tests evitan que el espacio vectorial de una colección se mueva por accidente:

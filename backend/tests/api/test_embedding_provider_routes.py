@@ -141,15 +141,19 @@ class TestWhatTheCatalogOffers:
 
 @pytest.mark.usefixtures("kb_contents_unread")
 class TestMovingACollection:
-    async def test_a_provider_that_serves_the_model_is_accepted(
+    async def test_a_move_to_a_keyed_provider_needs_its_key_in_the_same_request(
         self, client: AsyncClient, service: KnowledgeBase
     ):
+        """The base holds no key of its own to carry over, so a move onto a
+        provider that bills a key names the one that pays, or is refused on it."""
         response = await client.patch(
             f"{_V1}/kb/{_KB_ID}",
             json={"embedding_provider": "openai"},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
+        fields = response.json()["error"]["details"]["fields"]
+        assert fields[0]["field"] == "embedding_secret_id"
 
     async def test_a_provider_this_build_does_not_offer_names_the_field(
         self, client: AsyncClient, service: KnowledgeBase
@@ -164,18 +168,18 @@ class TestMovingACollection:
         fields = response.json()["error"]["details"]["fields"]
         assert fields[0]["field"] == "embedding_provider"
 
-    async def test_the_model_is_still_not_something_a_patch_can_change(
+    async def test_a_model_the_provider_does_not_serve_at_this_width_is_refused(
         self, client: AsyncClient, service: KnowledgeBase
     ):
-        """Ignored rather than refused, as it always has been: the field is not on
-        the update schema at all, so a client sending one is sending a key the
-        server has never read."""
+        """A catalog collection's model and width are fixed by the vectors already
+        in it; a patch naming another is refused on the provider, not ignored."""
         response = await client.patch(
             f"{_V1}/kb/{_KB_ID}", json={"embedding_model": "text-embedding-3-large"}
         )
 
-        assert response.status_code == 200
-        assert response.json()["embedding_model"] == "text-embedding-3-small"
+        assert response.status_code == 400
+        assert response.json()["error"]["details"]["fields"][0]["field"] == "embedding_provider"
+        assert service.embedding_model == "text-embedding-3-small"
 
 
 class TestWhatAnEndpointServes:

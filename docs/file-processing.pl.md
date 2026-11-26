@@ -1,5 +1,5 @@
 ---
-source_sha: "ca66bcb14182"
+source_sha: "2468a2c12537"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -761,6 +761,10 @@ na tym kluczu. Połączenie wymaga klucza, jeśli podano go przy tworzeniu albo 
 później, a usunięcie klucza z połączenia z kluczem jest odrzucane. Połączenie
 ogólnowdrożeniowe jest bezkluczowe. Usunięty klucz sprawia, że połączenie odmawia
 z nazwą zamiast wysyłać żądania bez niego.
+
+Wskazanie połączenia z kluczem dla
+kolekcji, przeniesienia albo Testu wymaga `connections:view`, bo każde wywołanie
+zużywa jego klucz; Member bez tego uprawnienia może używać tylko połączeń bez klucza.
 
 Własny endpoint może serwować dowolny model, więc o niczym nie wolno zakładać. Dwa
 Testy chronią przestrzeń wektorów kolekcji przed przypadkowym przesunięciem:

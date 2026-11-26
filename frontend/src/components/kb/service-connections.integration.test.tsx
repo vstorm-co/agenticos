@@ -364,6 +364,28 @@ describe("ServiceConnections", () => {
       expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
     });
 
+    it("drops a passing Test when deployment-wide takes its key away", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "ok", version: "1.39.0" });
+      serve({ manage: true, appAdmin: true, secrets });
+      render(<KnowledgeIntegrations targets={[]} />, { wrapper });
+      await screen.findByText("GPU box");
+      await userEvent.click(screen.getByRole("button", { name: "Add server" }));
+      await userEvent.click(screen.getByLabelText("Kind"));
+      await userEvent.click(
+        await screen.findByRole("option", { name: "Document parser (Docling)" }),
+      );
+      await userEvent.type(screen.getByLabelText("Address"), "http://docling:5001");
+      await userEvent.click(screen.getByLabelText("Vault key"));
+      await userEvent.click(await screen.findByRole("option", { name: /Docling key/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+      expect(await screen.findByRole("button", { name: "Tested" })).toBeVisible();
+
+      await userEvent.click(screen.getByLabelText("Deployment-wide"));
+
+      expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+    });
+
     it("test_docling_test_key_refused_message", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "key_refused", version: null });
       await openDoclingDialog();

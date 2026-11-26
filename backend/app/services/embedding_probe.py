@@ -144,7 +144,7 @@ class EmbeddingProbeService:
         organization_id = None if data.scope == KBScope.APP.value else ctx.organization_id
         provider = _custom_provider()
         await self.bases._check_embedding_endpoint(
-            data.embedding_endpoint_id, organization_id=organization_id, provider=provider
+            data.embedding_endpoint_id, organization_id=organization_id, provider=provider, ctx=ctx
         )
         settings = EmbeddingSettings(
             provider=provider.provider,
