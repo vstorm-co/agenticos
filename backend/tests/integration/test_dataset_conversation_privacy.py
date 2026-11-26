@@ -40,8 +40,10 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 __all__ = ["_environment"]
 
 
+@pytest.mark.parametrize("uncertain", [False, True])
 async def test_case_text_is_masked_on_every_public_read_and_export_but_not_internal_execution(
     db,
+    uncertain: bool,
 ) -> None:
     owner = await _owner(db)
     viewer = await _member(db, owner, OrgRoleName.VIEWER)
@@ -57,6 +59,19 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
         case.case_id,
         DatasetCaseUpdate(checks=[{"type": "contains", "value": "30 days"}]),
     )
+    if uncertain:
+        revisions = (
+            await db.scalars(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+        ).all()
+        for revision in revisions:
+            revision.source = "synthetic"
+            revision.source_run_id = revision.source_message_id = (
+                revision.source_conversation_id
+            ) = None
+            revision.asked_by_user_id = revision.noted_by_user_id = None
+            revision.history_author_ids = [None] * len(revision.history)
+            revision.from_conversation = True
+        await db.flush()
     version = (await service.read(owner, dataset.id)).latest_version
     db.add(
         ResourceGrant(
@@ -90,6 +105,7 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
                 assert case.counter_example not in response.text
             read = await service.read_case(viewer, dataset.id, case.case_id)
             assert read.masked and not read.history and not read.checks and read.note is None
+            assert read.input == "Source unavailable or origin unverified"
             refused = await client.patch(
                 f"{path}/cases/{case.case_id}", json={"input": "Overwrite hidden text"}
             )
@@ -101,8 +117,12 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
             for reader in (owner, replace(owner, role=OrgRoleName.VIEWER)):
                 ctx = reader
                 visible = await client.get(f"{path}/cases/{case.case_id}")
-                assert visible.status_code == 200 and visible.json()["input"] == case.input
-                assert visible.json()["masked"] is False
+                assert visible.status_code == 200
+                protected = uncertain and reader.role == OrgRoleName.VIEWER
+                assert visible.json()["masked"] is protected
+                assert visible.json()["input"] == (
+                    "Source unavailable or origin unverified" if protected else case.input
+                )
             ctx = await _owner(db)
             assert (await client.get(f"{path}/cases/{case.case_id}")).status_code == 404
     finally:
@@ -129,6 +149,9 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
         )
     ).one()
     assert stored.input == case.input
+    assert stored.from_conversation
+    if uncertain:
+        assert stored.source == "synthetic" and stored.source_conversation_id is None
 
 
 async def test_private_source_warning_names_somebody_else_but_not_the_conversation_owner(
@@ -196,7 +219,8 @@ async def test_a_source_check_answers_another_tenant_or_a_hidden_thread_as_an_un
     assert refusals == [("Message not found", None)] * 3
 
 
-async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
+@pytest.mark.parametrize("uncertain", [False, True])
+async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db, uncertain: bool) -> None:
     owner = await _owner(db)
     viewer = await _member(db, owner, OrgRoleName.VIEWER)
     service = DatasetService(db)
@@ -206,6 +230,19 @@ async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
         owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
     )
 
+    if uncertain:
+        await db.execute(
+            update(DatasetCase)
+            .where(DatasetCase.case_id == case.case_id)
+            .values(
+                source="synthetic",
+                source_conversation_id=None,
+                source_message_id=None,
+                source_run_id=None,
+                asked_by_user_id=None,
+                from_conversation=True,
+            )
+        )
     alone = await service.list_cases(viewer, dataset.id, same_input=case.input)
     typed = await service.add_case(
         owner, dataset.id, DatasetCaseCreate(input=case.input, reference_answer="Yes.")

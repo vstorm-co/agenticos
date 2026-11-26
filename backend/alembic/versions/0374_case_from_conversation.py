@@ -6,12 +6,16 @@ case drafted from it by Generate cases (`source = synthetic`) kept nothing sayin
 where it came from, and every reader of the dataset saw its text. A copied case
 (`source = conversation`) stayed masked only because of its source.
 
-The flag is set when a case is written with any of those links, and carried to
-every later revision. The backfill marks every revision that has a link, a
-conversation source, or a recorded asker: the asker is only ever taken from a
-chat, and it outlives the conversation. A generated case whose chat was deleted
-before this revision, from an anonymous visitor's conversation, has none of these
-left and cannot be recovered.
+The flag is set when a case is written with chat provenance and carried to
+later revisions. The backfill also protects every existing synthetic revision
+without a surviving document reference: a deleted anonymous chat and a generated
+case without an origin cannot be distinguished. This is a conservative privacy
+classification, not proof of conversation origin. Known document-only revisions,
+manual cases and imports remain unchanged. No case text is deleted.
+
+Stop old API and worker processes before applying this migration and start only
+the updated code afterward. Old writers do not persist the flag; mixed-version
+writes during this upgrade are not supported.
 
 Downgrade drops the column; the code before this revision masks on the source and
 the conversation link, as it did.
@@ -40,7 +44,8 @@ def upgrade() -> None:
         "OR source_run_id IS NOT NULL "
         "OR source_conversation_id IS NOT NULL "
         "OR source_message_id IS NOT NULL "
-        "OR asked_by_user_id IS NOT NULL"
+        "OR asked_by_user_id IS NOT NULL "
+        "OR (source = 'synthetic' AND source_document_id IS NULL)"
     )
 
 

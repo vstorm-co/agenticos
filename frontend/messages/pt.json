@@ -15603,7 +15603,7 @@
       "criterionCoverage": "Aplica-se a {count} de {total} casos",
       "noteForTag": "para casos com a tag {tag}",
       "noteAddedToTags": "A nota agora é um critério do juiz para casos com as tags {tags}.",
-      "maskedConversation": "De uma conversa que você não pode abrir",
+      "maskedConversation": "Fonte indisponível ou origem não verificada",
       "countsAsPassed": "Conta como aprovado.",
       "countsAsFailed": "Conta como reprovado.",
       "reviewEffect": {
@@ -15893,7 +15893,7 @@
     "newDatasetHere": "Você ainda não tem uma base de dados para adicionar, então esta resposta cria uma, visível para toda a organização.",
     "newDatasetFromActivity": "Respostas da Atividade",
     "backToDataset": "Voltar para {name}",
-    "maskedConversation": "De uma conversa que você não pode abrir",
+    "maskedConversation": "Fonte indisponível ou origem não verificada",
     "privateConversationWarning": "Esta conversa é privada de {name}. O texto dela ficará visível para leitores deste dataset que podem ver execuções.",
     "anotherMember": "outro membro",
     "checkingSource": "Verificando a privacidade da fonte…",

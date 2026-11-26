@@ -1,5 +1,5 @@
 ---
-source_sha: "7431d37b1aa7"
+source_sha: "a4c2f48f28ee"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -137,6 +137,12 @@ względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzie
 **Otwórz go**, by przeczytać tamten przypadek, i **Dodaj mimo to**, by zachować
 oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądania,
 żeby nie trafiało do logów dostępu.
+
+Podczas aktualizacji istniejące wygenerowane rewizje bez zachowanego odwołania do dokumentu otrzymują tę samą ochronę prywatności. Nie można odróżnić usuniętego anonimowego czatu od przypadku wygenerowanego bez materiału źródłowego. Ochrona obejmuje historię oraz późniejsze rewizje zmieniające tylko metadane. Czytelnicy z `runs:view` zachowują pełną zapisaną treść; żadne przypadki nie są usuwane.
+
+Przypadki pochodzące wyłącznie ze znanego dokumentu, przypadki ręczne i importy pozostają bez zmian. Nowe przypadki z narzędzi agenta bez materiału z czatu nie są automatycznie ukrywane. Zamaskowane wiersze informują o niedostępnym lub niezweryfikowanym źródle, nie przypisują im pochodzenia z rozmowy.
+
+Zatrzymaj stare procesy API i workerów przed migracją `0374_case_from_conversation`, a następnie uruchom wyłącznie nowy kod. Stare procesy nie zachowują flagi prywatności. Zapisy z mieszanych wersji podczas tej aktualizacji nie są obsługiwane; zarządzany deployer zatrzymuje te procesy przed migracją.
 
 ### Z pliku { #import-and-export }
 

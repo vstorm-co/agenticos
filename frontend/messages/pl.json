@@ -15492,7 +15492,7 @@
       "criterionCoverage": "Dotyczy {count} z {total} przypadków",
       "noteForTag": "dla przypadków z tagiem {tag}",
       "noteAddedToTags": "Notatka jest teraz kryterium sędziego dla przypadków z tagami {tags}.",
-      "maskedConversation": "Z rozmowy, do której nie masz dostępu",
+      "maskedConversation": "Źródło niedostępne lub pochodzenie niezweryfikowane",
       "countsAsPassed": "Liczy się jako poprawna.",
       "countsAsFailed": "Liczy się jako błędna.",
       "reviewEffect": {
@@ -15782,7 +15782,7 @@
     "newDatasetHere": "Nie masz jeszcze datasetu, do którego można dodać odpowiedź, więc ta odpowiedź go zakłada, widoczny dla całej organizacji.",
     "newDatasetFromActivity": "Odpowiedzi z Aktywności",
     "backToDataset": "Wróć do {name}",
-    "maskedConversation": "Z rozmowy, do której nie masz dostępu",
+    "maskedConversation": "Źródło niedostępne lub pochodzenie niezweryfikowane",
     "privateConversationWarning": "Ta rozmowa jest prywatna i należy do {name}. Jej tekst będzie widoczny dla czytelników datasetu, którzy mogą odczytywać runy.",
     "anotherMember": "innego członka",
     "checkingSource": "Sprawdzanie prywatności źródła…",

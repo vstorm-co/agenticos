@@ -303,8 +303,8 @@ class DatasetCase(Base):
         nullable=True,
         index=True,
     )
-    # Whether the case was written from a conversation, a message or a run. The
-    # links above are `SET NULL`, and a case must stay masked once its chat is gone.
+    # Conversation privacy survives `SET NULL` provenance links. The upgrade also
+    # protects uncertain legacy synthetic cases, without claiming their origin.
     from_conversation: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

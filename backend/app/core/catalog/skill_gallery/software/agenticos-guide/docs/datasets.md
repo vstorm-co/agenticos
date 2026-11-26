@@ -132,6 +132,12 @@ and **Add anyway** to keep both. The check is `POST
 /datasets/{id}/cases/twins`, with the question in the body so it stays out of
 access logs.
 
+During upgrade, existing generated revisions without a surviving document reference receive the same privacy protection. A deleted anonymous chat cannot be distinguished from a case generated without source material. Historical and later metadata-only revisions stay protected. Readers with `runs:view` retain full stored content; no cases are deleted.
+
+Known document-only cases, manual cases and imports are unchanged. New agent-tool cases without chat material are not automatically hidden. Masked rows describe unavailable or unverified source material, without claiming a conversation origin.
+
+Stop old API and worker processes before migration `0374_case_from_conversation`, then start only updated code. Older writers do not preserve the privacy flag. Mixed-version writes during this upgrade are unsupported; the managed deployer stops these processes before migration.
+
 ### From a file { #import-and-export }
 
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one

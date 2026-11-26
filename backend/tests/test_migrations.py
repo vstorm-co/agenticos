@@ -3063,9 +3063,14 @@ class TestCaseFromConversationBackfill:
             "drafted from a run": ("synthetic", "source_run_id"),
             "drafted from a document": ("synthetic", "source_document_id"),
             "typed": ("manual", None),
+            "imported": ("import", None),
+            "uncertain old revision": ("synthetic", None),
+            "uncertain current revision": ("synthetic", None),
+            "document reference already deleted": ("synthetic", None),
+            "document and chat": ("synthetic", "source_run_id"),
         }
         ids = {name: uuid4() for name in rows}
-        dataset, organization = uuid4(), uuid4()
+        dataset, organization, uncertain_case = uuid4(), uuid4(), uuid4()
         engine = create_engine(_url(MIGRATION_DATABASE))
         try:
             with engine.begin() as connection:
@@ -3074,20 +3079,25 @@ class TestCaseFromConversationBackfill:
                     connection.execute(
                         text(
                             "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
-                            "input, source, position, added_in, improvement_partition, "
+                            "input, source, position, added_in, removed_in, improvement_partition, "
                             "asked_by_user_id, source_run_id, source_document_id) VALUES (:id, "
-                            ":dataset, :org, :case, 'Q', :source, :position, 1, 'train', "
+                            ":dataset, :org, :case, 'Q', :source, :position, :added, :removed, 'train', "
                             ":asked_by_user_id, :source_run_id, :source_document_id)"
                         ),
                         {
                             "id": ids[name],
                             "dataset": dataset,
                             "org": organization,
-                            "case": uuid4(),
+                            "case": uncertain_case if name.startswith("uncertain") else uuid4(),
+                            "added": 2 if name == "uncertain current revision" else 1,
+                            "removed": 2 if name == "uncertain old revision" else None,
                             "source": source,
                             "position": position,
                             **{
-                                column: uuid4() if column == link else None
+                                column: uuid4()
+                                if column == link
+                                or (name == "document and chat" and column == "source_document_id")
+                                else None
                                 for column in (
                                     "asked_by_user_id",
                                     "source_run_id",
@@ -3110,6 +3120,11 @@ class TestCaseFromConversationBackfill:
                 "drafted from a run": True,
                 "drafted from a document": False,
                 "typed": False,
+                "imported": False,
+                "uncertain old revision": True,
+                "uncertain current revision": True,
+                "document reference already deleted": True,
+                "document and chat": True,
             }
             check = _alembic("check")
             assert check.returncode == 0, check.stderr

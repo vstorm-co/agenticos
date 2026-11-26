@@ -15603,7 +15603,7 @@
       "criterionCoverage": "Geldt voor {count} van {total} testgevallen",
       "noteForTag": "voor testgevallen met tag {tag}",
       "noteAddedToTags": "De notitie is nu een criterium van de beoordelaar voor testgevallen met tags {tags}.",
-      "maskedConversation": "Uit een gesprek dat je niet kunt openen",
+      "maskedConversation": "Bron niet beschikbaar of herkomst niet geverifieerd",
       "countsAsPassed": "Telt als geslaagd.",
       "countsAsFailed": "Telt als mislukt.",
       "reviewEffect": {
@@ -15893,7 +15893,7 @@
     "newDatasetHere": "Je hebt nog geen dataset om aan toe te voegen, dus met dit antwoord begin je er een, zichtbaar voor de hele organisatie.",
     "newDatasetFromActivity": "Antwoorden uit Activiteit",
     "backToDataset": "Terug naar {name}",
-    "maskedConversation": "Uit een gesprek dat je niet kunt openen",
+    "maskedConversation": "Bron niet beschikbaar of herkomst niet geverifieerd",
     "privateConversationWarning": "Dit gesprek is privé voor {name}. De tekst ervan wordt zichtbaar voor lezers van deze dataset die runs kunnen lezen.",
     "anotherMember": "een ander lid",
     "checkingSource": "Privacy van de bron controleren…",

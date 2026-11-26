@@ -15719,7 +15719,7 @@
       "criterionCoverage": "Applies to {count} of {total} cases",
       "noteForTag": "for cases tagged {tag}",
       "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}.",
-      "maskedConversation": "From a conversation you cannot open",
+      "maskedConversation": "Source unavailable or origin unverified",
       "countsAsPassed": "Counts as passed.",
       "countsAsFailed": "Counts as failed.",
       "reviewEffect": {
@@ -16009,7 +16009,7 @@
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
     "backToDataset": "Back to {name}",
-    "maskedConversation": "From a conversation you cannot open",
+    "maskedConversation": "Source unavailable or origin unverified",
     "privateConversationWarning": "This conversation is private to {name}. Its text will be visible to readers of this dataset who can read runs.",
     "anotherMember": "another member",
     "checkingSource": "Checking source privacy…",

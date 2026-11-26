@@ -1,5 +1,5 @@
 ---
-source_sha: "7431d37b1aa7"
+source_sha: "a4c2f48f28ee"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -137,6 +137,12 @@ mayúsculas ni espacios) se detiene para avisarlo, con **Open it** para leer ese
 caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `POST
 /datasets/{id}/cases/twins`, con la pregunta en el cuerpo para que no llegue a
 los registros de acceso.
+
+Durante la actualización, las revisiones generadas existentes sin una referencia conservada a un documento reciben la misma protección de privacidad. No se distingue un chat anónimo eliminado de un caso generado sin material de origen. Las revisiones históricas y las posteriores que solo cambian metadatos siguen protegidas. Quienes tienen `runs:view` conservan el contenido completo almacenado; no se elimina ningún caso.
+
+Los casos procedentes únicamente de un documento conocido, los manuales y los importados no cambian. Los nuevos casos de herramientas del agente sin material de chat no se ocultan automáticamente. Las filas ocultas indican una fuente no disponible o no verificada, sin afirmar que proceden de una conversación.
+
+Detenga los procesos antiguos de API y workers antes de la migración `0374_case_from_conversation` e inicie después únicamente el código actualizado. Los procesos antiguos no conservan la marca de privacidad. No se admiten escrituras de versiones mezcladas durante esta actualización; el despliegue gestionado detiene esos procesos antes de migrar.
 
 ### Desde un archivo { #import-and-export }
 

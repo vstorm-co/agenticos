@@ -15405,7 +15405,7 @@
       "criterionCoverage": "Gilt für {count} von {total} Fällen",
       "noteForTag": "für Fälle mit Tag {tag}",
       "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}.",
-      "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+      "maskedConversation": "Quelle nicht verfügbar oder Herkunft ungeprüft",
       "countsAsPassed": "Zählt als bestanden.",
       "countsAsFailed": "Zählt als fehlgeschlagen.",
       "reviewEffect": {
@@ -15695,7 +15695,7 @@
     "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
     "newDatasetFromActivity": "Antworten aus Aktivität",
     "backToDataset": "Zurück zu {name}",
-    "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+    "maskedConversation": "Quelle nicht verfügbar oder Herkunft ungeprüft",
     "privateConversationWarning": "Diese Unterhaltung ist privat und gehört {name}. Ihr Text wird für Leser dieses Datasets sichtbar, die Runs lesen dürfen.",
     "anotherMember": "einem anderen Mitglied",
     "checkingSource": "Privatsphäre der Quelle wird geprüft…",

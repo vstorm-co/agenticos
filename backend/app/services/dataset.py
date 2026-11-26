@@ -835,7 +835,7 @@ class DatasetService:
         for case, read in zip(cases, reads, strict=True):
             if case.id not in masked:
                 continue
-            read.input = "From a conversation you cannot open"
+            read.input = "Source unavailable or origin unverified"
             read.history = []
             read.reference_answer = None
             read.counter_example = None
@@ -850,8 +850,9 @@ class DatasetService:
         they may not open. Anything computed over case text for this caller leaves them out,
         or it would confirm what the mask hides.
 
-        A revision is from a conversation by its flag, or by its source or conversation link
-        alone: a writer from before the flag existed leaves it unset.
+        The flag also conservatively protects legacy generated revisions of unknown
+        origin. Source and conversation links protect a revision from an older writer;
+        the upgrade requires old writers to stop before its backfill runs.
         """
         if ctx.has(Perm.RUNS_VIEW):
             return set()
@@ -1336,7 +1337,7 @@ class DatasetService:
         hidden_fields = data.model_fields_set - {"tags", "order_mode"}
         if visible.masked and hidden_fields:
             raise AuthorizationError(
-                message="The source conversation must be readable before its text can be edited",
+                message="Access to the protected source is required before its text can be edited",
                 details={"permission": "runs:view", "fields": sorted(hidden_fields)},
             )
         merged = {

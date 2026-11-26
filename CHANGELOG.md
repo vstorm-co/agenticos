@@ -65,7 +65,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Migration `0374_case_from_conversation` adds `dataset_cases.from_conversation` and backfills it from each case's source, its conversation, message and run links, and its recorded asker. A case generated from an anonymous visitor's chat that was deleted before the upgrade has none of these left and stays readable to every reader of its dataset.
+- Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
+- Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
 - Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
 
 ## [1.94.0] - 2026-11-26

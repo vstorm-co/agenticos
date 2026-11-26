@@ -15329,7 +15329,7 @@
       "criterionCoverage": "S’applique à {count} cas sur {total}",
       "noteForTag": "pour les cas étiquetés {tag}",
       "noteAddedToTags": "La note est désormais un critère du juge pour les cas étiquetés {tags}.",
-      "maskedConversation": "D’une conversation que vous ne pouvez pas ouvrir",
+      "maskedConversation": "Source indisponible ou origine non vérifiée",
       "countsAsPassed": "Compte comme réussi.",
       "countsAsFailed": "Compte comme échoué.",
       "reviewEffect": {
@@ -15618,7 +15618,7 @@
     "newDatasetHere": "Vous n’avez pas encore de dataset auquel ajouter, donc cette réponse en crée un, visible de toute l’organisation.",
     "newDatasetFromActivity": "Réponses depuis Activité",
     "backToDataset": "Retour à {name}",
-    "maskedConversation": "D’une conversation que vous ne pouvez pas ouvrir",
+    "maskedConversation": "Source indisponible ou origine non vérifiée",
     "privateConversationWarning": "Cette conversation est privée pour {name}. Son texte sera visible des lecteurs de ce dataset qui peuvent lire les runs.",
     "anotherMember": "un autre membre",
     "checkingSource": "Vérification de la confidentialité de la source…",

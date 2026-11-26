@@ -1,5 +1,5 @@
 ---
-source_sha: "7431d37b1aa7"
+source_sha: "a4c2f48f28ee"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -147,6 +147,12 @@ mit **Öffnen**, um stattdessen jenen Fall zu lesen, und **Trotzdem
 hinzufügen**, um beide zu behalten. Geprüft wird mit
 `POST /datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
 Zugriffsprotokollen landet.
+
+Beim Upgrade erhalten vorhandene generierte Revisionen ohne erhaltenen Dokumentverweis denselben Datenschutz. Ein gelöschter anonymer Chat lässt sich nicht von einem ohne Quellenmaterial generierten Fall unterscheiden. Historische und spätere reine Metadatenrevisionen bleiben geschützt. Leser mit `runs:view` behalten den vollständigen gespeicherten Inhalt; kein Fall wird gelöscht.
+
+Nachweislich reine Dokumentfälle, manuelle Fälle und Importe bleiben unverändert. Neue Fälle aus Agentenwerkzeugen ohne Chatmaterial werden nicht automatisch verborgen. Maskierte Zeilen nennen nicht verfügbares oder ungeprüftes Quellenmaterial, statt eine Gesprächsherkunft zu behaupten.
+
+Stoppen Sie alte API- und Worker-Prozesse vor Migration `0374_case_from_conversation` und starten Sie danach ausschließlich aktualisierten Code. Ältere Writer erhalten das Datenschutzkennzeichen nicht. Schreibzugriffe gemischter Versionen während dieses Upgrades werden nicht unterstützt; der verwaltete Deployer stoppt diese Prozesse vor der Migration.
 
 ### Aus einer Datei { #import-and-export }
 

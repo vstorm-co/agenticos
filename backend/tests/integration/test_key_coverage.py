@@ -815,8 +815,9 @@ class TestReading:
         assert theirs.model_dump_json().count("Fernhill") == 0
 
     @pytest.mark.security
+    @pytest.mark.parametrize("uncertain", [False, True])
     async def test_a_label_only_a_masked_case_holds_is_left_out_for_its_reader(
-        self, db, monkeypatch, searched
+        self, db, monkeypatch, searched, uncertain: bool
     ) -> None:
         owner = await _owner(db)
         dataset, agent, report = await _started(db, owner)
@@ -839,7 +840,8 @@ class TestReading:
             await db.scalars(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
         ).all()
         totals = next(case for case in cases if "Total" in json.dumps(case.checks))
-        totals.source, totals.source_conversation_id = "conversation", private.id
+        totals.source = "synthetic" if uncertain else "conversation"
+        totals.source_conversation_id = None if uncertain else private.id
         totals.from_conversation = True
         await db.flush()
         member = await _member(db, owner.organization_id)

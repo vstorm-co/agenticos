@@ -19667,6 +19667,10 @@
       "guidance": "Veri kümesine özgü yönlendirme",
       "guidanceHint": "Bu yardımcı için platform kurallarının altına eklenir. Kurallar her zaman geçerlidir; yönlendirme bunları değiştiremez veya kaldıramaz.",
       "platformRules": "Platform kuralları (salt okunur)"
+    },
+    "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
+    "scoring": {
+      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış"
     }
   },
   "stepFailure": {
