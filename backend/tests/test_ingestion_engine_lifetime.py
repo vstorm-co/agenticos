@@ -230,6 +230,43 @@ class TestASyncsEngine:
         assert len(ledger.built) == 1
         assert ledger.leaked == 0
 
+    async def test_missing_usage_stops_directory_sync_and_settles_partial_spend(self, tmp_path):
+        from app.agents.capabilities.budget import record_ambient_cost
+        from app.core.exceptions import EmbeddingBudgetError
+
+        ledger = EngineLedger()
+        for name in ["one.md", "must-not-run.md"]:
+            (tmp_path / name).write_text("body")
+        sync = MagicMock(
+            get_sync_log=AsyncMock(return_value=MagicMock(status="running")),
+            complete_sync=AsyncMock(),
+        )
+        documents = MagicMock(create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())))
+
+        async def refuse(**_):
+            record_ambient_cost("custom", None)
+            raise EmbeddingBudgetError(message="usage unavailable")
+
+        ingest = AsyncMock(side_effect=refuse)
+        async with _worker(ledger, ingest=ingest):
+            with (
+                patch("app.services.rag_sync.RAGSyncService", return_value=sync),
+                patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+                patch.object(rag_tasks, "_settle_document_row", new=AsyncMock()) as settle,
+            ):
+                answer = await rag_tasks._run_sync(
+                    str(uuid.uuid4()), "local", "docs", "full", str(tmp_path)
+                )
+                receipt = rag_tasks._record_embedding_spend
+                receipt.assert_awaited_once()
+                assert receipt.call_args.args[0].has_unpriced_models
+        assert answer["status"] == "error"
+        assert "usage unavailable" in answer["message"]
+        ingest.assert_awaited_once()
+        settle.assert_awaited_once()
+        assert sync.complete_sync.call_args.kwargs["status"] == "error"
+        assert ledger.leaked == 0
+
     async def test_a_sync_of_a_path_that_does_not_exist_builds_no_engine(self, tmp_path: Path):
         """It used to build one first and then answer "path not found", so the
         cheapest possible refusal leaked a connection pool."""

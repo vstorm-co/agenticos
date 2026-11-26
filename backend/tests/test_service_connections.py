@@ -1138,3 +1138,21 @@ class TestTestingADoclingConnection:
         assert refusal.value.details["fields"][0]["field"] == "secret_id"
         assert "tag mismatch" not in str(refusal.value.details) + refusal.value.message
         probe.assert_not_called()
+
+
+async def test_deleted_stored_docling_key_cannot_silently_test_as_keyless() -> None:
+    stored = _row(
+        kind="document_parser",
+        provider="docling",
+        base_url=_DOCLING_URL,
+        secret_id=None,
+        requires_key=True,
+    )
+    with (
+        patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=stored)),
+        patch(_PROBE, new=_probe_ok()) as probe,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await _service().test(_ctx(), _test_body(service_id=stored.id))
+    assert refused.value.details["fields"][0]["field"] == "service_id"
+    probe.assert_not_awaited()

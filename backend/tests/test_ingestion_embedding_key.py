@@ -33,6 +33,7 @@ from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.rag_tasks import _announcing_resolver, _ingestion_service
+from tests.embedding_responses import embedding_response
 
 pytestmark = pytest.mark.anyio
 
@@ -117,17 +118,18 @@ class _CapturedOpenAI:
         self.api_keys: list[str] = []
         self.embedded: list[list[str]] = []
 
-    def __call__(self, *, api_key: str, base_url: str | None = None) -> MagicMock:
+    def __call__(
+        self, *, api_key: str, base_url: str | None = None, max_retries: int = 0
+    ) -> MagicMock:
+        assert max_retries == 0
         self.api_keys.append(api_key)
 
-        def create(*, model: str, input: list[str]) -> MagicMock:
+        def create(*, model: str, input: list[str], encoding_format: str) -> MagicMock:
             self.embedded.append(input)
-            return MagicMock(
-                data=[MagicMock(embedding=[0.0] * _DIM) for _ in input],
-                usage=None,
-            )
+            assert encoding_format == "float"
+            return embedding_response([[0.0] * _DIM for _ in input])
 
-        return MagicMock(embeddings=MagicMock(create=create))
+        return MagicMock(embeddings=MagicMock(with_raw_response=MagicMock(create=create)))
 
 
 @asynccontextmanager

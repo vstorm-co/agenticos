@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -354,6 +354,25 @@ describe("ServiceConnections", () => {
       expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
     });
 
+    it("does not label changed settings as tested when an older request finishes", async () => {
+      let finish: ((value: { outcome: "ok"; version: string }) => void) | undefined;
+      vi.mocked(apiClient.post).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await openDoclingDialog();
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+      await userEvent.type(screen.getByLabelText("Address"), "/another");
+      await act(async () => {
+        finish?.({ outcome: "ok", version: "1.39.0" });
+      });
+      expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+      expect(screen.queryByText(/Docling Serve 1\.39\.0/)).toBeNull();
+    });
+
     it("keeps offering the Test after one that did not pass", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "unreachable", version: null });
       await openDoclingDialog();
@@ -486,7 +505,9 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      expect(await screen.findByText("3 probes")).toBeVisible();
+      expect(
+        await screen.findByText(/Up to 6 embedding calls.*keyed calls count toward/),
+      ).toBeVisible();
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
@@ -587,7 +608,7 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      await screen.findByText("3 probes");
+      await screen.findByText(/Up to 6 embedding calls.*keyed calls count toward/);
       expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
     });
 

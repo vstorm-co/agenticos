@@ -133,7 +133,21 @@ export function ServiceConnectionDialog({
   const keyPurpose = isKeyedStyle(style) ? KEY_PURPOSE_BY_STYLE[style] : null;
   const keys = secrets.filter((secret) => secret.purpose === keyPurpose);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<ServiceConnectionTestResult | null>(null);
+  const [tested, setTested] = useState<{
+    values: string;
+    result: ServiceConnectionTestResult;
+  } | null>(null);
+  const testValues = JSON.stringify({
+    kind,
+    provider: style,
+    base_url: baseUrl.trim(),
+    secret_id: keyed ? secretId : null,
+    service_id: connection?.id ?? null,
+    deployment_owned: deploymentOwned,
+  });
+  const testResult = tested?.values === testValues ? tested.result : null;
+  const setTestResult = (result: ServiceConnectionTestResult | null) =>
+    setTested(result === null ? null : { values: testValues, result });
 
   const trimmedUrl = baseUrl.trim();
   const addressChanged = editing && trimmedUrl !== connection.base_url;
@@ -476,7 +490,7 @@ export function ServiceConnectionDialog({
               />
               {estimate ? (
                 <span className="text-muted-foreground text-xs">
-                  {t("testCost", { count: estimate.calls })}
+                  {t("testCost", { count: estimate.max_calls })}
                 </span>
               ) : estimateError ? (
                 <span className="text-destructive text-xs">

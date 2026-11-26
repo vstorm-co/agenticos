@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "5e09c7ebe814"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -810,12 +810,29 @@ bazy wiedzy po zaliczonym Teście jest dozwolone, nawet gdy jej kolekcja jest ws
 z innymi bazami wiedzy; przeniesienie niesprawdzone jest odrzucane, gdy kolekcja jest
 współdzielona, a jej ustawienia różniłyby się od ustawień pozostałych.
 
+Płatne embeddingi w runie z limitem oraz własne endpointy z kluczem opłacane przez organizację
+z limitem USD wymagają modelu z ceną w katalogu i poprawnego raportowania zużycia. Jeśli endpoint
+później pominie lub uszkodzi zużycie, częściowe rozliczenie zostaje zapisane, a zadanie zatrzymuje
+się przed kolejnym batchem lub plikiem; odmowa zasad nie jest automatycznie ponawiana. Endpointy
+bez limitu lub bez klucza nadal mogą zwrócić poprawne wektory z częściową informacją o kosztach.
+Budżety ingestii i synchronizacji nadal dopuszczają całe zadanie lub okno pracy, więc dopuszczona
+wcześniej praca może przekroczyć limit; częściowe rozliczenie nie ujawnia nieznanych opłat providera.
+
+Odpowiedź embeddingowa z indeksami musi wskazać każde wejście dokładnie raz. Przestawione indeksy
+są porządkowane według wejścia; duplikaty, mieszane, puste lub przekroczone indeksy są odrzucane.
+Zgodne endpointy bez żadnych indeksów zachowują dotychczasowy kontrakt kolejności tablicy.
+
 Ograniczenia:
 
 - Nieudany Test nie ma dalszej drogi poza nową bazą wiedzy: **nie ma przebudowy**
   istniejącego indeksu na inny model.
-- Wywołania testowe **nie liczą się do wydatków organizacji**: trzy krótkie wywołania na
-  objętą bazę wiedzy, a po ponowieniu dwa razy tyle.
+- Każde wywołanie Testu z kluczem sprawdza miesięczny limit płacącej organizacji i zapisuje
+  zgłoszone zużycie embeddingów przed zwróceniem wyniku lub ponowieniem, również przy
+  nieudanym porównaniu lub anulowaniu żądania. Nieznana cena blokuje Test przy limicie USD;
+  brak zużycia pozostaje jawnie częściowym rozliczeniem i zatrzymuje dalsze płatne wywołania.
+  Wcześniej dopuszczone równoległe wywołania mogą przekroczyć limit. Anulowanie czeka na
+  ograniczone czasowo rozliczenie; utracona odpowiedź lub awaria procesu nie pozwala ustalić
+  nieznanych opłat. Rozliczenie nigdy nie powtarza żądania po anulowaniu ani błędzie zapisu opłaty.
 - Klucz zrotowany w miejscu w vaulcie po zapisie **nie jest testowany ponownie** - ten sam
   identyfikator klucza nadal przechodzi.
 - Test próbkuje **3 chunki**. Endpoint, który się z nimi zgadza, a gdzie indziej różni,

@@ -25,6 +25,7 @@ from app.schemas.embedding_probe import (
     NewEmbeddingProbeRequest,
 )
 from app.services import embedding_probe as probe
+from app.services import embedding_probe_call as paid_call
 from app.services.embedding_probe import (
     PROBE_MIN_COSINE,
     EmbeddingProbeService,
@@ -96,6 +97,21 @@ def _store(**by_collection: list[StoredChunk]) -> MagicMock:
     return store
 
 
+@pytest.fixture(autouse=True)
+def _paid_call_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Comparison tests isolate the paid-call boundary; its own suite covers admission/settlement."""
+    monkeypatch.setattr(paid_call, "assert_organization_within_budget", AsyncMock())
+
+    async def execute(*, identity: TargetIdentity, request, **_):
+        if identity.key_organization_id is not None:
+            await paid_call.assert_organization_within_budget(
+                MagicMock(), identity.key_organization_id
+            )
+        return await request()
+
+    monkeypatch.setattr(probe, "run_probe_call", execute)
+
+
 @pytest.fixture
 def identity(monkeypatch: pytest.MonkeyPatch) -> TargetIdentity:
     """Rows resolve to a keyed connection whose key opens; nothing else is read."""
@@ -105,7 +121,7 @@ def identity(monkeypatch: pytest.MonkeyPatch) -> TargetIdentity:
     monkeypatch.setattr(
         probe, "open_target", AsyncMock(return_value=EmbeddingTarget(found, api_key="sk-secret"))
     )
-    monkeypatch.setattr(probe, "assert_organization_within_budget", AsyncMock())
+    monkeypatch.setattr(paid_call, "assert_organization_within_budget", AsyncMock())
     return found
 
 
@@ -203,7 +219,7 @@ class TestRefusalsSpendNothing:
         kb = _kb()
         order: list[str] = []
         monkeypatch.setattr(
-            probe,
+            paid_call,
             "assert_organization_within_budget",
             AsyncMock(side_effect=lambda *_: order.append("budget") or _raise()),
         )
@@ -225,7 +241,7 @@ class TestRefusalsSpendNothing:
             probe, "open_target", AsyncMock(return_value=EmbeddingTarget(keyless, api_key=""))
         )
         budget = AsyncMock()
-        monkeypatch.setattr(probe, "assert_organization_within_budget", budget)
+        monkeypatch.setattr(paid_call, "assert_organization_within_budget", budget)
         kb = _kb()
 
         with patch(_EMBED, new=AsyncMock(return_value=[0.5, 0.5])):
@@ -529,6 +545,7 @@ class TestAProbeOfAConnection:
         fields: dict[str, object] = {
             "id": uuid.uuid4(),
             "kind": "embedding",
+            "is_active": True,
             "provider": "openai_compatible",
             "base_url": "https://old.example/v1",
             "secret_id": None,
@@ -770,3 +787,172 @@ def test_the_outcomes_match_the_schema_literal() -> None:
 
 def _raise() -> None:
     raise BudgetExceeded(limit_usd=Decimal(1), spent_usd=Decimal(2), scope=next(iter(BudgetScope)))
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", [{}, {"embedding_model": "another-model"}])
+async def test_kept_keyed_endpoint_probe_requires_connection_access_before_unsealing(
+    monkeypatch: pytest.MonkeyPatch, change: dict[str, str]
+) -> None:
+    from dataclasses import replace
+
+    from app.db.models.service_connection import ServiceConnection
+    from app.repositories import service_connection_repo
+
+    ctx = replace(_ctx(), role=OrgRoleName.MEMBER.value)
+    kb = _kb()
+    kb.embedding_endpoint_id = uuid.uuid4()
+    connection = ServiceConnection(
+        id=kb.embedding_endpoint_id,
+        organization_id=ctx.organization_id,
+        name="Private gateway",
+        kind="embedding",
+        provider="openai_compatible",
+        base_url="https://gateway.example/v1",
+        is_active=True,
+        requires_key=True,
+        secret_id=uuid.uuid4(),
+    )
+    monkeypatch.setattr(service_connection_repo, "get_visible", AsyncMock(return_value=connection))
+    monkeypatch.setattr(probe, "identify_target", AsyncMock(return_value=_identity()))
+    opened = AsyncMock(return_value=EmbeddingTarget(_identity(), api_key="must-stay-sealed"))
+    monkeypatch.setattr(probe, "open_target", opened)
+    monkeypatch.setattr(paid_call, "assert_organization_within_budget", AsyncMock())
+    service = _service(_store())
+    service.bases.get_for_write = AsyncMock(return_value=kb)
+    with (
+        patch(_EMBED, new=AsyncMock(return_value=[1.0, 0.0])) as embed,
+        pytest.raises(BadRequestError),
+    ):
+        await service.probe_kb_change(ctx, kb.id, KbEmbeddingProbeRequest(**change))
+    opened.assert_not_awaited()
+    embed.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "scenario", ["passes", "role_removed", "target_rotated", "app_admin_removed"]
+)
+async def test_new_width_probe_refreshes_authority_and_target_before_spend(
+    identity, monkeypatch, scenario
+):
+    from dataclasses import replace
+
+    ctx = _ctx(app_admin=True)
+    current = (
+        replace(ctx, role=OrgRoleName.MEMBER.value, is_app_admin=False)
+        if scenario == "role_removed"
+        else replace(ctx, is_app_admin=False)
+        if scenario == "app_admin_removed"
+        else ctx
+    )
+    service = _service(_store())
+    service.bases._check_embedding_endpoint = AsyncMock()
+    monkeypatch.setattr(probe, "KnowledgeBaseService", MagicMock(return_value=service.bases))
+    if scenario == "target_rotated":
+        monkeypatch.setattr(
+            probe,
+            "identify_target",
+            AsyncMock(side_effect=[identity, replace(identity, key_generation=uuid.uuid4())]),
+        )
+
+    async def execute(*, authorize, request, **_):
+        await authorize(MagicMock(), current)
+        return await request()
+
+    monkeypatch.setattr(probe, "run_probe_call", execute)
+    with patch(_EMBED, new=AsyncMock(return_value=[1.0, 0.0])) as embed:
+        data = NewEmbeddingProbeRequest(
+            embedding_endpoint_id=uuid.uuid4(), embedding_model="m", scope="app"
+        )
+        if scenario == "passes":
+            assert (await service.measure_new(ctx, data)).passed
+            embed.assert_awaited_once()
+        else:
+            with pytest.raises((AuthorizationError, BadRequestError)):
+                await service.measure_new(ctx, data)
+            embed.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ["passes", "grant_removed", "settings_changed", "connection_access_removed", "target_rotated"],
+)
+async def test_existing_base_probe_refreshes_resource_grant_and_target(
+    identity, monkeypatch, scenario
+):
+    from dataclasses import replace
+
+    ctx, kb = _ctx(), _kb()
+    service = _service(_store(), kb)
+    monkeypatch.setattr(probe, "KnowledgeBaseService", MagicMock(return_value=service.bases))
+    current = (
+        replace(ctx, role=OrgRoleName.MEMBER.value)
+        if scenario == "connection_access_removed"
+        else ctx
+    )
+
+    async def execute(*, authorize, request, **_):
+        if scenario == "grant_removed":
+            service.bases.get_for_write.side_effect = AuthorizationError(message="grant removed")
+        if scenario == "settings_changed":
+            service.bases.plan_embedding.return_value = replace(
+                service.bases.plan_embedding.return_value, model="changed"
+            )
+        if scenario == "target_rotated":
+            probe.identify_target.return_value = replace(identity, key_generation=uuid.uuid4())
+        await authorize(MagicMock(), current)
+        return await request()
+
+    monkeypatch.setattr(probe, "run_probe_call", execute)
+    with patch(_EMBED, new=AsyncMock(return_value=[1.0, 0.0])) as embed:
+        if scenario == "passes":
+            assert (await service.probe_kb_change(ctx, kb.id, KbEmbeddingProbeRequest())).passed
+        else:
+            with pytest.raises((AuthorizationError, BadRequestError)):
+                await service.probe_kb_change(ctx, kb.id, KbEmbeddingProbeRequest())
+            embed.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "scenario", ["passes", "role_removed", "paused", "new_secret", "new_host", "target_rotated"]
+)
+async def test_connection_probe_refreshes_management_and_binding(identity, monkeypatch, scenario):
+    from dataclasses import replace
+
+    row = TestAProbeOfAConnection()._connection(secret_id=uuid.uuid4())
+    service = _service(_store())
+    service.connections._editable = AsyncMock(return_value=row)
+    service.connections._check_key = AsyncMock()
+    service.connections._viewable_key = AsyncMock()
+    monkeypatch.setattr(
+        probe, "ServiceConnectionService", MagicMock(return_value=service.connections)
+    )
+    monkeypatch.setattr(
+        probe.knowledge_base_repo, "list_by_endpoint", AsyncMock(return_value=[_kb()])
+    )
+    ctx = _ctx()
+    current = replace(ctx, role=OrgRoleName.MEMBER.value) if scenario == "role_removed" else ctx
+
+    async def execute(*, authorize, request, **_):
+        if scenario == "paused":
+            row.is_active = False
+        if scenario == "target_rotated":
+            probe.identify_connection.return_value = replace(identity, key_generation=uuid.uuid4())
+        await authorize(MagicMock(), current)
+        return await request()
+
+    monkeypatch.setattr(probe, "run_probe_call", execute)
+    data = (
+        ConnectionProbeRequest(secret_id=uuid.uuid4())
+        if scenario == "new_secret"
+        else ConnectionProbeRequest(base_url="https://another.test/v1")
+        if scenario == "new_host"
+        else ConnectionProbeRequest()
+    )
+    with patch(_EMBED, new=AsyncMock(return_value=[1.0, 0.0])) as embed:
+        if scenario in {"passes", "new_secret", "new_host"}:
+            assert (await service.probe_connection_change(ctx, row.id, data)).passed
+        else:
+            with pytest.raises((AuthorizationError, BadRequestError)):
+                await service.probe_connection_change(ctx, row.id, data)
+            embed.assert_not_awaited()

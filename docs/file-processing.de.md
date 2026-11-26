@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "5e09c7ebe814"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -858,12 +858,29 @@ Verschiebung einer Wissensbasis ist auch dann erlaubt, wenn ihre Collection mit 
 Wissensbasen geteilt wird; eine ungeprüfte Verschiebung wird abgelehnt, wenn die
 Collection geteilt wird und ihre Einstellungen von denen der anderen abwichen.
 
+Bezahlte Embeddings unter einem Run-Limit sowie eigene Endpunkte mit Schlüssel, deren Organisation
+ein Dollar-Limit hat, benötigen ein Modell mit Katalogpreis und gültige Nutzungsangaben. Fehlen diese
+später oder sind sie ungültig, bleibt die Teilabrechnung erhalten und der Auftrag stoppt vor dem
+nächsten Batch oder der nächsten Datei; diese Richtlinienablehnung wird nicht automatisch wiederholt.
+Unbegrenzte und schlüssellose Endpunkte dürfen weiterhin gültige Vektoren mit unvollständigen Kosten
+zurückgeben. Ingestion und Sync lassen weiterhin einen Auftrag oder ein Arbeitsfenster zu; bereits
+zugelassene Arbeit kann das Limit überschreiten. Teilabrechnungen ermitteln keine unbekannten Gebühren.
+
+Eine Embedding-Antwort mit Indizes muss jede Eingabe genau einmal benennen. Vertauschte Indizes
+werden in Eingabereihenfolge gebracht; doppelte, gemischte, leere oder ungültige Indizes werden abgelehnt.
+Kompatible Endpunkte ohne Indizes behalten ihren bisherigen Vertrag der Array-Reihenfolge.
+
 Einschränkungen:
 
 - Ein fehlgeschlagener Test hat keinen Weg weiter außer einer neuen Wissensbasis: Es gibt
   **keinen Neuaufbau** eines bestehenden Index auf ein anderes Model.
-- Testaufrufe **zählen nicht zu den Ausgaben der Organisation**: drei kurze Aufrufe je
-  betroffener Wissensbasis, nach einer Wiederholung doppelt so viele.
+- Jeder Testaufruf mit Schlüssel prüft das Monatslimit der zahlenden Organisation und
+  speichert die gemeldete Embedding-Nutzung vor Rückgabe oder Wiederholung, auch bei
+  fehlgeschlagenem Vergleich oder abgebrochener Anfrage. Unbekannte Preise verhindern Tests
+  unter einem Dollar-Limit; fehlende Nutzung bleibt ausdrücklich unvollständig und stoppt
+  weitere begrenzte Aufrufe. Bereits zugelassene parallele Aufrufe können das Limit überschreiten.
+  Ein Abbruch wartet auf zeitlich begrenzte Abrechnung; eine verlorene Antwort oder ein
+  Prozessausfall macht unbekannte Gebühren nicht ermittelbar. Die Abrechnung wiederholt nach Abbruch oder Speicherfehler keinen Aufruf.
 - Ein im Vault nach dem Speichern an Ort und Stelle rotierter Schlüssel wird **nicht
   erneut getestet** - dieselbe Schlüssel-ID besteht weiterhin.
 - Ein Test prüft **3 Chunks**. Ein Endpunkt, der damit übereinstimmt und sonst abweicht,

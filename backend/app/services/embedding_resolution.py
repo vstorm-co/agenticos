@@ -51,7 +51,12 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.service_connection import ServiceConnection
 from app.db.session import get_db_context
 from app.db.vector_tables import VectorScope
-from app.repositories import knowledge_base_repo, organization_secret_repo, service_connection_repo
+from app.repositories import (
+    knowledge_base_repo,
+    organization_repo,
+    organization_secret_repo,
+    service_connection_repo,
+)
 from app.services.rag import embedding_providers
 
 logger = logging.getLogger(__name__)
@@ -187,6 +192,8 @@ class ResolvedEmbeddings:
     # read for a shared name (#913), so the scope rides home with the key rather
     # than being resolved a second time.
     vector_scope: VectorScope
+    # A capped custom-key payer requires verifiable usage before another batch.
+    require_usage: bool = False
 
     def __repr__(self) -> str:
         return (
@@ -238,11 +245,11 @@ async def embeddings_for_collection(
         kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
         if kb is None:
             return None
-        target = await open_target(
-            db,
-            await identify_target(db, EmbeddingSettings.of(kb), organization_id=kb.organization_id),
-            collection=collection_name,
+        identity = await identify_target(
+            db, EmbeddingSettings.of(kb), organization_id=kb.organization_id
         )
+        require_usage = await _requires_reported_usage(db, identity)
+        target = await open_target(db, identity, collection=collection_name)
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at
@@ -253,6 +260,7 @@ async def embeddings_for_collection(
             base_url=target.identity.base_url,
             provider=kb.embedding_provider,
             vector_scope=kb.vector_scope,
+            require_usage=require_usage,
         )
 
 
@@ -559,3 +567,12 @@ def _degraded(identity: TargetIdentity, source: EmbeddingKeySource) -> Embedding
     return EmbeddingTarget(
         identity=replace(identity, base_url=base_url, key_source=source), api_key=""
     )
+
+
+async def _requires_reported_usage(db: AsyncSession, identity: TargetIdentity) -> bool:
+    """Whether the custom endpoint pays against an organization dollar cap."""
+    payer = identity.key_organization_id
+    if identity.key_source is not EmbeddingKeySource.CONNECTION or payer is None:
+        return False
+    organization = await organization_repo.get_by_id(db, payer)
+    return organization is not None and organization.monthly_budget_usd is not None

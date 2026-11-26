@@ -11,6 +11,7 @@ import pytest
 
 from app.services.rag import embeddings
 from app.services.rag.embeddings import EmbeddingProbeError, embed_for_probe
+from tests.embedding_responses import embedding_response
 
 pytestmark = pytest.mark.anyio
 
@@ -28,7 +29,10 @@ def _status_error(cls: type[openai.APIStatusError], status: int) -> openai.APISt
 
 def _client(*, answer: object = None, error: Exception | None = None) -> MagicMock:
     client = MagicMock()
-    client.embeddings.create = AsyncMock(return_value=answer, side_effect=error)
+    raw = (
+        embedding_response([item.embedding for item in answer.data]) if answer is not None else None
+    )
+    client.embeddings.with_raw_response.create = AsyncMock(return_value=raw, side_effect=error)
     client.close = AsyncMock()
     return client
 
@@ -58,7 +62,9 @@ async def test_one_request_is_made_with_no_sdk_retry_and_the_client_is_closed() 
     vector = await _embed(client)
 
     assert vector == [1.0, 2.5]
-    client.embeddings.create.assert_awaited_once_with(model="m", input=["hello"])
+    client.embeddings.with_raw_response.create.assert_awaited_once_with(
+        model="m", input=["hello"], encoding_format="float"
+    )
     client.close.assert_awaited_once()
     options = _embed.built.call_args.kwargs  # type: ignore[attr-defined]
     assert options["max_retries"] == 0
@@ -119,3 +125,16 @@ async def test_only_the_exception_class_reaches_the_log(caplog: pytest.LogCaptur
     assert "AuthenticationError" in logged
     assert _KEY not in logged
     assert "hunter2" not in logged
+
+
+@pytest.mark.parametrize(
+    "vector", [["not-a-number"], [None], [True], [float("nan")], [float("inf")], [float("-inf")]]
+)
+async def test_malformed_or_nonfinite_vector_is_refused_instead_of_passing_width(
+    vector: list[object],
+) -> None:
+    client = _client(answer=_answer(vector))
+    with pytest.raises(EmbeddingProbeError) as refused:
+        await _embed(client)
+    assert refused.value.outcome == "model_unknown"
+    client.close.assert_awaited_once()

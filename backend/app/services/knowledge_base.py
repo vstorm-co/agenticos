@@ -1102,7 +1102,7 @@ class KnowledgeBaseService:
                     provider=provider,
                     ctx=ctx,
                 )
-            elif data.embedding_provider is not None:
+            elif data.embedding_provider is not None or data.embedding_model is not None:
                 await self._check_kept_endpoint(kb, provider=provider, ctx=ctx)
         else:
             _refuse_endpoint_for_keyed(provider, endpoint_id=data.embedding_endpoint_id)

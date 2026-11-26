@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from typing import Annotated
 
 from openai import (
     APIConnectionError,
@@ -13,12 +14,20 @@ from openai import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
+from pydantic import BaseModel, Field, FiniteFloat, StrictInt, TypeAdapter, ValidationError
 from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import record_ambient_usage
-from app.core.exceptions import ConfigurationError, ExternalServiceError
+from app.agents.capabilities.budget import (
+    price_request,
+    record_ambient_cost,
+    record_ambient_usage,
+    require_ambient_price,
+)
+from app.core.exceptions import BadRequestError as BudgetPolicyError
+from app.core.exceptions import ConfigurationError, EmbeddingBudgetError, ExternalServiceError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
+from app.services.rag.vector_limits import FLOAT32_MAX, HALFVEC_MAX_COMPONENT, HNSW_MAX_VECTOR_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +62,77 @@ _PROBE_FAILURES = {
     "model_unknown": "The embedding endpoint does not serve that model, or did not answer with a vector.",
 }
 
+
+# pgvector stores IEEE-754 binary32, even though Python/JSON use binary64.
+_EmbeddingNumber = Annotated[FiniteFloat, Field(ge=-FLOAT32_MAX, le=FLOAT32_MAX)]
+
+
+class _EmbeddingResult(BaseModel):
+    embedding: Annotated[list[_EmbeddingNumber], Field(min_length=1)]
+    index: Annotated[StrictInt, Field(ge=0)] | None = None
+
+
+_EMBEDDING_RESULTS = TypeAdapter(list[_EmbeddingResult])
+
+
+class _EmbeddingUsage(BaseModel):
+    prompt_tokens: Annotated[StrictInt, Field(ge=0)]
+
+
+class _EmbeddingAnswer(BaseModel):
+    data: object = None
+    usage: _EmbeddingUsage | None = None
+
+
+def _embedding_answer(content: bytes) -> _EmbeddingAnswer:
+    try:
+        return _EmbeddingAnswer.model_validate_json(content, strict=True)
+    except ValidationError:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned an invalid embeddings response.",
+            details={},
+        ) from None
+
+
+def _embedding_vectors(data: object, *, expected: int) -> list[list[float]]:
+    """Narrow an endpoint answer before it can reach pgvector or a probe token."""
+    try:
+        results = _EMBEDDING_RESULTS.validate_python(data, from_attributes=True, strict=True)
+    except ValidationError:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned invalid vectors. Expected nonempty finite float32 numeric arrays.",
+            details={},
+        ) from None
+    if len(results) != expected:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned the wrong number of vectors.",
+            details={"expected": expected, "received": len(results)},
+        )
+    if any(
+        len(result.embedding) > HNSW_MAX_VECTOR_DIM
+        and any(abs(component) > HALFVEC_MAX_COMPONENT for component in result.embedding)
+        for result in results
+    ):
+        raise ExternalServiceError(
+            message="The embedding endpoint returned invalid vectors. Wide vectors must fit the half-precision index.",
+            details={},
+        )
+    # Some existing compatible endpoints omit indices entirely. Their array order
+    # remains the contract; a partially indexed answer has no unambiguous order.
+    if all("index" not in result.model_fields_set for result in results):
+        return [result.embedding for result in results]
+    indexed: dict[int, list[float]] = {}
+    for result in results:
+        index = result.index
+        if index is None or index >= expected or index in indexed:
+            raise ExternalServiceError(
+                message="The embedding endpoint returned invalid vector indices. Expected exactly one integer index for each input.",
+                details={},
+            )
+        indexed[index] = result.embedding
+    return [indexed[index] for index in range(expected)]
+
+
 PROBE_TIMEOUT_SECONDS = 30.0
 """How long one test request may take."""
 
@@ -78,23 +158,36 @@ async def embed_for_probe(
         max_retries=0,
     )
     try:
-        response = await client.embeddings.create(model=model, input=[text])
+        response = await client.embeddings.with_raw_response.create(
+            model=model, input=[text], encoding_format="float"
+        )
+        try:
+            answer = _embedding_answer(response.http_response.content)
+        except ExternalServiceError:
+            record_ambient_cost(model, None)
+            raise
+        if answer.usage is None:
+            record_ambient_cost(model, None)
+        else:
+            record_ambient_usage(
+                model, RequestUsage(input_tokens=answer.usage.prompt_tokens), provider="openai"
+            )
+        return _embedding_vectors(answer.data, expected=1)[0]
     except (AuthenticationError, PermissionDeniedError) as error:
-        raise _probe_failure("key_refused", error) from error
+        raise _probe_failure("key_refused", error) from None
     except (NotFoundError, BadRequestError, UnprocessableEntityError) as error:
-        raise _probe_failure("model_unknown", error) from error
+        raise _probe_failure("model_unknown", error) from None
     except (APIConnectionError, APIStatusError) as error:
-        raise _probe_failure("unreachable", error) from error
+        record_ambient_cost(model, None)
+        raise _probe_failure("unreachable", error) from None
     except OpenAIError as error:
-        # An answer the SDK could not read as an embeddings response.
-        raise _probe_failure("model_unknown", error) from error
+        record_ambient_cost(model, None)
+        raise _probe_failure("model_unknown", error) from None
+    except ExternalServiceError:
+        logger.warning("embedding_probe_invalid_vector")
+        raise EmbeddingProbeError("model_unknown") from None
     finally:
         await client.close()
-    vector = response.data[0].embedding if response.data else None
-    if not isinstance(vector, list) or not vector:
-        logger.warning("embedding_probe_no_vector")
-        raise EmbeddingProbeError("model_unknown")
-    return [float(value) for value in vector]
 
 
 def _probe_failure(outcome: str, error: Exception) -> EmbeddingProbeError:
@@ -136,6 +229,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         base_url: str | None = None,
         key_origin: str | None = None,
         keyless: bool = False,
+        require_usage: bool = False,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -157,6 +251,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         self._base_url = base_url
         self._key_origin = key_origin
         self._keyless = keyless
+        self._require_usage = require_usage
         self._client: OpenAI | None = None
 
     @property
@@ -184,7 +279,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         """
         if self._client is None:
             if self._keyless:
-                self._client = OpenAI(api_key=_KEYLESS_PLACEHOLDER, base_url=self._base_url)
+                self._client = OpenAI(
+                    api_key=_KEYLESS_PLACEHOLDER, base_url=self._base_url, max_retries=0
+                )
                 return self._client
             if not self._api_key:
                 details: dict[str, str] = {
@@ -208,7 +305,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                     ),
                     details={**details, "key_origin": self._key_origin},
                 )
-            self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
+            self._client = OpenAI(api_key=self._api_key, base_url=self._base_url, max_retries=0)
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:
@@ -225,8 +322,11 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed one request's worth of `texts` and book its usage."""
+        self._require_price()
         try:
-            response = self.client.embeddings.create(model=self.model, input=texts)
+            response = self.client.embeddings.with_raw_response.create(
+                model=self.model, input=texts, encoding_format="float"
+            )
         except NotFoundError as error:
             # A 404 from `/embeddings` is about the model or the address, never
             # the key - OpenRouter's EU endpoint answers it for every model it
@@ -247,13 +347,49 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         # The "openai" hint is what resolves the price - `genai-prices` cannot
         # auto-detect embedding model names - and a model the hint does not
         # match is retried without it rather than mispriced.
-        if response.usage is not None:
+        try:
+            answer = _embedding_answer(response.http_response.content)
+        except ExternalServiceError:
+            record_ambient_cost(self.model, None)
+            if self._require_usage:
+                raise EmbeddingBudgetError(
+                    message="The embedding endpoint returned usage that cannot be verified against the paying organization's dollar budget. Known spend is partial; fix reporting before retrying.",
+                    details={"model": self.model},
+                ) from None
+            self._require_price()
+            raise
+        usage = answer.usage
+        if usage is not None:
             record_ambient_usage(
                 self.model,
-                RequestUsage(input_tokens=response.usage.prompt_tokens),
+                RequestUsage(input_tokens=usage.prompt_tokens),
                 provider="openai",
             )
-        return [data.embedding for data in response.data]
+        else:
+            record_ambient_cost(self.model, None)
+            if self._require_usage:
+                raise EmbeddingBudgetError(
+                    message="The embedding endpoint omitted usage required by the paying organization's dollar budget. Known spend is partial; no further batch was sent. Fix usage reporting before retrying.",
+                    details={"model": self.model},
+                )
+        self._require_price()
+        return _embedding_vectors(answer.data, expected=len(texts))
+
+    def _require_price(self) -> None:
+        if self._keyless:
+            return
+        if (
+            self._require_usage
+            and price_request(RequestUsage(input_tokens=1), self.model, "openai") is None
+        ):
+            raise EmbeddingBudgetError(
+                message="The custom embedding model has no reviewed price, so the paying organization's dollar budget cannot be enforced. Choose a priced model before indexing or searching.",
+                details={"model": self.model},
+            )
+        try:
+            require_ambient_price("openai", self.model)
+        except BudgetPolicyError as error:
+            raise EmbeddingBudgetError(message=error.message, details=error.details) from None
 
     def embed_document(self, document: Document) -> list[list[float]]:
         return self.embed_queries(_chunk_texts(document))
@@ -271,6 +407,7 @@ class EmbeddingService:
         key_origin: str | None = None,
         base_url: str | None = None,
         keyless: bool = False,
+        require_usage: bool = False,
     ) -> None:
         """One model, one endpoint, one credential, one expected width.
 
@@ -299,6 +436,7 @@ class EmbeddingService:
             base_url=base_url,
             key_origin=key_origin,
             keyless=keyless,
+            require_usage=require_usage,
         )
 
     def embed_query(self, query: str) -> list[float]:
@@ -312,19 +450,19 @@ class EmbeddingService:
 
     def embed_queries(self, queries: list[str]) -> list[list[float]]:
         results = self.provider.embed_queries(queries)
-        if results and len(results[0]) != self.expected_dim:
+        if any(len(vector) != self.expected_dim for vector in results):
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(results[0])}. Check your embedding model configuration."
+                f"got {[len(vector) for vector in results]}. Check your embedding model configuration."
             )
         return results
 
     def embed_document(self, document: Document) -> list[list[float]]:
         results = self.provider.embed_document(document)
-        if results and len(results[0]) != self.expected_dim:
+        if any(len(vector) != self.expected_dim for vector in results):
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(results[0])}. Check your embedding model configuration."
+                f"got {[len(vector) for vector in results]}. Check your embedding model configuration."
             )
         return results
 

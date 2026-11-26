@@ -14,6 +14,7 @@ from openai import APIConnectionError
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.services.rag.embeddings import EMBED_BATCH_SIZE, OpenAIEmbeddingProvider
+from tests.embedding_responses import embedding_response
 
 # Two full batches and a partial third: enough to catch an off-by-one at either
 # boundary and a final short batch that is dropped.
@@ -23,15 +24,13 @@ TEXT_COUNT = EMBED_BATCH_SIZE * 2 + 3
 def _echoing_provider() -> tuple[OpenAIEmbeddingProvider, MagicMock]:
     """A provider whose endpoint embeds `"t<n>"` as `[n]` and bills one token per input."""
 
-    def create(*, model: str, input: list[str]) -> MagicMock:
-        return MagicMock(
-            data=[MagicMock(embedding=[float(text[1:])]) for text in input],
-            usage=MagicMock(prompt_tokens=len(input)),
-        )
+    def create(*, model: str, input: list[str], encoding_format: str) -> MagicMock:
+        assert encoding_format == "float"
+        return embedding_response([[float(text[1:])] for text in input], prompt_tokens=len(input))
 
     endpoint = MagicMock(side_effect=create)
     provider = OpenAIEmbeddingProvider(model="nomic-embed-text", api_key="key")
-    provider._client = MagicMock(embeddings=MagicMock(create=endpoint))
+    provider._client = MagicMock(embeddings=MagicMock(with_raw_response=MagicMock(create=endpoint)))
     return provider, endpoint
 
 
@@ -67,9 +66,8 @@ class TestEmbeddingBatches:
 
 def test_a_failed_batch_stops_later_requests_and_keeps_usage_already_spent() -> None:
     provider, endpoint = _echoing_provider()
-    first = MagicMock(
-        data=[MagicMock(embedding=[float(n)]) for n in range(EMBED_BATCH_SIZE)],
-        usage=MagicMock(prompt_tokens=EMBED_BATCH_SIZE),
+    first = embedding_response(
+        [[float(n)] for n in range(EMBED_BATCH_SIZE)], prompt_tokens=EMBED_BATCH_SIZE
     )
     failure = APIConnectionError(
         request=httpx.Request("POST", "http://ollama.invalid/v1/embeddings")

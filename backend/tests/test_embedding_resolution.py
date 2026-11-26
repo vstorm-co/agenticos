@@ -126,6 +126,14 @@ async def _resolve(kb, secret_row=None, endpoint_row=None):
         return await embeddings_for_collection("handbook"), secrets
 
 
+@pytest.fixture(autouse=True)
+def _uncapped_organization(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.embedding_resolution.organization_repo.get_by_id",
+        AsyncMock(return_value=MagicMock(monthly_budget_usd=None)),
+    )
+
+
 class TestResolution:
     async def test_a_collection_nobody_claims_resolves_to_none(self):
         """The store then uses its own keyless embedder, which refuses on first

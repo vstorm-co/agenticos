@@ -773,12 +773,27 @@ stored beyond the audit entry. A tested move of a knowledge base is allowed even
 collection is shared with other knowledge bases; an unverified move is refused when the
 collection is shared and its settings would differ from the others'.
 
+Paid embeddings under a run cap, and keyed custom endpoints paid by an organization with a dollar cap,
+require a catalog-priced model and valid usage reporting. If an endpoint later omits or corrupts usage,
+the partial receipt is retained and the job stops before another batch or file; the policy refusal is
+not automatically retried. Uncapped and keyless endpoints can still return valid vectors with partial
+cost information. Ingestion and sync budgets still admit a job/window of work, so already admitted
+work can overshoot a cap; partial receipts cannot reveal unknown provider fees.
+
+An indexed embedding response must identify each input exactly once. Shuffled indices are put back
+in input order; duplicate, mixed, null or out-of-range indices are refused. Compatible endpoints
+that omit every index retain their existing array-order contract.
+
 Limitations:
 
 - A failed Test has no way forward but a new knowledge base: there is **no rebuild** of an
   existing index onto another model.
-- Probe calls are **not counted toward the organization's spend**: three short calls per
-  affected knowledge base, and twice that after a retry.
+- Each keyed Test call checks the paying organization's monthly cap and records its reported
+  embedding usage before returning or retrying, including a failed comparison or a cancelled
+  request. Unknown prices cannot run under a dollar cap; missing usage remains explicitly
+  partial and stops further capped calls. Concurrent calls already admitted may overshoot the
+  cap. Cancellation waits for bounded settlement; a lost provider response or process failure
+  cannot reveal unknown fees. Settlement never replays a request after cancellation or a receipt failure.
 - A key rotated in place in the Vault after a save is **not tested again** - the same key id
   still passes.
 - A Test samples **3 chunks**. An endpoint that matches those and differs elsewhere is not

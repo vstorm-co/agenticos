@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, EmbeddingBudgetError
 from app.db.vector_tables import VectorScope, VectorWriterKind
 from app.services.rag.docling import DoclingRefused
 from app.services.rag.documents import DocumentProcessor
@@ -315,6 +315,8 @@ class IngestionService:
                 replaced_document_id=existing_id,
             )
 
+        except EmbeddingBudgetError:
+            raise
         except Exception as exc:
             logger.exception("Indexing failed for %s", filepath.name)
             return self._failed(exc, stage=IngestionStage.INDEX, filename=filepath.name)

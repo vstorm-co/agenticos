@@ -1,5 +1,5 @@
 ---
-source_sha: "2468a2c12537"
+source_sha: "5e09c7ebe814"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -828,12 +828,29 @@ se permite aunque su colección esté compartida con otras bases de conocimiento
 traslado sin verificar se rechaza cuando la colección está compartida y sus ajustes
 diferirían de los de las demás.
 
+Los embeddings de pago bajo un límite de ejecución y los endpoints propios con clave pagados
+por una organización con límite en dólares requieren un modelo con precio de catálogo y un uso
+válido. Si el endpoint omite o corrompe después el uso, se conserva el cargo parcial y el trabajo
+se detiene antes del siguiente lote o archivo; esta negativa de política no se reintenta automáticamente.
+Los endpoints sin límite o sin clave aún pueden devolver vectores válidos con costes parciales.
+La ingesta y sincronización siguen admitiendo un trabajo o ventana completa, por lo que el trabajo
+ya admitido puede superar el límite; los cargos parciales no revelan tarifas desconocidas.
+
+Una respuesta de embeddings con índices debe identificar cada entrada exactamente una vez. Los
+índices desordenados se devuelven al orden de entrada; se rechazan los duplicados, mixtos, nulos o
+fuera de rango. Los endpoints compatibles sin ningún índice conservan el contrato de orden del array.
+
 Limitaciones:
 
 - Un Test fallido no tiene más salida que una base de conocimiento nueva: **no hay
   reconstrucción** de un índice existente sobre otro modelo.
-- Las llamadas de prueba **no cuentan en el gasto de la organización**: tres llamadas
-  cortas por base de conocimiento afectada, y el doble tras un reintento.
+- Cada llamada de Test con clave comprueba el límite mensual de la organización que paga y
+  registra el uso de embeddings informado antes de devolver o reintentar, también si falla la
+  comparación o se cancela la petición. Un precio desconocido impide el Test bajo un límite
+  en dólares; el uso ausente queda explícitamente parcial y detiene más llamadas limitadas.
+  Las llamadas concurrentes ya admitidas pueden superar el límite. La cancelación espera una
+  liquidación acotada; una respuesta perdida o un fallo del proceso no permite conocer cargos
+  desconocidos. La liquidación no repite llamadas tras una cancelación o un fallo al guardar el cargo.
 - Una clave rotada en el sitio en el vault después de guardar **no se vuelve a probar** -
   el mismo id de clave sigue pasando.
 - Un Test muestrea **3 chunks**. Un endpoint que coincide en ellos y difiere en otros

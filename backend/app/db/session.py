@@ -228,6 +228,18 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession]:
 
 
 @asynccontextmanager
+async def get_independent_db_context() -> AsyncGenerator[AsyncSession]:
+    """Commit a short receipt/preflight independently of a caller's transaction.
+
+    A request may already own a pooled connection. Taking a second connection
+    from that same pool can deadlock at capacity; the existing owned NullPool
+    lifecycle avoids that circular wait and never commits the caller's state.
+    """
+    async with get_worker_db_context() as session:
+        yield session
+
+
+@asynccontextmanager
 async def get_worker_connection() -> AsyncGenerator[AsyncConnection]:
     """One connection for a background worker, held until the block exits.
 
