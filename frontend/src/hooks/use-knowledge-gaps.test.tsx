@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -362,6 +362,25 @@ describe("useKnowledgeGapTopics", () => {
         .mock.calls.map(([path]) => path)
         .sort(),
     ).toEqual(["/knowledge-gaps/broken", "/knowledge-gaps/gone", "/knowledge-gaps/refused"]);
+  });
+
+  it("reads a topic that is gone once, though a second part of the page starts showing it", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Topic not found"));
+    function Notes() {
+      const { skipped } = useKnowledgeGapTopics(["gone"]);
+      return <p>{`notes ${skipped}`}</p>;
+    }
+    // As the Result step does: the documents list mounts once a topic was not read.
+    function Step() {
+      const { skipped } = useKnowledgeGapTopics(["gone"]);
+      return skipped > 0 ? <Notes /> : <p>reading</p>;
+    }
+    render(<Step />, { wrapper: own });
+
+    expect(await screen.findByText("notes 1")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(screen.getByText("notes 1")).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
   it("drops a topic it read before once a new read of it is refused", async () => {
