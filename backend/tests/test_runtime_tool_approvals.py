@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import anyio
 import pytest
@@ -136,6 +136,63 @@ async def test_members_without_decision_authority_cannot_even_open_an_approval(
     )
     with pytest.raises(AuthorizationError):
         await channel.live(request(), user_id=uuid4(), questions=AsyncMock())
+    service.request.assert_not_awaited()
+    assert not channel.requested
+
+
+def _platform_call(*, platform_call: bool = True) -> ApprovalRequest:
+    return ApprovalRequest(
+        capability_id=None,
+        tool_name="agenticos_publish_agent",
+        tool_call_id="native-one",
+        tool_args={"agent_id": "exact agent"},
+        always_asks=True,
+        platform_call=platform_call,
+    )
+
+
+def _runs_for(monkeypatch: pytest.MonkeyPatch, person: UUID) -> None:
+    monkeypatch.setattr(
+        approvals.agent_run_repo, "get_run", AsyncMock(return_value=MagicMock(user_id=person))
+    )
+
+
+async def test_a_member_answers_their_own_native_platform_call_without_the_permission(
+    live: LiveFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    channel, member, service, _events = live
+    person = uuid4()
+    _runs_for(monkeypatch, person)
+    member.return_value = AuthContext(
+        user_id=person, organization_id=channel.organization_id, role="member"
+    )
+    answer = RuntimeQuestionResponse(answers=[RuntimeAnswer(selected=["Yes"])])
+
+    result = await channel.live(
+        _platform_call(), user_id=person, questions=AsyncMock(return_value=answer)
+    )
+
+    assert isinstance(result, ApprovalGranted)
+    assert service.decide.call_args.kwargs == {"approved": True}
+
+
+@pytest.mark.parametrize("whose", ["another person's", "not the platform's"])
+async def test_a_member_without_the_permission_answers_no_other_native_call(
+    live: LiveFixture, monkeypatch: pytest.MonkeyPatch, whose: str
+) -> None:
+    channel, member, service, _events = live
+    member_id = uuid4()
+    _runs_for(monkeypatch, uuid4() if whose == "another person's" else member_id)
+    member.return_value = AuthContext(
+        user_id=member_id, organization_id=channel.organization_id, role="member"
+    )
+
+    with pytest.raises(AuthorizationError):
+        await channel.live(
+            _platform_call(platform_call=whose == "another person's"),
+            user_id=member_id,
+            questions=AsyncMock(),
+        )
     service.request.assert_not_awaited()
     assert not channel.requested
 
