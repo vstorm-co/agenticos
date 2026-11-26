@@ -563,6 +563,7 @@ STAYS_INSIDE = frozenset(
         "media",
         "memory_files",
         "planning",
+        "projects",
         "skills",
         "system_reminders",
         "text_to_speech",
