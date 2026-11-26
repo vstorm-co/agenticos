@@ -1,5 +1,5 @@
 ---
-source_sha: "ad8c16ba300b"
+source_sha: "ed2aeb80b694"
 ---
 
 # Governance { #governance }
@@ -1677,7 +1677,7 @@ Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, 
 
 Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, fork skilla albo agenci, których przeniesie zmiana skilla, dataset, na którym działa eval, i podana cena. Akceptacja dotyczy tylko próby nazwanej na karcie. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
 
-Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
+Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź, jako ta osoba, niezależnie od tego, kto odpowiedział ostatni.
 
 Run bez osoby - gościa na widgecie albo stronie publicznej, niepowiązanego członka kanału albo osoby, którą usunięto - nie ma nikogo, czyja odpowiedź się liczy, więc jego wywołanie platformy czeka, aż wygaśnie; taki run w ogóle nie dostaje uprawnień platformy. Zmiana wdrożenia (`change_deployment`) wymaga obu reguł naraz: osoby runu, która jest też administratorem aplikacji. Architekt każdej innej osoby go nie zmieni.
 
@@ -2157,11 +2157,17 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| nic, ale jest osobą, dla której działa run, a wśród wywołań jest jej własne wywołanie platformy, które pyta za każdym razem | prośbę, z linkiem do rozmowy, w której o nie poproszono, albo do kolejki, gdy run nie powstał w żadnej rozmowie, dopóki to wywołanie czeka |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
 zatrzymał.
+
+Osoba, dla której działa run, dostaje prośbę o swoje wywołanie platformy także
+wtedy, gdy alert zatwierdzeń agenta jej nie obejmuje albo jest wyłączony: nikt
+inny nie może go zatwierdzić. Kolejka pokazuje takie wywołanie tylko osobie z
+`approvals:decide`.
 
 Drugi e-mail nie niesie **żadnego linku**, i to jest celowe, a nie
 niedokończone. To, że `agents:view` jest uprawnieniem roli, nie czyni

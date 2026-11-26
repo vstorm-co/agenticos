@@ -28,7 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, for as long as that call waits. The pending approval mail no longer names fixed roles.
+- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
 
 ### Security
 
