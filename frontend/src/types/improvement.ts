@@ -100,7 +100,19 @@ export interface ImprovementTarget {
   mode?: ImprovementMode;
   search?: SearchOptions | null;
 }
+/** The dataset's guidance the improver reads below the platform's rules, and who last changed it. */
+export interface HelperGuidance {
+  text: string;
+  updated_at?: string | null;
+  /** A current member's full name; null when unknown or no longer a member. */
+  updated_by_name?: string | null;
+  /** Whoever last changed it has left the organization. */
+  updated_by_former_member?: boolean;
+}
+
 export interface ImprovementEstimate {
+  /** The dataset's guidance for the improver, when it has any. */
+  guidance?: HelperGuidance | null;
   proposal_usd: string;
   knowledge_usd?: string;
   eval_usd: string;

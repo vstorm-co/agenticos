@@ -17624,6 +17624,12 @@
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
     "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
+    "guidance": {
+      "title": "Datasetrichtlijnen voor de helper",
+      "hint": "De helper leest ze onder de platformregels, die altijd gelden. Iemand die deze dataset bewerkt, heeft ze geschreven.",
+      "changed": "{who, select, named {Laatst gewijzigd door {name}.} former {Laatst gewijzigd door een voormalig lid.} other {}}",
+      "changedOn": "{who, select, named {Laatst gewijzigd door {name} op {date}.} former {Laatst gewijzigd door een voormalig lid op {date}.} other {Laatst gewijzigd op {date}.}}"
+    },
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {
