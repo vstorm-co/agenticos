@@ -21,6 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. By agent, the default, has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
+
+### Fixed
+
+- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+
+## [1.94.0] - 2026-11-26
+
+### Added
+
 - Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
 
 - Choose Nederlands on the desktop app's start screen. Local setup, permissions and workspace updates are translated, and the choice is carried to the console.
@@ -67,7 +77,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Store a shared MCP OAuth client in the organization Vault for servers without
   dynamic client registration. Personal grants remain bound to the issuing
   organization, membership and current Vault secret generation.
-- **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. By agent, the default, has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
 
 ### Fixed
 
@@ -116,7 +125,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Refresh the backend dependency lock and verify compatibility with current SDKs.
   Keep Daytona on its supported 0.x API until the workspace adapter supports the
   SDK 2.x namespace migration.
-- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
 
 ### Changed
 
@@ -23002,7 +23010,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
