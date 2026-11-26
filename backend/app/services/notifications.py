@@ -548,12 +548,11 @@ class NotificationService:
             ":".join(sorted(str(approval.id) for approval in approvals)).encode()
         ).hexdigest()
         if person is not None:
-            # In the conversation the call was asked in its card comes back; the queue
-            # lists it only for a person who holds `approvals:decide`.
-            own_path = (
-                approvals_path
-                if run.conversation_id is None
-                else self._link(f"/chat?id={run.conversation_id}", run.organization_id)
+            # In the conversation the call was asked in its card comes back; a run asked
+            # in none waits in their Inbox, which lists it with or without the permission.
+            own_path = self._link(
+                "/inbox" if run.conversation_id is None else f"/chat?id={run.conversation_id}",
+                run.organization_id,
             )
             await self._center.write(
                 recipients=[person],

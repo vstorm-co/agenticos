@@ -725,7 +725,7 @@ class TestApprovalRequested:
         self, written, tools: tuple[str, ...], in_a_conversation: bool, named: bool
     ):
         """Their notice opens the conversation the call was asked in, where its card comes
-        back, or the queue for a run asked in none; everyone else's opens the queue."""
+        back, or their Inbox for a run asked in none; everyone else's opens the queue."""
         person, admin = uuid.uuid4(), uuid.uuid4()
         run = _run(user_id=person)
         run.conversation_id = uuid.uuid4() if in_a_conversation else None
@@ -746,7 +746,7 @@ class TestApprovalRequested:
         own, queue = by_recipient[(person,)], by_recipient[(admin,)]
         assert own["render_context"][APPROVABLE_BY] == str(person)
         assert own["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
-        where = f"/chat?id={run.conversation_id}" if in_a_conversation else "tab=approvals"
+        where = f"/chat?id={run.conversation_id}" if in_a_conversation else "/inbox"
         assert where in own["context_url"]
         assert where in own["render_context"]["approvals_url"]
         assert APPROVABLE_BY not in queue["render_context"]
