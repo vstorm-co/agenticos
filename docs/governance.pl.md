@@ -1,5 +1,5 @@
 ---
-source_sha: "76027ca7ebbd"
+source_sha: "ca0138b9ea83"
 ---
 
 # Governance { #governance }
@@ -2155,7 +2155,8 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| nic, ale jest osobą runu, a wśród wywołań jest jej własne wywołanie platformy, które zawsze pyta | prośbę, z linkiem do rozmowy, w której padło pytanie, dopóki to wywołanie czeka |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
