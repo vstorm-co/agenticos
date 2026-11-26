@@ -74,7 +74,9 @@ class StoredThread:
 
 @pytest.fixture
 def thread(monkeypatch: pytest.MonkeyPatch) -> StoredThread:
-    conversation = Conversation(id=uuid4(), organization_id=uuid4(), guardrail_revision=0)
+    conversation = Conversation(
+        id=uuid4(), organization_id=uuid4(), guardrail_revision=0, transcript_revision=0
+    )
     service = ConversationService(AsyncMock(spec=AsyncSession))
     monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
     monkeypatch.setattr(

@@ -780,6 +780,11 @@ them or an agent to request its response. Room attachments, emoji reactions,
 thread following and unread markers use the same saved transcript. See
 [team rooms](projects.md#team-rooms) for membership, responder and thread behavior.
 
+**Select context** creates a thread from a chosen message range. The thread keeps
+context separate from replies and supports moving, returning or editing the range.
+You can also reference a compatible source conversation. See
+[selected thread context](projects.md#selected-thread-context) for selection and access rules.
+
 Browser and Computer views stay separate. Panels start closed; closing one keeps
 it closed as new tool results arrive. On narrow screens the selected panel fills
 the screen. After a run, a completed image is labelled **Last view**; it is not a

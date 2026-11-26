@@ -250,6 +250,18 @@ def get_room_thread_service(db: DBSession) -> RoomThreadService:
 RoomThreadSvc = Annotated[RoomThreadService, Depends(get_room_thread_service)]
 
 
+from app.services.room_thread_context_read import RoomThreadContextReadService
+
+
+def get_room_thread_context_read_service(db: DBSession) -> RoomThreadContextReadService:
+    return RoomThreadContextReadService(db)
+
+
+RoomThreadContextReadSvc = Annotated[
+    RoomThreadContextReadService, Depends(get_room_thread_context_read_service)
+]
+
+
 def get_room_routing_service(db: DBSession) -> RoomRoutingService:
     return RoomRoutingService(db)
 

@@ -123,6 +123,7 @@ from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpda
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.room_participant import RoomParticipantAutoReplyUpdate
+from app.schemas.room_thread import RoomThreadContextUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
@@ -217,6 +218,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     RecordUpdate: None,
     # Replaces one role's list inside role_navigation JSONB, not a hidden_items row column.
     RoleNavigationUpdate: None,
+    # A range replacement with a revision precondition; the service writes the thread's
+    # context columns itself and treats a null `move` or source as "keep the current one".
+    RoomThreadContextUpdate: None,
     # Replaces the validated row_policy JSONB document, not columns named after its fields.
     RowPolicyUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
@@ -349,6 +353,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "NotificationPreferenceUpdate",
             "RecordUpdate",
             "RoleNavigationUpdate",
+            "RoomThreadContextUpdate",
             "RowPolicyUpdate",
             "SchemaUpdate",
             "PushFocusUpdate",

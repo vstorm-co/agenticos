@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_v
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
 from app.schemas.room_participant import RoomParticipantRef
-from app.schemas.room_thread import RoomThreadSummary
+from app.schemas.room_thread import RoomThreadContextRead, RoomThreadSummary
 
 RoomRequestStatus = Literal[
     "queued",
@@ -110,6 +110,14 @@ class RoomAgentRequestList(BaseSchema):
     can_post: bool
 
 
+class RoomThreadContextCandidatesRead(BaseSchema):
+    """Authorized editable rows from the selected interval, including exclusions."""
+
+    source_conversation_id: UUID
+    items: list[MessageRead]
+    total: int
+
+
 class RoomThreadRead(RoomThreadSummary):
     """One authorized room subthread, with its root outside reply pagination."""
 
@@ -117,3 +125,5 @@ class RoomThreadRead(RoomThreadSummary):
     items: list[MessageRead]
     total: int
     can_post: bool
+    context: RoomThreadContextRead | None = None
+    context_messages: list[MessageRead] = Field(default_factory=list)

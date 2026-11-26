@@ -7,7 +7,7 @@ server resolves it; these tests pin the resolution and its refusals.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -30,6 +30,10 @@ MODULE = "app.services.conversation_share"
 @pytest.fixture
 def service(monkeypatch: pytest.MonkeyPatch) -> ConversationShareService:
     monkeypatch.setattr(f"{MODULE}.rate_limit.enforce_conversation_share", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.room_thread_context_access.external_context_edges",
+        AsyncMock(return_value=[]),
+    )
     return ConversationShareService(AsyncMock())
 
 
@@ -205,9 +209,16 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
             share_repo.get_conversations_shared_with_user.await_args.kwargs["organization_id"]
             == ORG
         )
+        assert (
+            share_repo.get_conversations_shared_with_user.await_args.kwargs[
+                "excluded_conversation_ids"
+            ]
+            == set()
+        )
         assert share_repo.count_conversations_shared_with_user.await_args.kwargs == {
             "organization_id": ORG,
             "include_archived": True,
+            "excluded_conversation_ids": set(),
         }
 
         assert total == 2
@@ -418,6 +429,7 @@ async def test_the_person_a_conversation_is_shared_with_is_told(
         patch(f"{MODULE}.NotificationService") as notifications,
     ):
         conv_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+        conv_repo.has_imported_thread_context = AsyncMock(return_value=False)
         user_repo.get_by_id = AsyncMock(side_effect=[_user(target), sharer])
         member_repo.get = AsyncMock(return_value=MagicMock())
         share_repo.get_share = AsyncMock(return_value=None)
@@ -426,6 +438,11 @@ async def test_the_person_a_conversation_is_shared_with_is_told(
         notifications.return_value.conversation_shared = told
 
         await service.share_conversation(conversation_id, owner, shared_with=target)
+
+        assert conv_repo.get_conversation_by_id.await_args_list == [
+            call(service.db, conversation_id),
+            call(service.db, conversation_id, fresh=True),
+        ]
 
     assert told.await_args.kwargs == {
         "recipient": target,
@@ -446,6 +463,7 @@ async def test_a_link_tells_nobody(service: ConversationShareService):
         patch(f"{MODULE}.NotificationService") as notifications,
     ):
         conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        conv_repo.has_imported_thread_context = AsyncMock(return_value=False)
         share_repo.create = AsyncMock(return_value=MagicMock())
 
         await service.share_conversation(uuid.uuid4(), owner, generate_link=True)
@@ -733,6 +751,10 @@ async def test_public_chat_footer_uses_its_organization(
         patch(
             f"{MODULE}.conversation_repo.get_conversation_by_id", new=AsyncMock(return_value=chat)
         ),
+        patch(
+            f"{MODULE}.conversation_repo.has_imported_thread_context",
+            new=AsyncMock(return_value=False),
+        ),
         patch(f"{MODULE}.organization_repo.get_by_id", new=lookup),
     ):
         result = await service.get_by_token("token")
@@ -752,6 +774,10 @@ async def test_public_chat_without_its_organization_is_not_served(
         patch(
             f"{MODULE}.conversation_repo.get_conversation_by_id",
             new=AsyncMock(return_value=_conversation(uuid.uuid4())),
+        ),
+        patch(
+            f"{MODULE}.conversation_repo.has_imported_thread_context",
+            new=AsyncMock(return_value=False),
         ),
         patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         pytest.raises(NotFoundError),

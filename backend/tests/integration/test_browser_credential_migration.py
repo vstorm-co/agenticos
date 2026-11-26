@@ -41,6 +41,8 @@ _DESCENDANTS = (
     load_revision("0350_room_mention_requests"),
     load_revision("0351_room_message_reactions"),
     load_revision("0352_room_thread_state"),
+    # Adds columns to `room_threads`, which rebuilding 0352 alone would lose.
+    load_revision("0358_room_thread_context"),
 )
 assert tuple(migration.down_revision for migration in _DESCENDANTS[:2]) == (
     _MIGRATION.revision,
@@ -52,6 +54,7 @@ assert tuple(migration.down_revision for migration in _DESCENDANTS[3:]) == (
     "0349_room_participants",
     "0350_room_mention_requests",
     "0351_room_message_reactions",
+    "0356_trigger_webhook_receipts",
 )
 _TABLES = (
     "browser_credential_policies",
@@ -135,7 +138,7 @@ async def test_chain_rebases_browser_credential_plans_after_the_current_t3_head(
         scripts.get_revision("0345_credential_continuations").down_revision
         == "0344_browser_procedure_teaching"
     )
-    assert scripts.get_heads() == ["0365_merge_t3_v1930"]
+    assert scripts.get_heads() == ["0366_merge_t3_thread_context"]
     assert scripts.get_revision("0333_room_threads").down_revision == "0332_merge_t3_pools_v1761"
     assert scripts.get_revision("0332_merge_t3_pools_v1761").down_revision == (
         "0331_merge_t3_rooms_and_v1761",

@@ -1,5 +1,5 @@
 ---
-source_sha: "28f4ce4b74d9"
+source_sha: "048047129382"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -853,6 +853,8 @@ anzufordern. Raum-Anhänge, Emoji-Reaktionen, Thread-Beobachtung und
 Ungelesen-Markierungen nutzen denselben gespeicherten Verlauf. Mehr zu
 Mitgliedschaft, Antwortverhalten und Threads steht unter
 [Teamräume](projects.md#team-rooms).
+
+**Kontext auswählen (Select context)** erstellt einen Thread aus einem gewählten Nachrichtenbereich. Der Thread hält den Kontext getrennt von den Antworten und unterstützt das Verschieben, Zurückholen oder Bearbeiten des Bereichs. Du kannst auch eine kompatible Quellunterhaltung referenzieren. Auswahl- und Zugriffsregeln stehen unter [Ausgewählter Thread-Kontext](projects.md#selected-thread-context).
 
 Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
 ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf

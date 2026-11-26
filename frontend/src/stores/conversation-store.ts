@@ -4,6 +4,7 @@ import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
 import type { ConversationCost, ConversationMessage } from "@/types";
+import type { RoomThreadMovedStub } from "@/types/room-thread-context";
 
 /** The selection and session that successfully read a transcript, including an empty one. */
 export interface TranscriptIdentity {
@@ -28,6 +29,8 @@ export interface ConversationState {
   composerFocusRequest: number;
   requestComposerFocus: () => void;
   currentMessages: ConversationMessage[];
+  /** Fresh placeholders for message ranges currently moved into room threads. */
+  currentMovedThreadStubs: RoomThreadMovedStub[];
   hasEarlierMessages: boolean;
   /**
    * What the open thread has cost in total, as the server added it up.
@@ -52,6 +55,7 @@ export interface ConversationState {
     cost?: ConversationCost | null,
     hasEarlier?: boolean,
     loadedTranscript?: TranscriptIdentity | null,
+    movedThreadStubs?: RoomThreadMovedStub[],
   ) => void;
   invalidateTranscript: () => void;
   /**
@@ -79,6 +83,7 @@ const initialState = {
   loadedTranscript: null,
   composerFocusRequest: 0,
   currentMessages: [],
+  currentMovedThreadStubs: [],
   hasEarlierMessages: false,
   currentCost: null,
   pendingProjectId: null,
@@ -95,6 +100,7 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
       createdConversationId: state.createdConversationId === id ? id : null,
       selectionVersion: state.selectionVersion + 1,
       loadedTranscript: null,
+      currentMovedThreadStubs: [],
     })),
   adoptCreatedConversation: (id) => set({ currentConversationId: id, createdConversationId: id }),
   requestComposerFocus: () =>
@@ -103,13 +109,21 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
   // The total travels with the messages it totals. Set separately, a switch
   // between conversations would leave one thread's figure under another's
   // transcript for as long as the second fetch took.
-  setCurrentMessages: (messages, cost = null, hasEarlier = false, loadedTranscript = null) =>
-    set({
+  setCurrentMessages: (
+    messages,
+    cost = null,
+    hasEarlier = false,
+    loadedTranscript = null,
+    movedThreadStubs,
+  ) =>
+    set((state) => ({
       currentMessages: messages,
       currentCost: cost,
       hasEarlierMessages: hasEarlier,
       loadedTranscript,
-    }),
+      currentMovedThreadStubs:
+        movedThreadStubs ?? (messages.length === 0 ? [] : state.currentMovedThreadStubs),
+    })),
 
   invalidateTranscript: () =>
     set((state) => ({ selectionVersion: state.selectionVersion + 1, loadedTranscript: null })),
