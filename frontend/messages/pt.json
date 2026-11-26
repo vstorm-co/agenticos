@@ -6318,6 +6318,10 @@
       "flow-event-source-create": {
         "title": "Criar nova fonte",
         "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+      },
+      "workflow-python-actions": {
+        "title": "Chamar ferramentas a partir do Python",
+        "body": "Escolha Python com ações para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento. Atribua um nome de função a cada ação e insira a chamada no script pelo menu abaixo do editor. Cada chamada tem suas próprias aprovações e seu próprio registro de execução."
       }
     },
     "chooseLanguage": "Idioma",
@@ -6963,7 +6967,8 @@
       "runQuestionsRetry": "Tentar novamente",
       "startRunSchema": "Esquema de entrada esperado",
       "nameRequired": "Digite um nome para este workflow.",
-      "triggerSourceCredentials": "Gerenciar credenciais em Fontes de eventos"
+      "triggerSourceCredentials": "Gerenciar credenciais em Fontes de eventos",
+      "runPythonCall": "Chamada {index}: {name}"
     },
     "retention": {
       "title": "Retenção de dados",
@@ -12499,9 +12504,23 @@
     },
     "stepEditorView": "Visualização da etapa",
     "stepEditorSettings": "Configurações da etapa",
-    "problemTableSchemaChanged": "Esta tabela mudou desde que a etapa foi configurada: uma coluna que ela lê foi removida ou teve o tipo alterado. Atualize-a para o esquema atual e verifique o que lê esta etapa.",
+    "problemTableSchemaChanged": "O esquema da tabela mudou. Revise os nomes, tipos e valores das colunas usados nesta etapa antes de atualizar a referência à tabela.",
     "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela.",
-    "webhookSourceAudience": "Quem pode ver as execuções deste workflow também pode ver os dados entregues pela fonte de eventos. Isso inclui execuções anteriores, mesmo que você compartilhe o workflow só depois. Ver uma execução não concede acesso à fonte."
+    "webhookSourceAudience": "Quem pode ver as execuções deste workflow também pode ver os dados entregues pela fonte de eventos. Isso inclui execuções anteriores, mesmo que você compartilhe o workflow só depois. Ver uma execução não concede acesso à fonte.",
+    "pythonActions": "Funções disponíveis",
+    "pythonActionsHint": "Associe uma ação uma vez e chame a função no script com argumentos nomeados.",
+    "pythonActionsDiscover": "Para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento, adicione uma etapa Python com ações e atribua um nome de função a cada ação.",
+    "pythonSelectAction": "Selecione uma ação",
+    "pythonInsertCall": "Inserir chamada de função",
+    "pythonInvalidName": "Use um identificador Python único, que não seja uma palavra reservada nem um nome interno.",
+    "pythonFunctionName": "Nome da função Python",
+    "pythonBindAction": "Associar ação",
+    "pythonActionUnavailable": "Ação indisponível",
+    "pythonRemoveAction": "Remover {name}",
+    "pythonToolArguments": "Esquema dos argumentos da ferramenta",
+    "pythonRequiredConfigArgs": "Forneça {fields} em cada chamada ou defina um valor padrão abaixo.",
+    "pythonOverrideFields": "Substituições opcionais: {fields}. Omita esses argumentos para usar os valores configurados.",
+    "pythonResultFields": "Campos do resultado: {fields}"
   },
   "artifacts": {
     "title": "Aplicativos",
@@ -19357,6 +19376,10 @@
       "workflow_run": {
         "name": "Executar um fluxo de trabalho",
         "description": "Executa outro fluxo de trabalho como etapa e repassa o que ele responder."
+      },
+      "code_python_actions": {
+        "name": "Python com ações",
+        "description": "Escreva código Python que chama as ações do fluxo de trabalho associadas a nomes."
       }
     },
     "port": {
@@ -21788,6 +21811,29 @@
           "source_id": {
             "title": "ID da fonte",
             "description": "Fonte de eventos reutilizável que este workflow passará a acompanhar quando for publicado"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Código",
+            "description": "Leia os valores vinculados como `args`; a última expressão é o resultado."
+          },
+          "timeout_seconds": {
+            "title": "Tempo limite (segundos)"
+          },
+          "max_memory_mb": {
+            "title": "Memória máxima (MB)"
+          },
+          "actions": {
+            "title": "Ações",
+            "description": "Nomes das funções Python e versões das ações do fluxo de trabalho que elas chamam."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
           }
         }
       }

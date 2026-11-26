@@ -1249,6 +1249,20 @@
       "badMethod": "Bir HTTP adımı GET, POST, PUT, PATCH veya DELETE gönderir.",
       "unclosedQuote": "Komutta açılan bir tırnak kapatılmamış."
     },
+    "pythonActions": "Kullanılabilir işlevler",
+    "pythonActionsHint": "Bir eylemi bir kez bağlayın, ardından işlevini betiğinizde adlandırılmış argümanlarla çağırın.",
+    "pythonActionsDiscover": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python adımı ekleyin ve her eyleme bir işlev adı verin.",
+    "pythonSelectAction": "Bir eylem seçin",
+    "pythonInsertCall": "İşlev çağrısı ekle",
+    "pythonInvalidName": "Anahtar sözcük veya yerleşik ad olmayan benzersiz bir Python tanımlayıcısı kullanın.",
+    "pythonFunctionName": "Python işlev adı",
+    "pythonBindAction": "Eylemi bağla",
+    "pythonActionUnavailable": "Eylem kullanılamıyor",
+    "pythonRemoveAction": "{name} işlevini kaldır",
+    "pythonToolArguments": "Araç argümanlarının şeması",
+    "pythonRequiredConfigArgs": "Her çağrıda {fields} belirtin veya aşağıda varsayılan bir değer ayarlayın.",
+    "pythonOverrideFields": "İsteğe bağlı geçersiz kılmalar: {fields}. Yapılandırılan değerleri kullanmak için bu argümanları atlayın.",
+    "pythonResultFields": "Sonuç alanları: {fields}",
     "codeArgKeys": "args anahtarları",
     "codeKeysHint": "Tab girinti ekler, Shift+Tab girintiyi azaltır. Düzenleyiciden çıkmak için Esc, ardından Tab tuşuna basın.",
     "created": "Workflow oluşturuldu",
@@ -1698,7 +1712,7 @@
     "notificationEmail": "E-posta",
     "notificationChannelHint": "Her kişinin bildirim tercihleri geçerliliğini korur.",
     "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin.",
-    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin.",
+    "problemTableSchemaChanged": "Tablo şeması değişti. Tablo başvurusunu güncellemeden önce bu adımın kullandığı sütun adlarını, türleri ve değerleri gözden geçirin.",
     "problemTableDependenciesChanged": "Tablo şemasını güncellemeden önce bu adımdaki değişen filtreleri, sıralamayı ve değer bağlamalarını kaldırın veya değiştirin."
   },
   "tables": {
@@ -4147,6 +4161,7 @@
       "runOutputNone": "Bu run çıktı üretmeden sona erdi.",
       "runStepList": "Adımlar",
       "runLogsFailed": "Adımların yazdığı log satırları okunamadı.",
+      "runPythonCall": "Çağrı {index}: {name}",
       "runStepIteration": "Yineleme {index}",
       "runAttempts": "{count} deneme",
       "triggers": "Tetikleyici",
@@ -9063,6 +9078,10 @@
       "workflow-step-view": {
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
+      },
+      "workflow-python-actions": {
+        "title": "Python’dan araç çağırın",
+        "body": "MCP araçlarını çağırmak, tabloları kullanmak veya bilgide arama yapmak için Eylemlerle Python seçin. Her eyleme bir işlev adı verin ve düzenleyicinin altındaki menüden çağrısını betiğe ekleyin. Her çağrının kendi onayları ve yürütme kaydı vardır."
       },
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
@@ -14451,6 +14470,10 @@
         "name": "Sandbox’ta Python",
         "description": "Tam Python’u run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
       },
+      "code_python_actions": {
+        "name": "Eylemlerle Python",
+        "description": "Adlara bağladığınız iş akışı eylemlerini çağıran Python kodu yazın."
+      },
       "code_python_simple": {
         "name": "Python betiği",
         "description": "Monty sandbox’ında kısa bir Python betiğiyle bir JSON değeri hesaplayın - dosya yok, ağ yok, küçük bir standart kütüphane."
@@ -15077,6 +15100,29 @@
           },
           "files__items__byte_size": {
             "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bağlanan değerleri `args` olarak okuyun; son ifade sonuçtur."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_memory_mb": {
+            "title": "En fazla bellek (MB)"
+          },
+          "actions": {
+            "title": "Eylemler",
+            "description": "Python işlev adları ve bu işlevlerin çağırdığı sürümlü iş akışı eylemleri."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
           }
         }
       },

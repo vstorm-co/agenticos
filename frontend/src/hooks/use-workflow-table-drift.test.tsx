@@ -89,6 +89,139 @@ describe("useWorkflowTableDrift", () => {
     expect(store.getState().tableDrift).toEqual([]);
   });
 
+  it("reconciles each bound Python table separately while preserving siblings and script inputs", async () => {
+    serve([column("safe"), column("changed")], [column("safe"), column("changed", "number")]);
+    seed(ref(["safe"]));
+    const graph = store.getState().graph!;
+    const actions = {
+      get: { type: "table.record.get", config: { table: ref(["safe"]) } },
+      query: {
+        type: "table.record.query",
+        config: { table: ref(["safe"]), filters: [{ column_id: "changed" }] },
+      },
+      write: { type: "table.record.upsert", config: { table: ref(["safe"]) } },
+      echo: { type: "debug.echo", config: { table: ref(["changed"]) } },
+    };
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [
+        {
+          ...graph.nodes[0]!,
+          definition_id: "code.python.actions",
+          config: { code: "1", actions },
+        },
+      ],
+    });
+    renderHook(() => useWorkflowTableDrift(true), { wrapper });
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(3));
+    expect(store.getState().tableDrift.map((drift) => [drift.field, drift.requiresReview])).toEqual(
+      [
+        ["actions/get/config/table", undefined],
+        ["actions/query/config/table", true],
+        ["actions/write/config/table", undefined],
+      ],
+    );
+    act(() =>
+      store
+        .getState()
+        .rebindTables(
+          store.getState().tableDrift.map(({ site, rebound }) => ({ site, ref: rebound })),
+        ),
+    );
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(1));
+    expect(store.getState().graph!.nodes[0]!.config).toEqual({
+      code: "1",
+      actions: {
+        ...actions,
+        get: { ...actions.get, config: { table: ref(["safe"], 2) } },
+        write: { ...actions.write, config: { table: ref(["safe"], 2) } },
+      },
+    });
+  });
+  it.each([
+    ["label", { label: "Assignee" }],
+    ["type", { type: "number" }],
+    ["revision", { revision: 1 }],
+  ] as const)("flags unselected %s changes for Python get/query", async (_, change) => {
+    const old = { ...column("owner"), label: "Owner" };
+    const kept = column("kept");
+    serve([kept, old], [kept, { ...old, ...change }, column("added")]);
+    seed(ref(null));
+    const graph = store.getState().graph!;
+    const first = ref(["kept"]);
+    const config = {
+      code: 'get_one(record_id=args["id"])["record"]["fields"]["Owner"]',
+      actions: {
+        get_one: { type: "table.record.get", config: { table: first } },
+        find: { type: "table.record.query", config: { table: first } },
+        exists: { type: "table.record.exists", config: { table: first } },
+      },
+    };
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [{ ...graph.nodes[0]!, definition_id: "code.python.actions", config }],
+    });
+    renderHook(() => useWorkflowTableDrift(true), { wrapper });
+    await waitFor(() =>
+      expect(store.getState().tableDrift.map((item) => [item.field, item.requiresReview])).toEqual([
+        ["actions/get_one/config/table", undefined],
+        ["actions/find/config/table", undefined],
+      ]),
+    );
+    expect(store.getState().graph!.nodes[0]!.config.actions).toEqual({
+      ...config.actions,
+      exists: { type: "table.record.exists", config: { table: ref(["kept"], 2) } },
+    });
+    act(() =>
+      store
+        .getState()
+        .rebindTables(
+          store.getState().tableDrift.map(({ site, rebound }) => ({ site, ref: rebound })),
+        ),
+    );
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(0));
+    expect(store.getState().graph!.nodes[0]!.config.actions).toMatchObject({
+      get_one: { config: { table: ref(["kept"], 2) } },
+      find: { config: { table: ref(["kept"], 2) } },
+    });
+  });
+
+  it.each([
+    { nullable: true, default: null, auto: true },
+    { nullable: false, default: "new", auto: true },
+    { nullable: false, default: null, auto: false },
+  ])(
+    "only auto-advances a Python writer past a new column it need not supply: %j",
+    async ({ nullable, default: defaultValue, auto }) => {
+      const previous = { ...column("old"), nullable: false, default: "ok" };
+      serve([previous], [previous, { ...column("new"), nullable, default: defaultValue }]);
+      seed(ref(["old"]));
+      const graph = store.getState().graph!;
+      const config = {
+        code: "save(values=args)",
+        actions: { save: { type: "table.record.create", config: { table: ref(["old"]) } } },
+      };
+      store.getState().seedGraph({
+        ...graph,
+        nodes: [{ ...graph.nodes[0]!, definition_id: "code.python.actions", config }],
+      });
+      renderHook(() => useWorkflowTableDrift(true), { wrapper });
+      if (auto) {
+        await waitFor(() =>
+          expect(store.getState().graph!.nodes[0]!.config.actions).toEqual({
+            save: { type: "table.record.create", config: { table: ref(["old"], 2) } },
+          }),
+        );
+        expect(store.getState().tableDrift).toHaveLength(0);
+      } else {
+        await waitFor(() =>
+          expect(store.getState().tableDrift[0]?.field).toBe("actions/save/config/table"),
+        );
+        expect(store.getState().graph!.nodes[0]!.config).toEqual(config);
+      }
+    },
+  );
+
   it("reads a table cached from before the change again, rather than rebinding to it", async () => {
     // The step's settings read the table before a column was added: that copy
     // still names version 1, while the list already says 2.

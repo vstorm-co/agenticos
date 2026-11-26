@@ -3238,10 +3238,11 @@ class TestLoopsWithoutADatabase:
 async def test_a_successful_retry_step_with_lost_output_is_never_silently_reexecuted(repo, output):
     from app.services.workflow_execution.exceptions import InvalidBindingError
 
-    run = _run(retry_of_run_id=uuid.uuid4())
+    original_run_id = uuid.uuid4()
+    run = _run(retry_of_run_id=original_run_id)
     step = _node_run(workflow_run_id=run.id, node_instance_id=uuid.uuid4())
     original = _node_run(
-        workflow_run_id=run.retry_of_run_id,
+        workflow_run_id=original_run_id,
         node_instance_id=step.node_instance_id,
         status="succeeded",
     )
@@ -3250,7 +3251,9 @@ async def test_a_successful_retry_step_with_lost_output_is_never_silently_reexec
         node_run_id=original.id, result={"output": output}
     )
     with pytest.raises(InvalidBindingError):
-        await dispatcher._reused_output(MagicMock(), run=run, node_run=step)
+        await dispatcher._reused_output(
+            MagicMock(), run=run, original_run_id=original_run_id, node_run=step
+        )
 
 
 @pytest.mark.parametrize("cycle", [False, True])

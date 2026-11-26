@@ -6318,6 +6318,10 @@
       "flow-event-source-create": {
         "title": "Nieuwe bron maken",
         "body": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt."
+      },
+      "workflow-python-actions": {
+        "title": "Tools aanroepen vanuit Python",
+        "body": "Kies Python met acties om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam en voeg de aanroep toe via het menu onder de editor. Elke aanroep heeft eigen goedkeuringen en een eigen uitvoeringsrecord."
       }
     },
     "chooseLanguage": "Taal",
@@ -6963,7 +6967,8 @@
       "runQuestionsRetry": "Opnieuw proberen",
       "startRunSchema": "Verwacht invoerschema",
       "nameRequired": "Vul een naam in voor deze workflow.",
-      "triggerSourceCredentials": "Inloggegevens beheren bij Gebeurtenisbronnen"
+      "triggerSourceCredentials": "Inloggegevens beheren bij Gebeurtenisbronnen",
+      "runPythonCall": "Aanroep {index}: {name}"
     },
     "retention": {
       "title": "Bewaring van gegevens",
@@ -12499,9 +12504,23 @@
     },
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
-    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
+    "problemTableSchemaChanged": "Het tabelschema is gewijzigd. Controleer de kolomnamen, typen en waarden die deze stap gebruikt voordat je de tabelverwijzing bijwerkt.",
     "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt.",
-    "webhookSourceAudience": "Wie de runs van deze workflow kan bekijken, kan de gegevens zien die de gebeurtenisbron heeft geleverd. Als je de workflow later deelt, geldt dat ook voor eerdere runs. Een run bekijken geeft geen toegang tot de bron."
+    "webhookSourceAudience": "Wie de runs van deze workflow kan bekijken, kan de gegevens zien die de gebeurtenisbron heeft geleverd. Als je de workflow later deelt, geldt dat ook voor eerdere runs. Een run bekijken geeft geen toegang tot de bron.",
+    "pythonActions": "Beschikbare functies",
+    "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonActionsDiscover": "Voeg een stap Python met acties toe om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam.",
+    "pythonSelectAction": "Selecteer een actie",
+    "pythonInsertCall": "Functieaanroep invoegen",
+    "pythonInvalidName": "Gebruik een unieke Python-naam die geen sleutelwoord of ingebouwde naam is.",
+    "pythonFunctionName": "Naam van de Python-functie",
+    "pythonBindAction": "Actie koppelen",
+    "pythonActionUnavailable": "Actie niet beschikbaar",
+    "pythonRemoveAction": "{name} verwijderen",
+    "pythonToolArguments": "Schema van toolargumenten",
+    "pythonRequiredConfigArgs": "Geef {fields} bij elke aanroep op of stel hieronder een standaardwaarde in.",
+    "pythonOverrideFields": "Optioneel te overschrijven: {fields}. Laat deze argumenten weg om de ingestelde waarden te gebruiken.",
+    "pythonResultFields": "Resultaatvelden: {fields}"
   },
   "artifacts": {
     "title": "Apps",
@@ -19357,6 +19376,10 @@
       "workflow_run": {
         "name": "Een workflow uitvoeren",
         "description": "Voer een andere workflow uit als stap, en geef door wat die antwoordt."
+      },
+      "code_python_actions": {
+        "name": "Python met acties",
+        "description": "Schrijf Python-code die de aan namen gekoppelde workflowacties aanroept."
       }
     },
     "port": {
@@ -21788,6 +21811,29 @@
           "source_id": {
             "title": "Bron-ID",
             "description": "De herbruikbare gebeurtenisbron waarop deze workflow zich bij publicatie abonneert"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lees de gebonden waarden als `args`; de laatste expressie is het resultaat."
+          },
+          "timeout_seconds": {
+            "title": "Time-out in seconden"
+          },
+          "max_memory_mb": {
+            "title": "Max. geheugen in MB"
+          },
+          "actions": {
+            "title": "Acties",
+            "description": "Python-functienamen en de versies van de workflowacties die ze aanroepen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenten"
           }
         }
       }

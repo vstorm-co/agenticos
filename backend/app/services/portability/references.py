@@ -8,6 +8,7 @@ from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec
+from app.core.exceptions import BadRequestError
 from app.schemas.resource_bundle import BundlePath, BundleResourceKind
 
 _OBJECT = TypeAdapter(dict[str, JsonValue])
@@ -78,7 +79,9 @@ def _shape(
 
 
 def _kind(value: str) -> BundleResourceKind:
-    return BundleResourceKind.KNOWLEDGE_BASE if value == "collection" else BundleResourceKind(value)
+    if value == "collection":
+        return BundleResourceKind.KNOWLEDGE_BASE
+    return BundleResourceKind(value)
 
 
 def resource_pins(model: BaseModel) -> tuple[ResourcePin, ...]:
@@ -110,6 +113,37 @@ def schema_resource_pins(
         if value is None:
             return
         declaration = _shape(declaration, definitions, value)
+        if declaration.get("x-resource-unsupported") == "table_columns":
+            raise BadRequestError(
+                message="Table column selections cannot be exported; select the columns again at the destination"
+            )
+        if declaration.get("x-python-actions") is True:
+            from app.workflows.python_actions import action_definition
+
+            if not isinstance(value, dict):
+                raise TypeError("Python action bindings must be an object")
+            for alias, binding in value.items():
+                if not isinstance(binding, dict):
+                    raise TypeError("A Python binding must identify its action")
+                action_type = binding.get("type")
+                if not isinstance(action_type, str):
+                    raise TypeError("A Python binding must identify its action")
+                version = binding.get("version", 1)
+                if type(version) is not int:
+                    raise TypeError("A Python binding must identify its action version")
+                definition = action_definition(action_type, version)
+                config = _OBJECT.validate_python(binding.get("config", {}))
+                if definition.config_schema is not None:
+                    config_schema = _OBJECT.validate_python(
+                        definition.config_schema.model_json_schema()
+                    )
+                    walk(
+                        config,
+                        config_schema,
+                        _object(config_schema.get("$defs")),
+                        (*path, alias, "config"),
+                    )
+            return
         if declaration.get("x-agent-spec") is True:
             value = _OBJECT.validate_python(AgentSpec.model_validate(value).model_dump(mode="json"))
             declaration = _OBJECT.validate_python(AgentSpec.model_json_schema())
@@ -127,6 +161,13 @@ def schema_resource_pins(
                         "A versioned resource reference must identify its owning resource"
                     )
                 parent_id = UUID(parent_value)
+            if resource == "table_version":
+                if type(value) is not int or parent_id is None or value < 1:
+                    raise ValueError("A table version requires its table and a positive number")
+                found.append(
+                    ResourcePin(path, BundleResourceKind.TABLE, parent_id, source_number=value)
+                )
+                return
             values: list[tuple[str | int | None, JsonValue]]
             if isinstance(value, list):
                 values = list(enumerate(value))

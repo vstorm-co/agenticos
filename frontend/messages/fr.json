@@ -6202,6 +6202,10 @@
       "flow-event-source-create": {
         "title": "Créer une source",
         "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+      },
+      "workflow-python-actions": {
+        "title": "Appeler des outils depuis Python",
+        "body": "Choisissez Python avec actions pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances. Donnez un nom de fonction à chaque action, puis insérez son appel dans le script avec le menu sous l’éditeur. Chaque appel a ses propres approbations et son propre historique d’exécution."
       }
     },
     "chooseLanguage": "Langue",
@@ -6847,7 +6851,8 @@
       "runQuestionsRetry": "Réessayer",
       "startRunSchema": "Schéma d’entrée attendu",
       "nameRequired": "Saisissez un nom pour ce workflow.",
-      "triggerSourceCredentials": "Gérer les identifiants dans Sources d’événements"
+      "triggerSourceCredentials": "Gérer les identifiants dans Sources d’événements",
+      "runPythonCall": "Appel {index} : {name}"
     },
     "retention": {
       "title": "Conservation des données",
@@ -12262,9 +12267,23 @@
     },
     "stepEditorView": "Vue de l’étape",
     "stepEditorSettings": "Réglages de l’étape",
-    "problemTableSchemaChanged": "Cette table a changé depuis la configuration de l’étape : une colonne qu’elle lit a été supprimée ou a changé de type. Mettez-la à jour vers le schéma actuel et vérifiez ce qui lit cette étape.",
+    "problemTableSchemaChanged": "Le schéma de la table a changé. Vérifiez les noms de colonnes, les types et les valeurs utilisés par cette étape avant de mettre à jour sa référence à la table.",
     "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table.",
-    "webhookSourceAudience": "Toute personne autorisée à consulter les runs de ce workflow peut voir les données reçues de la source d’événements. Cela inclut les runs passés si vous partagez le workflow par la suite. Consulter un run ne donne pas accès à la source."
+    "webhookSourceAudience": "Toute personne autorisée à consulter les runs de ce workflow peut voir les données reçues de la source d’événements. Cela inclut les runs passés si vous partagez le workflow par la suite. Consulter un run ne donne pas accès à la source.",
+    "pythonActions": "Fonctions disponibles",
+    "pythonActionsHint": "Associez une action une seule fois, puis appelez sa fonction dans le script avec des arguments nommés.",
+    "pythonActionsDiscover": "Pour appeler des outils MCP, utiliser des tables ou rechercher dans les connaissances, ajoutez une étape Python avec actions et donnez un nom de fonction à chaque action.",
+    "pythonSelectAction": "Sélectionner une action",
+    "pythonInsertCall": "Insérer un appel de fonction",
+    "pythonInvalidName": "Utilisez un identifiant Python unique, différent des mots-clés et des noms prédéfinis.",
+    "pythonFunctionName": "Nom de la fonction Python",
+    "pythonBindAction": "Associer l’action",
+    "pythonActionUnavailable": "Action indisponible",
+    "pythonRemoveAction": "Supprimer {name}",
+    "pythonToolArguments": "Schéma des arguments de l’outil",
+    "pythonRequiredConfigArgs": "Fournissez {fields} à chaque appel ou définissez une valeur par défaut ci-dessous.",
+    "pythonOverrideFields": "Valeurs modifiables : {fields}. Omettez ces arguments pour utiliser les valeurs configurées.",
+    "pythonResultFields": "Champs du résultat : {fields}"
   },
   "artifacts": {
     "title": "Apps",
@@ -18905,6 +18924,10 @@
       "workflow_run": {
         "name": "Exécuter un workflow",
         "description": "Exécute un autre workflow comme étape, et transmet ce qu’il répond."
+      },
+      "code_python_actions": {
+        "name": "Python avec actions",
+        "description": "Écrivez du code Python qui appelle les actions du workflow associées à des noms."
       }
     },
     "port": {
@@ -21336,6 +21359,29 @@
           "source_id": {
             "title": "Identifiant de la source",
             "description": "Source d’événements réutilisable à laquelle le workflow s’abonne à sa publication."
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lisez les valeurs liées dans `args` ; la dernière expression est le résultat."
+          },
+          "timeout_seconds": {
+            "title": "Délai en secondes"
+          },
+          "max_memory_mb": {
+            "title": "Mémoire max. (Mo)"
+          },
+          "actions": {
+            "title": "Actions",
+            "description": "Noms des fonctions Python et versions des actions du workflow qu’elles appellent."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
           }
         }
       }

@@ -1,5 +1,5 @@
 ---
-source_sha: "2a33d37bc63b"
+source_sha: "5ea453f1d3f8"
 ---
 
 # Workflows { #workflows }
@@ -913,11 +913,9 @@ podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflo
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
 tego przebiegu. Wiersze, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
 
-**Retry from failed step** uruchamia nowy przebieg tej samej wersji
-z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
-przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł, a
-zapis nigdy nie powtarza się dwa razy. Pętla działa ponownie i używa kroków
-każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
+**Retry from failed step** rozpoczyna nowy przebieg tej samej wersji z tym samym wejściem. Wykorzystuje wyniki zakończonych kroków i wywołań bloku Pythona, nie powtarzając ich zapisów. Pętla działa ponownie i wykorzystuje zakończone pomyślnie kroki każdego elementu. Krok Resume link generuje nowy adres: adres poprzedniego przebiegu nie może wznowić nowego.
+
+**Debug in editor** przypina do kroków wersji
 roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 /api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
@@ -1496,3 +1494,5 @@ W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szk
 Pakiety zasobów obsługują też workflow jako zasób główny przez `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` i endpointy bundle-import. Wybierz definicje do skopiowania, ponownego użycia lub pominięcia. Import tworzy prywatne, nieopublikowane szkice bez aktywacji wyzwalaczy. Powiązania przesłanych plików i przypięte wyniki uruchomień nie są przenoszone. Wynik importu podaje ścieżki pominiętych powiązań; publikacja nadal sprawdza brakujące zasoby. Delegaci wymagają jawnego wyboru istniejącej opublikowanej wersji należącej do wskazanego agenta. Workflow obsługi błędów musi wskazywać dostępną opublikowaną obsługę awarii; szkice nigdy nie są automatycznie publikowane. Cykle tworzenia zależności wymagają ponownego użycia istniejącego zasobu lub pominięcia powiązania.
 
 Powiązania wybranych kolumn tabel są pomijane do ręcznego wyboru na miejscu; powiązania całej tabeli używają wersji schematu docelowego.
+
+Powiązania akcji Pythona korzystają ze schematu zasobów wybranej akcji. Ponowne użycie zasobu docelowego zmienia razem ID tabeli i wersję schematu. Pominięcie zależności akcji usuwa całe jej powiązanie; przed publikacją sprawdź kod Pythona. Eksport z wyborem konkretnych kolumn tabeli jest odrzucany: wyczyść wybór przed eksportem i wybierz kolumny ponownie w miejscu docelowym.

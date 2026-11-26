@@ -10,11 +10,13 @@ import base64
 import socket
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx2
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.pinned_http import PinnedAsyncClient
@@ -24,13 +26,30 @@ from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunStatus
+from app.db.models.workflow_run import (
+    DispatchOutbox,
+    NodeAttempt,
+    NodeRun,
+    WorkflowRun,
+    WorkflowRunStatus,
+)
+from app.repositories import workflow_run as run_repo
+from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
+from app.workflows.contracts.policy import NodePolicy, RetryPolicy
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.http_request import _handler as http_handler
-from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    begin,
+    drive,
+    seed_member,
+    seed_run,
+    tick,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -126,6 +145,224 @@ def _graph(http_config: dict[str, Any], *, body: Any = None) -> tuple[WorkflowGr
         bindings=tuple(bindings),
     )
     return graph, call
+
+
+@pytest.mark.parametrize(
+    ("method", "outcomes", "can_retry"),
+    [
+        ("GET", ["503"], True),
+        ("POST", ["503"], False),
+        ("POST", ["connect"], True),
+        ("POST", ["pool"], True),
+        ("POST", ["connect", "connect"], True),
+        ("POST", ["503", "connect"], False),
+    ],
+)
+async def test_script_retry_checks_every_attempt_before_sending_a_write_under_a_new_key(
+    engine: AsyncEngine,
+    network,
+    method: str,
+    outcomes: list[str],
+    can_retry: bool,
+):
+    config = {
+        "url": "https://api.example.com/orders",
+        "method": method,
+        "idempotency_key_header": "Idempotency-Key",
+    }
+    if outcomes in (["connect"], ["pool"]):
+        # No deduplication support at all: the first-hop no-send proof suffices.
+        config.pop("idempotency_key_header")
+    sequence = iter(outcomes)
+
+    def original_response(_request: httpx2.Request) -> httpx2.Response:
+        outcome = next(sequence)
+        if outcome == "pool":
+            raise httpx2.PoolTimeout("no connection was available")
+        if outcome == "connect":
+            raise httpx2.ConnectError("connection refused")
+        return httpx2.Response(503)
+
+    wire = network(original_response)
+    native_graph, native = _graph(config)
+    step = native.model_copy(
+        update={
+            "definition_id": "code.python.actions",
+            "config": {
+                "actions": {"orders": {"type": "http.request", "config": config}},
+                "code": "orders()['body']",
+            },
+            "policy": NodePolicy(
+                retry=RetryPolicy(max_attempts=len(outcomes), base_delay_seconds=0.000001)
+            ),
+        }
+    )
+    graph = native_graph.model_copy(
+        update={"nodes": tuple(step if n.id == step.id else n for n in native_graph.nodes)}
+    )
+    seeded = await seed_run(engine, graph)
+    original = await drive(seeded)
+    assert original.status == WorkflowRunStatus.FAILED.value
+    assert original.error["code"] == (
+        "HTTP_UNREACHABLE" if outcomes[-1] in ("connect", "pool") else "HTTP_ERROR_STATUS"
+    )
+    assert original.error["retryable"] is True
+    assert [request.method for request in wire.sent] == [method] * len(outcomes)
+
+    network(lambda req: httpx2.Response(200, json={"ok": True}))
+    async with seeded.factory() as db:
+        retry = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+        await db.commit()
+        row = await db.get(WorkflowRun, retry.id)
+        assert row is not None
+    finished = await drive(replace(seeded, run=row))
+    if can_retry:
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value
+        assert finished.output["structured"]["result"] == {"ok": True}
+        assert len(wire.sent) == len(outcomes) + 1
+    else:
+        assert finished.status == WorkflowRunStatus.FAILED.value
+        assert finished.error["code"] == "SCRIPT_ACTION_RETRY_UNSAFE"
+        assert len(wire.sent) == len(outcomes)
+
+
+@pytest.mark.parametrize("cancel_replay", [False, True], ids=["orphaned", "cancelled"])
+async def test_orphaned_replay_delivers_the_saved_post_result_without_posting_again(
+    engine: AsyncEngine,
+    network,
+    cancel_replay: bool,
+):
+    probe = {"url": "https://api.example.com/orders/ready"}
+    post = {"url": "https://api.example.com/orders", "method": "POST"}
+    entry, out = _node("core.input"), _node("core.output")
+    script = _node(
+        "code.python.actions",
+        {
+            "code": "created = create_order()['body']\nready()\ncreated",
+            "actions": {
+                "create_order": {"type": "http.request", "config": post},
+                "ready": {"type": "http.request", "config": probe},
+            },
+        },
+    ).model_copy(
+        update={
+            "policy": NodePolicy(retry=RetryPolicy(max_attempts=3, base_delay_seconds=0.000001))
+        }
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, script, out),
+        edges=(_edge(entry, script), _edge(script, out)),
+        bindings=(
+            Binding(
+                target_node_id=out.id,
+                target_field="structured",
+                source=NodeOutputRef(node_id=script.id, port="out"),
+            ),
+        ),
+    )
+    wire = network(
+        lambda req: (
+            httpx2.Response(201, json={"id": 42}) if req.method == "POST" else httpx2.Response(404)
+        )
+    )
+    seeded = await seed_run(engine, graph)
+    original = await drive(seeded)
+    assert original.status == "failed" and original.error["code"] == "HTTP_ERROR_STATUS"
+
+    async with seeded.factory() as db:
+        original_write = await run_repo.script_call_at(
+            db, workflow_run_id=original.id, node_instance_id=script.id, parent_scope=[], index=0
+        )
+        first_attempt = await run_repo.get_latest_attempt(db, node_run_id=original_write.id)
+        assert first_attempt.retry_guarantee == "at_least_once"
+        retry = await WorkflowExecutionService(db).retry(seeded.ctx, original.id)
+        await db.commit()
+        retried = replace(seeded, run=await db.get(WorkflowRun, retry.id))
+
+    # Advance just to the restored POST receipt, then let its worker disappear
+    # after returning that receipt locally but before committing its outcome.
+    for node in (entry, script):
+        async with seeded.factory() as db:
+            step = await run_repo.get_node_run_by_identity(
+                db, workflow_run_id=retry.id, node_instance_id=node.id, scope_path=[]
+            )
+        await tick(retried, step.id)
+    async with seeded.factory() as db:
+        child = await run_repo.script_call_at(
+            db, workflow_run_id=retry.id, node_instance_id=script.id, parent_scope=[], index=0
+        )
+    begun, _ = await begin(retried, child.id)
+    assert begun.stands_in == "reused"
+    async with seeded.factory() as db:
+        if cancel_replay:
+            service = WorkflowExecutionService(db)
+            await service.cancel(seeded.ctx, retry.id)
+            await db.commit()
+            next_retry = await service.retry(seeded.ctx, retry.id)
+            await db.commit()
+            retried = replace(seeded, run=await db.get(WorkflowRun, next_retry.id))
+        else:
+            await db.execute(
+                update(DispatchOutbox)
+                .where(DispatchOutbox.node_run_id == child.id)
+                .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await db.commit()
+            assert await WorkflowReconcilerService(db).resolve_orphaned_attempts() == 1
+            await db.commit()
+    network(lambda _req: httpx2.Response(200))
+    finished = await drive(retried)
+    assert finished.status == "succeeded", finished.status
+    assert finished.output["structured"]["result"] == {"id": 42}
+    assert [req.method for req in wire.sent] == ["POST", "GET", "GET"]
+
+
+@pytest.mark.parametrize("first_response", ["redirect", "next_page"])
+async def test_a_later_connection_failure_is_not_proof_that_nothing_was_sent(
+    engine: AsyncEngine,
+    network,
+    first_response: str,
+):
+    second = "https://next.example.com/next"
+    config = {"url": "https://api.example.com/orders"}
+    if first_response == "next_page":
+        config["pagination"] = {"mode": "next_url", "items_path": "items", "next_path": "next"}
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        if request.headers["Host"] == "next.example.com":
+            raise httpx2.ConnectTimeout("second destination not reached")
+        if first_response == "redirect":
+            return httpx2.Response(302, headers={"Location": second})
+        return httpx2.Response(200, json={"items": [1], "next": second})
+
+    wire = network(respond)
+    graph, call = _graph(config)
+    graph = graph.model_copy(
+        update={
+            "nodes": tuple(
+                node.model_copy(update={"policy": NodePolicy(retry=RetryPolicy(max_attempts=1))})
+                if node.id == call.id
+                else node
+                for node in graph.nodes
+            )
+        }
+    )
+    seeded = await seed_run(engine, graph)
+    failed_run = await drive(seeded)
+    assert failed_run.status == WorkflowRunStatus.FAILED.value
+    assert failed_run.error["code"] == "HTTP_UNREACHABLE"
+    assert len(wire.sent) == 2
+    async with seeded.factory() as db:
+        record = await db.scalar(
+            select(NodeAttempt.result)
+            .join(NodeRun)
+            .where(
+                NodeRun.workflow_run_id == seeded.run.id,
+                NodeRun.node_instance_id == call.id,
+            )
+        )
+        assert record["status"] == "failed" and "effect_not_started" not in record
 
 
 async def _secret(

@@ -884,10 +884,9 @@ linked. **Runs** on the workflows list shows every workflow's runs together. On 
 run's page, clicking a step shows its **Input** and **Output** from that run. The lines a step's
 [quick log](#quick-log) wrote show under the step.
 
-**Retry from failed step** starts a new run of the same version and input in which
-each step that succeeded hands on what it handed on before, so only the failed
-step and what it did not reach run, and a write is never made twice. A loop runs
-again and reuses each item's steps that had succeeded. **Debug in editor** pins
+**Retry from failed step** starts a new run with the same version and input. It reuses completed steps and the completed calls of a Python block, so it need not repeat their writes. Loops run again and reuse successful steps for each item. A Resume link is generated anew: an old run's link cannot wake this run.
+
+**Debug in editor** pins
 what each step outside a loop handed on in that run onto the draft's steps, so a
 test run starts from where that run was. Over the API, `POST
 /api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes
@@ -1458,3 +1457,5 @@ The Await reply creation dialog can also enable **Prepare a follow-up draft afte
 Selectable resource bundles also support workflow roots through `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` and the bundle-import endpoints. Choose which linked definitions to copy, reuse or skip. Imported workflows are private, unpublished drafts; triggers are never activated. Uploaded-file bindings and pinned run output do not travel. The import result lists omitted binding paths, and publication still checks missing resources. Delegates require an explicitly selected existing published version belonging to the mapped agent. Error workflows must resolve to an accessible published failure handler; imported drafts are never automatically published to satisfy that requirement. Dependency creation cycles require explicit reuse or skipping a binding.
 
 Table bindings with selected columns are omitted for manual selection at the destination; whole-table bindings use the destination schema version.
+
+Python action bindings use each bound action’s resource schema. Reusing a destination remaps table IDs and schema versions together. Omitting an action dependency removes its entire binding; review the Python code before publishing. Exports with column-specific table selections are rejected: clear the selection before exporting, then choose the destination columns again.

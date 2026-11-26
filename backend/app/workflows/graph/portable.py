@@ -31,6 +31,7 @@ from app.core.exceptions import BadRequestError
 from app.workflows import _registry
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.python_actions import action_definition
 
 
 class _Omitted:
@@ -82,6 +83,13 @@ def _strip(
         return _MISSING
     if resolved.get("x-agent-spec") is True and isinstance(value, dict):
         return _without_ids(value, path, found)
+    if resolved.get("x-python-actions") is True:
+        if not isinstance(value, dict):
+            raise GraphValidationError([(path, "Python action bindings must be an object")])
+        return {
+            alias: _portable_action(binding, f"{path}.{alias}", found)
+            for alias, binding in value.items()
+        }
     if isinstance(value, dict):
         properties = resolved.get("properties", {})
         kept: dict[str, Any] = {}
@@ -100,6 +108,26 @@ def _strip(
             if (stripped := _strip(item, items, defs, f"{path}.{index}", found)) is not _MISSING
         ]
     return value
+
+
+def _portable_action(
+    binding: object, path: str, found: list[tuple[str, str]]
+) -> dict[str, JsonValue]:
+    """Use the bound action's real schema, even on a partially configured draft."""
+    if not isinstance(binding, dict) or not isinstance(binding.get("type"), str):
+        raise GraphValidationError([(path, "Choose a workflow action before exporting")])
+    version = binding.get("version", 1)
+    if type(version) is not int:
+        raise GraphValidationError([(path, "Expected a workflow action version number")])
+    try:
+        definition = action_definition(binding["type"], version)
+    except ValueError as exc:
+        raise GraphValidationError([(path, str(exc))]) from exc
+    schema = definition.config_schema.model_json_schema() if definition.config_schema else {}
+    config = _strip(
+        binding.get("config", {}), schema, schema.get("$defs", {}), f"{path}.config", found
+    )
+    return {"type": definition.id, "version": version, "config": config}
 
 
 def _without_ids(value: JsonValue, path: str, found: list[tuple[str, str]]) -> JsonValue:

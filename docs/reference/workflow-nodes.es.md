@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "1b7c73e09d28"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1176,6 +1176,8 @@ modo que quien responda pueda seguir con la ejecución. Cada ejecución tiene la
 hecha con su id bajo el secreto del despliegue y no mostrada a nadie más: tenerla es lo
 que permite reanudar la ejecución, así que se envía solo adonde debe llegar la respuesta.
 
+Un reintento inicia otra ejecución. El paso de enlace de reanudación genera un enlace para la nueva ejecución, incluso cuando se llama desde Python. Esto no redirige el enlace anterior ni reenvía un mensaje que ya lo haya entregado.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Gestión de errores { #error-handling }
@@ -1408,7 +1410,37 @@ Las salidas del sandbox también se limitan durante su descarga en streaming. Un
 
 ## Python { #python }
 
-Dos nodos ejecutan Python, para dos tipos de trabajo.
+**Python con acciones** (`code.python.actions`) ejecuta tu script sin un modelo. Vincula cada acción una vez con un nombre de Python y configura sus recursos. Pasa los campos de entrada como argumentos con nombre; la función devuelve el mismo objeto de salida que el paso del lienzo. También puedes pasar los campos que la acción permite vincular, como un nombre de archivo o una URL. Puedes dejar sin configurar un campo vinculable obligatorio, como la URL HTTP, y pasarlo en cada llamada. Las credenciales y los permisos no cambian.
+
+Por ejemplo, si vinculas la comparación de textos como `compare`, la expresión `compare(a=args["expected"], b=args["actual"])["score"]` pasa solo la puntuación de similitud al siguiente paso como `result`.
+
+Para llamar a una herramienta MCP, selecciona una vez la conexión y la herramienta. Si la función se llama `lookup`, usa `lookup(arguments={"hostname": "leaf-01"})` y lee el campo `structured` o `text`. Si falla una acción, se aplica la política de errores del paso de Python, no una cláusula `except` del script. Usa un resultado, como la decisión de aprobación, para las bifurcaciones previstas.
+
+Las llamadas se ejecutan en orden, hasta 100 por script. El intérprete guarda su posición antes de cada llamada (hasta 512 KiB de estado). La aprobación se aplica solo a esa llamada. Si no se conoce el resultado de una escritura, se aplican las reglas de recuperación de la acción. Al reintentar una ejecución fallida, se reutilizan las llamadas completadas con los mismos argumentos, sin repetir automáticamente una escritura no confirmada. Los disparadores, las bifurcaciones y los dos pasos de finalización permanecen en el lienzo.
+
+Reutilizar un resultado guardado no reserva presupuesto. Si la misma acción pura o petición HTTP GET recibe argumentos distintos al reintentar, se ejecuta de nuevo con los nuevos valores. Una escritura fallida puede volver a ejecutarse si todos los intentos anteriores registraron que se detuvieron antes del envío. No se repite automáticamente si se agotó el tiempo de espera después del envío o si falta esa prueba en un intento anterior.
+
+El tiempo límite abarca toda la ejecución de Python a lo largo de todos los segmentos del script. La espera de una acción, una aprobación o una respuesta no cuenta. El límite de memoria restringe la memoria dinámica del intérprete mientras se ejecuta.
+
+Un paso **Python con acciones** en pausa solo puede reanudarse con la versión de Monty que guardó su estado. Antes de desplegar una versión que cambie la versión fijada de `pydantic-monty`, deja que los scripts en pausa terminen con la versión anterior. Si un script sigue en pausa al hacer el cambio, falla con `PYTHON_CHECKPOINT_INVALID`. En la ejecución, usa la opción para reintentar desde el paso fallido.
+
+| Qué ocurrió | Resultado |
+|---|---|
+| Una llamada usa una función no vinculada o un método de un objeto | `PYTHON_ACTION_UNKNOWN` |
+| Una llamada usa argumentos posicionales o valores que no son JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Los argumentos por nombre no coinciden con la acción vinculada | `INVALID_BINDING` |
+| El script espera varias llamadas a la vez | `PYTHON_ACTION_ASYNC` |
+| El script hace una llamada número 101 | `PYTHON_ACTION_LIMIT` |
+| Los argumentos de la llamada superan el límite de bytes de los datos en línea | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| El estado del intérprete en una llamada supera los 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| El intérprete no puede restaurar un estado guardado | `PYTHON_CHECKPOINT_INVALID`, nunca se omite |
+| Una acción vinculada o sus recursos ya no están disponibles para la ejecución | `SCRIPT_ACTION_UNAVAILABLE`, la ejecución termina |
+| Un reintento no puede demostrar que no se envió una escritura anterior | `SCRIPT_ACTION_RETRY_UNSAFE`, la ejecución termina |
+| El script agota su límite de tiempo o de memoria de Python | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los

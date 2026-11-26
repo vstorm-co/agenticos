@@ -1,5 +1,5 @@
 ---
-source_sha: "2a33d37bc63b"
+source_sha: "5ea453f1d3f8"
 ---
 
 # Workflows { #workflows }
@@ -991,12 +991,9 @@ aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
 Schritt dessen **Input** und **Output** aus diesem Lauf. Die Zeilen, die das
 [schnelle Log](#quick-log) eines Schritts geschrieben hat, stehen unter dem Schritt.
 
-**Retry from failed step**
-startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
-erfolgreiche Schritt weitergibt, was er zuvor weitergegeben hat. So laufen nur der
-fehlgeschlagene Schritt und was er nicht erreicht hat, und ein Schreibzugriff
-geschieht nie zweimal. Eine Schleife läuft erneut und verwendet die erfolgreichen
-Schritte jedes Elements wieder. **Debug in editor** heftet an die Schritte des
+**Retry from failed step** startet einen neuen Lauf mit derselben Version und Eingabe. Er übernimmt die Ergebnisse abgeschlossener Schritte und der abgeschlossenen Aufrufe eines Python-Blocks, ohne deren Schreibvorgänge zu wiederholen. Schleifen laufen erneut und verwenden die erfolgreichen Schritte jedes Elements wieder. Ein Resume link wird neu erzeugt: Der Link des alten Laufs kann den neuen Lauf nicht fortsetzen.
+
+**Debug in editor** heftet an die Schritte des
 Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeben
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
 /api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,
@@ -1614,3 +1611,5 @@ Im Dialog für das Warten auf eine Antwort kannst du auch einen Follow-up-Entwur
 Auswählbare Ressourcenpakete unterstützen auch Workflow-Wurzeln über `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` und die Bundle-Import-Endpunkte. Verknüpfte Definitionen lassen sich kopieren, wiederverwenden oder auslassen. Der Import erstellt private, unveröffentlichte Entwürfe ohne aktive Trigger. Bindungen hochgeladener Dateien und angeheftete Laufergebnisse werden nicht übertragen. Das Ergebnis nennt ausgelassene Bindungspfade; die Veröffentlichung prüft fehlende Ressourcen weiterhin. Delegierte benötigen eine ausdrücklich ausgewählte veröffentlichte Version des zugeordneten Agenten. Fehler-Workflows müssen auf einen zugänglichen veröffentlichten Fehlerhandler verweisen; Entwürfe werden dafür niemals automatisch veröffentlicht. Erstellungszyklen erfordern Wiederverwendung oder das Auslassen einer Bindung.
 
 Tabellenbindungen mit ausgewählten Spalten werden zur manuellen Auswahl am Ziel ausgelassen; Bindungen ganzer Tabellen verwenden die Schema-Version des Ziels.
+
+Python-Aktionsbindungen verwenden das Ressourcenschema der jeweiligen Aktion. Bei Wiederverwendung eines Ziels werden Tabellen-ID und Schemaversion gemeinsam ersetzt. Wird eine Aktionsabhängigkeit ausgelassen, entfällt ihre gesamte Bindung; prüfen Sie den Python-Code vor der Veröffentlichung. Exporte mit einer Auswahl bestimmter Tabellenspalten werden abgelehnt: entfernen Sie die Auswahl vor dem Export und wählen Sie die Zielspalten erneut.

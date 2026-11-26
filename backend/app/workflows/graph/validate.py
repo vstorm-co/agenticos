@@ -111,6 +111,7 @@ from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, Workflo
 from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
 from app.workflows.nodes.control_foreach._handler import DONE_PORT
+from app.workflows.python_actions import PYTHON_ACTIONS
 from app.workflows.triggers import UNATTENDED, WEBHOOK, answers_webhook, entry_graph, entry_nodes
 
 Problems = list[tuple[str, str]]
@@ -135,7 +136,13 @@ def graph_size_problems(graph: WorkflowGraph) -> Problems:
     persisted, not only here at publish.
     """
     problems: Problems = []
-    if len(graph.nodes) > settings.WORKFLOW_GRAPH_MAX_NODES:
+    action_count = sum(
+        len(actions)
+        for node in graph.nodes
+        if node.definition_id == PYTHON_ACTIONS
+        and isinstance(actions := node.config.get("actions"), dict)
+    )
+    if len(graph.nodes) + action_count > settings.WORKFLOW_GRAPH_MAX_NODES:
         problems.append(
             ("nodes", f"A graph holds at most {settings.WORKFLOW_GRAPH_MAX_NODES} nodes")
         )
@@ -990,7 +997,18 @@ def _binding_target_field_problems(graph: WorkflowGraph, definitions: Definition
         target_definition = definitions.get(binding.target_node_id)
         if target_definition is None:
             continue
-        if _field_type(target_definition, binding.target_field) is _UNKNOWN:
+        if (
+            target_definition.id == PYTHON_ACTIONS
+            and target_path(binding.target_field)[0] != "args"
+        ):
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "A Python actions step binds data through args only; "
+                    "its code and actions are fixed in the workflow version",
+                )
+            )
+        elif _field_type(target_definition, binding.target_field) is _UNKNOWN:
             problems.append((f"bindings.{index}", "This field does not exist on the target node"))
     return problems
 

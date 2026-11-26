@@ -97,12 +97,29 @@ def _workflow_pins(content: WorkflowContent) -> tuple[ResourcePin, ...]:
 
 def workflow_omissions(content: WorkflowContent) -> dict[BundlePath, BundlePath]:
     """Required resource IDs remove their containing binding, never a dangling ID."""
+    from app.workflows.python_actions import PYTHON_ACTIONS
+
+    node_types: dict[str | int, str] = (
+        {}
+        if content.graph is None
+        else {index: node.definition_id for index, node in enumerate(content.graph.nodes)}
+    )
     omitted: dict[BundlePath, BundlePath] = {}
     for pin in workflow_pins(content):
         path = pin.path
         if path[:2] == ("graph", "bindings"):
             omitted[path] = path[:3]
         elif path[:2] == ("graph", "nodes"):
+            if (
+                len(path) >= 7
+                and path[4] == "actions"
+                and node_types.get(path[2]) == PYTHON_ACTIONS
+            ):
+                omitted[path] = path[:6]
+                continue
+            if len(path) >= 6 and path[4] == "table":
+                omitted[path] = path[:5]
+                continue
             # Config resource fields are removed individually; publish validation
             # reports missing required fields while retaining the node and its wires.
             if len(path) >= 6 and path[4] == "agent" and path[5] in ("agent_id", "version_id"):
