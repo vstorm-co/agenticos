@@ -17,6 +17,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -40,6 +41,7 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.db.models.skill import Skill
 from app.db.models.user import User
 from app.repositories import dataset_repo, project_repo
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
@@ -1963,3 +1965,47 @@ async def test_a_visible_dataset_names_the_missing_permission_but_an_outsider_le
     with pytest.raises(NotFoundError) as missing:
         await service.get(await _owner(db), dataset.id, perm=Perm.DATASETS_EDIT)
     assert missing.value.details is None
+
+
+async def _test_set(db, ctx: AuthContext) -> Dataset:
+    """A skill's own test questions: a dataset bound to a skill, every question held out."""
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name=f"refunds-{uuid.uuid4().hex[:6]}",
+        description="Refunds",
+    )
+    db.add(skill)
+    await db.flush()
+    created = await DatasetService(db).create(ctx, DatasetCreate(name=f"set-{skill.name}"))
+    dataset = await db.get(Dataset, created.id)
+    assert dataset is not None
+    dataset.skill_id = skill.id
+    dataset.improvement_holdout_share = Decimal(1)
+    await db.flush()
+    return dataset
+
+
+@pytest.mark.security
+async def test_a_skills_test_set_keeps_every_question_held_out(db) -> None:
+    """A skill check asks only held-out questions: a share below one on a skill's set
+    would add questions no check ever asks."""
+    ctx = await _owner(db)
+    dataset = await _test_set(db, ctx)
+    service = DatasetService(db)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.update(
+            ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.2"))
+        )
+    await service.update(ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal(1)))
+    dataset.improvement_holdout_share = Decimal(0)
+    await db.flush()
+    added = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Can I return shoes?", reference_answer="Yes")
+    )
+    stored = await db.scalar(select(DatasetCase).where(DatasetCase.case_id == added.case_id))
+
+    assert refused.value.details["fields"][0]["field"] == "improvement_holdout_share"
+    assert stored is not None and stored.improvement_partition == "holdout"

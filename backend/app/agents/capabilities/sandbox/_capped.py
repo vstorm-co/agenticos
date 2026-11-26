@@ -14,6 +14,7 @@ file that was never kept. Refusing at the call site gives the model an error it
 can read and act on: the console tools report an `OSError` as the call's error.
 """
 
+import base64
 import errno
 import json
 from collections.abc import Iterable
@@ -97,6 +98,14 @@ class CappedStateBackend(StateBackend):
         files_before = dict(self.files)
         directories_before = set(self.directories)
         super().write_bytes(path, data)
+        if b"\x00" in data:
+            # PostgreSQL JSONB cannot store NUL even when the bytes are valid
+            # UTF-8. Preserve the SDK's timestamps and canonical path; only its
+            # newly bound entry needs the binary storage representation.
+            for stored_path, entry in self.files.items():
+                if files_before.get(stored_path) is not entry:
+                    entry["content"] = [base64.b64encode(data).decode("ascii")]
+                    entry["encoding"] = "base64"
         size = self.stored_size()
         if size <= self._max_bytes:
             return

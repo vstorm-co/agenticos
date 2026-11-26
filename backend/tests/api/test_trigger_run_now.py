@@ -112,6 +112,41 @@ async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
     assert service.set_source_consents.await_args.args[3].review_token == "b" * 64
 
 
+async def test_routine_tool_settings_keep_the_path_and_refuse_a_release():
+    from app.schemas.routine_tools import RoutineCapabilityToolOption, RoutineToolOptions
+
+    trigger_id = uuid4()
+    options = RoutineToolOptions(
+        items=[
+            RoutineCapabilityToolOption(
+                capability_id="sandbox",
+                capability_name="Sandbox",
+                tool_id="execute",
+                name="execute",
+                effect=True,
+                agent="free",
+                setting="off",
+            )
+        ]
+    )
+    service = MagicMock(
+        tool_options=AsyncMock(return_value=options),
+        set_tool_settings=AsyncMock(return_value=options),
+    )
+    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/tools"
+    off = {"capability_id": "sandbox", "tool_id": "execute", "setting": "off"}
+    async with _client(service) as client:
+        listed = await client.get(root)
+        saved = await client.put(root, json={"settings": [off]})
+        released = await client.put(root, json={"settings": [{**off, "setting": "free"}]})
+    assert listed.json()["items"][0]["setting"] == "off"
+    assert saved.status_code == 200
+    assert service.set_tool_settings.await_args.args[1:3] == (_AGENT_ID, trigger_id)
+    assert service.set_tool_settings.await_args.args[3].settings[0].setting == "off"
+    # A routine can only narrow: there is no value that runs a tool freely.
+    assert released.status_code == 422
+
+
 async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     from app.schemas.agent_trigger import TriggerAttemptList, TriggerAttemptRead
 

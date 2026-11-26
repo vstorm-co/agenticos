@@ -15,6 +15,7 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID, uuid5
 
@@ -62,6 +63,12 @@ class RevertCodingTask(Payload):
     user_id: UUID
     claim_id: UUID
     api_key_id: UUID | None = None
+
+
+class PortableTransferPayload(Payload):
+    operation_id: UUID
+    organization_id: UUID
+    revision: int = Field(ge=1)
 
 
 class MoveProjectWorkspacePayload(Payload):
@@ -229,11 +236,20 @@ class DialPhone(Payload):
     call_id: UUID
 
 
+class DispatchSourceEvent(Payload):
+    organization_id: UUID
+    dispatch_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
+    # Older workers reject unknown keys, even JSON null.
+    event_source_id: UUID | None = Field(
+        default=None, exclude_if=lambda source_id: source_id is None
+    )
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
@@ -260,8 +276,15 @@ class RunAgent(Payload):
     conversation_id: UUID
     environment_id: UUID | None
     file_ids: list[UUID]
+    project_execution_target: Literal["agent", "project"] | None = Field(
+        default=None, exclude_if=lambda target: target is None
+    )
     digest: str
     """The request's fingerprint: an idempotent retry must send the same one."""
+    execution_token: UUID | None = Field(default=None, exclude_if=lambda token: token is None)
+    """Transient claim metadata, never stored: a worker may steer only its own live attempt."""
+    steer_target: UUID | None = Field(default=None, exclude_if=lambda target: target is None)
+    """The compatible attempt running when this message arrived. Otherwise a normal turn."""
 
 
 class AdvanceImprovement(Payload):
@@ -346,6 +369,8 @@ class ClassifyGaps(Payload):
 
 class DraftTopic(Payload):
     """One knowledge gap topic drafted, as the person - or through the key - that asked."""
+
+    quoted_usd: Decimal | None = Field(default=None, ge=0)
 
     organization_id: UUID
     topic_id: UUID
@@ -583,6 +608,14 @@ SYNC_SOURCE = Task(
 WAKE_TASK = Task(
     kind="wake-task",
     payload_type=WakeTask,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
+DISPATCH_SOURCE_EVENT = Task(
+    kind="dispatch-source-event",
+    payload_type=DispatchSourceEvent,
     pool=Pool.SYSTEM,
     max_attempts=3,
     timeout=timedelta(seconds=60),
@@ -913,6 +946,7 @@ WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minu
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
+SOURCE_DELIVERY_RETENTION = _sweep("source-delivery-retention", timeout=timedelta(minutes=10))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
@@ -945,6 +979,25 @@ REVERT_CODING_TASK = Task(
     max_attempts=3,
     timeout=timedelta(minutes=3),
     priority=Priority.INTERACTIVE,
+)
+
+PORTABLE_TRANSFER = Task(
+    kind="portable-transfer",
+    payload_type=PortableTransferPayload,
+    pool=Pool.INGEST,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Start a new transfer; an expired upload or a reviewed import must not be replayed implicitly",
+)
+
+SWEEP_PORTABLE_TRANSFERS = Task(
+    kind="sweep-portable-transfers",
+    payload_type=Tick,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.BULK,
 )
 
 MOVE_PROJECT_WORKSPACE = Task(
@@ -1036,11 +1089,14 @@ TASKS: dict[str, TaskKind] = {
         DELIVER_CHANNEL_HANDBACK,
         ROUTINE_CHAT_ANSWER,
         MOVE_PROJECT_WORKSPACE,
+        PORTABLE_TRANSFER,
+        SWEEP_PORTABLE_TRANSFERS,
         REVERT_CODING_TASK,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        DISPATCH_SOURCE_EVENT,
         WAKE_TASK,
         DIAL_PHONE,
         END_PHONE,
@@ -1099,6 +1155,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_SCHEDULES_CHECK,
         WORKFLOW_TABLE_TRIGGERS,
         WORKFLOW_RUN_RETENTION,
+        SOURCE_DELIVERY_RETENTION,
         WORKFLOW_LOG_ALERTS,
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,

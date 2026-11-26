@@ -9,7 +9,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
-from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers, DatasetHelpersRead
 from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CHECK,
@@ -327,7 +327,7 @@ class DatasetStats(BaseSchema):
 class DatasetRead(BaseSchema):
     improvement_holdout_share: Decimal = Decimal("0.5")
 
-    helper_settings: DatasetHelpers = Field(default_factory=DatasetHelpers)
+    helper_settings: DatasetHelpersRead = Field(default_factory=DatasetHelpersRead)
     helper_defaults: DatasetHelperDefaults
 
     id: UUID

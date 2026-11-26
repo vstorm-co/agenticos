@@ -287,6 +287,7 @@ async def list_visible(
     kind: AgentKind = AgentKind.AGENT,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
+    only_ids: Sequence[UUID] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Agent], int]:
@@ -326,6 +327,8 @@ async def list_visible(
     if tags:
         where.append(Agent.tags.overlap(list(tags)))
 
+    if only_ids is not None:
+        where.append(Agent.id.in_(only_ids))
     query = select(Agent).where(*where)
     count_query = select(func.count(Agent.id)).where(*where)
     query = query.order_by(Agent.created_at.desc()).offset(skip).limit(limit)

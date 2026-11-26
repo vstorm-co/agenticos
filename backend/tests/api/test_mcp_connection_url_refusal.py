@@ -174,7 +174,11 @@ class TestOAuthHonoursTheAllowlist:
 
         assert asked == [self._LISTED_URL]
         assert response.status_code == 200
-        assert response.json() == {"sign_in": False, "registers_clients": False}
+        assert response.json() == {
+            "sign_in": False,
+            "registers_clients": False,
+            "organization_client_available": False,
+        }
 
     @pytest.mark.parametrize("path", ["/oauth/start", "/probe"])
     async def test_an_unlisted_private_host_is_refused_by_field_before_discovery(

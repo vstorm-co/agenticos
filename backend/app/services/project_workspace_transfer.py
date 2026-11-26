@@ -319,7 +319,7 @@ class ProjectWorkspaceTransferService:
         current = await project_repo.get(
             self.db, project.id, organization_id=ctx.organization_id, for_update=True
         )
-        fenced = await job_repo.lock_workspace_attempt(self.db, job.id, attempt=attempt)
+        fenced = await job_repo.lock_attempt(self.db, job.id, attempt=attempt)
         fresh_ctx = await self.context(payload)
         if (
             current is None

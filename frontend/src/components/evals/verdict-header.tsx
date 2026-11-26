@@ -11,6 +11,7 @@ import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
+import { InvalidReason } from "./invalid-reason";
 import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { ResultOverview } from "./result-overview";
@@ -250,9 +251,12 @@ export function VerdictHeader({
                     </Button>
                   </p>
                 )}
-                {comparison?.invalid_reason &&
+                {comparison &&
                   !(stage && comparison.invalid_reason_code === "too_few_held_out") && (
-                    <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
+                    <InvalidReason
+                      comparison={comparison}
+                      className="text-muted-foreground text-sm"
+                    />
                   )}
                 {comparison !== undefined && comparison.changed > 0 && (
                   <p className="text-muted-foreground text-sm">

@@ -13,12 +13,12 @@ is over rather than losing it.
 """
 
 from collections.abc import Awaitable, Callable, Generator
-from contextlib import contextmanager
+from contextlib import AbstractAsyncContextManager, contextmanager, nullcontext
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal
 
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.messages import ModelRequest, UserPromptPart
+from pydantic_ai.messages import ModelRequest, ToolCallPart, UserPromptPart
 from pydantic_ai.tools import RunContext
 
 if TYPE_CHECKING:
@@ -61,11 +61,15 @@ class SteeringInbox:
     """
 
     on_applied: Callable[[str], Awaitable[None]] | None = None
-    poll: Callable[[AgentDeps], Awaitable[list[str]]] | None = None
+    poll: Callable[[AgentDeps], AbstractAsyncContextManager[list[str]]] | None = None
+    """A durable source may settle its receipts on successful exit after screening.
+    The context ends before the model call, so it never holds a lock across it."""
     screen: Callable[[str], GuardrailResult] | None = None
     """The agent's input guardrail, set by the runner: a steer reaches the model
     from the second request on, past where the harness's input edge looks, so it
     is screened here - redacted, or the run refused - before it is appended."""
+    transcript: dict[str | None, list[str]] | None = None
+    """Screened corrections by preceding tool call for a non-streaming transcript."""
     _steers: list[Steer] = field(default_factory=list)
 
     _listeners: list[tuple[str, SteeringInbox]] = field(default_factory=list, repr=False)
@@ -143,26 +147,37 @@ class Steering(AbstractCapability["AgentDeps"]):
         # response echoed back verbatim, and nothing may be added to it.
         if not messages or not isinstance(last := messages[-1], ModelRequest):
             return request_context
-        if inbox.poll is not None:
-            for text in await inbox.poll(ctx.deps):
+        async with inbox.poll(ctx.deps) if inbox.poll is not None else nullcontext([]) as polled:
+            for text in polled:
                 inbox.add(text)
-        steers = inbox.take()
-        if not steers:
-            return request_context
-        # Screened once, and the screened words are what the transcript keeps
-        # too: a redacted secret must not come back in the next turn's history.
-        said = [screen_steer(inbox, steer.text) for steer in steers]
-        added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
-        # The persistent history and this request's own list are separate lists
-        # (usually holding the same message), so each takes the words explicitly:
-        # the history so later requests and the transcript keep them, the request
-        # so this one carries them.
-        if ctx.messages and isinstance(kept := ctx.messages[-1], ModelRequest):
-            ctx.messages[-1] = replace(kept, parts=[*kept.parts, added])
-        if inbox.on_applied is not None:
-            for text in said:
-                await inbox.on_applied(text)
-        tail = replace(last, parts=[*last.parts, added])
+            steers = inbox.take()
+            if not steers:
+                return request_context
+            # Screened once, and the screened words are what the transcript keeps
+            # too: a redacted secret must not come back in the next turn's history.
+            said = [screen_steer(inbox, steer.text) for steer in steers]
+            added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
+            # The persistent history and this request's own list are separate lists
+            # (usually holding the same message), so each takes the words explicitly:
+            # the history so later requests and the transcript keep them, the request
+            # so this one carries them.
+            if ctx.messages and isinstance(kept := ctx.messages[-1], ModelRequest):
+                ctx.messages[-1] = replace(kept, parts=[*kept.parts, added])
+            if inbox.on_applied is not None:
+                for text in said:
+                    await inbox.on_applied(text)
+            tail = replace(last, parts=[*last.parts, added])
+        if inbox.transcript is not None:
+            after = next(
+                (
+                    part.tool_call_id
+                    for message in reversed(ctx.messages)
+                    for part in reversed(message.parts)
+                    if isinstance(part, ToolCallPart)
+                ),
+                None,
+            )
+            inbox.transcript.setdefault(after, []).extend(said)
         return replace(request_context, messages=[*messages[:-1], tail])
 
 

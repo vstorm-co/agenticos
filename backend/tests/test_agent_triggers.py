@@ -124,6 +124,7 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service._polled_source_current = AsyncMock(return_value=True)
     service.sources = MagicMock()
     service.sources.initial = AsyncMock(return_value=_source_policy())
+    service.sources.current = AsyncMock(return_value=(_source_policy(), False))
     service.sources.require_current = AsyncMock(return_value=_source_policy())
     return service
 
@@ -163,6 +164,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "event_secret_encrypted": None,
         "secret_key_version": None,
         "prompt": "summarise the day",
+        "source_id": None,
         "next_fire_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_fired_at": None,
         "last_delivery_status": None,
@@ -5603,6 +5605,401 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
         "mode": "follow_agent",
         "unavailable_sources": [],
     }
+
+
+class TestReusableSourceRoutine:
+    @pytest.mark.security
+    async def test_source_create_uses_shared_credentials_and_saves_a_literal_prompt(self):
+        source_id = uuid.uuid4()
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id, source_id=source_id)
+        with (
+            patch("app.services.event_sources.EventSourceService") as sources,
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch.object(service, "_run_log", new=AsyncMock()),
+            patch("app.services.agent_trigger.seal") as seal_secret,
+        ):
+            sources.return_value.require_use = AsyncMock(
+                return_value=SimpleNamespace(provider="github")
+            )
+            sources.return_value.bind_routine = AsyncMock()
+            repo.create = AsyncMock(return_value=trigger)
+            await service.create(
+                _ctx(),
+                agent.id,
+                TriggerCreate(
+                    trigger_type="event",
+                    source_id=source_id,
+                    prompt="Review {{issue.title}}",
+                ),
+            )
+        fields = repo.create.await_args.kwargs
+        assert fields["source_id"] == source_id
+        assert fields["event_source"] == "github"
+        assert fields["prompt"] == "Review {{issue.title}}"
+        assert fields["event_secret_encrypted"] is None
+        assert fields["secret_key_version"] is None
+        seal_secret.assert_not_called()
+        sources.return_value.bind_routine.assert_awaited_once_with(_ctx(), source_id, trigger.id)
+
+    @pytest.mark.parametrize("result_mode", ["inbox", "report"])
+    async def test_source_fires_with_literal_prompt_and_fenced_event_context(
+        self, result_mode, monkeypatch
+    ):
+        agent = _agent()
+        service = _service(agent)
+        source_id = uuid.uuid4()
+        use_source = AsyncMock(return_value=SimpleNamespace(is_active=True))
+        monkeypatch.setattr("app.services.event_sources.EventSourceService.require_use", use_source)
+        trigger = _event_trigger(
+            source_id=source_id,
+            agent_id=agent.id,
+            prompt="Review {{issue.title}}",
+            result_mode=result_mode,
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            runner.return_value.execute = AsyncMock(
+                return_value=("done", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value))
+            )
+            await service.fire(
+                trigger.id,
+                event_context="clipped context",
+                event_source_id=source_id,
+            )
+        assert use_source.await_args.args[1] == source_id
+        message = runner.return_value.execute.await_args.args[2]
+        assert message.startswith("Review {{issue.title}}\n\n")
+        assert message.endswith("<event_content>\nclipped context\n</event_content>")
+        assert runner.return_value.execute.await_args.kwargs["public_origin"] is True
+
+    @pytest.mark.security
+    async def test_revoked_source_use_stops_queued_execution(self):
+        service = _service()
+        source_id = uuid.uuid4()
+        trigger = _event_trigger(source_id=source_id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.event_sources.EventSourceService") as sources,
+            patch("app.services.agent_runner.AgentRunnerService") as runner,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            sources.return_value.require_use = AsyncMock(
+                side_effect=NotFoundError(message="Source not found")
+            )
+            await service.fire(trigger.id, event_context="event", event_source_id=source_id)
+        runner.assert_not_called()
+        assert service._record_attempt.await_args.kwargs["reason"] == "source_review_required"
+
+    async def test_shared_delivery_queues_bounded_event_context_with_stable_activation(
+        self, queued_fires
+    ):
+        service = _service()
+        source_id, delivery_id = uuid.uuid4(), uuid.uuid4()
+        trigger = _event_trigger(source_id=source_id, event_source="webhook", event_config={})
+        body = {"padding": "x" * 3000, "issue": {"title": "late field"}}
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            await service.fire_source_delivery(
+                trigger.id,
+                source_id=source_id,
+                source_policy_id=_source_policy().id,
+                body=body,
+                delivery_id=delivery_id,
+                organization_id=_ORG,
+            )
+        assert queued_fires[0].event_context is not None
+        assert "padding" in queued_fires[0].event_context
+        assert "late field" not in queued_fires[0].event_context
+        assert queued_fires[0].event_source_id == source_id
+        assert queued_fires[0].activation_id == uuid.uuid5(delivery_id, str(trigger.id))
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("changed", ["source", "organization", "paused", "filter"])
+    async def test_shared_delivery_does_not_queue_a_mismatched_subscriber(
+        self, changed, queued_fires
+    ):
+        source_id = uuid.uuid4()
+        trigger = _event_trigger(source_id=source_id)
+        if changed == "source":
+            trigger.source_id = uuid.uuid4()
+        elif changed == "organization":
+            trigger.organization_id = uuid.uuid4()
+        elif changed == "paused":
+            trigger.is_active = False
+        service = _service()
+        service._creator_context = AsyncMock(return_value=_ctx())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.event_sources.EventSourceService.require_use", AsyncMock()),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.record_filtered_event = AsyncMock()
+            result = await service.fire_source_delivery(
+                trigger.id,
+                source_id=source_id,
+                source_policy_id=_source_policy().id,
+                body={},
+                delivery_id=uuid.uuid4(),
+                organization_id=_ORG,
+            )
+        assert result is None
+        assert queued_fires == []
+        assert repo.record_filtered_event.await_count == (changed == "filter")
+        assert service.sources.current.await_count == (changed == "filter")
+        service.sources.require_current.assert_not_awaited()
+
+
+async def test_pausing_source_after_routine_queue_stops_event_before_agent_call():
+    source_id = uuid.uuid4()
+    trigger = _event_trigger(source_id=source_id)
+    service = _service()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.member_repo") as members,
+        patch("app.services.event_sources.EventSourceService") as sources,
+        patch("app.services.agent_runner.AgentRunnerService") as runner,
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+        sources.return_value.require_use = AsyncMock(return_value=SimpleNamespace(is_active=False))
+        await service.fire(
+            trigger.id, event_context="received before pause", event_source_id=source_id
+        )
+    runner.assert_not_called()
+    assert service._record_attempt.await_args.kwargs["reason"] == "source_review_required"
+
+
+@pytest.mark.parametrize("configuration", ["wrong_provider", "invalid_filter"])
+async def test_source_routine_creation_refuses_configuration_for_another_provider(configuration):
+    service = _service()
+    source_id = uuid.uuid4()
+    data = TriggerCreate(
+        prompt="Review the event",
+        trigger_type="event",
+        source_id=source_id,
+        event_source="webhook" if configuration == "wrong_provider" else None,
+        event_config={"unknown": True} if configuration == "invalid_filter" else None,
+    )
+    with (
+        patch("app.services.event_sources.EventSourceService") as sources,
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+    ):
+        sources.return_value.require_use = AsyncMock(
+            return_value=SimpleNamespace(provider="github")
+        )
+        repo.create = AsyncMock()
+        error = BadRequestError if configuration == "wrong_provider" else ValidationError
+        with pytest.raises(error):
+            await service.create(_ctx(), uuid.uuid4(), data)
+        repo.create.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["scheduled_source", "clear_source", "legacy_source"])
+async def test_routine_edits_refuse_source_without_a_usable_event_endpoint(change):
+    service = _service()
+    trigger = _trigger() if change.startswith("scheduled") else _event_trigger()
+    trigger.source_id = uuid.uuid4() if change == "clear_source" else None
+    data = TriggerUpdate(source_id=None if change == "clear_source" else uuid.uuid4())
+    with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock()
+        service.agents.get.return_value = _agent(agent_id=trigger.agent_id)
+        with pytest.raises(BadRequestError):
+            await service.update(_ctx(), trigger.agent_id, trigger.id, data)
+        repo.update.assert_not_awaited()
+
+
+@pytest.mark.parametrize(("same_source", "pending"), [(False, False), (True, False), (False, True)])
+async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
+    same_source, pending
+):
+    source_id = uuid.uuid4()
+    trigger = _event_trigger(source_id=source_id, event_source="webhook", event_config={})
+    if pending:
+        trigger.setup_required = True
+        trigger.is_active = False
+        trigger.approved_sources = {"pending_review": True, "unavailable_sources": ["Mailbox"]}
+    prior_review = trigger.approved_sources
+    selected_id = source_id if same_source else uuid.uuid4()
+    service = _service(_agent(agent_id=trigger.agent_id))
+
+    async def update(_db, *, trigger, update_data):
+        for key, value in update_data.items():
+            setattr(trigger, key, value)
+        return trigger
+
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.event_sources.EventSourceService") as sources,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock(side_effect=update)
+        sources.return_value.require_use = AsyncMock(
+            return_value=SimpleNamespace(id=selected_id, provider="webhook")
+        )
+        sources.return_value.bind_routine = AsyncMock()
+        await service.update(
+            _ctx(), trigger.agent_id, trigger.id, TriggerUpdate(source_id=selected_id)
+        )
+    assert trigger.source_id == selected_id
+    assert trigger.event_source == "webhook"
+    sources.return_value.bind_routine.assert_awaited_once_with(_ctx(), selected_id, trigger.id)
+    assert trigger.is_active is same_source
+    assert trigger.approved_sources == (
+        prior_review
+        if same_source or pending
+        else {"pending_review": True, "mode": "restricted", "unavailable_sources": []}
+    )
+
+
+@pytest.mark.security
+async def test_shared_routine_cannot_rotate_an_unrelated_dedicated_secret():
+    trigger = _event_trigger(source_id=uuid.uuid4())
+    service = _service(_agent(agent_id=trigger.agent_id))
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.seal") as sealed,
+    ):
+        repo.get = AsyncMock(return_value=trigger)
+        with pytest.raises(BadRequestError, match="Manage credentials on the event source"):
+            await service.rotate_secret(_ctx(), trigger.agent_id, trigger.id)
+    sealed.assert_not_called()
+
+
+async def test_shared_routine_throttle_queues_no_agent_run(queued_fires):
+    from app.core.exceptions import RateLimitError
+
+    trigger = _event_trigger(source_id=uuid.uuid4(), event_source="webhook", event_config={})
+    service = _service()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch(
+            "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
+            new=AsyncMock(return_value=SimpleNamespace(allowed=False, retry_after_seconds=20)),
+        ),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        with pytest.raises(RateLimitError) as error:
+            await service.fire_source_delivery(
+                trigger.id,
+                source_id=trigger.source_id,
+                source_policy_id=_source_policy().id,
+                body={},
+                delivery_id=uuid.uuid4(),
+                organization_id=_ORG,
+            )
+    assert error.value.details["retry_after_seconds"] == 20
+    assert queued_fires == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("removed", [False, True])
+async def test_queued_routine_event_cannot_run_after_its_source_was_replaced_or_removed(removed):
+    source_id = uuid.uuid4()
+    trigger = _event_trigger(source_id=None if removed else uuid.uuid4())
+    service = _service(_agent(agent_id=trigger.agent_id))
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.member_repo") as members,
+        patch("app.services.agent_runner.AgentRunnerService") as runner,
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+        await service.fire(trigger.id, event_context="event", event_source_id=source_id)
+    runner.assert_not_called()
+    assert service._record_attempt.await_args.kwargs["reason"] == "source_review_required"
+
+
+@pytest.mark.security
+def test_source_edits_end_another_members_creator_consent():
+    trigger = _event_trigger(created_by_user_id=uuid.uuid4(), runs_as_creator=True)
+    changes = {"source_id": uuid.uuid4()}
+    AgentTriggerService._guard_acting_as_creator(_ctx(), trigger, changes)
+    assert changes["runs_as_creator"] is False
+
+
+@pytest.mark.security
+def test_source_edits_change_the_action_consent_fingerprint():
+    from app.services.routine_actions import action_intent
+
+    trigger = _event_trigger()
+    original = action_intent(trigger)
+    trigger.source_id = uuid.uuid4()
+    assert action_intent(trigger) != original
+
+
+@pytest.mark.parametrize("failure", ["paused_source", "lost_source_access"])
+async def test_a_waited_source_refusal_settles_its_activation_before_model_execution(failure):
+    from app.schemas.local_target import LocalTarget
+    from app.services.routine_actions import activation_intent
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    source_id = uuid.uuid4()
+    target = LocalTarget(
+        folder="/work",
+        mode="read_only",
+        device_id=uuid.uuid4(),
+        routine_grant=uuid.uuid4(),
+        operations={"read": True, "write": False, "execute": False},
+    )
+    trigger = _event_trigger(
+        source_id=source_id,
+        prompt="Inspect the event",
+        runs_as_creator=True,
+        local_target=target.model_dump(mode="json"),
+    )
+    activation_id = uuid.uuid4()
+    wait = SimpleNamespace(
+        trigger_id=trigger.id,
+        organization_id=_ORG,
+        user_id=_CALLER,
+        status="waiting",
+        intent_hash=activation_intent(trigger),
+        event_context="Delivery received",
+        event_source_id=source_id,
+    )
+    service = _service(_agent(agent_id=trigger.agent_id))
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.member_repo") as members,
+        patch("app.services.agent_trigger.follow_signed_in_session", new=AsyncMock()),
+        patch("app.services.agent_trigger.local_scope"),
+        patch("app.services.agent_trigger.local_device_ready", new=AsyncMock()),
+        patch("app.services.agent_trigger.device_wait_repo.get", new=AsyncMock(return_value=wait)),
+        patch("app.services.agent_trigger.device_wait_repo.settle", new=AsyncMock()) as settle,
+        patch("app.services.event_sources.EventSourceService") as sources,
+        patch("app.services.notifications.NotificationService.routine_blocked", new=AsyncMock()),
+        patch("app.services.agent_runner.AgentRunnerService") as runner,
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+        sources.return_value.require_use = AsyncMock(return_value=SimpleNamespace(is_active=False))
+        if failure == "lost_source_access":
+            service.sources.require_current.side_effect = RoutineSourcesRequired()
+        await service.fire(trigger.id, activation_id=activation_id)
+    runner.assert_not_called()
+    assert service._record_attempt.await_args.kwargs["reason"] == "source_review_required"
+    settle.assert_awaited_once_with(
+        service.db,
+        activation_id=activation_id,
+        status="cancelled",
+        reason="routine_changed",
+        **({"trigger_id": trigger.id} if failure == "lost_source_access" else {}),
+    )
 
 
 class TestGithubFilteredEventDiagnostics:

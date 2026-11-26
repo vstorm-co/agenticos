@@ -339,7 +339,8 @@ check.
 An agent is judged once, on the held-out questions of all its stages together: a
 result needs five of them for the agent, not five per stage, and a regression one
 stage confirmed on its own counts whatever the other found. Every question of the
-skill's set is held out, and a quick check samples only the agent's held-out
+skill's set is held out - its held-out share stays at one, and a question added
+to it is held out whatever - and a quick check samples only the agent's held-out
 questions.
 
 A check sends its confirmed regressions, and the answers the judge could not

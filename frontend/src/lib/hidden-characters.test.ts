@@ -9,6 +9,7 @@ describe("hidden characters", () => {
 
   it("finds one anywhere in a JSON value, keys included", () => {
     expect(holdsHidden("plain")).toBe(false);
+    expect(writtenOut("tag\u{E0001}")).toBe("tag\\u{E0001}");
     expect(holdsHidden({ config: { notes: ["fine", "Ring\u0001bell"] } })).toBe(true);
     expect(holdsHidden({ ["key\u202E"]: "value" })).toBe(true);
     expect(holdsHidden([1, null, true, { id: "charts" }])).toBe(false);

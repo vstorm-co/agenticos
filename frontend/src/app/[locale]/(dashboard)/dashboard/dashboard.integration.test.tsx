@@ -7,6 +7,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
+import { ConsolePresentationContext } from "@/components/settings/console-experience-provider";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import type { Permission } from "@/types/permissions";
@@ -1316,4 +1317,72 @@ describe("dashboard surface spacing", () => {
     expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeVisible();
     expectSharedRhythm("org");
   });
+});
+
+it("uses a role's dashboard as home while filtering every widget by the actual reader", async () => {
+  auth.role = "member";
+  auth.can = holds("agents:view", "agents:run");
+  render(
+    <ConsolePresentationContext.Provider
+      value={{
+        navigation: null,
+        desktopInstallPrompt: true,
+        productNotices: true,
+        problem: false,
+        pending: false,
+        dashboardDefault: [
+          { widget: "approvals", span: "s6" },
+          { widget: "my-agents", span: "s6" },
+        ],
+      }}
+    >
+      <DashboardPage />
+    </ConsolePresentationContext.Provider>,
+    { wrapper },
+  );
+  await waitFor(() => expect(callsTo("/agents").length).toBeGreaterThan(0));
+  expect(callsTo("/approvals")).toHaveLength(0);
+  expect(screen.getByText("dashboard.edit.customize")).toBeVisible();
+});
+it("keeps a personal empty arrangement ahead of a role default", async () => {
+  savedLayout = { entries: [] };
+  render(
+    <ConsolePresentationContext.Provider
+      value={{
+        navigation: null,
+        desktopInstallPrompt: true,
+        productNotices: true,
+        problem: false,
+        pending: false,
+        dashboardDefault: [{ widget: "my-agents", span: "s6" }],
+      }}
+    >
+      <DashboardPage />
+    </ConsolePresentationContext.Provider>,
+    { wrapper },
+  );
+  await waitFor(() => expect(screen.getByText("dashboard.edit.emptyTitle")).toBeVisible());
+  expect(callsTo("/agents")).toHaveLength(0);
+});
+it("reports a role policy read failure instead of rendering a different home layout", async () => {
+  const retry = vi.fn();
+  render(
+    <ConsolePresentationContext.Provider
+      value={{
+        navigation: [],
+        desktopInstallPrompt: false,
+        productNotices: false,
+        problem: true,
+        pending: true,
+        dashboardDefault: null,
+        retry,
+      }}
+    >
+      <DashboardPage />
+    </ConsolePresentationContext.Provider>,
+    { wrapper },
+  );
+  expect(screen.getByRole("alert")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "common.retry" }));
+  expect(retry).toHaveBeenCalledOnce();
 });

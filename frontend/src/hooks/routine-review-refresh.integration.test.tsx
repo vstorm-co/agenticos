@@ -7,6 +7,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
+import { useAuthStore } from "@/stores/auth-store";
 import { apiClient } from "@/lib/api-client";
 import type { Trigger } from "@/types/triggers";
 
@@ -73,7 +74,10 @@ function ReviewFlow({ scope }: { scope: "personal" | "organization" }) {
   );
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  useAuthStore.setState({ sessionOwnerId: "creator" });
+});
 
 it.each([
   ["personal", true],
@@ -92,10 +96,9 @@ it.each([
         accounts: [],
         unavailable_sources: repaired ? [] : ["notion"],
       };
-    if (path.endsWith("/action-consents"))
+    if (path.endsWith("/tools"))
       return {
-        can_waive: true,
-        review_token: repaired ? "new-actions" : "old-actions",
+        unavailable_settings: [],
         items: [],
         unavailable_sources: repaired ? [] : ["notion"],
       };
@@ -130,7 +133,7 @@ it.each([
       vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/sources")),
     ).toHaveLength(2);
     expect(
-      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/action-consents")),
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/tools")),
     ).toHaveLength(2);
   });
   const enable = screen.getByRole("button", { name: "Enable routine" });

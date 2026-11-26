@@ -165,6 +165,7 @@ class RAGTrackedDocumentItem(BaseSchema):
     vector_document_id: str | None = None
     chunk_count: int = 0
     has_file: bool = False
+    has_parsed_content: bool = False
     created_at: str | None = None
     completed_at: str | None = None
     # What actually read this document, rather than what the collection is

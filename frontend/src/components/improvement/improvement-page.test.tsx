@@ -854,6 +854,34 @@ it("keeps a provider failure and recorded round visible without a selected best 
   expect(screen.getByText("Attempt 1 of 3")).toBeInTheDocument();
 });
 
+it("words a failed step by its code and keeps the refusal's own sentence", () => {
+  state.session!.status = "failed";
+  state.session!.stage = "evaluating";
+  state.session!.error = "The provider could not complete this check";
+  state.session!.error_code = "run_failed";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent(
+    "A run this step needed failed, or its model provider did not answer.",
+  );
+  expect(screen.getByText("The provider could not complete this check")).toHaveAttribute(
+    "lang",
+    "en",
+  );
+});
+
+it("words a stop for want of data with its count, not the server's sentence", () => {
+  state.session!.status = "stopped";
+  state.session!.stop_reason = "no_data";
+  state.session!.error = "Two more are needed";
+  state.session!.error_code = "too_few_held_out";
+  state.session!.error_params = { missing: 2 };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent("Add 2 more held-out test questions to measure a change.");
+  expect(details).not.toHaveTextContent("Two more are needed");
+});
+
 it("says how many more questions a session needs, in words rather than the server's message", () => {
   state.session!.status = "stopped";
   state.session!.stop_reason = "no_data";
@@ -900,7 +928,9 @@ it("tells someone who may not publish why, and still lets them keep a draft", as
 it("refuses with a reason and a way back to the agent", () => {
   state.runs = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("alert")).toHaveTextContent(/viewing runs are required/);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Reading an Improve session needs runs:view, which this role does not hold.",
+  );
   expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
     "href",
     "/agents/a1",

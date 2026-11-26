@@ -22,6 +22,7 @@ from pydantic_ai_backends.toolsets.descriptions import TOOL_TEXT
 from app.agents.capabilities._registry import CapabilityToolInfo
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.sandbox._project import (
+    EXECUTION_TOOL,
     PROJECT_TOOL,
     ProjectWorkspacePort,
     project_tools,
@@ -42,10 +43,11 @@ WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = (
         for tool_id in ("ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute")
     ),
     PROJECT_TOOL,
+    EXECUTION_TOOL,
 )
 """Every tool the workspace offers, declared once, with the library's own text.
 
-All eight are declared even though a configuration may omit shell execution: a tool absent
+All nine are declared even though a configuration may omit shell execution: a tool absent
 from this list cannot be gated by the approval policy or renamed by a binding,
 and the dangerous half of that is silent. `execute` in particular stays declared
 for the `state` backend, which has no shell - the library answers such a call

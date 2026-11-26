@@ -1,5 +1,5 @@
 ---
-source_sha: "fa596edf1ff5"
+source_sha: "9a57eadec91e"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -141,6 +141,33 @@ auf dieser Origin erlaubt, für die Spracherkennung im Chat.
     `Strict-Transport-Security`, das demjenigen gehört, der TLS terminiert; eine
     bestehende Proxy-Konfiguration, die die anderen ergänzt, sollte sie fallen
     lassen.
+
+## Anmeldung nur über den Identitätsanbieter { #provider-only-sign-in }
+
+Deaktivieren Sie unter **Admin →
+Bereitstellung → Zugriff und Konten** die lokale Anmeldung, nachdem ein Anbieter
+konfiguriert wurde. Passwortanmeldung, lokale Registrierung, Passwortzurücksetzung
+und Anmeldelinks per E-Mail werden in der Oberfläche und API deaktiviert.
+Bestehende Sitzungen bleiben gültig. Verzeichnispasswörter werden von LDAP
+geprüft und sind eine eigene Anmeldemethode. Die SSO-Kontoerstellung unterliegt
+weiterhin den Registrierungs- und Einladungsregeln der Bereitstellung.
+
+Die öffentliche Branding-Antwort nennt nur konfigurierte Anbieter. Die Konsole
+filtert diese über `OAUTH_PROVIDERS`; standardmäßig sind
+`google,oidc,ldap,kerberos` erlaubt. Eine unkonfigurierte Google-Schaltfläche wird
+nie angezeigt. Nehmen Sie bei einem expliziten Filter den gewünschten Anbieter
+auf, bevor Sie die lokale Anmeldung deaktivieren. Die Konsole verhindert das
+Deaktivieren der letzten sichtbaren Methode; die API verlangt mindestens einen
+konfigurierten Anbieter.
+
+**Wiederherstellung durch den Betreiber:** Setzen Sie
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` in der API-Umgebung und starten Sie
+alle API-Replikate neu. Die lokale Anmeldung funktioniert wieder, die gespeicherte
+Richtlinie bleibt unverändert und die Verwaltung zeigt die Ausnahme an. Verwenden
+Sie vorhandene lokale Administrator-Anmeldedaten oder nach dem Aktivieren der
+Ausnahme das normale Formular zum Zurücksetzen des Passworts. Reparieren Sie den Anbieter, entfernen Sie die Ausnahme und starten
+Sie die Replikate erneut. Die Variable allein gewährt kein Konto, keine Rolle
+und keine Sitzung.
 
 ## Wer sich registrieren darf { #who-may-register }
 

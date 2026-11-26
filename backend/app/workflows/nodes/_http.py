@@ -30,7 +30,7 @@ from pydantic import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
-from app.core.sanitize import PrivateAllowlist, allowlist_for
+from app.core.sanitize import PrivateAllowlist, UrlRefusedError, allowlist_for
 from app.core.secret_kinds import HttpCredentialSecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
@@ -151,10 +151,40 @@ def is_http_url(url: str) -> bool:
     return parts.scheme in ("http", "https") and bool(parts.hostname)
 
 
-def failed(code: str, message: str, *, retryable: bool = False, **details: Any) -> Failed:
+def failed(
+    code: str,
+    message: str,
+    *,
+    retryable: bool = False,
+    effect_not_started: bool = False,
+    **details: Any,
+) -> Failed:
     return Failed(
-        error=WorkflowError(code=code, message=message, details=details, retryable=retryable)
+        error=WorkflowError(code=code, message=message, details=details, retryable=retryable),
+        effect_not_started=effect_not_started,
     )
+
+
+async def send_request(
+    client: httpx2.AsyncClient, request: httpx2.Request, *, first_request: bool
+) -> httpx2.Response | Failed:
+    """A refused target or failed connection cannot have sent the first request.
+
+    The proof is scoped to sending this hop, not reading a response body or
+    closing the client. After an earlier page/redirect, the action already sent
+    at least one request even if this connection was refused.
+    """
+    try:
+        return await client.send(request, stream=True)
+    except UrlRefusedError as exc:
+        return failed("URL_REFUSED", str(exc), effect_not_started=first_request)
+    except httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout:
+        return failed(
+            "HTTP_UNREACHABLE",
+            "The server could not be reached",
+            retryable=True,
+            effect_not_started=first_request,
+        )
 
 
 async def usable_secret(
@@ -227,6 +257,7 @@ async def credential(auth: HttpAuth, url: str) -> HttpCredentialSecret | Failed 
         return failed(
             "SECRET_NOT_USABLE",
             "The credential this step sends is gone, of the wrong kind, or no longer usable",
+            effect_not_started=True,
         )
     secret = unseal_kind(
         row.sealed_secret,
@@ -236,7 +267,9 @@ async def credential(auth: HttpAuth, url: str) -> HttpCredentialSecret | Failed 
     )
     if not secret.allows(url):
         return failed(
-            "SECRET_ORIGIN_DENIED", "This credential may not be sent to the URL this step calls"
+            "SECRET_ORIGIN_DENIED",
+            "This credential may not be sent to the URL this step calls",
+            effect_not_started=True,
         )
     return secret
 

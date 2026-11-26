@@ -1,5 +1,5 @@
 ---
-source_sha: "75494f696b30"
+source_sha: "75480de53aad"
 ---
 
 # Glossar { #glossary }
@@ -148,6 +148,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Gedächtnis | `memory_files` |
 | Mirage (virtuelles Terminal) | `mirage` |
 | Planung | `planning` |
+| Projekte | `projects` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
 | Hintergrundthemen | `background_tasks` |
 | Einen Befehl beobachten | `monitor` |

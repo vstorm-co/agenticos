@@ -191,7 +191,11 @@ class WebBrowserConfig(BaseModel):
             "measure it, since a small model through a slow gateway is no faster. Empty "
             "uses the agent's model. The agent's own browser tools always use it."
         ),
-        json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
+        json_schema_extra={
+            "x-widget": "model-profile",
+            "x-advanced": True,
+            "x-resource": "model_profile",
+        },
     )
     proxy_url: str = Field(
         title="Proxy address",

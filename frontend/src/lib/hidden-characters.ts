@@ -10,10 +10,8 @@ const HIDDEN = /(?![\n\t])[\p{Cc}\p{Cf}]/gu;
  * would draw nothing or reorder the text around it written out as `\u{202E}`.
  */
 export function writtenOut(text: string): string {
-  return text.replace(
-    HIDDEN,
-    (char) => `\\u{${(char.codePointAt(0) ?? 0).toString(16).toUpperCase()}}`,
-  );
+  // Each regex match contains one complete code point.
+  return text.replace(HIDDEN, (char) => `\\u{${char.codePointAt(0)!.toString(16).toUpperCase()}}`);
 }
 
 /**
