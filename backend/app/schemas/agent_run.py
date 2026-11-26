@@ -505,6 +505,15 @@ class ApprovalRead(BaseSchema):
             "reject the call but not approve it"
         ),
     )
+    may_approve: bool = Field(
+        default=False,
+        description=(
+            "Whether an approval from the caller would be accepted. False for a call "
+            "whose content is hidden from them, and for a platform call that always "
+            "asks on somebody else's run: only that run's person may approve it, and "
+            "the caller may still reject it"
+        ),
+    )
 
 
 class ApprovalList(BaseSchema):

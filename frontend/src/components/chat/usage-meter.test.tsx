@@ -1,3 +1,4 @@
+import { ChatCostContext } from "@/components/settings/console-experience-provider";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
@@ -423,4 +424,28 @@ it("keeps percentages inside the popover in icon-only mode", async () => {
   expect(screen.getByTestId("context-fill")).toBeInTheDocument();
   await userEvent.click(trigger);
   expect(screen.getByText("25%")).toBeVisible();
+});
+
+it("keeps the context meter while hiding cached totals and financial budget readings", async () => {
+  render(
+    <ChatCostContext.Provider value={false}>
+      <UsageMeter
+        usage={usage({
+          context: { used_tokens: 1000 },
+          budget_percent: 90,
+          agent_budget_percent: 80,
+        })}
+        contextWindow={10000}
+        total={total()}
+      />
+    </ChatCostContext.Provider>,
+  );
+  await userEvent.click(trigger());
+  expect(screen.queryByText(/\$/)).toBeNull();
+  expect(screen.queryByText(/90%|80%/)).toBeNull();
+  expect(screen.getByRole("dialog")).toHaveTextContent("1,000");
+});
+it("does not render a withheld total as a zero price", async () => {
+  await openMeter({ usage: null, total: total({ cost_usd: null }) });
+  expect(screen.queryByText(/\$/)).toBeNull();
 });

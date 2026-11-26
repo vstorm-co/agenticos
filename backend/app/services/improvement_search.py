@@ -46,7 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.budget import price_request
 from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER
+from app.agents.system_agents import IMPROVER, with_dataset_guidance
 from app.agents.untrusted_text import fenced_section
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
@@ -1085,7 +1085,9 @@ class SearchWorker:
                     key=IMPROVER.key,
                     agent_id=unit.improver_agent_id,
                     model_profile_id=unit.helper.model_profile_id,
-                    instructions=unit.helper.instructions,
+                    instructions=with_dataset_guidance(
+                        IMPROVER.instructions, unit.helper.instructions
+                    ),
                     prompt=unit.prompt,
                     output_type=InstructionVariants,
                     improvement_run_id=unit.run_id,

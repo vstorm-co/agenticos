@@ -10,7 +10,7 @@ from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.core.config import settings
 from app.schemas.base import BaseSchema
-from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers, DatasetHelpersRead
 from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CHECK,
@@ -328,7 +328,7 @@ class DatasetStats(BaseSchema):
 class DatasetRead(BaseSchema):
     improvement_holdout_share: Decimal = Decimal("0.5")
 
-    helper_settings: DatasetHelpers = Field(default_factory=DatasetHelpers)
+    helper_settings: DatasetHelpersRead = Field(default_factory=DatasetHelpersRead)
     helper_defaults: DatasetHelperDefaults
     import_max_bytes: int = Field(
         default_factory=lambda: settings.DATASET_IMPORT_MAX_BYTES,

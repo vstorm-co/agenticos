@@ -424,7 +424,7 @@ async def test_an_ended_step_wakes_its_session_instead_of_waiting_for_the_sweep(
     proposing = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, proposing.iterations[0].authoring_request_id)
     await _settle_queued_jobs(db)
-    await AuthoringWorker._fail(db, request, "The improver could not answer.")
+    await AuthoringWorker._fail(db, request, "The improver could not answer.", "unexpected")
     assert await _queued_advances(db, read.id) == 1
 
     await _settle_queued_jobs(db)
@@ -958,9 +958,14 @@ async def test_failed_proposal_needs_explicit_retry_and_repeated_click_starts_on
     assert (await service.read(ctx, agent.id, read.id)).status == "failed"
     await service.advance(read.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, read.id)).iterations[0].authoring_request_id == old_id
+    row = await db.get(ImprovementRun, read.id)
+    assert row is not None
+    row.error, row.error_code, row.error_params = "Add 2 more", "too_few_held_out", {"missing": 2}
+    await db.flush()
     retried = await service.retry(ctx, agent.id, read.id)
     new_id = retried.iterations[0].authoring_request_id
     assert new_id is not None and new_id != old_id
+    assert (retried.error, retried.error_code, retried.error_params) == (None, None, None)
     again = await service.retry(ctx, agent.id, read.id)
     assert again.iterations[0].authoring_request_id == new_id
     assert any(event.action == "improvement.retried" for event in again.timeline)
@@ -1036,6 +1041,10 @@ async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
     assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
 
 
+ADMITTED = ("model_profile_id", "instructions")
+"""What a session keeps of the helper settings it was admitted with; who wrote them is the dataset's."""
+
+
 async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instructions(db):
     from app.schemas.dataset import DatasetUpdate
     from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
@@ -1057,7 +1066,9 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     )
     run = await db.get(ImprovementRun, read.id)
     assert run is not None
-    assert run.helper_settings == original.model_dump(mode="json")
+    assert {key: run.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
     await DatasetService(db).update(
         ctx,
         dataset.id,
@@ -1073,7 +1084,9 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     current = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, current.iterations[0].authoring_request_id)
     assert request is not None
-    assert request.helper_settings == original.model_dump(mode="json")
+    assert {key: request.helper_settings[key] for key in ADMITTED} == original.model_dump(
+        mode="json", include=set(ADMITTED)
+    )
 
 
 @pytest.mark.security
@@ -1138,6 +1151,10 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         await _member(db, ctx, OrgRoleName.VIEWER),
     ]
     for reader in contexts:
+        if not reader.has(Perm.RUNS_VIEW):
+            with pytest.raises(AuthorizationError, match="runs:view"):
+                await service.read(reader, agent.id, started.id)
+            continue
         read = await service.read(reader, agent.id, started.id)
         [listed] = await service.list_for_agent(reader, agent.id)
         for response in (read, listed):
@@ -1199,3 +1216,106 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         "criteria"
         not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
     )
+
+
+async def _guided(db: AsyncSession, author: AuthContext, dataset_id: UUID) -> None:
+    from app.schemas.dataset import DatasetUpdate
+    from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+    from app.services.dataset import DatasetService
+
+    await DatasetService(db).update(
+        author,
+        dataset_id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(instructions="Prefer the shortest correct answer.")
+            )
+        ),
+    )
+
+
+@pytest.mark.security
+class TestTheStartShowsTheDatasetsGuidance:
+    async def test_it_names_the_member_who_last_changed_it(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from app.db.models.user import User
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await db.execute(
+            update(User).where(User.id == author.user_id).values(full_name="Ada Lovelace")
+        )
+        await _guided(db, author, dataset.id)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.text == "Prefer the shortest correct answer."
+        assert estimate.guidance.updated_by_name == "Ada Lovelace"
+        assert estimate.guidance.updated_at is not None
+        assert not estimate.guidance.updated_by_former_member
+
+    async def test_a_member_who_left_is_a_former_member_and_not_named(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await _guided(db, author, dataset.id)
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == author.user_id)
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_somebody_from_another_organization_is_never_named(self, db: AsyncSession):
+        from app.db.models.dataset import Dataset
+        from app.db.models.user import User
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        elsewhere = await _owner(db)
+        await db.execute(
+            update(User).where(User.id == elsewhere.user_id).values(full_name="Outside Person")
+        )
+        await db.execute(
+            update(Dataset)
+            .where(Dataset.id == dataset.id)
+            .values(
+                helper_settings={
+                    "improver": {
+                        "instructions": "Prefer the shortest correct answer.",
+                        "instructions_updated_by": str(elsewhere.user_id),
+                    }
+                }
+            )
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_a_dataset_without_guidance_shows_none(self, db: AsyncSession):
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is None

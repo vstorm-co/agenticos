@@ -50,13 +50,23 @@ export function useTriggers(agentId: string | null) {
     [queryClient],
   );
 
+  // Rebinding and deletion may not return the old source ID. Refresh usage for
+  // every source, not live capture or the source catalog.
+  const invalidateSubscribers = (sourceId?: string | null) =>
+    sourceId === null
+      ? invalidate()
+      : Promise.all([
+          invalidate(),
+          queryClient.invalidateQueries({ queryKey: qk.eventSources.usage(sourceId) }),
+        ]);
+
   const create = useMutation({
     // `TriggerCreated` rather than `Trigger`: the create response carries the
     // reveal-once `reveal_secret` for a manual preset, which no read ever returns.
     mutationFn: (payload: TriggerCreate) => apiClient.post<TriggerCreated>(base, payload),
-    onSuccess: async () => {
+    onSuccess: async (trigger) => {
       await Promise.all([
-        invalidate(),
+        invalidateSubscribers(trigger.source_id ?? null),
         queryClient.invalidateQueries({ queryKey: qk.conversations.all() }),
       ]);
       toast.success(t("created"));
@@ -67,7 +77,8 @@ export function useTriggers(agentId: string | null) {
   const update = useMutation({
     mutationFn: ({ triggerId, patch }: { triggerId: string; patch: TriggerUpdate }) =>
       apiClient.patch<Trigger>(`${base}/${triggerId}`, patch),
-    onSuccess: invalidate,
+    onSuccess: (trigger, { patch }) =>
+      invalidateSubscribers("source_id" in patch ? undefined : (trigger.source_id ?? null)),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
@@ -78,7 +89,7 @@ export function useTriggers(agentId: string | null) {
       // environment somebody rebound in between.
       apiClient.patch<Trigger>(`${base}/${triggerId}`, { is_active: isActive }),
     onSuccess: async (trigger) => {
-      await invalidate();
+      await invalidateSubscribers(trigger.source_id ?? null);
       toast.success(trigger.is_active ? t("resumedToast") : t("pausedToast"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -97,7 +108,7 @@ export function useTriggers(agentId: string | null) {
   const remove = useMutation({
     mutationFn: (triggerId: string) => apiClient.delete<void>(`${base}/${triggerId}`),
     onSuccess: async () => {
-      await invalidate();
+      await invalidateSubscribers();
       toast.success(t("removed"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

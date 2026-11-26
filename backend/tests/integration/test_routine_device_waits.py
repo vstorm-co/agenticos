@@ -20,6 +20,7 @@ from app.db.models.user import User
 from app.repositories import agent_trigger_repo, personal_data_repo, retention_repo
 from app.repositories import routine_device_wait as repo
 from app.schemas.local_target import LocalTarget
+from app.schemas.personal_data import RoutineDeviceWaitExport
 from app.services.routine_actions import activation_intent
 from app.services.routine_devices import (
     RoutineActivationObsolete,
@@ -816,3 +817,29 @@ async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
     assert saved is not None
     assert saved.status == "waiting" and saved.event_context == "event waiting for the new session"
     assert w.trigger.is_active
+
+
+async def test_wait_preserves_reusable_source_for_the_resuming_worker(db: AsyncSession) -> None:
+    w = await world(db, event=True)
+    activation_id, source_id = uuid4(), uuid4()
+    assert await repo.park(
+        db,
+        activation_id=activation_id,
+        trigger=w.trigger,
+        user_id=w.user.id,
+        device_id=w.device.id,
+        intent_hash=activation_intent(w.trigger),
+        event_context="rendered event",
+        event_source_id=source_id,
+    )
+    wait = await repo.get(db, activation_id)
+    assert wait is not None and wait.is_event
+    assert wait.event_context == "rendered event"
+    assert wait.event_source_id == source_id
+    assert RoutineDeviceWaitExport.model_validate(wait).event_source_id == source_id
+    assert not await repo.settle(
+        db, activation_id=activation_id, trigger_id=uuid4(), status="cancelled"
+    )
+    assert await repo.settle(
+        db, activation_id=activation_id, trigger_id=w.trigger.id, status="cancelled"
+    )

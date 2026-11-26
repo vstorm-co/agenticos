@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BrandingProvider } from "@/components/branding/branding-provider";
+import { BUILT_IN_BRANDING } from "@/lib/branding";
 import { LoginForm } from "./login-form";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -37,7 +39,9 @@ function mount() {
           ldapDisplayName: "Active Directory",
         }}
       >
-        <LoginForm />
+        <BrandingProvider branding={{ ...BUILT_IN_BRANDING, signInProviders: ["ldap", "google"] }}>
+          <LoginForm />
+        </BrandingProvider>
       </PublicConfigProvider>
     </QueryClientProvider>,
   );

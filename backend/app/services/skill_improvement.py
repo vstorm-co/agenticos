@@ -1425,6 +1425,7 @@ class SkillImprovementService:
                     values={
                         "status": AuthoringStatus.FAILED.value,
                         "error": "The improvement session stopped.",
+                        "error_code": "session_stopped",
                         "finished_at": datetime.now(UTC),
                     },
                 )

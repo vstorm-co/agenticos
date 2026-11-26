@@ -484,8 +484,17 @@ class _LazyAgent:
         """
         from pydantic_ai.workspaces import Workspace
 
-        if isinstance(self._delegate.workspace, Workspace):
-            return {**kwargs, "workspace": self._delegate.workspace}
+        from app.agents.capabilities.sandbox._project import ProjectWorkspaceSnapshot
+
+        workspace = self._delegate.workspace
+        if workspace == "parent":
+            workspace = kwargs.get("workspace")
+        if isinstance(workspace, Workspace):
+            if isinstance(workspace, ProjectWorkspaceSnapshot):
+                workspace = workspace.snapshot_for_delegate()
+            elif isinstance(workspace.backend, ProjectWorkspaceSnapshot):
+                workspace = workspace.backend.snapshot_for_delegate()
+            return {**kwargs, "workspace": workspace}
         if self._delegate.workspace == "parent":
             return kwargs
         return {**kwargs, "workspace": "new" if self._delegate.workspace == "own" else None}

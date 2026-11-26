@@ -174,7 +174,7 @@ async def draft_knowledge_gap(job: DraftTopic) -> bool:
             )
             if ctx is None:
                 return False
-            await KnowledgeGapService(db).draft(ctx, job.topic_id)
+            await KnowledgeGapService(db).draft(ctx, job.topic_id, quoted_usd=job.quoted_usd)
         return True
     finally:
         await change_feed.publish_knowledge_gaps_grouped(job.organization_id)

@@ -1,5 +1,5 @@
 ---
-source_sha: "82ddec58b5e8"
+source_sha: "a9dde76fbd7b"
 ---
 
 # Skills { #skills }
@@ -372,7 +372,8 @@ Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
 juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
 regresión que una etapa confirmó por sí sola cuenta, sea lo que sea que halló la
 otra. Todas las
-preguntas del conjunto del skill son held-out, y una comprobación rápida solo
+preguntas del conjunto del skill son held-out - su proporción se queda en uno,
+y una pregunta añadida es held-out en todo caso - y una comprobación rápida solo
 toma preguntas held-out del agent.
 
 Una comprobación envía sus regresiones confirmadas, y las respuestas que el juez

@@ -77,12 +77,12 @@ describe("what a stored message says it cost", () => {
     expect(storedUsage(message({ output_tokens: 300 }))).toBeNull();
   });
 
-  it("reads a measured turn that genuinely cost nothing", () => {
+  it("keeps measured tokens without inventing a price when the server withholds it", () => {
     // A cached prompt on some providers really is free, and that is not the same
     // answer as "not recorded".
     const usage = storedUsage(message({ input_tokens: 10, output_tokens: 0, cost_usd: null }));
 
-    expect(usage).toMatchObject({ input_tokens: 10, output_tokens: 0, cost_usd: "0" });
+    expect(usage).toMatchObject({ input_tokens: 10, output_tokens: 0, cost_usd: null });
   });
 
   it("carries no budget or workspace figure", () => {

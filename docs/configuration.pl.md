@@ -1,5 +1,5 @@
 ---
-source_sha: "59bd87468e64"
+source_sha: "3b896741cc56"
 ---
 
 # Konfiguracja { #configuration }
@@ -127,6 +127,8 @@ razem z największym ustawieniem.
 Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
 uvicorn bez własnego limitu treści żądania.
 
+Uploady przenośnych pakietów ZIP mają osobny limit 512 MiB na obu hostach. Konsola przesyła `/api/portability/{id}/upload` do API strumieniowo, bez buforowania archiwum w Next.js. Żądania sterujące transferem mają limit 4 MiB, a import tekstu 25 MiB na opakowanie ciągu JSON; zdekodowany dokument nadal ma limit 4 MiB. Zachowaj te osobne lokalizacje przy zmianie konfiguracji proxy.
+
 ## Uwierzytelnianie { #authentication }
 
 ### JWT { #jwt }
@@ -164,6 +166,12 @@ Szyfrogram jest więc bezużyteczny poza tenantem, dla którego go zapieczętowa
 
 Walidacja produkcyjna: `API_KEY` nie może używać wartości domyślnej przy
 `ENVIRONMENT=production`.
+
+Logowanie lokalne jest sterowane w **Admin → Wdrożenie → Dostęp i konta**,
+niezależnie od filtra przycisków dostawców. Zobacz
+[logowanie wyłącznie przez dostawcę](deployment.md#provider-only-sign-in):
+zasadę, jej egzekwowanie w API i awaryjne wymuszenie operatora
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -222,7 +230,7 @@ Dwa przyciski po stronie frontendu, konfigurowane tam:
 
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO. `ldap` dodaje formularz katalogowy, a `kerberos` przycisk logowania Windows, opisane niżej |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Kolejność i filtr dostawców skonfigurowanych w backendzie. Pusta wartość ukrywa przyciski. Hasła lokalne są sterowane osobno w Admin → Wdrożenie → Dostęp i konta. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
 
@@ -1350,7 +1358,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Liczba żądań na minutę z jednego adresu IP, liczona łącznie dla webhooków workflow, wyzwalaczy GitHub w workflow i adresów URL źródeł zdarzeń wielokrotnego użytku. Limit obowiązuje przed odczytaniem treści żądania. Wartość domyślna uwzględnia dostawców takich jak GitHub, którzy obsługują wiele webhooków z kilku adresów |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unikalni odbiorcy e-maili workflow na użytkownika, łącznie dla kluczy i organizacji; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unikalni odbiorcy e-maili workflow na organizację; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unikalni odbiorcy e-maili workflow w całym deploymencie; [email.send](reference/workflow-nodes.md#email-send) |

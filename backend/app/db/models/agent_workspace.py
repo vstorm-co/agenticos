@@ -21,6 +21,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -162,6 +163,13 @@ class AgentWorkspace(Base, TimestampMixin):
     A directory holding a file exists anyway; this keeps one `make_dir` made, or
     one the agent emptied - as the library persists a document. Null for a row
     from before it was kept, which loads as none created.
+    """
+
+    filesystem_metadata: Mapped[dict[str, JsonValue] | None] = mapped_column(JSONB, nullable=True)
+    """POSIX metadata for stored Project files; content remains in `files`.
+
+    Absent entries retain the stored filesystem's normal defaults. Container
+    files use their own filesystem metadata instead of this document.
     """
 
     bytes_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

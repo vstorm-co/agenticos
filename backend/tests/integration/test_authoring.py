@@ -1050,6 +1050,7 @@ class TestWorker:
         request = await db.get(AuthoringRequest, started.id)
         assert request is not None and request.status == "failed"
         assert request.error == "Whoever started this is no longer a member."
+        assert request.error_code == "not_a_member"
 
     async def test_a_refused_or_broken_call_fails_the_request_with_a_reason(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1072,9 +1073,9 @@ class TestWorker:
         async def broken(*args: Any, **kwargs: Any):
             raise RuntimeError("socket closed")
 
-        for execute, reason in (
-            (unreadable, "could not be read"),
-            (broken, "stopped unexpectedly"),
+        for execute, reason, code in (
+            (unreadable, "could not be read", "system_agent_failed"),
+            (broken, "stopped unexpectedly", "unexpected"),
         ):
             started = await service.start_agent(ctx, agent.id, AuthoringStart())
             with patch.object(AgentRunnerService, "execute", new=execute):
@@ -1082,6 +1083,7 @@ class TestWorker:
             request = await db.get(AuthoringRequest, started.id)
             assert request is not None and request.status == "failed"
             assert request.error is not None and reason in request.error
+            assert request.error_code == code
             if execute is unreadable:
                 # The call was made and paid for, so the request owns its cost.
                 assert len(request.run_ids) == 1
@@ -1096,9 +1098,9 @@ class TestWorker:
         ).scalar_one()
         model = Improver(db)
 
-        for role, reason in (
-            (OrgRoleName.MEMBER, "may no longer read runs"),
-            (OrgRoleName.OPERATOR, "may no longer edit the agent"),
+        for role, reason, code in (
+            (OrgRoleName.MEMBER, "may no longer read runs", "no_runs_view"),
+            (OrgRoleName.OPERATOR, "may no longer edit the agent", "no_edit_agent"),
         ):
             membership.role = OrgRoleName.OWNER.value
             await db.flush()
@@ -1111,6 +1113,7 @@ class TestWorker:
             request = await db.get(AuthoringRequest, started.id)
             assert request is not None and request.status == "failed"
             assert request.error is not None and reason in request.error
+            assert request.error_code == code
         assert model.prompts == []
 
     async def test_a_gone_target_or_no_evidence_left_fails_the_request(self, db):
@@ -1125,6 +1128,7 @@ class TestWorker:
         request = await db.get(AuthoringRequest, started.id)
         assert request is not None and request.error is not None
         assert "Nothing to learn from yet" in request.error
+        assert (request.error_code, request.error_params) == ("no_evidence", None)
 
     async def test_a_request_the_worker_stopped_hearing_from_is_reported_failed(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1143,6 +1147,7 @@ class TestWorker:
         await db.flush()
         read = await service.for_agent(ctx, agent.id)
         assert read.latest is not None and read.latest.status == "failed"
+        assert read.latest.error_code == "stalled"
 
     async def test_a_request_no_worker_reached_for_a_day_is_reported_failed(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1156,6 +1161,7 @@ class TestWorker:
         read = await service.for_agent(ctx, agent.id)
 
         assert read.latest is not None and read.latest.status == "failed"
+        assert read.latest.error_code == "stalled"
 
 
 class TestEdges:
@@ -1286,22 +1292,34 @@ class TestWorkerTargets:
         ctx, agent, _ = await _setup(db)
         service = AuthoringService(db)
         cases = [
-            ("improve", "app.services.authoring_worker.agent_repo.get", "The agent is gone."),
-            ("verify", "app.services.authoring_worker.agent_repo.get", "no published version"),
+            (
+                "improve",
+                "app.services.authoring_worker.agent_repo.get",
+                "The agent is gone.",
+                "agent_gone",
+            ),
+            (
+                "verify",
+                "app.services.authoring_worker.agent_repo.get",
+                "no published version",
+                "no_published_version",
+            ),
             (
                 "verify",
                 "app.services.authoring_worker.agent_repo.newest_version",
                 "no published version",
+                "no_published_version",
             ),
         ]
         agent.draft_spec = {**agent.draft_spec, "instructions": "Edited."}
         await db.flush()
-        for kind, target, reason in cases:
+        for kind, target, reason, code in cases:
             started = await service.start_agent(ctx, agent.id, AuthoringStart(kind=kind))
             with patch(target, new=AsyncMock(return_value=None)):
                 await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
             request = await db.get(AuthoringRequest, started.id)
             assert request is not None and request.error is not None and reason in request.error
+            assert request.error_code == code
 
     async def test_a_skill_gone_mid_request_fails_it(self, db):
         ctx, agent, run = await _setup(db)
@@ -1332,6 +1350,7 @@ class TestWorkerTargets:
 
         request = await db.get(AuthoringRequest, started.id)
         assert request is not None and request.error == "The skill is gone."
+        assert request.error_code == "skill_gone"
 
         started = await AuthoringService(db).start_skill(ctx, skill.id, AuthoringStart())
         membership = (
@@ -1347,6 +1366,7 @@ class TestWorkerTargets:
         request = await db.get(AuthoringRequest, started.id)
         assert request is not None
         assert request.error == "Whoever started this may no longer edit the skill."
+        assert request.error_code == "no_edit_skill"
 
 
 async def test_an_agent_never_published_has_nothing_to_verify_against(db):
@@ -1769,6 +1789,7 @@ class TestARequestStartedWithAnApiKey:
         )
         assert request is not None
         assert (request.status, request.error) == ("failed", KEY_GONE)
+        assert request.error_code == "key_revoked"
 
 
 async def test_new_agent_reports_no_learning_evidence_without_running_a_model(db):

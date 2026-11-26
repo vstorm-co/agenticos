@@ -103,6 +103,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     updateEmbeddings,
     uploadDocument,
     deleteDocument,
+    retryDocument,
     deleteCollection,
     createSyncSource,
     updateSyncSource,
@@ -361,6 +362,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             onLoadMore={() => loadMoreDocuments()}
             onPreview={setViewerDoc}
             onRemove={setRemovingDocument}
+            onRetry={retryDocument}
             onChooseFiles={() => fileInputRef.current?.click()}
           />
         </TabsContent>

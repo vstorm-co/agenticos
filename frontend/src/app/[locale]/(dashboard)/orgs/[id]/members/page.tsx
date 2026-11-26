@@ -379,6 +379,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   return (
     <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
+        className="[&_.page-actions]:max-md:w-full"
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}
         breadcrumbs={[
@@ -387,7 +388,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         ]}
         secondaryActions={
           // Wrapping, because four links are wider than a phone (#2075).
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center max-md:[&>a]:h-auto max-md:[&>a]:min-h-11 max-md:[&>a]:whitespace-normal max-md:[&>button]:h-auto max-md:[&>button]:min-h-11 max-md:[&>button]:whitespace-normal">
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />
@@ -438,7 +439,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           </div>
         }
         actions={
-          <>
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 md:contents max-md:[&>button]:h-auto max-md:[&>button]:min-h-11 max-md:[&>button]:whitespace-normal">
             <Button
               variant="outline"
               data-tour="org-tab-profile"
@@ -453,7 +454,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 {t("inviteTeammate")}
               </Button>
             )}
-          </>
+          </div>
         }
       />
 
@@ -470,17 +471,23 @@ export default function OrgMembersPage({ params }: PageProps) {
           }
         }}
       >
-        <TabsList data-tour="org-tabs">
+        <TabsList
+          data-tour="org-tabs"
+          className="max-sm:grid max-sm:gap-1"
+          // i18n-exempt: CSS grid syntax with a numeric column count, not user-facing copy.
+          style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}
+        >
           {sections.map((section) => (
-            <div key={section.id} className="relative pt-2">
+            <div key={section.id} className="relative min-w-0 pt-2">
               <TabsTrigger
                 value={section.id}
                 data-tour={`org-tab-${section.id}`}
+                className="max-sm:h-full max-sm:w-full max-sm:flex-col max-sm:gap-1 max-sm:px-1.5 max-sm:py-2 max-sm:text-xs max-sm:whitespace-normal"
                 aria-describedby={
                   hints[section.id]?.length ? `${setupId}-${section.id}` : undefined
                 }
               >
-                <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <section.icon className="mr-1.5 size-4 shrink-0 max-sm:mr-0" aria-hidden />
                 {t(section.label)}
               </TabsTrigger>
               <span id={`${setupId}-${section.id}`} className="sr-only">

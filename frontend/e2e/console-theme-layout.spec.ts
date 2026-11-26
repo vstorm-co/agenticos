@@ -8,7 +8,7 @@ const catalogs = [
   ["/routines", "Routines", "/api/triggers"],
   ["/datasets", "Datasets", "/api/datasets"],
   ["/apps", "Apps", "/api/apps"],
-  ["/projects", "Projects", "/api/projects"],
+  ["/projects", "Projects", "/api/projects?skip=0&limit=50"],
   ["/rag", "Knowledge bases", "/api/kb"],
   ["/tables", "Tables", "/api/tables"],
   ["/skills", "Skills", "/api/skills"],
@@ -22,14 +22,22 @@ for (const theme of ["light", "dark"] as const) {
       await readAppearanceAs(page, theme);
       for (const [path, heading, apiPath] of catalogs) {
         await test.step(path, async () => {
-          const loaded = page.waitForResponse(
-            (response) =>
-              new URL(response.url()).pathname === apiPath && response.request().method() === "GET",
-          );
+          const catalog = new URL(apiPath, "http://catalog.local");
+          // A response event can belong to a sidebar fetch started on the old page.
+          // Navigation may abandon that body; bind this check to a new catalog request.
+          const loaded = page.waitForRequest((request) => {
+            const url = new URL(request.url());
+            return (
+              url.pathname === catalog.pathname &&
+              request.method() === "GET" &&
+              [...catalog.searchParams].every(([key, value]) => url.searchParams.get(key) === value)
+            );
+          });
           await page.goto(path);
-          const response = await loaded;
+          const response = await (await loaded).response();
+          if (response === null) throw new Error(`${path} catalog request returned no response`);
           expect(response.ok(), `${path} must read its real catalog`).toBe(true);
-          await response.finished();
+          expect(await response.finished(), `${path} catalog body must finish`).toBeNull();
           const title = page
             .getByRole("main")
             .getByRole("heading", { name: heading, exact: true, level: 1 });

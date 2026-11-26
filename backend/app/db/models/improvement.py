@@ -385,6 +385,9 @@ class ImprovementRun(Base):
     base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The dataset's held-out share when the session started: every attempt draws with
+    # it, so a change to the dataset's setting cannot move what the session measures.
+    holdout_share: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     chat_evidence_run_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
@@ -416,6 +419,9 @@ class ImprovementRun(Base):
     )
     stop_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """`error` as a code from `ImprovementFailure`; null on a session failed before codes."""
+    error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

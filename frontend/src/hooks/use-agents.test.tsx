@@ -52,6 +52,14 @@ vi.mock("@/lib/api-client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+function shared() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, wrapper: Wrapper };
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -821,13 +829,17 @@ describe("useAgents mutations", () => {
     expect(toast.error).toHaveBeenCalledWith("gone");
   });
 
-  it("deletes an agent", async () => {
+  it("deletes an agent and refreshes the usage left by its routines", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useAgents(), { wrapper });
+    const { client, wrapper: Wrapper } = shared();
+    const usage = qk.eventSources.usage("source");
+    client.setQueryData(usage, []);
+    const { result } = renderHook(() => useAgents(), { wrapper: Wrapper });
 
     await result.current.remove.mutateAsync("a1");
 
+    expect(client.getQueryState(usage)?.isInvalidated).toBe(true);
     expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1");
     expect(toast.success).toHaveBeenCalledWith("Agent deleted");
   });
@@ -859,14 +871,6 @@ const SPECIALIST: SpecialistSpec = {
 
 describe("the agent ceiling", () => {
   beforeEach(() => vi.clearAllMocks());
-
-  function shared() {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const Wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    return { client, wrapper: Wrapper };
-  }
 
   it("reads the ceiling from its own route, and is unknown until it lands", async () => {
     let answer: (value: unknown) => void = () => {};

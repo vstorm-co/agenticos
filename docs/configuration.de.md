@@ -1,5 +1,5 @@
 ---
-source_sha: "59bd87468e64"
+source_sha: "3b896741cc56"
 ---
 
 # Konfiguration { #configuration }
@@ -129,6 +129,8 @@ der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
 die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
 Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
 
+Portable ZIP-Uploads haben auf beiden Hosts eine eigene Grenze von 512 MiB. Die Konsole streamt `/api/portability/{id}/upload` zur API, ohne das Archiv in Next.js zu puffern. Transfersteuerung erlaubt 4 MiB; Textimporte erlauben 25 MiB für die JSON-Zeichenkettenhülle, während das dekodierte Dokument auf 4 MiB begrenzt bleibt. Behalten Sie diese gezielten Locations beim Ersetzen der Proxy-Konfiguration bei.
+
 ## Authentifizierung { #authentication }
 
 ### JWT { #jwt }
@@ -167,6 +169,12 @@ für den er versiegelt wurde, nutzlos.
 
 Prüfung für die Produktion: `API_KEY` darf bei `ENVIRONMENT=production` nicht der
 Standardwert sein.
+
+Die lokale Kontoanmeldung wird unter **Admin → Bereitstellung → Zugriff und
+Konten** unabhängig vom Anbieterfilter gesteuert. Siehe
+[Anmeldung nur über den Anbieter](deployment.md#provider-only-sign-in) für die
+Richtlinie, ihre API-Durchsetzung und die Wiederherstellungsoption
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` des Betreibers.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -230,7 +238,7 @@ Zwei Knöpfe im Frontend, dort konfiguriert:
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO. `ldap` ergänzt das Verzeichnisformular und `kerberos` den Knopf für die Windows-Anmeldung, siehe unten |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Reihenfolge und Filter der im Backend konfigurierten Anbieter. Leer blendet die Schaltflächen aus. Lokale Passwörter werden separat unter Admin → Bereitstellung → Zugriff und Konten gesteuert. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Wie der Knopf den Anbieter nennt: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (leer) | `google`, `github` oder `microsoft` — die Marken, die die Anmeldeseite ohnehin mitbringt. Alles andere zeichnet einen schlichten Schlüssel |
 
@@ -1434,7 +1442,7 @@ diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen pro Minute von einer IP-Adresse, gemeinsam gezählt für Workflow-Webhooks, GitHub-Trigger von Workflows und URLs wiederverwendbarer Ereignisquellen. Das Limit greift vor dem Lesen des Anfrageinhalts. Der Standardwert berücksichtigt Anbieter wie GitHub, die viele Webhooks von wenigen Adressen aus zustellen |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Eindeutige Workflow-Mail-Empfänger je Aussteller, über Schlüssel und Organisationen; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Eindeutige Workflow-Mail-Empfänger je Organisation; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Eindeutige Workflow-Mail-Empfänger im gesamten Deployment; [email.send](reference/workflow-nodes.md#email-send) |
