@@ -90,6 +90,9 @@ const KB_STEPS = [
 // AI Architect's card, then the list), then across into the roles matrix. None
 // are inTour — orgs is a "?"-only section.
 const ORG_STEPS = [
+  "organization-console-navigation",
+  "organization-console-notices",
+  "organization-chat-costs",
   "org-profile",
   "org-governance",
   "org-proactivity",
@@ -116,6 +119,7 @@ describe("pageKey", () => {
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-python-actions",
       "workflow-input-contract",
     ]);
   });
@@ -357,6 +361,10 @@ describe("stepsForPage", () => {
     // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "personal-console-navigation",
+      "personal-console-catalogs",
+      "personal-console-notices",
+      "personal-chat-costs",
       "phone-contact",
       "phone-dial",
       "settings-tabs",
@@ -483,8 +491,9 @@ describe("stepsForPage", () => {
 
   it("chains the two organization routes into one walk from the Workspaces list", () => {
     expect(stepsForPage(ROUTES.ORGS, () => true).map((step) => step.id)).toEqual([
+      ...ORG_STEPS.slice(0, 3),
       "orgs-new",
-      ...ORG_STEPS,
+      ...ORG_STEPS.slice(3),
     ]);
   });
 

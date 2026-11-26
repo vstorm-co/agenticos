@@ -41,7 +41,7 @@ from app.workflows.contracts.results import Failed, NodeResult, WorkflowError
 from app.workflows.graph.validate import table_ref_problems
 
 TABLE_FIELD = Field(
-    json_schema_extra={"x-resource": "table"},
+    json_schema_extra={"x-resource": "table", "x-resource-object": True},
     description="The table this step works on, pinned when the workflow is published.",
 )
 

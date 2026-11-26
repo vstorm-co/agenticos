@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 
+import { pythonCallOf, statusWithPythonCall } from "@/lib/workflows/step-data";
 import type { NodeRunStatus, WorkflowNodeRunRead } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -51,7 +52,12 @@ const SEVERITY: NodeRunStatus[] = [
 /** Fold a run's node rows into one summary per node instance. */
 export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, NodeRunSummary> {
   const byNode = new Map<string, NodeRunSummary>();
+  const calls: WorkflowNodeRunRead[] = [];
   for (const row of rows) {
+    if (pythonCallOf(row)) {
+      calls.push(row);
+      continue;
+    }
     const current = byNode.get(row.node_instance_id);
     if (current === undefined) {
       byNode.set(row.node_instance_id, {
@@ -82,6 +88,15 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
           : (current.durationMs ?? 0) + (took(row) ?? 0),
       startedAt: row.status === "running" ? row.started_at : current.startedAt,
     });
+  }
+  for (const call of calls) {
+    const summary = byNode.get(call.node_instance_id);
+    if (!summary) continue;
+    const status = statusWithPythonCall(summary.status, call.status);
+    if (status !== summary.status) {
+      summary.status = status;
+      summary.startedAt = status === "running" ? call.started_at : null;
+    }
   }
   return byNode;
 }

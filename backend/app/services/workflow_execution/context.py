@@ -33,6 +33,7 @@ from uuid import UUID
 
 from app.core.permissions import AuthContext
 from app.services.workflow_execution import budget
+from app.workflows.contracts.script import ScriptResume
 
 
 @dataclass(slots=True)
@@ -73,6 +74,8 @@ class DispatchContext:
     `AgentRunnerService` reads this to choose `resume` over `run`: calling
     `run` again on a wake would silently drop an approved call by re-sending
     the original prompt to a fresh agent."""
+    script_resume: ScriptResume | None = None
+    """Saved state and result for the workflow interpreter after a child action finishes."""
     claim: ClaimState = field(default_factory=ClaimState)
     workflow_id: UUID | None = None
     """The workflow this run executes - what a node checks a recipient's reach against."""

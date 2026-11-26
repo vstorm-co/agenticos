@@ -254,3 +254,217 @@ async def test_workflow_entrypoints_refuse_agent_roots_and_keep_imports_reviewed
         )
     with pytest.raises(BadRequestError, match="workflow root"):
         await service.import_workflow(ctx, request.model_copy(update={"bundle": agent_bundle}))
+
+
+@pytest.mark.parametrize("kind", ["table.record.get", "table.record.upsert"])
+def test_table_action_config_has_owned_table_and_version_references(kind: str) -> None:
+    from app.schemas.resource_bundle import BundleContentLayer, BundleDestination, BundleResource
+    from app.services.portability.contracts import references_for
+    from app.services.portability.mapping import rebind_definition
+
+    source, target = uuid4(), uuid4()
+    step = node(kind, {"table": {"table_id": str(source), "schema_version": 2}})
+    content = WorkflowContent(
+        name="Table action", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    pins = workflow_pins(content)
+    assert [(pin.kind, pin.source_id, pin.source_number) for pin in pins] == [
+        (BundleResourceKind.TABLE, source, None),
+        (BundleResourceKind.TABLE, source, 2),
+    ]
+    assert set(workflow_omissions(content).values()) == {("graph", "nodes", 0, "config", "table")}
+    resource = BundleResource(
+        key="workflow/table",
+        kind=BundleResourceKind.WORKFLOW,
+        name="Table action",
+        definition=content.model_dump(mode="json"),
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        references=tuple(ref for ref, _ in references_for(content)),
+    )
+    key = f"table/{source}"
+    imported = rebind_definition(
+        resource,
+        {key: BundleDestination(id=target, version_number=7)},
+        omit=workflow_omissions(content),
+    )
+    imported_content = WorkflowContent.model_validate(imported.definition)
+    assert imported_content.graph is not None
+    assert imported_content.graph.nodes[0].config["table"] == {
+        "table_id": str(target),
+        "schema_version": 7,
+    }
+    omitted = rebind_definition(resource, {key: None}, omit=workflow_omissions(content))
+    omitted_content = WorkflowContent.model_validate(omitted.definition)
+    assert (
+        omitted_content.graph is not None and "table" not in omitted_content.graph.nodes[0].config
+    )
+
+
+def test_python_action_bindings_use_their_owned_schemas_for_mapping_and_omission() -> None:
+    from app.schemas.resource_bundle import BundleContentLayer, BundleDestination, BundleResource
+    from app.services.portability.contracts import references_for
+    from app.services.portability.mapping import rebind_definition
+
+    table, connection, knowledge, literal = uuid4(), uuid4(), uuid4(), uuid4()
+    step = node(
+        "code.python.actions",
+        {
+            "code": "args",
+            "actions": {
+                "lookup": {
+                    "type": "table.record.get",
+                    "config": {"table": {"table_id": str(table), "schema_version": 2}},
+                },
+                "send": {
+                    "type": "mcp.call",
+                    "config": {
+                        "connection_id": str(connection),
+                        "tool": "send",
+                        "arguments": {"customer_id": str(literal)},
+                    },
+                },
+                "search": {
+                    "type": "knowledge.search",
+                    "config": {"collection_ids": [str(knowledge)]},
+                },
+                "pause": {"type": "flow.resume_link"},
+            },
+        },
+    )
+    content = WorkflowContent(
+        name="Python actions", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    pins = workflow_pins(content)
+    assert [(pin.kind, pin.source_id) for pin in pins] == [
+        (BundleResourceKind.TABLE, table),
+        (BundleResourceKind.TABLE, table),
+        (BundleResourceKind.MCP_CONNECTION, connection),
+        (BundleResourceKind.KNOWLEDGE_BASE, knowledge),
+    ]
+    assert set(workflow_omissions(content).values()) == {
+        ("graph", "nodes", 0, "config", "actions", name) for name in ("lookup", "send", "search")
+    }
+    resource = BundleResource(
+        key="workflow/python",
+        kind=BundleResourceKind.WORKFLOW,
+        name="Python actions",
+        definition=content.model_dump(mode="json"),
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        references=tuple(ref for ref, _ in references_for(content)),
+    )
+    target_table, target_connection, target_knowledge = uuid4(), uuid4(), uuid4()
+    rebound = rebind_definition(
+        resource,
+        {
+            f"table/{table}": BundleDestination(id=target_table, version_number=9),
+            f"mcp_connection/{connection}": target_connection,
+            f"knowledge_base/{knowledge}": target_knowledge,
+        },
+        omit=workflow_omissions(content),
+    )
+    rebound_content = WorkflowContent.model_validate(rebound.definition)
+    assert rebound_content.graph is not None
+    actions = rebound_content.graph.nodes[0].config["actions"]
+    assert actions["lookup"]["config"]["table"] == {
+        "table_id": str(target_table),
+        "schema_version": 9,
+    }
+    assert actions["send"]["config"]["connection_id"] == str(target_connection)
+    assert actions["send"]["config"]["arguments"]["customer_id"] == str(literal)
+    assert actions["search"]["config"]["collection_ids"] == [str(target_knowledge)]
+    omitted = rebind_definition(
+        resource,
+        {
+            f"table/{table}": None,
+            f"mcp_connection/{connection}": None,
+            f"knowledge_base/{knowledge}": None,
+        },
+        omit=workflow_omissions(content),
+    )
+    omitted_content = WorkflowContent.model_validate(omitted.definition)
+    assert omitted_content.graph is not None
+    assert omitted_content.graph.nodes[0].config["actions"] == {
+        "pause": {"type": "flow.resume_link"}
+    }
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [
+        [],
+        {"call": []},
+        {"call": {}},
+        {"call": {"type": "debug.echo", "version": False}},
+        {"call": {"type": "unknown"}},
+        {"call": {"type": "trigger.manual"}},
+        {"call": {"type": "debug.echo", "config": []}},
+    ],
+)
+def test_python_action_resource_inventory_refuses_unknown_binding_schemas(actions: object) -> None:
+    from app.core.exceptions import BadRequestError
+
+    step = node("code.python.actions", {"code": "args", "actions": actions})
+    content = WorkflowContent(
+        name="Invalid", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    with pytest.raises(BadRequestError):
+        workflow_pins(content)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_column_scoped_action_tables_cannot_leak_source_column_ids(nested: bool) -> None:
+    from app.core.exceptions import BadRequestError
+
+    config = {
+        "table": {"table_id": str(uuid4()), "schema_version": 1, "column_ids": [str(uuid4())]}
+    }
+    step = (
+        node(
+            "code.python.actions",
+            {"code": "args", "actions": {"read": {"type": "table.record.get", "config": config}}},
+        )
+        if nested
+        else node("table.record.get", config)
+    )
+    content = WorkflowContent(
+        name="Columns", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    with pytest.raises(BadRequestError, match="columns"):
+        workflow_pins(content)
+
+
+@pytest.mark.parametrize("version", [0, -1, False, "1", str(uuid4()), [1], {"value": 1}])
+def test_bound_table_schema_versions_are_positive_numbers_not_guessed_resource_ids(
+    version: object,
+) -> None:
+    from app.core.exceptions import BadRequestError
+
+    step = node(
+        "table.record.get", {"table": {"table_id": str(uuid4()), "schema_version": version}}
+    )
+    content = WorkflowContent(
+        name="Invalid version", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    with pytest.raises(BadRequestError):
+        workflow_pins(content)
+
+
+def test_a_table_version_reference_cannot_choose_an_unrelated_resource() -> None:
+    from app.services.portability.references import schema_resource_pins
+
+    with pytest.raises(ValueError, match="requires its table"):
+        schema_resource_pins(
+            {"version": 1},
+            {
+                "type": "object",
+                "properties": {"version": {"type": "integer", "x-resource": "table_version"}},
+            },
+        )
+    step = node("table.record.get", {"table": {"schema_version": 1}})
+    content = WorkflowContent(
+        name="No table", graph=WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    )
+    from app.core.exceptions import BadRequestError
+
+    with pytest.raises(BadRequestError):
+        workflow_pins(content)

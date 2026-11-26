@@ -6,11 +6,13 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { StepDataFeed } from "./step-data-feed";
 
+type StepRow = Pick<
+  WorkflowNodeRunRead,
+  "node_instance_id" | "scope_path" | "status" | "output" | "error"
+>;
+
 const runs: { runs: Partial<WorkflowRunRead>[] } = { runs: [] };
-const runsById: Record<
-  string,
-  { run: Partial<WorkflowRunRead> | null; nodes: Partial<WorkflowNodeRunRead>[] }
-> = {};
+const runsById: Record<string, { run: Partial<WorkflowRunRead> | null; nodes: StepRow[] }> = {};
 const read = vi.fn((runId: string) => runsById[runId] ?? { run: null, nodes: [] });
 vi.mock("@/hooks", () => ({
   useWorkflowRuns: () => runs,
@@ -24,8 +26,8 @@ afterEach(() => {
   read.mockClear();
 });
 
-function step(nodeId: string, output: Record<string, unknown>): Partial<WorkflowNodeRunRead> {
-  return { node_instance_id: nodeId, status: "succeeded", output, error: null };
+function step(nodeId: string, output: Record<string, unknown>): StepRow {
+  return { node_instance_id: nodeId, scope_path: [], status: "succeeded", output, error: null };
 }
 
 describe("StepDataFeed", () => {

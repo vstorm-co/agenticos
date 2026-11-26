@@ -19,10 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.locks import LockScope, hold_subject
-from app.db.models.workflow_run import NodeRunStatus, WorkflowRunStatus
+from app.db.models.workflow_run import WorkflowRunStatus
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import WorkflowResumed
-from app.services.workflow_execution import admission, dispatch_queue
+from app.services.workflow_execution import admission, dispatch_queue, script_calls
 from app.services.workflow_execution.dispatcher import resolve_graph
 from app.services.workflow_execution.exceptions import (
     WorkflowInlineStorageLimitError,
@@ -34,6 +34,7 @@ from app.services.workflow_execution.resume_link import resume_token
 from app.services.workflow_exposure import parse_webhook_body
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.model import jsonb_value_fits
+from app.workflows.nodes.flow_wait._handler import FlowWaitConfig
 
 WAIT = "flow.wait"
 
@@ -99,17 +100,14 @@ class WorkflowResumeService:
         if WorkflowRunStatus(run.status).is_terminal:
             raise WorkflowNotWaitingError(run_id=run_id)
         graph = await resolve_graph(self.db, run)
-        waits = [
-            node.id
-            for node in graph.nodes
-            if node.definition_id == WAIT and node.config.get("until_called") is True
-        ]
+        nodes = graph.node_by_id
         steps = [
             step
-            for step in await workflow_run_repo.list_node_runs_of(
-                self.db, workflow_run_id=run.id, node_instance_ids=waits
-            )
-            if step.status == NodeRunStatus.WAITING.value and step.resume_payload is None
+            for step in await workflow_run_repo.list_waiting_timers(self.db, workflow_run_id=run.id)
+            if step.resume_payload is None
+            and (actual := script_calls.configured_step(nodes, step)) is not None
+            and actual[0] == WAIT
+            and FlowWaitConfig.model_validate(actual[1]).until_called
         ]
         if not steps:
             raise WorkflowNotWaitingError(run_id=run_id)

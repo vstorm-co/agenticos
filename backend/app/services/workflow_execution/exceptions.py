@@ -218,6 +218,20 @@ class WorkflowDispatchRefusedError(AppException):
     code = "DISPATCH_REFUSED"
 
 
+class ScriptActionUnavailableError(WorkflowDispatchRefusedError):
+    """A configured action no longer passes its resource check at dispatch."""
+
+    message = "The bound action or its resources are not available to this workflow run"
+    code = "SCRIPT_ACTION_UNAVAILABLE"
+
+
+class ScriptRetryUnsafeError(WorkflowDispatchRefusedError):
+    """A new run cannot safely repeat or replace an earlier action call."""
+
+    message = "The previous script call changed or its effect was not confirmed. Inspect the earlier run before starting a new one."
+    code = "SCRIPT_ACTION_RETRY_UNSAFE"
+
+
 class WorkflowGraphUnresolvableError(WorkflowDispatchRefusedError):
     """The run's graph, or the node a `NodeRun` names in it, no longer resolves."""
 

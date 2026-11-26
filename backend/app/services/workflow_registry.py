@@ -95,6 +95,7 @@ from app.workflows.graph.model import (
 )
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
+from app.workflows.python_actions import PYTHON_ACTIONS, python_callable
 from app.workflows.triggers import (
     DECLARES_FIELDS,
     UNATTENDED,
@@ -335,6 +336,13 @@ def _table_references(graph: dict[str, Any]) -> list[tuple[UUID, tuple[UUID, ...
         for node in graph.get("nodes", [])
         if isinstance(node.get("config", {}).get("table"), dict)
     ]
+    for node in graph.get("nodes", []):
+        actions = node.get("config", {}).get("actions")
+        if node.get("definition_id") == PYTHON_ACTIONS and isinstance(actions, dict):
+            for action in actions.values():
+                config = action.get("config") if isinstance(action, dict) else None
+                if isinstance(config, dict) and isinstance(table := config.get("table"), dict):
+                    refs.append(table)
     refs += [
         binding.get("source")
         for binding in graph.get("bindings", [])
@@ -428,6 +436,7 @@ class WorkflowRegistryService:
                 effect_kind=definition.effect_kind,
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
+                python_callable=python_callable(definition),
                 loop_body_only=definition.loop_body_only,
                 exclusive_branches=definition.exclusive_branches,
             )

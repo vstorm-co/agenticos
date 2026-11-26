@@ -9,6 +9,7 @@ hold ends by itself when the attempt settles, parks, or is resolved as uncertain
 
 import uuid
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -28,9 +29,11 @@ from app.db.models.workflow_run import (
     NodeRun,
     NodeRunStatus,
     WorkflowEvent,
+    WorkflowRun,
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import budget, context, dispatcher
+from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows._registry import REGISTRY, load_builtins, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.results import Completed, NodeResult, Waiting
@@ -197,6 +200,60 @@ async def _tick(seeded: SeededRun, node: NodeInstance) -> None:
     row = await _row(seeded, node)
     assert row is not None
     await tick(seeded, row.id)
+
+
+@pytest.mark.security
+async def test_reused_script_call_needs_no_budget_held_by_a_sibling(
+    engine: AsyncEngine, spenders: None
+):
+    entry, sibling = _node("core.input"), _node("test.spender")
+    script = _node(
+        "code.python.actions",
+        {
+            "actions": {"charge": {"type": "test.spender"}},
+            "code": "charge()",
+        },
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, sibling, script),
+        edges=(_edge(entry, sibling), _edge(entry, script)),
+    )
+    original = await seed_run(engine, graph)
+
+    async def reach_call(run: SeededRun) -> uuid.UUID:
+        await _tick(run, script)
+        async with run.factory() as db:
+            child = await workflow_run_repo.script_call_at(
+                db, workflow_run_id=run.run.id, node_instance_id=script.id, parent_scope=[], index=0
+            )
+            assert child is not None
+            return child.id
+
+    await _tick(original, entry)
+    await tick(original, await reach_call(original))
+    async with original.factory() as db:
+        service = WorkflowExecutionService(db)
+        await service.cancel(original.ctx, original.run.id)
+        await db.commit()
+        retry = await service.retry(original.ctx, original.run.id)
+        row = await db.get(WorkflowRun, retry.id)
+        assert row is not None
+        row.budget_limit = Decimal("1")
+        await db.commit()
+    retried = replace(original, run=row)
+    await _tick(retried, entry)
+    await start_attempt(retried, await _row_id(retried, sibling))
+    child_id = await reach_call(retried)
+    async with retried.factory() as db:
+        assert await budget.unreserved(db, row) == 0
+    begun, outcome = await begin(retried, child_id)
+    assert begun.stands_in == "reused"
+    assert isinstance(outcome.result, Completed)
+    async with retried.factory() as db:
+        attempt = await workflow_run_repo.get_latest_attempt(db, node_run_id=child_id)
+        assert attempt is not None and attempt.reserved_usd is None
+    assert len(seen[script.id]) == 1
 
 
 async def _due_now(seeded: SeededRun, node: NodeInstance) -> None:

@@ -5952,6 +5952,10 @@
         "title": "Ein Bereich im Fokus",
         "body": "Wähle auf dem Smartphone die Schritteinstellungen, Eingabe oder Ausgabe. Der aktive Bereich erhält den verfügbaren Platz; dein Entwurf bleibt beim Wechsel erhalten."
       },
+      "workflow-python-actions": {
+        "title": "Tools aus Python aufrufen",
+        "body": "Wähle Python mit Aktionen, um MCP-Tools aufzurufen, Tabellen zu verwenden oder Wissen zu durchsuchen. Gib jeder Aktion einen Funktionsnamen und füge ihren Aufruf über das Menü unter dem Editor in dein Skript ein. Jeder Aufruf hat eigene Freigaben und einen eigenen Ausführungseintrag."
+      },
       "improvement-check": {
         "title": "Prüfung",
         "body": "Die heutige und die geänderte Fassung beantworten dieselben Fragen in einem Test. Jeder Balken zeigt, wie weit jede ist, und das Ergebnis öffnet sich, sobald der Test fertig ist."
@@ -8333,6 +8337,7 @@
       "runOutputNone": "Dieser Run endete ohne Output.",
       "runStepList": "Schritte",
       "runLogsFailed": "Die von den Schritten protokollierten Zeilen konnten nicht gelesen werden.",
+      "runPythonCall": "Aufruf {index}: {name}",
       "runStepIteration": "Iteration {index}",
       "runAttempts": "{count, plural, one {# Versuch} other {# Versuche}}",
       "triggers": "Auslöser",
@@ -11953,6 +11958,20 @@
       "badMethod": "Ein HTTP-Schritt sendet GET, POST, PUT, PATCH oder DELETE.",
       "unclosedQuote": "Ein Anführungszeichen im Befehl wird nie geschlossen."
     },
+    "pythonActions": "Verfügbare Funktionen",
+    "pythonActionsHint": "Binde eine Aktion einmal und rufe ihre Funktion dann im Skript mit Schlüsselwortargumenten auf.",
+    "pythonActionsDiscover": "Um MCP-Tools aufzurufen, Tabellen zu verwenden oder Wissen zu durchsuchen, füge einen Schritt Python mit Aktionen hinzu und gib jeder Aktion einen Funktionsnamen.",
+    "pythonSelectAction": "Aktion auswählen",
+    "pythonInsertCall": "Funktionsaufruf einfügen",
+    "pythonInvalidName": "Verwende einen eindeutigen Python-Bezeichner, kein Schlüsselwort und keinen eingebauten Namen.",
+    "pythonFunctionName": "Python-Funktionsname",
+    "pythonBindAction": "Aktion binden",
+    "pythonActionUnavailable": "Aktion nicht verfügbar",
+    "pythonRemoveAction": "{name} entfernen",
+    "pythonToolArguments": "Schema der Werkzeugargumente",
+    "pythonRequiredConfigArgs": "Gib {fields} bei jedem Aufruf an oder lege unten einen Standardwert fest.",
+    "pythonOverrideFields": "Optionale Überschreibungen: {fields}. Ohne diese Argumente gelten die konfigurierten Werte.",
+    "pythonResultFields": "Ergebnisfelder: {fields}",
     "codeArgKeys": "Schlüssel von args",
     "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen.",
     "validationConfigNotSet": "Erforderlich.",
@@ -12245,7 +12264,7 @@
     },
     "stepEditorView": "Schrittansicht",
     "stepEditorSettings": "Schritteinstellungen",
-    "problemTableSchemaChanged": "Diese Tabelle hat sich seit dem Einrichten des Schritts geändert: Eine Spalte, die er liest, wurde entfernt oder hat ihren Typ geändert. Aktualisiere sie auf das aktuelle Schema und prüfe, was diesen Schritt liest.",
+    "problemTableSchemaChanged": "Das Tabellenschema hat sich geändert. Prüfe die Spaltennamen, Typen und Werte dieses Schritts, bevor du seinen Tabellenverweis aktualisierst.",
     "problemTableDependenciesChanged": "Entferne oder ersetze geänderte Filter, Sortierungen und Wertebindungen in diesem Schritt, bevor du sein Tabellenschema aktualisierst."
   },
   "artifacts": {
@@ -18733,6 +18752,10 @@
         "name": "Python in einer Sandbox",
         "description": "Vollständiges Python mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
       },
+      "code_python_actions": {
+        "name": "Python mit Aktionen",
+        "description": "Schreibe Python-Code, der die an Namen gebundenen Workflow-Aktionen aufruft."
+      },
       "code_python_simple": {
         "name": "Python-Skript",
         "description": "Einen JSON-Wert mit einem kurzen Python-Skript in der Monty-Sandbox berechnen – ohne Dateien, ohne Netzwerk, mit einer kleinen Standardbibliothek."
@@ -19359,6 +19382,29 @@
           },
           "files__items__byte_size": {
             "title": "Größe in Bytes"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lesen Sie die gebundenen Werte als `args`; der letzte Ausdruck ist das Ergebnis."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_memory_mb": {
+            "title": "Max. Speicher (MB)"
+          },
+          "actions": {
+            "title": "Aktionen",
+            "description": "Namen der Python-Funktionen und die versionierten Workflow-Aktionen, die sie aufrufen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumente"
           }
         }
       },

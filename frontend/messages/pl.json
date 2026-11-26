@@ -4004,6 +4004,7 @@
       "runOutputNone": "Ten run zakończył się bez wyniku.",
       "runStepList": "Kroki",
       "runLogsFailed": "Nie udało się odczytać wierszy zapisanych przez kroki.",
+      "runPythonCall": "Wywołanie {index}: {name}",
       "runStepIteration": "Iteracja {index}",
       "runAttempts": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
       "triggers": "Wyzwalacz",
@@ -7732,6 +7733,10 @@
       "workflow-step-view": {
         "title": "Skup się na jednym panelu",
         "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
+      },
+      "workflow-python-actions": {
+        "title": "Wywołuj narzędzia z Pythona",
+        "body": "Wybierz Python z akcjami, aby wywoływać narzędzia MCP, korzystać z tabel lub przeszukiwać wiedzę. Nadaj każdej akcji nazwę funkcji, a następnie wstaw jej wywołanie do skryptu z menu pod edytorem. Każde wywołanie ma własne zatwierdzenia i wpis w historii wykonania."
       },
       "improvement-check": {
         "title": "Sprawdzenie",
@@ -12432,6 +12437,20 @@
       "badMethod": "Krok HTTP wysyła GET, POST, PUT, PATCH albo DELETE.",
       "unclosedQuote": "Cudzysłów w poleceniu nie został zamknięty."
     },
+    "pythonActions": "Dostępne funkcje",
+    "pythonActionsHint": "Przypisz akcję raz, a potem wywołuj jej funkcję w skrypcie z argumentami nazwanymi.",
+    "pythonActionsDiscover": "Aby wywoływać narzędzia MCP, korzystać z tabel lub przeszukiwać wiedzę, dodaj krok Python z akcjami i nadaj każdej akcji nazwę funkcji.",
+    "pythonSelectAction": "Wybierz akcję",
+    "pythonInsertCall": "Wstaw wywołanie funkcji",
+    "pythonInvalidName": "Użyj unikatowego identyfikatora Pythona, który nie jest słowem kluczowym ani nazwą wbudowaną.",
+    "pythonFunctionName": "Nazwa funkcji Pythona",
+    "pythonBindAction": "Przypisz akcję",
+    "pythonActionUnavailable": "Akcja niedostępna",
+    "pythonRemoveAction": "Usuń {name}",
+    "pythonToolArguments": "Schemat argumentów narzędzia",
+    "pythonRequiredConfigArgs": "Podaj {fields} w każdym wywołaniu lub ustaw poniżej wartość domyślną.",
+    "pythonOverrideFields": "Opcjonalne nadpisania: {fields}. Pomiń te argumenty, aby użyć skonfigurowanych wartości.",
+    "pythonResultFields": "Pola wyniku: {fields}",
     "codeArgKeys": "Klucze args",
     "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor.",
     "validationConfigNotSet": "Pole wymagane.",
@@ -12724,7 +12743,7 @@
     },
     "stepEditorView": "Widok kroku",
     "stepEditorSettings": "Ustawienia kroku",
-    "problemTableSchemaChanged": "Ta tabela zmieniła się od skonfigurowania kroku: kolumna, którą czyta, została usunięta albo zmieniła typ. Zaktualizuj ją do bieżącego schematu i sprawdź, co czyta ten krok.",
+    "problemTableSchemaChanged": "Schemat tabeli uległ zmianie. Przed zaktualizowaniem odwołania do tabeli sprawdź nazwy kolumn, typy i wartości używane w tym kroku.",
     "problemTableDependenciesChanged": "Usuń lub zastąp zmienione filtry, sortowanie i powiązania wartości w tym kroku przed aktualizacją schematu tabeli."
   },
   "artifacts": {
@@ -18820,6 +18839,10 @@
         "name": "Python w sandboksie",
         "description": "Uruchom pełnego Pythona z plikami runa jako trwałe zadanie na hoście sandboksa organizacji, bez żadnych poświadczeń platformy w środku."
       },
+      "code_python_actions": {
+        "name": "Python z akcjami",
+        "description": "Pisz kod w Pythonie wywołujący akcje przepływu przypisane do nazw."
+      },
       "code_python_simple": {
         "name": "Skrypt w Pythonie",
         "description": "Oblicz wartość JSON krótkim skryptem w Pythonie w sandboksie Monty - bez plików, bez sieci, z małą biblioteką standardową."
@@ -19446,6 +19469,29 @@
           },
           "files__items__byte_size": {
             "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Odczytaj powiązane wartości jako `args`; ostatnie wyrażenie jest wynikiem."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_memory_mb": {
+            "title": "Maks. pamięć (MB)"
+          },
+          "actions": {
+            "title": "Akcje",
+            "description": "Nazwy funkcji Pythona i wersje akcji przepływu, które te funkcje wywołują."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenty"
           }
         }
       },

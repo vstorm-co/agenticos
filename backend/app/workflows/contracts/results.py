@@ -45,15 +45,24 @@ class Completed[T: BaseModel](BaseModel):
     output: T
 
 
-class Waiting(BaseModel):
+class _EffectProof(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    effect_not_started: bool = Field(default=False, exclude_if=lambda value: not value)
+    """The handler proved this attempt never dispatched the requested effect.
+
+    Persisted on the outcome, not in caller-controlled error details. Its absence
+    (including in old attempt history) says nothing about what was sent.
+    """
+
+
+class Waiting(_EffectProof):
     """The node started an effect whose outcome has not arrived yet.
 
     `resume_token` is what a later event or approval decision is matched
     against to continue the node - opaque here, owned by the execution engine
     that issues and consumes it.
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     status: Literal["waiting"] = "waiting"
     reason: Literal["approval", "question", "external_event", "retry_backoff", "timer"]
@@ -62,10 +71,8 @@ class Waiting(BaseModel):
     """When a `timer` wait comes due; the dispatcher wakes the step then."""
 
 
-class Failed(BaseModel):
+class Failed(_EffectProof):
     """The node failed, with a typed error rather than a bare exception."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     status: Literal["failed"] = "failed"
     error: WorkflowError

@@ -5957,6 +5957,10 @@
         "title": "Focus op één paneel",
         "body": "Kies op een telefoon stapinstellingen, invoer of uitvoer om het actieve paneel de beschikbare ruimte te geven. Van paneel wisselen behoudt je concept."
       },
+      "workflow-python-actions": {
+        "title": "Tools aanroepen vanuit Python",
+        "body": "Kies Python met acties om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam en voeg de aanroep toe via het menu onder de editor. Elke aanroep heeft eigen goedkeuringen en een eigen uitvoeringsrecord."
+      },
       "improvement-check": {
         "title": "Controle",
         "body": "De versie van vandaag en de gewijzigde beantwoorden dezelfde vragen in één test. Elke balk toont hoe ver elke versie is, en het resultaat opent zodra de test klaar is."
@@ -6468,6 +6472,7 @@
       "runOutputNone": "Deze run eindigde zonder uitvoer.",
       "runStepList": "Stappen",
       "runLogsFailed": "De regels die de stappen logden, konden niet worden gelezen.",
+      "runPythonCall": "Aanroep {index}: {name}",
       "runStepIteration": "Iteratie {index}",
       "runAttempts": "{count} pogingen",
       "triggers": "Trigger",
@@ -12151,6 +12156,20 @@
       "badMethod": "Een HTTP-stap verstuurt GET, POST, PUT, PATCH of DELETE.",
       "unclosedQuote": "Een aanhalingsteken in het commando wordt nooit gesloten."
     },
+    "pythonActions": "Beschikbare functies",
+    "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonActionsDiscover": "Voeg een stap Python met acties toe om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam.",
+    "pythonSelectAction": "Selecteer een actie",
+    "pythonInsertCall": "Functieaanroep invoegen",
+    "pythonInvalidName": "Gebruik een unieke Python-naam die geen sleutelwoord of ingebouwde naam is.",
+    "pythonFunctionName": "Naam van de Python-functie",
+    "pythonBindAction": "Actie koppelen",
+    "pythonActionUnavailable": "Actie niet beschikbaar",
+    "pythonRemoveAction": "{name} verwijderen",
+    "pythonToolArguments": "Schema van toolargumenten",
+    "pythonRequiredConfigArgs": "Geef {fields} bij elke aanroep op of stel hieronder een standaardwaarde in.",
+    "pythonOverrideFields": "Optioneel te overschrijven: {fields}. Laat deze argumenten weg om de ingestelde waarden te gebruiken.",
+    "pythonResultFields": "Resultaatvelden: {fields}",
     "codeArgKeys": "Sleutels van args",
     "codeKeysHint": "Tab springt in en Shift+Tab springt terug. Druk op Esc en dan op Tab om de editor te verlaten.",
     "validationConfigNotSet": "Verplicht.",
@@ -12443,7 +12462,7 @@
     },
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
-    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
+    "problemTableSchemaChanged": "Het tabelschema is gewijzigd. Controleer de kolomnamen, typen en waarden die deze stap gebruikt voordat je de tabelverwijzing bijwerkt.",
     "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt."
   },
   "artifacts": {
@@ -18931,6 +18950,10 @@
         "name": "Python in een sandbox",
         "description": "Voer volledige Python uit met de bestanden van de run als duurzame taak op de sandboxhost van de organisatie, zonder platforminloggegevens erin."
       },
+      "code_python_actions": {
+        "name": "Python met acties",
+        "description": "Schrijf Python-code die de aan namen gekoppelde workflowacties aanroept."
+      },
       "code_python_simple": {
         "name": "Python-script",
         "description": "Bereken een JSON-waarde met een kort Python-script in de Monty-sandbox - geen bestanden, geen netwerk, een kleine standaardbibliotheek."
@@ -19557,6 +19580,29 @@
           },
           "files__items__byte_size": {
             "title": "Grootte in bytes"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lees de gebonden waarden als `args`; de laatste expressie is het resultaat."
+          },
+          "timeout_seconds": {
+            "title": "Time-out in seconden"
+          },
+          "max_memory_mb": {
+            "title": "Max. geheugen in MB"
+          },
+          "actions": {
+            "title": "Acties",
+            "description": "Python-functienamen en de versies van de workflowacties die ze aanroepen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenten"
           }
         }
       },

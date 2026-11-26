@@ -42,6 +42,7 @@ describe("summarizeNodeRuns", () => {
       row({ status: "succeeded" }),
       row({ status: "failed", attempts: 3, error: { code: "BAD", message: "m" } }),
       row({ status: "skipped" }),
+      row({ status: "failed", scope_path: [{ action: "lookup", index: 0 }] }),
       row({ node_instance_id: "B", status: "running" }),
     ]);
     expect(summary.get("A")).toEqual({
@@ -55,6 +56,70 @@ describe("summarizeNodeRuns", () => {
       startedAt: null,
     });
     expect(summary.get("B")?.status).toBe("running");
+  });
+
+  it("shows a running call and gives a child decision priority in either order", () => {
+    const parent = row({ status: "waiting" });
+    const running = row({
+      status: "running",
+      scope_path: [{ action: "lookup", index: 0 }],
+      started_at: "2026-11-10T10:00:01Z",
+    });
+    const attention = row({
+      status: "needs_attention",
+      scope_path: [{ action: "notify", index: 1 }],
+    });
+    expect(summarizeNodeRuns([parent, running]).get("A")).toMatchObject({
+      status: "running",
+      startedAt: running.started_at,
+      runs: 1,
+    });
+    expect(summarizeNodeRuns([parent, running, attention]).get("A")?.status).toBe(
+      "needs_attention",
+    );
+    expect(summarizeNodeRuns([parent, attention, running]).get("A")?.status).toBe(
+      "needs_attention",
+    );
+  });
+
+  it("does not create a step summary for a call without its parent row", () => {
+    const call = row({ status: "running", scope_path: [{ action: "lookup", index: 0 }] });
+    expect(summarizeNodeRuns([call]).size).toBe(0);
+  });
+
+  it("surfaces a child that needs a decision without counting its attempts, output, or time", () => {
+    const child = row({
+      status: "needs_attention",
+      scope_path: [{ action: "write", index: 0 }],
+      attempts: 5,
+      output: { list: [1] },
+      started_at: "2026-11-10T10:00:01Z",
+      ended_at: "2026-11-10T10:00:04Z",
+    });
+    const parent = row({
+      status: "waiting",
+      started_at: "2026-11-10T10:00:00Z",
+      ended_at: "2026-11-10T10:00:10Z",
+    });
+    for (const rows of [
+      [child, parent],
+      [parent, child],
+    ]) {
+      expect(summarizeNodeRuns(rows).get("A")).toMatchObject({
+        status: "needs_attention",
+        runs: 1,
+        succeeded: 0,
+        attempts: 1,
+        durationMs: 10000,
+        items: null,
+      });
+    }
+    expect(summarizeNodeRuns([child, { ...parent, status: "cancelled" }]).get("A")?.status).toBe(
+      "cancelled",
+    );
+    expect(summarizeNodeRuns([child, { ...parent, status: "failed" }]).get("A")?.status).toBe(
+      "failed",
+    );
   });
 
   it("adds up the items each row handed on, while every row handed on a list", () => {

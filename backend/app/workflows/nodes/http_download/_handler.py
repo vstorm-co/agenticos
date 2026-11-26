@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
 from app.workflows import files
 from app.workflows.contracts.io import FileRef
 from app.workflows.contracts.results import Completed, Failed, NodeResult
@@ -40,6 +39,7 @@ from app.workflows.nodes._http import (
     is_http_url,
     private_allowlist_for,
     read_capped,
+    send_request,
 )
 
 MAX_DOWNLOAD_BYTES = 200_000_000
@@ -116,7 +116,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     if not isinstance(config, HttpDownloadConfig):
         return failed("REQUEST_NOT_CONFIGURED", "This download has no URL configured")
     if not is_http_url(config.url):
-        return failed("URL_REFUSED", "The URL must be an http or https URL with a host")
+        return failed(
+            "URL_REFUSED",
+            "The URL must be an http or https URL with a host",
+            effect_not_started=True,
+        )
     secret = await credential(config.auth, config.url)
     if isinstance(secret, Failed):
         return secret
@@ -131,12 +135,15 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             timeout=httpx2.Timeout(config.timeout_seconds), private_allowlist=allowlist
         ) as client:
             for _hop in range(MAX_REDIRECTS + 1):
-                response = await client.send(
+                response = await send_request(
+                    client,
                     client.build_request(
                         "GET", authorized_url(config.auth, secret, url), headers=headers
                     ),
-                    stream=True,
+                    first_request=_hop == 0,
                 )
+                if isinstance(response, Failed):
+                    return response
                 try:
                     location = response.headers.get("location")
                     if response.status_code in REDIRECT_STATUSES and location:
@@ -165,10 +172,6 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     "TOO_MANY_REDIRECTS",
                     f"The download was redirected more than {MAX_REDIRECTS} times",
                 )
-    except UrlRefusedError as exc:
-        return failed("URL_REFUSED", str(exc))
-    except httpx2.ConnectError, httpx2.ConnectTimeout:
-        return failed("HTTP_UNREACHABLE", "The server could not be reached", retryable=True)
     except httpx2.HTTPError:
         return failed("HTTP_NO_RESPONSE", "The download started and did not finish", retryable=True)
 

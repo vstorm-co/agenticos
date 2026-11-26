@@ -60,8 +60,8 @@ updates:
       backend-everything-else:
         applies-to: version-updates
         patterns: ["*"]
-        # Must mirror the group above exactly, wildcards included: an exclusion
-        # that does not match is an exclusion that silently does nothing.
+        # Mirror the group above, wildcards included. Keep Monty updates separate
+        # so releases can account for paused workflow checkpoints.
         exclude-patterns:
           - fastapi
           - pydantic-ai-slim*
@@ -69,6 +69,7 @@ updates:
           - pydantic-graph
           - logfire*
           - genai-prices
+          - pydantic-monty
 
   # A week before a release is offered. Nothing here is read the day it lands, so
   # the delay costs nothing and skips the versions that get yanked within hours.

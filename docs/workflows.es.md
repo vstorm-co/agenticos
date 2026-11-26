@@ -1,5 +1,5 @@
 ---
-source_sha: "6bad529c4682"
+source_sha: "0b052386f1e6"
 ---
 
 # Workflows { #workflows }
@@ -942,11 +942,9 @@ todos. En la página de una ejecución, hacer clic en un paso muestra su **Input
 Las líneas que escribió el [quick log](#quick-log) de un
 paso aparecen debajo del paso.
 
-**Retry from failed step** inicia una ejecución nueva
-de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
-entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
-alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
-reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
+**Retry from failed step** inicia otra ejecución con la misma versión y la misma entrada. Reutiliza los resultados de los pasos completados y de las llamadas completadas de un bloque Python sin repetir sus escrituras. Un bucle vuelve a ejecutarse y reutiliza los pasos de cada elemento que tuvieron éxito. El enlace de reanudación se genera de nuevo: el enlace anterior no puede reanudar esta ejecución.
+
+**Debug in editor** fija
 en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
 `POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`
@@ -1525,3 +1523,5 @@ El diálogo de espera de respuesta también permite preparar un borrador de segu
 Los paquetes de recursos seleccionables también admiten flujos como raíz mediante `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` y los endpoints bundle-import. Elige qué definiciones vinculadas copiar, reutilizar u omitir. La importación crea borradores privados sin publicar ni activar disparadores. No transfiere vínculos de archivos subidos ni resultados fijados de ejecuciones. El resultado enumera las rutas omitidas; la publicación sigue comprobando los recursos que faltan. Los delegados requieren seleccionar explícitamente una versión publicada existente del agente asignado. Los flujos de error deben apuntar a un manejador de fallos publicado y accesible; nunca se publican borradores automáticamente. Los ciclos de creación requieren reutilizar un recurso existente u omitir un vínculo.
 
 Los vínculos con columnas seleccionadas se omiten para elegirlas manualmente en el destino; los vínculos de tabla completa usan la versión del esquema de destino.
+
+Los vínculos de acciones Python usan el esquema de recursos de cada acción. Al reutilizar un destino, se sustituyen juntos el ID de tabla y la versión del esquema. Omitir una dependencia de acción elimina su vínculo completo; revisa el código Python antes de publicar. Se rechazan las exportaciones con una selección de columnas concretas: borra la selección antes de exportar y vuelve a elegir las columnas en el destino.

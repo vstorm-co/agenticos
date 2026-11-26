@@ -132,7 +132,6 @@ def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
     assert kept["inline"] == {
         "name": "Lead scorer",
         "instructions": "Score the lead.",
-        "collection_ids": [],
         "capabilities": [
             {"id": "web_research", "config": {"max_results": 3}},
             {"id": "clock"},
@@ -141,7 +140,7 @@ def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
     }
     assert sorted(entry.field for entry in unresolved) == [
         "inline.capabilities.0.config.secret_id",
-        "inline.collection_ids.0",
+        "inline.collection_ids",
         "inline.mcp_servers.0",
         "inline.model_profile_id",
     ]

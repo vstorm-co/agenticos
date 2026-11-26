@@ -298,6 +298,16 @@ export function secretKind(schema: Schema): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** Only plain, explicitly bindable settings can be supplied in a Python call. */
+export function isPythonConfigInput(schema: Schema, name: string, input: Schema | null): boolean {
+  const fields = input?.properties;
+  return (
+    isBindable(schema) &&
+    !("x-resource" in schema) &&
+    !(isRecord(fields) && Object.hasOwn(fields, name))
+  );
+}
+
 /** The platforms a channel-bot leaf offers, from `x-platform`: one name or a list of names. */
 export function channelPlatforms(schema: Schema): readonly string[] | undefined {
   const value = schema["x-platform"];

@@ -63,6 +63,8 @@ export interface NodeDefinition {
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
+  /** Whether this version can be bound as a function in a Python actions step. */
+  python_callable?: boolean;
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
   /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
@@ -663,7 +665,7 @@ export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
   id: Uuid;
   node_instance_id: Uuid;
-  scope_path: { loop_node_id: Uuid; index: number }[];
+  scope_path: ({ loop_node_id: Uuid; index: number } | { action: string; index: number })[];
   status: NodeRunStatus;
   waiting_reason: string | null;
   attempts: number;
