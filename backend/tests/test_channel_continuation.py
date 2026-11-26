@@ -234,6 +234,36 @@ class TestContinuing:
         p.resume.assert_awaited_once()
         p.post_notice.assert_not_awaited()
 
+    @pytest.mark.security
+    async def test_an_approver_deciding_last_hands_the_run_to_its_person_past_their_call(
+        self,
+    ) -> None:
+        """Only the run's person may continue past their approved platform call, so an
+        operator who decided the rest of the batch last continues it as that person."""
+        person = uuid.uuid4()
+        other = MagicMock(id=uuid.uuid4(), status=ApprovalStatus.APPROVED.value)
+        other.tool_id, other.always_asks = "slack_post_message", False
+        seen: list[uuid.UUID | None] = []
+        with _Patched(run=_run(user_id=person, parked_on=(APPROVAL, other.id))) as p:
+            p.decider_context.side_effect = lambda db, *, organization_id, user_id: AuthContext(
+                user_id=user_id, organization_id=organization_id, role=OrgRoleName.MEMBER
+            )
+            p.pending = [_approved_platform_call(), other]
+
+            async def resume(*a: Any, **k: Any) -> Any:
+                seen.append(current_impersonator())
+                return _segment()
+
+            p.resume.side_effect = resume
+            try:
+                await _continue(impersonator_id=uuid.uuid4())
+            finally:
+                set_impersonator(None)
+        assert p.decider_context.await_args.kwargs["user_id"] == person
+        assert p.resume.await_args.args[0].user_id == person
+        assert seen == [None]
+        p.post_notice.assert_not_awaited()
+
     async def test_it_takes_the_chat_lock_before_it_claims_the_run(self) -> None:
         with _Patched() as p:
             await _continue()
@@ -369,9 +399,13 @@ class TestRefusing:
         p.resume.assert_not_awaited()
 
     @pytest.mark.security
-    async def test_somebody_else_is_refused_past_a_members_platform_call(self) -> None:
-        with _Patched(run=_run(user_id=uuid.uuid4())) as p:
-            p.decider_context.return_value = _decider(OrgRoleName.MEMBER)
+    async def test_a_run_whose_person_left_is_refused_past_their_platform_call(self) -> None:
+        """Nobody else may continue past it, so the run's last decider does not stand in."""
+        person = uuid.uuid4()
+        with _Patched(run=_run(user_id=person)) as p:
+            p.decider_context.side_effect = lambda db, *, organization_id, user_id: (
+                None if user_id == person else _decider()
+            )
             p.pending = [_approved_platform_call()]
             await _continue()
         p.resume.assert_not_awaited()

@@ -27,7 +27,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
-from app.services.approvals import past_own_platform_call
+from app.services.approvals import holds_approved_own_call, past_own_platform_call
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
@@ -128,6 +128,11 @@ async def _attempt(
     if run is None or not _waits_on_decision(run, destination, approval_id):
         logger.info("channel_continuation_moved_on run_id=%s bot_id=%s", run_id, bot_id)
         return None
+    if run.user_id is not None and await holds_approved_own_call(db, run):
+        # The person approved that call as themselves; whoever decided the rest of the
+        # batch last continues it as them, or the replay would refuse it.
+        set_impersonator(None)
+        decider_user_id = run.user_id
     decider = await decider_context(db, organization_id=organization_id, user_id=decider_user_id)
     # Network-bound, so it runs before the row lock is taken.
     refusal = await _refusal(db, run, bot, destination, decider)

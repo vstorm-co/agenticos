@@ -166,6 +166,23 @@ async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentR
     )
 
 
+async def holds_approved_own_call(db: AsyncSession, run: AgentRun) -> bool:
+    """Whether the run's current park holds its person's approved platform call.
+
+    Only that person may continue the run past it, whoever decided the rest.
+    """
+    parked = (run.paused_state or {}).get("tool_call_ids", {})
+    approvals = await agent_run_repo.list_approvals_for_run(
+        db, run_id=run.id, organization_id=run.organization_id
+    )
+    return any(
+        str(approval.id) in parked
+        and approval.status == ApprovalStatus.APPROVED.value
+        and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        for approval in approvals
+    )
+
+
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
     return ChatNotice(
         organization_id=run.organization_id, run_id=run.id, destination=destination, text=text
