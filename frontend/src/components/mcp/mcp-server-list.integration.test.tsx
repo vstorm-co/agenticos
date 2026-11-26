@@ -287,6 +287,9 @@ describe("McpServerList", () => {
     expect(screen.queryByRole("group", { name: "Some Thing" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Browse all services" }));
+    await screen.findByRole("textbox");
+    expect(screen.queryByRole("group", { name: "Some Thing" })).not.toBeInTheDocument();
+    await showUnreviewed();
     await screen.findByRole("group", { name: "Some Thing" });
     expect(listCalls().length).toBeGreaterThan(0);
     expect(screen.getByRole("textbox")).toBeVisible();
