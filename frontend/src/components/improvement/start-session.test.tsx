@@ -536,3 +536,14 @@ it("prices nothing and starts nothing while the search budget is empty", async (
   await user.click(screen.getByRole("radio", { name: /Search variants/ }));
   expect(screen.getByLabelText("Search budget (USD)")).toHaveValue("1");
 });
+
+it("shows the dataset's guidance for the helper, and who changed it, before the start", async () => {
+  state.estimate.mockResolvedValue({
+    ...QUOTE,
+    guidance: { text: "Prefer the shortest correct answer.", updated_by_name: "Ada Lovelace" },
+  });
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(await screen.findByText("Prefer the shortest correct answer.")).toBeInTheDocument();
+  expect(screen.getByText("Last changed by Ada Lovelace.")).toBeInTheDocument();
+});

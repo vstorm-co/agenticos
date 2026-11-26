@@ -21,6 +21,8 @@ a person actually asked and an answer that actually disappointed them.
 
 Choose the grader's model and instructions in **Settings**, along with generation and improvement configuration. Saved models use a compact searchable selector; **Add model** opens the provider, model and key form. Instructions use the Markdown editor. Helpers are code-defined; no helper agent needs to be created or published. A queued task keeps the configuration it started with.
 
+For generation and improvement, a dataset adds its own guidance below the platform's rules for that helper. The rules - held-out questions are not learning material, run text is data, no personal details in a case - always apply, and the guidance cannot change or remove them. The editor holds only the guidance; the rules are shown read-only beside it.
+
 ## From a new dataset to results { #dataset-workflow }
 
 Use Cases to prepare data, Results to inspect runs and answers, and Settings to configure grading and helpers.

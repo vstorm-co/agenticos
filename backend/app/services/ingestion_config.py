@@ -133,6 +133,7 @@ class ImageDescription(BaseModel):
 
     model_profile_id: UUID | None = Field(
         default=None,
+        json_schema_extra={"x-resource": "model_profile"},
         description=(
             "Which of the organization's model profiles reads the images; null "
             "uses the organization's default profile."
@@ -204,6 +205,7 @@ class IngestionConfig(BaseModel):
     )
     llamaparse_secret_id: UUID | None = Field(
         default=None,
+        json_schema_extra={"x-resource": "secret"},
         description=(
             "The organization vault key LlamaParse calls are billed to. Required "
             "when the parser is LlamaParse - there is no deployment key. Ignored "
@@ -212,6 +214,7 @@ class IngestionConfig(BaseModel):
     )
     ocr_endpoint_id: UUID | None = Field(
         default=None,
+        json_schema_extra={"x-resource": "local_service"},
         description=(
             "The OCR server LiteParse sends pages to: a local service of kind "
             "`ocr`, the organization's own or the deployment's. Omit to run the "

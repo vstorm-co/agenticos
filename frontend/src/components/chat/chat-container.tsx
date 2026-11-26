@@ -65,6 +65,7 @@ import { QuestionInteractionContext } from "./question-interaction";
 import type {
   PendingApproval,
   AskUserQuestion,
+  ActionRequest,
   AskUserAnswer,
   Compaction,
   ConnectionRequest,
@@ -1057,7 +1058,7 @@ interface ChatUIProps {
   dockHeight: number;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
-  onResumeDecisions?: (decisions: Decision[]) => void;
+  onResumeDecisions?: (decisions: Decision[], requests?: ActionRequest[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
   submittingQuestions?: boolean;

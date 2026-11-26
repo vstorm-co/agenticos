@@ -629,3 +629,31 @@ async def test_bundled_context_waits_as_a_proposal_and_is_not_duplicated(
     assert file.content == existing
     await service.apply(ctx, pending[0].id, ProposalDecision(revision=pending[0].revision))
     assert file.content.endswith("New guidance.")
+
+
+@pytest.mark.parametrize(
+    "name,key", [("AgenticOS", "general/agenticos"), ("Architect", "general/platform-assistant")]
+)
+async def test_projects_reaches_existing_shipped_agents_without_replacing_their_model(
+    db: AsyncSession, name: str, key: str
+) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agent = (await _agents(db, ctx))[name]
+    current = AgentSpec.model_validate(agent.draft_spec)
+    assert any(binding.id == "projects" for binding in current.capabilities)
+    previous = current.model_copy(
+        update={
+            "capabilities": [
+                binding for binding in current.capabilities if binding.id != "projects"
+            ]
+        }
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, previous)
+    await agent_repo.update(
+        db, agent=agent, update_data={"shipped_template": baseline(key, previous)}
+    )
+    await ShippedAgentService(db).refresh(ctx, agent, key)
+    updated = AgentSpec.model_validate(agent.draft_spec)
+    assert any(binding.id == "projects" for binding in updated.capabilities)
+    assert updated.model_profile_id == previous.model_profile_id

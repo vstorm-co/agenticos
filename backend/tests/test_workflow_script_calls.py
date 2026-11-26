@@ -1,0 +1,287 @@
+"""Crash recovery of a Python action uses its child row, never guessed effects."""
+
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from pydantic import ValidationError
+
+from app.core.permissions import AuthContext
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun
+from app.services.workflow_execution import dispatcher, script_calls
+from app.services.workflow_execution.exceptions import (
+    InvalidBindingError,
+    ScriptActionUnavailableError,
+    ScriptRetryUnsafeError,
+)
+from app.workflows.contracts.script import ScriptActionRequest
+from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.python_actions import ActionBinding
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+def call(monkeypatch):
+    original = WorkflowRun(id=uuid4(), organization_id=uuid4())
+    run = WorkflowRun(
+        id=uuid4(), organization_id=original.organization_id, retry_of_run_id=original.id
+    )
+    parent = NodeRun(id=uuid4(), workflow_run_id=run.id, node_instance_id=uuid4(), scope_path=[])
+    request = ScriptActionRequest(
+        index=0,
+        alias="save",
+        inputs={"value": 42},
+        checkpoint="private-cursor",
+        stdout="private-log",
+        resume_token=str(parent.id),
+    )
+    parent.resume_payload = request.model_dump(mode="json")
+    child = NodeRun(
+        id=uuid4(),
+        workflow_run_id=run.id,
+        node_instance_id=parent.node_instance_id,
+        scope_path=script_calls.child_scope(parent, request),
+    )
+    repo = AsyncMock()
+    monkeypatch.setattr(script_calls, "repo", repo)
+    repo.get_run.return_value = original
+    return run, parent, child, request, repo
+
+
+def test_checkpoint_is_validated_but_not_written_into_attempt_history(call):
+    _, _, _, request, _ = call
+    outcome = dispatcher.HandlerOutcome(result=request)
+    returned, history = dispatcher._persistable_outcome(outcome)
+    assert returned is outcome
+    assert history.keys() == {"status", "reason", "resume_token", "resume_at"}
+    assert history["status"] == "waiting"
+
+
+def test_an_invalid_action_version_is_reported_at_the_version_field() -> None:
+    with pytest.raises(ValidationError) as exc:
+        ActionBinding.model_validate({"type": "debug.echo", "version": 0})
+    assert [error["loc"] for error in exc.value.errors()] == [("version",)]
+
+
+async def test_a_same_size_cursor_replacement_does_not_change_storage_usage(
+    call, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run, parent, _, request, repo = call
+    monkeypatch.setattr(dispatcher, "workflow_run_repo", repo)
+    replacement = request.model_copy(update={"inputs": {"value": 84}}).model_dump(mode="json")
+
+    assert await dispatcher._replace_script_state(AsyncMock(), run, parent, replacement) is None
+
+    repo.update_run.assert_not_awaited()
+    assert repo.update_node_run.await_args.kwargs["update_data"] == {"resume_payload": replacement}
+
+
+@pytest.mark.parametrize(
+    "problem", ["missing-alias", "invalid-child-cursor", "invalid-parent-cursor"]
+)
+async def test_corrupt_script_state_cannot_dispatch_a_handler(
+    call, monkeypatch, problem: str
+) -> None:
+    run, parent, child, _, repo = call
+    node = NodeInstance(
+        id=parent.node_instance_id,
+        definition_id="code.python.actions",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+        config={
+            "code": "save(message='hello')",
+            "actions": (
+                {"other": {"type": "debug.echo"}}
+                if problem == "missing-alias"
+                else {"save": {"type": "debug.echo"}}
+            ),
+        },
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    monkeypatch.setattr(dispatcher, "resolve_graph", AsyncMock(return_value=graph))
+    repo.get_node_run_by_identity.return_value = parent
+    parent.resume_payload = {}
+    run.retry_of_run_id = None
+    auth = AuthContext(user_id=uuid4(), organization_id=run.organization_id, role="viewer")
+
+    with pytest.raises(InvalidBindingError) as exc:
+        await dispatcher._resolve_call(
+            AsyncMock(),
+            run=run,
+            node_run=parent if problem == "invalid-parent-cursor" else child,
+            auth=auth,
+        )
+    assert exc.value.details == {"node_instance_id": node.id}
+    cause = KeyError if problem == "missing-alias" else ValidationError
+    assert isinstance(exc.value.__cause__, cause)
+
+
+@pytest.mark.parametrize(
+    "problem",
+    ["missing-history", "changed-arguments", "unknown-write", "missing-output", "cyclic-history"],
+)
+async def test_a_new_run_will_not_repeat_an_unproven_write(call, problem):
+    run, _, child, _, repo = call
+    old = NodeRun(id=uuid4(), scope_path=child.scope_path, status="failed")
+    repo.script_call_at.return_value = old
+    repo.get_latest_attempt.return_value = NodeAttempt(status="uncertain")
+    repo.may_have_dispatched.return_value = True
+    if problem == "missing-history":
+        repo.get_run.return_value = None
+    elif problem == "changed-arguments":
+        old.scope_path = [{"action": "save", "index": 0, "arguments_digest": "other"}]
+    elif problem == "missing-output":
+        old.status = "succeeded"
+    elif problem == "cyclic-history":
+        repo.script_call_at.return_value = None
+        repo.get_run.return_value.retry_of_run_id = run.retry_of_run_id
+    with pytest.raises(ScriptRetryUnsafeError):
+        await script_calls.retry_output(AsyncMock(), run, child, writes=True)
+
+
+async def test_a_changed_pure_call_cannot_replace_another_alias_in_an_older_run(call):
+    run, _, child, _, repo = call
+    ancestor = WorkflowRun(id=uuid4())
+    previous = WorkflowRun(id=run.retry_of_run_id, retry_of_run_id=ancestor.id)
+    repo.get_run.side_effect = [previous, ancestor]
+    current = child.scope_path[-1]
+    repo.script_call_at.side_effect = [
+        NodeRun(scope_path=[{**current, "arguments_digest": "older-input"}]),
+        NodeRun(scope_path=[{**current, "action": "send"}]),
+    ]
+    with pytest.raises(ScriptRetryUnsafeError):
+        await script_calls.retry_output(AsyncMock(), run, child, writes=False, can_recompute=True)
+
+
+@pytest.mark.parametrize("writes,started", [(False, True), (True, False)])
+async def test_recovery_can_run_an_unsent_write_or_a_failed_read(call, writes, started):
+    run, _, child, _, repo = call
+    repo.script_call_at.return_value = NodeRun(
+        id=uuid4(), scope_path=child.scope_path, status="failed"
+    )
+    repo.may_have_dispatched.return_value = started
+    assert await script_calls.retry_output(AsyncMock(), run, child, writes=writes) is None
+
+
+async def test_a_safe_failure_in_the_previous_run_does_not_clear_an_uncertain_ancestor(call):
+    run, _, child, _, repo = call
+    first, previous = WorkflowRun(id=uuid4()), WorkflowRun(id=run.retry_of_run_id)
+    previous.retry_of_run_id = first.id
+    repo.get_run.side_effect = [previous, first]
+    repo.script_call_at.side_effect = [
+        NodeRun(id=uuid4(), scope_path=child.scope_path, status="failed"),
+        NodeRun(id=uuid4(), scope_path=child.scope_path, status="cancelled"),
+    ]
+    repo.may_have_dispatched.side_effect = [False, True]
+    with pytest.raises(ScriptRetryUnsafeError):
+        await script_calls.retry_output(AsyncMock(), run, child, writes=True)
+
+
+@pytest.mark.parametrize(
+    "problem", ["parent-missing", "scope-changed", "child-pending", "output-missing"]
+)
+async def test_resume_refuses_a_missing_or_mismatched_child(call, problem):
+    run, parent, child, _, repo = call
+    if problem == "parent-missing":
+        repo.get_node_run_by_identity.return_value = None
+    elif problem == "scope-changed":
+        repo.get_node_run_by_identity.return_value = parent
+        child.scope_path = [{"action": "unexpected", "index": 0}]
+    else:
+        repo.get_node_run_by_identity.return_value = child
+        child.status = "pending" if problem == "child-pending" else "succeeded"
+        repo.get_latest_attempt.return_value = None
+    with pytest.raises(InvalidBindingError):
+        if problem in ("parent-missing", "scope-changed"):
+            await script_calls.pending_request(AsyncMock(), run, child)
+        else:
+            await script_calls.resume(AsyncMock(), run, parent)
+
+
+@pytest.mark.parametrize("limit", ["count", "storage"])
+async def test_oversized_calls_stop_before_an_action_is_queued(call, monkeypatch, limit):
+    run, parent, _, request, _ = call
+    updates = AsyncMock()
+    monkeypatch.setattr(dispatcher, "workflow_run_repo", updates)
+    failed = AsyncMock()
+    monkeypatch.setattr(dispatcher, "_fail_node_and_run", failed)
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_RUN_MAX_NODE_RUNS", 5)
+    updates.count_node_runs.return_value = 5 if limit == "count" else 4
+    parent.resume_payload = None
+    run.inline_result_bytes = 0
+    monkeypatch.setattr(dispatcher.admission, "inline_storage_scope", AsyncMock(return_value="run"))
+    assert await dispatcher._park_script(AsyncMock(), run, parent, request, datetime.now(UTC)) == []
+    assert failed.await_args.kwargs["error"].code == (
+        "NODE_RUN_LIMIT" if limit == "count" else "WORKFLOW_INLINE_RESULT_LIMIT"
+    )
+    updates.create_node_run.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("arguments", [{}, {"not_an_input": "invalid"}])
+async def test_a_caller_without_table_creation_permission_cannot_dispatch_the_action(
+    call, arguments
+):
+    run, parent, child, _, repo = call
+    request = ScriptActionRequest.model_validate(parent.resume_payload).model_copy(
+        update={"inputs": arguments}
+    )
+    child.scope_path = script_calls.child_scope(parent, request)
+    parent.resume_payload = request.model_dump(mode="json")
+    repo.get_node_run_by_identity.return_value = parent
+    auth = AuthContext(user_id=uuid4(), organization_id=run.organization_id, role="viewer")
+    node = NodeInstance(
+        id=child.node_instance_id,
+        definition_id="code.python.actions",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+        config={
+            "code": "save()",
+            "actions": {
+                "save": {
+                    "type": "table.create",
+                    "config": {"name": "cases", "columns": [{"label": "name", "type": "text"}]},
+                }
+            },
+        },
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,), edges=())
+    with pytest.raises(ScriptActionUnavailableError):
+        await dispatcher._script_action_call(AsyncMock(), run, child, graph, node, "save", auth)
+
+
+def test_action_scope_cannot_turn_a_non_script_node_into_an_action_dispatch() -> None:
+    impostor = NodeInstance(
+        id=uuid4(),
+        definition_id="debug.echo",
+        definition_version=1,
+        config={"code": "args", "actions": {"send": {"type": "debug.echo"}}},
+        layout=NodePosition(x=0, y=0),
+    )
+    with pytest.raises(InvalidBindingError):
+        dispatcher._script_binding(impostor, "send")
+
+
+def test_a_direct_resume_link_requires_fresh_run_local_output() -> None:
+    node = NodeInstance(
+        id=uuid4(),
+        definition_id="flow.resume_link",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+        config={},
+    )
+    assert script_calls.produces_resume_link(node)
+
+
+async def test_a_run_local_result_is_recomputed_after_a_settled_prior_call(call) -> None:
+    run, _, child, _, repo = call
+    repo.script_call_at.return_value = NodeRun(
+        id=uuid4(), scope_path=child.scope_path, status="succeeded"
+    )
+    assert (
+        await script_calls.retry_output(AsyncMock(), run, child, writes=False, reuse_result=False)
+        is None
+    )
+    repo.get_latest_attempt.assert_not_awaited()

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { StartActions } from "./start-navigation";
+import { StartConfigurationGuide } from "./start-configuration-guide";
 import { useStart } from "@/hooks/use-start";
 import { useRouter } from "@/lib/locale-navigation";
 
@@ -21,6 +22,7 @@ export function StartFinish() {
   }, []);
   return (
     <>
+      <StartConfigurationGuide />
       <StartActions>
         <Button
           variant="outline"

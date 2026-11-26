@@ -19,7 +19,8 @@ from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
-from app.services.rag.models import CollectionInfo
+from app.services.rag.models import CollectionInfo, DocumentChunk
+from app.services.rag.parsed_snapshot import stored_snapshot_chunks
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import (
     collection_teardown_repo,
@@ -88,6 +89,10 @@ def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
         vector_document_id=doc.vector_document_id,
         chunk_count=doc.chunk_count,
         has_file=bool(doc.storage_path),
+        has_parsed_content=bool(
+            (doc.status == DocumentStatus.STORED and doc.parsed_content_path)
+            or (doc.status == DocumentStatus.DONE and doc.vector_document_id)
+        ),
         created_at=doc.created_at.isoformat() if doc.created_at else None,
         completed_at=doc.completed_at.isoformat() if doc.completed_at else None,
         parser=str(doc.ingestion_config["pdf_parser"]) if doc.ingestion_config else None,
@@ -635,7 +640,12 @@ class RAGDocumentService:
                 from_ids=[stale.id for stale in superseded if stale.source_path == source_path],
                 to_id=keep_id,
             )
-        storage_paths = [stale.storage_path for stale in superseded if stale.storage_path]
+        storage_paths = [
+            path
+            for stale in superseded
+            for path in (stale.storage_path, stale.parsed_content_path)
+            if path
+        ]
         for stale in superseded:
             await rag_document_repo.delete(self.db, stale.id)
         if storage_paths:
@@ -691,7 +701,10 @@ class RAGDocumentService:
             logger.exception("Failed to notify about a failed ingestion for %s", doc_id)
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
-        """Parse a failed document again, from the file it was uploaded with.
+        """Index an imported original, or parse a failed document again.
+
+        Stored imports explicitly adopt the destination knowledge base's current
+        settings. Import itself never dispatches this work.
 
         It reads the stored copy rather than asking for the file again: the
         upload kept one for exactly this, and a retry that needed the original
@@ -720,9 +733,9 @@ class RAGDocumentService:
                 not read (#2568).
         """
         doc = await self.get_document(doc_id)
-        if doc.status != DocumentStatus.ERROR:
+        if doc.status not in (DocumentStatus.ERROR, DocumentStatus.STORED):
             raise BadRequestError(
-                message="Only failed documents can be retried",
+                message="Only failed or stored documents can be indexed",
                 details={"doc_id": doc_id, "status": doc.status},
             )
         if not doc.storage_path:
@@ -738,6 +751,20 @@ class RAGDocumentService:
                 message="This document is filed under no knowledge base; upload it again",
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
+        config: dict[str, object] | None = None
+        if doc.status == DocumentStatus.STORED:
+            if doc.filesize > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+                raise BadRequestError(
+                    message="This original exceeds the deployment's ingestion size limit"
+                )
+            if doc.knowledge_base_id is None:
+                raise BadRequestError(
+                    message="Choose a knowledge base before indexing this original"
+                )
+            kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
+            if kb is None:
+                raise NotFoundError(message="Knowledge base not found")
+            config = IngestionConfig.model_validate(kb.ingestion_config).model_dump(mode="json")
         file_data = await get_file_storage().load(doc.storage_path)
         new_attempt = doc.ingestion_attempt + 1
         updated = await rag_document_repo.update_status(
@@ -754,6 +781,7 @@ class RAGDocumentService:
             # `expected_attempt` closes for `complete_ingestion`/
             # `fail_ingestion` one layer up.
             expected_attempt=doc.ingestion_attempt,
+            ingestion_config=config,
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
@@ -969,29 +997,38 @@ class RAGDocumentService:
     ) -> RAGParsedContent:
         """How a document parsed: its stored chunks, grouped back into pages.
 
-        The chunks in the vector store are the parse - there is no other record
-        of what the parser produced - so this reads them back in document order
-        rather than re-running a parse that may involve OCR or a paid API.
+        Stored imports read their parsed-text snapshot; completed ingestions
+        read the indexed chunks. Both reconstruct the recorded content rather
+        than re-running a parse that may involve OCR or a paid API.
 
         `has_text` uses `has_indexable_text`, not `.strip()`: markdown
         reconstruction wraps an unreadable scan in an empty fenced block, which
         is not whitespace and would otherwise pass for content.
 
         Raises:
-            NotFoundError: If the document does not exist, or has not (yet)
-                been ingested - a parse that is still running or failed has no
-                parsed content to show.
+            NotFoundError: If the document has neither an available imported
+                parsed snapshot nor completed indexed content.
         """
         doc = await self.get_document(doc_id)
-        if doc.status != DocumentStatus.DONE or not doc.vector_document_id:
+        chunks: list[DocumentChunk]
+        if doc.status == DocumentStatus.STORED and doc.parsed_content_path:
+            chunks = [
+                DocumentChunk.model_validate(chunk.model_dump())
+                async for chunk in stored_snapshot_chunks(
+                    get_file_storage(), doc.parsed_content_path
+                )
+            ]
+            chunks.sort(key=lambda chunk: (chunk.page_num, chunk.chunk_num))
+        elif doc.status != DocumentStatus.DONE or not doc.vector_document_id:
             raise NotFoundError(
                 message="No parsed content for this document",
                 details={"doc_id": doc_id, "status": doc.status},
             )
 
-        chunks = await vector_store.get_document_chunks(
-            doc.collection_name, doc.vector_document_id, await self.vector_scope(doc)
-        )
+        else:
+            chunks = await vector_store.get_document_chunks(
+                doc.collection_name, doc.vector_document_id, await self.vector_scope(doc)
+            )
 
         pages: list[RAGParsedPage] = []
         for chunk in chunks:

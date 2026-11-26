@@ -23,8 +23,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0368_case_from_conversation"
-down_revision: str | None = "0364_merge_routine_and_kb"
+revision: str = "0374_case_from_conversation"
+down_revision: str | None = "0373_project_filesystem_mounts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

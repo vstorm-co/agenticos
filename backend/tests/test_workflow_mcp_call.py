@@ -195,6 +195,7 @@ async def test_a_tool_not_marked_read_only_waits_for_approval_without_being_call
     result = await _run(_config(tool, approvers=(APPROVER,)), {"name": "Ada"})
 
     assert isinstance(result, Waiting) and result.reason == "approval"
+    assert result.effect_not_started
     assert server.calls == []
     request = server.asked[0]
     assert request["title"] == f"Call {tool} on Acme CRM?"
@@ -258,7 +259,7 @@ async def test_a_call_not_approved_fails_the_step_uncalled(server, status):
     result = await _run(_config("create_lead"))
 
     assert isinstance(result, Failed) and result.error.code == "MCP_CALL_REJECTED"
-    assert server.calls == []
+    assert result.effect_not_started and server.calls == []
 
 
 async def test_a_tool_the_server_does_not_offer_fails_rather_than_asking(server):
@@ -324,7 +325,7 @@ async def test_a_server_that_cannot_be_reached_fails_for_a_retry(server):
 
     assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
     assert result.error.message == "refused"
-    assert server.attempted == 0
+    assert result.effect_not_started and server.attempted == 0
 
 
 async def test_an_unkeyed_write_that_breaks_mid_call_is_uncertain(server):
@@ -347,6 +348,7 @@ async def test_a_keyed_write_that_breaks_mid_call_fails_for_a_retry(server):
 
     assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
     assert result.error.message == "reset by peer"
+    assert not result.effect_not_started and server.attempted == 1
 
 
 async def test_a_read_only_tool_that_breaks_mid_call_fails_for_a_retry(server):

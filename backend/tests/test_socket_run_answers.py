@@ -100,6 +100,11 @@ def _continuation(session: AgentSession, run: SimpleNamespace) -> Iterator[Simpl
         patch("app.services.agent_session.AgentRunnerService", return_value=runner),
         patch("app.services.agent_session.member_repo.get", membership),
         patch("app.services.agent_session.ConversationService", return_value=conversation),
+        # Protocol ordering uses the default policy; disclosure has its own DB tests.
+        patch(
+            "app.services.agent_session.ChatCostVisibilityService.visible_for_user",
+            AsyncMock(return_value=True),
+        ),
         patch("app.services.conversation_turns.claim", claim),
         patch.object(session, "_stop_following", new=AsyncMock()),
         patch.object(session, "_follow_if_running", new=AsyncMock()),

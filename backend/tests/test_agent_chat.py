@@ -1486,3 +1486,19 @@ async def test_chat_exposes_only_pending_approvals_after_automatic_consent(
     )
     assert approvals.requested[0].standing
     assert approvals.requested[0].tool_consented_by == user_id
+
+
+@pytest.mark.parametrize("value", ["agent", "project"])
+def test_project_executor_frame_preserves_explicit_choice(value: str) -> None:
+    from app.services.agent_chat import requested_project_execution_target
+
+    assert requested_project_execution_target({"project_execution_target": value}) == value
+    assert requested_project_execution_target({}) is None
+
+
+@pytest.mark.parametrize("value", [True, 1, {}, "local", ""])
+def test_invalid_project_executor_frame_is_refused(value: object) -> None:
+    from app.services.agent_chat import requested_project_execution_target
+
+    with pytest.raises(BadRequestError, match="command execution"):
+        requested_project_execution_target({"project_execution_target": value})

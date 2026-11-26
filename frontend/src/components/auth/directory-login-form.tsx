@@ -24,7 +24,13 @@ const LABEL = "text-foreground text-sm font-medium";
  * sign-in, so an invitee's staged invitation rides along, named by the flow in
  * `returnTo` the way the provider buttons name it.
  */
-export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
+export function DirectoryLoginForm({
+  onBack,
+  backLabel,
+}: {
+  onBack: () => void;
+  backLabel?: string;
+}) {
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const { ldapDisplayName } = usePublicConfig();
@@ -137,7 +143,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
         className="text-foreground/65 hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
       >
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-        {t("useEmailInstead")}
+        {backLabel ?? t("useEmailInstead")}
       </button>
     </form>
   );

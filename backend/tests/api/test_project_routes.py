@@ -99,6 +99,7 @@ async def test_a_project_is_listed_created_read_changed_and_deleted(
     assert listed.json()["items"][0]["name"] == "Launch"
     assert service.list_projects.await_args.kwargs["search"] == "lau"
     assert created.status_code == 201 and created.json()["can_edit"] is True
+    assert service.create.await_args.args[1].backend == "state"
     assert read.json()["id"] == str(PROJECT_ID)
     assert service.update.await_args.args[2].instructions == "x"
     assert changed.status_code == 200
@@ -322,3 +323,68 @@ async def test_project_tracker_requires_explicit_publication_of_the_reviewed_ver
     assert reviewed.await_args.kwargs == {"agent_id": agent_id, "version_id": version_id}
     assert create.await_args.args[2].source_review_token == "a" * 64
     create.assert_awaited_once()
+
+
+async def test_project_resource_routes_preserve_typed_refs_and_delegate_authorization(
+    client: OpenClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.project_resource import ProjectResourceList
+    from app.services.project_resources import ProjectResourceService
+
+    listing = ProjectResourceList(items=[], total=0)
+    service = MagicMock(
+        list_resources=AsyncMock(return_value=listing),
+        add=AsyncMock(return_value=listing),
+        remove=AsyncMock(),
+        set_entrypoint=AsyncMock(return_value=listing),
+    )
+    resource_id = uuid.uuid4()
+    async with client(OrgRoleName.VIEWER) as http:
+        app.dependency_overrides[deps.get_project_resource_service] = lambda: service
+        listed = await http.get(f"/api/v1/projects/{PROJECT_ID}/resources?q=research")
+        added = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/resources",
+            json={"resources": [{"kind": "agent", "resource_id": str(resource_id)}]},
+        )
+        removed = await http.delete(f"/api/v1/projects/{PROJECT_ID}/resources/agent/{resource_id}")
+        selected = await http.patch(
+            f"/api/v1/projects/{PROJECT_ID}/entrypoint", json={"workflow_id": None}
+        )
+        invalid = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/resources", json={"resources": []}
+        )
+    assert listed.json() == {"items": [], "total": 0}
+    assert service.list_resources.await_args.kwargs == {"search": "research"}
+    assert added.status_code == selected.status_code == 200
+    assert removed.status_code == 204 and invalid.status_code == 422
+    assert service.add.await_args.args[2][0].resource_id == resource_id
+    assert service.remove.await_args.args[2].kind.value == "agent"
+    assert service.set_entrypoint.await_args.args[2] is None
+    assert isinstance(deps.get_project_resource_service(MagicMock()), ProjectResourceService)
+
+
+async def test_registry_http_filters_forward_the_selected_project(client: OpenClient):
+    agents = MagicMock(
+        list_agents=AsyncMock(return_value=([], 0)), list_labels=AsyncMock(return_value=([], []))
+    )
+    workflows = MagicMock(list=AsyncMock(return_value={"items": [], "total": 0}))
+    async with client() as http:
+        app.dependency_overrides[deps.get_agent_registry_service] = lambda: agents
+        app.dependency_overrides[deps.get_workflow_registry_service] = lambda: workflows
+        agent_response = await http.get("/api/v1/agents", params={"project_id": str(PROJECT_ID)})
+        workflow_response = await http.get(
+            "/api/v1/workflows", params={"project_id": str(PROJECT_ID)}
+        )
+    assert agent_response.status_code == workflow_response.status_code == 200
+    assert agents.list_agents.await_args.kwargs["project_id"] == PROJECT_ID
+    assert workflows.list.await_args.kwargs["project_id"] == PROJECT_ID
+
+
+@pytest.mark.parametrize("backend", ["auto", "service", "state"])
+async def test_explicit_project_backend_is_preserved_at_the_api_boundary(
+    client: OpenClient, service: MagicMock, backend: str
+) -> None:
+    async with client() as http:
+        response = await http.post("/api/v1/projects", json={"name": "Launch", "backend": backend})
+    assert response.status_code == 201
+    assert service.create.await_args.args[1].backend == backend

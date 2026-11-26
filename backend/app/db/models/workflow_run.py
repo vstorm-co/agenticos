@@ -544,6 +544,10 @@ class NodeAttempt(Base, TimestampMixin):
     # Stable across attempts of the same logical operation, distinct across
     # loop iterations - see `dispatcher.py` for the exact format.
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # A stored receipt, never the action handler, was selected before dispatch.
+    receipt_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     retry_guarantee: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     # `none_as_null=True` for the same reason `WorkflowRun.draft_graph_snapshot`

@@ -10,6 +10,31 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  portability: {
+    exportPreview: (
+      org: string | null,
+      user: string | null,
+      kind: "agent" | "workflow",
+      id: string,
+    ) => ["portability", org, user, kind, id, "export-preview"] as const,
+    destinations: (
+      org: string | null,
+      user: string | null,
+      query: { kind: string; parent_id?: string; search: string; skip: number; limit: number },
+    ) => ["portability", org, user, "destinations", query] as const,
+    transfer: (org: string | null, user: string | null, id: string | null) =>
+      ["portability", org, user, id] as const,
+  },
+  eventSources: {
+    all: () => ["event-sources"] as const,
+    list: () => ["event-sources", "list"] as const,
+    detail: (id: string) => ["event-sources", id] as const,
+    usage: (id?: string) =>
+      id === undefined
+        ? (["event-sources", "usage"] as const)
+        : (["event-sources", "usage", id] as const),
+    capture: (id: string, token: string) => ["event-sources", id, "capture", token] as const,
+  },
   consoleExperience: {
     all: () => ["console-experience"] as const,
     member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,
@@ -291,6 +316,12 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    toolSettings: (
+      ownerId: string | null,
+      orgId: string | null,
+      agentId: string,
+      triggerId: string,
+    ) => ["triggers", "tool-settings", ownerId, orgId, agentId, triggerId] as const,
     filteredEvent: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "filtered-event", triggerId] as const,
     activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
@@ -859,6 +890,8 @@ export const qk = {
     detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
+    context: (ownerId: string | null, orgId: string | null, conversationId: string | null) =>
+      ["conversation-workspace", "context", ownerId, orgId, conversationId] as const,
     all: () => ["conversation-workspace"] as const,
     files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
     file: (conversationId: string, path: string) =>
@@ -902,6 +935,8 @@ export const qk = {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
+    resources: (id: string, search: string) => ["projects", id, "resources", search] as const,
+    candidates: (kind: string) => ["projects", "candidates", kind] as const,
     tracking: (id: string) => ["projects", id, "tracking"] as const,
     trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
     trackingReview: (id: string, agentId: string | null, versionId: string | null) =>

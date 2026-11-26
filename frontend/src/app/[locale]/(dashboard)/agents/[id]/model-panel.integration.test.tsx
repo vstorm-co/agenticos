@@ -407,7 +407,7 @@ it("keeps sharing and export available to a reader through More actions", async 
   expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "More actions" }));
   expect(screen.getByRole("menuitem", { name: "Share" })).toBeVisible();
-  expect(screen.getByRole("menuitem", { name: /Export YAML/ })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: /^Export agent/ })).toBeVisible();
   expect(screen.queryByRole("menuitem", { name: /Upload avatar/ })).toBeNull();
 });
 

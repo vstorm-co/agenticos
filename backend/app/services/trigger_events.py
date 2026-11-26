@@ -50,30 +50,15 @@ from app.schemas.agent_trigger import (
     WebhookTriggerConfig,
     ZendeskTriggerConfig,
 )
+from app.schemas.event_source import HUBSPOT_V1_SIGNATURE_HEADER, SIGNATURE_HEADER
 from app.services.portals import files_place, outlook_place
 from app.services.portals.mail_thread import MAX_ID_CHARS, clean_text
 
 logger = logging.getLogger(__name__)
 
-# Where each source's signature rides. GitHub's is its own native header and the
-# API source reuses that scheme under a generic one; HubSpot and Zendesk sign in
-# schemes of their own, verified by `_hubspot_verified` and `_zendesk_verified`.
-#
-# A source absent here has no inbound door and is refused at the webhook route
-# before a signature is looked for: `gmail` and `outlook` are *polled* from a
-# connected mailbox, so a signed POST claiming to be one is a delivery nobody
-# registered (#1068).
-_SIGNATURE_HEADER = {
-    EventSource.GITHUB.value: "x-hub-signature-256",
-    EventSource.HUBSPOT.value: "x-hubspot-signature-v3",
-    EventSource.LINEAR.value: "linear-signature",
-    EventSource.WEBHOOK.value: "x-signature-256",
-    EventSource.ZENDESK.value: "x-zendesk-webhook-signature",
-}
-
 # The generic webhook's optional signed time, and how far it may be from ours.
 _TIMESTAMP_HEADER = "x-signature-timestamp"
-_TIMESTAMP_TOLERANCE_SECONDS = 300
+TIMESTAMP_TOLERANCE_SECONDS = 300
 
 # How much of a free-text field - a webhook payload, or an issue, email or post
 # body - is forwarded to the agent. A model does not need forty kilobytes of
@@ -152,12 +137,12 @@ def accepts_delivery(source: str) -> bool:
     only by the sources that have a door and a bare lookup on one that does not
     would turn a refusal into a `KeyError` and a 500 (#1068).
     """
-    return source in _SIGNATURE_HEADER
+    return source in SIGNATURE_HEADER
 
 
 def signature(source: str, headers: Mapping[str, str]) -> str:
     """The signature a GitHub or generic webhook delivery carries, as `verify_signature` reads it."""
-    return headers.get(_SIGNATURE_HEADER[source], "")
+    return headers.get(SIGNATURE_HEADER[source], "")
 
 
 def verify_signature(
@@ -213,7 +198,7 @@ def verify_signature(
                 else base64.b64encode(digest).decode("ascii")
             )
             return _same(expected, headers.get(webhook.signature_header, ""))
-    signature = headers.get(_SIGNATURE_HEADER[source], "")
+    signature = headers.get(SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
     signed = body
@@ -221,7 +206,7 @@ def verify_signature(
     if stamp:
         if not stamp.isdigit():
             return False
-        if abs(moment - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS:
+        if abs(moment - int(stamp)) > TIMESTAMP_TOLERANCE_SECONDS:
             return False
         signed = stamp.encode() + b"." + body
     expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
@@ -250,24 +235,24 @@ def _hubspot_verified(
     (`_hubspot_delivery`), and its known weakness, appending to the hashed bytes,
     cannot produce a body that still parses as JSON.
     """
-    v3 = headers.get("x-hubspot-signature-v3", "").strip()
+    v3 = headers.get(SIGNATURE_HEADER["hubspot"], "").strip()
     if v3:
         stamp = headers.get("x-hubspot-request-timestamp", "").strip()
         if url is None or not stamp.isdigit():
             return False
-        if abs(now * 1000 - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS * 1000:
+        if abs(now * 1000 - int(stamp)) > TIMESTAMP_TOLERANCE_SECONDS * 1000:
             return False
         return _same(_hmac_b64(secret, b"POST" + url.encode() + body + stamp.encode()), v3)
     if headers.get("x-hubspot-signature-version", "").strip().casefold() != "v1":
         return False
     expected = hashlib.sha256(secret.encode() + body).hexdigest()
-    return _same(expected, headers.get("x-hubspot-signature", "").strip())
+    return _same(expected, headers.get(HUBSPOT_V1_SIGNATURE_HEADER, "").strip())
 
 
 def _linear_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
     """Linear signs the raw JSON body, including its millisecond timestamp."""
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    received = headers.get("linear-signature", "")
+    received = headers.get(SIGNATURE_HEADER["linear"], "")
     if len(received) != 64 or any(c not in "0123456789abcdef" for c in received):
         return False
     if not _same(expected, received):
@@ -295,9 +280,9 @@ def _zendesk_verified(secret: str, *, body: bytes, headers: Mapping[str, str], n
         signed_at = datetime.fromisoformat(stamp)
     except ValueError:
         return False
-    if signed_at.tzinfo is None or abs(now - signed_at.timestamp()) > _TIMESTAMP_TOLERANCE_SECONDS:
+    if signed_at.tzinfo is None or abs(now - signed_at.timestamp()) > TIMESTAMP_TOLERANCE_SECONDS:
         return False
-    signature = headers.get("x-zendesk-webhook-signature", "").strip()
+    signature = headers.get(SIGNATURE_HEADER["zendesk"], "").strip()
     return _same(_hmac_b64(secret, stamp.encode() + body), signature)
 
 

@@ -14,7 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.system_agents import CASE_GENERATOR
+from app.agents.system_agents import CASE_GENERATOR, with_dataset_guidance
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
@@ -95,7 +95,10 @@ async def generate(
             key=CASE_GENERATOR.key,
             agent_id=generator_agent_id,
             model_profile_id=helper_settings.model_profile_id if helper_settings else None,
-            instructions=helper_settings.instructions if helper_settings else None,
+            instructions=with_dataset_guidance(
+                CASE_GENERATOR.instructions,
+                helper_settings.instructions if helper_settings else None,
+            ),
             prompt=prompt,
             output_type=DraftedCases,
             knowledge_base_ids=material.knowledge_base_ids,

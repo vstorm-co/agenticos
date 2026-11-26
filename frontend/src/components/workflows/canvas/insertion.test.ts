@@ -377,7 +377,12 @@ describe("planInsertion with triggers", () => {
       [edge("m", "out", "a")],
     );
     expect(planWith(g, WEBHOOK)).toMatchObject({
-      node: { id: "new", definition_id: "trigger.webhook", layout: { x: 40, y: 172 } },
+      node: {
+        id: "new",
+        definition_id: "trigger.webhook",
+        config: { require_source: true },
+        layout: { x: 40, y: 172 },
+      },
       edge: null,
       bindings: [],
       becomesEntry: false,
