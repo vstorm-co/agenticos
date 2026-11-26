@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "5c2d2a299294"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -49,6 +49,22 @@ las 09:00» en Varsovia son las 08:00 UTC en invierno y las 07:00 UTC en verano,
 el run se mueve con ella. Una programación guardada antes de que las
 programaciones tuvieran zona se lee en UTC, como siempre, hasta que alguien le
 elija una. Una programación por intervalo no tiene hora del día ni zona.
+
+## Expresiones cron directas { #raw-cron-expressions }
+
+Las programaciones nuevas y editadas explícitamente usan cinco campos según
+croniter 7. Un paso que empieza en el máximo del campo selecciona solo ese valor:
+`59/15 * * * *` significa el minuto 59; `*/15 * * * *`, cada 15 minutos.
+Use la segunda forma para repetir el paso.
+
+La migración `0376_croniter7_schedules.py` reescribe los pasos existentes desde el
+máximo para mantener su frecuencia anterior. Incluye rutinas, exposiciones y
+grafos guardados de workflows y suites de evaluación. Conserva las zonas horarias
+y las próximas ejecuciones pendientes. Detenga antes la API y los workers antiguos.
+Una programación ejecutable que no puede conservarse rechaza la transacción e
+identifica su fila; corríjala antes de reintentar. Los borradores incompletos siguen
+editables. El downgrade guarda los nuevos pasos de máximo como valores únicos.
+Se omiten las horas inexistentes durante los cambios de horario.
 
 ## Una programación cuyo último run sigue en marcha { #a-schedule-whose-last-run-is-still-going }
 
