@@ -15686,6 +15686,16 @@
     "cancelRun": "Arrêter",
     "progress": "Cas traités",
     "comparisonFailed": "Le verdict n’a pas pu être lu.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "La recherche n’a pas renvoyé le brouillon pour chaque amélioration confirmée.",
+      "too_few_held_out": "{missing, plural, =1 {Ajoutez encore 1 question de test mise de côté pour mesurer un changement.} other {Ajoutez encore # questions de test mises de côté pour mesurer un changement.}}",
+      "scoring_changed": "Les deux runs ont été notés avec des paramètres de notation différents.",
+      "judge_changed_mid_run": "Le juge a changé pendant la notation des cas de ce run : ses notes ne sont pas comparables. Relancez-le.",
+      "judge_instructions_changed": "Les instructions du juge diffèrent entre les deux côtés : leurs notes ne sont pas comparables. Relancez la référence pour noter les deux de la même façon.",
+      "judge_differs": "Les deux côtés ont été notés par un juge, un modèle ou une grille différents.",
+      "knowledge_draft_changed": "Le brouillon de connaissances a changé ou a été supprimé. Vérifiez-le à nouveau.",
+      "held_out_ungraded": "Des questions mises de côté restent non notées ou incomplètes."
+    },
     "compareArm": "Comparer ce modèle",
     "draft": "Brouillon",
     "proposed": "Modifications proposées",
@@ -15803,7 +15813,9 @@
       "pending": "En attente",
       "reusedFrom": "résultat du run du {date}",
       "singleTitle": "Métriques du run",
-      "singleTitleTag": "Métriques du run sur #{tag}"
+      "singleTitleTag": "Métriques du run sur #{tag}",
+      "criteria": "Critères réussis",
+      "criteriaHint": "Chaque question compte la part de ses critères que sa première réponse a réussis : six sur sept compte pour 6/7, là où le taux de réussite la compte comme échouée."
     },
     "cases": {
       "title": "{count, plural, one {# question} other {# questions}}",
@@ -15832,6 +15844,14 @@
         "train": "Aide à rédiger les modifications",
         "holdout": "Mis de côté",
         "excluded": "Copie de preuve"
+      },
+      "criteria": "{passed}/{graded}",
+      "answerState": {
+        "passed": "Réussi",
+        "failed": "À examiner",
+        "undecided": "Non noté",
+        "incomplete": "N’a pas pu aboutir",
+        "pending": "En attente"
       }
     },
     "case": {
@@ -15873,7 +15893,8 @@
           "judge": "Jugé sur : {criterion}",
           "lengthAtMost": "{unit, select, words {Au plus {count, plural, one {# mot} other {# mots}}} other {Au plus {count, plural, one {# caractère} other {# caractères}}}}",
           "lengthAtLeast": "{unit, select, words {Au moins {count, plural, one {# mot} other {# mots}}} other {Au moins {count, plural, one {# caractère} other {# caractères}}}}",
-          "lengthBetween": "{unit, select, words {Entre {min} et {max} mots} other {Entre {min} et {max} caractères}}"
+          "lengthBetween": "{unit, select, words {Entre {min} et {max} mots} other {Entre {min} et {max} caractères}}",
+          "keys": "Contient {count, plural, =1 {son unique clé} other {toutes ses # clés}}"
         }
       },
       "notGraded": "non noté : {reason}",
@@ -16224,7 +16245,50 @@
       "pooled": "Ce run est une étape de la vérification. La vérification juge chaque agent sur les questions mises de côté de toutes ses étapes réunies : cette étape seule peut donc en dire moins que la vérification."
     },
     "notAsked": "{count, plural, =1 {1 question de ce dataset ne figurait pas dans l’échantillon de cette étape, elle n’a donc pas été posée.} other {# questions de ce dataset ne figuraient pas dans l’échantillon de cette étape, elles n’ont donc pas été posées.}}",
-    "runMetaStage": "{date} · {cost} dépensés"
+    "runMetaStage": "{date} · {cost} dépensés",
+    "resultTabs": {
+      "questions": "Réponses",
+      "criteria": "Ce qui a été vérifié",
+      "performance": "Détails",
+      "methodology": "Comment cela a été mesuré"
+    },
+    "resultSummary": "{fixed} corrections confirmées · {broken} régressions confirmées",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Réexécutions de confirmation ({count})",
+    "resultFailed": "Examiner les réponses ({count})",
+    "resultNoCriteria": "Aucun résultat par famille de critères n’est encore disponible pour ce run.",
+    "plain": {
+      "label": "Résumé du test",
+      "single": "{passed} réponses réussies sur {cases}",
+      "worse": "Certaines réponses se sont dégradées",
+      "incomplete": "Certaines réponses n’ont pas pu être vérifiées",
+      "improved": "L’agent mis à jour a mieux répondu",
+      "requirements": "Les réponses respectent davantage vos exigences",
+      "unchanged": "Aucune amélioration nette",
+      "invalid": "Nous ne pouvons pas encore comparer ces résultats",
+      "tooFew": "Ajoutez davantage de questions de test indépendantes avant de comparer les versions.",
+      "cannotCompare": "Les deux tests ne sont pas comparables. Ouvrez les détails du test pour voir ce qui doit changer.",
+      "changes": "{fixed} réponses améliorées · {broken} dégradées",
+      "singleBody": "{failed, plural, =0 {Aucune réponse incorrecte n’a été trouvée.} one {Une réponse nécessite votre examen.} other {# réponses nécessitent votre examen.}}",
+      "undecided": "{count, plural, one {Une réponse n’a pas pu être vérifiée.} other {# réponses n’ont pas pu être vérifiées.}}",
+      "unstable": "Certaines réponses ont varié d’un test à l’autre. Leur amélioration n’est pas confirmée.",
+      "details": "Détails du test",
+      "actions": "Plus d’actions",
+      "expectation": "Réponse attendue et règles de vérification",
+      "notCompared": "Aucune comparaison n’est encore disponible",
+      "before": "Avant",
+      "after": "Après",
+      "partial": "Ouvrez les réponses ci-dessous pour voir lesquelles ont pu être vérifiées.",
+      "overallWorseBody": "La qualité globale a baissé, même si aucune réponse prise isolément n’a été systématiquement moins bonne.",
+      "requirementsBody": "Davantage d’exigences ont été respectées, mais aucune réponse entière n’a été systématiquement corrigée.",
+      "reviewChanges": "Examiner les modifications",
+      "passedCount": "{passed} réponses réussies sur {cases}"
+    },
+    "workspace": {
+      "details": "Comment cela a été testé · critères, coût et détails du run",
+      "answers": "Examiner les réponses",
+      "answersHint": "Ouvrez une question pour lire la réponse et voir pourquoi elle a réussi ou demande votre attention."
+    }
   },
   "authoring": {
     "strip": {
@@ -16761,7 +16825,9 @@
       "movedBroken": "{count} cassés",
       "movedBoth": "+{fixed} corrigés · {broken} cassés",
       "movedNone": "Aucun",
-      "skill": "Attribué au skill “{skill}”"
+      "skill": "Attribué au skill “{skill}”",
+      "betterBeside": "Outre les questions qu’elle a cassées, la tentative {number} a amélioré {agent} sur {count, plural, one {# critère} other {# critères}} : {list}. Conservez ce qui a aidé en réessayant avec une note.",
+      "skillWorse": "{agent} suit désormais le skill de plus près et échoue plus souvent sur {count, plural, one {# critère} other {# critères}} que le skill traite mal : {list}. Corrigez le skill plutôt que l’agent."
     },
     "noise": {
       "headlineSpread": "Le test ne distingue pas une meilleure version d’une moins bonne : la version actuelle de {agent} a obtenu {low} et {high} sur les questions que ses tentatives avaient en commun.",
@@ -16812,6 +16878,7 @@
       "cancelled": "Annulée",
       "stale": "Le point de départ a changé",
       "accepted": "Gardée comme brouillon",
+      "skillAccepted": "{outcome, select, applied {Appliquée} applied_pinned {Appliquée} forked {A créé un fork} caught_up {Rattrapée avec main} returned_to_main {Ramenée sur main} other {Acceptée}}",
       "published": "Publiée",
       "rejected": "Rejetée",
       "waiting": "En attente de vous",
@@ -16835,7 +16902,8 @@
       "knowledge_only": "Certains sujets manquent dans la base de connaissances. Rédigez ceux que vous voulez, vérifiez chaque ébauche et ajoutez-la.",
       "draft": "La rédaction des connaissances a échoué.",
       "expired": "Personne n’a poursuivi cette session pendant 7 jours, elle a donc été fermée. Démarrez-en une nouvelle pour réessayer.",
-      "criteria_worse": "Les modifications ont dégradé un critère sur lequel les réponses sont notées, bien qu’aucune question n’ait cassé."
+      "criteria_worse": "Les modifications ont dégradé un critère sur lequel les réponses sont notées, bien qu’aucune question n’ait cassé.",
+      "no_variant": "La recherche n’a trouvé aucune variante plus performante que les instructions actuelles sur les questions d’entraînement."
     },
     "before": "Avant",
     "after": "Après",
@@ -16926,6 +16994,7 @@
     "openVersion": "Ouvrir la version {version}",
     "publishVersion": "Publier la version {version}",
     "problemsFound": "Nous avons trouvé {total, plural, one {# problème} other {# problèmes}} : {agent} que nous pouvons corriger dans l’agent{knowledge, plural, =0 {} one {, # est une information manquante dans la base de connaissances} other {, # sont des informations manquantes dans la base de connaissances}}{added, plural, =0 {} other {, # manquaient de connaissances depuis ajoutées à la base de connaissances}}.",
+    "heldBySkillNote": "L’assistant a attribué {count, plural, =1 {un critère toujours en échec} other {# critères toujours en échec}} à {skills} : ceux-ci se corrigent dans le skill, pas dans les instructions de l’agent.",
     "topicExamples": "{count} conversations sur un même sujet",
     "otherExamples": "{count, plural, one {# conversation de plus} other {# conversations de plus}} à ce sujet",
     "questionSources": "{count, plural, one {# question de test} other {# questions de test}} : {down} issues de réponses mal notées par les gens, {liked} de réponses qu’ils ont appréciées, {written} rédigées pour des sujets sans exemple{other, plural, =0 {} other {, # ajoutées à la main ou importées}}.",
@@ -16962,8 +17031,6 @@
     "handledChange": "{before} → {after} questions sur {total} bien traitées.",
     "newlyFixed": "Nouvellement corrigées",
     "newlyBroken": "Nouvellement cassées",
-    "possiblyBroken": "Peut-être cassées",
-    "possiblyFixed": "Peut-être corrigées",
     "notConfirmedMore": "+{count} non confirmées",
     "notConfirmedHint": "Non confirmé : la réponse a changé une fois, mais pas dans le même sens lorsqu’elle a été reposée.",
     "notConfirmedYet": "Pas encore confirmées ({count})",
@@ -17056,7 +17123,11 @@
       "alreadyAdded": "{count, plural, one {# déjà ajouté} other {# déjà ajoutés}}",
       "partitionAbout": "Chaque tentative met environ {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; environ {train, plural, one {# aide} other {# aident}} à rédiger les modifications. Une question également posée dans les conversations dont elle s’inspire aide plutôt à les rédiger, il peut donc en rester moins de côté.",
       "partitionAttempt": "La tentative {attempt} a mis {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# a aidé} other {# ont aidé}} à rédiger les modifications.",
-      "partitionStart": "La première tentative met {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# aide} other {# aident}} à rédiger les modifications, en comptant celles également posées dans les conversations dont elle s’inspire."
+      "partitionStart": "La première tentative met {holdout, plural, one {# question} other {# questions}} de côté pour vérifier le résultat ; {train, plural, one {# aide} other {# aident}} à rédiger les modifications, en comptant celles également posées dans les conversations dont elle s’inspire.",
+      "criteriaPassed": "Critères réussis",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {Aucun critère meilleur pour l’instant} one {# critère meilleur} other {# critères meilleurs}}",
+      "heldBySkill": "Toujours bloqué par un skill"
     },
     "sessionLine": "Session",
     "budgetUsed": "Limite de dépense utilisée",
@@ -17240,7 +17311,64 @@
       "addQuestions": "Ajouter des questions d’autres conversations"
     },
     "likedSignals": "Réponses bien notées",
-    "reviewedSignals": "Autres réponses de test examinées"
+    "reviewedSignals": "Autres réponses de test examinées",
+    "startSearch": {
+      "label": "Comment trouver des modifications",
+      "steps": "Étape par étape",
+      "stepsHint": "L’assistant propose un ensemble de modifications par tentative, et vous vérifiez chacune.",
+      "search": "Rechercher des variantes",
+      "searchHint": "L’assistant rédige de nombreuses versions des instructions et note chacune sur les questions d’entraînement. La meilleure arrive dans Modifications, puis est vérifiée comme n’importe quelle tentative.",
+      "tooFew": "La recherche nécessite au moins {needed} questions d’entraînement ; {count, plural, =0 {ce dataset n’en a aucune} =1 {ce dataset en a 1} other {ce dataset en a #}}. Ajoutez des questions ou améliorez étape par étape.",
+      "budget": "Budget de recherche (USD)",
+      "budgetHint": "La recherche s’arrête dès que sa prochaine variante ne tiendrait plus dans le budget. Elle peut le dépasser d’au plus la seule variante qu’elle est en train de noter.",
+      "gradingModel": "Modèle qui note les variantes",
+      "datasetJudge": "Le modèle de juge du dataset",
+      "gradingHint": "Un modèle moins cher ou local limite le coût de la recherche. La vérification après Modifications note toujours avec le juge propre au dataset.",
+      "quote": "Comprend le budget de recherche ({search}) et la vérification de la variante trouvée ({check}).",
+      "unpriced": "La recherche devient disponible une fois que l’estimation a compté les questions d’entraînement de ce dataset."
+    },
+    "search": {
+      "title": "Recherche de variantes",
+      "progress": "{tried} variantes essayées sur {max} au maximum, chacune sur les mêmes {questions} questions d’entraînement.",
+      "spent": "{cost} dépensés sur le budget de recherche de {budget}.",
+      "scores": "Instructions actuelles : {seed} des vérifications obligatoires réussies · meilleure variante : {best}.",
+      "ended": {
+        "budget": "La recherche s’est arrêtée en atteignant son budget.",
+        "max_variants": "La recherche a essayé autant de variantes qu’elle y était autorisée.",
+        "patience": "La recherche s’est arrêtée après des tours qui n’ont rien trouvé de mieux.",
+        "proposal": "La recherche s’est arrêtée car l’assistant ne pouvait plus rédiger de variantes.",
+        "questions": "La recherche s’est arrêtée car ses questions d’entraînement ne peuvent plus recevoir de réponse.",
+        "no_variant": "Les instructions actuelles n’ont pas pu être notées, aucune variante n’a donc pu être démontrée meilleure."
+      },
+      "notVerdict": "Ces scores proviennent uniquement des questions d’entraînement. Le verdict vient de la vérification sur les questions mises de côté.",
+      "overshoot": "Une recherche peut dépasser son budget d’au plus la seule variante qu’elle était en train de noter.",
+      "variant": "Variante {number} : {score}",
+      "chosen": "Amenée dans Modifications",
+      "choose": "Amener plutôt dans Modifications"
+    },
+    "searchWorking": "Recherche de meilleures instructions. Vous pouvez fermer cette page — nous vous préviendrons quand la meilleure variante sera prête à être examinée.",
+    "record": {
+      "result": "Résultat",
+      "changes": "Modifications",
+      "check": "Questions de test",
+      "attempts": "Tentatives",
+      "understand": "Analyse",
+      "accept": "Décision",
+      "back": "Retour à la ressource",
+      "spent": "{spent} dépensés",
+      "passRateScope": "Sur toutes les questions de l’évaluation",
+      "more": "Détails de la session",
+      "answersPassed": "Réponses réussies",
+      "answerCount": "{passed} sur {cases}"
+    },
+    "workspace": {
+      "changes": "Ce qui a changé",
+      "evidence": "Les réponses se sont-elles améliorées ?",
+      "change": "Modification {number}",
+      "exactChange": "Comparer la formulation exacte",
+      "invalid": "Le test n’a pas pu comparer les versions de façon fiable. Examinez le test avant de tirer des conclusions.",
+      "noExamples": "Aucune réponse modifiée à afficher. Ouvrez le test complet pour voir chaque question."
+    }
   },
   "unsaved": {
     "title": "Vous avez des modifications non enregistrées",
@@ -17978,7 +18106,8 @@
         "unscorable": "Non vérifié : rien ne peut noter ses questions - ni contrôle, ni appel d’outil attendu, ni juge.",
         "all_evidence": "Non vérifié : toutes les questions proviennent des conversations dont la modification a été tirée.",
         "cancelled": "Non vérifié : la vérification a été arrêtée avant la fin de ses runs.",
-        "own_not_asked": "Non vérifié : ses propres questions n’ont pas été posées, et ce sont elles qui tranchent désormais."
+        "own_not_asked": "Non vérifié : ses propres questions n’ont pas été posées, et ce sont elles qui tranchent désormais.",
+        "too_few_questions": "Pas assez de questions de test pour vérifier le changement. {heldOut} questions ont été vérifiées."
       },
       "skillSetOnly": "Vérifié uniquement sur les questions du skill : il n’en avait pas en propre là où il a chargé le skill.",
       "stage": {
@@ -18206,6 +18335,17 @@
       "live": "Déplacé sur main et publié : {names}.",
       "drafts": "{count, plural, =1 {Déplacé sur main dans son brouillon, qui attend d’être publié : {names}.} other {Déplacés sur main dans leurs brouillons, qui attendent d’être publiés : {names}.}}",
       "refused": "{name} reste sur le fork : {reason}",
+      "refusal": {
+        "agent_not_found": "vous ne pouvez pas le modifier, ou il n’existe plus",
+        "workflow_agent": "il est configuré dans son étape de workflow",
+        "architect_admin_only": "seul un administrateur peut modifier l’AI Architect",
+        "system_agent_admin_only": "c’est un agent système, que seul un administrateur peut modifier",
+        "via_specialist": "il n’utilise le skill qu’à travers un spécialiste, qui se modifie dans le Builder de l’agent",
+        "not_bound": "il n’utilise pas le skill",
+        "binding_problems": "le skill ne peut pas lui être lié ainsi",
+        "system_agent_parts": "un agent système ne peut pas contenir cela",
+        "does_not_publish": "il ne peut pas encore être publié"
+      },
       "hidden": "{count, plural, =1 {1 agent que vous ne pouvez pas voir a été laissé tel quel.} other {# agents que vous ne pouvez pas voir ont été laissés tels quels.}}",
       "archived": "Plus personne ne lit le fork, il a donc été archivé.",
       "remaining": "{count, plural, =0 {Le fork a été laissé tel quel.} =1 {1 agent lit encore le fork, il n’a donc pas été archivé.} other {# agents lisent encore le fork, il n’a donc pas été archivé.}}"
@@ -18227,6 +18367,12 @@
         "catch_up": "Mettre à jour avec main",
         "to_main": "Déplacer vers main"
       }
+    },
+    "workspace": {
+      "title": "Que signifie ce changement pour vos agents ?",
+      "hint": "Un skill est partagé. Vérifiez chaque agent ci-dessous : appliquer un changement ne signifie pas qu’il a aidé chaque agent.",
+      "agents": "Impact sur les agents",
+      "skillText": "Skill vérifié dans cette session"
     }
   },
   "resourceAppearance": {

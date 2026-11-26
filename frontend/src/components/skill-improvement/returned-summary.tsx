@@ -2,7 +2,20 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
-import type { ReturnedToMain } from "@/types/skill-merge";
+import type { ReturnRefusal, ReturnedToMain } from "@/types/skill-merge";
+
+/** Every refusal the console words itself. A code added to the type fails to compile here. */
+const REFUSALS: Record<ReturnRefusal, true> = {
+  agent_not_found: true,
+  workflow_agent: true,
+  architect_admin_only: true,
+  system_agent_admin_only: true,
+  via_specialist: true,
+  not_bound: true,
+  binding_problems: true,
+  system_agent_parts: true,
+  does_not_publish: true,
+};
 
 /**
  * What returning a fork's agents to main did. It can succeed in part: an agent the
@@ -18,7 +31,18 @@ export function ReturnedSummary({ returned }: { returned: ReturnedToMain }) {
   const live = moved.filter((row) => row.published);
   const drafts = moved.filter((row) => !row.published);
   const refused = returned.agents.flatMap((row) =>
-    row.refused === null ? [] : [{ id: row.agent.id, name: row.agent.name, reason: row.refused }],
+    row.refused === null
+      ? []
+      : [
+          {
+            id: row.agent.id,
+            name: row.agent.name,
+            reason:
+              row.refused_code && Object.hasOwn(REFUSALS, row.refused_code)
+                ? t(`refusal.${row.refused_code}`)
+                : row.refused,
+          },
+        ],
   );
   return (
     <section

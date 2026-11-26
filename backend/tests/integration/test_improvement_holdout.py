@@ -187,6 +187,7 @@ async def test_a_run_too_small_to_judge_alone_can_be_compared_for_a_pool(db):
 
     assert (alone.verdict, alone.gradable_holdout) == ("invalid", 3)
     assert alone.invalid_reason_code == "too_few_held_out"
+    assert alone.invalid_reason_params == {"missing": 2}
     assert (pooled.verdict, pooled.invalid_reason, pooled.gradable_holdout) == ("better", None, 3)
     assert pooled.fixed_confirmed == pooled.compared == 3
 

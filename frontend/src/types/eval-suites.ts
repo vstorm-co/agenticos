@@ -6,7 +6,7 @@ import type { ReviewReevaluation } from "./scoring";
  * Mirrors `app/schemas/eval_suite.py`. Money arrives as decimal strings.
  */
 
-import type { EvalRunEstimate, Overall, Verdict } from "./eval-runs";
+import type { EvalRunEstimate, InvalidReasonCode, Overall, Verdict } from "./eval-runs";
 
 export type EvalSuiteTrigger =
   "schedule" | "publish" | "promotion" | "dependency" | "manual" | "gate";
@@ -69,6 +69,8 @@ export interface EvalSuiteSummary {
   verdict: Verdict | null;
   overall: Overall | null;
   invalid_reason: string | null;
+  invalid_reason_code?: InvalidReasonCode | null;
+  invalid_reason_params?: Record<string, number>;
   regressions_confirmed: number;
   regressions_unconfirmed: number;
   fixed_confirmed: number;
