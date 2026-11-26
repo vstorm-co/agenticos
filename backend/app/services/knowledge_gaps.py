@@ -62,6 +62,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.phone import phone_text_error
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
@@ -1166,8 +1167,22 @@ class KnowledgeGapService:
                 the request, so the draft would now cost more than `quoted_usd`.
         """
         _require_runs_view(ctx)
-        await self._within_quote(ctx, topic_id, quoted_usd)
         topic = await self._topic(ctx, topic_id, edit=True)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        drafter_id, version_id = kb.gap_drafter_agent_id, None
+        if quoted_usd is not None:
+            drafter, version, price = await self._priced_helper(
+                ctx,
+                key=KNOWLEDGE_GAP_DRAFTER.key,
+                agent_id=kb.gap_drafter_agent_id,
+                chars=DRAFT_PROMPT_CHARS,
+            )
+            if price is not None and price > quoted_usd:
+                raise ConcurrentChangeError(
+                    message="A draft now costs more than was quoted; estimate it again",
+                    details={"estimate_usd": str(price), "quoted_usd": str(quoted_usd)},
+                )
+            drafter_id, version_id = drafter.id, version.id
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -1178,7 +1193,6 @@ class KnowledgeGapService:
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
-        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
         askers = await personal_data_repo.askers_of(
             self.db, {row.search.run_id for row in material}
         )
@@ -1195,10 +1209,13 @@ class KnowledgeGapService:
         context_files = await self._context_files(
             ctx, list(dict.fromkeys(row.search.agent_id for row in material))
         )
+        # A quoted draft runs the drafter and version it was priced on, not whichever the
+        # knowledge base names once the searches above return.
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
-            agent_id=kb.gap_drafter_agent_id,
+            agent_id=drafter_id,
+            version_id=version_id,
             prompt=_drafting_prompt(kb.name, material, documents, context_files, found_now),
             output_type=KnowledgeGapDraft,
             knowledge_base_ids=[kb.id],
@@ -1789,6 +1806,14 @@ class KnowledgeGapService:
         self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
     ) -> Decimal | None:
         """The most one run of a knowledge helper costs on a prompt this long; `None` unpriced."""
+        _, _, price = await self._priced_helper(ctx, key=key, agent_id=agent_id, chars=chars)
+        return price
+
+    async def _priced_helper(
+        self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
+    ) -> tuple[Agent, AgentVersion, Decimal | None]:
+        """The helper that would run now, its published version, and the most one run of it
+        costs on a prompt this long; `None` unpriced."""
         agent = await SystemAgentRunner(self.db).require_runnable(ctx, key=key, agent_id=agent_id)
         version = (
             await agent_repo.get_version(
@@ -1805,7 +1830,7 @@ class KnowledgeGapService:
             model.model,
             model.provider,
         )
-        return None if priced is None else priced * steps(spec)
+        return agent, version, None if priced is None else priced * steps(spec)
 
     async def classify_batch(
         self,
