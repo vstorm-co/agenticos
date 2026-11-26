@@ -343,18 +343,40 @@ test.describe("desktop pointer controls", () => {
 
       const dockGeometry = () =>
         panel.evaluate((element) => {
-          const chat = element.closest(".chat-surface")?.getBoundingClientRect();
-          if (!chat) throw new Error("The Files panel has no chat surface");
+          const surface = element.closest(".chat-surface");
+          const chat = surface?.getBoundingClientRect();
+          const railElement = surface?.querySelector<HTMLElement>('[data-tour="chat-workspace"]');
+          if (!chat || !railElement) throw new Error("The Files panel has no workspace rail");
           const files = element.getBoundingClientRect();
+          const rail = railElement.getBoundingClientRect();
           return {
             chat: Math.round(chat.width),
             files: Math.round(files.width),
             rightGap: Math.round(chat.right - files.right),
+            rail: Math.round(rail.width),
+            panelToRail: Math.round(rail.left - files.right),
+          };
+        });
+      const expectDocked = async (width: number) => {
+        await expect.poll(dockGeometry).toMatchObject({ files: width, rail: 48, panelToRail: 0 });
+        const geometry = await dockGeometry();
+        expect(geometry.rightGap).toBe(geometry.rail);
+      };
+      const fullscreenGeometry = () =>
+        panel.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return {
+            x: Math.round(bounds.x),
+            y: Math.round(bounds.y),
+            width: Math.round(bounds.width),
+            height: Math.round(bounds.height),
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
           };
         });
       const resize = panel.getByRole("separator", { name: "Resize side panel" });
       const maximize = panel.getByRole("button", { name: "Maximize", exact: true });
-      await expect.poll(dockGeometry).toMatchObject({ files: 400, rightGap: 0 });
+      await expectDocked(400);
       const handle = await resize.boundingBox();
       if (!handle) throw new Error("The docked Files panel has no visible resize handle");
       const x = handle.x + handle.width / 2;
@@ -363,11 +385,18 @@ test.describe("desktop pointer controls", () => {
       await page.mouse.down();
       await page.mouse.move(x - 40, y, { steps: 4 });
       await page.mouse.up();
-      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+      await expectDocked(420);
       await clickCenter(page, maximize);
-      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1680);
+      await expect.poll(fullscreenGeometry).toMatchObject({
+        x: 0,
+        y: 0,
+        width: 1680,
+        height: 1000,
+        viewportWidth: 1680,
+        viewportHeight: 1000,
+      });
       await clickCenter(page, panel.getByRole("button", { name: "Back beside the chat" }));
-      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+      await expectDocked(420);
 
       const initialClose = await close.boundingBox();
       const before = await composer.boundingBox();
@@ -393,10 +422,19 @@ test.describe("desktop pointer controls", () => {
       await expect(maximize).toBeVisible();
       await expect(resize).toBeHidden();
       const constrained = await dockGeometry();
-      expect(constrained.rightGap).toBe(0);
+      expect(constrained.rail).toBe(48);
+      expect(constrained.panelToRail).toBe(0);
+      expect(constrained.rightGap).toBe(constrained.rail);
       expect(Math.abs(constrained.files - constrained.chat * 0.38)).toBeLessThan(1);
       await clickCenter(page, maximize);
-      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
+      await expect.poll(fullscreenGeometry).toMatchObject({
+        x: 0,
+        y: 0,
+        width: 1460,
+        height: 1000,
+        viewportWidth: 1460,
+        viewportHeight: 1000,
+      });
       await clickCenter(page, close);
       await expect(panel).toBeHidden();
     } finally {

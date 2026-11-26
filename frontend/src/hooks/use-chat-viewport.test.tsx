@@ -41,7 +41,7 @@ function Harness({
     content = useRef<HTMLDivElement>(null),
     spacer = useRef<HTMLDivElement>(null),
     dock = useRef<HTMLDivElement>(null);
-  const { bindScroller } = useChatViewport({
+  const { bindScroller, revealQuestion } = useChatViewport({
     conversationId,
     messages,
     sentTurnId,
@@ -95,6 +95,7 @@ function Harness({
       <div ref={dock} data-testid="dock">
         <input aria-label="Composer" />
       </div>
+      <button onClick={revealQuestion}>Reveal question</button>
     </>
   );
 }
@@ -221,6 +222,42 @@ it("allows a reader to focus a question without native focus scrolling", () => {
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
 });
 
+it.each([
+  { padding: "", top: 1236, reserve: "492px" },
+  { padding: "40px", top: 1220, reserve: "476px" },
+])("reveals a pending question at the requested inset ($padding)", ({ padding, top, reserve }) => {
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  scrolling.style.scrollPaddingTop = padding;
+
+  fireEvent.click(view.getByRole("button", { name: "Reveal question" }));
+
+  expect(scrolling.scrollTop).toBe(top);
+  expect(view.getByTestId("space").style.height).toBe(reserve);
+  expect(view.getByRole("group")).toHaveFocus();
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+
+  questionTop += 80;
+  bodyHeight += 200;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(top + 80);
+  expect(view.getByRole("group")).toHaveFocus();
+});
+
+it("leaves the viewport and composer focus alone when the pending question has settled", () => {
+  const view = render(<Harness pending={false} />);
+  const scrolling = view.getByTestId("scroll");
+  const editor = view.getByRole("textbox", { name: "Composer" });
+  editor.focus();
+
+  fireEvent.click(view.getByRole("button", { name: "Reveal question" }));
+
+  expect(scrolling.scrollTop).toBe(744);
+  expect(view.getByTestId("space").style.height).toBe("0px");
+  expect(editor).toHaveFocus();
+});
+
 it("starts an empty chat at its welcome and follows after the first message", () => {
   const view = render(<Harness messages={[]} />);
   expect(view.getByTestId("scroll").scrollTop).toBe(0);
@@ -304,7 +341,7 @@ it("releases an explicitly sent anchor whose message was removed", () => {
 it("does not require attached DOM while a transcript is still loading", () => {
   function Loading() {
     const absent = useRef<HTMLDivElement>(null);
-    useChatViewport({
+    const { revealQuestion } = useChatViewport({
       conversationId: "loading",
       messages: [sent],
       sentTurnId: "sent",
@@ -314,9 +351,12 @@ it("does not require attached DOM while a transcript is still loading", () => {
       spacer: absent,
       dock: absent,
     });
-    return null;
+    return <button onClick={revealQuestion}>Reveal question</button>;
   }
-  expect(() => render(<Loading />)).not.toThrow();
+  const view = render(<Loading />);
+  expect(() =>
+    fireEvent.click(view.getByRole("button", { name: "Reveal question" })),
+  ).not.toThrow();
 });
 
 it("tracks the visible message rather than an offscreen question when content is inserted below the reader", () => {
