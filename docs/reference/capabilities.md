@@ -3215,7 +3215,7 @@ asks nobody; `side_effecting` only tells the Builder which tools act on the worl
     That is what keeps an approval gate attached to a renamed tool. Keying it on
     the visible name would mean a rename silently removes the gate, and a
     side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
-is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`. Nor may a rename start with `agenticos_`: that prefix marks the platform's own tools, and only the run's person approves a platform call that always asks.
+is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`. Nor may a rename start with `agenticos_`, which names the platform's own tools. Who may approve a call never depends on its name: the platform binding marks its own tools, and a call records that mark when it waits for approval.
 
 ## Scopes
 

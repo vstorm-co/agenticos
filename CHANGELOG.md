@@ -42,10 +42,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Mark platform MCP calls that need a person - every call that always asks, every task or table write that may start agent work, and every delete, discard, end or publish - with `destructiveHint: true` for outside clients.
 - Set text other people or models wrote apart in Improve and eval tool results, under `untrusted`, and treat it as data in the Architect.
 - Refuse a paid start - an eval run, a skill update check, a promotion gate run, a knowledge draft - once it would cost more than the price the person agreed to. A quoted knowledge draft runs on the drafter it was priced on.
-- Tell a platform call by where it came from, not by its name: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call.
+- Tell a platform call by the mark its binding puts on the tool, never by its name: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call.
 
 ### Upgrading
 
+- Migration `0370_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
 - A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.

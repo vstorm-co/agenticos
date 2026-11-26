@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe9d4b92a96"
+source_sha: "fd020751dcef"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3337,7 +3337,7 @@ nikogo; `side_effecting` mówi Builderowi tylko, które narzędzia działają na
     bramkę, a wywołanie ze skutkami ubocznymi przechodzi wtedy bez nadzoru i nic
     tego nie zgłasza. Id, którego żadna taka capability nie wystawia, zostaje
 
-odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać, albo taka, którą ma już inne narzędzie agenta - narzędzie innej capability albo takie, które platforma dodaje sama, jak `request_capability`. Nowa nazwa nie może też zaczynać się od `agenticos_`: ten prefiks oznacza własne narzędzia platformy, a wywołanie platformy, które pyta za każdym razem, zatwierdza tylko osoba runu.
+odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać, albo taka, którą ma już inne narzędzie agenta - narzędzie innej capability albo takie, które platforma dodaje sama, jak `request_capability`. Nowa nazwa nie może też zaczynać się od `agenticos_`, którym nazywają się własne narzędzia platformy. To, kto może zatwierdzić wywołanie, nigdy nie zależy od jego nazwy: binding platformy oznacza jej własne narzędzia, a wywołanie zapisuje ten znacznik, gdy czeka na zatwierdzenie.
 
 ## Zakresy { #scopes }
 
