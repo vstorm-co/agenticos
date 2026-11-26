@@ -1054,7 +1054,7 @@ class LiveMemoryTests(unittest.IsolatedAsyncioTestCase):
             id=uuid4(),
             statement="Use Incident window",
             kind="preference",
-            origin="person",
+            origin="agent",
             status="current",
             observed_at=datetime.now(UTC),
         )
@@ -1076,7 +1076,7 @@ class LiveMemoryTests(unittest.IsolatedAsyncioTestCase):
                 f"Corrected (claim {corrected.id}).",
                 "Changed.",
             ),
-            ("recall", {}, f"[{corrected.id}] Decision first", "Decision first"),
+            ("recall", {}, f"- Decision first id={corrected.id}", "Decision first"),
         ]
         prompts: list[str] = []
         conversation_ids = [uuid4() for _ in range(3)]
@@ -1087,6 +1087,12 @@ class LiveMemoryTests(unittest.IsolatedAsyncioTestCase):
             tool, args, result, answer = expectations[index]
             calls = options["tool_calls"]
             assert isinstance(calls, list)
+            if index == 0:
+                calls.append(
+                    runner.RecordedToolCall(
+                        "unavailable", "remember", {}, '{"error": "rediscover_tools"}'
+                    )
+                )
             calls.append(runner.RecordedToolCall(f"tool-{index}", tool, args, result))
             self.assertIs(options["acts_for_sender"], True)
             self.assertIs(options["surface"], RunSurface.WEB)

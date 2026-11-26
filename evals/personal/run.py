@@ -1437,23 +1437,25 @@ def memory_probe_errors(
     claim = current.items[0] if current.total == 1 and len(current.items) == 1 else None
     if (
         claim is None
-        or claim.origin != "person"
+        or claim.origin != "agent"
         or claim.status != "current"
         or claim.kind != "preference"
         or expected not in claim.statement.casefold()
         or claim.scope not in ("agent", "profile")
     ):
         errors.append("expected one current personal claim with the requested heading")
-    matching = [call for call in calls if call.tool_name == tool]
-    receipt = matching[0].result if len(matching) == 1 else None
-    prefix = ("Recorded (claim ", "Corrected (claim ", "")[step]
-    if (
-        claim is None
-        or not receipt
-        or not receipt.startswith(prefix)
-        or str(claim.id) not in receipt
-        or (step == 2 and expected not in receipt.casefold())
-    ):
+    prefix = ("Recorded (claim ", "Corrected (claim ", "- ")[step]
+    matching = [
+        call
+        for call in calls
+        if claim is not None
+        and call.tool_name == tool
+        and (receipt := call.result)
+        and receipt.startswith(prefix)
+        and str(claim.id) in receipt
+        and (step < 2 or expected in receipt.casefold())
+    ]
+    if len(matching) != 1:
         errors.append(f"expected one successful {tool} call returning the current claim")
     if any(call.tool_name in MEMORY_WRITE_TOOLS - {tool} for call in calls):
         errors.append("unexpected memory write tool")
