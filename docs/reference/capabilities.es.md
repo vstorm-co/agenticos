@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "ebe9d4b92a96"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3433,7 +3433,7 @@ mundo.
     quita la puerta calladamente, y una llamada con efectos secundarios queda entonces
     desatendida sin que nada lo informe. Un id que ninguna capability así expone
 
-se rechaza al publicar, y también un nombre que ningún modelo podría llamar, o uno que ya tiene otra herramienta del agent: la de otra capability, o una que la propia plataforma añade, como `request_capability`.
+se rechaza al publicar, y también un nombre que ningún modelo podría llamar, o uno que ya tiene otra herramienta del agent: la de otra capability, o una que la propia plataforma añade, como `request_capability`. Tampoco puede un nombre nuevo empezar por `agenticos_`: ese prefijo marca las herramientas propias de la plataforma, y una llamada de la plataforma que pregunta siempre solo la aprueba la persona del run.
 
 ## Scopes { #scopes }
 

@@ -41,11 +41,13 @@ Two things are versioned separately from this file and worth knowing about:
 - Require `runs:view` to read an Improve session, its list or its findings.
 - Mark platform MCP calls that need a person - every call that always asks, every task or table write that may start agent work, and every delete, discard, end or publish - with `destructiveHint: true` for outside clients.
 - Set text other people or models wrote apart in Improve and eval tool results, under `untrusted`, and treat it as data in the Architect.
-- Refuse a paid start - an eval run, a skill update check, a promotion gate run, a knowledge draft - once it would cost more than the price the person agreed to.
+- Refuse a paid start - an eval run, a skill update check, a promotion gate run, a knowledge draft - once it would cost more than the price the person agreed to. A quoted knowledge draft runs on the drafter it was priced on.
+- Tell a platform call by where it came from, not by its name: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call.
 
 ### Upgrading
 
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
+- A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
 - Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` and `attempt` optional.
 
