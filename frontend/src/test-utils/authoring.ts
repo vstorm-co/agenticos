@@ -40,6 +40,7 @@ export function hunk(overrides: Partial<Hunk> = {}): Hunk {
     // i18n-exempt: fixture text a test asserts on, not copy
     evidence: [{ run_id: "run-0123456789", quote: "You said 90 days" }],
     evidence_dropped: 0,
+    evidence_hidden: 0,
     applies: true,
     decided_at: null,
     ...overrides,

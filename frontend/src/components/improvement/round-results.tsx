@@ -419,9 +419,12 @@ export function AttemptRow({
 export function AttemptSummary({
   session,
   round,
+  verdictId,
 }: {
   session: Improvement;
   round: ImprovementIteration;
+  /** Set on the verdict, for a control named by it. */
+  verdictId?: string;
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
@@ -438,6 +441,7 @@ export function AttemptSummary({
         <RoundTitle session={session} round={round} />
       </span>
       <StateBadge
+        id={verdictId}
         tone={
           verdict === "better" || verdict === "criteria_better"
             ? "good"

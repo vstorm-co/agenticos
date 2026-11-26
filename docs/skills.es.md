@@ -1,5 +1,5 @@
 ---
-source_sha: "9afe9aa88b23"
+source_sha: "47cd7b7f4355"
 ---
 
 # Skills { #skills }
@@ -313,7 +313,8 @@ questions** - a partir de respuestas recientes que cargaron el skill, o vacío -
 través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir preguntas de
 prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
 editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
-skill.
+skill. El conjunto lleva el nombre del skill, numerado cuando un dataset ya tiene ese
+nombre - por ejemplo, uno que dejó un skill borrado del mismo nombre.
 
 Un juez califica el conjunto, comparando cada respuesta con la que las personas
 valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
@@ -378,6 +379,14 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
   mismo uno cuyos runs calificaron cada respuesta en menos preguntas apartadas de
   las que necesita un resultado: su fila dice cuántas salieron mejor y peor, y que
   son demasiado pocas para estar seguros.
+- Un agent cuyas propias preguntas no terminaron - su run falló o se detuvo, se
+  rechazó, o la comprobación caducó - después de que las preguntas del skill
+  confirmaran una regresión sigue **peor**: el cambio aún tiene que fijarse o
+  rodearse con un fork. Uno en el que las preguntas del skill no confirmaron
+  regresión es **desconocido**: su fila dice que sus propias preguntas no
+  terminaron y que las del skill no confirmaron regresión - o, cuando no pudieron
+  empezar, por qué - y sus detalles conservan lo que dieron las preguntas del
+  skill, así que reconocerlo es una decisión tomada sobre media comprobación.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo
@@ -588,7 +597,11 @@ modelo propone un texto para ella. En **Changes** una persona puede reescribir
 cualquier parte, también la del modelo (`GET …/improvements/{run_id}/merge`, y luego
 `PATCH …/merge/description` o `…/merge/parts/{index}`). En un archivo que ambos lados
 cambiaron de forma distinta, una persona se queda con un lado
-(`PATCH …/merge/files`); el modelo nunca escribe un archivo. La comprobación empieza
+(`PATCH …/merge/files`); el modelo nunca escribe un archivo. Cada archivo muestra la
+descripción y el tamaño que le da cada lado y, al abrirlo, lo que cambió cada lado
+respecto a la versión de la que partieron ambos, leído de la versión de ese lado
+(`GET …/versions/{version_id}/resources/{name}`). Un archivo de más de 200 KB, o que
+no es texto, se ofrece en su lugar como descarga de cada lado. La comprobación empieza
 solo cuando no queda nada sin resolver. Pregunta a los agents del fork por la
 combinación y, salvo que se desactive `main_alone` al poner precio a la
 comprobación en Changes, por la versión más reciente de main sola. Esa segunda
@@ -902,12 +915,25 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
+Un paso que no puede ejecutarse - su ayudante está archivado o fuera de alcance,
+o la evidencia que recibió ya no está - falla con el motivo en la sesión, y
+**Retry this step within the spending limit** lo vuelve a ejecutar, como quien lo
+reintenta, una vez corregido. Un paso que supera el límite de gasto se detiene en
+su presupuesto. Ninguno se vuelve a pedir solo.
+
 Una sesión abierta desde el Improve de un agente empieza con los problemas que
 esa sesión informó. Solo un problema que cita una línea del skill con el valor o
 la regla equivocados se lleva los criterios del agente; cuando el skill solo
 calla, el problema es un consejo y el agente sigue respondiendo de esos
 criterios - consulta [Cuando el fallo está en un
 skill](authoring.md#when-the-fault-is-in-a-skill).
+
+Lo que escribe una sesión - el título y el resumen de cada problema, y el texto
+que propone - sale de todas las respuestas que pudo leer la persona como la que se ejecuta
+(quien la empezó, o quien dio su último paso), y lo lee
+todo el que puede leer la sesión (`runs:view` y acceso al skill). Solo las citas
+y los nombres de agents siguen el acceso de quien lee: una cita de un agent que no
+ve, y el nombre de ese agent, se cuentan en lugar de mostrarse.
 
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto
