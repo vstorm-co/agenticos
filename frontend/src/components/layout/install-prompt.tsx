@@ -5,6 +5,7 @@ import { Download, Share, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useShell } from "@/hooks/use-shell";
 
 const DISMISSED = "install-prompt-dismissed";
@@ -55,6 +56,7 @@ function installed(): boolean {
  */
 export function InstallPrompt() {
   const t = useTranslations("layout.install");
+  const { productNotices } = useConsolePresentation();
   const shell = useShell();
   const [event, setEvent] = useState<InstallEvent | null>(null);
   const [ios, setIos] = useState(false);
@@ -80,7 +82,7 @@ export function InstallPrompt() {
     };
   }, [shell]);
 
-  if (hidden || (event === null && !ios)) return null;
+  if (!productNotices || hidden || (event === null && !ios)) return null;
 
   const close = () => {
     remember();

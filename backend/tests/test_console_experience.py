@@ -303,3 +303,143 @@ async def test_org_reminder_defaults_use_the_same_settings_authority(
         experience.ctx.subject_id,
     )
     change.assert_awaited_with(experience.db, experience.org, changes=None)
+
+
+async def test_cost_preference_is_strict_and_missing_membership_does_not_succeed(
+    experience: ExperienceFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for value in ("false", 1, "inherit"):
+        with pytest.raises(ValidationError):
+            ConsoleExperienceUpdate.model_validate({"chat_costs": value})
+    change = AsyncMock(return_value=experience.member)
+    monkeypatch.setattr(member_repo, "set_chat_cost_preference", change)
+    await experience.service.update(experience.ctx, ConsoleExperienceUpdate(chat_costs=False))
+    change.assert_awaited_once_with(
+        experience.db,
+        organization_id=experience.org.id,
+        user_id=experience.member.user_id,
+        visible=False,
+    )
+    change.return_value = None
+    with pytest.raises(NotFoundError):
+        await experience.service.update(experience.ctx, ConsoleExperienceUpdate(chat_costs=None))
+
+
+async def test_org_cost_policy_is_authorized_and_audited_only_on_change(
+    experience: ExperienceFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.chat_costs import ChatCostVisibility
+
+    service = OrganizationService(experience.db)
+    monkeypatch.setattr(
+        service, "get_for_user", AsyncMock(return_value=(experience.org, experience.member))
+    )
+    change = AsyncMock()
+    monkeypatch.setattr(organization_repo, "set_chat_cost_visibility", change)
+    data = OrganizationUpdate(chat_cost_visibility=ChatCostVisibility.NOBODY)
+    with pytest.raises(AuthorizationError):
+        await service.update(experience.org.id, data, experience.ctx.subject_id)
+    change.assert_not_awaited()
+    experience.member.role = "owner"
+    monkeypatch.setattr(organization_repo, "update", AsyncMock(return_value=experience.org))
+    audit = AsyncMock()
+    monkeypatch.setattr("app.services.organization.record_audit", audit)
+
+    async def update(
+        _db: AsyncMock, org: Organization, *, policy: ChatCostVisibility | None
+    ) -> Organization:
+        org.chat_cost_visibility = policy
+        return org
+
+    change.side_effect = update
+    await service.update(experience.org.id, data, experience.ctx.subject_id)
+    assert audit.await_args.kwargs["action"] == "organization.chat_cost_visibility_changed"
+    assert audit.await_args.kwargs["details"] == {"from": None, "to": "nobody"}
+    audit.reset_mock()
+    await service.update(experience.org.id, data, experience.ctx.subject_id)
+    audit.assert_not_awaited()
+
+
+async def test_console_presentation_pref_patch_is_scoped_and_membership_loss_is_visible(
+    experience: ExperienceFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.console_presentation import ConsolePreferences
+
+    change = AsyncMock(return_value=experience.member)
+    monkeypatch.setattr(member_repo, "set_console_presentation", change)
+    await experience.service.update(
+        experience.ctx,
+        ConsoleExperienceUpdate(console=ConsolePreferences(navigation=[], product_notices=False)),
+    )
+    change.assert_awaited_once_with(
+        experience.db,
+        organization_id=experience.org.id,
+        user_id=experience.member.user_id,
+        changes={"navigation": [], "product_notices": False},
+    )
+    change.return_value = None
+    with pytest.raises(NotFoundError):
+        await experience.service.update(experience.ctx, ConsoleExperienceUpdate(console=None))
+
+
+@pytest.mark.parametrize("field", ("console_role_defaults", "console_notices"))
+async def test_console_policy_needs_org_settings_even_through_a_narrow_key(
+    experience: ExperienceFixture, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    service = OrganizationService(experience.db)
+    monkeypatch.setattr(
+        service, "get_for_user", AsyncMock(return_value=(experience.org, experience.member))
+    )
+    change = AsyncMock()
+    monkeypatch.setattr(organization_repo, "set_console_role_defaults", change)
+    data = OrganizationUpdate.model_validate({field: {}})
+    with pytest.raises(AuthorizationError):
+        await service.update(experience.org.id, data, experience.ctx.subject_id)
+    experience.member.role = "owner"
+    with pytest.raises(AuthorizationError):
+        await service.update(
+            experience.org.id,
+            data,
+            experience.ctx.subject_id,
+            key_scopes=frozenset({Perm.AGENTS_RUN}),
+        )
+    change.assert_not_awaited()
+
+
+async def test_org_admin_can_patch_and_clear_role_presentation_and_notices(
+    experience: ExperienceFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    experience.member.role = "owner"
+    service = OrganizationService(experience.db)
+    monkeypatch.setattr(
+        service, "get_for_user", AsyncMock(return_value=(experience.org, experience.member))
+    )
+    role_change = AsyncMock(return_value=experience.org)
+    notices = AsyncMock(return_value=experience.org)
+    audit = AsyncMock()
+    monkeypatch.setattr(organization_repo, "set_console_role_defaults", role_change)
+    monkeypatch.setattr(organization_repo, "set_console_notices", notices)
+    monkeypatch.setattr(organization_repo, "update", AsyncMock(return_value=experience.org))
+    monkeypatch.setattr("app.services.organization.record_audit", audit)
+    data = OrganizationUpdate.model_validate(
+        {
+            "console_role_defaults": {"member": {"navigation": []}, "builder": None},
+            "console_notices": {"product_notices": False},
+        }
+    )
+    await service.update(experience.org.id, data, experience.ctx.subject_id)
+    role_change.assert_awaited_with(
+        experience.db, experience.org, changes={"member": {"navigation": []}, "builder": None}
+    )
+    notices.assert_awaited_with(experience.db, experience.org, changes={"product_notices": False})
+    assert audit.await_args.kwargs["action"] == "organization.console_presentation_changed"
+    assert audit.await_args.kwargs["details"] == {
+        "fields": ["console_notices", "console_role_defaults"]
+    }
+    await service.update(
+        experience.org.id,
+        OrganizationUpdate(console_role_defaults=None, console_notices=None),
+        experience.ctx.subject_id,
+    )
+    role_change.assert_awaited_with(experience.db, experience.org, changes=None)
+    notices.assert_awaited_with(experience.db, experience.org, changes=None)

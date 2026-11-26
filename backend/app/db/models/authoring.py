@@ -181,6 +181,9 @@ class AuthoringRequest(Base):
         String(16), nullable=False, default=AuthoringStatus.QUEUED.value
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """`error` as a code from `AuthoringFailure`; null on a request failed before codes."""
+    error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     run_ids: Mapped[list[uuid.UUID]] = mapped_column(

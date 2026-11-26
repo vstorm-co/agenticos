@@ -225,6 +225,24 @@ describe("AssistantStrip", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Nothing to learn from yet.");
   });
 
+  it("words a failure by its code and keeps a refusal's own sentence as a detail", () => {
+    state.authoring = agentAuthoring({
+      batch: null,
+      latest: authoringRequest({
+        status: "failed",
+        error: "'Improver' has no published version. Pick a model and publish it.",
+        error_code: "system_agent_unpublished",
+      }),
+    });
+    strip();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "A system agent this step needs has no published version. Pick a model and publish it.",
+    );
+    expect(screen.getByText("Technical details").closest("details")).toHaveTextContent(
+      "'Improver' has no published version.",
+    );
+  });
+
   it("hides an empty suggestions section and the actions of a closed batch", () => {
     state.authoring = null;
     const { unmount } = render(

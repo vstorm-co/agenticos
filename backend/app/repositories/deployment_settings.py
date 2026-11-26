@@ -45,12 +45,13 @@ async def upsert(db: AsyncSession, *, update_data: dict[str, Any]) -> Deployment
     `tests/integration/test_deployment_settings_row.py` is what holds it shut.
     """
     changes = dict(update_data)
-    if "chat_home_available" in changes and changes["chat_home_available"] is not None:
-        changes["chat_home_available"] = func.jsonb_strip_nulls(
-            func.coalesce(DeploymentSettings.chat_home_available, cast({}, JSONB)).op("||")(
-                cast(changes["chat_home_available"], JSONB)
+    for column in ("chat_home_available", "console_availability"):
+        if column in changes and changes[column] is not None:
+            changes[column] = func.jsonb_strip_nulls(
+                func.coalesce(getattr(DeploymentSettings, column), cast({}, JSONB)).op("||")(
+                    cast(changes[column], JSONB)
+                )
             )
-        )
     stmt = (
         insert(DeploymentSettings)
         .values(singleton=True, **update_data)

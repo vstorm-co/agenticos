@@ -192,6 +192,76 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "deployment-console-navigation",
+    page: "/admin/settings",
+    target: "deployment-console-navigation",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-console-navigation",
+    page: ORG_MEMBERS,
+    target: "organization-console-navigation",
+    activate: ["org-tab-assistant", "organization-console-navigation-expand"],
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "organization-console-notices",
+    page: ORG_MEMBERS,
+    target: "organization-console-notices",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-console-navigation",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-navigation",
+    activate: "personal-console-navigation-open",
+    optional: true,
+  },
+  {
+    id: "personal-console-catalogs",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-catalogs",
+    optional: true,
+  },
+  {
+    id: "personal-console-notices",
+    page: SETTINGS_DETAIL,
+    target: "personal-console-notices",
+    optional: true,
+  },
+  {
+    id: "deployment-chat-costs",
+    page: "/admin/settings",
+    target: "deployment-chat-costs",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-chat-costs",
+    page: ORG_MEMBERS,
+    target: "organization-chat-costs",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-chat-costs",
+    page: SETTINGS_DETAIL,
+    target: "personal-chat-costs",
+    optional: true,
+  },
+  {
+    id: "deployment-password-sign-in",
+    page: "/admin/settings",
+    target: "deployment-password-sign-in",
+    activate: "deployment-access-tab",
+    optional: true,
+  },
+  {
     id: "improvement-start",
     page: IMPROVEMENT_START,
     target: "improvement-start",
@@ -988,6 +1058,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "workflow-python-actions",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-python-actions",
+    permission: Perm.workflowsEdit,
+    optional: true,
+  },
+  {
     id: "workflow-input-contract",
     page: WORKFLOW_DETAIL,
     target: "workflow-input-contract",
@@ -1544,6 +1621,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "project-tracking", page: PROJECT_DETAIL, target: "project-tracking", optional: true },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  {
+    id: "project-resources",
+    page: PROJECT_DETAIL,
+    target: "project-resources",
+    activate: "project-tab-resources",
+    optional: true,
+  },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
   { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
 
@@ -1595,6 +1679,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.REMOTE_AGENTS,
     target: "remote-agents-register",
     permission: Perm.agentsEdit,
+  },
+
+  {
+    id: "event-sources-header",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-header",
+    permission: Perm.eventSourcesView,
+  },
+  {
+    id: "event-sources-create",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-create",
+    permission: Perm.eventSourcesEdit,
   },
 
   // Routines — the org-wide home for everything an agent does on its own. Two

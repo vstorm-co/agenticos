@@ -94,6 +94,7 @@ async def test_each_platform_run_names_its_agent_and_where_its_work_is(db) -> No
         base_draft_hash="a" * 64,
         dataset_id=dataset.id,
         dataset_version=1,
+        holdout_share=Decimal("0.5"),
         suite_id=None,
         suite_hash=None,
         scoring_hash="s" * 64,

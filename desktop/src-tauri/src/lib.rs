@@ -466,7 +466,7 @@ fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
 
 fn connection_setup_path(language: Option<&str>) -> String {
     language
-        .filter(|language| ["en", "pl", "de", "tr", "pt"].contains(language))
+        .filter(|language| ["en", "pl", "de", "tr", "nl", "pt"].contains(language))
         .map(|language| format!("{language}/{CONNECTION_SETUP}"))
         .unwrap_or_else(|| CONNECTION_SETUP.to_string())
 }
@@ -536,6 +536,7 @@ mod onboarding_language_tests {
     #[test]
     fn supported_language_follows_the_connection_without_changing_its_origin() {
         assert_eq!(connection_setup_path(Some("pl")), format!("pl/{CONNECTION_SETUP}"));
+        assert_eq!(connection_setup_path(Some("nl")), format!("nl/{CONNECTION_SETUP}"));
         assert_eq!(connection_setup_path(Some("pt")), format!("pt/{CONNECTION_SETUP}"));
         assert_eq!(connection_setup_path(None), CONNECTION_SETUP);
         assert_eq!(connection_setup_path(Some("https://example.com")), CONNECTION_SETUP);
@@ -545,7 +546,7 @@ mod onboarding_language_tests {
 
 #[tauri::command]
 fn set_onboarding_language(app: AppHandle, language: String) -> Result<(), String> {
-    if !["en", "pl", "de", "tr", "pt"].contains(&language.as_str()) {
+    if !["en", "pl", "de", "tr", "nl", "pt"].contains(&language.as_str()) {
         return Err("Unsupported language".into());
     }
     settings::update(&app, |settings| settings.onboarding_language = Some(language))?;

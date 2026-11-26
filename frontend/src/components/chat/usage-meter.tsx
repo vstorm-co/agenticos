@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { AnimatedAmount, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { useChatCostsVisible } from "@/components/settings/console-experience-provider";
 import { cn } from "@/lib/utils";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { ConversationCost, TurnUsage } from "@/types";
@@ -83,13 +84,19 @@ export function UsageMeter({
 }: UsageMeterProps) {
   const t = useTranslations("chat.usage");
   const controls = useTranslations("chat.controls");
+  const costsVisible = useChatCostsVisible();
+  const visibleTotal = costsVisible && total?.cost_usd != null ? total : null;
   const context = contextOf(usage, contextWindow);
   const fill = usage === null ? null : fillOf(usage, workspace, t);
-  const agentShare = usage?.agent_budget_percent ?? null;
-  const orgShare = usage?.budget_percent ?? null;
+  const agentShare = costsVisible ? (usage?.agent_budget_percent ?? null) : null;
+  const orgShare = costsVisible ? (usage?.budget_percent ?? null) : null;
   // Always there, a new chat included: before the first reply it says what it will show.
   const empty =
-    context === null && total === null && fill === null && agentShare === null && orgShare === null;
+    context === null &&
+    visibleTotal === null &&
+    fill === null &&
+    agentShare === null &&
+    orgShare === null;
 
   const contextLevel = levelOf(context?.percent ?? null, CONTEXT_ALERT);
   const otherLevel = worst([
@@ -163,7 +170,7 @@ export function UsageMeter({
               level={levelOf(context.percent, CONTEXT_ALERT)}
             />
           )}
-          {total !== null && <SpendReading total={total} />}
+          {visibleTotal !== null && <SpendReading total={visibleTotal} />}
           {agentShare !== null && (
             <Reading
               label={t("agentBudget")}
@@ -314,6 +321,7 @@ function Reading({
  */
 function SpendReading({ total }: { total: ConversationCost }) {
   const t = useTranslations("chat.usage");
+  if (total.cost_usd == null) return null;
   const partial = total.cost_is_partial === true;
   const cost = Number(total.cost_usd);
   const decimals = cost === 0 || Math.abs(cost) >= 0.01 ? 2 : 4;

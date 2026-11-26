@@ -86,7 +86,7 @@ export function DeploymentSettingsLayout({
       >
         <TabsList aria-label={t("title")}>
           {SECTIONS.map(({ id, icon: Icon }) => (
-            <TabsTrigger key={id} value={id} className="gap-2">
+            <TabsTrigger key={id} value={id} data-tour={`deployment-${id}-tab`} className="gap-2">
               <Icon className="size-4 shrink-0" aria-hidden />
               {t(id)}
             </TabsTrigger>

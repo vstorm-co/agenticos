@@ -13,6 +13,7 @@ what the merge says. Accepting refuses once either line moved past the merge.
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import get_args
 from uuid import UUID
 
 import anyio
@@ -24,6 +25,7 @@ from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -64,6 +66,7 @@ from app.schemas.skill_version import (
     ForkRef,
     ReturnedAgent,
     ReturnedToMain,
+    ReturnRefusal,
     ReturnToMain,
     SkillBindingChange,
     SkillRef,
@@ -228,7 +231,12 @@ class SkillCatchUpService:
                 )
             except (NotFoundError, BadRequestError, AuthorizationError) as refusal:
                 returned.append(
-                    ReturnedAgent(agent=_usage(agent), published=False, refused=refusal.message)
+                    ReturnedAgent(
+                        agent=_usage(agent),
+                        published=False,
+                        refused=refusal.message,
+                        refused_code=_refusal_code(refusal),
+                    )
                 )
                 continue
             returned.append(
@@ -975,3 +983,15 @@ def _require_runs_view(ctx: AuthContext) -> None:
             message="A skill session reads runs, which needs runs:view",
             details={"permission": Perm.RUNS_VIEW.value},
         )
+
+
+_REFUSAL_CODES: tuple[ReturnRefusal, ...] = get_args(ReturnRefusal)
+
+
+def _refusal_code(refusal: AppException) -> ReturnRefusal | None:
+    """The code of a refusal to move an agent, or None for one without a known code."""
+    reason = (refusal.details or {}).get("reason")
+    known = next((code for code in _REFUSAL_CODES if code == reason), None)
+    if known is None and isinstance(refusal, NotFoundError):
+        return "agent_not_found"
+    return known

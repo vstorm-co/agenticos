@@ -478,6 +478,9 @@ async def test_source_metadata_export_and_erasure_follow_the_exact_owner(db: Asy
         "tool_id": "web_fetch",
     }
     trigger.action_consents = [consent]
+    trigger.tool_settings = [
+        {"capability_id": "web_fetch", "tool_id": "web_fetch", "setting": "off"}
+    ]
     await db.flush()
     exported = RoutineSourceExport.model_validate(trigger)
     assert exported.action_consents[0].consented_by == ctx.subject_id
@@ -488,6 +491,7 @@ async def test_source_metadata_export_and_erasure_follow_the_exact_owner(db: Asy
     await db.refresh(foreign_trigger)
     await db.refresh(foreign_run)
     assert trigger.approved_sources is None and run.routine_policy is None
+    assert trigger.action_consents == [] and trigger.tool_settings == []
     assert foreign_trigger.approved_sources is not None and foreign_run.routine_policy is not None
 
 

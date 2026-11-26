@@ -11,7 +11,12 @@ from app.agents.prompt_variables import is_time_zone
 from app.core.cron import cron_has_next
 from app.db.models.eval_suite import EvalSuiteResultStatus, EvalSuiteTrigger
 from app.schemas.base import BaseSchema
-from app.schemas.eval_run import EvalRunEstimate, OverallLiteral, VerdictLiteral
+from app.schemas.eval_run import (
+    EvalRunEstimate,
+    InvalidReasonCode,
+    OverallLiteral,
+    VerdictLiteral,
+)
 from app.schemas.eval_threshold import EvalSuiteThreshold, ThresholdReason
 from app.schemas.scoring import ReviewReevaluation
 
@@ -140,6 +145,8 @@ class EvalSuiteSummary(BaseSchema):
     verdict: VerdictLiteral | None = None
     overall: OverallLiteral | None = None
     invalid_reason: str | None = None
+    invalid_reason_code: InvalidReasonCode | None = None
+    invalid_reason_params: dict[str, int] = Field(default_factory=dict)
     regressions_confirmed: int = 0
     regressions_unconfirmed: int = 0
     fixed_confirmed: int = 0

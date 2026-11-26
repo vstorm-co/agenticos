@@ -1,0 +1,205 @@
+# Release train: portability and console controls
+
+Maintainer request, 2026-11-25. One eventual release, with reviewable dependent
+PRs. No merge, release or production deploy is authorized at this stage. The
+last branch in the stack must contain every preceding change for local testing.
+
+## Work already in progress
+
+PR #3299 (`codex/project-integrations-fixes`) is the base. Finish selectable
+export/import and project behavior, desktop and mobile screenshots, and full
+CI. Its current draft checks do not establish a full green CI run.
+
+The durability work is implemented in `f16e4b1c8`: ZIP storage, transfer
+journals, worker fencing, expiring uploads and reviewed application. Knowledge-base content,
+workflow bundles and manually published delegate-version bindings are still
+unfinished. The project file/execution architecture document records target
+behavior separately from implementation.
+
+## Additional reviewed changes
+
+| Pull request | Requested change | Head inspected | State |
+| --- | --- | --- | --- |
+| #3388 | Clear phone/desktop safe areas in full-screen panels | `61de64d09563882c1931a1dbf60c5275251eb6e5` | Integrated as `0ea65872d`; 26 scoped tests pass; fixed i18n gate |
+| #3383 | Reconcile a saved answer and live replay after socket loss; fixes #3382 | `21ed8d62e1c202e79718d98bc94e47472c4c4a0f` | Integrated as `1e0ae3cbc`; regression fixed; 458 hook/store tests pass |
+| #3304 | Admit conversation-ID corrections to active async API runs, with a queued fallback | `1ace55d3da15cf8a2a6bcf412cd563d42140b8ff` | Integrated as `6fea54932`; 814 scoped backend tests pass; no new confirmed finding |
+
+Recheck each head and existing findings before integration. Review is local;
+posting comments to contributors has not been requested.
+
+## New implementation scope
+
+- #3300: per-role organization console presentation, personal overrides,
+  approved MCP/Skill catalogs, product notices, dashboard defaults and preview
+  as role. Presentation never grants access to a resource or changes RBAC.
+- #3302: organization controls visibility of costs across chat, shared chat
+  and delegation. Redact forbidden costs at the server boundary. Personal
+  preference may hide an otherwise permitted cost, never reveal an
+  organization-forbidden one. Continue recording all spend.
+- #3303: configured sign-in methods only; optional deployment-level password
+  disablement, consistent register/reset behavior and a documented operator
+  recovery path.
+- #3382: covered by the reviewed #3383 implementation, with any additional
+  regressions found during review included in the same change.
+
+## Acceptance evidence
+
+Each dependent PR needs its own scoped tests and an accurate description. The
+aggregate checkout needs real desktop/mobile UI checks and full CI for its exact
+head. Do not close issues for partial implementations or describe skipped draft
+checks as passing gates. Final merge and one version cut require a later request.
+
+## Confirmed review findings
+
+- #3388: five template-literal `className` expressions fail the repository's
+  hardcoded-copy gate. Use the existing `cn` helper; do not suppress the gate.
+  The safe-area source guard also reuses the existing source-files utility.
+- #3383: an already saved question segment in run A can satisfy the run check
+  when detached run B finishes during A's dropped continuation. Reproduced on
+  the inspected head: the interruption notice clears prematurely. Snapshot
+  saved segment IDs at socket loss and require a new segment of run A.
+  Regression evidence: `does not mistake a saved question segment for its
+  dropped continuation` fails before this correction.
+
+Source #3388 and #3383 workflows require contributor approval; those statuses
+are not evidence of passed CI. #3304 has successful CI and CodeQL at the
+inspected head; the integrated train still needs its own checks.
+
+## Integrated API steering verification
+
+The #3304 patch applies on the #3299 queue changes without removing the generic
+`lock_attempt` fence. Focused tests pass: 173 steering, transcript, channel and
+route tests; 617 runner tests; and 24 real-Postgres request/delivery tests.
+The delivery tests use `FunctionModel`, not paid provider calls. They cover a
+correction arriving from an independent transaction, idempotent redelivery,
+consumption before a later model step, and the final-step queued fallback.
+Docs translation fingerprints and the bundled Architect guide match.
+
+Steering remains opt-in. It requires an existing API conversation and the exact
+agent, environment, person and credential of a live attempt. A changed grant,
+revoked key, replaced version or expired lease leaves the correction queued for
+normal admission. A consumed request is a terminal receipt pointing at the
+original run; it does not produce a second answer. Operators must update API
+replicas and workers before clients send the new flag.
+
+## Provider-only sign-in (#3303)
+
+Implemented on `codex/sign-in-method-policy`, based on #3431's integration
+branch. Deployment administrators can disable local account admission after a
+provider is configured. The six local login/registration/recovery/email-token
+routes refuse admission at the server, including previously issued reset and
+email tokens. Existing sessions and directory authentication retain their own
+contracts. Public branding publishes configured provider names without secrets;
+the console retains an explicit display filter and defaults to all supported
+configured methods. Unconfigured Google is absent, not disabled.
+
+The saved switch and the operator's temporary environment override are distinct.
+The administrator sees both; public pages see the effective policy. A missing
+provider refuses disabling local admission, and the console also checks the
+visible filter. The recovery flag never creates an account or grants a role.
+
+Verification: 190 focused backend tests (including PostgreSQL persistence), 92
+UI tests plus the added staged-invitation check, and 100% scoped statement and
+branch coverage for the provider registry and deployment-settings service. The
+new provider-only UI has 100% statement, branch, function and line coverage.
+Types, lint and strict four-language docs checks pass. Migration
+`0368_password_sign_in_policy.py` upgrades, downgrades and upgrades cleanly;
+Alembic reports no drift. Actual local console testing saved the switch and
+checked login, registration, recovery and an old reset link before restoring
+local login. Preview SSO is a local dummy provider, not a tested live IdP.
+
+Desktop/mobile captures are available locally. The aggregate CI gate and the
+remaining #3300/#3302 and #3299 work are still pending; no release is cut.
+
+## Chat cost disclosure (#3302)
+
+Implemented on `codex/chat-cost-visibility`, based on #3432. Deployment
+availability bounds the organization audience (everyone, spend-privileged
+readers, nobody in chat), and each membership may hide costs further. Null
+stored settings preserve the existing everyone-visible default. Preference
+updates are tenant/subject scoped; organization changes require the existing
+settings permission and emit an audit event.
+
+History, paged/API transcripts, message creation responses, Q&A/resume results,
+live completion and delegation frames are projected for the actual reader.
+Socket replay resolves fresh membership, role and administrator state. A failed
+policy database read withholds financial metadata while preserving an already
+persisted answer. Shared live-turn storage retains the original frame so the
+initiator's preference cannot strip accounting from another authorized reader.
+The projection copies response data; it does not mutate persisted accounting,
+agent text or arbitrary tool output. Activity and dashboard retain their own
+spend permissions. Missing prices no longer become fabricated zeroes in chat.
+
+Verification: 188 focused policy/HTTP/coverage-contract tests, plus the expanded
+12-case HTTP serialization matrix; 238 existing socket/conversation regressions;
+a real-Postgres preference/isolation/constraint test; 504 focused UI/hook tests
+and 68 cost-meter/delegation tests including four new hidden-policy cases.
+New policy and projection modules have 100% scoped statement/branch coverage
+(81 statements, 22 branches). The isolated UI policy/control/cost slice has
+100% statements/functions/lines and 98.07% branches. Migration
+`0369_chat_cost_visibility.py` upgrades, downgrades and upgrades without model
+drift. Full aggregate CI and the rest of the release train remain pending.
+
+## Role navigation and optional prompts (first part of #3300)
+
+Implemented on `codex/console-role-experience`, based on #3437. Deployment
+availability bounds each built-in role's organization navigation and each
+membership's personal selection. Null inherits; an empty selection stays empty.
+The simple preset keeps Chat, Inbox, Projects and Documents. Sidebar and command
+navigation agree, while URL access and resource permissions remain unchanged.
+Account settings and organization switching remain available for recovery.
+
+Organization and personal switches govern desktop invitations and optional
+product announcements. They do not hide security or service availability
+notices. The administrator's preview renders navigation for a role, bounded by
+the administrator's own permissions, without loading another person's data.
+It is a navigation preview, not a complete impersonated console.
+
+Navigation edits use an explicit draft, Save and Discard. Unsaved changes block
+role switching and use the existing navigation guard. Cached account or tenant
+changes cannot carry a draft into another membership. Failed policy reads show
+an explicit retry instead of an unexplained blank sidebar.
+
+Verification: 141 focused backend policy/HTTP tests, 100% scoped statement and
+branch coverage (100 statements, 22 branches), and a real-PostgreSQL merge,
+reset and tenant-isolation test. The latest seven-file UI regression batch has
+57 passing tests; the isolated four new controls have 100% statements, lines
+and functions and 97.61% branches. Type checks, translation checks and strict
+four-language documentation checks pass. Migration
+`0370_console_role_presentation.py` upgrades, downgrades and upgrades without
+model drift. Actual local UI testing saves the Member preset and confirms
+that a hidden Agents link does not revoke permitted direct URL access.
+
+This is partial #3300 coverage: catalog restrictions and organization dashboard
+defaults remain pending in the next dependent change. Full train CI remains
+pending. No merge, release or deployment is authorized at this stage.
+
+## Catalog ceilings and role dashboard defaults (remaining #3300)
+
+Implemented on `codex/console-catalog-dashboard-defaults`, based on #3449.
+Deployment, organization-role and personal catalog choices intersect before
+registry counting and pagination. Managers may configure their catalog independently
+of role presentation defaults; deployment and personal limits still apply.
+Existing accessible bindings retain metadata even when excluded from discovery.
+Skill gallery installation markers no longer expose another person's private copy.
+
+Organization administrators can copy their saved dashboard layout to a role,
+review it and explicitly save it. Person- or agent-specific filters cannot become
+role defaults. Null inherits the product default; an empty layout is intentional.
+A member's saved layout takes precedence, and widget permissions are applied last.
+Policy failures expose Retry rather than a blank or permanently loading page.
+Catalog drafts use explicit Save/Discard, owner-scoped state and unsaved guards.
+
+Verification: 299 focused backend policy, catalog, Skill and coverage-contract
+tests pass. The three new catalog/dashboard modules have 100% statement and
+branch coverage (69 statements, 16 branches). Twenty-nine real-PostgreSQL catalog
+and MCP-listing tests pass, including private-copy isolation and filtering before
+pagination. Translation and four-language documentation checks pass. Final UI
+coverage of four presentation controls reaches 100% statements, functions and
+lines; isolated branch coverage is 96.73%, below the aggregate 97.5% CI gate.
+Full-train coverage is still owed, not claimed green. Aggregate screenshots
+remain pending.
+
+The selected source patches are recorded in `release-candidates-2026-11-25.md`.
+The maintainer also authorized review and inclusion of #3402 with #3442.
+No merge or release is authorized.

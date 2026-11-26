@@ -2,9 +2,9 @@
   margin: 0 12px 8px;
   padding: 14px;
   flex-shrink: 0;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-brand-line);
   border-radius: 14px;
-  background: var(--color-card);
+  background: var(--color-brand-subtle);
 }
 .heading {
   display: flex;
@@ -54,13 +54,13 @@
   min-height: 34px;
   border-radius: 8px;
   padding: 7px 10px;
-  background: var(--color-secondary);
-  color: var(--color-secondary-foreground);
+  background: var(--color-brand);
+  color: var(--color-brand-foreground);
   font-size: 12px;
   font-weight: 550;
 }
 .action:hover {
-  background: var(--color-accent);
+  background: var(--color-brand-hover);
 }
 .action:focus-visible,
 .dismiss:focus-visible {

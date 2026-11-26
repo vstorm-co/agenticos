@@ -75,6 +75,10 @@ for (const device of [
       await page.goto("/settings/profile");
       await identityReady;
       await expect(page.getByLabel("Display name", { exact: true })).toBeVisible();
+      const profileForm = page.getByRole("form", {
+        name: "What your agents know about you",
+        exact: true,
+      });
       const original = await json<User>(page.request, "/api/users/me");
       const preferences = await rowsAt(page.request, "/api/notifications/preferences");
       const before = (channel: string) => {
@@ -126,7 +130,7 @@ for (const device of [
         await page.getByLabel("Display name", { exact: true }).press("Enter");
         await nameHeld.started;
         await expect(page.getByLabel("Email", { exact: true })).toBeDisabled();
-        await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+        await expect(profileForm.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
         nameHeld.release();
         await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
         await nameHeld.remove();
@@ -154,7 +158,7 @@ for (const device of [
         await page.getByLabel("Ends at", { exact: true }).fill("16:30");
         const contextHeld = await heldRefusal(page, "/api/users/me", "PATCH");
         release = contextHeld.release;
-        await page.getByRole("button", { name: "Save", exact: true }).click();
+        await profileForm.getByRole("button", { name: "Save", exact: true }).click();
         await contextHeld.started;
         for (const label of [
           "Display name",
@@ -170,7 +174,7 @@ for (const device of [
         await contextHeld.remove();
         await expect(page.getByLabel("Ends at", { exact: true })).toHaveValue("16:30");
         const contextSaved = updated("PATCH", "/api/users/me");
-        await page.getByRole("button", { name: "Save", exact: true }).click();
+        await profileForm.getByRole("button", { name: "Save", exact: true }).click();
         await contextSaved;
         await page.reload();
         await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(name);

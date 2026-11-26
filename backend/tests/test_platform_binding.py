@@ -92,7 +92,7 @@ class TestTheCredential:
         mint.assert_not_awaited()
 
         assert await runner._run_owner_context(CTX, None) is CTX
-        own = MagicMock(user_id=CTX.user_id, key_scopes=None)
+        own = MagicMock(user_id=CTX.user_id, initiated_by_publisher_fallback=False, key_scopes=None)
         assert await runner._run_owner_context(CTX, own) is CTX
 
     @pytest.mark.security

@@ -27,6 +27,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.approvals import past_own_platform_call
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
@@ -170,7 +171,9 @@ async def _refusal(
     """Why the continuation must not run, or None. Only a definite no counts."""
     if decider is None:
         return "decider_unavailable"
-    if not decider.has(Perm.APPROVALS_DECIDE):
+    if not decider.has(Perm.APPROVALS_DECIDE) and not await past_own_platform_call(
+        db, decider, run
+    ):
         return "decider_cannot_decide"
     incoming = await incoming_for_run(
         db, run, bot_id=bot.id, platform_chat_id=destination.platform_chat_id

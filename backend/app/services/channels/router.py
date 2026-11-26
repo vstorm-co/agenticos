@@ -534,9 +534,9 @@ class ChannelMessageRouter:
                 if (receipt := current_receipt()) is not None:
                     from functools import partial
 
-                    from app.services.channels.ingress import collect_steering
+                    from app.services.channels.ingress import poll_steering
 
-                    inbox.poll = partial(collect_steering, receipt, incoming)
+                    inbox.poll = partial(poll_steering, receipt, incoming)
                 _in_flight[key] = InFlight(inbox=inbox, sender=incoming.platform_user_id)
                 try:
                     with steerable(inbox):

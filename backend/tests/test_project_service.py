@@ -147,7 +147,7 @@ class TestWhoMaySeeAndChangeIt:
 
 
 class TestCreatingAndChanging:
-    async def test_a_project_runs_in_a_container_where_there_is_a_sandbox(self) -> None:
+    async def test_explicit_automatic_selection_pins_an_available_sandbox(self) -> None:
         created = _project()
         service = _service(None)
         host = MagicMock(id=uuid.uuid4())
@@ -157,7 +157,10 @@ class TestCreatingAndChanging:
             patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
             patch.object(module, "record_audit", AsyncMock()),
         ):
-            assert await service.create(_ctx(), ProjectCreate(name="Launch")) is created
+            assert (
+                await service.create(_ctx(), ProjectCreate(name="Launch", backend="auto"))
+                is created
+            )
         assert create.await_args.kwargs["backend"] == "service"
         assert create.await_args.kwargs["visibility"] == "private"
         # On that host: a new organization default must not open it an empty one.
@@ -180,7 +183,9 @@ class TestCreatingAndChanging:
         ):
             await service.create(
                 _ctx(),
-                ProjectCreate(name="Launch", visibility=Visibility.ORG, group_ids=[group]),
+                ProjectCreate(
+                    name="Launch", backend="auto", visibility=Visibility.ORG, group_ids=[group]
+                ),
             )
         assert create.await_args.kwargs["backend"] == "state"
         assert create.await_args.kwargs["visibility"] == "private"
@@ -793,7 +798,10 @@ def test_file_paths_cannot_contain_control_characters() -> None:
         project_path("a\x00b")
 
 
-async def test_a_project_can_choose_stored_files_even_when_a_sandbox_is_available() -> None:
+@pytest.mark.parametrize("backend", [None, "state"])
+async def test_a_project_defaults_to_stored_files_even_when_a_sandbox_is_available(
+    backend: str | None,
+) -> None:
     created = _project(backend="state")
     service = _service(None)
     connections = MagicMock(ensure_local_connection=AsyncMock())
@@ -802,7 +810,12 @@ async def test_a_project_can_choose_stored_files_even_when_a_sandbox_is_availabl
         patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
         patch.object(module, "record_audit", AsyncMock()),
     ):
-        await service.create(_ctx(), ProjectCreate(name="Notes", backend="state"))
+        request = (
+            ProjectCreate(name="Notes")
+            if backend is None
+            else ProjectCreate(name="Notes", backend="state")
+        )
+        await service.create(_ctx(), request)
     assert create.await_args.kwargs["backend"] == "state"
     assert create.await_args.kwargs["sandbox_connection_id"] is None
     connections.ensure_local_connection.assert_not_awaited()
@@ -850,7 +863,10 @@ async def test_project_sandbox_selection_refuses_inactive_unavailable_and_unauth
             patch.object(module.AuthContext, "has", return_value=False),
             pytest.raises(AuthorizationError),
         ):
-            await service.create(_ctx(), ProjectCreate(name="Build", sandbox_connection_id=host.id))
+            await service.create(
+                _ctx(),
+                ProjectCreate(name="Build", backend="service", sandbox_connection_id=host.id),
+            )
 
 
 async def test_a_project_edit_refreshes_only_the_authenticated_person() -> None:

@@ -413,3 +413,29 @@ it("translates update labels on language changes without translating instance na
   await screen.findByRole("button", { name: "Update local workspace" });
   expect(screen.getByText("Update target").parentElement).toHaveTextContent("1.82.2");
 });
+
+it("keeps the setup transition in the chosen language", async () => {
+  invoke.mockImplementation(async (command) => (command === "local_instances" ? [] : "no_docker"));
+  localStorage.setItem("agenticos:start-language", "nl");
+  await startLanguage(invoke);
+  const { refresh } = mount();
+  await refresh();
+  let finishPreparation: ((value: string) => void) | undefined;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolvePreparation) => {
+        finishPreparation = resolvePreparation;
+      }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Deze computer instellen" }));
+  await screen.findByText("Deze computer wordt voorbereid");
+  expect(document.querySelector("[data-local-message]")).toHaveTextContent(
+    "Keur de systeemmeldingen voor de installatie of de eerste start goed.",
+  );
+  finishPreparation?.("done");
+  await waitFor(() =>
+    expect(document.querySelector("[data-local-message]")).toHaveTextContent(
+      "Rond de installatie van de runtime af",
+    ),
+  );
+});

@@ -3,7 +3,7 @@ import type { ArtifactDetail } from "../src/types/artifact";
 import type { CostSummary } from "../src/types/runs";
 
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, SEEDED_CONTEXT_NAME, SEEDED_SKILL_NAME } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, SEEDED_CONTEXT_NAME, SEEDED_SKILL_NAME } from "./helpers";
 
 async function expectTouchTarget(control: Locator) {
   await expect(control).toBeVisible();
@@ -223,6 +223,109 @@ for (const platform of ["ios", "android"] as const) {
       }
     });
 
+    test("keeps organization primary actions together while secondary actions remain reachable", async ({
+      page,
+    }) => {
+      await page.goto("/orgs");
+      const open = page.getByRole("link", { name: /^Open / }).first();
+      await expect(open).toBeVisible();
+      const href = await open.getAttribute("href");
+      if (!href) throw new Error("Expected the seeded organization's member link");
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(href);
+        await expect(page.getByRole("main").getByText(OWNER_EMAIL, { exact: true })).toBeVisible();
+        const edit = page.getByRole("button", { name: "Edit workspace", exact: true });
+        const invite = page.getByRole("button", { name: "Invite teammate", exact: true });
+        await expectTouchTarget(edit);
+        await expectTouchTarget(invite);
+        const primary = await page
+          .getByRole("button", { name: /^(Edit workspace|Invite teammate)$/ })
+          .evaluateAll((buttons) =>
+            buttons.map((button) => ({
+              top: button.getBoundingClientRect().top,
+              width: button.getBoundingClientRect().width,
+            })),
+          );
+        expect(primary).toHaveLength(2);
+        expect(primary[0]!.top).toBe(primary[1]!.top);
+        expect(primary[0]!.width).toBe(primary[1]!.width);
+        await expect(page.getByRole("link", { name: "Roles", exact: true })).toBeHidden();
+        await page.getByRole("button", { name: "More page actions", exact: true }).tap();
+        await expect(page.getByRole("link", { name: "Roles", exact: true })).toBeVisible();
+        await expect(edit).toBeVisible();
+        await expect(invite).toBeVisible();
+        await expectContained(page);
+        await page.screenshot({
+          path: test.info().outputPath(`organization-actions-${width}.png`),
+        });
+      }
+    });
+
+    test("uses the full service header and contains collapsed settings and bottom menus", async ({
+      page,
+    }) => {
+      await page.goto("/orgs");
+      const open = page.getByRole("link", { name: /^Open / }).first();
+      await expect(open).toBeVisible();
+      const href = await open.getAttribute("href");
+      if (!href) throw new Error("Expected the seeded organization's member link");
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(`${href}?tab=assistant`);
+        const heading = page.getByRole("button", { name: "Console for each role", exact: true });
+        await expect(heading).toBeVisible();
+        const card = page.locator('section[data-slot="service-card"]').filter({ has: heading });
+        const header = card.locator("header");
+        await header.click({ position: { x: 6, y: 6 } });
+        await expect(heading).toHaveAttribute("aria-expanded", "true");
+        await heading.press("Tab");
+        await page.keyboard.press("Shift+Tab");
+        await expect(heading).toBeFocused();
+        await expect(heading).toHaveCSS("user-select", "none");
+        expect(
+          await heading.evaluate((element) => getComputedStyle(element, "::after").outlineStyle),
+        ).toBe("solid");
+        await heading.press("Space");
+        await expect(heading).toHaveAttribute("aria-expanded", "false");
+        await expect
+          .poll(() =>
+            card
+              .locator(":scope > .disclosure-content")
+              .evaluate((element) => element.getBoundingClientRect().height),
+          )
+          .toBe(0);
+        const main = page.getByRole("main");
+        await main.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        const reminders = page
+          .locator('section[data-slot="service-card"]')
+          .filter({ has: page.getByRole("heading", { name: "Setup reminders", exact: true }) });
+        await expect
+          .poll(async () => {
+            const bottom = await reminders.evaluate(
+              (element) => element.getBoundingClientRect().bottom,
+            );
+            return main.evaluate((element, bottom) => {
+              const gap = element.getBoundingClientRect().bottom - bottom;
+              return gap >= 0 && gap <= 64;
+            }, bottom);
+          })
+          .toBe(true);
+        await expect(reminders).toBeInViewport();
+        const frequency = page.getByRole("combobox", {
+          name: "Remind again after dismissing",
+          exact: true,
+        });
+        await frequency.tap();
+        await expect(page.getByRole("listbox")).toBeInViewport();
+        await expect(page.getByRole("listbox")).toHaveAttribute("data-side", "top");
+        await page.keyboard.press("Escape");
+        await expectContained(page);
+      }
+    });
+
     test("keeps the project phone actions on one row with secondary actions in More", async ({
       page,
     }) => {
@@ -249,11 +352,22 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
+        await expect(page.getByRole("tab", { name: "Chats", exact: true })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        );
+        await page.getByRole("tab", { name: "Files", exact: true }).tap();
         const add = page.getByRole("button", { name: "Upload files", exact: true });
         const more = page.getByRole("button", { name: "More", exact: true });
         await expectTouchTarget(add);
         await expectTouchTarget(more);
-        expect((await add.boundingBox())?.y).toBe((await more.boundingBox())?.y);
+        // Read the shared row in one frame: separate protocol calls can straddle
+        // the tab panel's entrance animation and compare different translations.
+        const tops = await page
+          .getByRole("button", { name: /^(Upload files|More)$/ })
+          .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().y));
+        expect(tops).toHaveLength(2);
+        expect(tops[0]).toBe(tops[1]);
         await expect(page.getByRole("button", { name: "Upload folder", exact: true })).toBeHidden();
         await expect(page.getByRole("button", { name: "New folder", exact: true })).toBeHidden();
         await more.tap();

@@ -174,3 +174,15 @@ class TestSorting:
 
         assert response.status_code == 422
         service.list_conversations.assert_not_awaited()
+
+
+async def test_flat_recency_can_disable_favourite_pinning_without_changing_the_default():
+    service = _service()
+    async with _client(service=service, organization_id=uuid4()) as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations", params={"favourites_first": "false"}
+        )
+        assert response.status_code == 200
+        assert service.list_conversations.await_args.kwargs["favourites_first"] is False
+        await client.get(f"{settings.API_V1_STR}/conversations")
+        assert "favourites_first" not in service.list_conversations.await_args.kwargs
