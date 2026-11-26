@@ -4083,6 +4083,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         being written changes nothing, and asking again later redrafts it from the
         knowledge base as it is then.
         """
+        if quoted_usd is None:
+            estimate = await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
+            if estimate.get("total_usd") is not None:
+                raise ToolError(
+                    "This draft has a price: estimate it first and pass its total_usd as quoted_usd"
+                )
         topic = await api.request(
             "POST",
             f"/knowledge-gaps/{topic_id}/draft",
