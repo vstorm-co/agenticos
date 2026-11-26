@@ -55,7 +55,9 @@ function serve({
   appAdmin = false,
   services = [OWN, SHARED],
   estimate = { calls: 3, max_calls: 6, knowledge_bases: 1 },
+  secrets = [{ id: "sec-1", name: "Gateway key", hint: "abcd", purpose: "openai_compatible" }],
 }: {
+  secrets?: { id: string; name: string; hint: string; purpose: string }[];
   manage: boolean;
   appAdmin?: boolean;
   services?: ServiceConnectionRecord[];
@@ -72,11 +74,7 @@ function serve({
     if (path === "/orgs/org-1/integrations") return { items: [], total: 0 };
     if (path === "/orgs/org-1/integrations/connectors") return { items: [], total: 0 };
     if (path === "/service-connections") return { items: services, total: services.length };
-    if (path === "/secrets")
-      return {
-        items: [{ id: "sec-1", name: "Gateway key", hint: "abcd", purpose: "openai_compatible" }],
-        total: 1,
-      };
+    if (path === "/secrets") return { items: secrets, total: secrets.length };
     if (path === "/secrets/kinds") return { items: [] };
     if (path.endsWith("/probe/estimate")) {
       if (estimate === "pending") return new Promise(() => {});
@@ -297,6 +295,122 @@ describe("ServiceConnections", () => {
         secret_id: "sec-1",
       }),
     );
+  });
+
+  describe("a Docling connection", () => {
+    const secrets = [
+      { id: "sec-1", name: "Gateway key", hint: "abcd", purpose: "openai_compatible" },
+      { id: "sec-2", name: "Docling key", hint: "wxyz", purpose: "docling" },
+    ];
+
+    async function openDoclingDialog() {
+      serve({ manage: true, secrets });
+      render(<KnowledgeIntegrations targets={[]} />, { wrapper });
+      await screen.findByText("GPU box");
+      await userEvent.click(screen.getByRole("button", { name: "Add server" }));
+      await userEvent.click(screen.getByLabelText("Kind"));
+      await userEvent.click(
+        await screen.findByRole("option", { name: "Document parser (Docling)" }),
+      );
+      await userEvent.type(screen.getByLabelText("Address"), "http://docling:5001");
+    }
+
+    it("test_docling_key_picker_lists_docling_keys_only", async () => {
+      await openDoclingDialog();
+
+      await userEvent.click(screen.getByLabelText("Vault key"));
+      expect(await screen.findByRole("option", { name: /Docling key/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /Gateway key/ })).toBeNull();
+    });
+
+    it("test_docling_test_shows_version", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "ok", version: "1.39.0" });
+      await openDoclingDialog();
+
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+      expect(await screen.findByText(/Docling Serve 1\.39\.0/)).toBeVisible();
+      expect(apiClient.post).toHaveBeenCalledWith("/service-connections/test", {
+        kind: "document_parser",
+        provider: "docling",
+        base_url: "http://docling:5001",
+      });
+      // A test never gates Register.
+      await userEvent.type(screen.getByLabelText("Name"), "Docs");
+      expect(screen.getByRole("button", { name: "Register" })).toBeEnabled();
+    });
+
+    it("marks the Test as passed until something it tried changes", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "ok", version: "1.39.0" });
+      await openDoclingDialog();
+
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+      expect(await screen.findByRole("button", { name: "Tested" })).toBeVisible();
+      await userEvent.type(screen.getByLabelText("Name"), "Docs");
+      expect(screen.getByRole("button", { name: "Tested" })).toBeVisible();
+      await userEvent.type(screen.getByLabelText("Address"), "/");
+      expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
+    });
+
+    it("keeps offering the Test after one that did not pass", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "unreachable", version: null });
+      await openDoclingDialog();
+
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+      expect(await screen.findByText("Nothing answered at this address.")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+    });
+
+    it("test_docling_test_key_refused_message", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "key_refused", version: null });
+      await openDoclingDialog();
+      await userEvent.click(screen.getByLabelText("Vault key"));
+      await userEvent.click(await screen.findByRole("option", { name: /Docling key/ }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+      expect(await screen.findByText(/refused the key/i)).toBeVisible();
+      expect(apiClient.post).toHaveBeenCalledWith("/service-connections/test", {
+        kind: "document_parser",
+        provider: "docling",
+        base_url: "http://docling:5001",
+        secret_id: "sec-2",
+      });
+      await userEvent.type(screen.getByLabelText("Name"), "Docs");
+      expect(screen.getByRole("button", { name: "Register" })).toBeEnabled();
+    });
+  });
+
+  it("shows a Test refusal about the stored key under the key picker", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(400, "That key could not be unsealed", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "That key could not be unsealed",
+          details: {
+            fields: [{ field: "service_id", message: "That key could not be unsealed" }],
+          },
+        },
+      }),
+    );
+    serve({
+      manage: true,
+      secrets: [{ id: "sec-2", name: "Docling key", hint: "wxyz", purpose: "docling" }],
+    });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
+    await screen.findByText("GPU box");
+    await userEvent.click(screen.getByRole("button", { name: "Add server" }));
+    await userEvent.click(screen.getByLabelText("Kind"));
+    await userEvent.click(await screen.findByRole("option", { name: "Document parser (Docling)" }));
+    await userEvent.type(screen.getByLabelText("Address"), "http://docling:5001");
+
+    await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+    expect(await screen.findByText("That key could not be unsealed")).toBeVisible();
+    expect(screen.queryByText(/service_id/)).toBeNull();
   });
 
   describe("editing an embedding connection's address", () => {

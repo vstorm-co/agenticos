@@ -7,6 +7,7 @@ import {
   ingestionOverride,
   ingestionProblems,
   overrideSize,
+  PDF_PARSERS,
   sameIngestion,
   settleHiddenFields,
   toNumber,
@@ -261,5 +262,88 @@ describe("settleHiddenFields", () => {
 
   it("returns the same object when nothing hidden is refused", () => {
     expect(settleHiddenFields(DEFAULT_INGESTION_CONFIG, t)).toBe(DEFAULT_INGESTION_CONFIG);
+  });
+});
+
+describe("Docling options", () => {
+  it("starts with the API's defaults, so an old collection and a new one agree", () => {
+    expect(DEFAULT_INGESTION_CONFIG).toMatchObject({
+      docling_connection_id: null,
+      docling_ocr_languages: [],
+      docling_ocr_preset: "auto",
+      docling_table_mode: "accurate",
+    });
+  });
+
+  it("offers Docling beside the other three parsers", () => {
+    expect(PDF_PARSERS.map((choice) => choice.value)).toEqual([
+      "pymupdf",
+      "llamaparse",
+      "liteparse",
+      "docling",
+    ]);
+  });
+
+  it("refuses a language that is not two letters, and more than eight", () => {
+    expect(ingestionProblems(config({ docling_ocr_languages: ["de", "en"] }), t)).toEqual({});
+    expect(ingestionProblems(config({ docling_ocr_languages: ["deu"] }), t)).toHaveProperty(
+      "docling_ocr_languages",
+    );
+    expect(
+      ingestionProblems(
+        config({ docling_ocr_languages: ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh", "ii"] }),
+        t,
+      ),
+    ).toHaveProperty("docling_ocr_languages");
+  });
+
+  it("refuses a preset the API would", () => {
+    expect(ingestionProblems(config({ docling_ocr_preset: "Rapid OCR" }), t)).toHaveProperty(
+      "docling_ocr_preset",
+    );
+    expect(ingestionProblems(config({ docling_ocr_preset: "" }), t)).toHaveProperty(
+      "docling_ocr_preset",
+    );
+    expect(ingestionProblems(config({ docling_ocr_preset: "rapidocr" }), t)).toEqual({});
+  });
+
+  it("settles a refused Docling option when another parser is chosen", () => {
+    const settled = settleHiddenFields(
+      config({
+        pdf_parser: "pymupdf",
+        docling_ocr_preset: "Not Valid",
+        docling_ocr_languages: ["x"],
+      }),
+      t,
+    );
+
+    expect(settled.docling_ocr_preset).toBe("auto");
+    expect(settled.docling_ocr_languages).toEqual([]);
+  });
+
+  it("settles LiteParse's limits only when neither LiteParse nor Docling is chosen", () => {
+    const docling = config({ pdf_parser: "docling", max_pages: 0 });
+    expect(settleHiddenFields(docling, t)).toBe(docling);
+    expect(settleHiddenFields(config({ pdf_parser: "pymupdf", max_pages: 0 }), t).max_pages).toBe(
+      1000,
+    );
+  });
+
+  it("carries a changed language list and table mode in an override, not the connection", () => {
+    const base = config({ pdf_parser: "docling", docling_connection_id: "c-1" });
+    const override = ingestionOverride(base, {
+      ...base,
+      docling_ocr_languages: ["de"],
+      docling_table_mode: "fast",
+    });
+
+    expect(override).toEqual({ docling_ocr_languages: ["de"], docling_table_mode: "fast" });
+  });
+
+  it("compares language lists by content, not by identity", () => {
+    const a = config({ docling_ocr_languages: ["de", "en"] });
+    expect(sameIngestion(a, config({ docling_ocr_languages: ["de", "en"] }))).toBe(true);
+    expect(sameIngestion(a, config({ docling_ocr_languages: ["en", "de"] }))).toBe(false);
+    expect(ingestionOverride(a, config({ docling_ocr_languages: ["de", "en"] }))).toEqual({});
   });
 });

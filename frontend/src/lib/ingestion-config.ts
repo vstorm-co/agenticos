@@ -10,7 +10,7 @@
  * a parser is *for*, which a generated form could not.
  */
 
-import { FileText, ScanText } from "lucide-react";
+import { FileText, FileType2, ScanText } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { brandMark } from "@/components/icons/brand-icon";
@@ -18,6 +18,7 @@ import { brandMark } from "@/components/icons/brand-icon";
 import type { Translate } from "@/lib/agent-step-captions";
 import type {
   ChunkingStrategy,
+  DoclingTableMode,
   ImageDescriptionConfig,
   IngestionConfig,
   IngestionOverride,
@@ -61,6 +62,10 @@ export const DEFAULT_INGESTION_CONFIG: IngestionConfig = {
   llamaparse_tier: "agentic",
   llamaparse_secret_id: null,
   ocr_endpoint_id: null,
+  docling_connection_id: null,
+  docling_ocr_languages: [],
+  docling_ocr_preset: "auto",
+  docling_table_mode: "accurate",
   auto_ocr: true,
   ocr_language: "eng",
   liteparse_output_format: "markdown",
@@ -131,6 +136,18 @@ export const PDF_PARSERS: readonly Choice<PdfParser>[] = [
     // than at the text layer.
     Icon: ScanText,
   },
+  {
+    value: "docling",
+    labelKey: "parserDocling",
+    hintKey: "parserDoclingHint",
+    // A self-hosted service of the organization's own, with no mark in the brand set.
+    Icon: FileType2,
+  },
+];
+
+export const DOCLING_TABLE_MODES: readonly Choice<DoclingTableMode>[] = [
+  { value: "accurate", labelKey: "tableModeAccurate", hintKey: "tableModeAccurateHint" },
+  { value: "fast", labelKey: "tableModeFast", hintKey: "tableModeFastHint" },
 ];
 
 export const LITEPARSE_OUTPUT_FORMATS: readonly Choice<LiteParseOutputFormat>[] = [
@@ -191,6 +208,7 @@ export const INGESTION_LIMITS = {
   liteparseDpi: { min: 72, max: 600 },
   maxPages: { min: 1, max: 10000 },
   prompt: { maxLength: 4000 },
+  doclingLanguages: { max: 8 },
   temperature: { min: 0, max: 2 },
 } as const;
 
@@ -203,6 +221,11 @@ export const INGESTION_LIMITS = {
  * pack for, so the parse would succeed and return nothing.
  */
 const OCR_LANGUAGE_PATTERN = /^[a-z]{3}(\+[a-z]{3})*$/;
+
+/** Docling's languages are ISO 639-1: two letters, unlike Tesseract's three. */
+export const DOCLING_LANGUAGE_PATTERN = /^[a-z]{2}$/;
+
+const DOCLING_PRESET_PATTERN = /^[a-z0-9_-]{1,64}$/;
 
 /**
  * The names `IngestionSettings` shows a refusal under, for `submitFailure`.
@@ -224,6 +247,10 @@ export const INGESTION_FORM_FIELDS: readonly string[] = [
   "llamaparse_secret_id",
   "ocr_endpoint_id",
   "ocr_language",
+  "docling_connection_id",
+  "docling_ocr_languages",
+  "docling_ocr_preset",
+  "docling_table_mode",
   "parse_timeout_seconds",
   "liteparse_dpi",
   "max_pages",
@@ -282,6 +309,17 @@ export function ingestionProblems(
   if (!isWhole(config.max_pages, maxPages.min, maxPages.max)) {
     problems.max_pages = t("problemWholeBetween", { min: maxPages.min, max: maxPages.max });
   }
+  if (
+    config.docling_ocr_languages.length > INGESTION_LIMITS.doclingLanguages.max ||
+    !config.docling_ocr_languages.every((code) => DOCLING_LANGUAGE_PATTERN.test(code))
+  ) {
+    problems.docling_ocr_languages = t("problemDoclingLanguages", {
+      max: INGESTION_LIMITS.doclingLanguages.max,
+    });
+  }
+  if (!DOCLING_PRESET_PATTERN.test(config.docling_ocr_preset)) {
+    problems.docling_ocr_preset = t("problemDoclingPreset");
+  }
   const text = config.image_description.prompt;
   if (text.length === 0 || text.length > prompt.maxLength) {
     problems.prompt = t("problemPromptLength", { max: prompt.maxLength });
@@ -291,19 +329,30 @@ export function ingestionProblems(
 
 /** A setting `IngestionSettings` stops rendering under some config, by problem key. */
 type HideableField =
-  "max_pages" | "parse_timeout_seconds" | "liteparse_dpi" | "ocr_language" | "prompt";
+  | "max_pages"
+  | "parse_timeout_seconds"
+  | "liteparse_dpi"
+  | "ocr_language"
+  | "docling_ocr_languages"
+  | "docling_ocr_preset"
+  | "prompt";
 
 /**
  * The fields `IngestionSettings` does not render for this config.
  *
- * Mirrors the conditions in that component: LiteParse's own settings appear only
- * while it is the parser, its OCR pair only while OCR is on as well, and the
- * image prompt only while images are described.
+ * Mirrors the conditions in that component: the page limit and timeout appear
+ * while LiteParse or Docling is the parser, LiteParse's own render settings
+ * only for it (its OCR pair only while OCR is on as well), Docling's language
+ * and preset only for Docling, and the image prompt only while images are
+ * described.
  */
 function hiddenFields(config: IngestionConfig): HideableField[] {
   const hidden: HideableField[] = [];
-  if (config.pdf_parser !== "liteparse") {
+  if (config.pdf_parser !== "liteparse" && config.pdf_parser !== "docling") {
     hidden.push("max_pages", "parse_timeout_seconds");
+  }
+  if (config.pdf_parser !== "docling") {
+    hidden.push("docling_ocr_languages", "docling_ocr_preset");
   }
   if (config.pdf_parser !== "liteparse" || !config.ocr) {
     hidden.push("liteparse_dpi", "ocr_language");
@@ -366,8 +415,13 @@ export function toNumber(raw: string): number {
 export function sameIngestion(a: IngestionConfig, b: IngestionConfig): boolean {
   return ingestionKeys().every((key) => {
     if (key === "image_description") return sameImageDescription(a[key], b[key]);
+    if (key === "docling_ocr_languages") return sameList(a[key], b[key]);
     return a[key] === b[key];
   });
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
 }
 
 function sameImageDescription(a: ImageDescriptionConfig, b: ImageDescriptionConfig): boolean {
@@ -394,6 +448,12 @@ export function ingestionOverride(
   const override: IngestionOverride = {};
   for (const key of ingestionKeys()) {
     if (key === "image_description") continue;
+    // The connection is the collection's own, like the OCR server: an upload cannot name another.
+    if (key === "docling_connection_id") continue;
+    if (key === "docling_ocr_languages") {
+      if (!sameList(edited[key], base[key])) override[key] = edited[key];
+      continue;
+    }
     if (edited[key] !== base[key]) assign(override, key, edited[key]);
   }
 

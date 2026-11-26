@@ -1,5 +1,5 @@
 ---
-source_sha: "c01e9aa9beef"
+source_sha: "75b237584572"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -82,7 +82,7 @@ und Hash der Datei:
 `POST /api/v1/ml/documents/analyze` liest, was ein Dokument bereits trägt. Das
 Feld `parser` wählt zwischen `liteparse`, das das Layout erhält und
 Office-Formate liest, wo LibreOffice installiert ist, und `pymupdf`, das PDFs
-liest und schneller ist. `chunk_size`, `chunk_overlap` und `chunking_strategy`
+liest und schneller ist. Eine `.docx` liest die gewählte Engine, nicht ein eigener eingebauter Leser. `chunk_size`, `chunk_overlap` und `chunking_strategy`
 formen die vorbereiteten Chunks; die Strategien sind `recursive`, `fixed` und
 `markdown`, und eine vierte Schreibweise wird abgelehnt statt still als
 `recursive` behandelt.
@@ -115,10 +115,9 @@ eigenem Erkennungs-Sidecar die Seiten dorthin schickt; lässt man es weg, liest
 sie die im Parser mitgelieferte Engine. So oder so bleiben die Seiten im eigenen
 Netz des Deployments.
 
-**Ein `.docx` wird hier abgelehnt**, obwohl der Parser eines liest. Die Ingestion
-leitet Office-Dokumente an den nativen Leser, bevor sie den OCR-Parser befragt -
-eines anzunehmen würde also vorhandene Absätze herausziehen, gescannte Seiten
-überspringen und über den Unterschied schweigen. Konvertieren Sie es in PDF.
+Eine `.docx` wird erkannt wie jedes andere Dokument: Die gewählte Engine liest sie
+(LiteParse konvertiert sie über LibreOffice), sodass auch eine gescannte Seite darin
+erkannt wird.
 
 Ein Aufruf erkennt höchstens **200 Seiten** und hat **120 Sekunden**, beides enger
 als bei der Ingestion, weil hier jemand wartet und auf eine Ingestion niemand.

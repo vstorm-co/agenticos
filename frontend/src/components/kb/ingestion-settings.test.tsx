@@ -417,19 +417,199 @@ describe("IngestionSettings", () => {
 
 describe("the PDF parser choices", () => {
   it("draws something beside every one of them, and the brand for the one that has one", async () => {
-    // Three lines of text where every other picker in the product draws a mark.
-    // Only LlamaParse is a product: the other two take a lucide icon rather than
+    // Four lines of text where every other picker in the product draws a mark.
+    // Only LlamaParse is a product: the others take a lucide icon rather than
     // one row getting special treatment and two getting blanks (#940).
     show();
 
     await userEvent.click(screen.getByLabelText("PDF parser"));
 
     const options = await screen.findAllByRole("option");
-    expect(options).toHaveLength(3);
+    expect(options).toHaveLength(4);
     for (const option of options) {
       expect(option.querySelector("svg")).not.toBeNull();
     }
     const llamaparse = options.find((option) => option.textContent?.includes("LlamaParse"));
     expect(brandMarkIn(llamaparse ?? null)).toBe("llamaparse");
+  });
+
+  describe("Docling", () => {
+    const connections = [
+      {
+        id: "d-1",
+        organization_id: "org-1",
+        kind: "document_parser",
+        provider: "docling",
+        name: "Docling box",
+        base_url: "http://docling:5001",
+        is_active: true,
+        created_at: "",
+        updated_at: null,
+      },
+      {
+        id: "d-2",
+        organization_id: "org-1",
+        kind: "document_parser",
+        provider: "docling",
+        name: "Paused box",
+        base_url: "http://docling-2:5001",
+        is_active: false,
+        created_at: "",
+        updated_at: null,
+      },
+      {
+        id: "o-1",
+        organization_id: "org-1",
+        kind: "ocr",
+        provider: "liteparse",
+        name: "OCR box",
+        base_url: "http://ocr:8000",
+        is_active: true,
+        created_at: "",
+        updated_at: null,
+      },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/me/permissions")
+          return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+        if (path === "/service-connections")
+          return { items: connections, total: connections.length };
+        return { items: [], total: 0 };
+      });
+    });
+
+    it("offers Docling the document-parser connections only", async () => {
+      const onChange = show({ pdf_parser: "docling" });
+
+      const server = await screen.findByLabelText("Docling connection");
+      await userEvent.click(server);
+      expect(await screen.findByRole("option", { name: /Docling box/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /OCR box/ })).toBeNull();
+      expect(screen.queryByRole("option", { name: /Paused box/ })).toBeNull();
+      await userEvent.click(screen.getByRole("option", { name: /Docling box/ }));
+
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ pdf_parser: "docling", docling_connection_id: "d-1" }),
+      );
+    });
+
+    it("refuses a three-letter language", async () => {
+      const onChange = show({ pdf_parser: "docling" });
+
+      await userEvent.type(screen.getByLabelText("OCR languages"), "deu{Enter}");
+
+      expect(screen.getByText(/two letters/i)).toBeVisible();
+      expect(onChange).not.toHaveBeenCalled();
+
+      await userEvent.clear(screen.getByLabelText("OCR languages"));
+      await userEvent.type(screen.getByLabelText("OCR languages"), "de{Enter}");
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ docling_ocr_languages: ["de"] }),
+      );
+    });
+
+    it("says how many languages may be chosen, never a raw key", async () => {
+      show({ pdf_parser: "docling" });
+
+      const help = screen
+        .getByText("OCR languages")
+        .parentElement?.querySelector("button[aria-label]");
+      await userEvent.click(help as Element);
+
+      expect(await screen.findByText(/up to 8/i)).toBeVisible();
+      expect(screen.queryByText(/doclingLanguagesHint/)).toBeNull();
+    });
+
+    it("reports a pending invalid language draft to the form", async () => {
+      const onDraftInvalid = vi.fn<(invalid: boolean) => void>();
+      render(
+        <IngestionSettings
+          idPrefix="test"
+          value={{ ...DEFAULT_INGESTION_CONFIG, pdf_parser: "docling" }}
+          onChange={vi.fn()}
+          onDraftInvalid={onDraftInvalid}
+        />,
+        { wrapper },
+      );
+
+      await userEvent.type(screen.getByLabelText("OCR languages"), "deu");
+      expect(onDraftInvalid).toHaveBeenLastCalledWith(true);
+      await userEvent.clear(screen.getByLabelText("OCR languages"));
+      expect(onDraftInvalid).toHaveBeenLastCalledWith(false);
+    });
+
+    it("shows the collection's connection read-only when it is locked", async () => {
+      render(
+        <IngestionSettings
+          idPrefix="test"
+          value={{
+            ...DEFAULT_INGESTION_CONFIG,
+            pdf_parser: "docling",
+            docling_connection_id: "d-1",
+          }}
+          onChange={vi.fn()}
+          connectionLocked
+        />,
+        { wrapper },
+      );
+
+      expect(await screen.findByText("Docling box")).toBeVisible();
+      expect(screen.queryByLabelText("Docling connection")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Add server" })).toBeNull();
+    });
+
+    it("removes a language already chosen", async () => {
+      const onChange = show({ pdf_parser: "docling", docling_ocr_languages: ["de", "en"] });
+
+      await userEvent.click(screen.getByRole("button", { name: "Remove de" }));
+
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ docling_ocr_languages: ["en"] }),
+      );
+    });
+
+    it("shows the pages, timeout and OCR settings Docling shares with LiteParse", () => {
+      show({ pdf_parser: "docling", ocr: true });
+
+      expect(screen.getByLabelText("Maximum pages")).toBeInTheDocument();
+      expect(screen.getByLabelText("Parse timeout (seconds)")).toBeInTheDocument();
+      expect(screen.getByLabelText("Table mode")).toBeInTheDocument();
+      expect(screen.getByLabelText("OCR preset")).toBeInTheDocument();
+      // LiteParse's own render settings do not apply.
+      expect(screen.queryByLabelText("OCR resolution (DPI)")).toBeNull();
+      expect(screen.queryByLabelText("OCR language")).toBeNull();
+    });
+
+    it("hides Docling options under PyMuPDF", () => {
+      show();
+
+      expect(screen.queryByLabelText("Docling connection")).toBeNull();
+      expect(screen.queryByLabelText("OCR languages")).toBeNull();
+      expect(screen.queryByLabelText("OCR preset")).toBeNull();
+      expect(screen.queryByLabelText("Table mode")).toBeNull();
+    });
+
+    it("leaves Docling out of the choices when the form says it may not be chosen", async () => {
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+        path === "/me/permissions"
+          ? { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] }
+          : { items: [], total: 0 },
+      );
+      render(
+        <IngestionSettings
+          idPrefix="test"
+          value={DEFAULT_INGESTION_CONFIG}
+          onChange={vi.fn()}
+          docling={false}
+        />,
+        { wrapper },
+      );
+
+      await userEvent.click(screen.getByLabelText("PDF parser"));
+      expect(await screen.findByRole("option", { name: /LiteParse/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /Docling/ })).toBeNull();
+    });
   });
 });

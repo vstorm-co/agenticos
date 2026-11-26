@@ -1,3 +1,5 @@
+import { FileType2 } from "lucide-react";
+
 import { BrandIcon } from "@/components/icons/brand-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import type { ServiceConnectionKind, ServiceConnectionStyle } from "@/lib/service-connections-api";
@@ -14,6 +16,10 @@ export function ServiceConnectionIcon({
 }) {
   if (provider === "openai_compatible") {
     return <ProviderIcon provider="openai_compatible" className={className} />;
+  }
+  if (kind === "document_parser") {
+    // Docling publishes no mark here; the generic parser glyph says what it is for.
+    return <FileType2 className={className} aria-hidden />;
   }
   return kind === "embedding" ? (
     <ProviderIcon provider="ollama" className={className} />

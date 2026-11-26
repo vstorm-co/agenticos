@@ -1,5 +1,5 @@
 ---
-source_sha: "f73ea6abcad6"
+source_sha: "cca49070e3d9"
 ---
 
 # Funkcje { #features }
@@ -147,7 +147,7 @@ jakość wyszukiwania:
 
 | | |
 |---|---|
-| **Parser PDF** | `pymupdf` — lokalny, szybki i jedyny, który wyciąga osadzone obrazy do opisania · `liteparse` — lokalny i świadomy układu strony, zachowujący tabele jako siatki ASCII, zamiast je spłaszczać · `llamaparse` — usługa chmurowa rozliczana za stronę, zwracająca markdown |
+| **Parser PDF** | `pymupdf` — lokalny, szybki i jedyny, który wyciąga osadzone obrazy do opisania · `liteparse` — lokalny i świadomy układu strony, zachowujący tabele jako siatki ASCII, zamiast je spłaszczać · `llamaparse` — usługa chmurowa rozliczana za stronę, zwracająca markdown · `docling` — Docling Serve, który prowadzisz sam, zachowujący układ, tabele i strony |
 | **Chunking** | `recursive`, `markdown` albo `fixed`, z własnym rozmiarem i zakładką |
 | **OCR** | Na żądanie albo automatycznie, z językiem |
 | **Obrazy w dokumentach** | Opisywane przez wybrany przez Ciebie profil modelu, z Twoim własnym promptem |

@@ -75,7 +75,11 @@ export function UploadOverrideDialog({
     }
   }
 
-  const problems = ingestionProblems(draft, t);
+  const [draftInvalid, setDraftInvalid] = useState(false);
+  const problems = {
+    ...ingestionProblems(draft, t),
+    ...(draftInvalid ? { docling_ocr_languages: t("doclingLanguageInvalid") } : {}),
+  };
   const pending = ingestionOverride(config, draft);
   const count = overrideSize(pending);
   const canApply = Object.keys(problems).length === 0;
@@ -110,6 +114,9 @@ export function UploadOverrideDialog({
             value={draft}
             onChange={setDraft}
             errors={problems}
+            docling={config.pdf_parser === "docling"}
+            connectionLocked
+            onDraftInvalid={setDraftInvalid}
           />
         </div>
 

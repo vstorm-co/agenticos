@@ -116,6 +116,64 @@ describe("CreateKBDialog", () => {
     expect(posted().ingestion_config).toMatchObject({ pdf_parser: "liteparse" });
   });
 
+  it("offers Docling as a fourth choice and opens the details for its connection", async () => {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+
+    expect(screen.getByRole("button", { name: "Chunking, OCR and images" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByLabelText("Docling connection")).toBeVisible();
+    // No connection is chosen yet, and the server refuses without one.
+    expect(create()).toBeDisabled();
+  });
+
+  it("enables Create once a Docling connection is chosen", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions")
+        return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+      if (path === "/service-connections")
+        return {
+          items: [
+            {
+              id: "d-1",
+              organization_id: "org-1",
+              kind: "document_parser",
+              provider: "docling",
+              name: "Docling box",
+              base_url: "http://docling:5001",
+              is_active: true,
+              secret_id: null,
+              requires_key: false,
+              created_at: "",
+              updated_at: null,
+            },
+          ],
+          total: 1,
+        };
+      return { items: [], total: 0 };
+    });
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+    expect(create()).toBeDisabled();
+
+    await userEvent.click(screen.getByLabelText("Docling connection"));
+    await userEvent.click(await screen.findByRole("option", { name: /Docling box/ }));
+
+    expect(create()).toBeEnabled();
+  });
+
+  it("holds Create while a refused language is typed and not yet added", async () => {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+    // The connection is irrelevant to this rule; the draft alone must block.
+    await userEvent.type(screen.getByLabelText("OCR languages"), "deu");
+
+    expect(create()).toBeDisabled();
+  });
+
   it("unfolds the details itself when the parser picked needs something there", async () => {
     // LlamaParse needs a key, and a required field behind a closed fold is a
     // Create button that stays grey for no reason anybody can see.

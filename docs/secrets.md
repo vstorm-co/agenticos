@@ -290,6 +290,7 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
+| Docling Serve (purpose `docling`) | Document parsing on a Docling Serve the organization hosts; the key is optional, belongs to an organization-owned connection and is sent as `X-Api-Key` |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — speech in the voices on the organization's ElevenLabs account |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — ByteDance's Seedance video models |
 

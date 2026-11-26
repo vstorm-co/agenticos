@@ -5,9 +5,13 @@ export type KBScope = "personal" | "org" | "app";
 /**
  * Which parser reads the PDFs put into a collection.
  *
- * PDFs only: txt, md and docx go through built-in readers whatever this says.
+ * Every format the chosen parser reads goes through it; only txt and md are always
+ * read by the built-in text reader.
  */
-export type PdfParser = "pymupdf" | "llamaparse" | "liteparse";
+export type PdfParser = "pymupdf" | "llamaparse" | "liteparse" | "docling";
+
+/** How closely Docling reconstructs tables: `fast` is quicker, `accurate` more faithful. */
+export type DoclingTableMode = "fast" | "accurate";
 
 /** LlamaParse's own quality/price ladder. Ignored by the other parsers. */
 export type LlamaParseTier = "fast" | "cost_effective" | "agentic" | "agentic_plus";
@@ -64,6 +68,17 @@ export interface IngestionConfig {
    */
   ocr_endpoint_id?: string | null;
   /**
+   * The Docling Serve this collection converts through - a service connection of
+   * kind `document_parser`. Required while the parser is Docling; collection-level
+   * only, like the OCR server, so an upload cannot change it.
+   */
+  docling_connection_id?: string | null;
+  /** Two-letter ISO 639-1 codes Docling's OCR reads, at most eight. Empty uses the engine's default. */
+  docling_ocr_languages: string[];
+  /** Docling's OCR engine preset: `auto`, `easyocr`, `rapidocr`, `tesseract`... */
+  docling_ocr_preset: string;
+  docling_table_mode: DoclingTableMode;
+  /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
    * Only consulted when `ocr` is on. OCR dominates the cost of a parse and most
@@ -75,7 +90,7 @@ export interface IngestionConfig {
   ocr_language: string;
   liteparse_output_format: LiteParseOutputFormat;
   liteparse_dpi: number;
-  /** Pages LiteParse reads before it stops - what actually bounds the cost. */
+  /** Pages LiteParse or Docling reads before it stops - what actually bounds the cost. */
   max_pages: number;
   parse_timeout_seconds: number;
   chunk_size: number;

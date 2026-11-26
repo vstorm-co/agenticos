@@ -1,5 +1,5 @@
 ---
-source_sha: "7621fe2df920"
+source_sha: "cd212335ec61"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -310,6 +310,7 @@ organización puede traer su propia clave:
 | Exa | `web_research` |
 | Logfire | [Observabilidad](reference/spec.md#observability) por agent — trazas a un proyecto propio |
 | LlamaParse | Parseo de PDF, facturado a la clave propia de la organización |
+| Docling Serve (propósito `docling`) | Parseo de documentos en un Docling Serve que aloja la organización; la clave es opcional, pertenece a una conexión de la organización y se envía como `X-Api-Key` |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — voz con las voces de la cuenta de ElevenLabs de la organización |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — los modelos de vídeo Seedance de ByteDance |
 

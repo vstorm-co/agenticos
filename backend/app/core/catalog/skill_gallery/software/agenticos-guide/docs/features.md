@@ -139,7 +139,7 @@ upload — which is unusual, and it is where retrieval quality is actually won:
 
 | | |
 |---|---|
-| **PDF parser** | `pymupdf` — local, fast, and the only one that extracts embedded images for description · `liteparse` — local and layout-aware, keeping tables as ASCII grids rather than flattening them · `llamaparse` — a cloud service billed per page that returns markdown |
+| **PDF parser** | `pymupdf` — local, fast, and the only one that extracts embedded images for description · `liteparse` — local and layout-aware, keeping tables as ASCII grids rather than flattening them · `llamaparse` — a cloud service billed per page that returns markdown · `docling` — a Docling Serve you host yourself, keeping layout, tables and pages |
 | **Chunking** | `recursive`, `markdown` or `fixed`, with your own size and overlap |
 | **OCR** | On demand or automatic, with a language |
 | **Images in documents** | Described by a model profile you choose, with your own prompt |

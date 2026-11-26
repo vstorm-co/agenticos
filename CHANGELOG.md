@@ -23,9 +23,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
 - Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
+- Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
 
 ### Changed
 
+- A `.docx` is now read by the collection's chosen parser, so PyMuPDF and LiteParse keep its tables and pages; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
@@ -36,6 +38,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
 - Migration `0365_service_connections` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
+- Migration `0366_docling_parser` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
+- A LlamaParse collection now uploads new `.docx` files to LlamaParse.
+- A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
 
 ## [1.93.0] - 2026-11-24
 

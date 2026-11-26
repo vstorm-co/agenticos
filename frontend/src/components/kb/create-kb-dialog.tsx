@@ -118,14 +118,25 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // operator may have set to something other than the platform's. Posting the
   // form's starting values would quietly overrule that.
   const chosen = !sameIngestion(ingestion, DEFAULT_INGESTION_CONFIG);
-  const localProblems = chosen ? ingestionProblems(ingestion, t) : {};
+  const [draftInvalid, setDraftInvalid] = useState(false);
+  const localProblems = chosen
+    ? {
+        ...ingestionProblems(ingestion, t),
+        ...(draftInvalid ? { docling_ocr_languages: t("doclingLanguageInvalid") } : {}),
+      }
+    : {};
+  // Docling converts through a server of the organization's own; without one
+  // there is nothing for the collection to read with.
+  const doclingUnconnected = ingestion.pdf_parser === "docling" && !ingestion.docling_connection_id;
   const canSubmit =
     name.trim().length > 0 &&
+    !doclingUnconnected &&
     Object.keys(localProblems).length === 0 &&
     (!custom || gate.token !== null);
   // What the disabled Create says on hover.
   const settingsMissing =
     name.trim().length === 0 ||
+    doclingUnconnected ||
     Object.keys(localProblems).length > 0 ||
     (custom && (embeddingEndpointId === null || typedModel === ""));
   const createBlockedBy = settingsMissing
@@ -140,6 +151,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [detailsOpen, setDetailsOpen] = useState(false);
   const parsingNeedsAttention =
     ingestion.pdf_parser === "llamaparse" ||
+    ingestion.pdf_parser === "docling" ||
     Object.keys(localProblems).length > 0 ||
     INGESTION_FORM_FIELDS.some((field) => field !== "pdf_parser" && field in errors);
   if (parsingNeedsAttention && !detailsOpen) setDetailsOpen(true);
@@ -429,6 +441,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     errors={{ ...localProblems, ...errors }}
                     disabled={isSubmitting}
                     withoutParser
+                    onDraftInvalid={setDraftInvalid}
                   />
                 </MoreOptions>
               </section>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { Check, FlaskConical, Loader2 } from "lucide-react";
 
 import {
   Button,
@@ -36,9 +37,12 @@ import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
 import {
   estimateConnectionProbe,
-  KEYED_STYLES,
+  isKeyedStyle,
+  KEY_PURPOSE_BY_STYLE,
   probeConnection,
   SERVICE_CONNECTION_STYLES,
+  testServiceConnection,
+  type ServiceConnectionTestResult,
   type ServiceConnectionInput,
   type ServiceConnectionKind,
   type ServiceConnectionPatch,
@@ -62,18 +66,30 @@ interface ServiceConnectionDialogProps {
 const FIRST_STYLE: Readonly<Record<ServiceConnectionKind, ServiceConnectionStyle>> = {
   embedding: "ollama",
   ocr: "liteparse",
+  document_parser: "docling",
 };
 
 const STYLE_LABELS: Readonly<Record<ServiceConnectionStyle, string>> = {
   ollama: "apiStyleOllama",
   openai_compatible: "apiStyleOpenAICompatible",
   liteparse: "apiStyleLiteparse",
+  docling: "apiStyleDocling",
 };
 
 const ADDRESS_EXAMPLES: Readonly<Record<ServiceConnectionStyle, string>> = {
   ollama: "ollamaAddressExample",
   openai_compatible: "openaiCompatibleAddressExample",
   liteparse: "ocrAddressExample",
+  docling: "doclingAddressExample",
+};
+
+/** The sentence a Docling test earns, by outcome. */
+const DOCLING_TEST_MESSAGES: Readonly<Record<ServiceConnectionTestResult["outcome"], string>> = {
+  ok: "doclingTestOk",
+  key_refused: "doclingTestKeyRefused",
+  key_required: "doclingTestKeyRequired",
+  unreachable: "doclingTestUnreachable",
+  not_docling: "doclingTestNotDocling",
 };
 
 /**
@@ -113,8 +129,11 @@ export function ServiceConnectionDialog({
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const deploymentOwned = editing ? connection.organization_id === null : deploymentWide;
-  const keyed = KEYED_STYLES.has(style) && !deploymentOwned;
-  const keys = secrets.filter((secret) => secret.purpose === "openai_compatible");
+  const keyed = isKeyedStyle(style) && !deploymentOwned;
+  const keyPurpose = isKeyedStyle(style) ? KEY_PURPOSE_BY_STYLE[style] : null;
+  const keys = secrets.filter((secret) => secret.purpose === keyPurpose);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ServiceConnectionTestResult | null>(null);
 
   const trimmedUrl = baseUrl.trim();
   const addressChanged = editing && trimmedUrl !== connection.base_url;
@@ -140,17 +159,46 @@ export function ServiceConnectionDialog({
       setDeploymentWide(false);
     }
     setErrors({});
+    setTestResult(null);
     onOpenChange(false);
   };
 
   const fail = (error: unknown) => {
     const failure = submitFailure(
       error,
-      { fields: ["name", "base_url", "kind", "provider", "secret_id", "probe_token"] },
+      {
+        fields: ["name", "base_url", "kind", "provider", "secret_id", "probe_token", "service_id"],
+      },
       tErrors,
     );
-    setErrors(failure.fields);
+    // A Test names `service_id` when the refusal is about the stored key it reused;
+    // the key picker is the control that answers it.
+    const { service_id: storedKey, ...fields } = failure.fields;
+    setErrors(storedKey === undefined ? fields : { ...fields, secret_id: storedKey });
     if (failure.toast) toast.error(failure.toast);
+  };
+
+  // What a Docling test tried is what it reports on; any edit to it clears the report.
+  const runConnectionTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      setTestResult(
+        await testServiceConnection({
+          kind,
+          provider: style,
+          base_url: trimmedUrl,
+          ...(keyed && secretId !== null && secretId !== connection?.secret_id
+            ? { secret_id: secretId }
+            : {}),
+          ...(connection ? { service_id: connection.id } : {}),
+        }),
+      );
+    } catch (error) {
+      fail(error);
+    } finally {
+      setTesting(false);
+    }
   };
 
   const runTest = async () => {
@@ -252,6 +300,12 @@ export function ServiceConnectionDialog({
                     {t("ocrServer")}
                   </span>
                 </SelectItem>
+                <SelectItem value="document_parser">
+                  <span className="flex items-center gap-2">
+                    <ServiceConnectionIcon kind="document_parser" className="h-4 w-4" />
+                    {t("documentParserServer")}
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
             {errors.kind && <p className="text-destructive text-xs">{errors.kind}</p>}
@@ -291,15 +345,24 @@ export function ServiceConnectionDialog({
             <Input
               id="service-connection-url"
               value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                setTestResult(null);
+              }}
               placeholder={t(ADDRESS_EXAMPLES[style])}
             />
           </FormField>
-          {KEYED_STYLES.has(style) &&
+          {isKeyedStyle(style) &&
             (keyed ? (
               <div className="space-y-1.5">
                 <Label htmlFor="service-connection-key">{t("connectionKey")}</Label>
-                <Select value={secretId ?? ""} onValueChange={setSecretId}>
+                <Select
+                  value={secretId ?? ""}
+                  onValueChange={(next) => {
+                    setSecretId(next);
+                    setTestResult(null);
+                  }}
+                >
                   <SelectTrigger
                     id="service-connection-key"
                     aria-invalid={errors.secret_id !== undefined}
@@ -309,11 +372,7 @@ export function ServiceConnectionDialog({
                   <SelectContent>
                     {keys.map((secret) => (
                       <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                        <ProviderRow
-                          provider="openai_compatible"
-                          name={secret.name}
-                          hint={secret.hint}
-                        />
+                        <ProviderRow provider={style} name={secret.name} hint={secret.hint} />
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -322,11 +381,16 @@ export function ServiceConnectionDialog({
                 {errors.secret_id && <p className="text-destructive text-xs">{errors.secret_id}</p>}
                 <InlineSecret
                   kind="api_key"
-                  purpose="openai_compatible"
-                  suggestedName={t("embeddingsKeyName", {
-                    provider: t("apiStyleOpenAICompatible"),
-                  })}
-                  onCreated={setSecretId}
+                  purpose={KEY_PURPOSE_BY_STYLE[style]}
+                  suggestedName={
+                    style === "docling"
+                      ? t("apiStyleDocling")
+                      : t("embeddingsKeyName", { provider: t("apiStyleOpenAICompatible") })
+                  }
+                  onCreated={(id) => {
+                    setSecretId(id);
+                    setTestResult(null);
+                  }}
                 />
               </div>
             ) : (
@@ -348,6 +412,18 @@ export function ServiceConnectionDialog({
               />
             </div>
           )}
+          {kind === "document_parser" && testResult && (
+            <p
+              role="status"
+              className={
+                testResult.outcome === "ok"
+                  ? "rounded-lg border p-3 text-sm"
+                  : "border-destructive/50 text-destructive rounded-lg border p-3 text-sm"
+              }
+            >
+              {t(DOCLING_TEST_MESSAGES[testResult.outcome], { version: testResult.version ?? "" })}
+            </p>
+          )}
           {needsTest && (
             <div className="space-y-2">
               {gate.result && <ProbeResult result={gate.result} />}
@@ -361,6 +437,33 @@ export function ServiceConnectionDialog({
           )}
         </div>
         <DialogFooter>
+          {kind === "document_parser" && (
+            <div className="mr-auto">
+              {/* Informative only: a parser change moves no vector space, so a
+                  failed or skipped test never holds Register or Save back. */}
+              {/* "Tested" holds only while nothing it tried has changed: every edit
+                  to the address, key or kind clears `testResult`. */}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving || testing || trimmedUrl === ""}
+                onClick={runConnectionTest}
+              >
+                {testing ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : testResult?.outcome === "ok" ? (
+                  <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                ) : (
+                  <FlaskConical className="size-4" aria-hidden />
+                )}
+                {testing
+                  ? t("testingSettings")
+                  : testResult?.outcome === "ok"
+                    ? t("tested")
+                    : t("testConnection")}
+              </Button>
+            </div>
+          )}
           {needsTest && (
             <div className="mr-auto flex flex-wrap items-center gap-2">
               <ProbeTestButton

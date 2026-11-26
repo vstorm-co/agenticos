@@ -1,9 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { InlineServiceConnection } from "@/components/kb/inline-service-connection";
 import {
+  Badge,
   Input,
   Label,
   OptionalSetting,
@@ -21,6 +24,8 @@ import { ProviderRow } from "@/components/vault/provider-row";
 import { useServiceConnections, useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
+  DOCLING_LANGUAGE_PATTERN,
+  DOCLING_TABLE_MODES,
   hintOf,
   DEFAULT_IMAGE_PROMPT,
   INGESTION_LIMITS,
@@ -33,6 +38,7 @@ import {
 } from "@/lib/ingestion-config";
 import type {
   ChunkingStrategy,
+  DoclingTableMode,
   ImageDescriptionConfig,
   IngestionConfig,
   LiteParseOutputFormat,
@@ -68,6 +74,19 @@ export interface IngestionSettingsProps {
    * and folds the rest of these settings away.
    */
   withoutParser?: boolean;
+  /**
+   * Offer Docling as a parser. False for one upload's override of a collection
+   * that is not on Docling: the connection is the collection's own, and an upload
+   * cannot name one.
+   */
+  docling?: boolean;
+  /**
+   * Show the collection's Docling connection read-only. An upload's override
+   * cannot change it, so offering a picker would ignore the choice.
+   */
+  connectionLocked?: boolean;
+  /** Told whether a language typed but not yet added is refused, so the form can hold submit. */
+  onDraftInvalid?: (invalid: boolean) => void;
 }
 
 /**
@@ -95,14 +114,32 @@ export function IngestionSettings({
   errors = {},
   disabled,
   withoutParser = false,
+  docling = true,
+  connectionLocked = false,
+  onDraftInvalid,
 }: IngestionSettingsProps) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
   const llamaparseKeys = secrets.filter((secret) => secret.purpose === LLAMAPARSE);
   // Only LiteParse sends pages anywhere, so the list of OCR servers is fetched
   // only while it is the parser on screen.
-  const { connections: services } = useServiceConnections(value.pdf_parser === "liteparse");
+  const { connections: services } = useServiceConnections(
+    value.pdf_parser === "liteparse" || value.pdf_parser === "docling",
+  );
   const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
+  const doclingServers = services.filter(
+    (service) => service.kind === "document_parser" && service.is_active,
+  );
+  const [languageDraft, setLanguageDraft] = useState("");
+  const [languageProblem, setLanguageProblem] = useState(false);
+  const draftInvalid =
+    value.pdf_parser === "docling" &&
+    languageDraft.trim() !== "" &&
+    !DOCLING_LANGUAGE_PATTERN.test(languageDraft.trim().toLowerCase());
+  useEffect(() => {
+    onDraftInvalid?.(draftInvalid);
+    return () => onDraftInvalid?.(false);
+  }, [draftInvalid, onDraftInvalid]);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   // Every change goes through `settleHiddenFields`, so turning a setting off
   // cannot leave a refused value behind a field that is no longer on screen.
@@ -120,6 +157,67 @@ export function IngestionSettings({
     );
 
   const parser = PDF_PARSERS.find((choice) => choice.value === value.pdf_parser);
+  const parsers = PDF_PARSERS.filter((choice) => docling || choice.value !== "docling");
+
+  const maxPagesField = (description: string) => (
+    <OptionalSetting
+      htmlFor={id("max-pages")}
+      label={t("maximumPages")}
+      description={description}
+      error={errors.max_pages}
+      disabled={disabled}
+    >
+      <Input
+        id={id("max-pages")}
+        type="number"
+        min={INGESTION_LIMITS.maxPages.min}
+        max={INGESTION_LIMITS.maxPages.max}
+        value={Number.isNaN(value.max_pages) ? "" : value.max_pages}
+        disabled={disabled}
+        aria-invalid={errors.max_pages !== undefined}
+        aria-describedby={errors.max_pages === undefined ? undefined : `${id("max-pages")}-error`}
+        onChange={(event) => set("max_pages", toNumber(event.target.value))}
+      />
+    </OptionalSetting>
+  );
+
+  const timeoutField = (description: string) => (
+    <OptionalSetting
+      htmlFor={id("timeout")}
+      label={t("parseTimeoutSeconds")}
+      description={description}
+      error={errors.parse_timeout_seconds}
+      disabled={disabled}
+    >
+      <Input
+        id={id("timeout")}
+        type="number"
+        min={1}
+        max={INGESTION_LIMITS.parseTimeoutSeconds.max}
+        value={Number.isNaN(value.parse_timeout_seconds) ? "" : value.parse_timeout_seconds}
+        disabled={disabled}
+        aria-invalid={errors.parse_timeout_seconds !== undefined}
+        aria-describedby={
+          errors.parse_timeout_seconds === undefined ? undefined : `${id("timeout")}-error`
+        }
+        onChange={(event) => set("parse_timeout_seconds", toNumber(event.target.value))}
+      />
+    </OptionalSetting>
+  );
+
+  const addLanguage = () => {
+    const code = languageDraft.trim().toLowerCase();
+    if (code === "") return;
+    if (!DOCLING_LANGUAGE_PATTERN.test(code)) {
+      setLanguageProblem(true);
+      return;
+    }
+    setLanguageProblem(false);
+    setLanguageDraft("");
+    if (!value.docling_ocr_languages.includes(code)) {
+      set("docling_ocr_languages", [...value.docling_ocr_languages, code]);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -150,7 +248,7 @@ export function IngestionSettings({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PDF_PARSERS.map((choice) => (
+                  {parsers.map((choice) => (
                     <SelectItem
                       key={choice.value}
                       value={choice.value}
@@ -244,6 +342,54 @@ export function IngestionSettings({
               />
             </OptionalSetting>
           )}
+
+          {value.pdf_parser === "docling" && (
+            <OptionalSetting
+              htmlFor={id("docling-connection")}
+              label={t("doclingConnection")}
+              description={t("doclingConnectionHint")}
+              error={errors.docling_connection_id}
+              disabled={disabled}
+            >
+              {connectionLocked ? (
+                <p className="text-sm">
+                  {services.find((service) => service.id === value.docling_connection_id)?.name ??
+                    ""}
+                </p>
+              ) : (
+                <Select
+                  value={value.docling_connection_id ?? ""}
+                  disabled={disabled}
+                  onValueChange={(next) => set("docling_connection_id", next)}
+                >
+                  <SelectTrigger
+                    id={id("docling-connection")}
+                    aria-invalid={errors.docling_connection_id !== undefined}
+                  >
+                    <SelectValue placeholder={t("chooseServer")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {doclingServers.map((service) => (
+                      <SelectItem key={service.id} value={service.id} textValue={service.name}>
+                        {service.organization_id === null
+                          ? t("deploymentWideNamed", { name: service.name })
+                          : service.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* Keyed servers are registered in the full dialog this opens. */}
+              {!connectionLocked && (
+                <InlineServiceConnection
+                  kind="document_parser"
+                  provider="docling"
+                  disabled={disabled}
+                  onCreated={(serviceId) => set("docling_connection_id", serviceId)}
+                />
+              )}
+            </OptionalSetting>
+          )}
         </div>
 
         <Toggle
@@ -255,7 +401,7 @@ export function IngestionSettings({
           onChange={(next) => set("ocr", next)}
         />
 
-        {value.pdf_parser === "liteparse" && value.ocr && (
+        {(value.pdf_parser === "liteparse" || value.pdf_parser === "docling") && value.ocr && (
           <Toggle
             htmlFor={id("auto-ocr")}
             label={t("onlyOcrPagesNeed")}
@@ -303,6 +449,117 @@ export function IngestionSettings({
           </OptionalSetting>
         )}
 
+        {value.pdf_parser === "docling" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <OptionalSetting
+              htmlFor={id("docling-languages")}
+              label={t("doclingLanguages")}
+              description={t("doclingLanguagesHint", {
+                max: INGESTION_LIMITS.doclingLanguages.max,
+              })}
+              error={
+                errors.docling_ocr_languages ??
+                (languageProblem ? t("doclingLanguageInvalid") : undefined)
+              }
+              disabled={disabled}
+            >
+              <div className="space-y-2">
+                {value.docling_ocr_languages.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {value.docling_ocr_languages.map((code) => (
+                      <li key={code}>
+                        <Badge variant="secondary" className="gap-1">
+                          {code}
+                          <button
+                            type="button"
+                            aria-label={t("removeLanguage", { code })}
+                            disabled={disabled}
+                            onClick={() =>
+                              set(
+                                "docling_ocr_languages",
+                                value.docling_ocr_languages.filter((item) => item !== code),
+                              )
+                            }
+                          >
+                            <X className="h-3 w-3" aria-hidden />
+                          </button>
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Input
+                  id={id("docling-languages")}
+                  value={languageDraft}
+                  disabled={disabled}
+                  spellCheck={false}
+                  placeholder={t("doclingLanguagePlaceholder")}
+                  aria-invalid={languageProblem || errors.docling_ocr_languages !== undefined}
+                  onChange={(event) => {
+                    setLanguageDraft(event.target.value);
+                    setLanguageProblem(false);
+                  }}
+                  onBlur={addLanguage}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      addLanguage();
+                    }
+                  }}
+                />
+              </div>
+            </OptionalSetting>
+
+            <OptionalSetting
+              htmlFor={id("docling-preset")}
+              label={t("doclingPreset")}
+              description={t("doclingPresetHint")}
+              error={errors.docling_ocr_preset}
+              disabled={disabled}
+            >
+              <Input
+                id={id("docling-preset")}
+                value={value.docling_ocr_preset}
+                disabled={disabled}
+                spellCheck={false}
+                aria-invalid={errors.docling_ocr_preset !== undefined}
+                onChange={(event) => set("docling_ocr_preset", event.target.value)}
+              />
+            </OptionalSetting>
+
+            <OptionalSetting
+              htmlFor={id("docling-table-mode")}
+              label={t("tableMode")}
+              description={hintOf(DOCLING_TABLE_MODES, value.docling_table_mode, t)}
+              disabled={disabled}
+            >
+              <Select
+                value={value.docling_table_mode}
+                disabled={disabled}
+                onValueChange={(next) => set("docling_table_mode", next as DoclingTableMode)}
+              >
+                <SelectTrigger id={id("docling-table-mode")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DOCLING_TABLE_MODES.map((choice) => (
+                    <SelectItem key={choice.value} value={choice.value}>
+                      {t(choice.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </OptionalSetting>
+          </div>
+        )}
+
+        {value.pdf_parser === "docling" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {maxPagesField(t("whereDoclingStops"))}
+            {timeoutField(t("howLongDoclingMay"))}
+          </div>
+        )}
+
         {value.pdf_parser === "liteparse" && (
           <div className="grid gap-4 sm:grid-cols-2">
             <OptionalSetting
@@ -331,27 +588,7 @@ export function IngestionSettings({
               </Select>
             </OptionalSetting>
 
-            <OptionalSetting
-              htmlFor={id("max-pages")}
-              label={t("maximumPages")}
-              description={t("whereLiteparseStopsWhat")}
-              error={errors.max_pages}
-              disabled={disabled}
-            >
-              <Input
-                id={id("max-pages")}
-                type="number"
-                min={INGESTION_LIMITS.maxPages.min}
-                max={INGESTION_LIMITS.maxPages.max}
-                value={Number.isNaN(value.max_pages) ? "" : value.max_pages}
-                disabled={disabled}
-                aria-invalid={errors.max_pages !== undefined}
-                aria-describedby={
-                  errors.max_pages === undefined ? undefined : `${id("max-pages")}-error`
-                }
-                onChange={(event) => set("max_pages", toNumber(event.target.value))}
-              />
-            </OptionalSetting>
+            {maxPagesField(t("whereLiteparseStopsWhat"))}
 
             {value.ocr && (
               <>
@@ -400,27 +637,7 @@ export function IngestionSettings({
               </>
             )}
 
-            <OptionalSetting
-              htmlFor={id("timeout")}
-              label={t("parseTimeoutSeconds")}
-              description={t("howLongLiteparseMay")}
-              error={errors.parse_timeout_seconds}
-              disabled={disabled}
-            >
-              <Input
-                id={id("timeout")}
-                type="number"
-                min={1}
-                max={INGESTION_LIMITS.parseTimeoutSeconds.max}
-                value={Number.isNaN(value.parse_timeout_seconds) ? "" : value.parse_timeout_seconds}
-                disabled={disabled}
-                aria-invalid={errors.parse_timeout_seconds !== undefined}
-                aria-describedby={
-                  errors.parse_timeout_seconds === undefined ? undefined : `${id("timeout")}-error`
-                }
-                onChange={(event) => set("parse_timeout_seconds", toNumber(event.target.value))}
-              />
-            </OptionalSetting>
+            {timeoutField(t("howLongLiteparseMay"))}
           </div>
         )}
       </Group>
@@ -683,7 +900,11 @@ export function ParserCards({
   const t = useTranslations("kb");
   return (
     <div className="space-y-1.5">
-      <div role="radiogroup" aria-label={t("pdfParser")} className="grid gap-2 sm:grid-cols-3">
+      <div
+        role="radiogroup"
+        aria-label={t("pdfParser")}
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+      >
         {PDF_PARSERS.map((choice) => (
           <button
             key={choice.value}

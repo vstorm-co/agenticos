@@ -25,6 +25,13 @@ interface InlineServiceConnectionProps {
   disabled?: boolean;
 }
 
+const INLINE_ADDRESS_EXAMPLES: Readonly<Record<ServiceConnectionKind, string>> = {
+  embedding: "ollamaAddressExample",
+  ocr: "ocrAddressExample",
+  // Docling is a keyed style, so it opens the full dialog; this entry only completes the Record.
+  document_parser: "doclingAddressExample",
+};
+
 /**
  * Register a server without leaving the picker that needs it.
  *
@@ -148,7 +155,7 @@ export function InlineServiceConnection({
             id="inline-service-connection-url"
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder={t(kind === "embedding" ? "ollamaAddressExample" : "ocrAddressExample")}
+            placeholder={t(INLINE_ADDRESS_EXAMPLES[kind])}
             aria-invalid={errors.base_url !== undefined}
           />
           {errors.base_url && <p className="text-destructive text-xs">{errors.base_url}</p>}

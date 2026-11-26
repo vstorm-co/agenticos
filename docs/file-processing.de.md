@@ -1,5 +1,5 @@
 ---
-source_sha: "4d1947404138"
+source_sha: "088356a42466"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -582,15 +582,22 @@ Entnahme und deckelt nichts, während der Pool bei
 
 ### Unterstützte Formate { #supported-formats }
 
-`.txt`, `.md` und `.docx` werden von den eingebauten Python-Parsern gelesen,
-gleich welchen Parser die Collection hat. Darüber hinaus folgt die Menge dem
-Parser:
+`.txt` und `.md` liest der eingebaute Textleser, gleich welchen Parser die
+Collection hat. Jedes andere Format geht an den Parser der Collection, und die
+Menge folgt ihm:
 
 | Parser | Liest außerdem | Braucht |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf` | nichts |
-| LiteParse | `.pdf`; Bilder (`.png`, `.jpg`, `.tiff`, `.svg`, …); Office-Formate (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **nur für Office-Formate** — Bilder werden nativ konvertiert |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, Bilder | Ein LlamaParse-Schlüssel im Vault der Organisation, von der Collection benannt (`llamaparse_secret_id`). Einen Deployment-Schlüssel gibt es nicht |
+| PyMuPDF | `.pdf`, `.docx` | nichts |
+| LiteParse | `.pdf`, `.docx`; Bilder (`.png`, `.jpg`, `.tiff`, `.svg`, …); Office-Formate (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **für `.docx` und die übrigen Office-Formate** — Bilder werden nativ konvertiert |
+| LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, Bilder | Ein LlamaParse-Schlüssel im Vault der Organisation, von der Collection benannt (`llamaparse_secret_id`). Einen Deployment-Schlüssel gibt es nicht |
+| Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; Bilder (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Ein als Dienstverbindung registrierter Docling Serve, von der Collection benannt (`docling_connection_id`) |
+
+Eine `.docx`, `.pptx` oder `.xlsx` wird auf ein zu großes oder fehlerhaftes
+Archiv geprüft, bevor ein Parser sie erhält, mit den Archivgrenzen des Chats
+(`CHAT_ARCHIVE_MAX_MEMBERS`, `CHAT_ARCHIVE_MEMBER_MAX_BYTES`,
+`CHAT_ARCHIVE_TOTAL_MAX_BYTES`). Eine sehr große `.pptx` oder `.xlsx` über diesen
+Grenzen wird nun auch bei LiteParse und LlamaParse beim Parsen abgelehnt.
 
 Das Dockerfile des Backends installiert LibreOffice und Tesseract, Office-Formate
 und OCR funktionieren im Container also von Haus aus. Läuft das Backend außerhalb
@@ -614,6 +621,7 @@ Umgebungsvariable. Gespeichert auf `knowledge_bases.ingestion_config`.
 | PyMuPDF (Vorgabe) | Schnelle lokale Verarbeitung, textlastige Dokumente; der einzige, der eingebettete Bilder zur Beschreibung extrahiert |
 | LiteParse | Lokal, ohne Schlüssel, layoutbewusst; liest Office-Formate und Bilder; Markdown-Ausgabe |
 | LlamaParse | Komplexe Layouts und gescannte PDFs; Cloud, seitenweise abgerechnet |
+| Docling | Layout, Tabellen und Seiten bleiben erhalten, mit OCR, auf einem Docling Serve, den Sie selbst betreiben; liest auch Word, Excel, PowerPoint, HTML und Bilder |
 
 ### LiteParse-Optionen { #liteparse-options }
 
@@ -624,6 +632,61 @@ Umgebungsvariable. Gespeichert auf `knowledge_bases.ingestion_config`.
 | `ocr_language` | `eng` | Tesseract-Codes — drei Buchstaben, mit `+` verbunden für mehrere (`eng+pol`). Eine Sprache ohne installiertes Paket liest nichts; fügen Sie `tesseract-ocr-<lang>` in das Dockerfile ein. |
 | `liteparse_dpi` | `150` | Höher liest blasse Scans, ist aber langsamer. |
 | `max_pages` | `1000` | Die Einstellung, die die Kosten eines Dokuments begrenzt; `parse_timeout_seconds` begrenzt nur die Wartezeit. |
+
+### Docling-Optionen { #docling-options }
+
+Docling ist ein Dokumentkonverter, den Sie selbst betreiben ([Docling Serve](https://docling-project.github.io/docling/usage/api_server/)).
+Eine Collection, die ihn wählt, benennt eine **Docling-Verbindung**: eine
+Dienstverbindung der Art *Dokumentparser* mit der Adresse des Servers (meist in Ihrem
+eigenen Netz; die Plattform beschränkt sie nicht auf private Adressen) und, wenn der Server einen verlangt, einem Vault-Schlüssel (Zweck `docling`,
+gesendet als `X-Api-Key`). Eine deploymentweite Verbindung hält keinen Schlüssel.
+Die Verbindung gehört der Collection; ein Upload-Override kann die folgenden
+Optionen ändern, aber nicht Docling für eine Collection ohne Verbindung wählen —
+ein solcher Upload wird sofort abgelehnt.
+
+**Test** im Verbindungsformular prüft, ob die Adresse wie ein Docling Serve
+antwortet und der Schlüssel akzeptiert wird, ohne etwas zu konvertieren. Er meldet
+die Version des Servers oder „Schlüssel abgelehnt“, „dieser Server verlangt einen
+Schlüssel“, „nichts hat geantwortet“ bzw. „kein Docling Serve“. Er blockiert nie
+das Speichern: Ein Parserwechsel verschiebt keinen Vektorraum.
+
+| Einstellung | Standard | Hinweise |
+|---------|---------|-------|
+| `docling_connection_id` | keine | Erforderlich, solange Docling der Parser ist. Muss eine aktive *Dokumentparser*-Verbindung sein, die die Organisation nutzen darf. |
+| `ocr` | `false` | Schaltet die OCR von Docling ein. Ist sie aus, hat ein gescanntes PDF keinen Text, und der Upload wird mit „OCR einschalten“ abgelehnt. |
+| `auto_ocr` | `true` | An: OCR nur für die Bitmap-Bereiche einer Seite. Aus: OCR für jede Seite. |
+| `docling_ocr_languages` | leer | Bis zu acht zweibuchstabige Codes (`de`, `en`). Docling lehnt die dreibuchstabigen Codes von Tesseract ab, daher ein eigenes Feld neben `ocr_language`. Leer nutzt den Standard der Engine. |
+| `docling_ocr_preset` | `auto` | `auto`, `easyocr`, `rapidocr` oder `tesseract`. Freitext, weil Docling Engines nennt, die auf dem Server nicht installiert sein müssen. |
+| `docling_table_mode` | `accurate` | Schnelle (`fast`) oder genaue (`accurate`) Tabellenrekonstruktion. |
+| `max_pages` | `1000` | Konvertierte Seiten, ab Seite 1. |
+| `parse_timeout_seconds` | `600` | Wie lange die Plattform auf ein Dokument wartet, höchstens 3000 Sekunden, damit die Ablehnung vor dem eigenen Ein-Stunden-Limit des Jobs kommt. |
+
+Chunks behalten ihre Seitenzahlen: Das Markdown von Docling wird pro Seite
+geteilt, und Splitter, Chunk-Größe und Überlappung der Collection gelten für jede
+Seite wie bei den anderen Parsern. Eine `.docx` hat keine Seiten und wird als
+Seite 1 gelesen; Zitate behandeln `.docx` bei jedem Parser als ungeseitet.
+
+Ein Dokument wird abgelehnt, mit einer Meldung, die den Server nie zitiert, wenn
+Docling eine fehlgeschlagene oder teilweise fehlgeschlagene Konvertierung meldet,
+wenn es mit einem internen Fehler endet (die Ursache steht in seinem eigenen Log;
+prüfen Sie OCR-Sprachen und Preset), wenn der Schlüssel abgelehnt wird oder wenn
+es nicht rechtzeitig fertig wurde. Eine Konvertierung, die noch läuft, wenn die
+Plattform aufgibt, wird **nicht** abgebrochen — Docling kennt kein Abbrechen —, und
+Erneut versuchen holt ihr Ergebnis ab, statt eine zweite Konvertierung
+einzureichen. Dasselbe gilt für einen Worker-Neustart oder eine Wiederholung aus
+der Warteschlange. Hat der Docling-Server selbst neu gestartet, hat er die Aufgabe
+vergessen, und der nächste Versuch reicht sie neu ein.
+
+Docling erhält dasselbe
+Zeitlimit, daher ist eine Konvertierung, die beim Aufgeben der Plattform wirklich
+lief, meist ebenfalls abgelaufen, und Erneut versuchen nennt dann die Seiten, die
+sie nicht fertigstellte; ein höheres Zeitlimit vor dem erneuten Versuch startet
+eine neue Konvertierung. Ein Fehler nach dem Parsen (Embedding, Indexierung) wird
+mit einer neuen Konvertierung wiederholt, weil die fertige schon abgeholt ist.
+
+Getestet mit Docling Serve 1.39.0. Ein älterer Server kann die fehlgeschlagenen
+Seiten nicht benennen, und die angebotenen OCR-Presets werden nicht gegen das
+Installierte geprüft.
 
 ### Chunking-Konfiguration { #chunking-configuration }
 

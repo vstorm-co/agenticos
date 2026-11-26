@@ -54,8 +54,35 @@ describe("the service connections client", () => {
     expect(api.SERVICE_CONNECTION_STYLES).toEqual({
       embedding: ["ollama", "openai_compatible"],
       ocr: ["liteparse"],
+      document_parser: ["docling"],
     });
-    expect([...api.KEYED_STYLES]).toEqual(["openai_compatible"]);
+    expect([...api.KEYED_STYLES]).toEqual(["openai_compatible", "docling"]);
+  });
+
+  it("names the Vault purpose of each keyed style", () => {
+    expect(api.KEY_PURPOSE_BY_STYLE).toEqual({
+      openai_compatible: "openai_compatible",
+      docling: "docling",
+    });
+  });
+
+  it("tests an address without saving it, and hands back the outcome", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ outcome: "ok", version: "1.39.0" });
+
+    const result = await api.testServiceConnection({
+      kind: "document_parser",
+      provider: "docling",
+      base_url: "http://docling:5001",
+      secret_id: "sec-1",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/service-connections/test", {
+      kind: "document_parser",
+      provider: "docling",
+      base_url: "http://docling:5001",
+      secret_id: "sec-1",
+    });
+    expect(result).toEqual({ outcome: "ok", version: "1.39.0" });
   });
 
   it("carries the key by id and the test token on an update", async () => {

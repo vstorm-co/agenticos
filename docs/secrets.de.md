@@ -1,5 +1,5 @@
 ---
-source_sha: "7621fe2df920"
+source_sha: "cd212335ec61"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -322,6 +322,7 @@ Organisation ihren eigenen Key mitbringen darf:
 | Exa | `web_research` |
 | Logfire | [Observability](reference/spec.md#observability) pro Agent — Traces in ein eigenes Projekt |
 | LlamaParse | PDF-Parsing, abgerechnet auf den eigenen Key der Organisation |
+| Docling Serve (Zweck `docling`) | Dokumenten-Parsing auf einem Docling Serve, den die Organisation betreibt; der Key ist optional, gehört zu einer Verbindung der Organisation und wird als `X-Api-Key` gesendet |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — Sprache in den Stimmen des ElevenLabs-Kontos der Organisation |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — die Seedance-Videomodelle von ByteDance |
 

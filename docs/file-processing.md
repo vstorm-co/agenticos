@@ -521,14 +521,21 @@ connection per checkout and caps nothing, where the pool queues at
 
 ### Supported formats
 
-`.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the
-collection's parser is. Beyond those, the set follows the parser:
+`.txt` and `.md` are read by the built-in text reader whatever the collection's
+parser is. Every other format goes to the collection's parser, and the set
+follows it:
 
 | Parser | Also reads | Needs |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf` | nothing |
-| LiteParse | `.pdf`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for office formats only** — images are converted natively |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
+| PyMuPDF | `.pdf`, `.docx` | nothing |
+| LiteParse | `.pdf`, `.docx`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for `.docx` and the other office formats** — images are converted natively |
+| LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
+| Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; images (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | A Docling Serve registered as a service connection, named by the collection (`docling_connection_id`) |
+
+A `.docx`, `.pptx` or `.xlsx` is checked for an oversized or malformed archive
+before any parser receives it, with the chat archive limits (`CHAT_ARCHIVE_MAX_MEMBERS`,
+`CHAT_ARCHIVE_MEMBER_MAX_BYTES`, `CHAT_ARCHIVE_TOTAL_MAX_BYTES`). A very large `.pptx` or
+`.xlsx` over them is now refused at parse time under LiteParse and LlamaParse too.
 
 The backend Dockerfile installs LibreOffice and Tesseract, so office formats and
 OCR work out of the box in a container. Running the backend outside Docker, an
@@ -551,6 +558,7 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | PyMuPDF (default) | Fast local processing, text-heavy documents; the only one that extracts embedded images for description |
 | LiteParse | Local, no key, layout-aware; reads office formats and images; markdown output |
 | LlamaParse | Complex layouts and scanned PDFs; cloud, billed per page |
+| Docling | Layout, tables and pages kept faithfully, with OCR, on a Docling Serve you run yourself; reads Word, Excel, PowerPoint, HTML and images too |
 
 ### LiteParse options
 
@@ -561,6 +569,58 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | `ocr_language` | `eng` | Tesseract codes — three letters, `+`-joined for several (`eng+pol`). A language with no pack installed reads nothing; add `tesseract-ocr-<lang>` to the Dockerfile. |
 | `liteparse_dpi` | `150` | Higher reads faint scans, slower. |
 | `max_pages` | `1000` | The setting that bounds the cost of one document; `parse_timeout_seconds` only bounds the wait. |
+
+### Docling options
+
+Docling is a document converter you host yourself ([Docling Serve](https://docling-project.github.io/docling/usage/api_server/)).
+A collection that chooses it names a **Docling connection**: a service
+connection of the kind *Document parser*, with the address of the server (normally on your own network; the
+platform does not restrict it to private addresses) and, when the server asks for one, a Vault key (purpose `docling`,
+sent as `X-Api-Key`). A deployment-wide connection holds no key. The connection
+is the collection's own, so an upload override can change the options below but
+cannot choose Docling for a collection that has no connection; such an upload is
+refused at once.
+
+**Test** on the connection form checks that the address answers as a Docling
+Serve and that the key is accepted, without converting anything. It reports the
+server's version, "key refused", "this server requires a key", "nothing answered"
+or "not Docling Serve". It never blocks Save: changing a parser moves no vector
+space.
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `docling_connection_id` | none | Required while the parser is Docling. Must be an active *Document parser* connection the organization may use. |
+| `ocr` | `false` | Turns Docling's OCR on. With it off, a scanned PDF has no text and the upload is refused with "turn OCR on". |
+| `auto_ocr` | `true` | On: OCR only the bitmap areas of a page. Off: OCR every page. |
+| `docling_ocr_languages` | empty | Up to eight two-letter codes (`de`, `en`). Docling refuses Tesseract's three-letter codes, so this is a separate field from `ocr_language`. Empty uses the engine's default. |
+| `docling_ocr_preset` | `auto` | `auto`, `easyocr`, `rapidocr` or `tesseract`. Free text, because Docling advertises engines the server may not have installed. |
+| `docling_table_mode` | `accurate` | `fast` or `accurate` table reconstruction. |
+| `max_pages` | `1000` | Pages converted, from page 1. |
+| `parse_timeout_seconds` | `600` | How long the platform waits for one document, at most 3000 seconds, so the refusal arrives before the job's own one-hour limit. |
+
+Chunks keep their page numbers: Docling's markdown is split per page and the
+collection's own splitter, chunk size and overlap apply to each page as for the
+other parsers. A `.docx` has no pages and is read as page 1; citations treat
+`.docx` as unpaged under every parser.
+
+A document is refused, with a message that never quotes the server, when Docling
+reports a failed or partly failed conversion, when it stops with an internal
+error (its own log has the cause; check the OCR languages and preset), when the
+key is refused, or when it has not finished within the deadline. A conversion
+that is still running when the platform gives up is **not** cancelled — Docling
+has no cancel — and Retry collects its result instead of submitting a second
+conversion. The same applies to a worker restart or a queue retry. If the Docling
+server itself restarted, it has forgotten the task and the next attempt submits
+again.
+
+Docling is given the same timeout, so a conversion that was really
+running when the platform stopped waiting has usually timed out too, and Retry
+then names the pages it did not finish; raising the timeout before Retry starts a
+new conversion. A failure after the parse (embedding, indexing) is retried with a
+new conversion, because the finished one has already been collected.
+
+Tested against Docling Serve 1.39.0. An older server cannot name the failed
+pages, and the OCR presets on offer are not checked against what is installed.
 
 ### Chunking configuration
 

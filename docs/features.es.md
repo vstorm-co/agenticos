@@ -1,5 +1,5 @@
 ---
-source_sha: "f73ea6abcad6"
+source_sha: "cca49070e3d9"
 ---
 
 # Funciones { #features }
@@ -150,7 +150,7 @@ retrieval:
 
 | | |
 |---|---|
-| **Parser de PDF** | `pymupdf` — local, rápido y el único que extrae las imágenes incrustadas para describirlas · `liteparse` — local y consciente del layout, mantiene las tablas como rejillas ASCII en lugar de aplanarlas · `llamaparse` — un servicio en la nube que se factura por página y devuelve markdown |
+| **Parser de PDF** | `pymupdf` — local, rápido y el único que extrae las imágenes incrustadas para describirlas · `liteparse` — local y consciente del layout, mantiene las tablas como rejillas ASCII en lugar de aplanarlas · `docling` — un Docling Serve que ejecutas tú y que conserva diseño, tablas y páginas · `llamaparse` — un servicio en la nube que se factura por página y devuelve markdown |
 | **Chunking** | `recursive`, `markdown` o `fixed`, con tu propio tamaño y solapamiento |
 | **OCR** | A demanda o automático, con un idioma |
 | **Imágenes en documentos** | Descritas por un perfil de modelo que tú eliges, con tu propio prompt |

@@ -63,6 +63,9 @@ export function IngestionPanel({ kb, onEdit, onEditEmbeddings }: IngestionPanelP
           {config.pdf_parser === "llamaparse" &&
             ` · ${labelOf(LLAMAPARSE_TIERS, config.llamaparse_tier, t)}`}
           {config.pdf_parser === "liteparse" && ` · ${config.ocr_language.trim()}`}
+          {config.pdf_parser === "docling" &&
+            config.docling_ocr_languages.length > 0 &&
+            ` · ${config.docling_ocr_languages.join("+")}`}
         </Fact>
 
         <Fact term={t("scannedPages")}>{config.ocr ? t("readAsImages") : t("notRead")}</Fact>

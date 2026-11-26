@@ -60,6 +60,7 @@ const API_STYLE_LABELS = {
   ollama: "apiStyleOllama",
   openai_compatible: "apiStyleOpenAICompatible",
   liteparse: "apiStyleLiteparse",
+  docling: "apiStyleDocling",
 } as const;
 
 /**

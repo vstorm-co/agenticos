@@ -14,10 +14,10 @@ import { apiClient } from "./api-client";
 import type { EmbeddingProbeEstimate, EmbeddingProbeResult } from "./embedding-probe-api";
 
 /** What a service connection does for a collection. */
-export type ServiceConnectionKind = "embedding" | "ocr";
+export type ServiceConnectionKind = "embedding" | "ocr" | "document_parser";
 
 /** The wire protocol a connection speaks. */
-export type ServiceConnectionStyle = "ollama" | "openai_compatible" | "liteparse";
+export type ServiceConnectionStyle = "ollama" | "openai_compatible" | "liteparse" | "docling";
 
 /** The styles each kind may choose from. The first is the default. */
 export const SERVICE_CONNECTION_STYLES: Readonly<
@@ -25,10 +25,28 @@ export const SERVICE_CONNECTION_STYLES: Readonly<
 > = {
   embedding: ["ollama", "openai_compatible"],
   ocr: ["liteparse"],
+  document_parser: ["docling"],
 };
 
 /** The styles that may carry a Vault key. */
-export const KEYED_STYLES: ReadonlySet<ServiceConnectionStyle> = new Set(["openai_compatible"]);
+export const KEYED_STYLES: ReadonlySet<ServiceConnectionStyle> = new Set([
+  "openai_compatible",
+  "docling",
+]);
+
+/** A style that may carry a Vault key. */
+export type KeyedStyle = "openai_compatible" | "docling";
+
+/** Whether a style may carry a Vault key, as a type guard for the purpose lookup. */
+export function isKeyedStyle(style: ServiceConnectionStyle): style is KeyedStyle {
+  return KEYED_STYLES.has(style);
+}
+
+/** The Vault purpose a key must have to be used by each keyed style. */
+export const KEY_PURPOSE_BY_STYLE: Readonly<Record<KeyedStyle, string>> = {
+  openai_compatible: "openai_compatible",
+  docling: "docling",
+};
 
 export interface ServiceConnectionRecord {
   id: string;
@@ -73,6 +91,24 @@ export interface ServiceConnectionPatch {
   unverified?: boolean;
 }
 
+/** What to try without saving: the values exactly as the form holds them. */
+export interface ServiceConnectionTestInput {
+  kind: ServiceConnectionKind;
+  provider: ServiceConnectionStyle;
+  base_url: string;
+  /** A Vault key chosen in the form. */
+  secret_id?: string;
+  /** The stored connection being edited, so its kept key is the one sent. */
+  service_id?: string;
+}
+
+/** What the server found. A test never changes anything and never blocks a save. */
+export interface ServiceConnectionTestResult {
+  outcome: "ok" | "key_refused" | "key_required" | "unreachable" | "not_docling";
+  /** The Docling Serve version, when it answered. */
+  version: string | null;
+}
+
 const ROOT = "/service-connections";
 
 export async function listServiceConnections(): Promise<ServiceConnectionRecord[]> {
@@ -108,4 +144,11 @@ export async function probeConnection(
   body: { base_url?: string; secret_id?: string },
 ): Promise<EmbeddingProbeResult> {
   return apiClient.post<EmbeddingProbeResult>(`${ROOT}/${id}/probe`, body);
+}
+
+/** Try an address and key for a document parser, spending no conversion. */
+export async function testServiceConnection(
+  input: ServiceConnectionTestInput,
+): Promise<ServiceConnectionTestResult> {
+  return apiClient.post<ServiceConnectionTestResult>(`${ROOT}/test`, input);
 }

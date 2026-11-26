@@ -783,7 +783,7 @@ describe("a custom OpenAI-compatible provider", () => {
     );
   }
 
-  async function fillIn() {
+  async function fillTheForm() {
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");
     await userEvent.click(screen.getByLabelText("Server"));
     await userEvent.click(await screen.findByRole("option", { name: /Corp gateway/ }));
@@ -818,7 +818,7 @@ describe("a custom OpenAI-compatible provider", () => {
   it("creates a custom knowledge base only after a passing test, with its token", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
     await chooseCustom();
-    await fillIn();
+    await fillTheForm();
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
     expect(screen.getByText("1 probe")).toBeVisible();
 
@@ -846,7 +846,7 @@ describe("a custom OpenAI-compatible provider", () => {
   it("shows the measured width from the test", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
     await chooseCustom();
-    await fillIn();
+    await fillTheForm();
     await userEvent.click(screen.getByRole("button", { name: "Test" }));
 
     expect(await screen.findByText("Measured width: 1,024 dimensions")).toBeVisible();
@@ -855,7 +855,7 @@ describe("a custom OpenAI-compatible provider", () => {
   it("blocks Create again when the model text changes after the test", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce(PASSED);
     await chooseCustom();
-    await fillIn();
+    await fillTheForm();
     await userEvent.click(screen.getByRole("button", { name: "Test" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
 
