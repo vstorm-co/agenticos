@@ -21574,6 +21574,22 @@
       "preview": "Aperçu de la disposition uniquement. Les données et permissions sont résolues pour chaque personne à l’ouverture.",
       "empty": "Cette disposition par défaut ne contient volontairement aucune carte.",
       "discard": "Annuler les modifications"
+    },
+    "rolePreview": {
+      "open": "Ouvrir l’aperçu de la console",
+      "hint": "Paramètres du rôle avant les choix personnels. La navigation utilise votre brouillon ; le dashboard, les catalogues et les annonces utilisent les paramètres enregistrés. Les cartes ne chargent aucune donnée privée.",
+      "navigation": "Navigation",
+      "dashboard": "Dashboard",
+      "catalogs": "Catalogues",
+      "emptyDashboard": "Aucune carte du dashboard affichée.",
+      "emptyNavigation": "Aucune entrée de navigation principale affichée.",
+      "wholeCatalog": "Toutes les entrées autorisées par les permissions existantes",
+      "approvedLimit": "{count, plural, =0 {Aucune entrée} one {Jusqu’à # entrée approuvée} other {Jusqu’à # entrées approuvées}}",
+      "mcp_galleryAvailable": "Uniquement les serveurs connectés par l’organisation",
+      "skill_galleryAvailable": "Uniquement les Skills installés visibles",
+      "shown": "Visible",
+      "hidden": "Masqué",
+      "unavailable": "Indisponible avec ces permissions"
     }
   },
   "portability": {

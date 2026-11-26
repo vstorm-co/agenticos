@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "8c5fa592f88b"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -216,7 +216,9 @@ W **Admin → Deployment → Tożsamość → Dostępność konsoli** operator w
 
 Użytkownik może zawęzić ten wybór w **Ustawienia → Profil → Moje menu**. Pusta lista celowo ukrywa wszystkie główne pozycje; wybór odziedziczony podąża za organizacją i deploymentem. Zmiany menu wymagają **Zapisu**, a opuszczenie strony z niezapisanym wyborem wyświetla ostrzeżenie. Ustawienia konta, przełączanie organizacji i dostęp administratora pozostają osiągalne. Ukrycie strony nie odbiera uprawnień: uprawniona osoba nadal otworzy jej URL. Zwykłe sprawdzenie uprawnień działa po filtrowaniu widoku.
 
-Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. Nie działa w imieniu innej osoby i nie wczytuje jej danych. **Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
+Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. **Otwórz podgląd konsoli** pokazuje również dostępne karty dashboardu, ograniczenia katalogów i widoczność komunikatów. Korzysta z bieżącego szkicu menu oraz zapisanych ustawień roli, przed osobistymi wyborami członka. Karty są zastępcze: podgląd nie działa w imieniu innej osoby i nie wczytuje jej prywatnych danych. Liczby w katalogach to górne granice przed sprawdzeniem połączonych serwerów, zainstalowanych Skills i uprawnień do zasobów, a nie aktualne sumy katalogów.
+
+**Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
 
 
 ### Katalogi i dashboardy ról { #console-catalogs }
