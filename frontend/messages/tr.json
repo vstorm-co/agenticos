@@ -11007,7 +11007,7 @@
     "editServer": "Sunucuyu düzenle",
     "testSettings": "Test et",
     "testingSettings": "Test ediliyor…",
-    "testCost": "{count, plural, =0 {Yoklama yok} other {# yoklama}}",
+    "testCost": "{count, plural, =0 {Gömme çağrısı yok} other {En fazla # gömme çağrısı}}. Sağlayıcı tokenleri tüketebilir; anahtarlı çağrılar kuruluşun aylık bütçesine sayılır.",
     "probePassed": "{count, plural, =0 {Henüz hiçbir şey saklanmadı, bu yüzden bozulacak bir şey yok} other {# bilgi tabanı vektörlerini korur}}",
     "probeOutcome": {
       "passed": "Geçti",

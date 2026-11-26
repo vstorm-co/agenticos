@@ -492,7 +492,9 @@ describe("testing a move against the stored chunks", () => {
 
   it("moves a collection with the tested token", async () => {
     await moveToOpenAI();
-    expect(await screen.findByText("3 probes")).toBeVisible();
+    expect(
+      await screen.findByText(/Up to 6 embedding calls.*keyed calls count toward/),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
     await userEvent.click(screen.getByRole("button", { name: "Test" }));

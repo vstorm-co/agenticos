@@ -4289,7 +4289,7 @@
     "editServer": "Modifier le serveur",
     "testSettings": "Tester",
     "testingSettings": "Test en cours…",
-    "testCost": "{count, plural, =0 {Aucune sonde} one {# sonde} other {# sondes}}",
+    "testCost": "{count, plural, =0 {Aucun appel d'embedding} one {Jusqu'à # appel d'embedding} other {Jusqu'à # appels d'embedding}}. Peut consommer des tokens du fournisseur ; les appels avec clé comptent dans le budget mensuel de l'organisation.",
     "probePassed": "{count, plural, =0 {Rien n’est encore stocké, donc rien ne peut casser} one {# base de connaissances conserve ses vecteurs} other {# bases de connaissances conservent leurs vecteurs}}",
     "probeOutcome": {
       "passed": "Réussi",

@@ -36,10 +36,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Meter every keyed embedding Test call independently, refresh authority and target before each retry, retain known usage on failure or cancellation, and refuse unknown prices under dollar caps. Sub-microdollar receipts now retain precision instead of rounding each small call to zero.
+- Meter every keyed embedding Test call independently, refresh authority and target before each retry, retain known usage on failure or cancellation, and refuse unknown prices under dollar caps. Sub-microdollar receipts now retain precision instead of rounding each small call to zero. Embedding Tests show the maximum call count and provider-token/budget impact before starting.
 
 - Require connection access before testing a retained keyed embedding endpoint, including model-only and unchanged tests. Refuse Docling tests when a required Vault key was deleted instead of retrying without credentials.
-- Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Invalid responses stay controlled provider failures, with reported usage retained.
+- Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Column and index precision bounds are checked, including half-precision indexes for wide vectors. Invalid responses stay controlled provider failures, with reported usage retained.
 - Keep Docling Test results bound to the address, credentials and ownership actually tested, including when a form changes while the request is still running.
 
 - Naming a keyed service connection for a knowledge base, a move or a Test needs `connections:view`, so a Member cannot spend a connection key that was never shared with them.

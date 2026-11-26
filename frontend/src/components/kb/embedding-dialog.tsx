@@ -308,7 +308,7 @@ export function EmbeddingDialog({
               />
               {estimate ? (
                 <span className="text-muted-foreground text-xs">
-                  {t("testCost", { count: estimate.calls })}
+                  {t("testCost", { count: estimate.max_calls })}
                 </span>
               ) : estimateError ? (
                 <span className="text-destructive text-xs">

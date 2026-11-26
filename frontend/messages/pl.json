@@ -2184,7 +2184,7 @@
     "editServer": "Edytuj serwer",
     "testSettings": "Testuj",
     "testingSettings": "Testowanie…",
-    "testCost": "{count, plural, =0 {Brak prób} one {# próba} few {# próby} many {# prób} other {# próby}}",
+    "testCost": "{count, plural, =0 {Brak wywołań embeddingów} one {Do # wywołania embeddingów} few {Do # wywołań embeddingów} many {Do # wywołań embeddingów} other {Do # wywołania embeddingów}}. Mogą zużyć tokeny providera; wywołania z kluczem wliczają się do miesięcznego budżetu organizacji.",
     "probePassed": "{count, plural, =0 {Nic jeszcze nie zapisano, więc nic nie może się zepsuć} one {# baza wiedzy zachowuje swoje wektory} few {# bazy wiedzy zachowują swoje wektory} many {# baz wiedzy zachowuje swoje wektory} other {# bazy wiedzy zachowuje swoje wektory}}",
     "probeOutcome": {
       "passed": "Zaliczony",

@@ -49,6 +49,7 @@ from app.services.rag.models import (
     VectorDocumentId,
 )
 from app.services.rag.overlay import active_overlay
+from app.services.rag.vector_limits import HNSW_MAX_VECTOR_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -480,18 +481,6 @@ from app.services.rag.embeddings import EmbeddingService
 # collection name is shared, and is None where the caller has none in hand (#913).
 EmbeddingResolver = Callable[[str, UUID | None], Awaitable[ResolvedEmbeddings | None]]
 
-# pgvector's HNSW builds over a `vector` column only up to this width; past it,
-# `CREATE INDEX` fails with "column cannot have more than 2000 dimensions for
-# hnsw index". `halfvec` raises the ceiling to 4000, which is how the wider
-# models are supported here.
-#
-# This was reachable for the first time today. The dev and CI databases ran
-# stock `postgres:16-alpine`, so `CREATE EXTENSION vector` failed first and hid
-# it - and the shipped default, `text-embedding-3-large`, is 3072 wide. Every
-# collection created with the default configuration would have failed on its
-# first upload, in a worker, with a 500 and no explanation on screen.
-_HNSW_MAX_VECTOR_DIM = 2000
-
 # How many chunks go into one `INSERT`. The statement used to run once per chunk,
 # so a 200-page PDF at the default `chunk_size` was one to three thousand
 # sequential round trips inside one open transaction - a second or two on a local
@@ -757,7 +746,7 @@ class PgVectorStore(BaseVectorStore):
         Building the index on one expression and ordering by another silently
         costs the index, so both come from here.
         """
-        if dim > _HNSW_MAX_VECTOR_DIM:
+        if dim > HNSW_MAX_VECTOR_DIM:
             return f"(embedding::halfvec({dim}))"
         return "embedding"
 
@@ -793,7 +782,7 @@ class PgVectorStore(BaseVectorStore):
         """Create the collection table and indexes under a per-name DDL lock."""
         table = self._table(name)
         _, dim = await self._for_collection(name)
-        operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
+        operator_class = "halfvec_cosine_ops" if dim > HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
             # IF NOT EXISTS can still race on PostgreSQL's catalog uniqueness.
             # This transaction must not reacquire COLLECTION_TEARDOWN: an unfiled
@@ -1049,7 +1038,7 @@ class PgVectorStore(BaseVectorStore):
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
-        query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
+        query_expr = f"(:query_vec)::halfvec({dim})" if dim > HNSW_MAX_VECTOR_DIM else ":query_vec"
         params: dict[str, Any] = {
             "query_vec": str(query_vector),
             "limit": limit,

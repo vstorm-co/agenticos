@@ -820,7 +820,7 @@ describe("a custom OpenAI-compatible provider", () => {
     await chooseCustom();
     await fillTheForm();
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
-    expect(screen.getByText("1 probe")).toBeVisible();
+    expect(screen.getByText(/Up to 1 embedding call.*keyed calls count toward/)).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Test" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());

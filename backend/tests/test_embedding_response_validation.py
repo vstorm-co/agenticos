@@ -81,7 +81,17 @@ def test_service_checks_every_vector_width_before_database_use(method: str) -> N
 
 
 @pytest.mark.parametrize(
-    "vector", [["not-numeric"], [None], [True], [float("nan")], [float("inf")], [1e308], [-1e308]]
+    "vector",
+    [
+        ["not-numeric"],
+        [None],
+        [True],
+        [float("nan")],
+        [float("inf")],
+        [1e308],
+        [-1e308],
+        pytest.param([70000.0] * 2001, id="wide-halfvec-overflow"),
+    ],
 )
 def test_actual_sdk_http_response_is_refused_before_returning_invalid_vectors(
     vector: list[object],
@@ -208,3 +218,18 @@ async def test_paid_raw_response_is_recorded_before_sdk_close_and_vector_refusal
         )
     assert client.is_closed()
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.parametrize(
+    "dim,component,allowed",
+    [(2000, 70000.0, True), (2001, 65504.0, True), (2001, 70000.0, False), (2001, -70000.0, False)],
+)
+def test_provider_respects_actual_index_precision(dim, component, allowed):
+    ledger = SpendLedger()
+    with metered_by(ledger):
+        if allowed:
+            assert len(_provider([[component] * dim]).embed_queries(["query"])[0]) == dim
+        else:
+            with pytest.raises(ExternalServiceError, match="half-precision index"):
+                _provider([[component] * dim]).embed_queries(["query"])
+    assert ledger.input_tokens == 7

@@ -4382,7 +4382,7 @@
     "editServer": "Edit server",
     "testSettings": "Test",
     "testingSettings": "Testing…",
-    "testCost": "{count, plural, =0 {No probes} one {# probe} other {# probes}}",
+    "testCost": "{count, plural, =0 {No embedding calls} one {Up to # embedding call} other {Up to # embedding calls}}. May use provider tokens; keyed calls count toward the organization's monthly budget.",
     "probePassed": "{count, plural, =0 {Nothing stored yet, so nothing can break} one {# knowledge base keeps its vectors} other {# knowledge bases keep their vectors}}",
     "probeOutcome": {
       "passed": "Passed",

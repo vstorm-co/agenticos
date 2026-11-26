@@ -21,6 +21,7 @@ from app.agents.capabilities.budget import record_ambient_cost, record_ambient_u
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
+from app.services.rag.vector_limits import FLOAT32_MAX, HALFVEC_MAX_COMPONENT, HNSW_MAX_VECTOR_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,7 @@ _PROBE_FAILURES = {
 
 
 # pgvector stores IEEE-754 binary32, even though Python/JSON use binary64.
-_FLOAT32_MAX = 3.4028234663852886e38
-_EmbeddingNumber = Annotated[FiniteFloat, Field(ge=-_FLOAT32_MAX, le=_FLOAT32_MAX)]
+_EmbeddingNumber = Annotated[FiniteFloat, Field(ge=-FLOAT32_MAX, le=FLOAT32_MAX)]
 
 
 class _EmbeddingResult(BaseModel):
@@ -100,6 +100,15 @@ def _embedding_vectors(data: object, *, expected: int) -> list[list[float]]:
         raise ExternalServiceError(
             message="The embedding endpoint returned the wrong number of vectors.",
             details={"expected": expected, "received": len(results)},
+        )
+    if any(
+        len(result.embedding) > HNSW_MAX_VECTOR_DIM
+        and any(abs(component) > HALFVEC_MAX_COMPONENT for component in result.embedding)
+        for result in results
+    ):
+        raise ExternalServiceError(
+            message="The embedding endpoint returned invalid vectors. Wide vectors must fit the half-precision index.",
+            details={},
         )
     return [result.embedding for result in results]
 

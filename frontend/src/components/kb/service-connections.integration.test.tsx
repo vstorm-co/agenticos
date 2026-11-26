@@ -505,7 +505,9 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      expect(await screen.findByText("3 probes")).toBeVisible();
+      expect(
+        await screen.findByText(/Up to 6 embedding calls.*keyed calls count toward/),
+      ).toBeVisible();
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
@@ -606,7 +608,7 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      await screen.findByText("3 probes");
+      await screen.findByText(/Up to 6 embedding calls.*keyed calls count toward/);
       expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
     });
 

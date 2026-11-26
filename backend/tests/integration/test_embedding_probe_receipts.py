@@ -88,3 +88,31 @@ async def test_pgvector_rejects_finite_binary64_overflow(engine):
             await db.execute(text("SELECT '[1e308]'::vector"))
     async with engine.begin() as db:
         assert await db.scalar(text("SELECT vector_dims('[3.4028234663852886e38]'::vector)")) == 1
+
+
+async def test_pgvector_wide_hnsw_cast_requires_half_precision(engine):
+    from sqlalchemy.exc import DBAPIError
+
+    async with engine.begin() as db:
+        await db.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        assert (
+            await db.scalar(
+                text("SELECT vector_dims(CAST(:vector AS vector(2001)))"),
+                {"vector": "[" + ",".join(["70000"] * 2001) + "]"},
+            )
+            == 2001
+        )
+    with pytest.raises(DBAPIError, match="out of range"):
+        async with engine.begin() as db:
+            await db.execute(
+                text("SELECT CAST(:vector AS vector(2001))::halfvec(2001)"),
+                {"vector": "[" + ",".join(["70000"] * 2001) + "]"},
+            )
+    async with engine.begin() as db:
+        assert (
+            await db.scalar(
+                text("SELECT vector_dims(CAST(:vector AS vector(2001))::halfvec(2001))"),
+                {"vector": "[" + ",".join(["65504"] * 2001) + "]"},
+            )
+            == 2001
+        )
