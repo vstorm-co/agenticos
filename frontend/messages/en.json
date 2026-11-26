@@ -17738,6 +17738,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
     "analysisEstimate": "Estimated analysis cost",
+    "guidance": {
+      "title": "Dataset guidance for the helper",
+      "hint": "The helper reads this below the platform's rules, which always apply. Whoever edits this dataset wrote it.",
+      "changed": "{who, select, named {Last changed by {name}.} former {Last changed by a former member.} other {}}",
+      "changedOn": "{who, select, named {Last changed by {name} on {date}.} former {Last changed by a former member on {date}.} other {Last changed on {date}.}}"
+    },
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
     "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions.",
     "skills": {

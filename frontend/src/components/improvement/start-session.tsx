@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { DIALOG_BODY } from "@/lib/dialog-sizes";
+import { DatasetGuidance } from "./dataset-guidance";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { MIN_SEARCH_QUESTIONS, StartMode } from "./start-search";
 import { TodayCheck } from "./today-check";
@@ -293,6 +294,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             )}
           </section>
         )}
+        {quote?.guidance && <DatasetGuidance guidance={quote.guidance} />}
         {!loading && <StartSignals agentId={agentId} datasetId={target} />}
         {target && (
           <NativeDisclosure
