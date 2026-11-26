@@ -1157,6 +1157,7 @@ async def _search(
         base_draft_hash="0" * 64,
         dataset_id=dataset_id,
         dataset_version=1,
+        holdout_share=Decimal("0.2"),
         scoring_hash="0" * 64,
         window_days=30,
         estimate_usd=Decimal("1"),
