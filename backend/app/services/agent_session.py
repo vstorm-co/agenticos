@@ -1577,14 +1577,18 @@ class AgentSession:
         self._current_timeline = timeline
         applied_receipt_ids: set[UUID] = set()
 
+        def record_accepted_steer(receipt_id: UUID, text: str) -> None:
+            if receipt_id not in applied_receipt_ids:
+                timeline.add_steer(text)
+                applied_receipt_ids.add(receipt_id)
+
         async def steered(steer: Steer, text: str) -> None:
             # Where it reached the model is where the transcript shows it.
             if steer.accepted_queue_id is None:
                 timeline.add_steer(text)
                 await self._emit("steer_applied", {"text": text})
-            elif steer.accepted_queue_id not in applied_receipt_ids:
-                timeline.add_steer(text)
-                applied_receipt_ids.add(steer.accepted_queue_id)
+            else:
+                record_accepted_steer(steer.accepted_queue_id, text)
 
         async def receipt_applied(receipt_id: UUID, text: str) -> None:
             if (
@@ -1604,9 +1608,7 @@ class AgentSession:
                     run_id=run_id,
                 )
             if first_application:
-                if receipt_id not in applied_receipt_ids:
-                    timeline.add_steer(text)
-                    applied_receipt_ids.add(receipt_id)
+                record_accepted_steer(receipt_id, text)
                 await self._emit(
                     "steer_applied",
                     {
