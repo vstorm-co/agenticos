@@ -19,6 +19,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The judge prompt fences the case and the answer and ends on the rule that they are data; its version moves to 5. Scores graded with the earlier prompt are no longer reused as cached baselines or compared with new ones, so the first eval run or Improve session after the upgrade grades its answers from scratch, and grading an older eval score again asks to run the eval again.
+- Secret redaction recognises more shapes: passwords in URLs, keys in query strings and form bodies, Basic and opaque Bearer authorization, and more provider key prefixes. Live chats with `redact_secrets_*` on may mask more than before.
+- A person's read of an eval run compares it again under the organization's comparison limit. A single run read returns 429 while another comparison runs; run lists and the Builder's model gate show the verdict they have.
+
+### Fixed
+
+- A failed background job keeps only messages AgenticOS wrote as its last error. Another exception names its type, and its message stays in the worker log.
+- A manual eval checks before every case that its starter may still run the agent and the dataset.
+
+### Security
+
+- Deciding or rescoring an eval score needs access to the answer it scores, and the judge's knowledge passages are shown only to readers of their knowledge base.
+- Credentials in conversations no longer reach the Improve helper's model, its kept quotes or the knowledge gaps classifier. A suggestion or a proposed skill or context file change that would write one reads redacted, and accepting, applying or checking it is refused until it is edited.
+- Text written from a dataset's cases needs access to that dataset: an Improve session's changes, a skill session's quotes from eval answers, and the run records of eval answers and of platform agents such as the judge.
+- A case generated from a chat stays masked once the chat is deleted, and masked cases no longer show through the duplicate-question check or key coverage. The source-privacy check refuses a message outside the caller's reach as it refuses an unknown id.
+- Skill check reads no longer return ids of agents, datasets or eval runs the reader may not see.
+- Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
+
+### Upgrading
+
+- Migration `0374_case_from_conversation` adds `dataset_cases.from_conversation` and backfills it from each case's source, its conversation, message and run links, and its recorded asker, note author or history authors. A case generated from an anonymous visitor's chat that was deleted before the upgrade has none of these left and stays readable to every reader of its dataset.
+
+## [1.94.0] - 2026-11-26
+
 ### Added
 
 - Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
@@ -116,27 +142,11 @@ Two things are versioned separately from this file and worth knowing about:
   Keep Daytona on its supported 0.x API until the workspace adapter supports the
   SDK 2.x namespace migration.
 
-- A failed background job keeps only messages AgenticOS wrote as its last error. Another exception names its type, and its message stays in the worker log.
-- A manual eval checks before every case that its starter may still run the agent and the dataset.
-
 ### Changed
 
 - Keep Event sources as a contextual management page linked from routines and workflows instead of a default sidebar destination. Provider marks, Vault selection and inherited navigation controls make setup consistent with the console.
 
 - Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
-
-- The judge prompt fences the case and the answer and ends on the rule that they are data; its version moves to 5. Scores graded with the earlier prompt are no longer reused as cached baselines or compared with new ones, so the first eval run or Improve session after the upgrade grades its answers from scratch, and grading an older eval score again asks to run the eval again.
-- Secret redaction recognises more shapes: passwords in URLs, keys in query strings and form bodies, Basic and opaque Bearer authorization, and more provider key prefixes. Live chats with `redact_secrets_*` on may mask more than before.
-- A person's read of an eval run compares it again under the organization's comparison limit. A single run read returns 429 while another comparison runs; run lists and the Builder's model gate show the verdict they have.
-
-### Security
-
-- Deciding or rescoring an eval score needs access to the answer it scores, and the judge's knowledge passages are shown only to readers of their knowledge base.
-- Credentials in conversations no longer reach the Improve helper's model, its kept quotes or the knowledge gaps classifier. A suggestion or a proposed skill or context file change that would write one reads redacted, and accepting, applying or checking it is refused until it is edited.
-- Text written from a dataset's cases needs access to that dataset: an Improve session's changes, a skill session's quotes from eval answers, and the run records of eval answers and of platform agents such as the judge.
-- A case generated from a chat stays masked once the chat is deleted, and masked cases no longer show through the duplicate-question check or key coverage. The source-privacy check refuses a message outside the caller's reach as it refuses an unknown id.
-- Skill check reads no longer return ids of agents, datasets or eval runs the reader may not see.
-- Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
 
 ### Upgrading
 
@@ -197,9 +207,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0365_project_resources.py` and `0366_shared_mcp_oauth_clients.py` to add
   resource links and the unique organization MCP OAuth client identity. Existing
   resources, projects, credentials and connection flows are preserved.
-
-- Migration `0374_case_from_conversation` adds `dataset_cases.from_conversation` and backfills it from each case's source, its conversation, message and run links, and its recorded asker. A case generated from an anonymous visitor's chat that was deleted before the upgrade has none of these left and stays readable to every reader of its dataset.
-
 
 ## [1.93.0] - 2026-11-24
 
@@ -23019,7 +23026,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
