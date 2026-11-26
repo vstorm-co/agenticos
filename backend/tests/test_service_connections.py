@@ -155,6 +155,8 @@ class TestRegistering:
         [
             "ftp://ollama:11434",
             "not a url",
+            "http://host:not-a-port/v1",
+            "http://host:65536/v1",
             "http://user:pw@ollama:11434/v1",
             "http://169.254.169.254",
         ],
@@ -164,6 +166,8 @@ class TestRegistering:
         document pages to whatever is stored here."""
         with pytest.raises(ValidationError):
             _embedding(base_url=address)
+        with pytest.raises(ValidationError):
+            ServiceConnectionUpdate(base_url=address)
 
 
 _SECRET_ID = uuid.uuid4()
@@ -413,6 +417,8 @@ class TestTheKeyAConnectionCarries:
         """A key pasted as `?api-key=` would be stored in the clear and echoed back."""
         with pytest.raises(ValidationError) as refusal:
             _embedding(base_url=address)
+        with pytest.raises(ValidationError):
+            ServiceConnectionUpdate(base_url=address)
         assert refusal.value.errors()[0]["loc"] == ("base_url",)
         with pytest.raises(ValidationError):
             ServiceConnectionUpdate(base_url=address)
@@ -1156,3 +1162,26 @@ async def test_deleted_stored_docling_key_cannot_silently_test_as_keyless() -> N
         await _service().test(_ctx(), _test_body(service_id=stored.id))
     assert refused.value.details["fields"][0]["field"] == "service_id"
     probe.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_repairing_a_legacy_invalid_port_keeps_a_safe_audit() -> None:
+    row = _row(base_url="http://user:password@gateway:invalid/v1?token=secret")
+    with (
+        patch(f"{_REPO}.get_visible", AsyncMock(return_value=row)),
+        patch(f"{_REPO}.update", AsyncMock(return_value=row)) as updated,
+        patch(_ATTACHED, AsyncMock(return_value=[])),
+        patch(_AUDIT, AsyncMock()) as audit,
+    ):
+        await _service().update(
+            _ctx(),
+            row.id,
+            ServiceConnectionUpdate(base_url="http://gateway:8080/v1", unverified=True),
+        )
+    updated.assert_awaited_once()
+    assert audit.await_args is not None
+    details = audit.await_args.kwargs["details"]
+    assert details["previous"]["base_url"] == "http://gateway/v1"
+    assert details["new"]["base_url"] == "http://gateway:8080/v1"
+    assert "password" not in str(details)
+    assert "token=secret" not in str(details)

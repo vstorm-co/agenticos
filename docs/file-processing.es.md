@@ -1,5 +1,5 @@
 ---
-source_sha: "5e09c7ebe814"
+source_sha: "c2de5e09994d"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -621,6 +621,8 @@ propia red; la plataforma no la limita a direcciones privadas) y, cuando el serv
 guarda clave. La conexión es de la colección, así que una anulación al subir
 puede cambiar las opciones de abajo, pero no puede elegir Docling para una
 colección sin conexión; esa subida se rechaza de inmediato.
+
+Elegir una nueva conexión de Docling con clave, también en una asignación de importación, requiere `connections:view`. Editar otras opciones conservando la misma conexión y subir archivos a una colección accesible no requiere este permiso adicional.
 
 **Probar** en el formulario de la conexión comprueba que la dirección responde
 como un Docling Serve y que la clave se acepta, sin convertir nada. Informa de la

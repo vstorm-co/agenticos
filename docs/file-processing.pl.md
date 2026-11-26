@@ -1,5 +1,5 @@
 ---
-source_sha: "5e09c7ebe814"
+source_sha: "c2de5e09994d"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -607,6 +607,8 @@ prosi, kluczem z Vaulta (cel `docling`, wysyłany jako `X-Api-Key`). Połączeni
 na poziomie wdrożenia nie ma klucza. Połączenie należy do kolekcji, więc nadpisanie
 przy wgrywaniu może zmienić poniższe opcje, ale nie może wybrać Docling dla
 kolekcji bez połączenia; takie wgranie jest od razu odrzucane.
+
+Wskazanie nowego połączenia Docling z kluczem, także w mapowaniu importu, wymaga `connections:view`. Edycja innych ustawień z zachowaniem tego samego połączenia oraz zwykłe przesyłanie plików do dostępnej kolekcji nie wymagają tego dodatkowego uprawnienia.
 
 **Test** w formularzu połączenia sprawdza, czy adres odpowiada jak Docling Serve
 i czy klucz jest przyjęty, niczego nie konwertując. Podaje wersję serwera albo

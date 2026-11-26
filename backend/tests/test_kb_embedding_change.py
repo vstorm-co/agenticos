@@ -687,3 +687,50 @@ class TestCreatingOnACustomEndpoint:
 
         assert written["embedding_dim"] == 1536
         identified.assert_not_awaited()
+
+
+async def test_moving_off_connection_clears_stale_endpoint(
+    service: KnowledgeBaseService, monkeypatch: pytest.MonkeyPatch, updated: AsyncMock
+) -> None:
+    kb = _keyed(embedding_provider="ollama", embedding_endpoint_id=ENDPOINT)
+    _hold(monkeypatch, service, kb)
+    await service.update(
+        kb.id,
+        KnowledgeBaseUpdate(
+            embedding_provider="openrouter", embedding_secret_id=SECRET, unverified=True
+        ),
+        ctx=_ctx(),
+    )
+    assert updated.await_args is not None
+    assert updated.await_args.kwargs["embedding_endpoint_id"] is None
+    assert updated.await_args.kwargs["clear_embedding_endpoint"] is True
+
+
+@pytest.mark.security
+async def test_member_can_edit_chunking_with_retained_keyed_docling_connection(
+    service: KnowledgeBaseService, monkeypatch: pytest.MonkeyPatch, updated: AsyncMock
+) -> None:
+    from app.services.ingestion_config import IngestionConfig, IngestionConfigService
+    from app.services.service_connection import ServiceConnectionService
+
+    config = IngestionConfig(pdf_parser="docling", docling_connection_id=ENDPOINT)
+    kb = _custom(ingestion_config=config.model_dump(mode="json"))
+    _hold(monkeypatch, service, kb)
+    for method in (
+        "resolved_image_model",
+        "check_llamaparse_secret",
+        "check_ocr_endpoint",
+        "check_docling_connection",
+    ):
+        monkeypatch.setattr(IngestionConfigService, method, AsyncMock())
+    visible = AsyncMock(
+        side_effect=AssertionError("Retained binding needs no new connection permission")
+    )
+    monkeypatch.setattr(ServiceConnectionService, "get_visible", visible)
+    await service.update(
+        kb.id,
+        KnowledgeBaseUpdate(ingestion_config=config.model_copy(update={"chunk_size": 600})),
+        ctx=AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="member"),
+    )
+    updated.assert_awaited_once()
+    visible.assert_not_awaited()

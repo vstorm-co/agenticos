@@ -19,7 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
+
 ### Fixed
+
+- Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
 - Require priceable usage for paid embeddings under active run caps and keyed custom endpoints under an organization cap. Missing usage is recorded as partial before stopping further batches/files without automatic job replay; uncapped and keyless endpoints retain vector compatibility. Refresh cached embedders when this payer policy changes.
 - Preserve input/vector pairing for indexed embedding responses: restore shuffled order, reject ambiguous indices, and retain array order for compatible endpoints that omit all indices.

@@ -268,7 +268,8 @@ def public_address(url: str | None) -> str | None:
     """An address as an audit entry may keep it: scheme, host, port and path.
 
     A query string can carry a key (`?api-key=...`) and a netloc can carry a
-    password; neither is a setting anyone needs to read back.
+    password; neither is a setting anyone needs to read back. A malformed port
+    on a legacy row is omitted so repairing its address can still be audited.
     """
     if url is None:
         return None
@@ -276,7 +277,11 @@ def public_address(url: str | None) -> str | None:
     host = parts.hostname or ""
     if ":" in host:
         host = f"[{host}]"
-    port = f":{parts.port}" if parts.port is not None else ""
+    try:
+        parsed_port = parts.port
+    except ValueError:
+        parsed_port = None
+    port = f":{parsed_port}" if parsed_port is not None else ""
     return f"{parts.scheme}://{host}{port}{parts.path}"
 
 
@@ -310,7 +315,7 @@ class EmbeddingSettings:
         own = provider is None or not provider.via_connection
         return cls(
             provider=kb.embedding_provider,
-            endpoint_id=kb.embedding_endpoint_id,
+            endpoint_id=kb.embedding_endpoint_id if not own else None,
             secret_id=kb.embedding_secret_id if own else None,
             base_url=kb.embedding_base_url if own else None,
             model=kb.embedding_model,

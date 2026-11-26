@@ -724,6 +724,11 @@ class KnowledgeBaseService:
                 or parser.provider != DOCLING_PROVIDER
             ):
                 raise BadRequestError(message="Choose a Docling document parser connection")
+            if parser.secret_id is not None and not ctx.has(Perm.CONNECTIONS_VIEW):
+                raise refused_field(
+                    "docling_connection_id",
+                    "Naming a keyed Docling connection requires connections:view",
+                )
         collection = f"portable_{uuid4().hex}"
         await CollectionAccessService(self.db).claim(ctx, collection)
         return await knowledge_base_repo.create(
@@ -1055,7 +1060,12 @@ class KnowledgeBaseService:
             None
             if data.ingestion_config is None
             else await self._usable_config(
-                ctx, data.ingestion_config, app_scoped=kb.scope == KBScope.APP.value
+                ctx,
+                data.ingestion_config,
+                app_scoped=kb.scope == KBScope.APP.value,
+                previous_docling_connection_id=str(
+                    (kb.ingestion_config or {}).get("docling_connection_id", "")
+                ),
             )
         )
         before = EmbeddingSettings.of(kb)
@@ -1088,7 +1098,8 @@ class KnowledgeBaseService:
             embedding_provider=data.embedding_provider,
             embedding_model=data.embedding_model,
             embedding_secret_id=data.embedding_secret_id,
-            embedding_endpoint_id=data.embedding_endpoint_id,
+            embedding_endpoint_id=target.endpoint_id,
+            clear_embedding_endpoint=target.endpoint_id is None,
             embedding_base_url=target.base_url,
             set_embedding_base_url=target.base_url != kb.embedding_base_url,
             clear_embedding_secret=target.secret_id is None and kb.embedding_secret_id is not None,
@@ -1193,7 +1204,9 @@ class KnowledgeBaseService:
                 await self._check_kept_secret(kb, provider=provider)
         return EmbeddingSettings(
             provider=provider.provider,
-            endpoint_id=data.embedding_endpoint_id or kb.embedding_endpoint_id,
+            endpoint_id=(data.embedding_endpoint_id or kb.embedding_endpoint_id)
+            if provider.via_connection
+            else None,
             secret_id=None
             if provider.via_connection
             else data.embedding_secret_id or EmbeddingSettings.of(kb).secret_id,
@@ -1408,7 +1421,12 @@ class KnowledgeBaseService:
         )
 
     async def _usable_config(
-        self, ctx: AuthContext, config: IngestionConfig | None, *, app_scoped: bool
+        self,
+        ctx: AuthContext,
+        config: IngestionConfig | None,
+        *,
+        app_scoped: bool,
+        previous_docling_connection_id: UUID | str | None = None,
     ) -> IngestionConfig:
         """The configuration to store, proven to work before it is stored.
 
@@ -1434,6 +1452,17 @@ class KnowledgeBaseService:
         await service.check_llamaparse_secret(owner, chosen)
         await service.check_ocr_endpoint(owner, chosen)
         await service.check_docling_connection(owner, chosen)
+        if chosen.docling_connection_id is not None and str(chosen.docling_connection_id) != str(
+            previous_docling_connection_id
+        ):
+            parser = await ServiceConnectionService(self.db).get_visible(
+                ctx, chosen.docling_connection_id
+            )
+            if parser.secret_id is not None and not ctx.has(Perm.CONNECTIONS_VIEW):
+                raise refused_field(
+                    "docling_connection_id",
+                    "Naming a keyed Docling connection requires connections:view",
+                )
         return chosen
 
     async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:

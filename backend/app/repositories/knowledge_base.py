@@ -219,6 +219,7 @@ async def update(
     embedding_base_url: str | None = None,
     set_embedding_base_url: bool = False,
     clear_embedding_secret: bool = False,
+    clear_embedding_endpoint: bool = False,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
@@ -242,6 +243,8 @@ async def update(
         db_kb.embedding_secret_id = None
     if embedding_secret_id is not None:
         db_kb.embedding_secret_id = embedding_secret_id
+    if clear_embedding_endpoint:
+        db_kb.embedding_endpoint_id = None
     if embedding_endpoint_id is not None:
         db_kb.embedding_endpoint_id = embedding_endpoint_id
     if set_embedding_base_url:
@@ -251,11 +254,16 @@ async def update(
     return db_kb
 
 
-async def list_by_endpoint(db: AsyncSession, endpoint_id: UUID) -> list[KnowledgeBase]:
+async def list_by_endpoint(
+    db: AsyncSession, endpoint_id: UUID, *, provider: str
+) -> list[KnowledgeBase]:
     """Every knowledge base, of any organization, that embeds through one service connection."""
     result = await db.execute(
         select(KnowledgeBase)
-        .where(KnowledgeBase.embedding_endpoint_id == endpoint_id)
+        .where(
+            KnowledgeBase.embedding_endpoint_id == endpoint_id,
+            KnowledgeBase.embedding_provider == provider,
+        )
         .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
     )
     return list(result.scalars().all())

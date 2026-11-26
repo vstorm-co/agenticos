@@ -120,3 +120,39 @@ async def test_deleting_the_connection_nulls_the_knowledge_bases_endpoint(db):
     await db.refresh(kb)
 
     assert kb.embedding_endpoint_id is None
+
+
+@pytest.mark.security
+async def test_connection_probe_excludes_legacy_references_from_other_providers(db):
+    from app.repositories import knowledge_base_repo
+
+    org = await _org(db)
+    connection = _connection(organization_id=org.id)
+    db.add(connection)
+    await db.flush()
+    rows = [
+        KnowledgeBase(
+            id=uuid.uuid4(),
+            name=provider,
+            scope="org",
+            organization_id=org.id,
+            collection_name=f"c_{uuid.uuid4().hex[:12]}",
+            embedding_model="my-embed",
+            embedding_dim=1024,
+            embedding_provider=provider,
+            embedding_endpoint_id=connection.id,
+        )
+        for provider in ("openai_compatible", "openrouter", "ollama")
+    ]
+    db.add_all(rows)
+    await db.flush()
+    affected = await knowledge_base_repo.list_by_endpoint(
+        db, connection.id, provider=connection.provider
+    )
+    assert [kb.id for kb in affected] == [rows[0].id]
+    await knowledge_base_repo.update(db, db_kb=rows[0], clear_embedding_endpoint=True)
+    assert rows[0].embedding_endpoint_id is None
+    assert (
+        await knowledge_base_repo.list_by_endpoint(db, connection.id, provider=connection.provider)
+        == []
+    )

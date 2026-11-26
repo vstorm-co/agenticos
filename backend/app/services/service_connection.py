@@ -188,7 +188,11 @@ class ServiceConnectionService:
         moves = row.kind == ServiceConnectionKind.EMBEDDING.value and (
             new_base_url != row.base_url or new_secret_id != row.secret_id
         )
-        affected = await knowledge_base_repo.list_by_endpoint(self.db, row.id) if moves else []
+        affected = (
+            await knowledge_base_repo.list_by_endpoint(self.db, row.id, provider=row.provider)
+            if moves
+            else []
+        )
         if moves and not data.unverified:
             await self._require_tested(
                 ctx,

@@ -1,5 +1,5 @@
 ---
-source_sha: "5e09c7ebe814"
+source_sha: "c2de5e09994d"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -645,6 +645,8 @@ gesendet als `X-Api-Key`). Eine deploymentweite Verbindung hält keinen Schlüss
 Die Verbindung gehört der Collection; ein Upload-Override kann die folgenden
 Optionen ändern, aber nicht Docling für eine Collection ohne Verbindung wählen —
 ein solcher Upload wird sofort abgelehnt.
+
+Die Auswahl einer neuen Docling-Verbindung mit Schlüssel, auch bei einer Importzuordnung, erfordert `connections:view`. Andere Einstellungen mit derselben Verbindung zu ändern und Dateien in eine zugängliche Collection hochzuladen, erfordert diese zusätzliche Berechtigung nicht.
 
 **Test** im Verbindungsformular prüft, ob die Adresse wie ein Docling Serve
 antwortet und der Schlüssel akzeptiert wird, ohne etwas zu konvertieren. Er meldet

@@ -72,6 +72,10 @@ def _service_address(value: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("A service address must start with http:// or https://")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("A service address must have a valid port") from exc
     host = parsed.hostname
     if not host:
         raise ValueError("A service address must name a host")

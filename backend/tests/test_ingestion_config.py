@@ -1091,3 +1091,45 @@ async def test_a_collection_is_checked_as_its_own_scope(
         await KnowledgeBaseService(_db())._usable_config(ctx, None, app_scoped=app_scoped)
 
     assert seen == {"image": ORG, **dict.fromkeys(("llamaparse", "ocr", "docling"), checked_as)}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "keyed,retained,role",
+    [
+        (True, False, "member"),
+        (False, False, "member"),
+        (True, True, "member"),
+        (True, False, "owner"),
+    ],
+)
+async def test_only_new_keyed_docling_binding_requires_connection_permission(
+    keyed: bool, retained: bool, role: str
+) -> None:
+    from app.services.service_connection import ServiceConnectionService
+
+    connection = uuid.uuid4()
+    config = IngestionConfig(pdf_parser="docling", docling_connection_id=connection)
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role=role)
+    visible = AsyncMock(return_value=MagicMock(secret_id=uuid.uuid4() if keyed else None))
+    with (
+        patch.object(IngestionConfigService, "resolved_image_model", AsyncMock()),
+        patch.object(IngestionConfigService, "check_llamaparse_secret", AsyncMock()),
+        patch.object(IngestionConfigService, "check_ocr_endpoint", AsyncMock()),
+        patch.object(IngestionConfigService, "check_docling_connection", AsyncMock()),
+        patch.object(ServiceConnectionService, "get_visible", visible),
+    ):
+        service = KnowledgeBaseService(_db())
+        if keyed and not retained and role == "member":
+            with pytest.raises(BadRequestError, match="connections:view"):
+                await service._usable_config(ctx, config, app_scoped=False)
+        else:
+            result = await service._usable_config(
+                ctx,
+                config,
+                app_scoped=False,
+                previous_docling_connection_id=connection if retained else None,
+            )
+            assert result == config
+        if retained:
+            visible.assert_not_awaited()

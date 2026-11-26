@@ -279,7 +279,9 @@ class EmbeddingProbeService:
         row = await self.connections._editable(ctx, connection_id)
         if row.kind != ServiceConnectionKind.EMBEDDING.value:
             return EmbeddingProbeEstimate(calls=0, max_calls=0, knowledge_bases=0)
-        return await self._estimate(await knowledge_base_repo.list_by_endpoint(self.db, row.id))
+        return await self._estimate(
+            await knowledge_base_repo.list_by_endpoint(self.db, row.id, provider=row.provider)
+        )
 
     async def probe_connection_change(
         self, ctx: AuthContext, connection_id: UUID, data: ConnectionProbeRequest
@@ -314,7 +316,9 @@ class EmbeddingProbeService:
             requires_key=row.requires_key or data.secret_id is not None,
         )
         target = await self._usable(identity, key_field="secret_id", kb=False)
-        affected = await knowledge_base_repo.list_by_endpoint(self.db, row.id)
+        affected = await knowledge_base_repo.list_by_endpoint(
+            self.db, row.id, provider=row.provider
+        )
         binding = ProbeBinding.of(
             ProbePurpose.CONNECTION_CHANGE, identity, model=None, dim=None, knowledge_bases=affected
         )

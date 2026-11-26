@@ -844,6 +844,10 @@ class TestWhatAnAuditEntryMayKeep:
             ("https://api.example.com/v1?api-key=sk-123#frag", "https://api.example.com/v1"),
             ("https://user:pass@gw.example.com:8443/v1", "https://gw.example.com:8443/v1"),
             ("http://[::1]:11434/v1", "http://[::1]:11434/v1"),
+            (
+                "https://user:pass@gw.example.com:invalid/v1?token=secret",
+                "https://gw.example.com/v1",
+            ),
             (None, None),
         ],
     )

@@ -941,8 +941,9 @@ async def test_snapshot_docling_mapping_checks_only_visible_connection_identity(
 
 @pytest.mark.security
 @pytest.mark.parametrize("keyed", [True, False])
+@pytest.mark.parametrize("parser", [False, True])
 async def test_snapshot_member_cannot_name_a_keyed_embedding_connection(
-    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, keyed: bool
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, keyed: bool, parser: bool
 ) -> None:
     from app.db.models.service_connection import ServiceConnection
     from app.services import knowledge_base as domain
@@ -952,8 +953,8 @@ async def test_snapshot_member_cannot_name_a_keyed_embedding_connection(
     endpoint = uuid4()
     connection = ServiceConnection(
         id=endpoint,
-        kind="embedding",
-        provider="openai_compatible",
+        kind="document_parser" if parser else "embedding",
+        provider="docling" if parser else "openai_compatible",
         name="Endpoint",
         secret_id=uuid4() if keyed else None,
         requires_key=keyed,
@@ -967,12 +968,14 @@ async def test_snapshot_member_cannot_name_a_keyed_embedding_connection(
     arguments: _SnapshotArguments = {
         "name": "Imported",
         "description": None,
-        "ingestion_config": IngestionConfig(),
+        "ingestion_config": IngestionConfig(docling_connection_id=endpoint)
+        if parser
+        else IngestionConfig(),
         "embedding_model": "historical-model",
         "embedding_provider": "openai_compatible",
         "embedding_dim": 1536,
         "embedding_secret_id": None,
-        "embedding_endpoint_id": endpoint,
+        "embedding_endpoint_id": None if parser else endpoint,
     }
     if keyed:
         with pytest.raises(BadRequestError, match="connections:view"):

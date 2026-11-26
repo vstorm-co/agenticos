@@ -583,6 +583,8 @@ is the collection's own, so an upload override can change the options below but
 cannot choose Docling for a collection that has no connection; such an upload is
 refused at once.
 
+Choosing a new keyed Docling connection, including an import mapping, requires `connections:view`. Editing other settings while retaining the same connection, and ordinary uploads to an accessible collection, do not require this additional permission.
+
 **Test** on the connection form checks that the address answers as a Docling
 Serve and that the key is accepted, without converting anything. It reports the
 server's version, "key refused", "this server requires a key", "nothing answered"
