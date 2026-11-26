@@ -100,35 +100,38 @@ it("keeps Sources at a readable bounded pixel width while leaving room for the c
   expect(resize).toHaveAttribute("aria-valuenow", "400");
 });
 
-it("announces the capped dock width and resizes from it on the first keypress", () => {
-  let resizeDock: (width: number) => void;
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
-        resizeDock = (width) => callback([{ contentRect: { width } }]);
-      }
-      observe() {}
-      disconnect() {}
-    },
-  );
-  const view = render(
-    <BrowserPanelFrame sizing="sources" layout="sources">
-      {() => <span>Files</span>}
-    </BrowserPanelFrame>,
-  );
-  const resize = screen.getByRole("separator");
-  act(() => resizeDock(1000));
-  expect(resize).toHaveAttribute("aria-valuemax", "380");
-  expect(resize).toHaveAttribute("aria-valuenow", "380");
-  fireEvent.keyDown(resize, { key: "ArrowRight" });
-  expect(resize).toHaveAttribute("aria-valuenow", "364");
-  expect(
-    view.container.querySelector("aside")?.style.getPropertyValue("--browser-panel-width"),
-  ).toBe("min(364px, 38%)");
-  fireEvent.keyDown(resize, { key: "End" });
-  expect(resize).toHaveAttribute("aria-valuenow", "380");
-  act(() => resizeDock(1200));
-  expect(resize).toHaveAttribute("aria-valuemax", "420");
-  expect(resize).toHaveAttribute("aria-valuenow", "380");
-});
+it.each(["sources", "browser"] as const)(
+  "announces the capped dock width and resizes from it on the first keypress in the %s layout",
+  (layout) => {
+    let resizeDock: (width: number) => void;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
+          resizeDock = (width) => callback([{ contentRect: { width } }]);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const view = render(
+      <BrowserPanelFrame sizing="sources" layout={layout}>
+        {() => <span>Files</span>}
+      </BrowserPanelFrame>,
+    );
+    const resize = screen.getByRole("separator");
+    act(() => resizeDock(1000));
+    expect(resize).toHaveAttribute("aria-valuemax", "380");
+    expect(resize).toHaveAttribute("aria-valuenow", "380");
+    fireEvent.keyDown(resize, { key: "ArrowRight" });
+    expect(resize).toHaveAttribute("aria-valuenow", "364");
+    expect(
+      view.container.querySelector("aside")?.style.getPropertyValue("--browser-panel-width"),
+    ).toBe("min(364px, 38%)");
+    fireEvent.keyDown(resize, { key: "End" });
+    expect(resize).toHaveAttribute("aria-valuenow", "380");
+    act(() => resizeDock(1200));
+    expect(resize).toHaveAttribute("aria-valuemax", "420");
+    expect(resize).toHaveAttribute("aria-valuenow", "380");
+  },
+);

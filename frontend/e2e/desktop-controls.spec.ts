@@ -354,12 +354,15 @@ test.describe("desktop pointer controls", () => {
         panel.evaluate((element) => {
           const surface = element.closest(".chat-surface");
           const chat = surface?.getBoundingClientRect();
+          const dock = element.parentElement?.getBoundingClientRect();
           const railElement = surface?.querySelector<HTMLElement>('[data-tour="chat-workspace"]');
-          if (!chat || !railElement) throw new Error("The Files panel has no workspace rail");
+          if (!chat || !dock || !railElement)
+            throw new Error("The Files panel has no workspace rail");
           const files = element.getBoundingClientRect();
           const rail = railElement.getBoundingClientRect();
           return {
             chat: Math.round(chat.width),
+            dock: Math.round(dock.width),
             files: Math.round(files.width),
             rightGap: Math.round(chat.right - files.right),
             rail: Math.round(rail.width),
@@ -426,22 +429,26 @@ test.describe("desktop pointer controls", () => {
 
       // Restore the conversation list at a width where the dock still fits but
       // its 38% cap leaves no drag range. Maximize remains available.
-      await page.setViewportSize({ width: 1460, height: 1000 });
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await page.getByRole("button", { name: "Expand conversations sidebar" }).click();
+      await settleEntrances(page);
       await expect(maximize).toBeVisible();
-      await expect(resize).toBeHidden();
+      await expect.poll(async () => (await dockGeometry()).dock).toBeLessThan(948);
       const constrained = await dockGeometry();
+      expect(constrained.dock).toBeGreaterThanOrEqual(900);
+      expect(constrained.dock).toBeLessThan(948);
+      await expect(resize).toBeHidden();
       expect(constrained.rail).toBe(48);
       expect(constrained.panelToRail).toBe(0);
       expect(constrained.rightGap).toBe(constrained.rail);
-      expect(Math.abs(constrained.files - constrained.chat * 0.38)).toBeLessThan(1);
+      expect(Math.abs(constrained.files - constrained.dock * 0.38)).toBeLessThan(1);
       await clickCenter(page, maximize);
       await expect.poll(fullscreenGeometry).toMatchObject({
         x: 0,
         y: 0,
-        width: 1460,
+        width: 1440,
         height: 1000,
-        viewportWidth: 1460,
+        viewportWidth: 1440,
         viewportHeight: 1000,
       });
       await clickCenter(page, close);

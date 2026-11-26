@@ -190,6 +190,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Files panels hide the resize handle when their capped width leaves no resizing range, including panels docked beside the workspace rail.
 - Publishing refuses legacy native Claude profiles whose saved owner is missing, including fallback profiles. Gateway subscription profiles retain their caller-bound behavior.
 - The model picker's opener points to its popup and the search field points to the catalog list, restoring valid accessibility relationships while preserving keyboard navigation.
 - Bound S3 and Google Drive sync listings and streamed downloads, including CLI readers. Reject oversized files before transfer and remove partial results on refusal.
