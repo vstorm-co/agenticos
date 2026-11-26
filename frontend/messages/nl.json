@@ -17636,7 +17636,7 @@
     "startDescription": "Gebruik feedback en testgevallen om verbeteringen voor te stellen. Review elke stap voordat je wijzigingen toepast.",
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
-    "linkedDatasetUnusable": "De dataset uit de link kan niet worden gebruikt: hij is verwijderd, of je mag hem niet uitvoeren. In plaats daarvan wordt de gebruikelijke gebruikt.",
+    "linkedDatasetUnusable": "De dataset uit de link kan niet worden gebruikt: hij is verwijderd, of je mag hem niet uitvoeren. {usual, select, yes {In plaats daarvan wordt de gebruikelijke gebruikt.} other {Kies hieronder een andere.}}",
     "linkedDatasetUnread": "De dataset uit de link kon niet worden gelezen, dus er is nog niets geprijsd. {reason}",
     "analysisEstimate": "Geschatte kosten van de analyse",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",

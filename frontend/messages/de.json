@@ -17438,7 +17438,7 @@
     "startDescription": "Schlagen Sie Verbesserungen anhand von Feedback und Testfällen vor. Prüfen Sie jeden Schritt, bevor Änderungen übernommen werden.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
-    "linkedDatasetUnusable": "Das Dataset aus dem Link kann nicht verwendet werden: Es wurde entfernt, oder Sie dürfen es nicht ausführen. Stattdessen wird das übliche verwendet.",
+    "linkedDatasetUnusable": "Das Dataset aus dem Link kann nicht verwendet werden: Es wurde entfernt, oder Sie dürfen es nicht ausführen. {usual, select, yes {Stattdessen wird das übliche verwendet.} other {Wählen Sie unten ein anderes.}}",
     "linkedDatasetUnread": "Das Dataset aus dem Link konnte nicht gelesen werden, daher ist noch nichts bepreist. {reason}",
     "analysisEstimate": "Geschätzte Analysekosten",
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",

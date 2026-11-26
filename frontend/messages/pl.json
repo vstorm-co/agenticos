@@ -17525,7 +17525,7 @@
     "startDescription": "Zaproponuj ulepszenia na podstawie feedbacku i przypadków testowych. Przejrzysz każdy krok przed zastosowaniem zmian.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
-    "linkedDatasetUnusable": "Nie można użyć datasetu z linku: został usunięty albo nie możesz go uruchamiać. Zamiast niego użyto zwykłego.",
+    "linkedDatasetUnusable": "Nie można użyć datasetu z linku: został usunięty albo nie możesz go uruchamiać. {usual, select, yes {Zamiast niego użyto zwykłego.} other {Wybierz inny poniżej.}}",
     "linkedDatasetUnread": "Nie udało się odczytać datasetu z linku, więc nic jeszcze nie zostało wycenione. {reason}",
     "analysisEstimate": "Szacowany koszt analizy",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",

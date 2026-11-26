@@ -176,7 +176,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
       <p className="text-muted-foreground text-xs">{t("startDatasetHint")}</p>
       {linkedRefused && (
         <p role="status" className="text-muted-foreground text-xs">
-          {t("linkedDatasetUnusable")}
+          {t("linkedDatasetUnusable", { usual: fallback ? "yes" : "no" })}
         </p>
       )}
       {linkedFailed && (

@@ -17636,7 +17636,7 @@
     "startDescription": "Use feedback e casos de teste para propor melhorias. Revise cada passo antes de aplicar alterações.",
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
-    "linkedDatasetUnusable": "O dataset do vínculo não pode ser usado: foi removido ou você não pode executá-lo. O habitual é usado no lugar dele.",
+    "linkedDatasetUnusable": "O dataset do vínculo não pode ser usado: foi removido ou você não pode executá-lo. {usual, select, yes {O habitual é usado no lugar dele.} other {Escolha outro abaixo.}}",
     "linkedDatasetUnread": "Não foi possível ler o dataset do vínculo, então nada foi orçado ainda. {reason}",
     "analysisEstimate": "Custo estimado da análise",
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
