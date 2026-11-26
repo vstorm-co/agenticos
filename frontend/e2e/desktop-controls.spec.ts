@@ -331,17 +331,22 @@ test.describe("desktop pointer controls", () => {
       const dockGeometry = () =>
         panel.evaluate((element) => {
           const chat = element.closest(".chat-surface")?.getBoundingClientRect();
-          if (!chat) throw new Error("The Files panel has no chat surface");
+          const container = element.parentElement?.getBoundingClientRect();
+          if (!chat || !container)
+            throw new Error("The Files panel has no chat surface or container");
           const files = element.getBoundingClientRect();
           return {
-            chat: Math.round(chat.width),
+            container: Math.round(container.width),
             files: Math.round(files.width),
+            percentage: (100 * files.width) / container.width,
             rightGap: Math.round(chat.right - files.right),
           };
         });
-      const resize = panel.getByRole("separator", { name: "Resize side panel" });
-      const maximize = panel.getByRole("button", { name: "Maximize", exact: true });
-      await expect.poll(dockGeometry).toMatchObject({ files: 400, rightGap: 0 });
+      const resize = panel.getByRole("separator", { name: "Resize workspace" });
+      const maximize = panel.getByRole("button", { name: "Expand workspace", exact: true });
+      await expect.poll(async () => (await dockGeometry()).percentage).toBeCloseTo(55, 1);
+      await expect.poll(async () => (await dockGeometry()).rightGap).toBe(0);
+      const initialFiles = (await dockGeometry()).files;
       const handle = await resize.boundingBox();
       if (!handle) throw new Error("The docked Files panel has no visible resize handle");
       const x = handle.x + handle.width / 2;
@@ -350,11 +355,20 @@ test.describe("desktop pointer controls", () => {
       await page.mouse.down();
       await page.mouse.move(x - 40, y, { steps: 4 });
       await page.mouse.up();
-      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+      await expect
+        .poll(async () => Math.abs((await dockGeometry()).files - initialFiles - 40))
+        .toBeLessThanOrEqual(1);
+      await expect.poll(async () => (await dockGeometry()).rightGap).toBe(0);
+      const resizedFiles = (await dockGeometry()).files;
       await clickCenter(page, maximize);
       await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1680);
-      await clickCenter(page, panel.getByRole("button", { name: "Back beside the chat" }));
-      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+      await clickCenter(page, panel.getByRole("button", { name: "Dock workspace" }));
+      await expect.poll(dockGeometry).toMatchObject({ files: resizedFiles, rightGap: 0 });
+
+      await resize.press("Home");
+      await expect.poll(async () => (await dockGeometry()).percentage).toBeCloseTo(35, 1);
+      await resize.press("End");
+      await expect.poll(async () => (await dockGeometry()).percentage).toBeCloseTo(65, 1);
 
       const initialClose = await close.boundingBox();
       const before = await composer.boundingBox();
@@ -373,15 +387,16 @@ test.describe("desktop pointer controls", () => {
       expect(await close.boundingBox()).toEqual(initialClose);
       expect((await composer.boundingBox())?.y).toBe(before?.y);
 
-      // Restore the conversation list at a width where the dock still fits but
-      // its 38% cap leaves no drag range. Maximize remains available.
+      // Restoring the conversation list narrows the chat below the docking
+      // breakpoint, even while the window itself remains wide.
       await page.setViewportSize({ width: 1460, height: 1000 });
       await page.getByRole("button", { name: "Expand conversations sidebar" }).click();
       await expect(maximize).toBeVisible();
       await expect(resize).toBeHidden();
       const constrained = await dockGeometry();
+      expect(constrained.container).toBeLessThan(1000);
       expect(constrained.rightGap).toBe(0);
-      expect(Math.abs(constrained.files - constrained.chat * 0.38)).toBeLessThan(1);
+      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
       await clickCenter(page, maximize);
       await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
       await clickCenter(page, close);
