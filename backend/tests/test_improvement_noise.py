@@ -385,7 +385,6 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     read = await pipeline._read(ctx, run, noise=False)
 
     if denied == "runs":
-        # Without runs:view a session reads as its status alone, rounds and all left out.
         assert read.iterations == []
         criterion_access.eval_run_repo.datasets.assert_not_awaited()
         assert "private rubric" not in read.model_dump_json()

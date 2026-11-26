@@ -2,10 +2,13 @@
 
 A platform tool's arguments are ids, a hash and flags. Each describer here reads the
 records they name as the run's person, through the same service checks a console read
-takes, and answers names: the agent, the attempt and its verdict, the version a
-publish makes. As with a capability's describer, `None` - a record gone, or one the
-person may not read - parks the call with its raw arguments, because a description is
-a courtesy and the approval is not.
+takes, and answers names: the agent, the attempt and its verdict, the skill or dataset
+version a call means. As with a capability's describer, `None` - a record gone, or one
+the person may not read - parks the call with its raw arguments, because a description
+is a courtesy and the approval is not.
+
+Each read imports its services inside it: those services reach the agent
+capabilities this module serves.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
@@ -32,7 +35,6 @@ def _id(value: object) -> UUID:
 async def _accept_improvement(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
-    # Imported here: the services reach the agent capabilities this module serves.
     from app.services.agent_registry import AgentRegistryService
     from app.services.improvement_pipeline import ImprovementPipelineService
 
@@ -54,7 +56,6 @@ async def _accept_improvement(
 async def _publish_agent(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
-    # Imported here: the services reach the agent capabilities this module serves.
     from app.services.agent_registry import AgentRegistryService
 
     # No version number: a publish takes the next one when it runs, not when it parks.
@@ -65,7 +66,6 @@ async def _publish_agent(
 async def _change_skill_version(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
-    # Imported here: the services reach the agent capabilities this module serves.
     from app.repositories import skill_version as skill_version_repo
     from app.services.agent_registry import AgentRegistryService
     from app.services.skills import SkillService
@@ -89,7 +89,6 @@ async def _change_skill_version(
 async def _accept_skill_improvement(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
-    # Imported here: the services reach the agent capabilities this module serves.
     from app.services.agent_registry import AgentRegistryService
     from app.services.skills import SkillService
 
@@ -107,7 +106,6 @@ async def _accept_skill_improvement(
 async def _start_eval_run(
     db: AsyncSession, ctx: AuthContext, args: Mapping[str, Any]
 ) -> dict[str, str]:
-    # Imported here: the services reach the agent capabilities this module serves.
     from app.services.agent_registry import AgentRegistryService
     from app.services.dataset import DatasetService
 

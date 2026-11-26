@@ -1796,7 +1796,6 @@ class TestActingOnASession:
             "POST",
             f"/agents/{AGENT}/improvements/{SESSION}/finish",
         )
-        # The attempt the card named, which the server holds the acceptance to.
         assert api.request.await_args.kwargs == {
             "json": {"confirmed": True, "attempt": 2, "publish": publish, "automatic_check": False}
         }
@@ -1912,7 +1911,6 @@ class TestDraftingKnowledge:
             }
         )
         await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
-        # An estimate with no price leaves nothing to agree to, and the draft still runs.
         assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
         assert api.request.await_args.kwargs["json"] is None
 
