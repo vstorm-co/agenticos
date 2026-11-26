@@ -22140,6 +22140,22 @@
       "preview": "Alleen een voorbeeld van de indeling. Gegevens en rechten worden bij het openen per persoon bepaald.",
       "empty": "Deze rolstandaard bevat bewust geen kaarten.",
       "discard": "Wijzigingen verwerpen"
+    },
+    "rolePreview": {
+      "open": "Consolevoorbeeld openen",
+      "hint": "Rolstandaarden vóór persoonlijke keuzes. Navigatie gebruikt je huidige concept; dashboard, catalogi en meldingen gebruiken opgeslagen instellingen. Kaarten laden geen privégegevens.",
+      "navigation": "Navigatie",
+      "dashboard": "Dashboard",
+      "catalogs": "Catalogi",
+      "emptyDashboard": "Er worden geen dashboardkaarten getoond.",
+      "emptyNavigation": "Er worden geen hoofdnavigatie-items getoond.",
+      "wholeCatalog": "Alle items die bestaande rechten toestaan",
+      "approvedLimit": "{count, plural, =0 {Geen items} one {Maximaal # goedgekeurd item} other {Maximaal # goedgekeurde items}}",
+      "mcp_galleryAvailable": "Alleen door de organisatie verbonden servers",
+      "skill_galleryAvailable": "Alleen zichtbare geïnstalleerde Skills",
+      "shown": "Zichtbaar",
+      "hidden": "Verborgen",
+      "unavailable": "Niet beschikbaar met deze rechten"
     }
   },
   "modelSources": {

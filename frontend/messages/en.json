@@ -22351,6 +22351,22 @@
       "preview": "Arrangement preview only. Each person’s data and permissions are resolved when they open it.",
       "empty": "This role default intentionally has no cards.",
       "discard": "Discard changes"
+    },
+    "rolePreview": {
+      "open": "Open console preview",
+      "hint": "Role defaults before personal choices. Navigation uses your current draft; dashboard, galleries and prompts use saved settings. Widget placeholders load no private data.",
+      "navigation": "Navigation",
+      "dashboard": "Dashboard",
+      "catalogs": "Catalogs",
+      "emptyDashboard": "No dashboard cards are shown.",
+      "emptyNavigation": "No primary navigation entries are shown.",
+      "wholeCatalog": "All entries allowed by existing permissions",
+      "approvedLimit": "{count, plural, =0 {No entries} one {Up to # approved entry} other {Up to # approved entries}}",
+      "mcp_galleryAvailable": "Only organization-connected servers",
+      "skill_galleryAvailable": "Only visible installed skills",
+      "shown": "Shown",
+      "hidden": "Hidden",
+      "unavailable": "Unavailable for these permissions"
     }
   },
   "modelSources": {

@@ -18668,6 +18668,22 @@
       "preview": "Yalnızca düzen önizlemesi. Veri ve izinler açılışta her kişi için belirlenir.",
       "empty": "Bu rol varsayılanı bilinçli olarak hiç kart içermez.",
       "discard": "Değişiklikleri iptal et"
+    },
+    "rolePreview": {
+      "open": "Konsol önizlemesini aç",
+      "hint": "Kişisel seçimlerden önce rol varsayılanları. Gezinme mevcut taslağınızı; dashboard, kataloglar ve bildirimler kaydedilmiş ayarları kullanır. Kartlar özel veri yüklemez.",
+      "navigation": "Gezinme",
+      "dashboard": "Dashboard",
+      "catalogs": "Kataloglar",
+      "emptyDashboard": "Gösterilen dashboard kartı yok.",
+      "emptyNavigation": "Gösterilen ana gezinme öğesi yok.",
+      "wholeCatalog": "Mevcut izinlerin izin verdiği tüm öğeler",
+      "approvedLimit": "{count, plural, =0 {Öğe yok} one {En fazla # onaylı öğe} other {En fazla # onaylı öğe}}",
+      "mcp_galleryAvailable": "Yalnızca kuruluşun bağladığı sunucular",
+      "skill_galleryAvailable": "Yalnızca görünür yüklü Skills",
+      "shown": "Gösterilir",
+      "hidden": "Gizli",
+      "unavailable": "Bu izinlerle kullanılamaz"
     }
   },
   "onboardingStatus": {

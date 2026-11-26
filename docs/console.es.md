@@ -1,5 +1,5 @@
 ---
-source_sha: "913be12ee5fc"
+source_sha: "7f1565c8ad05"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -219,7 +219,9 @@ En **Admin → Deployment → Identidad → Disponibilidad de la consola**, el o
 
 Los miembros pueden reducir esa selección en **Ajustes → Perfil → Mi navegación**. Una selección vacía oculta intencionadamente todas las entradas principales; una heredada sigue la organización y el despliegue. Los borradores de navegación requieren **Guardar** y avisan antes de salir con cambios pendientes. Los ajustes de cuenta, el cambio de organización y el acceso del administrador siguen disponibles. Ocultar una página no revoca permisos: una persona autorizada aún puede abrir su URL. La comprobación normal de permisos se aplica después del filtro de presentación.
 
-La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. No suplanta a nadie ni carga contenido privado. **Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
+La vista previa del rol filtra la navegación según el rol elegido y los permisos propios del administrador. **Abrir vista previa de la consola** muestra también las tarjetas permitidas del dashboard, las restricciones de los catálogos y la visibilidad de los avisos. Usa el borrador actual de navegación y los valores del rol guardados, antes de las preferencias personales. Las tarjetas son marcadores: la vista previa no suplanta a nadie ni carga datos privados. Las cifras de catálogo son límites máximos antes de comprobar entradas conectadas/instaladas y permisos, no totales actuales.
+
+**Sugerencias del producto** controla por separado la invitación de escritorio y las sugerencias automáticas de versiones e instalación móvil, en los niveles de despliegue, organización y miembro. Las preferencias personales no superan las restricciones superiores. Los avisos de mantenimiento, disponibilidad y seguridad mantienen su comportamiento; ocultar la invitación no desactiva una aplicación instalada.
 
 
 ### Catálogos y paneles por rol { #console-catalogs }

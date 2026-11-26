@@ -102,6 +102,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
+
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
 - Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
 - Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.

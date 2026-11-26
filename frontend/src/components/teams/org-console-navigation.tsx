@@ -16,7 +16,7 @@ import { widgetCatalog } from "@/lib/dashboard/preference";
 import { OrganizationConsoleDashboard } from "./org-console-dashboard";
 import { ConsoleCatalogControls } from "@/components/settings/console-catalog-controls";
 import { ConsoleNavigationControls } from "@/components/settings/console-navigation-controls";
-import { NAV_GROUPS, presentedNavigation } from "@/lib/nav-sections";
+import { OrganizationConsoleRolePreview } from "./org-console-role-preview";
 import type { ConsolePresentation, ConsoleRoleDefaults } from "@/lib/console-experience-api";
 import type { Permission } from "@/types/permissions";
 import type { OrgRole } from "@/types/organization";
@@ -35,7 +35,6 @@ export function OrganizationConsoleNavigation({
 }) {
   const id = useId();
   const t = useTranslations("consoleExperience.presentation");
-  const nav = useTranslations("nav");
   const catalogs = useTranslations("consoleExperience.catalogs");
   const [role, setRole] = useState<OrgRole>("member");
   const [navDirty, setDirty] = useState(false);
@@ -95,29 +94,15 @@ export function OrganizationConsoleNavigation({
         disabled={disabled}
         onSave={(navigation, onSaved) => onSave(role, { navigation }, onSaved)}
         preview={(selection) => (
-          <aside className="bg-muted/30 self-start rounded-xl border p-4" aria-label={t("preview")}>
-            <h3 className="text-sm font-medium">
-              {t("previewRole", { role: t(`roles.${role}`) })}
-            </h3>
-            <p className="text-muted-foreground mt-1 text-xs leading-5">{t("previewHint")}</p>
-            <ul className="mt-4 space-y-1">
-              {presentedNavigation(
-                NAV_GROUPS.filter((group) => !group.adminOnly && !group.switcherOnly),
-                selection,
-              )
-                .flatMap((group) => group.items)
-                .filter((item) => !item.permission || previewCan(item.permission))
-                .map((item) => (
-                  <li
-                    key={item.labelKey}
-                    className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
-                  >
-                    <item.icon className="text-muted-foreground size-4" aria-hidden />
-                    {nav(item.labelKey)}
-                  </li>
-                ))}
-            </ul>
-          </aside>
+          <OrganizationConsoleRolePreview
+            selection={selection}
+            role={role}
+            can={previewCan}
+            defaults={defaults?.[role]}
+            presentation={presentation}
+            managesMcp={!!managesMcp}
+            managesSkills={!!managesSkills}
+          />
         )}
       />
       {managesMcp ? (

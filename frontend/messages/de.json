@@ -22037,6 +22037,22 @@
       "preview": "Nur Vorschau der Anordnung. Daten und Berechtigungen werden beim Öffnen für jede Person aufgelöst.",
       "empty": "Dieser Rollenstandard enthält bewusst keine Karten.",
       "discard": "Änderungen verwerfen"
+    },
+    "rolePreview": {
+      "open": "Konsolenvorschau öffnen",
+      "hint": "Rollenvorgaben vor persönlichen Einstellungen. Die Navigation nutzt Ihren Entwurf; Dashboard, Kataloge und Hinweise nutzen gespeicherte Einstellungen. Platzhalter laden keine privaten Daten.",
+      "navigation": "Navigation",
+      "dashboard": "Dashboard",
+      "catalogs": "Kataloge",
+      "emptyDashboard": "Keine Dashboard-Karten werden angezeigt.",
+      "emptyNavigation": "Keine Einträge der Hauptnavigation werden angezeigt.",
+      "wholeCatalog": "Alle durch bestehende Berechtigungen erlaubten Einträge",
+      "approvedLimit": "{count, plural, =0 {Keine Einträge} one {Bis zu # genehmigter Eintrag} other {Bis zu # genehmigte Einträge}}",
+      "mcp_galleryAvailable": "Nur von der Organisation verbundene Server",
+      "skill_galleryAvailable": "Nur sichtbare installierte Skills",
+      "shown": "Sichtbar",
+      "hidden": "Ausgeblendet",
+      "unavailable": "Mit diesen Berechtigungen nicht verfügbar"
     }
   },
   "modelSources": {

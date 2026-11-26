@@ -1,5 +1,5 @@
 ---
-source_sha: "913be12ee5fc"
+source_sha: "7f1565c8ad05"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -219,7 +219,9 @@ Unter **Admin → Deployment → Identität → Verfügbarkeit der Konsole** wä
 
 Mitglieder können diese Auswahl unter **Einstellungen → Profil → Meine Navigation** weiter einschränken. Eine leere Auswahl blendet bewusst alle primären Einträge aus; eine geerbte Auswahl folgt Organisation und Deployment. Navigationsentwürfe erfordern **Speichern** und warnen vor dem Verlassen mit ungespeicherten Änderungen. Kontoeinstellungen, Organisationswechsel und Administratorzugriff bleiben erreichbar. Das Ausblenden einer Seite entzieht keine Berechtigung: Berechtigte Personen können ihre URL weiterhin öffnen. Die normale Berechtigungsprüfung erfolgt nach dem Darstellungsfilter.
 
-Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. Sie imitiert niemanden und lädt keine privaten Inhalte. **Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
+Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. **Konsolenvorschau öffnen** zeigt außerdem erlaubte Dashboard-Karten, Katalogbeschränkungen und Produkthinweise gemeinsam. Sie nutzt den aktuellen Navigationsentwurf und gespeicherte Rollenvorgaben, vor persönlichen Einstellungen eines Mitglieds. Karten sind Platzhalter: Die Vorschau imitiert niemanden und lädt keine privaten Widget-Daten. Katalogzahlen sind Obergrenzen vor der Prüfung verbundener/installierter Einträge und Ressourcenrechte, keine aktuellen Katalogsummen.
+
+**Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
 
 
 ### Kataloge und Rollen-Dashboards { #console-catalogs }
