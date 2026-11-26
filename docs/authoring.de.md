@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0a7ae06283"
+source_sha: "aa9d601ba426"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -157,11 +157,11 @@ benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
 selbst. Eine Skill- oder Kontextänderung, die auf einer Suite des Agents geprüft
 wird, auf dem sie läuft, bekommt dasselbe.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%); die eigenen Testfragen eines Skills sind alle Kontrollfragen, und ihr Anteil lässt sich nicht senken. Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche mit dem Anteil neu auf, den das Dataset beim Start der Sitzung hatte, und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
 Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
 Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Von jedem früheren Versuch liest er das Urteil und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat, nie, was der Versuch geändert hat: Jeder Versuch legt seine eigenen Fragen zurück, neu gezogen, sodass eine frühere Änderung aus Fragen entstanden sein kann, an denen dieser Versuch gemessen wird.
 

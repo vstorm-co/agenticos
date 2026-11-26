@@ -617,6 +617,15 @@ class DatasetService:
             if changes_helpers
             else await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         )
+        if (
+            dataset.skill_id is not None
+            and data.improvement_holdout_share is not None
+            and data.improvement_holdout_share != 1
+        ):
+            raise refused_field(
+                "improvement_holdout_share",
+                "Every question of a skill's own test set is held out, so its share stays 1",
+            )
         update_data = writable(data, over=Dataset)
         if changes_helpers:
             kept = DatasetHelpers.model_validate(dataset.helper_settings or {})
@@ -974,6 +983,7 @@ class DatasetService:
             organization_id=ctx.organization_id,
             case_id=identity,
             improvement_partition=partition
+            or ("holdout" if dataset.skill_id is not None else None)
             or case_partition(identity, dataset.improvement_holdout_share),
             source=source.value,
             created_by_user_id=ctx.subject_id,

@@ -748,6 +748,7 @@ class ImprovementPipelineService:
                 base_draft_hash=inputs.pins.draft_hash,
                 dataset_id=inputs.request.dataset_id,
                 dataset_version=inputs.request.dataset_version or 1,
+                holdout_share=await self._holdout_share(ctx, inputs.request.dataset_id),
                 suite_id=data.suite_id,
                 suite_hash=inputs.suite_hash,
                 scoring_hash=inputs.current_scoring_hash,
@@ -3359,15 +3360,22 @@ class ImprovementPipelineService:
             if case.case_id in wanted
         ]
 
+    async def _holdout_share(self, ctx: AuthContext, dataset_id: UUID) -> Decimal:
+        """The dataset's held-out share now, which a session pins when it starts."""
+        dataset = await dataset_repo.get(self.db, dataset_id, organization_id=ctx.organization_id)
+        if dataset is None:
+            raise NotFoundError(
+                message="The dataset was deleted while the session was starting",
+                details={"dataset_id": dataset_id},
+            )
+        return dataset.improvement_holdout_share
+
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
-        """The share a new attempt keeps aside, and the pinned questions it draws them from."""
-        dataset = await dataset_repo.get(
-            self.db, run.dataset_id, organization_id=run.organization_id
-        )
+        """The share the session started with, and the pinned questions an attempt draws from."""
         version = await dataset_repo.get_version(
             self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
         )
-        assert dataset is not None and version is not None, "the quote checked the pinned set"
+        assert version is not None, "the quote checked the pinned set"
         cases = [
             case.case_id
             for case in await dataset_repo.list_cases(
@@ -3375,7 +3383,7 @@ class ImprovementPipelineService:
             )
             if case.anonymised_at is None
         ]
-        return dataset.improvement_holdout_share, cases
+        return run.holdout_share, cases
 
     async def _next_draw(
         self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, number: int

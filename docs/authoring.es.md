@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0a7ae06283"
+source_sha: "aa9d601ba426"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -151,11 +151,11 @@ de suite, no avisa a nadie, y Aceptar se guía por el veredicto del propio run.
 Un cambio de skill o de contexto comprobado en una suite del agente en el que
 funciona recibe lo mismo.
 
-Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias miden solo casos de control; una sesión de mejora reparte de nuevo las preguntas para cada uno de sus intentos, en la misma proporción, y mide cada intento en su propia parte de control. Ambas requieren al menos cinco preguntas de control evaluables.
+Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto); todas las preguntas de prueba propias de un skill son de control, y su proporción no puede bajarse. Las comprobaciones de sugerencias miden solo casos de control; una sesión de mejora reparte de nuevo las preguntas para cada uno de sus intentos, con la proporción que tenía el dataset cuando empezó la sesión, y mide cada intento en su propia parte de control. Ambas requieren al menos cinco preguntas de control evaluables.
 
 Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` o rechaza el paso que probaría demasiado pocas, e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
 
-Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
+Una sesión de mejora fija la versión del dataset, la proporción de control y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; ni nuevos chats, ni nuevos casos, ni un cambio de la proporción de control cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
 Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
 

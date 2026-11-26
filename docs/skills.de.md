@@ -1,5 +1,5 @@
 ---
-source_sha: "603a82afc33b"
+source_sha: "82442facb9b6"
 ---
 
 # Skills { #skills }
@@ -378,7 +378,8 @@ Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
 zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
 und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die andere
 fand.
-Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
+Jede Frage des Skill-Sets ist held-out - sein Anteil bleibt bei eins, und eine
+hinzugefügte Frage ist in jedem Fall held-out -, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
 
 Eine Prüfung schickt ihre bestätigten Regressionen und die Antworten, die der
