@@ -17752,7 +17752,7 @@
     "startDescription": "Use feedback and test cases to propose improvements. Review each step before applying changes.",
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
-    "linkedDatasetUnusable": "The dataset in the link cannot be used: it was removed, or you may not run it. The usual one is used instead.",
+    "linkedDatasetUnusable": "The dataset in the link cannot be used: it was removed, or you may not run it. {usual, select, yes {The usual one is used instead.} other {Choose one below.}}",
     "linkedDatasetUnread": "The dataset in the link could not be read, so nothing is priced yet. {reason}",
     "analysisEstimate": "Estimated analysis cost",
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",

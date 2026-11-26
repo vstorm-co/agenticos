@@ -17694,7 +17694,7 @@
     "startDescription": "İyileştirme önermek için geri bildirimleri ve test vakalarını kullanın. Değişiklikleri uygulamadan önce her adımı inceleyin.",
     "startDataset": "Dataset",
     "startDatasetHint": "Bu agent'ın yanıtlarını kontrol etmek için kullanılacak vakaları seçin.",
-    "linkedDatasetUnusable": "Bağlantıdaki dataset kullanılamıyor: kaldırıldı ya da onu çalıştıramazsınız. Bunun yerine her zamanki kullanılıyor.",
+    "linkedDatasetUnusable": "Bağlantıdaki dataset kullanılamıyor: kaldırıldı ya da onu çalıştıramazsınız. {usual, select, yes {Bunun yerine her zamanki kullanılıyor.} other {Aşağıdan başka birini seçin.}}",
     "linkedDatasetUnread": "Bağlantıdaki dataset okunamadı, bu yüzden henüz hiçbir şey fiyatlandırılmadı. {reason}",
     "analysisEstimate": "Tahmini analiz maliyeti",
     "startCostHint": "Önce analiz yapılır. Sonraki her deneme, oturum limiti içinde ve yaklaşık {cost} olarak ayrıca tahmin edilir.",

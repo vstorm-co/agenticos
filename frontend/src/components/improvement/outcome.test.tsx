@@ -337,6 +337,19 @@ it("counts the session's topics it could not read, and points to the ones past w
   );
 });
 
+it("never says nothing is missing when none of the session's topics could be read", () => {
+  state.topics = [];
+  state.skipped = 2;
+  state.evidenceTopics = ["gone1", "gone2"];
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(
+    screen.getByText(
+      "2 topics this session found could not be read: they were removed, or you cannot see them.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).not.toBeInTheDocument();
+});
+
 it("keeps a document set aside with Not now off the list, and says when that fails", async () => {
   state.topics = [topic("t1"), topic("t2")];
   const view = render(<KnowledgeDocuments session={SESSION} accept />);

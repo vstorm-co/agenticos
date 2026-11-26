@@ -330,12 +330,27 @@ it("never prices or starts a linked dataset it cannot read or run, and says so",
     state.params = new URLSearchParams(`improveDataset=${id}`);
     const view = render(<StartSession agentId="a1" onClose={vi.fn()} />);
     expect(
-      screen.getByText(/The dataset in the link cannot be used: it was removed/),
+      screen.getByText(
+        "The dataset in the link cannot be used: it was removed, or you may not run it. The usual one is used instead.",
+      ),
     ).toBeInTheDocument();
     await screen.findByText("Measured on Refund desk - test questions.");
     expect(state.estimate).not.toHaveBeenCalledWith(expect.objectContaining({ dataset_id: id }));
     view.unmount();
   }
+});
+
+it("asks for a dataset when the linked one cannot be used and the agent has none of its own", () => {
+  state.own = [];
+  state.linked = { gone: new ApiError(404, "Dataset not found") };
+  state.params = new URLSearchParams("improveDataset=gone");
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(
+    screen.getByText(
+      "The dataset in the link cannot be used: it was removed, or you may not run it. Choose one below.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/The usual one is used instead/)).not.toBeInTheDocument();
 });
 
 it("shows a linked dataset that failed to read, and prices nothing until it is read", async () => {

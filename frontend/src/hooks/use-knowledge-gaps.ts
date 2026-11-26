@@ -102,6 +102,10 @@ export function useKnowledgeGapTopics(topicIds: string[]) {
       queryKey: qk.knowledgeGaps.detail(topicId),
       queryFn: () => apiClient.get<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}`),
       retry: (failures: number, cause: unknown) => !unreachable(cause) && failures < 1,
+      // A failed read with no data goes back to pending when read again, which unmounts
+      // whatever a failure shows; a part of the page mounting on that failure would then
+      // read it again on every mount. It is read again only when asked.
+      retryOnMount: false,
     })),
   });
   const failed = reads.filter((read) => read.error !== null);

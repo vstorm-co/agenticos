@@ -17286,7 +17286,7 @@
     "startDescription": "Utilisez les retours et les cas de test pour proposer des améliorations. Examinez chaque étape avant d’appliquer les modifications.",
     "startDataset": "Dataset",
     "startDatasetHint": "Choisissez les cas utilisés pour vérifier les réponses de cet agent.",
-    "linkedDatasetUnusable": "Le dataset du lien ne peut pas être utilisé : il a été supprimé, ou vous ne pouvez pas l’exécuter. Le dataset habituel est utilisé à la place.",
+    "linkedDatasetUnusable": "Le dataset du lien ne peut pas être utilisé : il a été supprimé, ou vous ne pouvez pas l’exécuter. {usual, select, yes {Le dataset habituel est utilisé à la place.} other {Choisissez-en un ci-dessous.}}",
     "linkedDatasetUnread": "Le dataset du lien n’a pas pu être lu ; rien n’est encore chiffré. {reason}",
     "analysisEstimate": "Coût estimé de l’analyse",
     "startCostHint": "L’analyse vient en premier. Chaque tentative suivante est estimée séparément, autour de {cost}, dans la limite de la session.",
