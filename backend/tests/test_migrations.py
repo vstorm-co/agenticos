@@ -2228,7 +2228,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0357_accepted_queued_messages"
+                "0358_defer_dataset_source_links"
             ]
             row = connection.execute(
                 text(
@@ -2314,7 +2314,7 @@ class TestRoomThreadMigration:
         receipts = script.get_revision("0356_trigger_webhook_receipts")
         assert receipts is not None
         assert receipts.down_revision == "0355_magic_link_claims"
-        assert script.get_heads() == ["0357_accepted_queued_messages"]
+        assert script.get_heads() == ["0358_defer_dataset_source_links"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2342,7 +2342,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0357_accepted_queued_messages"]
+                ).all() == ["0358_defer_dataset_source_links"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2444,7 +2444,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0357_accepted_queued_messages"]
+                ).all() == ["0358_defer_dataset_source_links"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2647,7 +2647,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0357_accepted_queued_messages"
+                "0358_defer_dataset_source_links"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3605,7 +3605,7 @@ def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
         assert "personal_context_cache" in inspector.get_table_names()
         with engine.begin() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0357_accepted_queued_messages"
+                "0358_defer_dataset_source_links"
             ]
             assert (
                 connection.scalar(

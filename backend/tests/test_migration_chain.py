@@ -269,8 +269,9 @@ def test_openbot_features_apply_after_the_published_t3_teaching_chain(
 
 def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
     chain = _chain()
-    assert chain.get_heads() == ["0357_accepted_queued_messages"]
+    assert chain.get_heads() == ["0358_defer_dataset_source_links"]
     expected = {
+        "0358_defer_dataset_source_links": "0357_accepted_queued_messages",
         "0339_browser_teaching_capture": "0338_message_reply_excerpt",
         "0340_browser_teaching_review": "0339_browser_teaching_capture",
         "0341_room_task_handoffs": "0340_browser_teaching_review",
