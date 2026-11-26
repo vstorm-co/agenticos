@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
+- Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
+- Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
+- Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
+- Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
+
+### Security
+
+- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
+- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
+
+### Upgrading
+
+- **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
+  - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
+  - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.
+
+  A request without them is refused with `422`; one naming another attempt or result, with `409`.
+
+## [1.94.0] - 2026-11-26
+
 ### Added
 
 - Bind event sources to organization Vault secrets, including dedicated inbound Basic credentials. Rotation and visibility changes apply to webhook admission without copying credentials.
@@ -115,22 +138,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Refresh the backend dependency lock and verify compatibility with current SDKs.
   Keep Daytona on its supported 0.x API until the workspace adapter supports the
   SDK 2.x namespace migration.
-- Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
-- Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
-- Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
-- Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
-- Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
 ### Changed
 
 - Keep Event sources as a contextual management page linked from routines and workflows instead of a default sidebar destination. Provider marks, Vault selection and inherited navigation controls make setup consistent with the console.
 
 - Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
-
-### Security
-
-- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
-- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
 
 ### Upgrading
 
@@ -191,11 +204,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0365_project_resources.py` and `0366_shared_mcp_oauth_clients.py` to add
   resource links and the unique organization MCP OAuth client identity. Existing
   resources, projects, credentials and connection flows are preserved.
-- **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
-  - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
-  - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.
-
-  A request without them is refused with `422`; one naming another attempt or result, with `409`.
 
 ## [1.93.0] - 2026-11-24
 
@@ -23015,7 +23023,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
