@@ -201,7 +201,8 @@ def redact_credentials(text: str | None) -> tuple[str | None, int]:
 
 
 def redact_json(value: JsonValue) -> tuple[JsonValue, int]:
-    """Every string in `value` redacted as :func:`redact_credentials` redacts text, and how many were."""
+    """Every string in `value`, a key as much as a value, redacted as :func:`redact_credentials`
+    redacts text, and how many were."""
     if isinstance(value, str):
         cleaned, found = redact_credentials(value)
         return cleaned, found
@@ -209,10 +210,14 @@ def redact_json(value: JsonValue) -> tuple[JsonValue, int]:
         items = [redact_json(item) for item in value]
         return [item for item, _ in items], sum(found for _, found in items)
     if isinstance(value, dict):
-        entries = {key: redact_json(item) for key, item in value.items()}
-        return {key: item for key, (item, _) in entries.items()}, sum(
-            found for _, found in entries.values()
-        )
+        redacted: dict[str, JsonValue] = {}
+        total = 0
+        for key, item in value.items():
+            cleaned_key, key_found = redact_credentials(key)
+            cleaned, found = redact_json(item)
+            redacted[cleaned_key or key] = cleaned
+            total += key_found + found
+        return redacted, total
     return value, 0
 
 

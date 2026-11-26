@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from app.core.redaction import redact_secrets
+from app.core.redaction import holds_credential, redact_secrets
+from app.services.dataset import redact_json
 
 pytestmark = pytest.mark.security
 
@@ -79,6 +80,20 @@ def test_a_vendor_key_in_a_query_keeps_its_own_label() -> None:
     redacted = _redacted("https://x.test/?api_key=sk-proj-" + "A1b2" * 10)
 
     assert redacted == "https://x.test/?api_key=[redacted:openai_key]"
+
+
+def test_a_credential_in_a_key_is_found_and_redacted() -> None:
+    leaked = "postgres://app:Kanar3kKey@db/app"
+    value = {"files": {f"notes {leaked}": "Refunds take 30 days."}}
+
+    redacted, found = redact_json(value)
+
+    assert holds_credential(value)
+    assert not holds_credential({"files": {"notes.md": "Refunds take 30 days."}})
+    assert found == 1 and "Kanar3kKey" not in str(redacted)
+    assert redacted == {
+        "files": {"notes postgres://[redacted:url_credentials]@db/app": "Refunds take 30 days."}
+    }
 
 
 def test_only_the_platform_detector_is_built_from_the_harness_secret_patterns() -> None:

@@ -233,18 +233,19 @@ class ContextProposalService:
             decided_by_user_id=proposal.decided_by_user_id,
             decided_at=proposal.decided_at,
             stale=file.updated_at != proposal.base_updated_at,
-            rationale=proposal.rationale,
+            rationale=redact_credentials(proposal.rationale)[0] or proposal.rationale,
             evidence=[
                 {
                     "run_id": item.get("run_id"),
-                    "quote": item.get("quote"),
+                    "quote": redact_credentials(item.get("quote"))[0],
                     "source": item.get("source"),
                     "number": item.get("number"),
                 }
                 for item in proposal.evidence
             ],
             evidence_dropped=proposal.evidence_dropped,
-            expected_effect=proposal.expected_effect,
+            expected_effect=redact_credentials(proposal.expected_effect)[0]
+            or proposal.expected_effect,
             authoring_request_id=proposal.authoring_request_id,
             used_by=used,
             revision=proposal.revision,

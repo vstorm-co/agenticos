@@ -411,14 +411,17 @@ QUOTES_CREDENTIAL = "This change quotes a credential; reject it or edit the text
 
 
 def hunk_quotes_credential(hunk: SpecProposalHunk) -> bool:
-    """Whether anything the hunk would write quotes a credential: its text as a person left
-    it, a tool's new name or description, a field's value, or a new skill."""
+    """Whether anything the hunk would write, or wrote, quotes a credential: its text as a
+    person left it or accepted it, a tool's new name or description, a field's value as
+    proposed or accepted, or a new skill."""
     return holds_credential(
         [
             hunk.edited_text or hunk.new_text,
+            hunk.accepted_text,
             hunk.new_name,
             hunk.new_description,
             hunk.new_value,
+            hunk.accepted_value,
         ]
     )
 

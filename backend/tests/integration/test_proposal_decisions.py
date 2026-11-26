@@ -668,6 +668,56 @@ async def test_a_skill_run_whose_pending_proposal_was_decided_proposes_anew(db, 
 
 
 @pytest.mark.security
+async def test_a_credential_in_a_resource_name_or_a_reason_is_shown_redacted(db):
+    ctx, _, skill = await _opened(db, content="Refunds take 90 days.")
+    token = "glpat-Kanar3kResourceName0000"
+    leaked = "postgres://app:Kanar3kReason@db/app"
+    skill_proposal = SkillProposal(
+        organization_id=ctx.organization_id,
+        skill_id=skill.id,
+        name="refunds",
+        description="Refunds",
+        content="Refunds take 30 days.",
+        resources={f"notes-{token}.md": "Refunds take 30 days."},
+    )
+    file = ContextFile(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name="returns",
+        description="Returns",
+        content="Returns take 90 days.",
+        mode="inject",
+    )
+    db.add_all([skill_proposal, file])
+    await db.flush()
+    context_proposal = ContextProposal(
+        organization_id=ctx.organization_id,
+        context_id=file.id,
+        base_updated_at=file.updated_at,
+        description="Returns",
+        content="Returns take 30 days.",
+        rationale=f"Readers pasted {leaked}",
+        evidence=[{"run_id": str(uuid.uuid4()), "quote": f"It broke on {leaked}"}],
+        expected_effect=f"No more {leaked}",
+    )
+    db.add(context_proposal)
+    await db.flush()
+    skills, contexts = SkillProposalService(db), ContextProposalService(db)
+
+    skill_read = await skills.read(ctx, skill_proposal.id)
+    context_read = await contexts.read(ctx, context_proposal.id)
+    with pytest.raises(BadRequestError, match="quotes a credential"):
+        await skills.apply(ctx, skill_proposal.id, ProposalDecision(revision=1))
+
+    assert skill_read.contains_credential
+    assert "Kanar3k" not in skill_read.model_dump_json()
+    assert "Kanar3k" not in context_read.model_dump_json()
+    await db.refresh(skill)
+    assert skill.content == "Refunds take 90 days."
+
+
+@pytest.mark.security
 async def test_a_proposal_quoting_a_credential_is_shown_redacted_and_never_applied(db):
     ctx, _, skill = await _opened(db, content="Refunds take 90 days.")
     leaked = "postgres://app:Kanar3kProposal@db/app"

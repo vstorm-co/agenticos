@@ -234,7 +234,7 @@ class SkillProposalService:
                 "description": redact_credentials(read.description)[0] or read.description,
                 "content": redact_credentials(read.content)[0] or read.content,
                 "resources": {
-                    name: redact_credentials(body)[0] or body
+                    redact_credentials(name)[0] or name: redact_credentials(body)[0] or body
                     for name, body in read.resources.items()
                 },
                 "contains_credential": proposal_quotes_credential(proposal),

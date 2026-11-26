@@ -468,6 +468,7 @@ class TestImprove:
         for hunk in hunks:
             hunk.rationale = f"Readers saw {leaked}"
             hunk.expected_effect = f"No more {leaked}"
+        hunks[0].accepted_value = {"endpoint": leaked, leaked: "as a key"}
         request.report = {**(request.report or {}), "summary": f"It printed {leaked}"}
         await db.flush()
 
@@ -476,6 +477,9 @@ class TestImprove:
         shown = read.model_dump_json()
         assert "Kanar3kKept" not in shown
         assert "[redacted:url_credentials]" in shown
+        assert read.batch is not None
+        [accepted] = [hunk for hunk in read.batch.hunks if hunk.id == hunks[0].id]
+        assert accepted.contains_credential
 
     @pytest.mark.security
     async def test_a_kept_change_quoting_a_credential_is_shown_redacted_and_refused_until_edited(

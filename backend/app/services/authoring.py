@@ -1133,7 +1133,7 @@ class AuthoringService:
             op=hunk.op,
             base_value=hunk.base_value,
             new_value=redact_json(hunk.new_value)[0],
-            accepted_value=hunk.accepted_value,
+            accepted_value=redact_json(hunk.accepted_value)[0],
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
             blocked=blocked,

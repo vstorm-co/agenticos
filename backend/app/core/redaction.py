@@ -38,11 +38,12 @@ redact_secrets = secret_data(extra=PLATFORM_SECRET_PATTERNS)
 
 
 def holds_credential(value: object) -> bool:
-    """Whether a string, or any string inside a JSON value, holds a credential this detector finds."""
+    """Whether a string, or any string inside a JSON value - a key as much as a value - holds
+    a credential this detector finds."""
     if isinstance(value, str):
         return bool(value) and redact_secrets(value).action == "replace"
     if isinstance(value, list):
         return any(holds_credential(item) for item in value)
     if isinstance(value, dict):
-        return any(holds_credential(item) for item in value.values())
+        return any(holds_credential(key) or holds_credential(item) for key, item in value.items())
     return False
