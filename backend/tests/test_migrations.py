@@ -2958,7 +2958,7 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
 def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_cleanly() -> None:
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
-    result = _alembic("downgrade", "0373_project_filesystem_mounts")
+    result = _alembic("downgrade", "0374_case_from_conversation")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
@@ -3021,7 +3021,7 @@ def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_clean
                 text("UPDATE organizations SET monthly_budget_usd = NULL WHERE id = :id"),
                 {"id": org_id},
             )
-        result = _alembic("downgrade", "0373_project_filesystem_mounts")
+        result = _alembic("downgrade", "0374_case_from_conversation")
         assert result.returncode == 0, result.stderr
         with engine.connect() as db:
             assert (
@@ -3142,6 +3142,116 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 )
     finally:
         engine.dispose()
+
+
+class TestCaseFromConversationBackfill:
+    def test_a_case_from_a_chat_is_flagged_even_once_its_links_are_gone(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0373_project_filesystem_mounts")
+        assert up.returncode == 0, up.stderr
+        rows: dict[str, tuple[str, str | None]] = {
+            "copied": ("conversation", None),
+            "drafted from a deleted chat": ("synthetic", "asked_by_user_id"),
+            "noted from a deleted chat": ("synthetic", "noted_by_user_id"),
+            "with a person's turn": ("synthetic", "history_author_ids"),
+            "drafted from a run": ("synthetic", "source_run_id"),
+            "drafted from a document": ("synthetic", "source_document_id"),
+            "typed": ("manual", None),
+            "imported": ("import", None),
+            "uncertain old revision": ("synthetic", None),
+            "uncertain current revision": ("synthetic", None),
+            "document reference already deleted": ("synthetic", None),
+            "document and chat": ("synthetic", "source_run_id"),
+            "document and note": ("synthetic", "noted_by_user_id"),
+            "document and history": ("synthetic", "history_author_ids"),
+        }
+        ids = {name: uuid4() for name in rows}
+        dataset, organization, uncertain_case = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for position, (name, (source, link)) in enumerate(rows.items()):
+                    connection.execute(
+                        text(
+                            "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
+                            "input, source, position, added_in, removed_in, improvement_partition, "
+                            "asked_by_user_id, noted_by_user_id, source_run_id, "
+                            "source_document_id, history, history_author_ids) VALUES (:id, "
+                            ":dataset, :org, :case, 'Q', :source, :position, :added, :removed, 'train', "
+                            ":asked_by_user_id, :noted_by_user_id, :source_run_id, "
+                            ":source_document_id, CAST(:history AS jsonb), "
+                            "CAST(:authors AS uuid[]))"
+                        ),
+                        {
+                            "id": ids[name],
+                            "dataset": dataset,
+                            "org": organization,
+                            "case": uncertain_case if name.startswith("uncertain") else uuid4(),
+                            "added": 2 if name == "uncertain current revision" else 1,
+                            "removed": 2 if name == "uncertain old revision" else None,
+                            "source": source,
+                            "position": position,
+                            **{
+                                column: uuid4()
+                                if column == link
+                                or (
+                                    name.startswith("document and ")
+                                    and column == "source_document_id"
+                                )
+                                else None
+                                for column in (
+                                    "asked_by_user_id",
+                                    "noted_by_user_id",
+                                    "source_run_id",
+                                    "source_document_id",
+                                )
+                            },
+                            "history": '[{"role": "user", "content": "Hi"}]'
+                            if link == "history_author_ids"
+                            else "[]",
+                            "authors": [str(uuid4())] if link == "history_author_ids" else [],
+                        },
+                    )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                flags = dict(
+                    connection.execute(
+                        text("SELECT id, from_conversation FROM dataset_cases")
+                    ).all()
+                )
+            assert {name: flags[ids[name]] for name in rows} == {
+                "copied": True,
+                "drafted from a deleted chat": True,
+                "noted from a deleted chat": True,
+                "with a person's turn": True,
+                "drafted from a run": True,
+                "drafted from a document": False,
+                "typed": False,
+                "imported": False,
+                "uncertain old revision": True,
+                "uncertain current revision": True,
+                "document reference already deleted": True,
+                "document and chat": True,
+                "document and note": True,
+                "document and history": True,
+            }
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0373_project_filesystem_mounts")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns WHERE "
+                        "table_name='dataset_cases' AND column_name='from_conversation'"
+                    )
+                ).first()
+                assert connection.scalar(text("SELECT count(*) FROM dataset_cases")) == len(rows)
+        finally:
+            engine.dispose()
 
 
 def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:

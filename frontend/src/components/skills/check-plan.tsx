@@ -2,20 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
-import type { SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
-
-const REASONS: readonly UnknownReason[] = [
-  "no_questions",
-  "no_access",
-  "no_budget",
-  "no_published_version",
-  "inconclusive",
-  "failed",
-  "unscorable",
-  "all_evidence",
-  "cancelled",
-  "own_not_asked",
-];
+import { knownReason } from "@/lib/skill-check-reasons";
+import type { SkillCheckAgent } from "@/types/skill-checks";
 
 /**
  * Before a check starts: one row per agent of the line and what it would be asked,
@@ -36,7 +24,7 @@ export function CheckPlan({ agents, hidden }: { agents: SkillCheckAgent[]; hidde
               <p className="font-medium">{row.agent.name}</p>
               <p className="text-muted-foreground text-xs">
                 {row.unknown_reason !== null
-                  ? REASONS.includes(row.unknown_reason)
+                  ? knownReason(row.unknown_reason)
                     ? t(`reason.${row.unknown_reason}`)
                     : t("reason.other")
                   : row.sample === "skill_set_only"

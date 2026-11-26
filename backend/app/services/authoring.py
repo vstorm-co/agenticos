@@ -26,12 +26,13 @@ taken from the conversations the hunks were derived from.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +51,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
     AuthoringKind,
@@ -71,6 +73,7 @@ from app.repositories import (
     agent_run_repo,
     authoring_repo,
     context_proposal_repo,
+    dataset_repo,
     eval_run_repo,
     improvement_repo,
     organization_repo,
@@ -110,15 +113,27 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.scoring import DatasetScoring
 from app.schemas.skill import SkillCreate
 from app.services import authoring_fields, authoring_hunks
-from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
+from app.services.access import (
+    AGENT,
+    CONTEXT,
+    DATASET,
+    SKILL,
+    OwnedResource,
+    ResourceType,
+    accessible_ids,
+    resolve_access,
+)
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.eval_run import EvalRunService, spec_hash
+from app.services.context_proposal import context_quotes_credential
+from app.services.dataset import redact_credentials, redact_json
+from app.services.eval_run import Admission, EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
 from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
@@ -265,6 +280,35 @@ class AuthoringService:
                 message="The assistant reads runs, which needs runs:view",
                 details={"permission": Perm.RUNS_VIEW.value},
             )
+
+    async def require_session_datasets(
+        self, ctx: AuthContext, session_ids: Iterable[UUID | None]
+    ) -> None:
+        """Refuse a reader who may not view the dataset one of these Improve sessions used.
+
+        A session's changes and reports are written from its dataset's questions and
+        reference answers, so reading them needs what reading that dataset needs. A
+        dataset deleted since has no readers left to keep them from.
+
+        Raises:
+            AuthorizationError: A session's dataset exists and the caller may not view it.
+        """
+        dataset_ids = await improvement_repo.datasets_of(
+            self.db,
+            [item for item in session_ids if item is not None],
+            organization_id=ctx.organization_id,
+        )
+        for dataset_id in sorted(dataset_ids):
+            dataset = await dataset_repo.get(
+                self.db, dataset_id, organization_id=ctx.organization_id
+            )
+            if dataset is not None and not await resolve_access(
+                self.db, ctx, dataset, Perm.DATASETS_VIEW, resource_type=DATASET
+            ):
+                raise AuthorizationError(
+                    message="These changes were written from a dataset you cannot read",
+                    details={"permission": Perm.DATASETS_VIEW.value},
+                )
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
@@ -537,10 +581,13 @@ class AuthoringService:
         *,
         excluded_message_ids: Sequence[UUID] = (),
         improvement_run_id: UUID | None = None,
+        train_case_ids: Sequence[UUID] | None = None,
     ) -> AuthoringRequestRead:
         """Queue an Improve or Verify on an agent, after the same checks its estimate makes.
 
         `excluded_message_ids` is kept on the request, as :meth:`estimate_agent` reads it.
+        `train_case_ids` are the learning questions of the session's attempt, which the
+        estimate is admitted on as the helper later reads them.
 
         Raises:
             BadRequestError: Nothing to read (`no_evidence`), or nothing to verify
@@ -554,6 +601,7 @@ class AuthoringService:
             body,
             excluded_message_ids=excluded_message_ids,
             improvement_run_id=improvement_run_id,
+            train_case_ids=train_case_ids,
         )
         return await self._start(
             ctx,
@@ -701,7 +749,12 @@ class AuthoringService:
         )
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
-        """The open batch - or the last one - and the newest requests, for the Builder."""
+        """The open batch - or the last one - and the newest requests, for the Builder.
+
+        Raises:
+            AuthorizationError: No `runs:view`, or the batch or requests shown came
+                from an Improve session on a dataset the caller may not view.
+        """
         self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
         return await self._read(ctx, agent)
@@ -862,6 +915,14 @@ class AuthoringService:
             ),
             None,
         )
+        await self.require_session_datasets(
+            ctx,
+            [
+                None if batch is None else batch.improvement_run_id,
+                *(request.improvement_run_id for request in requests[:1]),
+                None if verify is None else verify.improvement_run_id,
+            ],
+        )
         has_evidence = None
         if not requests and batch is None:
             has_evidence = bool((await self.evidence.for_agent(ctx, agent.id, window_days=30)).runs)
@@ -877,7 +938,7 @@ class AuthoringService:
     ) -> AuthoringRequestRead:
         """A request as a reader sees it: nothing drawn from one of the agent's skills
         the reader may not see."""
-        read = AuthoringRequestRead.model_validate(request)
+        read = _redacted_report(AuthoringRequestRead.model_validate(request))
         if read.report is None:
             return read
         report = await self._without_hidden_skills(ctx, agent, read.report)
@@ -944,6 +1005,7 @@ class AuthoringService:
                     ],
                 )[0],
                 skills=authoring_hunks.projected_skills(selected),
+                admission="keep",
             )
             for hunk in waiting
             if _changes_model(hunk)
@@ -960,7 +1022,7 @@ class AuthoringService:
             id=batch.id,
             agent_id=agent.id,
             status=batch.status,
-            expected_effect=batch.expected_effect,
+            expected_effect=redact_credentials(batch.expected_effect)[0] or batch.expected_effect,
             request_id=batch.request_id,
             hunks=[
                 self._hunk(spec, hunk, names=names, blocked=gates.get(hunk.id)) for hunk in hunks
@@ -992,6 +1054,7 @@ class AuthoringService:
         combination: AgentSpec,
         *,
         skills: Mapping[UUID, SkillBody] | None = None,
+        admission: Admission = "none",
     ) -> str | None:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
@@ -1002,13 +1065,17 @@ class AuthoringService:
         until a check ran the model, `check_outdated` when the checks that did
         measured something else, `inconclusive` when it decided nothing,
         `regression` when it broke cases, `crashed` when the agent crashed.
+
+        Showing the gate reads each check with `admission` `keep`, so it keeps the
+        verdict a check has while another request compares; Accept compares as it
+        needs, so it never rests on a verdict a person's decision has since changed.
         """
         evals = EvalRunService(self.db)
         wanted = spec_hash(combination, skills)
         ran_model = False
         for run_id in reversed(batch.check_eval_run_ids):
             try:
-                run = await evals.get(ctx, run_id)
+                run = await evals.get(ctx, run_id, admission=admission)
             except AuthorizationError, NotFoundError:
                 continue
             candidate = next((arm for arm in run.arms if arm.role == ArmRole.CANDIDATE), None)
@@ -1055,31 +1122,31 @@ class AuthoringService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=hunk.capability_id,
             tool_id=hunk.tool_id,
             base_name=hunk.base_name,
             base_description=hunk.base_description,
-            new_name=hunk.new_name,
-            new_description=hunk.new_description,
+            new_name=redact_credentials(hunk.new_name)[0],
+            new_description=redact_credentials(hunk.new_description)[0],
             path=hunk.path,
             op=hunk.op,
             base_value=hunk.base_value,
-            new_value=hunk.new_value,
-            accepted_value=hunk.accepted_value,
+            new_value=redact_json(hunk.new_value)[0],
+            accepted_value=redact_json(hunk.accepted_value)[0],
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
             blocked=blocked,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )
@@ -1088,6 +1155,7 @@ class AuthoringService:
             evidence_dropped=hunk.evidence_dropped,
             applies=authoring_hunks.applies(spec, hunk),
             decided_at=hunk.decided_at,
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
@@ -1133,6 +1201,17 @@ class AuthoringService:
         batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
+        if decision.action == "accept":
+            supplied = decision.text if decision.text is not None else decision.value
+            quoted = (
+                authoring_hunks.hunk_quotes_credential(hunk)
+                if supplied is None
+                else holds_credential(supplied)
+            )
+            if quoted:
+                raise BadRequestError(
+                    message=authoring_hunks.QUOTES_CREDENTIAL, details={"hunk_id": hunk.id}
+                )
         if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
             if not ctx.has(Perm.SKILLS_EDIT):
                 raise AuthorizationError(message="Creating this skill requires skills:edit")
@@ -1526,6 +1605,7 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        authoring_hunks.refuse_quoted_credentials(pending)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )
@@ -1696,6 +1776,10 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this skill to check the change on",
@@ -1814,6 +1898,10 @@ class AuthoringService:
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
             )
+        if context_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this context file to check the change on",
@@ -1928,9 +2016,21 @@ class AuthoringService:
         return started
 
 
+_JSON_OBJECT: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(dict[str, JsonValue])
+
+
+def _redacted_report(read: AuthoringRequestRead) -> AuthoringRequestRead:
+    """The request with every string of its report redacted, whenever it was written."""
+    if read.report is None:
+        return read
+    report, _ = redact_json(_JSON_OBJECT.validate_python(read.report))
+    assert isinstance(report, dict)
+    return read.model_copy(update={"report": report})
+
+
 def _skill_request(request: AuthoringRequest, shown: set[UUID]) -> AuthoringRequestRead:
     """A skill's request as one reader sees it: evidence from the runs in `shown` only."""
-    read = AuthoringRequestRead.model_validate(request)
+    read = _redacted_report(AuthoringRequestRead.model_validate(request))
     if read.report is None:
         return read
     report = dict(read.report) | {

@@ -44,7 +44,7 @@ export function ResultStep({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
-  const { topics } = useSessionTopics(session);
+  const { topics, skipped, more, error: topicsError } = useSessionTopics(session);
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const host = chosen ?? session.iterations.at(-1);
   return (
@@ -54,7 +54,7 @@ export function ResultStep({
           session={session}
           agent={agent}
           candidate={candidate}
-          topics={topics.length}
+          topics={topicsError || skipped > 0 || more > 0 ? null : topics.length}
           canAccept={canAccept}
           onAccept={onAccept}
           onStarted={onStarted}
@@ -89,7 +89,7 @@ export function ResultStep({
       {!host && draftCheckShown(session, topics) && (
         <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
       )}
-      {topics.length > 0 && (
+      {(topics.length > 0 || topicsError || skipped > 0 || more > 0) && (
         <div id={DOCUMENTS_ANCHOR} className="scroll-mt-4">
           <KnowledgeDocuments session={session} />
         </div>
@@ -142,12 +142,13 @@ type ResultSituation = "failed" | "accept" | "again" | "topics" | "nothing";
 /** Which decision the result asks for, most pressing first. */
 function resultSituation(
   session: Improvement,
-  { candidate, topics }: { candidate: boolean; topics: number },
+  { candidate, topics }: { candidate: boolean; topics: number | null },
 ): ResultSituation {
   if (session.status === "failed") return "failed";
   if (candidate) return "accept";
   if (continuation(session).canContinue) return "again";
-  return topics > 0 ? "topics" : "nothing";
+  // Topics that could not be read lead to their error and its retry, never to "nothing".
+  return topics === null || topics > 0 ? "topics" : "nothing";
 }
 
 type Translate = ReturnType<typeof useTranslations>;
@@ -158,7 +159,7 @@ function headline(
   locale: string,
   session: Improvement,
   agent: string,
-  topics: number,
+  topics: number | null,
 ): string[] {
   const rounds = session.iterations.filter(
     (round) => round.verdict !== null && round.number <= session.max_iterations,
@@ -213,7 +214,8 @@ function headline(
           })
         : t("resultDecision.acceptedDraft", { number: chosen.number }),
     );
-  if (topics > 0) sentences.push(t("resultDecision.topics", { count: topics }));
+  if (topics === null) sentences.push(t("resultDecision.topicsUnread"));
+  else if (topics > 0) sentences.push(t("resultDecision.topics", { count: topics }));
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
   const limit =
     session.stop_reason === "max_iterations" ||
@@ -249,7 +251,8 @@ function ResultDecision({
   agent: string;
   /** A checked candidate is waiting for a person to accept it. */
   candidate: boolean;
-  topics: number;
+  /** Missing topics; null when not all of them could be read. */
+  topics: number | null;
   /** False while the change selection differs from what was measured. */
   canAccept: boolean;
   onAccept: () => void;
@@ -317,7 +320,7 @@ function ResultDecision({
                 </Button>
               ) : situation === "topics" ? (
                 topicsButton("default")
-              ) : situation === "again" && topics > 0 ? (
+              ) : situation === "again" && (topics === null || topics > 0) ? (
                 topicsButton("outline")
               ) : undefined
             }

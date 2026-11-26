@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import { AttemptChanges } from "@/components/improvement/attempt-changes";
 import { AttemptHistory } from "@/components/improvement/attempt-history";
@@ -68,7 +67,7 @@ export function SkillImprovementPage({
   const common = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { skill, isLoading, error, refetch } = useSkill(skillId);
-  const { can } = usePermissions();
+  const permissions = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
   if (error || !skill)
     return (
@@ -86,15 +85,32 @@ export function SkillImprovementPage({
       }
     />
   );
+  const canViewRuns = permissions.can(Perm.runsView);
+  // Until the set is in, a missing permission is unknown rather than refused.
+  const permissionsUnknown = !canViewRuns && !permissions.isLoaded;
   // A session is read from the line agents' runs; starting one changes the skill too.
-  if (!can(Perm.runsView) || (!skill.can_edit && sessionId === "new"))
+  if (permissionsUnknown || !canViewRuns || (!skill.can_edit && sessionId === "new"))
     return (
       <div className="w-full space-y-6 pb-16">
         {header}
-        <p role="alert">{t("permission")}</p>
-        <Link className="text-sm underline underline-offset-4" href={ROUTES.SKILL_DETAIL(skillId)}>
-          {t("openSkill")}
-        </Link>
+        {permissionsUnknown && permissions.error ? (
+          <ErrorState
+            description={getErrorMessage(permissions.error, tErrors)}
+            cta={{ label: common("retry"), onClick: () => void permissions.refetch() }}
+          />
+        ) : permissionsUnknown ? (
+          <LoadingState variant="pending" />
+        ) : (
+          <>
+            <p role="alert">{t("permission")}</p>
+            <Link
+              className="text-sm underline underline-offset-4"
+              href={ROUTES.SKILL_DETAIL(skillId)}
+            >
+              {t("openSkill")}
+            </Link>
+          </>
+        )}
       </div>
     );
   return (
@@ -326,7 +342,11 @@ function SkillSession({
                         check && (
                           <div className="max-h-96 space-y-3 overflow-y-auto text-sm leading-relaxed wrap-anywhere">
                             <p className="text-muted-foreground">{check.candidate.description}</p>
-                            <MarkdownContent content={check.candidate.content} inertImages />
+                            {/* Source, not rendered: a rendered view hides reference
+                                definitions and shows a link's label without its address. */}
+                            <pre className="bg-muted/40 rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap">
+                              {check.candidate.content}
+                            </pre>
                           </div>
                         )
                       )}

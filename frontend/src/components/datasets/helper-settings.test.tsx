@@ -7,6 +7,7 @@ import { DEFAULT_SCORING } from "@/lib/scoring";
 function dataset(overrides: Partial<Dataset> = {}): Dataset {
   return {
     id: "d1",
+    import_max_bytes: 10_485_760,
     name: "Refunds",
     description: null,
     visibility: "org",

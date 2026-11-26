@@ -2091,6 +2091,41 @@ async def test_cases_narrow_by_tag(db) -> None:
 
 
 @pytest.mark.security
+async def test_a_manual_eval_answers_no_case_after_its_starter_leaves(db) -> None:
+    ctx = await _owner(db)
+    starter = await _member(db, ctx, OrgRoleName.ADMIN)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    started = await service.start(starter, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+
+    async def execute(runner, *args, **kwargs):
+        answered = await model.execute(runner, *args, **kwargs)
+        if len(model.calls) == 1:
+            await db.execute(
+                delete(OrganizationMember).where(
+                    OrganizationMember.organization_id == ctx.organization_id,
+                    OrganizationMember.user_id == starter.user_id,
+                )
+            )
+            await db.flush()
+        return answered
+
+    with patch.object(AgentRunnerService, "execute", new=execute):
+        await EvalRunWorker(
+            started.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+
+    run = await service.get(ctx, started.id)
+    assert len(model.calls) == 1
+    assert (run.status, run.error) == (
+        "failed",
+        "Whoever started this eval may no longer run its agent or its dataset.",
+    )
+
+
+@pytest.mark.security
 async def test_a_budget_stop_leaves_a_run_another_worker_already_ended(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -2199,7 +2234,7 @@ async def test_a_drainer_that_fails_stops_the_others_before_the_run_is_failed(db
     events: list[str] = []
     busy = asyncio.Event()
 
-    async def drain(_ctx: AuthContext) -> None:
+    async def drain() -> None:
         if not busy.is_set():
             busy.set()
             try:
@@ -2280,7 +2315,7 @@ async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:
     ctx = await _owner(db)
     worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db))
 
-    assert await worker._answer(ctx, uuid.uuid4()) is True
+    assert await worker._answer(uuid.uuid4()) is True
 
 
 async def _decide(db: AsyncSession, run_id, prompt: str, *, passed: bool) -> None:
@@ -3378,7 +3413,7 @@ async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
     with patch.object(AgentRunnerService, "execute", new=execute):
         started = await worker._begin()
         assert started is not None
-        await worker._wave(started)
+        await worker._wave()
     await service.cancel(ctx, v7.id)
 
     assert await worker._queue_reruns(started) is False
@@ -4345,7 +4380,7 @@ async def test_a_run_a_person_cancelled_keeps_its_outcome_when_its_worker_then_f
     service = EvalRunService(db)
     started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
-    async def cancelled_then_broken(_ctx: AuthContext) -> None:
+    async def cancelled_then_broken() -> None:
         await service.cancel(ctx, started.id)
         raise TimeoutError
 
@@ -4387,7 +4422,7 @@ async def test_an_attempt_deleted_before_its_answer_is_linked_records_nothing(db
         patch.object(AgentRunnerService, "execute", new=execute),
         caplog.at_level("WARNING", logger="app.services.eval_run_worker"),
     ):
-        assert await worker._answer(working, claimed.id) is False
+        assert await worker._answer(claimed.id) is False
 
     assert len(model.calls) == 1
     assert await db.scalar(select(func.count()).select_from(EvalRunCase)) == 0
@@ -4499,6 +4534,63 @@ async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(
     assert len({row.case.case_id for row in rows}) == 2
     assert {row.arm.role for row in rows} == {"candidate"}
     assert {row.arm.version_number for row in rows} == {7}
+
+
+@pytest.mark.parametrize(
+    ("proposal_check", "roles"),
+    [
+        (None, {"candidate"}),
+        ({"kind": "agent", "base_version": 7, "suggestions": 1}, {"baseline"}),
+        (
+            {
+                "kind": "skill",
+                "base_version": 7,
+                "suggestions": 1,
+                "skill_check_id": str(uuid.uuid4()),
+            },
+            {"baseline"},
+        ),
+        ({"kind": "context", "base_version": 7, "suggestions": 1}, {"baseline"}),
+        (
+            {
+                "kind": "context",
+                "base_version": None,
+                "on_draft": True,
+                "suggestions": 1,
+                "knowledge": {"topic_id": str(uuid.uuid4()), "draft_hash": "a", "supported": True},
+            },
+            set(),
+        ),
+    ],
+    ids=["ordinary", "suggestions-check", "skill-check", "context-check", "knowledge-check"],
+)
+async def test_training_answers_are_only_those_the_agent_itself_gave(db, proposal_check, roles):
+    """A check's candidate served a proposed change, and a knowledge check's baseline is an
+    attempt's projected version: neither is how the agent answers."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+    )
+    await _run_to_end(db, Model(db), started.id, ctx)
+    stored = await db.get(EvalRun, started.id)
+    assert stored is not None
+    stored.proposal_check = proposal_check
+    await db.flush()
+    cases = (await DatasetService(db).list_cases(ctx, dataset.id)).items
+
+    rows = await authoring_repo.train_answers(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_ids=[dataset.id],
+        since=started.created_at,
+        case_ids=[case.case_id for case in cases],
+    )
+
+    assert {row.arm.role for row in rows} == roles
 
 
 @pytest.mark.security

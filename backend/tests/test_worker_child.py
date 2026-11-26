@@ -6,11 +6,14 @@ line by line.
 """
 
 import io
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 
 from app.worker.child import READY, ChildReply, ChildRequest, load_handlers, run_one, serve
+from app.worker.jobs import Payload, Pool, Priority, Task
+from app.worker.registry import Handler
 from tests import worker_handlers
 
 pytestmark = pytest.mark.anyio
@@ -48,12 +51,58 @@ async def test_a_kind_nobody_handles_and_a_payload_that_does_not_validate_are_fo
     assert malformed.error.startswith("ValidationError")
 
 
+@pytest.mark.security
+async def test_a_payload_that_does_not_validate_is_logged_without_its_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("ERROR", logger="app.worker.child"):
+        await run_one(HANDLERS, ChildRequest(kind="test-ok", payload={"seconds": "Kanar3kSoon"}))
+
+    [record] = [item for item in caplog.records if item.msg == "background_job_payload_invalid"]
+    assert record.exc_info is None
+    assert "seconds" in record.error and "Kanar3kSoon" not in caplog.text
+
+
+@pytest.mark.security
+async def test_dynamic_payload_keys_are_redacted_from_the_reply_and_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class MappingPayload(Payload):
+        values: dict[str, int]
+
+    async def execute(payload: MappingPayload) -> None:
+        raise AssertionError("Invalid payload must never reach the handler")
+
+    task = Task(
+        kind="test-mapping",
+        payload_type=MappingPayload,
+        pool=Pool.SYSTEM,
+        max_attempts=1,
+        timeout=timedelta(seconds=1),
+        priority=Priority.INTERACTIVE,
+    )
+    with caplog.at_level("ERROR", logger="app.worker.child"):
+        reply = await run_one(
+            {task.kind: Handler(task, execute)},
+            ChildRequest(
+                kind=task.kind,
+                payload={"values": {"api_key=Kanar3kSyntheticMarker": "invalid"}},
+            ),
+        )
+
+    [record] = [item for item in caplog.records if item.msg == "background_job_payload_invalid"]
+    assert not reply.ok and reply.permanent
+    assert reply.error is not None and "Kanar3kSyntheticMarker" not in reply.error
+    assert record.exc_info is None and "Kanar3kSyntheticMarker" not in record.error
+    assert "values.[redacted:query_secret]" in record.error
+
+
 async def test_a_job_that_raises_is_retried_with_why() -> None:
     reply = await run_one(HANDLERS, ChildRequest(kind="test-fail", payload={"text": "no"}))
 
     assert (reply.ok, reply.permanent) == (False, False)
     assert reply.error is not None
-    assert reply.error.startswith("RuntimeError: no")
+    assert reply.error.startswith("RuntimeError: its message is in the worker's log")
 
 
 async def test_the_child_says_ready_then_answers_a_line_per_request() -> None:
