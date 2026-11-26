@@ -841,6 +841,10 @@ class TestReading:
         totals = next(case for case in cases if "Total" in json.dumps(case.checks))
         totals.source, totals.source_conversation_id = "conversation", private.id
         totals.from_conversation = True
+        invoice = next(case for case in cases if "Invoice number" in json.dumps(case.checks))
+        invoice.checks = json.loads(
+            json.dumps(invoice.checks).replace('"Invoice number"', '" invoice NUMBER"')
+        )
         await db.flush()
         member = await _member(db, owner.organization_id)
 
