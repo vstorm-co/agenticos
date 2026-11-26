@@ -374,6 +374,7 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
                 profile=True,
             ),
             extraction._Extracted(statement="Invented assistant-only claim", evidence="Noted"),
+            extraction._Extracted(statement="Insufficient evidence", evidence="  I "),
             extraction._Extracted(
                 statement="The Acme renewal is due in March",
                 evidence="The Acme renewal is due in March",

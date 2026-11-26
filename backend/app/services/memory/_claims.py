@@ -455,16 +455,17 @@ async def share(
             object_id=claim.object_id,
             scope_keys=[claim.scope_key],
         )
-        if entity is not None:
-            target_entity = await claim_repo.put_object(
-                db,
-                organization_id=claim.organization_id,
-                scope_key=to.scope_key,
-                kind=entity.kind,
-                name=entity.name,
-                identity_key=entity.identity_key,
-            )
-            target_object_id = target_entity.id
+        if entity is None:
+            raise ConflictError(message="This memory's object is no longer available")
+        target_entity = await claim_repo.put_object(
+            db,
+            organization_id=claim.organization_id,
+            scope_key=to.scope_key,
+            kind=entity.kind,
+            name=entity.name,
+            identity_key=entity.identity_key,
+        )
+        target_object_id = target_entity.id
     result = await remember(
         db,
         organization_id=claim.organization_id,

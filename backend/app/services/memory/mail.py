@@ -295,14 +295,12 @@ class MemoryMailService:
             return
         grant = await mcp_connection_repo.get_by_id_for_update(self.db, event.grant_id)
         source = await memory_claim.mail_source(self.db, payload.organization_id, lock=True)
-        if source is None:
-            return
         event = await memory_claim.mail_event(
             self.db,
             organization_id=payload.organization_id,
             event_id=payload.event_id,
         )
-        if event is None or event.state != "queued":
+        if source is None or event is None or event.state != "queued":
             return
         reviewer = await self._current_reviewer(source)
         if (

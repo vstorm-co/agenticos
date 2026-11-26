@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.memory_keys import organization_owner_key, person_owner_key, room_owner_key
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.group import Group, GroupMember
 from app.db.models.mcp_connection import McpConnection
@@ -20,6 +20,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import memory_claim, suggestion_repo
 from app.repositories.memory_claim import ClaimScope
+from app.schemas.decision_episode import DecisionEpisode
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimShare,
@@ -525,6 +526,16 @@ async def test_object_versions_use_stable_cursors_and_amend_legacy_rows(db: Asyn
     db.add(old)
     await db.flush()
     await memory_claim.set_status(db, old, "current")
+    with pytest.raises(BadRequestError):
+        await store.correct_claim(
+            ctx,
+            old.id,
+            MemoryClaimCorrect(
+                statement="Not a decision",
+                historical=True,
+                episode=DecisionEpisode(situation="Test", choice="Choose a value"),
+            ),
+        )
     latest = await store.correct_claim(
         ctx, old.id, MemoryClaimCorrect(statement="22 employees", historical=True)
     )
@@ -648,6 +659,45 @@ async def test_group_claim_recall_keeps_private_audience_boundaries(
         include_groups=True,
     )
 
+    store = MemoryService(db)
+    with pytest.raises(AuthorizationError):
+        await store.objects(
+            AuthContext(
+                user_id=reader.id,
+                organization_id=org.id,
+                role="viewer",
+                key_scopes=frozenset({Perm.CONTEXT_VIEW}),
+            ),
+            library="organization",
+            kind=None,
+            q="",
+            cursor=None,
+            limit=5,
+        )
+    await store.publish_claim(ctx, personal_claim.claim.id, MemoryClaimShare(confirmed=True))
+    member = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org.id, OrganizationMember.user_id == reader.id
+        )
+    )
+    assert member is not None
+    member.role = "retired-role"
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await store.shared_claims(
+            AuthContext(user_id=reader.id, organization_id=org.id, role=member.role),
+            q="Atlas",
+            limit=5,
+            skip=0,
+        )
+    assert not await runtime.recall(
+        organization_id=org.id,
+        scopes=[ClaimScope(organization_owner_key(org.id))],
+        query="Atlas handoff",
+        reading_member=reader.id,
+        include_groups=True,
+    )
+
 
 async def test_mail_rule_reconnect_removes_old_history_and_proofs(
     db: AsyncSession,
@@ -707,3 +757,81 @@ async def test_mail_rule_reconnect_removes_old_history_and_proofs(
     )
     assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=5, skip=0)).total == 0
     assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
+
+
+async def test_mail_rule_reconfiguration_fences_queued_items_and_ties(db: AsyncSession) -> None:
+    org, owner, _, ctx, grant, service = await _mail(db)
+    stamp = datetime.now(UTC)
+    events = (
+        _delivery("a", "Deadline: 2026-12-01", received=stamp),
+        _delivery("tie", "Deadline: 2026-12-02", received=stamp),
+        _delivery("pending", "Deadline: 2026-12-03"),
+    )
+    assert (await service.admit(grant, events)).queued == 3
+    for key in ("a", "tie"):
+        await service.apply(await _event(db, org, key))
+    data = MemoryMailConfig(
+        sender="desk@example.org",
+        subject="XYZ delivery deadline",
+        commitment="XYZ handoff",
+        mode="shadow",
+        notify=False,
+        confirmed=True,
+    )
+    await service.configure(ctx, data)
+    await service.apply(await _event(db, org, "pending"))
+    config = await service.configuration(ctx)
+    assert config is not None and config.last_outcome == "withheld"
+    assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)
+    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0)).total == 1
+    await service.disable(ctx)
+    await service.disable(ctx)
+
+
+async def test_queued_mail_disappearing_during_recheck_has_no_side_effects(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org, _, _, ctx, grant, service = await _mail(db)
+    await service.admit(grant, (_delivery("a", "Deadline: 2026-12-01"),))
+    payload = await _event(db, org, "a")
+    real = memory_claim.mail_source
+
+    async def remove_before_lock(session, organization_id, *, lock=False):
+        if lock:
+            source = await real(session, organization_id, lock=True)
+            assert source is not None
+            await memory_claim.remove_mail_source(session, source)
+        return await real(session, organization_id, lock=lock)
+
+    monkeypatch.setattr(memory_claim, "mail_source", remove_before_lock)
+    await service.apply(payload)
+    assert await service.configuration(ctx) is None
+    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=10, skip=0)).total == 0
+
+
+async def test_share_cannot_copy_an_object_from_a_different_scope(db: AsyncSession) -> None:
+    org, owner, reader = await _org(db)
+    object_row = await memory_claim.put_object(
+        db,
+        organization_id=org.id,
+        scope_key=person_owner_key(reader.id),
+        kind="project",
+        name="Other member's project",
+        identity_key="name:private",
+    )
+    # A damaged import with an incorrect foreign key must not disclose the other
+    # store's object or silently turn the shared claim into an unbound record.
+    claim = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=person_owner_key(owner.id),
+        object_id=object_row.id,
+        statement="A dated observation",
+        observed_at=datetime.now(UTC),
+    )
+    store = MemoryService(db)
+    actor = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    with pytest.raises(ConflictError):
+        await store.publish_claim(actor, claim.id, MemoryClaimShare(confirmed=True))
+    assert (await store.shared_claims(actor, q="", limit=10, skip=0)).total == 0

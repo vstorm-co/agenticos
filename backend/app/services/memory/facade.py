@@ -388,10 +388,12 @@ class MemoryService:
         )
 
     async def _mail_evidence(self, claim: MemoryClaim) -> list[MemoryClaimEvidenceRead]:
-        if claim.mail_event_id is None:
-            return []
-        event = await memory_claim.mail_event(
-            self.db, organization_id=claim.organization_id, event_id=claim.mail_event_id
+        event = (
+            await memory_claim.mail_event(
+                self.db, organization_id=claim.organization_id, event_id=claim.mail_event_id
+            )
+            if claim.mail_event_id is not None
+            else None
         )
         if event is None:
             return []
