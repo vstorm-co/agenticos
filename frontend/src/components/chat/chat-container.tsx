@@ -54,7 +54,6 @@ import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
-import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse, BrowserProtection } from "@/lib/browse";
 import { LiveBrowsesProvider } from "./browser-card";
@@ -2245,17 +2244,6 @@ function ChatUI({
   const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
-  const workspaceFiles = (
-    <WorkspaceFiles
-      key={conversationId ?? "new"}
-      beforeFirstMessage={mainChat && messages.length === 0}
-      conversationId={conversationId}
-      revision={turns}
-      attachments={attachments}
-      buttonSlot={composerFilesSlot}
-      overlay={compact}
-    />
-  );
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -2922,14 +2910,6 @@ function ChatUI({
                             }
                             actionsSlot={
                               <span className="contents max-md:hidden">
-                                {/* Wide screens only, as is the panel it opens. */}
-                                {!mainChat && (
-                                  <span
-                                    data-chat-files
-                                    ref={setComposerFilesSlot}
-                                    className="hidden lg:contents"
-                                  />
-                                )}
                                 <div data-chat-actions>
                                   {mainChat && (
                                     <ChatControls
@@ -3006,6 +2986,7 @@ function ChatUI({
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <WorkspacePanels
           filesButtonSlot={mainChat ? composerFilesSlot : undefined}
+          filesBeforeFirstMessage={mainChat && !isRoom && messages.length === 0}
           teamRoom={isRoom}
           compact={compact}
           browses={browses}
@@ -3064,11 +3045,6 @@ function ChatUI({
         />
       )}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      {mainChat ? (
-        workspaceFiles
-      ) : (
-        <div className="hidden h-full min-h-0 shrink-0 lg:block">{workspaceFiles}</div>
-      )}
     </div>
   );
 }
