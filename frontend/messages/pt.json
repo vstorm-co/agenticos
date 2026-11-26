@@ -15293,7 +15293,8 @@
         "judgeGradedTwice": "O juiz avaliou este critério mais de uma vez, então nenhuma das avaliações conta.",
         "judgeUngraded": "O juiz não deu nota na escala para este critério.",
         "judgeReasonEcho": "O juiz repetiu o critério em vez de explicar por que a resposta o atende.",
-        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum."
+        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum.",
+        "scriptCallsNotKept": "Um script no modo de código fez mais chamadas do que o run guardou, por isso as chamadas de ferramentas não foram avaliadas."
       },
       "scoreRun": "Avaliar em relação a um caso",
       "scoreRunBody": "Executa todos os avaliadores configurados no dataset sobre a resposta desta execução. O resultado é guardado no dataset.",

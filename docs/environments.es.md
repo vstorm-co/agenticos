@@ -1,5 +1,5 @@
 ---
-source_sha: "95840a455250"
+source_sha: "58eec76b2613"
 ---
 
 # Entornos { #environments }
@@ -255,6 +255,11 @@ se registra como divergente. Un run cuya transcripción perdió una llamada no s
 reproduce en absoluto. Un run aislado no tiene a quién pedir una aprobación, así
 que una llamada con aprobación tampoco se ejecuta, y se registra como una que
 necesitaba aprobación.
+
+Un script en modo código se graba como las llamadas que hizo: la reproducción
+vuelve a ejecutar el script, y cada llamada se responde desde la grabación. Un
+script grabado antes de que se guardaran sus llamadas, o uno que hizo más de las
+que guardó su run, se responde como un todo.
 
 ## Probarlo desde el Builder { #trying-it-from-the-builder }
 

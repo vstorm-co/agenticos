@@ -1,4 +1,11 @@
 {
+  "datasets": {
+    "scoring": {
+      "reason": {
+        "scriptCallsNotKept": "Kod modundaki bir betik, run'ın sakladığından daha fazla çağrı yaptı; bu yüzden araç çağrıları değerlendirilmedi."
+      }
+    }
+  },
   "sharedAttribution": {
     "madeWith": "<name>AgenticOS</name> ile oluşturuldu",
     "cta": "Kendi AgenticOS’unuzu çalıştırın",

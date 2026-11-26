@@ -25,6 +25,7 @@ from app.agents.code_mode import (
     code_mode,
 )
 from app.agents.deps import AgentDeps
+from app.agents.durable_code import script_position
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder, as_payload
 from app.agents.mcp import NEEDS_APPROVAL
 
@@ -394,3 +395,65 @@ async def test_manifest_marks_a_nested_approval_pause_before_saving() -> None:
             handler=execute,
         )
     assert calls.recorder.code_runs[0]["calls"][0]["status"] == "awaiting_approval"
+
+
+class TestScriptCalls:
+    """What each script called, reported for the transcript an eval and a recording read."""
+
+    async def test_each_call_is_reported_in_the_order_the_script_asked(self) -> None:
+        agent, _, _ = _agent(TEN_UPDATES, [])
+        deps = AgentDeps()
+
+        await agent.run("Update records 0 to 9.", deps=deps)
+
+        ((parent, calls),) = deps.code_continuations.script_calls.items()
+        assert [script.call.tool_call_id for script in calls] == [
+            f"{parent}__{n}" for n in range(1, 11)
+        ]
+        assert [script.call.args for script in calls] == [{"n": n} for n in range(10)]
+        assert [script.returned.content for script in calls] == [f"updated {n}" for n in range(10)]
+
+    async def test_a_call_that_raised_is_reported_as_failed(self) -> None:
+        agent = Agent[AgentDeps, str](
+            FunctionModel(_writes("await broken()", [])),
+            capabilities=[
+                code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=5)
+            ],
+        )
+
+        @agent.tool_plain
+        def broken() -> str:
+            """Always fails."""
+            raise RuntimeError("database is down")
+
+        deps = AgentDeps()
+        await agent.run("Try it.", deps=deps)
+
+        ((script,),) = deps.code_continuations.script_calls.values()
+        assert (script.call.tool_name, script.returned.outcome) == ("broken", "failed")
+
+    async def test_a_call_made_before_the_script_failed_is_still_reported(self) -> None:
+        agent, _, updated = _agent("await update_record(n=7)\nraise ValueError('stop')", [])
+        deps = AgentDeps()
+
+        await agent.run("Update record 7.", deps=deps)
+
+        assert updated == [7]
+        ((script,),) = deps.code_continuations.script_calls.values()
+        assert (script.call.args, script.returned.content) == ({"n": 7}, "updated 7")
+
+    async def test_a_delegates_script_reports_nothing(self, monkeypatch) -> None:
+        """A delegate's calls belong to the delegate, not to this run's transcript."""
+        from app.agents import durable_code
+
+        monkeypatch.setattr(durable_code, "code_owner", lambda: "delegate-a")
+        agent, _, updated = _agent(TEN_UPDATES, [])
+        deps = AgentDeps()
+
+        await agent.run("Update records 0 to 9.", deps=deps)
+
+        assert sorted(updated) == list(range(10))
+        assert deps.code_continuations.script_calls == {}
+
+    def test_a_script_call_is_placed_by_its_counter_not_as_text(self) -> None:
+        assert sorted(["c__10", "c__2", "c__1"], key=script_position) == ["c__1", "c__2", "c__10"]

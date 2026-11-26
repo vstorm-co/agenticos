@@ -44,7 +44,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelMessageSource, ChannelSession
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation import Conversation, Message, ScriptCalls, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.conversation_share import ConversationShare
@@ -3013,6 +3013,7 @@ async def create_tool_call(
     mcp_connection_id: UUID | None = None,
     tool_id: str | None = None,
     presentation_kind: Literal["draft", "generic", "platform"] | None = None,
+    script_calls: ScriptCalls | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -3032,11 +3033,23 @@ async def create_tool_call(
         mcp_connection_id=mcp_connection_id,
         tool_id=tool_id,
         presentation_kind=presentation_kind,
+        script_calls=script_calls,
     )
     db.add(tool_call)
     await db.flush()
     await db.refresh(tool_call)
     return tool_call
+
+
+async def record_script_calls(
+    db: AsyncSession, *, db_tool_call: ToolCall, script_calls: ScriptCalls | None
+) -> ToolCall:
+    """Keep what a `run_code` script called on its row, which stays as it is otherwise."""
+    db_tool_call.script_calls = script_calls
+    db.add(db_tool_call)
+    await db.flush()
+    await db.refresh(db_tool_call)
+    return db_tool_call
 
 
 async def complete_tool_call(
@@ -3046,11 +3059,14 @@ async def complete_tool_call(
     result: str,
     completed_at: datetime,
     success: bool = True,
+    script_calls: ScriptCalls | None = None,
 ) -> ToolCall:
-    """Mark a tool call as completed."""
+    """Mark a tool call as completed, with what its script called when it is `run_code`."""
     db_tool_call.result = result
     db_tool_call.completed_at = completed_at
     db_tool_call.status = "completed" if success else "failed"
+    if script_calls is not None:
+        db_tool_call.script_calls = script_calls
 
     if db_tool_call.started_at:
         delta = completed_at - db_tool_call.started_at

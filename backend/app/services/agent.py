@@ -535,6 +535,7 @@ async def persist_assistant_turn(
                         tool_id=tc.get("tool_id"),
                         presentation_kind=tc.get("presentation_kind")
                         or ("draft" if tc["tool_name"] in draft_tools else None),
+                        script_calls=tc.get("script_calls"),
                     )
                     result = tc.get("result")
                     if stopped and (

@@ -88,6 +88,7 @@ from app.services.access import DATASET, accessible_ids, resolve_access, visible
 from app.services.conversation import ConversationService
 from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, stamp
 from app.services.model_outputs import model_outputs
+from app.services.scorers import every_call_kept
 
 logger = logging.getLogger(__name__)
 
@@ -1741,7 +1742,11 @@ class DatasetService:
         self, ctx: AuthContext, run_id: UUID | None, reply: list[Message]
     ) -> list[str]:
         """The tools a good reply called that a case should expect: those that succeeded
-        and that the answering agent's spec does not declare read-only."""
+        and that the answering agent's spec does not declare read-only.
+
+        A code-mode script stands for the calls it made, as it does when the case is
+        graded (`scored_calls`). A script whose run did not keep every call drafts no
+        expectation: the calls left out may be the ones a case should expect."""
         calls = await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
         reads: set[str] = set()
         run = (
@@ -1756,8 +1761,15 @@ class DatasetService:
             if version is not None:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
                 reads = {name for name, tool in tools.items() if tool.read_only}
-        return [
-            call.tool_name
-            for call in calls
-            if call.status == "completed" and call.tool_name not in reads
-        ]
+        if not every_call_kept(calls):
+            return []
+        succeeded: list[str] = []
+        for call in calls:
+            script = [] if call.script_calls is None else call.script_calls["calls"]
+            if script:
+                succeeded.extend(
+                    entry["tool_name"] for entry in script if entry["outcome"] == "success"
+                )
+            elif call.status == "completed":
+                succeeded.append(call.tool_name)
+        return [name for name in succeeded if name not in reads]

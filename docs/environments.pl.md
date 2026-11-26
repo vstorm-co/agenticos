@@ -1,5 +1,5 @@
 ---
-source_sha: "95840a455250"
+source_sha: "58eec76b2613"
 ---
 
 # Środowiska { #environments }
@@ -255,6 +255,11 @@ wykonywane i zostaje zapisane jako rozbieżne. Run, którego transkrypt zgubił
 wywołanie, nie jest odtwarzany wcale. Run w izolacji nie ma kogo zapytać o
 zatwierdzenie, więc wywołanie objęte bramką też nie jest wykonywane i zostaje
 zapisane jako wymagające zatwierdzenia.
+
+Skrypt w trybie kodu jest nagrywany jako wywołania, które wykonał: odtworzenie
+uruchamia skrypt ponownie, a każde wywołanie dostaje odpowiedź z nagrania.
+Skrypt nagrany, zanim zaczęto zachowywać jego wywołania, albo taki, który wykonał
+ich więcej, niż zachował jego run, dostaje odpowiedź jako całość.
 
 ## Testowanie z poziomu Buildera { #trying-it-from-the-builder }
 

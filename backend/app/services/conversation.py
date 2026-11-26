@@ -43,7 +43,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
 from app.db.models.agent_run import RunStatus
-from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation import Conversation, Message, ScriptCalls, ToolCall
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -2437,6 +2437,7 @@ class ConversationService:
         mcp_connection_id: UUID | None = None,
         tool_id: str | None = None,
         presentation_kind: Literal["draft", "generic", "platform"] | None = None,
+        script_calls: ScriptCalls | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -2446,6 +2447,7 @@ class ConversationService:
         fact, not a caller's claim - as is `mcp_connection_id`, the organization
         MCP connection that served the call. `awaiting_answer` distinguishes
         parked questions from approvals without relying on an exposed tool name.
+        `script_calls`, what a `run_code` script called, is the runner's record too.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -2461,6 +2463,7 @@ class ConversationService:
             mcp_connection_id=mcp_connection_id,
             tool_id=tool_id,
             presentation_kind=presentation_kind,
+            script_calls=script_calls,
         )
 
     async def complete_tool_call(

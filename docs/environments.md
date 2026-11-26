@@ -235,6 +235,10 @@ run whose transcript lost a call is not replayed at all. An isolated run has
 nobody to ask for an approval, so a call the agent gates is not executed either,
 and is recorded as one that needed an approval.
 
+A code-mode script is recorded as the calls it made: the replay runs the script
+again, and each call is answered from the recording. A script recorded before
+its calls were kept, or one that made more than its run kept, is answered whole.
+
 ## Trying it from the Builder
 
 **Test**, in the Builder's header, opens a chat beside the Builder rather than over
