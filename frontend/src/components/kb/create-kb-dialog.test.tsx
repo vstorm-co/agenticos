@@ -311,7 +311,18 @@ describe("a deployment-wide collection", () => {
   function serve(isAppAdmin: boolean) {
     vi.clearAllMocks();
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-      if (path === "/rag/embedding-models") return { providers: [] };
+      if (path === "/rag/embedding-models")
+        return {
+          providers: [
+            {
+              provider: "ollama",
+              name: "Ollama",
+              keyless: true,
+              any_model: false,
+              models: [{ model: "nomic-embed-text", dim: 768 }],
+            },
+          ],
+        };
       if (path === "/me/permissions")
         return {
           organization_id: "org-1",

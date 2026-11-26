@@ -124,6 +124,7 @@ export function ServiceConnectionDialog({
   const [baseUrl, setBaseUrl] = useState(connection?.base_url ?? "");
   const [secretId, setSecretId] = useState<string | null>(connection?.secret_id ?? null);
   const [deploymentWide, setDeploymentWide] = useState(false);
+  const [active, setActive] = useState(connection?.is_active ?? true);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -231,6 +232,7 @@ export function ServiceConnectionDialog({
   };
 
   const changes = (): ServiceConnectionPatch => ({
+    ...(connection && active !== connection.is_active ? { is_active: active } : {}),
     ...(connection && name.trim() !== connection.name ? { name: name.trim() } : {}),
     ...(addressChanged ? { base_url: trimmedUrl } : {}),
     ...(keyChanged && secretId !== null ? { secret_id: secretId } : {}),
@@ -410,6 +412,17 @@ export function ServiceConnectionDialog({
             ) : (
               <p className="text-muted-foreground text-xs">{t("deploymentWideKeyless")}</p>
             ))}
+          {editing && (
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="service-connection-active">{t("connectionActive")}</Label>
+              <Switch
+                id="service-connection-active"
+                checked={active}
+                onCheckedChange={setActive}
+                disabled={saving}
+              />
+            </div>
+          )}
           {!editing && canRegisterDeploymentWide && (
             <div className="flex items-start justify-between gap-4">
               <div>

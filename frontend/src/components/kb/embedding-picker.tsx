@@ -121,8 +121,11 @@ export function EmbeddingProviderFields({
   onModel,
   allowFreeModel,
   idPrefix,
+  deploymentOnly = false,
 }: {
   models: EmbeddingModels;
+  /** App-scoped collections cannot bind organization-owned resources. */
+  deploymentOnly?: boolean;
   provider: string;
   /** The chosen vault key, or null while none is. */
   secretId: string | null;
@@ -150,7 +153,11 @@ export function EmbeddingProviderFields({
   const { connections } = useServiceConnections(viaConnection);
   const keys = secrets.filter((secret) => secret.purpose === provider);
   const servers = connections.filter(
-    (service) => service.kind === "embedding" && service.provider === provider && service.is_active,
+    (service) =>
+      service.kind === "embedding" &&
+      service.provider === provider &&
+      service.is_active &&
+      (!deploymentOnly || service.organization_id === null),
   );
   const style = connectionStyle(provider);
 
@@ -174,11 +181,13 @@ export function EmbeddingProviderFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {models.providers.map((item) => (
-              <SelectItem key={item.provider} value={item.provider} textValue={item.name}>
-                <ProviderRow provider={item.provider} name={item.name} />
-              </SelectItem>
-            ))}
+            {models.providers
+              .filter((item) => !deploymentOnly || item.keyless || item.any_model)
+              .map((item) => (
+                <SelectItem key={item.provider} value={item.provider} textValue={item.name}>
+                  <ProviderRow provider={item.provider} name={item.name} />
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
@@ -223,7 +232,7 @@ export function EmbeddingProviderFields({
               {t("keylessProvider", { provider: entry?.name ?? provider })}
             </p>
           )}
-          {style !== null && (
+          {style !== null && !deploymentOnly && (
             <InlineServiceConnection kind="embedding" provider={style} onCreated={onEndpointId} />
           )}
           {anyModel && allowFreeModel && (
@@ -239,7 +248,7 @@ export function EmbeddingProviderFields({
             </div>
           )}
         </div>
-      ) : (
+      ) : !deploymentOnly ? (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
           {/* Controlled throughout: an empty string is how Radix is told "nothing
@@ -270,7 +279,7 @@ export function EmbeddingProviderFields({
             onCreated={onSecretId}
           />
         </div>
-      )}
+      ) : null}
     </>
   );
 }

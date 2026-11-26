@@ -2159,6 +2159,7 @@
     "endpointModelsUnconfirmed": "Nie udało się sprawdzić, jakie modele obsługuje ten endpoint, więc lista zawiera wszystkie modele OpenRouter. Model, którego endpoint nie obsługuje, zawiedzie przy pierwszym uploadzie.",
     "endpointServesNoModel": "Ten endpoint nie obsługuje żadnego modelu embeddingów oferowanego przez AgenticOS. Zostaw pole endpointu puste albo wybierz innego providera.",
     "endpointLacksCollectionModel": "Ten endpoint nie obsługuje modelu {model}, którym utworzono wektory tej kolekcji. Zostaw pole endpointu puste albo podaj taki, który go obsługuje.",
+    "connectionActive": "Aktywne",
     "serviceConnectionsHint": "Punkty końcowe rejestrowane raz i wybierane dla kolekcji: Ollama tworzący embeddingi, brama zgodna z OpenAI z kluczem z sejfu, sidecar OCR dla LiteParse.",
     "addServer": "Dodaj serwer",
     "failedLoadServiceConnections": "Nie udało się wczytać połączeń usług",

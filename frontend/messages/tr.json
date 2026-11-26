@@ -11106,6 +11106,7 @@
     "endpointModelsUnconfirmed": "Bu uç noktaya hangi modelleri sunduğu sorulamadığından tüm OpenRouter modelleri listeleniyor. Sunulmayan bir model ilk yüklemede hata verir.",
     "endpointServesNoModel": "Bu uç nokta AgenticOS’un sunduğu embedding modellerinden hiçbirini sunmuyor. Uç noktayı boş bırakın veya başka provider seçin.",
     "endpointLacksCollectionModel": "Bu uç nokta koleksiyonun vektörlerinin oluşturulduğu {model} modelini sunmuyor. Uç noktayı boş bırakın veya bu modeli sunan birini seçin.",
+    "connectionActive": "Etkin",
     "serviceConnectionsHint": "Bir kez kaydedilip koleksiyon başına seçilen uç noktalar: gömme üreten bir Ollama, kasa anahtarlı OpenAI uyumlu bir ağ geçidi, LiteParse için bir OCR yan hizmeti.",
     "addServer": "Sunucu ekle",
     "failedLoadServiceConnections": "Hizmet bağlantıları yüklenemedi",

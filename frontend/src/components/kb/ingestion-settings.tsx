@@ -75,6 +75,8 @@ export interface IngestionSettingsProps {
    * and folds the rest of these settings away.
    */
   withoutParser?: boolean;
+  /** App-scoped collections cannot use organization keys or connections. */
+  deploymentOnly?: boolean;
   /**
    * Offer Docling as a parser. False for one upload's override of a collection
    * that is not on Docling: the connection is the collection's own, and an upload
@@ -124,6 +126,7 @@ export function IngestionSettings({
   errors = {},
   disabled,
   withoutParser = false,
+  deploymentOnly = false,
   docling = true,
   connectionLocked = false,
   onDraftInvalid,
@@ -136,8 +139,13 @@ export function IngestionSettings({
   const { connections: services } = useServiceConnections(
     value.pdf_parser === "liteparse" || value.pdf_parser === "docling",
   );
-  const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
-  const doclingServers = services.filter(
+  const scopedServices = services.filter(
+    (service) => !deploymentOnly || service.organization_id === null,
+  );
+  const ocrServers = scopedServices.filter(
+    (service) => service.kind === "ocr" && service.is_active,
+  );
+  const doclingServers = scopedServices.filter(
     (service) => service.kind === "document_parser" && service.is_active,
   );
   const [languageDraft, setLanguageDraft] = useState("");
@@ -167,7 +175,10 @@ export function IngestionSettings({
     );
 
   const parser = PDF_PARSERS.find((choice) => choice.value === value.pdf_parser);
-  const parsers = PDF_PARSERS.filter((choice) => docling || choice.value !== "docling");
+  const parsers = PDF_PARSERS.filter(
+    (choice) =>
+      (docling || choice.value !== "docling") && (!deploymentOnly || choice.value !== "llamaparse"),
+  );
 
   const maxPagesField = (description: string) => (
     <OptionalSetting
@@ -390,7 +401,7 @@ export function IngestionSettings({
                 </Select>
               )}
               {/* Keyed servers are registered in the full dialog this opens. */}
-              {!connectionLocked && (
+              {!connectionLocked && !deploymentOnly && (
                 <InlineServiceConnection
                   kind="document_parser"
                   provider="docling"
@@ -901,11 +912,13 @@ export function ParserCards({
   onChange,
   disabled,
   error,
+  deploymentOnly = false,
 }: {
   value: IngestionConfig;
   onChange: (value: IngestionConfig) => void;
   disabled?: boolean;
   error?: string;
+  deploymentOnly?: boolean;
 }) {
   const t = useTranslations("kb");
   return (
@@ -915,28 +928,32 @@ export function ParserCards({
         aria-label={t("pdfParser")}
         className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {PDF_PARSERS.map((choice) => (
-          <button
-            key={choice.value}
-            type="button"
-            role="radio"
-            aria-checked={value.pdf_parser === choice.value}
-            disabled={disabled}
-            onClick={() => onChange(settleHiddenFields({ ...value, pdf_parser: choice.value }, t))}
-            className={cn(
-              "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors disabled:opacity-50",
-              value.pdf_parser === choice.value
-                ? "border-foreground/40 bg-accent"
-                : "hover:bg-accent/50",
-            )}
-          >
-            <span className="flex items-center gap-1.5 text-sm font-medium">
-              {choice.Icon && <choice.Icon className="h-4 w-4 shrink-0" aria-hidden />}
-              {t(choice.labelKey)}
-            </span>
-            <span className="text-muted-foreground text-xs">{t(choice.hintKey)}</span>
-          </button>
-        ))}
+        {PDF_PARSERS.filter((choice) => !deploymentOnly || choice.value !== "llamaparse").map(
+          (choice) => (
+            <button
+              key={choice.value}
+              type="button"
+              role="radio"
+              aria-checked={value.pdf_parser === choice.value}
+              disabled={disabled}
+              onClick={() =>
+                onChange(settleHiddenFields({ ...value, pdf_parser: choice.value }, t))
+              }
+              className={cn(
+                "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors disabled:opacity-50",
+                value.pdf_parser === choice.value
+                  ? "border-foreground/40 bg-accent"
+                  : "hover:bg-accent/50",
+              )}
+            >
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                {choice.Icon && <choice.Icon className="h-4 w-4 shrink-0" aria-hidden />}
+                {t(choice.labelKey)}
+              </span>
+              <span className="text-muted-foreground text-xs">{t(choice.hintKey)}</span>
+            </button>
+          ),
+        )}
       </div>
       {error && <p className="text-destructive text-xs">{error}</p>}
       <p className="text-muted-foreground text-xs">{t("builtInReadersRegardless")}</p>

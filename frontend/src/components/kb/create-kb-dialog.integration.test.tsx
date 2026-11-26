@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateKBDialog } from "./create-kb-dialog";
 import { apiClient } from "@/lib/api-client";
+import type { ServiceConnectionRecord } from "@/lib/service-connections-api";
 import { ApiError } from "@/lib/api-error";
 import { INGESTION_LIMITS } from "@/lib/ingestion-config";
 import { Perm } from "@/types/permissions";
@@ -112,7 +113,7 @@ async function openParsing() {
 
 /** What the caller may do, and what their vault holds, per test. */
 /** The servers a keyless provider can be pointed at: the organization's own and a deployment-wide one. */
-const LOCAL_SERVICES = [
+const LOCAL_SERVICES: ServiceConnectionRecord[] = [
   {
     id: "ls-1",
     organization_id: "org-1",
@@ -121,6 +122,8 @@ const LOCAL_SERVICES = [
     name: "GPU box",
     base_url: "http://ollama:11434/v1",
     is_active: true,
+    secret_id: null,
+    requires_key: false,
     created_at: "2026-09-01T00:00:00Z",
     updated_at: null,
   },
@@ -132,6 +135,8 @@ const LOCAL_SERVICES = [
     name: "Shared Ollama",
     base_url: "http://ollama.shared:11434/v1",
     is_active: true,
+    secret_id: null,
+    requires_key: false,
     created_at: "2026-09-01T00:00:00Z",
     updated_at: null,
   },
@@ -157,12 +162,16 @@ const LOCAL_SERVICES = [
     name: "OCR box",
     base_url: "http://ocr:8000",
     is_active: true,
+    secret_id: null,
+    requires_key: false,
     created_at: "2026-09-01T00:00:00Z",
     updated_at: null,
   },
 ];
 
 const state = {
+  appAdmin: false,
+  services: LOCAL_SERVICES,
   permissions: [] as Permission[],
   secrets: SECRETS,
   // What `GET /rag/embedding-models/openrouter?base_url=` answers, per test.
@@ -181,7 +190,7 @@ function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return state.secrets;
     if (path === "/service-connections")
-      return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
+      return { items: state.services, total: state.services.length };
     if (path.startsWith("/rag/embedding-models/openrouter?base_url=")) {
       if (state.endpointModels === undefined) throw new Error("not asked in this test");
       return state.endpointModels;
@@ -197,7 +206,7 @@ function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_
       return {
         organization_id: "org-1",
         role: "builder",
-        is_app_admin: false,
+        is_app_admin: state.appAdmin,
         permissions: state.permissions.map((permission) => ({ permission, scope: "all" })),
       };
     if (path === "/providers/catalog")
@@ -243,6 +252,8 @@ function show() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
+  state.services = LOCAL_SERVICES;
+  state.appAdmin = false;
   state.secrets = SECRETS;
   state.endpointModels = undefined;
   serve();
@@ -256,6 +267,150 @@ describe("who can search it", () => {
     expect(screen.getByRole("radio", { name: /Everyone/ })).toHaveAttribute("aria-checked", "true");
     await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
     expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("deployment-wide resource boundaries", () => {
+  it("clears the organization embedding key and offers only deployment connections", async () => {
+    state.appAdmin = true;
+    show();
+    await embeddingsShown();
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Every organization (deployment-wide)" }),
+    );
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    expect(screen.queryByRole("radio", { name: /LlamaParse/ })).toBeNull();
+    await userEvent.click(screen.getByLabelText("Embedding provider"));
+    expect(screen.queryByRole("option", { name: "OpenRouter" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "OpenAI" })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    expect(screen.queryByRole("option", { name: /GPU box/ })).toBeNull();
+    await userEvent.click(await screen.findByRole("option", { name: /Shared Ollama/ }));
+    await userEvent.type(screen.getByLabelText("Name"), "Shared knowledge");
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "created" });
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/kb",
+        expect.objectContaining({
+          scope: "app",
+          embedding_provider: "ollama",
+          embedding_endpoint_id: "ls-2",
+        }),
+      ),
+    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("embedding_secret_id");
+  });
+
+  it.each(["llamaparse", "liteparse", "docling"] as const)(
+    "clears incompatible %s settings before app creation",
+    async (parser) => {
+      state.appAdmin = true;
+      state.secrets = {
+        items: [
+          ...SECRETS.items,
+          {
+            id: "llama-key",
+            name: "Llama account",
+            hint: "1111",
+            purpose: "llamaparse",
+            kind: "api_key",
+          },
+        ],
+        total: 3,
+      };
+      state.services = [
+        ...LOCAL_SERVICES,
+        ...["org-1", null].map<ServiceConnectionRecord>((organization_id, index) => ({
+          id: `docling-${index}`,
+          organization_id,
+          kind: "document_parser",
+          provider: "docling",
+          name: index === 0 ? "Org Docling" : "Shared Docling",
+          base_url: "http://docling:5001",
+          is_active: true,
+          secret_id: null,
+          requires_key: false,
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: null,
+        })),
+      ];
+      show();
+      await embeddingsShown();
+      const name =
+        parser === "llamaparse" ? /LlamaParse/ : parser === "docling" ? /Docling/ : /LiteParse/;
+      await userEvent.click(screen.getByRole("radio", { name }));
+      await openParsing();
+      if (parser === "llamaparse") {
+        await userEvent.click(screen.getByLabelText("LlamaParse key"));
+        await userEvent.click(await screen.findByRole("option", { name: /Llama account/ }));
+      } else if (parser === "liteparse") {
+        await userEvent.click(screen.getByRole("switch", { name: "Read scanned pages (OCR)" }));
+        await userEvent.click(screen.getByLabelText("OCR server"));
+        await userEvent.click(await screen.findByRole("option", { name: "OCR box" }));
+      } else {
+        await userEvent.click(screen.getByLabelText("Docling connection"));
+        await userEvent.click(await screen.findByRole("option", { name: "Org Docling" }));
+      }
+      await userEvent.click(
+        screen.getByRole("checkbox", { name: "Every organization (deployment-wide)" }),
+      );
+      if (parser === "docling") {
+        expect(screen.getByLabelText("Docling connection")).toHaveTextContent("Choose a server");
+        await userEvent.click(screen.getByLabelText("Docling connection"));
+        expect(screen.queryByRole("option", { name: "Org Docling" })).toBeNull();
+        await userEvent.click(await screen.findByRole("option", { name: /Shared Docling/ }));
+      }
+      await userEvent.click(screen.getByLabelText("Server"));
+      await userEvent.click(await screen.findByRole("option", { name: /Shared Ollama/ }));
+      await userEvent.type(screen.getByLabelText("Name"), "App parser");
+      vi.mocked(apiClient.post).mockResolvedValue({ id: "created" });
+      await userEvent.click(screen.getByRole("button", { name: "Create" }));
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenCalledWith(
+          "/kb",
+          expect.objectContaining({
+            scope: "app",
+            ...(parser === "llamaparse"
+              ? {}
+              : {
+                  ingestion_config: expect.objectContaining({
+                    pdf_parser: parser,
+                    llamaparse_secret_id: null,
+                    ocr_endpoint_id: null,
+                    docling_connection_id: parser === "docling" ? "docling-1" : null,
+                  }),
+                }),
+          }),
+        ),
+      );
+      if (parser === "llamaparse") {
+        expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("ingestion_config");
+      }
+    },
+  );
+
+  it("clears an organization server and does not restore it when returning to organization scope", async () => {
+    state.appAdmin = true;
+    show();
+    await embeddingsShown();
+    await userEvent.click(screen.getByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Every organization (deployment-wide)" }),
+    );
+    expect(screen.getByLabelText("Server")).toHaveTextContent("Choose a server");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Every organization (deployment-wide)" }),
+    );
+    expect(screen.getByLabelText("Server")).toHaveTextContent("Choose a server");
+    await userEvent.click(screen.getByLabelText("Server"));
+    expect(await screen.findByRole("option", { name: /GPU box/ })).toBeVisible();
   });
 });
 

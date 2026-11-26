@@ -4363,6 +4363,7 @@
     "endpointModelsUnconfirmed": "Não foi possível consultar este endpoint sobre quais modelos ele serve, então todos os modelos do OpenRouter são listados. Um modelo que ele não serve vai falhar no primeiro upload.",
     "endpointServesNoModel": "Este endpoint não serve nenhum dos modelos de embedding oferecidos pelo AgenticOS. Deixe o endpoint vazio ou escolha outro provedor.",
     "endpointLacksCollectionModel": "Este endpoint não serve {model}, o modelo com que os vetores desta coleção foram gerados. Deixe o endpoint vazio ou escolha um que o sirva.",
+    "connectionActive": "Ativo",
     "serviceConnectionsHint": "Pontos de acesso registados uma vez e escolhidos por coleção: um Ollama que gera embeddings, um gateway compatível com OpenAI com a sua chave do cofre, um sidecar de OCR para o LiteParse.",
     "addServer": "Adicionar servidor",
     "failedLoadServiceConnections": "Não foi possível carregar as ligações de serviço",

@@ -4363,6 +4363,7 @@
     "endpointModelsUnconfirmed": "This endpoint could not be asked which models it serves, so every OpenRouter model is listed. A model it does not serve will fail on the first upload.",
     "endpointServesNoModel": "This endpoint serves none of the embedding models AgenticOS offers. Leave the endpoint empty, or choose another provider.",
     "endpointLacksCollectionModel": "This endpoint does not serve {model}, the model this collection's vectors were made with. Leave the endpoint empty, or choose one that serves it.",
+    "connectionActive": "Active",
     "serviceConnectionsHint": "Endpoints registered once and chosen per collection: an Ollama that embeds, an OpenAI-compatible gateway with its Vault key, an OCR sidecar for LiteParse.",
     "addServer": "Add server",
     "failedLoadServiceConnections": "Failed to load service connections",

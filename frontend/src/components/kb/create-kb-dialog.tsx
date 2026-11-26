@@ -96,7 +96,12 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // preselected so the model list has something to show, the first model that
   // provider serves is preselected for the same reason, and the key or server
   // beside them stays empty until somebody chooses one.
-  const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
+  const availableProviders = embeddingModels?.providers.filter(
+    (entry) => !deploymentWide || entry.keyless || entry.any_model,
+  );
+  const provider = availableProviders?.some((entry) => entry.provider === embeddingProvider)
+    ? (embeddingProvider ?? "")
+    : (availableProviders?.[0]?.provider ?? "");
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
   // A custom endpoint narrows the catalog to what it lists, which for
   // OpenRouter's EU endpoint is none of the OpenAI models the catalog starts on.
@@ -136,12 +141,16 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const doclingUnconnected = ingestion.pdf_parser === "docling" && !ingestion.docling_connection_id;
   const canSubmit =
     name.trim().length > 0 &&
+    provider !== "" &&
+    model !== "" &&
     !doclingUnconnected &&
     Object.keys(localProblems).length === 0 &&
     (!custom || gate.token !== null);
   // What the disabled Create says on hover.
   const settingsMissing =
     name.trim().length === 0 ||
+    provider === "" ||
+    model === "" ||
     doclingUnconnected ||
     Object.keys(localProblems).length > 0 ||
     (custom && (embeddingEndpointId === null || typedModel === ""));
@@ -314,7 +323,28 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     <Checkbox
                       id="kb-deployment-wide"
                       checked={deploymentWide}
-                      onCheckedChange={(next) => setDeploymentWide(next === true)}
+                      onCheckedChange={(next) => {
+                        const appScope = next === true;
+                        setDeploymentWide(appScope);
+                        setEmbeddingSecretId(null);
+                        setEmbeddingEndpointId(null);
+                        setEmbeddingBaseUrl("");
+                        if (appScope) {
+                          setEmbeddingProvider(
+                            embeddingModels?.providers.find(
+                              (entry) => entry.keyless || entry.any_model,
+                            )?.provider ?? null,
+                          );
+                          setIngestion((current) => ({
+                            ...current,
+                            pdf_parser:
+                              current.pdf_parser === "llamaparse" ? "pymupdf" : current.pdf_parser,
+                            llamaparse_secret_id: null,
+                            ocr_endpoint_id: null,
+                            docling_connection_id: null,
+                          }));
+                        }
+                      }}
                       aria-describedby="kb-deployment-wide-hint"
                     />
                     <div className="space-y-0.5">
@@ -354,6 +384,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <>
                     <EmbeddingProviderFields
                       models={embeddingModels}
+                      deploymentOnly={deploymentWide}
                       provider={provider}
                       secretId={embeddingSecretId}
                       endpointId={embeddingEndpointId}
@@ -462,6 +493,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   onChange={setIngestion}
                   disabled={isSubmitting}
                   error={errors.pdf_parser}
+                  deploymentOnly={deploymentWide}
                 />
                 <MoreOptions
                   label={t("parsingDetails")}
@@ -478,6 +510,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     errors={{ ...localProblems, ...errors }}
                     disabled={isSubmitting}
                     withoutParser
+                    deploymentOnly={deploymentWide}
                     onDraftInvalid={setDraftInvalid}
                   />
                 </MoreOptions>

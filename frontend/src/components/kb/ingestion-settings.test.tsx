@@ -70,6 +70,54 @@ describe("IngestionSettings", () => {
     );
   });
 
+  it.each([
+    ["liteparse", "ocr", "liteparse", "OCR server"],
+    ["docling", "document_parser", "docling", "Docling connection"],
+  ] as const)(
+    "offers only deployment-owned %s connections for app collections",
+    async (pdf_parser, kind, provider, label) => {
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/me/permissions")
+          return { organization_id: "org-1", role: "admin", is_app_admin: true, permissions: [] };
+        if (path === "/service-connections")
+          return {
+            items: [
+              {
+                id: "org",
+                organization_id: "org-1",
+                kind,
+                provider,
+                name: "Organization server",
+                is_active: true,
+              },
+              {
+                id: "app",
+                organization_id: null,
+                kind,
+                provider,
+                name: "Shared server",
+                is_active: true,
+              },
+            ],
+            total: 2,
+          };
+        return { items: [], total: 0 };
+      });
+      render(
+        <IngestionSettings
+          deploymentOnly
+          idPrefix="app"
+          value={{ ...DEFAULT_INGESTION_CONFIG, pdf_parser, ocr: true }}
+          onChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+      await userEvent.click(screen.getByLabelText(label));
+      expect(await screen.findByRole("option", { name: /Shared server/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /Organization server/ })).toBeNull();
+    },
+  );
+
   it("names every control it renders", () => {
     // Every label carries an `htmlFor`, which is what makes each of these
     // resolve. A form of unlabelled boxes is unusable with a screen reader and

@@ -93,6 +93,41 @@ beforeEach(() => {
 });
 
 describe("ServiceConnections", () => {
+  it.each([true, false])("changes active=%s without a paid probe", async (active) => {
+    serve({ manage: true, services: [service({ is_active: active })] });
+    vi.mocked(apiClient.patch).mockResolvedValue(service({ is_active: !active }));
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit GPU box" }));
+    expect(screen.getByRole("switch", { name: "Active" })).toHaveAttribute(
+      "aria-checked",
+      String(active),
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Active" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/service-connections/ls-1", {
+        is_active: !active,
+      }),
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("keeps a paused connection paused when only its name changes", async () => {
+    serve({ manage: true, services: [service({ is_active: false })] });
+    vi.mocked(apiClient.patch).mockResolvedValue(service({ name: "Renamed", is_active: false }));
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit GPU box" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/service-connections/ls-1", {
+        name: "Renamed",
+      }),
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("shows a member nothing, and asks the endpoint nothing", async () => {
     serve({ manage: false });
     render(<KnowledgeIntegrations targets={[]} />, { wrapper });
