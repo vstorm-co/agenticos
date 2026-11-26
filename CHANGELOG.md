@@ -31,6 +31,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
 
+### Upgrading
+
+- Apply `0377_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
+
+- Apply `0375_model_profile_pricing.py` and `0376_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
+
+## [1.95.0] - 2026-11-26
+
+### Fixed
+
 - Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
 
 - Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
@@ -74,10 +84,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Fence every quoted question, answer, failed check and earlier version in the Improve search's proposal prompt, so a dataset's text cannot read as the platform's own instructions.
 
 ### Upgrading
-
-- Apply `0377_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
-
-- Apply `0375_model_profile_pricing.py` and `0376_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
 
 - Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
 - Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
@@ -23066,7 +23072,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
