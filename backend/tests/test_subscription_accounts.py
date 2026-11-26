@@ -332,6 +332,7 @@ async def test_ending_a_membership_wipes_the_persons_accounts() -> None:
         patch.object(
             member_module.NetworkConnectionService, "revoke_member", AsyncMock(return_value=0)
         ),
+        patch.object(member_module, "record_audit", AsyncMock()),
         patch.multiple(
             member_module,
             group_repo=AsyncMock(),
@@ -342,6 +343,8 @@ async def test_ending_a_membership_wipes_the_persons_accounts() -> None:
             agent_trigger_repo=AsyncMock(),
             telephony_repo=AsyncMock(),
             session_repo=session_repo,
+            agent_exposure_repo=AsyncMock(pause_for_creator=AsyncMock(return_value=0)),
+            agent_embed_repo=AsyncMock(pause_for_owner=AsyncMock(return_value=0)),
             member_repo=AsyncMock(),
             resource_grant_repo=AsyncMock(),
         ),

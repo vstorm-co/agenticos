@@ -18,7 +18,7 @@ from botocore.awsrequest import (
     AWSHTTPSConnectionPool,
 )
 from botocore.client import BaseClient
-from urllib3.connection import HTTPConnection, HTTPSConnection, _TYPE_BODY
+from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 from urllib3.util.timeout import _DEFAULT_TIMEOUT
 
@@ -102,9 +102,7 @@ def _tunnel(
         connection._tunnel_host = host
 
 
-def _forward_target(
-    url: str, headers: Mapping[str, str]
-) -> tuple[str, Mapping[str, str]]:
+def _forward_target(url: str, headers: Mapping[str, str]) -> tuple[str, Mapping[str, str]]:
     parsed = urlsplit(url)
     if parsed.scheme != "http":
         return url, headers
@@ -127,29 +125,23 @@ def pin_s3_client(client: BaseClient) -> None:
         def _new_conn(self) -> socket.socket:
             return super()._new_conn() if self.proxy else _direct_socket(self)
 
-        def request(
+        def putrequest(
             self,
             method: str,
             url: str,
-            body: _TYPE_BODY | None = None,
-            headers: Mapping[str, str] | None = None,
-            *,
-            chunked: bool = False,
-            preload_content: bool = True,
-            decode_content: bool = True,
-            enforce_content_length: bool = True,
+            skip_host: bool = False,
+            skip_accept_encoding: bool = False,
         ) -> None:
-            url, headers = _forward_target(url, headers or {})
-            super().request(
+            url, headers = _forward_target(url, {})
+            host = headers.get("Host")
+            super().putrequest(
                 method,
                 url,
-                body,
-                headers,
-                chunked=chunked,
-                preload_content=preload_content,
-                decode_content=decode_content,
-                enforce_content_length=enforce_content_length,
+                skip_host=skip_host or host is not None,
+                skip_accept_encoding=skip_accept_encoding,
             )
+            if host is not None and not skip_host:
+                self.putheader("Host", host)
 
     class PinnedHTTPSConnection(AWSHTTPSConnection):
         _s3_tunnel_candidates: tuple[str, ...] | None = None
@@ -185,30 +177,24 @@ def pin_s3_client(client: BaseClient) -> None:
             # implementation is inspected and exercised by real proxy tests.
             _tunnel(self, super()._tunnel, self._s3_tunnel_candidates)  # ty: ignore[missing-attribute]
 
-        def request(
+        def putrequest(
             self,
             method: str,
             url: str,
-            body: _TYPE_BODY | None = None,
-            headers: Mapping[str, str] | None = None,
-            *,
-            chunked: bool = False,
-            preload_content: bool = True,
-            decode_content: bool = True,
-            enforce_content_length: bool = True,
+            skip_host: bool = False,
+            skip_accept_encoding: bool = False,
         ) -> None:
             # An HTTP origin may be forwarded over a TLS connection to its proxy.
-            url, headers = _forward_target(url, headers or {})
-            super().request(
+            url, headers = _forward_target(url, {})
+            host = headers.get("Host")
+            super().putrequest(
                 method,
                 url,
-                body,
-                headers,
-                chunked=chunked,
-                preload_content=preload_content,
-                decode_content=decode_content,
-                enforce_content_length=enforce_content_length,
+                skip_host=skip_host or host is not None,
+                skip_accept_encoding=skip_accept_encoding,
             )
+            if host is not None and not skip_host:
+                self.putheader("Host", host)
 
     class PinnedHTTPPool(AWSHTTPConnectionPool):
         # urllib3's protocol requires mutable default_socket_options but its
