@@ -57,6 +57,7 @@ const pending = vi.hoisted(() => ({
   >[],
   steps: [] as { id: string; title: string; workflow_name: string }[],
   count: 0,
+  decidesAll: true,
   isLoading: false,
   error: null as Error | null,
   refetch: vi.fn(),
@@ -145,6 +146,7 @@ beforeEach(() => {
   pending.tools = [];
   pending.steps = [];
   pending.count = 0;
+  pending.decidesAll = true;
   pending.isLoading = false;
   pending.error = null;
   pending.refetch.mockReset();
@@ -443,6 +445,20 @@ describe("approvals waiting on the reader", () => {
     const section = screen.getByRole("region", { name: "Approval requests" });
     expect(section).toHaveTextContent("Delivery exceptions");
     expect(section).not.toHaveTextContent("Private run content");
+  });
+
+  it("lets a person who decides nothing else answer their own call where it waits", async () => {
+    pending.decidesAll = false;
+    pending.steps = [];
+    pending.count = 1;
+    render(<InboxPage />);
+
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(screen.queryByRole("link", { name: "Open approvals" })).toBeNull();
+    const [own] = section.querySelectorAll("li");
+    expect(within(own as HTMLElement).queryByRole("button", { name: "Open the run" })).toBeNull();
+    await userEvent.click(within(own as HTMLElement).getByRole("button", { name: "Reject" }));
+    expect(decideTool).toHaveBeenCalledWith({ id: "t1", approved: false });
   });
 
   it("decides requests through the same actions as the approvals queue", async () => {

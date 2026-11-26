@@ -79,7 +79,8 @@ export function PendingApproval({
   approval: ToolApproval;
   deciding: boolean;
   onDecide: (approved: boolean, note?: string) => void;
-  onOpenRun: () => void;
+  /** Absent where the reader may not open the run's page. */
+  onOpenRun?: () => void;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -131,14 +132,16 @@ export function PendingApproval({
                 {ago !== null && (
                   <span title={formatDateTime(approval.created_at as string, locale)}>{ago}</span>
                 )}
-                <button
-                  type="button"
-                  onClick={onOpenRun}
-                  className="hover:text-foreground inline-flex items-center gap-1 underline underline-offset-4"
-                >
-                  {t("openTheRun")}
-                  <ExternalLink className="h-3 w-3" aria-hidden />
-                </button>
+                {onOpenRun && (
+                  <button
+                    type="button"
+                    onClick={onOpenRun}
+                    className="hover:text-foreground inline-flex items-center gap-1 underline underline-offset-4"
+                  >
+                    {t("openTheRun")}
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </button>
+                )}
               </p>
             </div>
             <ApprovalDelegate approval={approval} />

@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   loading: false,
   error: null as Error | null,
   pending: 0,
+  decidesAll: true,
   pendingError: null as Error | null,
   refetch: vi.fn(),
   refetchPending: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/hooks/use-suggestions", () => ({
 vi.mock("@/hooks/use-pending-approvals", () => ({
   usePendingApprovals: () => ({
     count: state.pending,
+    decidesAll: state.decidesAll,
     isLoading: false,
     error: state.pendingError,
     refetch: state.refetchPending,
@@ -75,6 +77,16 @@ it("limits the timeline preview and keeps approval and item links without a visu
   expect(screen.getByRole("region", { name: "Daily briefing" })).toContainElement(approvalLink);
   expect(screen.queryByText("Daily briefing")).toBeNull();
   expect(screen.getByRole("link", { name: "Open inbox" })).toHaveAttribute("href", "/inbox");
+});
+
+it("sends a person whose only approvals are their own platform calls to their inbox", () => {
+  state.pending = 1;
+  state.decidesAll = false;
+  render(<ChatHomeInbox onDiscuss={vi.fn()} />);
+  expect(screen.getByRole("link", { name: "1 approval needs your attention" })).toHaveAttribute(
+    "href",
+    "/inbox",
+  );
 });
 
 it("shows at most two entries and includes older priority items before newer regular items", () => {
