@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, CircleDot, Loader2, MoreHorizontal } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { useFailureWords } from "@/components/authoring/failure-words";
 import { usd } from "@/components/evals/format";
 import {
   Tabs,
@@ -110,6 +111,7 @@ export function ImprovementShell({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
+  const failure = useFailureWords("session")(session);
   const actions = useImprovement(subjectOf(session), session.id);
   // Without ?step= the screen follows the session; a person who opens another step
   // stays there, and can link to it, until they go back to the current one.
@@ -254,10 +256,15 @@ export function ImprovementShell({
               : t(`stop.${session.stop_reason}`)}
           </p>
         )}
-        {session.error && (
+        {failure.text && (
           <NativeDisclosure className="text-muted-foreground text-sm">
             <summary className="cursor-pointer">{t("technicalDetails")}</summary>
-            <p className="mt-2 break-words">{session.error}</p>
+            <p className="mt-2 break-words">{failure.text}</p>
+            {failure.detail && (
+              <p lang="en" className="mt-1 text-xs break-words">
+                {failure.detail}
+              </p>
+            )}
           </NativeDisclosure>
         )}
         <TabsContent value={recordTab} forceMount asChild>

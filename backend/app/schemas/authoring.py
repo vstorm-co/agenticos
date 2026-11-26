@@ -26,6 +26,57 @@ MAX_EVIDENCE_ITEMS = 12
 MAX_REJECTED = 20
 """How many of the changes the improver proposed and nothing recorded a report lists."""
 
+StepFailure = Literal[
+    "system_agent_not_seeded",
+    "system_agent_missing",
+    "system_agent_unpublished",
+    "system_agent_archived",
+    "system_agent_no_access",
+    "system_agent_no_model",
+    "system_agent_failed",
+    "only_anonymised",
+    "all_evidence",
+    "no_scorer",
+    "no_reruns",
+    "evidence_too_large",
+    "budget",
+    "not_found",
+    "not_allowed",
+    "changed",
+    "run_failed",
+    "refused",
+    "failed",
+]
+"""Why a background step stopped on one of the platform's own refusals.
+
+The last six name only the kind of refusal; the stored English sentence holds the
+specifics, such as which dataset or agent it was about.
+"""
+
+AuthoringFailure = Literal[
+    StepFailure,
+    "no_runs_view",
+    "evidence_erased",
+    "no_edit_agent",
+    "agent_gone",
+    "no_published_version",
+    "skill_gone",
+    "no_edit_skill",
+    "session_moved_on",
+    "conflicts_unanswered",
+    "session_stopped",
+    "context_gone",
+    "no_edit_context",
+    "unknown_skill_use",
+    "no_evidence",
+    "key_revoked",
+    "not_a_member",
+    "unexpected",
+    "stalled",
+    "withdrawn",
+]
+"""Why an assistant request failed, as the code beside its English `error`."""
+
 
 class Rejection(StrEnum):
     """Why a change the improver proposed was not recorded - one wording everywhere.
@@ -370,7 +421,15 @@ class AuthoringRequestRead(BaseSchema):
     skill_id: UUID | None
     context_id: UUID | None = None
     status: str
-    error: str | None
+    error: str | None = Field(description="Why the request failed, as an English sentence")
+    error_code: AuthoringFailure | None = Field(
+        default=None,
+        description="`error` as a code, for a client to put in its own words; null on a "
+        "request that failed before codes were recorded",
+    )
+    error_params: dict[str, int] | None = Field(
+        default=None, description="The numbers `error` names: `runs` for `unknown_skill_use`"
+    )
     estimate_usd: Decimal
     cost_usd: Decimal
     run_ids: list[UUID]

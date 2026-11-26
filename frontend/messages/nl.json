@@ -21771,5 +21771,55 @@
     "inProgress": "Bezig",
     "unknown": "Niet beschikbaar",
     "otherStep": "Configuratie"
+  },
+  "stepFailure": {
+    "technicalDetails": "Technische details",
+    "step": {
+      "system_agent_not_seeded": "Een systeem-agent die deze stap nodig heeft, kon niet worden ingesteld.",
+      "system_agent_missing": "Een systeem-agent die deze stap nodig heeft, of de versie die ervoor is gekozen, bestaat niet meer. Kies een andere.",
+      "system_agent_unpublished": "Een systeem-agent die deze stap nodig heeft, heeft geen gepubliceerde versie. Kies een model en publiceer hem.",
+      "system_agent_archived": "Een systeem-agent die deze stap nodig heeft, is gearchiveerd. Zet hem terug om hem weer te gebruiken.",
+      "system_agent_no_access": "Wie dit heeft gestart, mag een systeem-agent die deze stap nodig heeft niet uitvoeren. Vraag er toegang toe.",
+      "system_agent_no_model": "Een systeem-agent die deze stap nodig heeft, kan zijn model niet bereiken.",
+      "system_agent_failed": "Een systeem-agent die deze stap nodig heeft, gaf geen bruikbaar antwoord. Zijn run staat in Activiteit.",
+      "only_anonymised": "Elk geval van de dataset is geanonimiseerd toen de persoon van wie het kwam werd gewist. Herschrijf of verwijder die gevallen eerst.",
+      "all_evidence": "Elk geval van de dataset komt uit de gesprekken waaruit deze wijziging is afgeleid, dus geen enkel geval kan haar meten. Voeg gevallen uit andere gesprekken toe of kies een andere dataset.",
+      "no_scorer": "Niets in de beoordeling van de dataset kan een geval beslissen. Voeg een controle of een verwachte toolaanroep toe, of schakel de beoordelaar in.",
+      "no_reruns": "Een run die tegen een basislijn wordt gemeten, heeft minstens één herhaling nodig, en deze installatie staat op geen.",
+      "evidence_too_large": "Het bewijs van het voorstel is te groot om de test ervan veilig te isoleren. Vraag een nieuw voorstel aan.",
+      "budget": "Het budget was op voordat deze stap klaar was.",
+      "not_found": "Iets wat deze stap nodig heeft, bestaat niet meer of is niet meer zichtbaar.",
+      "not_allowed": "Wie dit heeft gestart, mag deze stap niet meer uitvoeren.",
+      "changed": "Iets wat deze stap las, is veranderd terwijl de stap liep. Probeer het opnieuw.",
+      "run_failed": "Een run die deze stap nodig had, is mislukt, of de modelprovider antwoordde niet.",
+      "refused": "Deze stap is geweigerd.",
+      "failed": "Deze stap is op de server mislukt."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Voeg nog # apart gehouden testvraag toe om een wijziging te meten.} other {Voeg nog # apart gehouden testvragen toe om een wijziging te meten.}}",
+      "no_evidence": "Er zijn nog geen beoordeelde chat-runs of mislukkingen op trainingsvragen.",
+      "search_too_few_training": "{minimum, plural, one {Een zoektocht heeft voor deze poging minstens # trainingsvraag nodig.} other {Een zoektocht heeft voor deze poging minstens # trainingsvragen nodig.}}"
+    },
+    "request": {
+      "no_runs_view": "Wie dit heeft gestart, mag geen runs meer lezen.",
+      "evidence_erased": "Een bewijsbron is gewist terwijl de assistent werkte. Begin opnieuw met actueel bewijs.",
+      "no_edit_agent": "Wie dit heeft gestart, mag de agent niet meer bewerken.",
+      "agent_gone": "De agent bestaat niet meer.",
+      "no_published_version": "De agent heeft geen gepubliceerde versie om mee te vergelijken.",
+      "skill_gone": "De skill bestaat niet meer.",
+      "no_edit_skill": "Wie dit heeft gestart, mag de skill niet meer bewerken.",
+      "session_moved_on": "De verbetersessie is verdergegaan.",
+      "conflicts_unanswered": "De assistent heeft niet elk conflict beantwoord; los ze op bij Wijzigingen.",
+      "session_stopped": "De verbetersessie is gestopt.",
+      "context_gone": "Het contextbestand bestaat niet meer.",
+      "no_edit_context": "Wie dit heeft gestart, mag het contextbestand niet meer bewerken.",
+      "unknown_skill_use": "Van geen enkele run in deze periode is bekend dat hij de skill heeft gebruikt. {runs, plural, one {# negatief beoordeelde of mislukte run is van voordat gebruik werd vastgelegd, dus of hij de skill gebruikte, is onbekend.} other {# negatief beoordeelde of mislukte runs zijn van voordat gebruik werd vastgelegd, dus of ze hem gebruikten, is onbekend.}}",
+      "no_evidence": "Nog niets om van te leren: geen enkele run in deze periode is beoordeeld of mislukt. Verruim de periode, of kom terug als er antwoorden zijn beoordeeld.",
+      "key_revoked": "De API-sleutel waarmee dit is gestart, is ingetrokken of bestaat niet meer, dus het is gestopt.",
+      "not_a_member": "Wie dit heeft gestart, is geen lid meer.",
+      "unexpected": "De assistent is onverwacht gestopt. Probeer het opnieuw.",
+      "stalled": "De assistent is gestopt zonder af te ronden. Probeer het opnieuw.",
+      "withdrawn": "Het verzoek is geannuleerd voordat het begon. Probeer het opnieuw."
+    }
   }
 }

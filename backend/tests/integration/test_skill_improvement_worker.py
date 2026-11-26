@@ -212,6 +212,7 @@ async def test_a_step_for_a_session_that_ended_or_a_skill_its_starter_cannot_edi
     request = await _work(db, ctx, run.analysis_request_id)
 
     assert (request.status, request.error) == ("failed", "The improvement session stopped.")
+    assert request.error_code == "session_stopped"
 
     other_ctx, other = await _session(db, evidence)
     assert other.analysis_request_id is not None
@@ -301,6 +302,7 @@ async def test_a_failed_model_call_still_rechecks_the_evidence_it_was_given(
         if erased
         else "The assistant stopped unexpectedly. Try again."
     )
+    assert request.error_code == ("evidence_erased" if erased else "unexpected")
 
 
 async def test_reading_a_lines_evidence_is_priced_like_any_improve(db):
@@ -410,6 +412,7 @@ async def test_an_answer_for_another_number_of_conflicts_leaves_them_to_a_person
         "failed",
         "The assistant did not answer every conflict; settle them at Changes.",
     )
+    assert request.error_code == "conflicts_unanswered"
 
 
 @pytest.mark.usefixtures("call_price")

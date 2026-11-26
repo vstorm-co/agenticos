@@ -37,12 +37,12 @@ async def test_progress_without_run_access_excludes_errors_but_retains_the_sessi
     ctx, agent, _, session = await _started(db)
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
-    row.error = "Private provider details"
+    row.error, row.error_code, row.error_params = "Private details", "refused", {"missing": 1}
     await db.flush()
     limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
     listed = await ImprovementPipelineService(db).list_for_agent(limited, agent.id)
     assert [item.id for item in listed] == [session.id]
-    assert listed[0].error is None
+    assert (listed[0].error, listed[0].error_code, listed[0].error_params) == (None, None, None)
     assert not listed[0].knowledge_eval_run_ids
 
 

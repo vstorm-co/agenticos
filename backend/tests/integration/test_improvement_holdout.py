@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun
 from app.db.models.dataset import DatasetCase
 from app.schemas.dataset import (
     DatasetCaseContent,
@@ -291,8 +292,28 @@ async def test_a_session_below_the_holdout_minimum_stops_with_an_actionable_reas
     stopped = await service.read(ctx, agent.id, started.id)
     assert (stopped.status, stopped.stop_reason) == ("stopped", "no_data")
     assert stopped.error == "Add 1 more held-out test questions to measure a change"
+    assert (stopped.error_code, stopped.error_params) == ("too_few_held_out", {"missing": 1})
     assert stopped.iterations[0].authoring_request_id is None
     assert stopped.iterations[0].verdict_detail["missing_holdout"] == 1
+
+
+async def test_a_session_with_nothing_to_learn_from_stops_saying_so(db):
+    ctx, agent, run = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=12)
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(5), max_iterations=1),
+    )
+    await db.delete(await db.get(AgentRun, run.id))
+    await db.flush()
+    await service.advance(started.id, ctx.organization_id)
+    await service.advance(started.id, ctx.organization_id)
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert (stopped.status, stopped.stop_reason) == ("stopped", "no_data")
+    assert (stopped.error_code, stopped.error_params) == ("no_evidence", None)
+    assert stopped.error == "No rated chat runs or training failures are available yet"
 
 
 async def test_improver_reads_train_failures_review_notes_and_aggregates_without_holdout_text(db):

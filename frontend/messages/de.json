@@ -21573,5 +21573,55 @@
     "inProgress": "In Bearbeitung",
     "unknown": "Nicht verfügbar",
     "otherStep": "Einrichtung"
+  },
+  "stepFailure": {
+    "technicalDetails": "Technische Details",
+    "step": {
+      "system_agent_not_seeded": "Ein System-Agent, den dieser Schritt braucht, konnte nicht eingerichtet werden.",
+      "system_agent_missing": "Ein System-Agent, den dieser Schritt braucht, oder die dafür gewählte Version gibt es nicht mehr. Wählen Sie einen anderen.",
+      "system_agent_unpublished": "Ein System-Agent, den dieser Schritt braucht, hat keine veröffentlichte Version. Wählen Sie ein Modell und veröffentlichen Sie ihn.",
+      "system_agent_archived": "Ein System-Agent, den dieser Schritt braucht, ist archiviert. Stellen Sie ihn wieder her, um ihn erneut zu verwenden.",
+      "system_agent_no_access": "Wer dies gestartet hat, darf einen System-Agent, den dieser Schritt braucht, nicht ausführen. Bitten Sie um Zugriff darauf.",
+      "system_agent_no_model": "Ein System-Agent, den dieser Schritt braucht, erreicht sein Modell nicht.",
+      "system_agent_failed": "Ein System-Agent, den dieser Schritt braucht, hat keine verwendbare Antwort gegeben. Sein Run ist unter Aktivität gespeichert.",
+      "only_anonymised": "Jeder Fall des Datasets wurde anonymisiert, als die Person gelöscht wurde, von der er stammt. Schreiben Sie diese Fälle zuerst um oder entfernen Sie sie.",
+      "all_evidence": "Jeder Fall des Datasets stammt aus den Unterhaltungen, aus denen diese Änderung abgeleitet wurde, sodass keiner sie messen kann. Fügen Sie Fälle aus anderen Unterhaltungen hinzu oder wählen Sie ein anderes Dataset.",
+      "no_scorer": "Nichts in der Bewertung des Datasets kann einen Fall entscheiden. Fügen Sie eine Prüfung oder einen erwarteten Tool-Aufruf hinzu, oder schalten Sie den Bewerter ein.",
+      "no_reruns": "Ein Run, der an einer Basis gemessen wird, braucht mindestens eine Wiederholung, und auf diesem Deployment sind keine eingestellt.",
+      "evidence_too_large": "Die Belege des Vorschlags sind zu groß, um seinen Test sicher zu isolieren. Fordern Sie einen neuen Vorschlag an.",
+      "budget": "Das Budget war aufgebraucht, bevor dieser Schritt fertig war.",
+      "not_found": "Etwas, das dieser Schritt braucht, gibt es nicht mehr oder ist nicht mehr sichtbar.",
+      "not_allowed": "Wer dies gestartet hat, darf diesen Schritt nicht mehr ausführen.",
+      "changed": "Etwas, das dieser Schritt gelesen hat, hat sich während seiner Ausführung geändert. Versuchen Sie es erneut.",
+      "run_failed": "Ein Run, den dieser Schritt brauchte, ist fehlgeschlagen, oder sein Modell-Provider hat nicht geantwortet.",
+      "refused": "Dieser Schritt wurde abgelehnt.",
+      "failed": "Dieser Schritt ist auf dem Server fehlgeschlagen."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Fügen Sie # weitere zurückgehaltene Testfrage hinzu, um eine Änderung zu messen.} other {Fügen Sie # weitere zurückgehaltene Testfragen hinzu, um eine Änderung zu messen.}}",
+      "no_evidence": "Es gibt noch keine bewerteten Chat-Runs und keine Fehlschläge bei Trainingsfragen.",
+      "search_too_few_training": "{minimum, plural, one {Eine Suche braucht für diesen Versuch mindestens # Trainingsfrage.} other {Eine Suche braucht für diesen Versuch mindestens # Trainingsfragen.}}"
+    },
+    "request": {
+      "no_runs_view": "Wer dies gestartet hat, darf keine Runs mehr lesen.",
+      "evidence_erased": "Eine Belegquelle wurde gelöscht, während der Assistent arbeitete. Beginnen Sie mit aktuellen Belegen neu.",
+      "no_edit_agent": "Wer dies gestartet hat, darf den Agent nicht mehr bearbeiten.",
+      "agent_gone": "Den Agent gibt es nicht mehr.",
+      "no_published_version": "Der Agent hat keine veröffentlichte Version zum Vergleichen.",
+      "skill_gone": "Den Skill gibt es nicht mehr.",
+      "no_edit_skill": "Wer dies gestartet hat, darf den Skill nicht mehr bearbeiten.",
+      "session_moved_on": "Die Verbesserungssitzung ist weitergegangen.",
+      "conflicts_unanswered": "Der Assistent hat nicht jeden Konflikt beantwortet. Klären Sie sie im Schritt Änderungen.",
+      "session_stopped": "Die Verbesserungssitzung wurde angehalten.",
+      "context_gone": "Die Kontextdatei gibt es nicht mehr.",
+      "no_edit_context": "Wer dies gestartet hat, darf die Kontextdatei nicht mehr bearbeiten.",
+      "unknown_skill_use": "Von keinem Run in diesem Zeitraum ist bekannt, dass er den Skill verwendet hat. {runs, plural, one {# negativ bewerteter oder fehlgeschlagener Run stammt aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob er den Skill verwendet hat.} other {# negativ bewertete oder fehlgeschlagene Runs stammen aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob sie ihn verwendet haben.}}",
+      "no_evidence": "Noch nichts, woraus sich lernen lässt: Kein Run in diesem Zeitraum wurde bewertet oder ist fehlgeschlagen. Erweitern Sie den Zeitraum oder kommen Sie wieder, wenn Antworten bewertet wurden.",
+      "key_revoked": "Der API-Schlüssel, mit dem dies gestartet wurde, wurde widerrufen oder existiert nicht mehr, daher wurde es angehalten.",
+      "not_a_member": "Wer dies gestartet hat, ist kein Mitglied mehr.",
+      "unexpected": "Der Assistent wurde unerwartet angehalten. Versuchen Sie es erneut.",
+      "stalled": "Der Assistent wurde angehalten, bevor er fertig war. Versuchen Sie es erneut.",
+      "withdrawn": "Die Anfrage wurde abgebrochen, bevor sie begann. Versuchen Sie es erneut."
+    }
   }
 }

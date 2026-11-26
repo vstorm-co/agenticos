@@ -203,14 +203,14 @@ class TestLostJobs:
         assert not [r for r in caplog.records if r.message == "eval_run_job_lost"]
 
     @pytest.mark.parametrize(
-        ("why", "error"),
+        ("why", "error", "code"),
         [
-            ("cancelled", "The request was cancelled before it started. Try again."),
-            ("worker killed", "The assistant stopped without finishing. Try again."),
+            ("cancelled", "The request was cancelled before it started. Try again.", "withdrawn"),
+            ("worker killed", "The assistant stopped without finishing. Try again.", "stalled"),
         ],
     )
     async def test_a_lost_authoring_job_fails_its_request(
-        self, monkeypatch, caplog, why: str, error: str
+        self, monkeypatch, caplog, why: str, error: str, code: str
     ):
         fail = AsyncMock(return_value=True)
         monkeypatch.setattr(authoring_repo, "fail_unfinished", fail)
@@ -224,6 +224,7 @@ class TestLostJobs:
         assert fail.await_args.args[1] == request
         assert fail.await_args.kwargs["organization_id"] == org
         assert fail.await_args.kwargs["error"] == error
+        assert fail.await_args.kwargs["error_code"] == code
         assert [r for r in caplog.records if r.message == "authoring_request_job_lost"]
 
     async def test_a_request_a_worker_still_holds_is_settled_later(self, monkeypatch):

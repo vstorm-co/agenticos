@@ -180,6 +180,7 @@ class RunReaperService:
                 request_id,
                 organization_id=organization_id,
                 error=_AUTHORING_WITHDRAWN if why == _WITHDRAWN else _AUTHORING_JOB_ENDED,
+                error_code="withdrawn" if why == _WITHDRAWN else "stalled",
                 now=datetime.now(UTC),
             )
         except DBAPIError as refused:
