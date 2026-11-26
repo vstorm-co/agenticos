@@ -26,6 +26,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
+from mcp.types import ToolAnnotations
 from pydantic_ai.mcp import MCPError, MCPToolset
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,11 +96,9 @@ class McpAppService:
         call, _, _ = await self._authorized(
             ctx, conversation_id=conversation_id, tool_call_id=tool_call_id
         )
-        if ctx.user_id is None:
-            raise NotFoundError(message=_GONE)
         token = create_mcp_app_view_token(
             call.id,
-            user_id=ctx.user_id,
+            user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
             expires_in=PAGE_ADDRESS_LIFETIME,
         )
@@ -306,8 +305,14 @@ def _first(group: BaseExceptionGroup[Any]) -> BaseException:
     return _first(inner) if isinstance(inner, BaseExceptionGroup) else inner
 
 
-def _read_only(annotations: Any) -> bool:
+def _read_only(annotations: ToolAnnotations | None) -> bool:
     return annotations is not None and annotations.read_only_hint is True
+
+
+def _ui(meta: object) -> dict[str, object]:
+    """A tool's `_meta.ui`, or empty where it has none."""
+    ui = meta.get("ui") if isinstance(meta, dict) else None
+    return ui if isinstance(ui, dict) else {}
 
 
 def _check_tool(
@@ -320,24 +325,18 @@ def _check_tool(
     belong to the same page as the call it was asked from.
     """
     refused = AuthorizationError(message="This page may not use that tool", details={"tool": name})
-    match meta:
-        case {"ui": {"visibility": list() as visibility}} if "app" not in visibility:
-            raise refused
-        case _:
-            pass
+    ui = _ui(meta)
+    visibility = ui.get("visibility")
+    if isinstance(visibility, list) and "app" not in visibility:
+        raise refused
     if visible_to_model(meta):
         for allowed in (record["allowed_tools"], connection.allowed_tools):
             if allowed is not None and name not in allowed:
                 raise refused
-    else:
-        match meta:
-            case {"ui": {"resourceUri": str(uri)}} if uri == record["resource_uri"]:
-                pass
-            case _:
-                raise refused
-    if approval_needed(
-        record["approval"], read_only=read_only, own=record["tool_approval"].get(name, "default")
-    ):
+    elif ui.get("resourceUri") != record["resource_uri"]:
+        raise refused
+    own = record["tool_approval"].get(name, "default")
+    if approval_needed(record["approval"], read_only=read_only, own=own):
         raise AuthorizationError(
             message="This needs a person's approval: ask the agent in the conversation instead",
             details={"tool": name, "approval_required": True},

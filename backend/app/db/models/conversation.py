@@ -542,7 +542,11 @@ class ToolCall(Base):
     # The MCP Apps page this call is shown with, when its connection has pages on:
     # the page's `ui://` address, the call's input and the server's whole result,
     # and which connection to read the page from (`app.agents.mcp_apps.McpAppRecord`).
-    mcp_app: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # `none_as_null`: a call without a page stores SQL NULL, not JSON `null`, which
+    # `IS NOT NULL` would read as a call with one.
+    mcp_app: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     message: Mapped[Message] = relationship("Message", back_populates="tool_calls")
 
