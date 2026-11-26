@@ -164,8 +164,6 @@ class S3Connector(ObjectStoreConnector):
         }
         if credential.aws_session_token is not None:
             client_kwargs["aws_session_token"] = credential.aws_session_token.get_secret_value()
-        # boto3 resolves the name itself when it connects, so unlike the web crawl
-        # this is a check at resolution time and not a pinned address.
         endpoint = config.get("endpoint_url") or settings.S3_RAG_ENDPOINT
         if endpoint:
             client_kwargs["endpoint_url"] = endpoint
@@ -174,7 +172,12 @@ class S3Connector(ObjectStoreConnector):
         import boto3
         from botocore.config import Config
 
-        return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
+        client = boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
+        if config.get("endpoint_url"):
+            from app.services.rag.connectors._s3_http import pin_s3_client
+
+            pin_s3_client(client)
+        return client
 
     def _objects(
         self,
