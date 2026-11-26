@@ -42,6 +42,7 @@ it("counts what the server says waits on the reader, past the rows it lists", as
   await waitFor(() => expect(result.current.isLoading).toBe(false));
 
   expect(result.current.count).toBe(3 + 60);
+  expect(result.current.decidesAll).toBe(true);
   expect(result.current.tools.map((call) => call.id)).toEqual(["t1"]);
   expect(result.current.steps.map((step) => step.id)).toEqual(["s1"]);
   expect(state.get).toHaveBeenCalledWith("/approvals", {
@@ -50,18 +51,15 @@ it("counts what the server says waits on the reader, past the rows it lists", as
   expect(state.decidable).toHaveBeenCalledWith(5);
 });
 
-it("asks neither queue for somebody who may not decide, and waits on nothing", async () => {
+it("reads only the calls of somebody who may not decide, which are their own", async () => {
   state.allowed = false;
   const { result } = renderHook(() => usePendingApprovals(), { wrapper });
-  expect(result.current).toMatchObject({
-    tools: [],
-    steps: [],
-    count: 0,
-    isLoading: false,
-    error: null,
-  });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  expect(result.current).toMatchObject({ decidesAll: false, steps: [], count: 3, error: null });
+  expect(result.current.tools.map((call) => call.id)).toEqual(["t1"]);
   await result.current.refetch();
-  expect(state.get).not.toHaveBeenCalled();
+  expect(state.get).toHaveBeenCalledTimes(2);
   expect(state.decidable).not.toHaveBeenCalled();
   expect(state.refetchPermissions).not.toHaveBeenCalled();
 });

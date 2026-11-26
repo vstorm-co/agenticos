@@ -38,6 +38,7 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
+from app.repositories.agent_run import ApprovalFilters
 from app.schemas.conversation import HistoryProvenance
 from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.approvals import ApprovalService
@@ -96,7 +97,7 @@ async def _parked(
     tool_id: str = _ACCEPT,
     always_asks: bool = True,
     status: ApprovalStatus = ApprovalStatus.PENDING,
-    platform_bound: bool = True,
+    platform_call: bool | None = None,
 ) -> tuple[AgentRun, ToolApproval]:
     """`owner`'s run, parked on one call, as the Architect leaves it."""
     agent = Agent(
@@ -143,12 +144,10 @@ async def _parked(
         run_id=run.id,
         agent_id=agent.id,
         tool_id=tool_id,
-        context={"platform_tool": "true"}
-        if platform_bound and tool_id.startswith("agenticos_")
-        else None,
         tool_args=arguments,
         status=status.value,
         always_asks=always_asks,
+        platform_call=tool_id.startswith("agenticos_") if platform_call is None else platform_call,
         created_at=_NOW,
     )
     db.add(approval)
@@ -318,8 +317,10 @@ class TestContinuingPastAnApprovedPlatformCall:
 @asynccontextmanager
 async def _client(db: AsyncSession, ctx: AuthContext) -> AsyncIterator[AsyncClient]:
     overrides = app.dependency_overrides.copy()
+    redis = AsyncMock()
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
-    app.dependency_overrides[deps.get_redis] = lambda: AsyncMock()
+    app.dependency_overrides[deps.get_redis] = lambda: redis
+    app.dependency_overrides[deps.get_approval_service] = lambda: ApprovalService(db)
     app.dependency_overrides[deps.get_parked_run_service] = lambda: ParkedRunService(
         db, runner=AgentRunnerService(db), approvals=ApprovalService(db)
     )
@@ -463,7 +464,7 @@ class TestWhatEachReaderIsOffered:
         _first, platform = await _parked(db, org, builder)
         _second, other = await _parked(db, org, builder, tool_id="send_email", always_asks=False)
 
-        rows, _total = await ApprovalService(db).list_approvals(operator)
+        rows, _ = await ApprovalService(db).list_approvals(operator)
 
         offered = {row.id: row.may_approve for row in rows}
         assert offered == {platform.id: False, other.id: True}
@@ -485,11 +486,31 @@ class TestWhatEachReaderIsOffered:
         run.channel_identity_id = identity.id
         await db.flush()
 
-        [row], _total = await ApprovalService(db).list_approvals(publisher)
+        [row], _ = await ApprovalService(db).list_approvals(publisher)
 
         assert row.id == approval.id
         assert row.triggered_by_user_id is None
         assert row.may_approve is True
+
+
+@pytest.mark.security
+async def test_a_platform_calls_names_are_read_by_its_person_alone(db: AsyncSession):
+    """The names were read with the person's own grants: an approver who may not open
+    that agent decides from the arguments, as the queue and the parked read show it."""
+    org = await _org(db)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    operator = await _member(db, org, OrgRoleName.OPERATOR)
+    run, approval = await _parked(db, org, builder)
+    approval.context = {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    await db.flush()
+
+    [row], _ = await ApprovalService(db).list_approvals(operator)
+    [theirs] = await AgentRunnerService(db).parked_calls(builder, run, for_decision=True)
+    [others] = await AgentRunnerService(db).parked_calls(operator, run)
+
+    assert row.context is None and others.context is None
+    assert theirs.context == {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    assert row.content_hidden is False
 
 
 def _parked_runs(db: AsyncSession) -> ParkedRunService:
@@ -512,16 +533,124 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
     assert response.json()["status"] == ApprovalStatus.APPROVED.value
 
 
+class TestACapabilityToolRenamedLikeAPlatformTool:
+    """A capability's tool parks with its stable id, whatever a binding renamed it to,
+    so a platform-looking name does not make it the run's person's to approve."""
+
+    async def test_its_person_without_the_permission_may_not_answer_it(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(
+            db, org, builder, tool_id="agenticos_share_memory", platform_call=False
+        )
+        approval.capability_tool_id = "share_memory"
+        await db.flush()
+
+        with pytest.raises(AuthorizationError):
+            await ApprovalService(db).decide(builder, approval.id, approved=True)
+        assert await ApprovalService(db).list_approvals(builder) == ([], 0)
+
+    async def test_an_approver_approves_it_as_any_other_call(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        _run, approval = await _parked(
+            db, org, builder, tool_id="agenticos_share_memory", platform_call=False
+        )
+        approval.capability_tool_id = "share_memory"
+        await db.flush()
+
+        decided = await ApprovalService(db).decide(operator, approval.id, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+
+class TestTheQueueOfAPersonWithoutApprovalsDecide:
+    """A run asked in no conversation - a routine's - shows its person's platform call
+    nowhere but the queue, and only that person may approve it."""
+
+    async def test_they_list_exactly_their_own_waiting_platform_calls(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        colleague = await _member(db, org, OrgRoleName.BUILDER)
+        _run, own = await _parked(db, org, builder)
+        await _parked(db, org, colleague)
+        await _parked(db, org, builder, tool_id="send_email", always_asks=False)
+        await _parked(db, org, builder, status=ApprovalStatus.APPROVED)
+        elsewhere = await _org(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=elsewhere.id,
+                user_id=builder.user_id,
+                role=OrgRoleName.BUILDER.value,
+            )
+        )
+        await db.flush()
+        await _parked(
+            db,
+            elsewhere,
+            AuthContext(user_id=builder.user_id, organization_id=elsewhere.id, role=builder.role),
+        )
+
+        rows, total = await ApprovalService(db).list_approvals(builder)
+        record, _ = await ApprovalService(db).list_approvals(
+            builder,
+            filters=ApprovalFilters(statuses=[ApprovalStatus.APPROVED.value]),
+        )
+
+        assert ([row.id for row in rows], total) == ([own.id], 1)
+        assert rows[0].may_approve is True
+        assert [row.id for row in record] == [own.id]
+
+    async def test_a_key_or_an_impersonated_session_lists_none(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        await _parked(db, org, builder)
+        key = replace(builder, api_key_id=uuid.uuid4())
+
+        assert await ApprovalService(db).list_approvals(key) == ([], 0)
+        with _impersonated_by(uuid.uuid4()):
+            assert await ApprovalService(db).list_approvals(builder) == ([], 0)
+
+    async def test_an_approver_still_lists_the_whole_queue(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        _run, platform = await _parked(db, org, builder)
+        _run, other = await _parked(db, org, builder, tool_id="send_email", always_asks=False)
+
+        rows, total = await ApprovalService(db).list_approvals(operator)
+
+        assert ({row.id for row in rows}, total) == ({platform.id, other.id}, 2)
+
+    async def test_they_read_and_answer_it_through_the_routes(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(db, org, builder)
+
+        async with _client(db, builder) as client:
+            listed = await client.get(f"{settings.API_V1_STR}/approvals")
+            decided = await client.post(
+                f"{settings.API_V1_STR}/approvals/{approval.id}", json={"approved": True}
+            )
+
+        assert listed.status_code == 200, listed.text
+        assert [item["id"] for item in listed.json()["items"]] == [str(approval.id)]
+        assert decided.status_code == 200, decided.text
+
+
 @pytest.mark.parametrize("tool_id", [_ACCEPT, "agenticos_external_destructive_tool"])
-@pytest.mark.parametrize("marker", [None, {}, {"platform_tool": "false"}])
-async def test_an_unproven_platform_name_grants_no_own_person_exception(
-    db: AsyncSession, tool_id: str, marker: dict[str, str] | None
+@pytest.mark.parametrize("context", [None, {"platform_tool": "true"}])
+async def test_a_platform_name_without_the_bindings_mark_grants_no_own_person_exception(
+    db: AsyncSession, tool_id: str, context: dict[str, str] | None
 ) -> None:
-    """Stored legacy names and external MCP aliases are not trusted binding evidence."""
+    """Neither a stored name nor anything its card's description says marks a call the
+    platform's own: only the mark the binding put on the tool when it parked."""
     org = await _org(db)
     member = await _member(db, org, OrgRoleName.MEMBER)
-    run, approval = await _parked(db, org, member, tool_id=tool_id, platform_bound=False)
-    approval.context = marker
+    run, approval = await _parked(db, org, member, tool_id=tool_id, platform_call=False)
+    approval.context = context
     await db.flush()
 
     with pytest.raises(AuthorizationError):
@@ -530,16 +659,3 @@ async def test_an_unproven_platform_name_grants_no_own_person_exception(
         await _parked_runs(db).resume(member, run.id)
     await db.refresh(approval)
     assert approval.status == ApprovalStatus.PENDING.value
-
-
-async def test_a_legacy_platform_call_still_requires_its_own_person(db: AsyncSession) -> None:
-    """Missing provenance never relaxes the existing person-only approval guard."""
-    org = await _org(db)
-    member = await _member(db, org, OrgRoleName.MEMBER)
-    operator = await _member(db, org, OrgRoleName.OPERATOR)
-    _run, approval = await _parked(db, org, member, platform_bound=False)
-
-    with pytest.raises(AuthorizationError):
-        await ApprovalService(db).decide(operator, approval.id, approved=True)
-    rejected = await ApprovalService(db).decide(operator, approval.id, approved=False)
-    assert rejected.status == ApprovalStatus.REJECTED.value

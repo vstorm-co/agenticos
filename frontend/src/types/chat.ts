@@ -546,6 +546,8 @@ export interface ActionRequest {
   content_hidden?: boolean;
   /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
   always_asks?: boolean;
+  /** One of the platform's own tools, as the platform binding marked it - never by its name. */
+  platform_call?: boolean;
   /** Whether this person may answer the call at all: `approvals:decide`, or it is their own platform call. */
   may_decide?: boolean;
   /** Whether an approval from this person would be accepted. */

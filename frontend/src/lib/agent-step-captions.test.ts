@@ -75,20 +75,14 @@ describe("toolDisplayName", () => {
 
 describe("approvalSummary for the platform's own tools", () => {
   it("says which attempt of which agent is accepted, its verdict and the version published", () => {
-    const context = {
-      agent: "Support",
-      attempt: "2",
-      verdict: "better",
-      publish: "yes",
-      version: "8",
-    };
+    const context = { agent: "Support", attempt: "2", verdict: "better", publish: "yes" };
     expect(approvalSummary(null, context, t, "agenticos_accept_improvement")).toBe(
-      "Accept attempt 2 for Support (better) and publish it as v8",
+      "Accept attempt 2 for Support (better) and publish it",
     );
     expect(
       approvalSummary(
         null,
-        { ...context, verdict: "", publish: "no", version: "" },
+        { ...context, verdict: "", publish: "no" },
         t,
         "agenticos_accept_improvement",
       ),
@@ -96,9 +90,9 @@ describe("approvalSummary for the platform's own tools", () => {
   });
 
   it("names what a publish, an eval and a skill move do", () => {
-    expect(
-      approvalSummary(null, { agent: "Support", version: "8" }, t, "agenticos_publish_agent"),
-    ).toBe("Publish Support as v8");
+    expect(approvalSummary(null, { agent: "Support" }, t, "agenticos_publish_agent")).toBe(
+      "Publish Support",
+    );
     expect(
       approvalSummary(
         null,
@@ -123,11 +117,27 @@ describe("approvalSummary for the platform's own tools", () => {
         "agenticos_accept_skill_improvement",
       ),
     ).toBe("Apply the improved skill Tone");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", agent: "Support", state: "fork", fork: "Gentle" },
+        t,
+        "agenticos_change_skill_version",
+      ),
+    ).toBe("Move Support to the fork Gentle of Tone");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", outcome: "fork_for_chosen", agents: "Support, Billing" },
+        t,
+        "agenticos_accept_skill_improvement",
+      ),
+    ).toBe("Fork Tone for Support, Billing");
   });
 
   it("falls back to the arguments without a description or for another tool", () => {
     expect(approvalSummary(null, null, t, "agenticos_publish_agent")).toBeNull();
-    expect(approvalSummary(null, { agent: "Support" }, t, "agenticos_publish_agent")).toBeNull();
+    expect(approvalSummary(null, { attempt: "2" }, t, "agenticos_publish_agent")).toBeNull();
     expect(
       approvalSummary(null, { agent: "Support", version: "8" }, t, "publish_agent"),
     ).toBeNull();

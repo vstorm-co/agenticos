@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "d5135d02dba7"
 ---
 
 # Governance { #governance }
@@ -1201,6 +1201,11 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
+Wer `approvals:decide` nicht hat, liest nur die eigenen Plattform-Aufrufe, die
+jedes Mal fragen und noch warten, angemeldet als er selbst; `status` erweitert das
+nicht. So erreicht der Aufruf einer Routine, die in keiner Unterhaltung gestellt
+wurde, ihre Person.
+
 | Parameter |  |
 | --- | --- |
 | `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
@@ -1761,11 +1766,11 @@ Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences →
 
 Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
-Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, die Version, die eine Veröffentlichung erzeugt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
-
 Ein Plattform-Aufruf, der jedes Mal fragt - eine Verbesserung annehmen, einen Agent veröffentlichen, ein Mitglied einladen -, läuft mit den Plattform-Rechten der Person, für die sein Run handelt. Deshalb gibt ihn nur diese Person frei, angemeldet als sie selbst: kein anderes Mitglied mit `approvals:decide`, kein API-Schlüssel, auch nicht ihr eigener, und kein Administrator per Impersonierung. Wer `approvals:decide` hat, kann ihn weiterhin ablehnen. Die Person braucht dafür keine Berechtigung außer dieser Person zu sein, also gibt ein Builder oder ein Member die Karte des Architect im eigenen Chat frei und setzt den Run dort fort. Nur sie kann einen Run nach einem freigegebenen Plattform-Aufruf fortsetzen.
 
-Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat.
+Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, der Skill-Fork oder die Agenten, die eine Skill-Änderung verschiebt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Übernommen wird nur der Versuch, den die Karte nennt. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
+
+Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat, als diese Person, wer auch immer zuletzt geantwortet hat.
 
 Ein Run ohne Person - der eines Besuchers auf einem Widget oder einer öffentlichen Seite, eines nicht verknüpften Kanalmitglieds oder einer gelöschten Person - hat niemanden, dessen Antwort zählt, also wartet sein Plattform-Aufruf, bis er abläuft; so ein Run hat ohnehin keine Plattform-Rechte. Eine Änderung des Deployments (`change_deployment`) braucht beide Regeln zugleich: die Person des Runs, die außerdem Anwendungsadministrator ist. Der Architect jeder anderen Person ändert es nicht.
 
@@ -2276,12 +2281,17 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit einem Link zur Unterhaltung, in der gefragt wurde, solange dieser Aufruf wartet |
-| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, jemand, der über Freigaben entscheiden darf, muss ihn beantworten, und von ihnen wird nichts verlangt |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der jedes Mal fragt | die Anfrage, mit einem Link zur Unterhaltung, in der danach gefragt wurde, oder zu ihrem Posteingang für einen Run ohne Unterhaltung, solange dieser Aufruf wartet |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, antworten muss jemand, der über Freigaben entscheiden darf, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
 er gestoppt hat.
+
+Die Person des Runs bekommt die Anfrage zu ihrem eigenen Plattform-Aufruf auch
+dann, wenn der Freigabe-Alarm des Agents sie auslässt oder ausgeschaltet ist:
+Niemand sonst darf ihn freigeben. Ohne `approvals:decide` zeigen ihr Posteingang
+und `GET /approvals` solche Aufrufe - ihre eigenen und sonst nichts.
 
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen

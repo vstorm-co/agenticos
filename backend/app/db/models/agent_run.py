@@ -686,6 +686,16 @@ class ToolApproval(Base, TimestampMixin):
     Written when the call is parked rather than looked up from the tool later,
     because a tool may ask always for some calls and not others.
     """
+    platform_call: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether this is a call of the platform's own tools, as the platform binding marked it.
+
+    Written when the call is parked, from the tool definition's marker: a name says
+    nothing, because a binding may rename a capability's tool to anything. Such a call
+    that always asks runs with its run's person's platform authority, so only that
+    person may approve it.
+    """
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is

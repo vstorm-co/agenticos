@@ -1092,6 +1092,7 @@ class ParkedCall(BaseSchema):
             "call but not approve it"
         ),
     )
+    platform_call: bool = Field(default=False, description="As `ApprovalRead.platform_call`.")
     may_decide: bool = Field(
         default=False,
         description=(

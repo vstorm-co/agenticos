@@ -1,15 +1,17 @@
 """What the card of each described platform call says, read as the run's person."""
 
+import re
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.agents.deps import AgentDeps
-from app.agents.platform_describers import platform_describer
+from app.agents.platform_describers import _READS, platform_describer
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.schemas.eval_run import EvalRunRequest
@@ -60,33 +62,48 @@ async def _describe(
     return await describe(deps, args)
 
 
-async def test_publishing_names_the_agent_and_the_version_it_makes() -> None:
+async def test_publishing_names_the_agent_and_no_version_a_later_publish_could_take() -> None:
     assert await _describe("agenticos_publish_agent", {"agent_id": str(AGENT)}) == {
-        "agent": "Support",
-        "version": "7",
+        "agent": "Support"
     }
 
 
-async def test_a_first_publish_makes_version_one(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.repositories.agent.newest_version", AsyncMock(return_value=None))
-    described = await _describe("agenticos_publish_agent", {"agent_id": str(AGENT)})
-    assert described == {"agent": "Support", "version": "1"}
-
-
-@pytest.mark.parametrize(("version", "named"), [(4, "4"), (None, "")])
-async def test_moving_a_skill_names_the_skill_the_agent_and_where_it_goes(
-    version: int | None, named: str
-) -> None:
-    described = await _describe(
-        "agenticos_change_skill_version",
-        {"skill_id": str(SKILL), "agent_id": str(AGENT), "state": "pinned", "version": version},
+async def test_moving_a_skill_names_where_it_goes(monkeypatch: pytest.MonkeyPatch) -> None:
+    fork = uuid.uuid4()
+    monkeypatch.setattr(
+        "app.repositories.skill_version.get_fork",
+        AsyncMock(return_value=SimpleNamespace(id=fork, name="Gentle tone")),
     )
-    assert described == {
+    call = {"skill_id": str(SKILL), "agent_id": str(AGENT)}
+
+    pinned = await _describe(
+        "agenticos_change_skill_version", {**call, "state": "pinned", "version": 4}
+    )
+    forked = await _describe(
+        "agenticos_change_skill_version", {**call, "state": "fork", "fork_id": str(fork)}
+    )
+    main = await _describe("agenticos_change_skill_version", {**call, "state": "main"})
+
+    assert pinned == {"skill": "Refunds", "agent": "Support", "state": "pinned", "version": "4"}
+    assert forked == {
         "skill": "Refunds",
         "agent": "Support",
-        "state": "pinned",
-        "version": named,
+        "state": "fork",
+        "fork": "Gentle tone",
     }
+    assert main == {"skill": "Refunds", "agent": "Support", "state": "main"}
+
+
+@pytest.mark.security
+async def test_a_fork_the_call_does_not_name_or_that_is_gone_describes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.repositories.skill_version.get_fork", AsyncMock(return_value=None))
+    call = {"skill_id": str(SKILL), "agent_id": str(AGENT), "state": "fork"}
+
+    assert await _describe("agenticos_change_skill_version", call) is None
+    gone = {**call, "fork_id": str(uuid.uuid4())}
+    assert await _describe("agenticos_change_skill_version", gone) is None
 
 
 async def test_accepting_a_skill_session_names_the_skill_and_the_outcome() -> None:
@@ -94,6 +111,43 @@ async def test_accepting_a_skill_session_names_the_skill_and_the_outcome() -> No
         "agenticos_accept_skill_improvement", {"skill_id": str(SKILL), "outcome": "apply"}
     )
     assert described == {"skill": "Refunds", "outcome": "apply"}
+
+
+@pytest.mark.security
+async def test_a_fork_for_chosen_agents_names_exactly_those_agents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    named = {AGENT: "Support", SKILL: "Billing"}
+    monkeypatch.setattr(
+        "app.services.agent_registry.AgentRegistryService.get",
+        AsyncMock(side_effect=lambda _ctx, agent_id: SimpleNamespace(name=named[agent_id])),
+    )
+    call = {"skill_id": str(SKILL), "outcome": "fork_for_helped"}
+
+    chosen = await _describe(
+        "agenticos_accept_skill_improvement",
+        {**call, "fork_agent_ids": [str(AGENT), str(SKILL)]},
+    )
+    helped = await _describe("agenticos_accept_skill_improvement", call)
+
+    assert chosen == {
+        "skill": "Refunds",
+        "outcome": "fork_for_chosen",
+        "agents": "Support, Billing",
+    }
+    assert helped == {"skill": "Refunds", "outcome": "fork_for_helped"}
+
+
+def test_the_console_has_a_sentence_for_exactly_the_described_platform_tools() -> None:
+    """The console's sentences are keyed by the platform tool's name, outside the
+    capability catalog; a rename on either side must not leave a card silently plain."""
+    captions = (
+        Path(__file__).resolve().parents[2] / "frontend/src/lib/agent-step-captions.ts"
+    ).read_text()
+    table = captions.split("PLATFORM_APPROVAL_SUMMARIES", 1)[1].split("};", 1)[0]
+    named = set(re.findall(r"^\s*(agenticos_[a-z_]+):", table, re.MULTILINE))
+    assert {name.removeprefix("agenticos_") for name in named} == set(_READS)
+    assert all(platform_describer(name) is not None for name in named)
 
 
 @pytest.mark.parametrize("as_model", [False, True])
@@ -167,9 +221,7 @@ async def test_invalid_nested_eval_references_do_not_break_the_approval_card(run
     assert await _describe("agenticos_start_eval_run", {"agent_id": str(AGENT), "run": run}) is None
 
 
-async def test_an_unjudged_attempt_has_no_verdict_and_stays_a_draft(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_an_unjudged_attempt_has_no_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     ctx = AuthContext(user_id=PERSON, organization_id=ORG, role="owner", is_app_admin=True)
     monkeypatch.setattr("app.agents.platform_describers.acting_member", AsyncMock(return_value=ctx))
     attempt = uuid.uuid4()
@@ -184,5 +236,5 @@ async def test_an_unjudged_attempt_has_no_verdict_and_stays_a_draft(
     )
     assert await _describe(
         "agenticos_accept_improvement",
-        {"agent_id": str(AGENT), "session_id": str(uuid.uuid4()), "publish": True},
-    ) == {"agent": "Support", "attempt": "1", "verdict": "", "publish": "no", "version": ""}
+        {"agent_id": str(AGENT), "session_id": str(uuid.uuid4()), "attempt": 1, "publish": False},
+    ) == {"agent": "Support", "attempt": "1", "verdict": "", "publish": "no"}

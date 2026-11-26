@@ -10,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.deps import AgentDeps
 from app.agents.platform_describers import platform_describer
+from app.core.exceptions import ConcurrentChangeError
 from app.core.permissions import AuthContext
+from app.schemas.improvement import ImprovementFinish
+from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_pipeline import _ready_proposal
 
@@ -38,24 +41,41 @@ async def test_accepting_an_attempt_names_its_agent_verdict_and_the_version_it_p
 ) -> None:
     ctx, agent, ready = await _ready_proposal(db)
     chosen = next(item for item in ready.iterations if item.id == ready.best_iteration_id)
-    assert chosen.verdict is not None and ready.next_version is not None
+    assert chosen.verdict is not None
     describe = platform_describer("agenticos_accept_improvement")
     assert describe is not None
-    call = {"agent_id": str(agent.id), "session_id": str(ready.id)}
+    call = {"agent_id": str(agent.id), "session_id": str(ready.id), "attempt": chosen.number}
 
     with _reading(db):
         published = await describe(_deps(ctx), {**call, "publish": True})
         drafted = await describe(_deps(ctx), {**call, "publish": False})
+        unknown = await describe(_deps(ctx), {**call, "attempt": chosen.number + 5})
 
     assert published == {
         "agent": agent.name,
         "attempt": str(chosen.number),
         "verdict": chosen.verdict.value,
         "publish": "yes",
-        "version": str(ready.next_version),
     }
-    assert drafted is not None
-    assert (drafted["publish"], drafted["version"]) == ("no", "")
+    assert drafted is not None and drafted["publish"] == "no"
+    assert unknown is None
+
+
+@pytest.mark.security
+async def test_accepting_holds_the_session_to_the_attempt_the_card_named(
+    db: AsyncSession,
+) -> None:
+    """Another attempt chosen while the call waited is not accepted under the old name."""
+    ctx, agent, ready = await _ready_proposal(db)
+    chosen = next(item for item in ready.iterations if item.id == ready.best_iteration_id)
+
+    with pytest.raises(ConcurrentChangeError):
+        await ImprovementPipelineService(db).finish(
+            ctx,
+            agent.id,
+            ready.id,
+            ImprovementFinish(confirmed=True, attempt=chosen.number + 1),
+        )
 
 
 @pytest.mark.security

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d54063f1700"
+source_sha: "b23ee95de918"
 ---
 
 # Uprawnienia { #permissions }
@@ -110,6 +110,10 @@ działa run, więc zatwierdzić je może tylko ta osoba, zalogowana jako ona sam
 potrzebuje do tego żadnego uprawnienia. Każdy inny z `approvals:decide` może je
 odrzucić, a klucz API ani sesja w trybie impersonacji nie mogą go zatwierdzić.
 Kolejka pokazuje przy takim wywołaniu, kto może je zatwierdzić.
+
+Bez `approvals:decide` kolejka pokazuje tylko własne takie wywołania tej osoby, które
+widzi ona też w swoim Inboxie, więc wywołanie z rutyny dociera do niej, choć nie
+powstało w żadnej rozmowie.
 
 `promotions:override` promuje wersję na
 [środowisko strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals),

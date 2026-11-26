@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "f31d1e7d7b11"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -170,13 +170,15 @@ baseline, también cuando se reutiliza. El coste real puede variar. Cada petici�
 al modelo sigue sujeta a los presupuestos mensuales; agotarlos termina el run
 como `budget_exceeded`.
 
-Un inicio puede devolver `total_usd` como `quoted_usd` y la `dataset_version`
-estimada. Si la estimación actual de inicio es mayor, el servidor rechaza con
-`409`. El Architect envía ambos valores y la tarjeta muestra la cotización.
-Esto compara estimaciones; no impone un límite estricto a la factura final del
-proveedor. Las comprobaciones de skills, los borradores y los guardias de
-promoción también aceptan `quoted_usd`; `GET .../gate/estimate` calcula los
-guardias pendientes.
+Un inicio puede devolver el `at_most_usd` de la estimación (primeras respuestas,
+calificación y todas las repeticiones) como `quoted_usd`, y con él el
+`dataset_version` de la estimación. El inicio se rechaza entonces con `409` en cuanto
+el run pudiera costar más que esa cotización. El diálogo de inicio de la consola y el
+Architect pasan siempre ambos, y la tarjeta de aprobación del Architect muestra ese
+precio. Esto compara estimaciones; no impone un límite estricto a la factura final del
+proveedor. Las comprobaciones de actualización de skills, los borradores de
+conocimiento y los guardias de una puerta de promoción aceptan `quoted_usd` igual, y
+`GET .../gate/estimate` pone precio a los guardias que iniciaría la puerta.
 
 Un borrador de conocimiento en cola conserva su cotización. El worker vuelve a
 comprobarla antes de recuperar datos o ejecutar el modelo y rechaza precios

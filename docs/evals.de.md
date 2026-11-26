@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "f31d1e7d7b11"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -188,13 +188,14 @@ wiederverwendeten Baseline. Tatsächliche Kosten können abweichen. Jede
 Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
 beendet den Run als `budget_exceeded`.
 
-Ein Start kann `total_usd` als `quoted_usd` und die geschätzte
-`dataset_version` übergeben. Ist die aktuelle Startschätzung höher, lehnt der
-Server mit `409` ab. Der Architect übergibt beide Werte; die Freigabekarte zeigt
-das Angebot. Dies vergleicht Schätzungen und begrenzt nicht die endgültige
-Rechnung des Anbieters. Skill-Update-Prüfungen, Wissensentwürfe und Promotion-
-Wächter akzeptieren ebenfalls `quoted_usd`; `GET .../gate/estimate` bepreist die
-noch zu startenden Wächter.
+Ein Start kann `at_most_usd` aus der Schätzung (erste Antworten, Bewertung und alle
+Wiederholungen) als `quoted_usd` zurückgeben und `dataset_version` aus der Schätzung
+dazu. Der Start lehnt dann mit `409` ab, sobald der Run mehr als dieses Angebot
+kosten könnte. Der Startdialog der Konsole und der Architect übergeben immer beides,
+und die Freigabekarte des Architect zeigt diesen Preis. Dies vergleicht Schätzungen
+und begrenzt nicht die endgültige Rechnung des Anbieters. Skill-Update-Prüfungen,
+Wissensentwürfe und die Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso,
+und `GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
 
 Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
 Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder

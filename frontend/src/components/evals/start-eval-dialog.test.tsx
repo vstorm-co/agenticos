@@ -439,9 +439,27 @@ describe("StartEvalDialog", () => {
     expect(screen.getByText("$0.60")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Run for $0.60" }));
 
-    expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalledWith(COMPARE);
+    expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalledWith({
+      ...COMPARE,
+      dataset_version: 3,
+      quoted_usd: "0.900000",
+    });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(push).toHaveBeenCalledWith("/agents/agent-1/evals/run-1");
+  });
+
+  it("prices the run again when the server says it now costs more", async () => {
+    hooks.estimate = mutation({ data: ESTIMATE, variables: COMPARE });
+    hooks.start = mutation({
+      mutateAsync: vi.fn().mockRejectedValue(new ApiError(409, "now costs more", {})),
+    });
+    open();
+    await waitFor(() => expect(estimated()).toHaveBeenCalled());
+    estimated().mockClear();
+
+    await userEvent.click(screen.getByRole("button", { name: "Run for $0.60" }));
+
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
   });
 
   it("warns before the run that a case nothing grades leaves the result inconclusive", () => {

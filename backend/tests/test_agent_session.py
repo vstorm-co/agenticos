@@ -1061,6 +1061,7 @@ class TestATurnThatFinished:
                         "context": {"recipient": "Ops"},
                         "account": None,
                         "always_asks": False,
+                        "platform_call": False,
                         # A member holds no `approvals:decide`: the card says who can.
                         "may_decide": False,
                         "may_approve": False,
@@ -1080,8 +1081,8 @@ class TestATurnThatFinished:
                 tool_call_id="call-1",
                 tool_name="agenticos_accept_improvement",
                 tool_args={"publish": True},
-                context={"platform_tool": "true"},
                 always_asks=True,
+                platform_call=True,
             ),
         )
 

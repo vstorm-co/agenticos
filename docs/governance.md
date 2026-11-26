@@ -1067,6 +1067,10 @@ is the queue somebody acts on; `?status=approved&status=rejected` is the record 
 what was decided, and it carries the decider's name and note because a bare UUID is
 not an accountability trail. There are deliberately no controls on a decided row.
 
+A caller without `approvals:decide` reads only their own platform calls that always
+ask and still wait, signed in as themselves; `status` does not widen that. A
+routine's call, asked in no conversation, reaches its person that way.
+
 | Parameter                    |                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status`                     | Repeats. Absent means pending — the queue                                                                                                                                                                                                                                                                            |
@@ -1559,11 +1563,11 @@ Remembered choices are stored on the server. **Chat controls → Preferences →
 
 The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
-The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the version a publish makes, the dataset an eval runs on, the price it was quoted at. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
-
 A platform call that always asks - accepting an improvement, publishing an agent, inviting a member - runs with the platform authority of the person its run acts for. So only that person, signed in as themselves, may approve it: not another member holding `approvals:decide`, not an API key, the person's own included, and not an administrator impersonating them. Anybody holding `approvals:decide` may still reject it. The person needs no permission beyond being that person, so a Builder or a Member approves the Architect's card in their own chat and continues the run there. Only they may continue a run past an approved platform call.
 
-On a channel such as Slack or Telegram, the person answers it in that chat, from the chat account linked to them. When the run asks about other calls at the same time, the person answers only their own, and the rest waits for somebody holding `approvals:decide`. The run continues once every call has an answer.
+The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the skill fork or the agents a skill change moves, the dataset an eval runs on, the price it was quoted at. An accepted attempt is held to the one the card named. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
+
+On a channel such as Slack or Telegram, the person answers it in that chat, from the chat account linked to them. When the run asks about other calls at the same time, the person answers only their own, and the rest waits for somebody holding `approvals:decide`. The run continues once every call has an answer, as that person, whoever answered last.
 
 A run with no person - a visitor's on a widget or a hosted page, an unlinked channel member's, or one whose starter was deleted - has nobody whose answer counts, so its platform call waits until it expires; such a run never holds platform authority in the first place. A deployment change (`change_deployment`) needs both rules at once: the run's own person, who must also be an application administrator. The Architect of anybody else cannot change it.
 
@@ -2014,11 +2018,16 @@ So the audience is split by the permission rather than trimmed to it:
 | Recipient holds | Gets |
 | --- | --- |
 | `approvals:decide` | the request, with the link to the queue |
-| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, while that call waits |
+| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, or to their Inbox for a run asked in none, while that call waits |
 | anything less | the _fact_: the run is held not failed, somebody who may decide approvals has to answer it, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
+
+The run's own person gets the request for their own platform call even where the
+agent's approval alert leaves them out or is switched off: nobody else may approve
+it. Without `approvals:decide`, their Inbox and `GET /approvals` list such calls -
+their own, and nothing else.
 
 The second email carries **no link**, and that is deliberate rather than
 unfinished. `agents:view` being a role permission does not make one agent

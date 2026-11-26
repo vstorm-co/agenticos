@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, PrivateAttr, field_validator
+from pydantic import Field, PrivateAttr, computed_field, field_validator
 
 from app.db.models.eval_run import (
     ArmRole,
@@ -155,7 +155,7 @@ class EvalRunRequest(BaseSchema):
     quoted_usd: Decimal | None = Field(
         default=None,
         ge=0,
-        description="The estimate's `total_usd` the person agreed to; a start that would now "
+        description="The estimate's `at_most_usd` the person agreed to; a start that could now "
         "cost more is refused, and omitted it is not checked",
     )
 
@@ -211,6 +211,14 @@ class EvalRunEstimate(BaseSchema):
     )
     total_usd: Decimal
     rerun_ceiling_usd: Decimal
+
+    @computed_field(
+        description="The most the run may cost: its first answers, the judge and every rerun"
+    )
+    @property
+    def at_most_usd(self) -> Decimal:
+        return self.total_usd + self.rerun_ceiling_usd
+
     expected_usd: Decimal = Field(
         description="What the run most likely costs: its first answers, the judge, and the "
         "confirming reruns a compared run usually asks - about half of its ceiling"

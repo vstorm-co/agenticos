@@ -48,9 +48,9 @@ const QUOTE_ARGUMENTS = ["quoted_usd", "estimate_usd", "total_usd"] as const;
 export function quotedPrice(
   toolName: string,
   args: Record<string, unknown>,
-  context?: Record<string, string> | null,
+  platformCall?: boolean,
 ): string | null {
-  if (!isPlatformTool(toolName) || context?.platform_tool !== "true") return null;
+  if (!isPlatformTool(toolName) || platformCall !== true) return null;
   for (const name of QUOTE_ARGUMENTS) {
     const value = args[name];
     if (

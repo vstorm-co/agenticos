@@ -1,5 +1,5 @@
 ---
-source_sha: "7f1565c8ad05"
+source_sha: "7248174c2cb3"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -195,7 +195,7 @@ Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. La
 
 Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del editor, en dos columnas cuando hay espacio. Al seleccionar una, se añade al borrador editable. Al escribir se ocultan sin mover el editor; borrar el borrador las restaura. La indicación fija de comandos `/` y recursos `@` sigue visible al enfocar el campo vacío. Confirmar un carácter con IME no envía el mensaje.
 
-La cronología muestra hasta dos elementos de la bandeja, incluido el enlace a aprobaciones pendientes, y enlaza con la bandeja completa. Durante la carga se reserva espacio para la vista previa. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+La cronología muestra hasta dos elementos de la bandeja, incluido el enlace a aprobaciones pendientes, y enlaza con la bandeja completa. Para quien solo tiene pendientes sus propias llamadas de la plataforma, el enlace a aprobaciones lleva a la bandeja. Durante la carga se reserva espacio para la vista previa. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, con una única lista Models y una pestaña separada para la cuenta o clave. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 

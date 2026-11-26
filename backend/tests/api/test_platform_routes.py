@@ -380,7 +380,6 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
         "GET",
         "/approvals/export",
@@ -1193,6 +1192,9 @@ RESOURCE_AWARE_SERVICES = (
     # grants rather than tested as a role.
     deps.get_agent_embed_service,
     deps.get_agent_runner_service,
+    # The approvals queue is the organization's for `approvals:decide`; anybody else
+    # reads only their own waiting platform calls, which only they may approve.
+    deps.get_approval_service,
     deps.get_skill_service,
     # A context file is a shared resource shaped like a skill: who may read, edit
     # or delete one is its grants' answer, resolved inside the service. Every
@@ -1520,6 +1522,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "platform_call": False,
                 "may_decide": False,
                 "may_approve": False,
             },
@@ -1536,6 +1539,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "platform_call": False,
                 "may_decide": False,
                 "may_approve": False,
             },

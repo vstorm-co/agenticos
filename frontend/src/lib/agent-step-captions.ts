@@ -58,7 +58,7 @@ const PLATFORM_APPROVAL_SUMMARIES: Partial<Record<string, ApprovalSummary>> = {
     key: "approveAcceptImprovement",
     needs: ["agent", "attempt", "publish"],
   },
-  agenticos_publish_agent: { key: "approvePublishAgent", needs: ["agent", "version"] },
+  agenticos_publish_agent: { key: "approvePublishAgent", needs: ["agent"] },
   agenticos_change_skill_version: {
     key: "approveChangeSkillVersion",
     needs: ["skill", "agent", "state"],

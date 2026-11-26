@@ -147,6 +147,7 @@ class VoiceApprovalBridge:
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
                 always_asks=parked.always_asks,
+                platform_call=parked.platform_call,
             )
         if self._decider is None or parked.always_asks:
             await self._expire(

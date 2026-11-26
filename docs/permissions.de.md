@@ -1,5 +1,5 @@
 ---
-source_sha: "5d54063f1700"
+source_sha: "b23ee95de918"
 ---
 
 # Berechtigungen { #permissions }
@@ -115,6 +115,9 @@ angemeldet als sie selbst, und sie braucht dafür keine Berechtigung. Alle ander
 mit `approvals:decide` können ihn ablehnen, und ein API-Schlüssel oder eine Sitzung
 per Impersonierung kann ihn nicht freigeben. Die Warteschlange zeigt bei so einem
 Aufruf, wer ihn freigeben kann.
+
+Ohne `approvals:decide` listet die Warteschlange nur die eigenen solchen Aufrufe der Person, die auch ihr Posteingang zeigt, sodass der Aufruf einer
+Routine sie erreicht, obwohl er in keiner Unterhaltung gestellt wurde.
 
 `promotions:override` promotet eine Version auf eine
 [Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),

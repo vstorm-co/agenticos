@@ -1,5 +1,5 @@
 ---
-source_sha: "10074da76b8c"
+source_sha: "dff5ab15feb7"
 ---
 
 # Skille { #skills }
@@ -683,7 +683,9 @@ Platform MCP pozwala wyszukiwać, tworzyć i edytować Context, podpinać `conte
 do draftu oraz czytać i edytować skille i dodawać zasoby tekstowe. Context ma tryb
 `inject` dla stałego kontekstu i `link` dla odczytu na żądanie. Edycja podpiętego
 pliku działa od kolejnego uruchomienia; zmiana powiązania draftu wymaga publikacji.
-Zapisy nadal podlegają uprawnieniom i zatwierdzeniom.
+Zapisy nadal podlegają uprawnieniom i zatwierdzeniom. Edycja skilla, dodanie do
+niego zasobu i edycja pliku Context zawsze najpierw pytają osobę: każdy agent z
+linii skilla albo z podpiętym plikiem czyta zmianę przy kolejnym uruchomieniu.
 
 Skill dokumentowy zawiera źródła startowe LaTeX oraz procedurę budowania i oceny
 renderów. HTML Apps i prezentacje przeglądarkowe różnią się od skompilowanego PDF

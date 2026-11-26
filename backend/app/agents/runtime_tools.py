@@ -22,7 +22,7 @@ from app.agents.ask_user import answers_to_response, wire_questions
 from app.agents.capabilities.budget import assert_ambient_budget
 from app.agents.deps import AgentDeps
 from app.agents.isolation import ToolClass, classify
-from app.agents.mcp import ACCOUNT
+from app.agents.mcp import ACCOUNT, PLATFORM_TOOL
 from app.agents.model_context import check_model_context
 from app.agents.runtime_questions import (
     RuntimeQuestion,
@@ -188,6 +188,8 @@ class RuntimeTools:
                         tool_args=arguments,
                         account=(definition.metadata or {}).get(ACCOUNT),
                         always_asks=True,
+                        platform_call=definition.capability_id is None
+                        and (definition.metadata or {}).get(PLATFORM_TOOL) is True,
                     )
                 )
                 if not isinstance(decision, ApprovalGranted):

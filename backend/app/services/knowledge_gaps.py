@@ -62,6 +62,7 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.core.phone import phone_text_error
 from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
@@ -247,6 +248,18 @@ def _require_open(row: TopicRow) -> None:
         raise BadRequestError(
             message="Reopen this topic before you write its content",
             details={"topic_id": row.topic.id, "status": row.status},
+        )
+
+
+def _held_to_quote(price: Decimal | None, quoted_usd: Decimal) -> None:
+    """Refuse a draft priced above what the person agreed to, or no longer priced at all."""
+    if price is None or price > quoted_usd:
+        raise ConcurrentChangeError(
+            message="The draft estimate is unavailable or higher than quoted; estimate it again",
+            details={
+                "estimate_usd": None if price is None else str(price),
+                "quoted_usd": str(quoted_usd),
+            },
         )
 
 
@@ -1077,16 +1090,16 @@ class KnowledgeGapService:
         await SystemAgentRunner(self.db).require_runnable(
             ctx, key=KNOWLEDGE_GAP_DRAFTER.key, agent_id=kb.gap_drafter_agent_id
         )
-        await self._check_draft_quote(ctx, topic_id, quoted_usd)
+        await self._within_quote(ctx, topic_id, quoted_usd)
         job_id = await enqueue(
             self.db,
             DRAFT_TOPIC,
             DraftTopic(
-                quoted_usd=quoted_usd,
                 organization_id=ctx.organization_id,
                 topic_id=topic.id,
                 user_id=ctx.user_id,
                 api_key_id=ctx.api_key_id,
+                quoted_usd=quoted_usd,
             ),
             organization_id=ctx.organization_id,
             dedupe_key=f"knowledge-draft:{topic.id}",
@@ -1097,21 +1110,6 @@ class KnowledgeGapService:
                 self.db, topic=topic, update_data={"draft_job_id": job_id}
             )
         return await self.read(ctx, topic.id)
-
-    async def _check_draft_quote(
-        self, ctx: AuthContext, topic_id: UUID, quoted_usd: Decimal | None
-    ) -> None:
-        if quoted_usd is None:
-            return
-        price = (await self.draft_estimate(ctx, topic_id)).total_usd
-        if price is None or price > quoted_usd:
-            raise ConcurrentChangeError(
-                message="The draft estimate is unavailable or higher than quoted; estimate it again",
-                details={
-                    "estimate_usd": None if price is None else str(price),
-                    "quoted_usd": str(quoted_usd),
-                },
-            )
 
     async def draft_estimate(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapDraftEstimate:
         """The most one draft of a topic costs: its longest prompt at the drafter's price.
@@ -1150,6 +1148,14 @@ class KnowledgeGapService:
             for query in queries
         ]
 
+    async def _within_quote(
+        self, ctx: AuthContext, topic_id: UUID, quoted_usd: Decimal | None
+    ) -> None:
+        """Refuse a draft that would now cost more than the price the person agreed to."""
+        if quoted_usd is None:
+            return
+        _held_to_quote((await self.draft_estimate(ctx, topic_id)).total_usd, quoted_usd)
+
     async def draft(
         self, ctx: AuthContext, topic_id: UUID, *, quoted_usd: Decimal | None = None
     ) -> None:
@@ -1178,10 +1184,22 @@ class KnowledgeGapService:
                 refusal does; it is recorded.
             SystemAgentOutputError: The drafter answered in a shape that could not
                 be read.
+            ConcurrentChangeError: The drafter, its model or its price changed after
+                the request, so the draft would now cost more than `quoted_usd`.
         """
         _require_runs_view(ctx)
-        await self._check_draft_quote(ctx, topic_id, quoted_usd)
         topic = await self._topic(ctx, topic_id, edit=True)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        drafter_id, version_id = kb.gap_drafter_agent_id, None
+        if quoted_usd is not None:
+            drafter, version, price = await self._priced_helper(
+                ctx,
+                key=KNOWLEDGE_GAP_DRAFTER.key,
+                agent_id=kb.gap_drafter_agent_id,
+                chars=DRAFT_PROMPT_CHARS,
+            )
+            _held_to_quote(price, quoted_usd)
+            drafter_id, version_id = drafter.id, version.id
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -1192,7 +1210,6 @@ class KnowledgeGapService:
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
-        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
         askers = await personal_data_repo.askers_of(
             self.db, {row.search.run_id for row in material}
         )
@@ -1209,10 +1226,13 @@ class KnowledgeGapService:
         context_files = await self._context_files(
             ctx, list(dict.fromkeys(row.search.agent_id for row in material))
         )
+        # A quoted draft runs the drafter and version it was priced on, not whichever the
+        # knowledge base names once the searches above return.
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
-            agent_id=kb.gap_drafter_agent_id,
+            agent_id=drafter_id,
+            version_id=version_id,
             prompt=_drafting_prompt(kb.name, material, documents, context_files, found_now),
             output_type=KnowledgeGapDraft,
             knowledge_base_ids=[kb.id],
@@ -1803,6 +1823,14 @@ class KnowledgeGapService:
         self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
     ) -> Decimal | None:
         """The most one run of a knowledge helper costs on a prompt this long; `None` unpriced."""
+        _, _, price = await self._priced_helper(ctx, key=key, agent_id=agent_id, chars=chars)
+        return price
+
+    async def _priced_helper(
+        self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
+    ) -> tuple[Agent, AgentVersion, Decimal | None]:
+        """The helper that would run now, its published version, and the most one run of it
+        costs on a prompt this long; `None` unpriced."""
         agent = await SystemAgentRunner(self.db).require_runnable(ctx, key=key, agent_id=agent_id)
         version = (
             await agent_repo.get_version(
@@ -1819,7 +1847,7 @@ class KnowledgeGapService:
             model.model,
             model.provider,
         )
-        return None if priced is None else priced * steps(spec)
+        return agent, version, None if priced is None else priced * steps(spec)
 
     async def classify_batch(
         self,
