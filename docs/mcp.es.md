@@ -1,5 +1,5 @@
 ---
-source_sha: "5e7c3f36ea1d"
+source_sha: "2156e3a06edc"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }

@@ -1,5 +1,5 @@
 ---
-source_sha: "03c8f017c247"
+source_sha: "ce12dc0a5334"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
