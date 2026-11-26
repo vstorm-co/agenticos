@@ -7563,9 +7563,9 @@ describe("useChat - receipt-backed queue actions", () => {
       expect(result.current.queuedMessages[0]).toMatchObject({
         id: "connection-recovery-row",
         receiptReconciliationPending: true,
-        receiptErrorAction: undefined,
-        receiptError: undefined,
       });
+      expect(result.current.queuedMessages[0]?.receiptErrorAction).toBeUndefined();
+      expect(result.current.queuedMessages[0]?.receiptError).toBeUndefined();
 
       await act(async () =>
         receiptLists[1]!({
@@ -7573,13 +7573,14 @@ describe("useChat - receipt-backed queue actions", () => {
           next_cursor: null,
         }),
       );
-      await waitFor(() =>
+      await waitFor(() => {
         expect(result.current.queuedMessages[0]).toMatchObject({
           acceptedQueueId: receiptId,
-          receiptReconciliationPending: undefined,
-          receiptErrorAction: undefined,
-        }),
-      );
+        });
+        expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBeUndefined();
+        expect(result.current.queuedMessages[0]?.receiptErrorAction).toBeUndefined();
+        expect(result.current.queuedMessages[0]?.receiptError).toBeUndefined();
+      });
     } finally {
       socket.isConnected = wasConnected;
     }
@@ -8443,8 +8444,14 @@ describe("useChat - receipt-backed queue actions", () => {
         : mockReceiptGetDefaults(url),
     );
     markConversationTranscriptLoaded();
+    let renderCount = 0;
     const { result } = renderHook(
-      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      () => {
+        const chat = useChat({ conversationId: "c-1", queueReceiptsEnabled: true });
+        // A synchronous recovery loop must fail this regression instead of hanging the worker.
+        if (++renderCount > 100) throw new Error("Duplicate receipt acceptance did not settle");
+        return chat;
+      },
       { wrapper },
     );
     await waitFor(() => expect(result.current.queuedMessages).toHaveLength(2));
@@ -8584,6 +8591,91 @@ describe("useChat - receipt-backed queue actions", () => {
         transferError: expect.any(String),
       }),
     );
+  });
+
+  it("does not apply a delayed accept-cancel response after switching conversations", async () => {
+    prepareConversation();
+    const content = "cancel the accepted row in the previous conversation";
+    const nextConversationContent = "keep the next conversation's row";
+    let acceptancePayload: Record<string, unknown> | undefined;
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let resolveCancel!: (receipt: unknown) => void;
+    let previousRowId: string | undefined;
+    const nextConversationRow = () => ({
+      id: previousRowId!,
+      clientQueueId: "123e4567-e89b-42d3-a456-426614174071",
+      receiptConversationId: "c-2",
+      agentId: "agent-1",
+      content: nextConversationContent,
+      queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+      receiptErrorAction: "accept" as const,
+      receiptError: "this conversation's earlier acceptance was not confirmed",
+    });
+    keptOutbox.mockImplementation((conversationId: string | null) =>
+      Promise.resolve(conversationId === "c-2" && previousRowId ? [nextConversationRow()] : []),
+    );
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            acceptancePayload = payload;
+            resolveAcceptance = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    del.mockImplementation(() => new Promise((resolve) => (resolveCancel = resolve)));
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-2/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+
+    const previousRow = result.current.queuedMessages[0]!;
+    expect(acceptancePayload?.client_queue_id).toEqual(expect.any(String));
+    expect(acceptancePayload?.client_queue_id).toBe(previousRow.clientQueueId);
+    previousRowId = previousRow.id;
+    await act(async () => result.current.cancelQueued(previousRow.id));
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: previousRow.id,
+      accepting: true,
+      cancelRequested: true,
+    });
+
+    await act(async () => {
+      resolveAcceptance(acceptedReceipt(acceptancePayload ?? {}));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+    );
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining(nextConversationRow()),
+      ]),
+    );
+
+    await act(async () => {
+      resolveCancel({
+        ...receiptForQueue(String(acceptancePayload?.client_queue_id), receiptId, content),
+        state: "cancelled",
+      });
+      await Promise.resolve();
+    });
+
+    expect(result.current.queuedMessages).toEqual([expect.objectContaining(nextConversationRow())]);
+    expect(result.current.queuedMessages[0]?.transferring).toBeUndefined();
+    expect(result.current.queuedMessages[0]?.cancelRequested).toBeUndefined();
   });
 
   it("keeps cancellation uncertainty visible and retries through both error paths", async () => {
@@ -9071,8 +9163,8 @@ describe("useChat - receipt-backed queue actions", () => {
       ).toBe(false);
       expect(result.current.queuedMessages[0]).toMatchObject({
         receiptReconciliationPending: true,
-        transferring: false,
       });
+      expect(result.current.queuedMessages[0]?.transferring).toBeUndefined();
 
       await act(async () =>
         resolveReceipts({

@@ -192,6 +192,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Chat stays responsive when duplicate saved queue entries are retried while their acceptance request is still pending.
 - Direct chat links retain their unsent prompt while the initial organization selection loads, so the composer does not lose the draft when it remounts.
 - Queued chat recovery waits for the saved outbox and confirmed server receipts before sending, resumes persisted cancellation requests, and preserves pauses, cancellations and newly queued messages made during recovery. Uncertain receipts stay blocked for retry; delayed reads cannot restore cancelled rows or overwrite newer local actions.
 - Files panels hide the resize handle when their capped width leaves no resizing range, including panels docked beside the workspace rail.

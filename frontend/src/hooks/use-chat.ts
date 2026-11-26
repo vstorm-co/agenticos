@@ -2795,9 +2795,6 @@ export function useChat(options: UseChatOptions = {}) {
             ? queued.submission.agentId
             : (selectionApi.getState().selectedAgentId ?? turnAgentIdRef.current);
       const prepared = ensureQueueClientId({ ...queued, agentId });
-      if (prepared !== queued) {
-        setQueue(messageQueueRef.current.map((item) => (item.id === id ? prepared : item)));
-      }
       const payload = acceptedQueuePayload(prepared);
       if (!payload) {
         const reason = queueReceiptPayloadUnsupportedReason(prepared);
@@ -2805,7 +2802,7 @@ export function useChat(options: UseChatOptions = {}) {
           messageQueueRef.current.map((item) =>
             item.id === id
               ? {
-                  ...item,
+                  ...prepared,
                   accepting: false,
                   receiptUnsupported: reason !== "agent",
                   receiptErrorAction: "accept",
@@ -2836,7 +2833,7 @@ export function useChat(options: UseChatOptions = {}) {
         messageQueueRef.current.map((item) =>
           item.id === id
             ? {
-                ...item,
+                ...prepared,
                 accepting: true,
                 receiptAcceptanceAttempted: true,
                 receiptError: undefined,
