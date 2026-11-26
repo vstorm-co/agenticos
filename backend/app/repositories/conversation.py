@@ -1618,6 +1618,7 @@ async def fork_conversation(
                     started_at=call.started_at,
                     completed_at=call.completed_at,
                     duration_ms=call.duration_ms,
+                    mcp_app=call.mcp_app,
                 )
                 for call in original.tool_calls
             ],
@@ -2921,6 +2922,34 @@ async def get_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall 
     return await db.get(ToolCall, tool_call_id)
 
 
+async def get_app_tool_call(
+    db: AsyncSession, *, conversation_id: UUID, tool_call_id: str
+) -> ToolCall | None:
+    """A call in this conversation that was stored with an MCP Apps page, by the provider's id.
+
+    The newest where a provider reused an id across runs: a page is drawn under the
+    turn that is being read, which is the latest one to make the call.
+    """
+    query = (
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.mcp_app.is_not(None),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(query)).scalar_one_or_none()
+
+
+async def get_app_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall | None:
+    """A stored call with an MCP Apps page, by its row id."""
+    query = select(ToolCall).where(ToolCall.id == tool_call_id, ToolCall.mcp_app.is_not(None))
+    return (await db.execute(query)).scalar_one_or_none()
+
+
 async def get_open_tool_call_in_run(
     db: AsyncSession, *, run_id: UUID, tool_call_id: str
 ) -> ToolCall | None:
@@ -3013,6 +3042,7 @@ async def create_tool_call(
     mcp_connection_id: UUID | None = None,
     tool_id: str | None = None,
     presentation_kind: Literal["draft", "generic", "platform"] | None = None,
+    mcp_app: Mapping[str, Any] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -3032,6 +3062,7 @@ async def create_tool_call(
         mcp_connection_id=mcp_connection_id,
         tool_id=tool_id,
         presentation_kind=presentation_kind,
+        mcp_app=dict(mcp_app) if mcp_app is not None else None,
     )
     db.add(tool_call)
     await db.flush()

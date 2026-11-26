@@ -32,6 +32,25 @@ def artifact_response(served: ServedArtifact) -> Response:
     )
 
 
+def mcp_app_page_response(document: bytes) -> Response:
+    """An MCP server's own page (#3450), under the same sandbox policy as an artifact's.
+
+    Third-party code, so nothing is relaxed for it: no network, no remote sources.
+    A page that asks for domains (`_meta.ui.csp`) does not get them.
+    """
+    return Response(
+        content=document,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Security-Policy": content_security_policy(),
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Cache-Control": "private, no-store",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+        },
+    )
+
+
 def library_response(data: bytes, media_type: str) -> Response:
     """One file of the library set, cached for a year: its name carries its version."""
     return Response(

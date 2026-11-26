@@ -99,6 +99,7 @@ from app.services.conversation import ConversationService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.tasks import TaskService
+from app.services.mcp_app import McpAppService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -196,6 +197,13 @@ def get_visual_service(db: DBSession) -> VisualService:
 
 
 VisualSvc = Annotated[VisualService, Depends(get_visual_service)]
+
+
+def get_mcp_app_service(db: DBSession) -> McpAppService:
+    return McpAppService(db)
+
+
+McpAppSvc = Annotated[McpAppService, Depends(get_mcp_app_service)]
 
 
 def get_sandbox_workspace_service(db: DBSession) -> SandboxWorkspaceService:
@@ -1688,6 +1696,21 @@ async def limit_fork(ctx: Auth) -> None:
         limit=rate_limit.fork_limit(),
     )
     _refuse_if_over(decision, "Too many forks in the last minute. Wait and try again.")
+
+
+async def limit_mcp_app_page(token: str) -> None:
+    """Refuse a signed MCP Apps page address loaded too often. Per address, before any read."""
+    _refuse_if_over(
+        await rate_limit.mcp_app_page_allowed(token), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_mcp_app_relay(ctx: Auth) -> None:
+    """Refuse a member's MCP Apps pages calling their servers faster than allowed (#3450)."""
+    _refuse_if_over(
+        await rate_limit.mcp_app_relay_allowed(ctx.organization_id, ctx.subject_id),
+        "Too many requests. Try again shortly.",
+    )
 
 
 async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:

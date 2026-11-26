@@ -80,6 +80,14 @@ class McpConnectionUpdate(BaseSchema):
             "default: they are the server operator's text, read as the agent's own."
         ),
     )
+    mcp_apps: bool | None = Field(
+        default=None,
+        description=(
+            "Show the page a tool of this server comes with (MCP Apps) under the answer "
+            "in web chat, and let it call the server's tools through the console. Off "
+            "by default: the page is the server operator's code."
+        ),
+    )
     label: str | None = Field(
         default=None,
         max_length=64,
@@ -109,6 +117,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     allowed_tools: list[str] | None
     is_enabled: bool
     include_instructions: bool = False
+    mcp_apps: bool = False
     # "bearer" or "oauth".
     auth_type: str
     # OAuth connection that has completed the consent flow (has usable tokens).
@@ -166,6 +175,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             allowed_tools=connection.allowed_tools,
             is_enabled=connection.is_enabled,
             include_instructions=connection.include_instructions,
+            mcp_apps=connection.mcp_apps,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
             # An expired grant reads as one to authorize again, on the list and in
@@ -290,6 +300,14 @@ class OrgMcpConnectionUpdate(BaseSchema):
         description=(
             "Add the server's own `initialize` instructions to the agent's. Off by "
             "default: they are the server operator's text, read as the agent's own."
+        ),
+    )
+    mcp_apps: bool | None = Field(
+        default=None,
+        description=(
+            "Show the page a tool of this server comes with (MCP Apps) under the answer "
+            "in web chat, and let it call the server's tools through the console. Off "
+            "by default: the page is the server operator's code."
         ),
     )
     label: str | None = Field(

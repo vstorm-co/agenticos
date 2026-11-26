@@ -53,6 +53,7 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
+from app.agents.mcp_apps import McpAppResults, app_client, visible_to_model
 from app.agents.spec import ApprovalMode, McpApproval
 from app.core.platform_tool_policy import (
     ALWAYS_ASKS as PLATFORM_ALWAYS_ASK_TOOLS,
@@ -232,6 +233,9 @@ class McpServerSpec:
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
+    # Whether a tool's MCP Apps page is kept with its call, for web chat to show
+    # (the connection's own opt-in, #3450). Off, the page's record is dropped.
+    mcp_apps: bool = False
     # Which account this is, as its person reads it, where that is a question:
     # a labelled connection, or one of several accounts on one service. Shown
     # beside the call on an approval, so "Send mail" says from which mailbox.
@@ -402,6 +406,8 @@ async def probe_mcp_server(
             read_only_hint=t.annotations.read_only_hint if t.annotations else None,
         )
         for t in result.tools
+        # A tool only its page calls is never the model's, so not one to pick (#3450).
+        if visible_to_model(t.meta)
     ]
 
 
@@ -511,16 +517,34 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     Repeats stay bounded by the run's step limit.
     """
     prefix = tool_prefix(spec.name)
-    # The in-process client carries the headers itself: the two are exclusive.
-    server: Any = MCPToolset(
-        spec.url,
-        headers=None if spec.in_process else spec.headers or None,
-        http_client=_in_process_client(spec.headers) if spec.in_process else None,
-        id=f"mcp-{prefix}",
-        init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
-        tool_error_behavior="failed",
-        process_tool_call=_platform_domain_result if spec.in_process else None,
-        include_instructions=spec.include_instructions,
+    if apps_served(spec):
+        # A client of our own: one that says it shows pages, and reads a page whole.
+        server: Any = MCPToolset(
+            app_client(spec.url, spec.headers, init_timeout=CONNECT_TIMEOUT_SECS),
+            id=f"mcp-{prefix}",
+            tool_error_behavior="failed",
+            include_instructions=spec.include_instructions,
+        )
+    else:
+        # The in-process client carries the headers itself: the two are exclusive.
+        server = MCPToolset(
+            spec.url,
+            headers=None if spec.in_process else spec.headers or None,
+            http_client=_in_process_client(spec.headers) if spec.in_process else None,
+            id=f"mcp-{prefix}",
+            init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
+            tool_error_behavior="failed",
+            process_tool_call=_platform_domain_result if spec.in_process else None,
+            include_instructions=spec.include_instructions,
+        )
+    # Innermost, so the record names the tool as the server does; with pages off
+    # it drops the record Pydantic AI keeps for every tool that has a page.
+    server = McpAppResults(
+        server,
+        connection_id=spec.source_connection_id if apps_served(spec) else None,
+        allowed_tools=spec.allowed_tools,
+        approval=spec.approval,
+        tool_approval=spec.tool_approval,
     )
     if spec.source_connection_id is not None and spec.authorization_generation is not None:
         server = SourceStamped(
@@ -557,6 +581,21 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         default_approval_free=frozenset(
             fitted_tool_name(f"{prefix}_{name}") for name in spec.default_approval_free
         ),
+    )
+
+
+def apps_served(spec: McpServerSpec) -> bool:
+    """Whether this server's pages are shown: switched on, and reachable as MCP Apps are.
+
+    Never this deployment's own server, and never over SSE - MCP Apps servers speak
+    streamable HTTP. A connection with no row behind it (none to read a page
+    through later) has none either.
+    """
+    return (
+        spec.mcp_apps
+        and not spec.in_process
+        and spec.source_connection_id is not None
+        and infer_transport_type_from_url(spec.url) != "sse"
     )
 
 

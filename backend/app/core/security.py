@@ -301,6 +301,28 @@ def create_artifact_view_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def create_mcp_app_view_token(
+    tool_call_id: UUID, *, user_id: UUID, organization_id: UUID, expires_in: timedelta
+) -> str:
+    """A short-lived address for the MCP Apps page shown with one tool call (#3450).
+
+    Like an artifact's: the page is served where no cookie reaches, so access is
+    decided when the address is minted - to somebody who may read the
+    conversation - and the content route checks the rest afresh on every load.
+    """
+    return jwt.encode(
+        {
+            "exp": datetime.now(UTC) + expires_in,
+            "sub": str(tool_call_id),
+            "type": "mcp_app_view",
+            "uid": str(user_id),
+            "org": str(organization_id),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
 def verify_special_token(
     token: str, expected_type: str, *, audience: tuple[str, ...] | None = None
 ) -> dict[str, Any] | None:

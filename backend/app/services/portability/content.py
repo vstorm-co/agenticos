@@ -101,6 +101,7 @@ class McpContent(BaseModel):
     allowed_tools: list[str] | None = None
     include_instructions: bool = False
     trust_read_only_hints: bool = False
+    mcp_apps: bool = False
     catalog_key: str | None = None
 
     @field_validator("url")

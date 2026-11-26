@@ -212,6 +212,7 @@ class BundleSources:
                 allowed_tools=row.allowed_tools,
                 include_instructions=row.include_instructions,
                 trust_read_only_hints=row.trust_read_only_hints,
+                mcp_apps=row.mcp_apps,
                 catalog_key=row.catalog_key,
             )
             return SourceDefinition(row.id, row.label or row.name, payload)

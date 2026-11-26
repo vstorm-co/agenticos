@@ -3243,6 +3243,7 @@ async def build_toolsets_for_agent(
             approval=ref.approval,
             tool_approval=ref.tool_approval,
             include_instructions=connection.include_instructions,
+            mcp_apps=connection.mcp_apps,
             # Its label, where it has one: an organization holding two accounts on a
             # service names the second (#2125), and an approval should say which.
             account=connection.label,
@@ -3366,6 +3367,7 @@ def _delegated_source_check(
                 or connection.url != spec.url
                 or connection.authorization_generation != spec.authorization_generation
                 or (spec.include_instructions and not connection.include_instructions)
+                or (spec.mcp_apps and not connection.mcp_apps)
                 or (spec.trust_read_only_hints and not connection.trust_read_only_hints)
                 or (
                     connection.scope == "user"
@@ -3490,6 +3492,7 @@ async def _test_spec(
         approval=ref.approval,
         tool_approval=ref.tool_approval,
         include_instructions=test.include_instructions,
+        mcp_apps=test.mcp_apps,
         account=test.label,
         connection_id=test.id,
         source_connection_id=test.id,
@@ -3619,6 +3622,7 @@ async def _own_specs(
             approval=ref.approval,
             tool_approval=ref.tool_approval,
             include_instructions=account.include_instructions,
+            mcp_apps=account.mcp_apps,
             # Named on an approval wherever it is a question: one of several accounts
             # on the service, or one its person labelled.
             account=_account_name(account) if len(owned) > 1 else account.label,
