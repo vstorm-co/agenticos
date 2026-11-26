@@ -390,6 +390,35 @@ async def test_a_draft_run_is_twenty_eval_runs_none_attributed_to_a_version(db) 
 
 
 @pytest.mark.security
+async def test_a_run_dearer_than_its_quote_is_refused_and_one_within_it_starts(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=20)
+    service = EvalRunService(db)
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    # A quote that leaves out the reruns is below what the run may spend.
+    assert estimate.rerun_ceiling_usd > 0
+    assert estimate.at_most_usd == estimate.total_usd + estimate.rerun_ceiling_usd
+
+    with pytest.raises(ConcurrentChangeError):
+        await service.start(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, quoted_usd=estimate.total_usd)
+        )
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(
+            dataset_id=dataset.id,
+            dataset_version=estimate.dataset_version,
+            quoted_usd=estimate.at_most_usd,
+        ),
+    )
+    assert started.status == "queued"
+
+
+@pytest.mark.security
 async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)

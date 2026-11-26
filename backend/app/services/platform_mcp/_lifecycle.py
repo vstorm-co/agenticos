@@ -5,6 +5,7 @@ leave credential entry and OAuth consent with the person in their own session.
 """
 
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -325,20 +326,29 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
     async def estimate_eval_run(agent_id: UUID, run: EvalRunRequest) -> dict[str, JsonValue]:
         """Price a dataset eval without running a model. Needs agent and dataset access.
 
-        Use the same request for start_eval_run after agreeing the cost. Prefer
+        Use the same request for start_eval_run after agreeing the cost, with the
+        estimate's `dataset_version` pinned and its `at_most_usd` as `quoted_usd`. Prefer
         a named test environment and recorded calls; testing can otherwise reach live systems.
         """
         return await call(
             "POST", f"/agents/{agent_id}/eval-runs/estimate", body=run.model_dump(mode="json")
         )
 
-    async def start_eval_run(agent_id: UUID, run: EvalRunRequest) -> dict[str, JsonValue]:
+    async def start_eval_run(
+        agent_id: UUID, run: EvalRunRequest, quoted_usd: Decimal
+    ) -> dict[str, JsonValue]:
         """Start an estimated eval as a background job. Needs dataset run and agent access.
 
-        Budget admission is rechecked by the eval service. Poll get_eval_run;
-        admission does not mean the test passed. Requires OAuth, not an organization API key.
+        Pin `run.dataset_version` to the estimate's `dataset_version` and pass its
+        `at_most_usd` as `quoted_usd`: a run that could now cost more is refused, so
+        estimate again. Budget admission is rechecked by the eval service. Poll
+        get_eval_run; admission does not mean the test passed. Requires OAuth, not
+        an organization API key.
         """
-        return await call("POST", f"/agents/{agent_id}/eval-runs", body=run.model_dump(mode="json"))
+        if run.dataset_version is None:
+            raise ToolError("Pin run.dataset_version to the estimate's dataset_version")
+        body = run.model_copy(update={"quoted_usd": quoted_usd}).model_dump(mode="json")
+        return await call("POST", f"/agents/{agent_id}/eval-runs", body=body)
 
     async def list_agent_versions(
         agent_id: UUID, limit: Limit = 10, skip: Skip = 0
@@ -406,18 +416,33 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
             params={"version_id": str(version_id)},
         )
 
-    async def run_promotion_gate(
+    async def estimate_promotion_gate(
         agent_id: UUID, environment_id: UUID, version_id: UUID
+    ) -> dict[str, JsonValue]:
+        """The most running the version's missing promotion checks would spend now.
+
+        Pass its `total_usd` to run_promotion_gate as `quoted_usd`.
+        """
+        return await call(
+            "GET",
+            f"/agents/{agent_id}/environments/{environment_id}/gate/estimate",
+            params={"version_id": str(version_id)},
+        )
+
+    async def run_promotion_gate(
+        agent_id: UUID, environment_id: UUID, version_id: UUID, quoted_usd: Decimal
     ) -> dict[str, JsonValue]:
         """Run missing promotion checks; may spend on evals. Poll the gate before promotion.
 
-        Read guarding suites and their estimates first. Existing frozen pins,
-        thresholds and budget caps apply; never weaken a guard to force a release.
+        Price them with estimate_promotion_gate first and pass its `total_usd` as
+        `quoted_usd`; a run that now costs more is refused, so estimate again.
+        Existing frozen pins, thresholds and budget caps apply; never weaken a guard
+        to force a release.
         """
         return await call(
             "POST",
             f"/agents/{agent_id}/environments/{environment_id}/gate/run",
-            body={"version_id": str(version_id)},
+            body={"version_id": str(version_id), "quoted_usd": str(quoted_usd)},
         )
 
     async def list_eval_suites(
@@ -502,6 +527,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         (create_agent_environment, True),
         (update_agent_environment, True),
         (get_promotion_gate, False),
+        (estimate_promotion_gate, False),
         (run_promotion_gate, True),
         (list_eval_suites, False),
         (estimate_eval_suite, False),

@@ -3339,6 +3339,7 @@
       "actionInService": "{action} w {service}",
       "approvalDetails": "Szczegóły",
       "approvalNoArguments": "Nie przyjmuje nic.",
+      "approvalQuotedPrice": "Podana cena: do {price}",
       "cache": {
         "title": "Cache promptu",
         "description": "Żądania, których zapisanego w cache promptu nie odczytano. Bust to prefiks, który się przesunął - inna kolejność narzędzi, znacznik czasu w instrukcjach - i został policzony po pełnej stawce za wejście; wygaśnięcie to cache, który przetrwał dłużej niż przechowuje go dostawca.",

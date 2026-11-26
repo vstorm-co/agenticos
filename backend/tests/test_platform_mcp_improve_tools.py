@@ -1876,11 +1876,39 @@ class TestDraftingKnowledge:
             }
         )
 
-        topic = await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        topic = await _call(server, "draft_knowledge_topic", topic_id=TOPIC, quoted_usd="0.02")
 
         assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert api.request.await_args.kwargs["json"] == {"quoted_usd": "0.02"}
         assert topic["drafting"] is True
         assert "questions" not in topic
+
+    @pytest.mark.security
+    async def test_a_draft_with_a_price_needs_its_quote_and_one_without_runs_unquoted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        estimate = f"/knowledge-gaps/{TOPIC}/draft/estimate"
+        drafted = {"id": TOPIC, "label": "Gift cards?", "drafting": True}
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": "0.02"},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        with pytest.raises(ToolError, match="quoted_usd"):
+            await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        assert [call.args[0] for call in api.request.await_args_list] == ["GET"]
+
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": None},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        # An estimate with no price leaves nothing to agree to, and the draft still runs.
+        assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert api.request.await_args.kwargs["json"] is None
 
 
 READS = {

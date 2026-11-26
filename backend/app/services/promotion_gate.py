@@ -17,6 +17,7 @@ the last of them passes.
 """
 
 import logging
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -24,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthorizationError, PromotionBlockedError
+from app.core.exceptions import AuthorizationError, ConcurrentChangeError, PromotionBlockedError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
@@ -42,6 +43,7 @@ from app.repositories import (
 from app.schemas.change_event import ChangeEvent
 from app.schemas.promotion_gate import (
     GuardState,
+    PromotionGateEstimate,
     PromotionGateRead,
     PromotionGateRun,
     PromotionGateRunRead,
@@ -377,36 +379,87 @@ class PromotionGateService:
             elif not guards and suite.pinned_dataset_version is not None:
                 await unpin(self.db, suite)
 
+    async def estimate(
+        self, ctx: AuthContext, agent_id: UUID, environment_id: UUID, version_id: UUID
+    ) -> PromotionGateEstimate:
+        """The most running the version's missing guards would spend now. Gated as
+        :meth:`run` is, so a caller who could not run them cannot price them either."""
+        agent, environment, version = await self._target(ctx, agent_id, environment_id, version_id)
+        gate = await self.check(ctx, agent=agent, environment=environment, version=version)
+        due = _due(gate)
+        total = await self._price(ctx, agent, environment, version, due)
+        return PromotionGateEstimate(total_usd=total, suite_ids=due)
+
     async def run(
         self, ctx: AuthContext, agent_id: UUID, environment_id: UUID, data: PromotionGateRun
     ) -> PromotionGateRunRead:
         """Run each guard that has not passed and is not already checking, on the
-        version, beside the one the environment serves now."""
+        version, beside the one the environment serves now.
+
+        The guards priced against `quoted_usd` are the guards started: one reading of
+        the gate decides both, so a guard that settles meanwhile is not started unpriced.
+
+        Raises:
+            ConcurrentChangeError: The guards would now cost more than `quoted_usd`.
+        """
         from app.services.eval_suite import EvalSuiteService
 
-        agent, environment = await self._environment(ctx, agent_id, environment_id)
-        version = await self._version(ctx, agent, data.version_id)
-        gate = await self.check(ctx, agent=agent, environment=environment, version=version)
-        serving = await agent_repo.get_version(
-            self.db, environment.version_id, organization_id=agent.organization_id
+        agent, environment, version = await self._target(
+            ctx, agent_id, environment_id, data.version_id
         )
+        gate = await self.check(ctx, agent=agent, environment=environment, version=version)
+        due = _due(gate)
+        if data.quoted_usd is not None:
+            total = await self._price(ctx, agent, environment, version, due)
+            if total > data.quoted_usd:
+                raise ConcurrentChangeError(
+                    message="Running the guards now costs more than was quoted; estimate it again",
+                    details={"estimate_usd": str(total), "quoted_usd": str(data.quoted_usd)},
+                )
+        baseline = await self._serving_version(agent, environment)
         suites = EvalSuiteService(self.db)
         started = []
-        for guard in gate.guards:
-            if guard.state in ("passed", "checking", "paused", "unpinned"):
-                continue
+        for suite_id in due:
             await suites.run_on_version(
-                ctx,
-                agent.id,
-                guard.suite_id,
-                version=version,
-                baseline_version=serving.version if serving is not None else None,
+                ctx, agent.id, suite_id, version=version, baseline_version=baseline
             )
-            started.append(guard.suite_id)
+            started.append(suite_id)
         return PromotionGateRunRead(
             started=started,
             gate=await self.check(ctx, agent=agent, environment=environment, version=version),
         )
+
+    async def _target(
+        self, ctx: AuthContext, agent_id: UUID, environment_id: UUID, version_id: UUID
+    ) -> tuple[Agent, AgentEnvironment, AgentVersion]:
+        agent, environment = await self._environment(ctx, agent_id, environment_id)
+        return agent, environment, await self._version(ctx, agent, version_id)
+
+    async def _serving_version(self, agent: Agent, environment: AgentEnvironment) -> int | None:
+        serving = await agent_repo.get_version(
+            self.db, environment.version_id, organization_id=agent.organization_id
+        )
+        return serving.version if serving is not None else None
+
+    async def _price(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        environment: AgentEnvironment,
+        version: AgentVersion,
+        due: list[UUID],
+    ) -> Decimal:
+        """The most running these guards on the version would spend now."""
+        from app.services.eval_suite import EvalSuiteService
+
+        suites = EvalSuiteService(self.db)
+        baseline = await self._serving_version(agent, environment)
+        total = Decimal(0)
+        for suite_id in due:
+            total += await suites.price_on_version(
+                ctx, agent.id, suite_id, version=version, baseline_version=baseline
+            )
+        return total
 
     async def follow(self, *, organization_id: UUID, agent_id: UUID, version_id: UUID) -> None:
         """Move each guarded environment that follows publishes onto this version,
@@ -640,3 +693,12 @@ class PromotionGateService:
         from app.services.agent_environment import AgentEnvironmentService
 
         return await AgentEnvironmentService(self.db).version_of(ctx, agent, version_id)
+
+
+def _due(gate: PromotionGateRead) -> list[UUID]:
+    """The guards a run would start: those not passed, checking, paused or unpinned."""
+    return [
+        guard.suite_id
+        for guard in gate.guards
+        if guard.state not in ("passed", "checking", "paused", "unpinned")
+    ]

@@ -38,6 +38,23 @@ export function isPlatformTool(toolName: string): boolean {
   return toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length;
 }
 
+const QUOTE_ARGUMENTS = ["quoted_usd", "estimate_usd", "total_usd"] as const;
+
+/**
+ * The price a paid platform call was quoted at, as the decimal string it carries;
+ * `null` for any other call. The server refuses the call once it would cost more,
+ * so this is the most it spends.
+ */
+export function quotedPrice(toolName: string, args: Record<string, unknown>): string | null {
+  if (!isPlatformTool(toolName)) return null;
+  for (const name of QUOTE_ARGUMENTS) {
+    const value = args[name];
+    if (typeof value === "string" && value !== "" && Number.isFinite(Number(value))) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return null;
+}
+
 /**
  * The service and action an MCP tool name carries.
  *

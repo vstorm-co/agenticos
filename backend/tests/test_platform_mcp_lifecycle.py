@@ -1,6 +1,7 @@
 """Lifecycle adapters preserve typed payloads, refusal semantics and bounded output."""
 
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
@@ -141,7 +142,11 @@ def tools(api: MagicMock) -> dict[str, Tool]:
         ),
         (
             "start_eval_run",
-            {"agent_id": IDENTITY, "run": EvalRunRequest(dataset_id=IDENTITY, candidate="draft")},
+            {
+                "agent_id": IDENTITY,
+                "run": EvalRunRequest(dataset_id=IDENTITY, dataset_version=3, candidate="draft"),
+                "quoted_usd": Decimal("0.40"),
+            },
             "POST",
             f"/agents/{PATH_ID}/eval-runs",
         ),
@@ -184,8 +189,19 @@ def tools(api: MagicMock) -> dict[str, Tool]:
             f"/agents/{PATH_ID}/environments/{PATH_ID}/gate",
         ),
         (
-            "run_promotion_gate",
+            "estimate_promotion_gate",
             {"agent_id": IDENTITY, "environment_id": IDENTITY, "version_id": IDENTITY},
+            "GET",
+            f"/agents/{PATH_ID}/environments/{PATH_ID}/gate/estimate",
+        ),
+        (
+            "run_promotion_gate",
+            {
+                "agent_id": IDENTITY,
+                "environment_id": IDENTITY,
+                "version_id": IDENTITY,
+                "quoted_usd": Decimal("0.40"),
+            },
             "POST",
             f"/agents/{PATH_ID}/environments/{PATH_ID}/gate/run",
         ),
@@ -222,6 +238,24 @@ async def test_lifecycle_calls_the_scoped_api(
         expected.update(dataset_id=PATH_ID, read_tool="get_dataset_case")
     assert await tools(api)[name](**arguments) == expected
     assert api.request.call_args.args == (method, path)
+
+
+@pytest.mark.security
+async def test_a_paid_eval_carries_its_quote_and_its_priced_dataset_version(api: MagicMock) -> None:
+    start = tools(api)["start_eval_run"]
+    with pytest.raises(ToolError, match="dataset_version"):
+        await start(
+            agent_id=IDENTITY, run=EvalRunRequest(dataset_id=IDENTITY), quoted_usd=Decimal("1")
+        )
+    api.request.assert_not_called()
+
+    await start(
+        agent_id=IDENTITY,
+        run=EvalRunRequest(dataset_id=IDENTITY, dataset_version=3),
+        quoted_usd=Decimal("0.40"),
+    )
+    body = api.request.call_args.kwargs["json"]
+    assert (body["dataset_version"], body["quoted_usd"]) == (3, "0.40")
 
 
 @pytest.mark.parametrize(

@@ -504,3 +504,17 @@ it("lets the run's person answer their own call of a mixed batch and leaves the 
   await userEvent.click(screen.getByRole("button", { name: "Approve" }));
   expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }], [own]);
 });
+
+it("shows the price a paid platform call was quoted at", () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_start_eval_run",
+      args: { quoted_usd: "0.40" },
+      always_asks: true,
+      may_decide: true,
+      may_approve: true,
+    }),
+  ]);
+
+  expect(screen.getByText("Quoted price: up to $0.40")).toBeInTheDocument();
+});

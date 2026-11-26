@@ -8032,6 +8032,7 @@
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "Zonder argumenten.",
+      "approvalQuotedPrice": "Opgegeven prijs: tot {price}",
       "cache": {
         "title": "Promptcache",
         "description": "Verzoeken waarvan de gecachete prompt niet werd teruggelezen. Bij een gewijzigde prefix - tools in een andere volgorde, een tijdstempel in de instructies - werd het volledige invoertarief gefactureerd; bij een verlopen cache was de bewaartermijn van de providercache verstreken.",

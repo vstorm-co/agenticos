@@ -312,6 +312,15 @@ class KnowledgeGapTopicRead(BaseSchema):
     )
 
 
+class KnowledgeGapDraftRequest(BaseSchema):
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `total_usd` the person agreed to; a draft that would now "
+        "cost more is refused, and omitted it is not checked",
+    )
+
+
 class KnowledgeGapDraftEstimate(BaseSchema):
     total_usd: Decimal | None = Field(
         description="The most one draft of the topic costs; absent when its model has no price"

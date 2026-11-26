@@ -1436,6 +1436,7 @@ class TestCatchingUp:
                     "expected_usd": "0.01",
                     "at_most_usd": "0.03",
                     "affordable": True,
+                    "base_version": {"id": VERSION, "number": 4, "fork_id": None},
                     "agents": [row],
                 },
                 ("POST", path): {**BLOCKED, "id": VERSION, "status": "running", "agents": [row]},
@@ -1450,10 +1451,20 @@ class TestCatchingUp:
             thorough=thorough,
         )
         check = await _call(
-            server, "start_skill_update_check", skill_id=SKILL, agent_id=COUNTER, thorough=thorough
+            server,
+            "start_skill_update_check",
+            skill_id=SKILL,
+            agent_id=COUNTER,
+            quoted_usd=quote["at_most_usd"],
+            base_version_id=quote["base_version_id"],
+            thorough=thorough,
         )
 
-        assert _sent(api, "POST", path) == {"mode": mode}
+        assert _sent(api, "POST", path) == {
+            "mode": mode,
+            "quoted_usd": "0.03",
+            "base_version_id": str(VERSION),
+        }
         assert quote["at_most_usd"] == "0.03"
         assert check["check_id"] == VERSION
 

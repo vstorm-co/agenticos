@@ -8148,6 +8148,7 @@
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "It takes nothing.",
+      "approvalQuotedPrice": "Quoted price: up to {price}",
       "cache": {
         "title": "Prompt cache",
         "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",

@@ -6,6 +6,7 @@ real; the eval runs are scripted as in `test_skill_checks`.
 
 import uuid
 from dataclasses import replace
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -135,6 +136,32 @@ class TestTheCheck:
         )
         with pytest.raises(BadRequestError, match="is not pinned"):
             await service.start_update(lab.ctx, lab.skill.id, unbound.id, QUICK)
+
+    @pytest.mark.security
+    async def test_a_check_dearer_than_its_quote_or_of_another_version_is_refused(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        quote = await service.estimate_update(lab.ctx, lab.skill.id, lab.pinned.id, QUICK)
+
+        for changed in (
+            {"quoted_usd": quote.at_most_usd - Decimal("0.000001")},
+            {"base_version_id": uuid.uuid4()},
+        ):
+            with pytest.raises(ConcurrentChangeError):
+                await service.start_update(
+                    lab.ctx, lab.skill.id, lab.pinned.id, QUICK.model_copy(update=changed)
+                )
+        assert evals.started == []
+
+        agreed = QUICK.model_copy(
+            update={"quoted_usd": quote.at_most_usd, "base_version_id": quote.base_version.id}
+        )
+        await service.start_update(lab.ctx, lab.skill.id, lab.pinned.id, agreed)
+        assert {agent_id for agent_id, _ in evals.started} == {lab.pinned.id}
 
     async def test_another_organization_or_no_skill_edit_finds_nothing(self, db, monkeypatch):
         lab = await _lab(db)

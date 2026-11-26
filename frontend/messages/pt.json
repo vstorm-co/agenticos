@@ -8032,6 +8032,7 @@
       "actionInService": "{action} em {service}",
       "approvalDetails": "Detalhes",
       "approvalNoArguments": "Não requer nenhum argumento.",
+      "approvalQuotedPrice": "Preço informado: até {price}",
       "cache": {
         "title": "Cache de prompt",
         "description": "Requisições cujo prompt em cache não foi lido de volta. Uma quebra é um prefixo que mudou (ferramentas reordenadas, um timestamp nas instruções) e foi cobrado pela taxa cheia de entrada; uma expiração significa que o cache do provedor já tinha vencido.",

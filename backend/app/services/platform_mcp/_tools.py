@@ -3979,21 +3979,32 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "expected_usd": estimate["expected_usd"],
             "at_most_usd": estimate["at_most_usd"],
             "affordable": estimate["affordable"],
+            "base_version_id": estimate["base_version"]["id"],
             "agents": [_checked_agent(row) for row in estimate["agents"]],
         }
 
     async def start_skill_update_check(
-        skill_id: UUID, agent_id: UUID, thorough: bool = False
+        skill_id: UUID,
+        agent_id: UUID,
+        quoted_usd: Decimal,
+        base_version_id: UUID,
+        thorough: bool = False,
     ) -> dict[str, Any]:
         """Check main's newest version on one pinned agent, only when the person asked for it.
         Needs `skills:edit`, `runs:view` and access to the agent.
 
-        Price it with estimate_skill_update_check first; it is billed to that
-        agent. Read it with get_skill_check; when it is done, change_skill_version
-        to main with its `check_id` moves the agent unless the newer version made
-        it worse.
+        Price it with estimate_skill_update_check first and pass its `at_most_usd`
+        as `quoted_usd` and its `base_version_id`; a check that now costs more or
+        would check another version is refused, so estimate again. It is billed to
+        that agent. Read it with get_skill_check; when it is done,
+        change_skill_version to main with its `check_id` moves the agent unless the
+        newer version made it worse.
         """
-        body = {"mode": "thorough" if thorough else "quick"}
+        body = {
+            "mode": "thorough" if thorough else "quick",
+            "quoted_usd": str(quoted_usd),
+            "base_version_id": str(base_version_id),
+        }
         check = await api.request(
             "POST", f"/skills/{skill_id}/agents/{agent_id}/update-check", json=body
         )
@@ -4058,16 +4069,31 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
 
-    async def draft_knowledge_topic(topic_id: UUID) -> dict[str, Any]:
+    async def draft_knowledge_topic(
+        topic_id: UUID, quoted_usd: Decimal | None = None
+    ) -> dict[str, Any]:
         """Draft a document for a question the knowledge base could not answer, only when asked.
         Needs `runs:view`, edit access to the topic's knowledge base, a model and budget.
 
+        Price it with estimate_knowledge_draft first and pass its `total_usd` as
+        `quoted_usd`, or leave it out when the estimate has no price; a draft that
+        now costs more is refused, so estimate again.
         It is written in the background and kept on the topic for a person to
         review; nothing is added to the knowledge base. Asking again while one is
         being written changes nothing, and asking again later redrafts it from the
         knowledge base as it is then.
         """
-        topic = await api.request("POST", f"/knowledge-gaps/{topic_id}/draft")
+        if quoted_usd is None:
+            estimate = await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
+            if estimate.get("total_usd") is not None:
+                raise ToolError(
+                    "This draft has a price: estimate it first and pass its total_usd as quoted_usd"
+                )
+        topic = await api.request(
+            "POST",
+            f"/knowledge-gaps/{topic_id}/draft",
+            json=None if quoted_usd is None else {"quoted_usd": str(quoted_usd)},
+        )
         return _untrusted(
             {
                 field: topic.get(field)
@@ -4791,7 +4817,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (set_my_profile, True, PlatformToolGroup.ACCOUNT),
     )
     extra_groups = {
-        PlatformToolGroup.AGENTS: "plan_solution install_solution prepare_solution get_solution_installation get_platform_context get_setup_link get_authoring_schema list_agent_versions get_agent_version list_agent_environments create_agent_environment update_agent_environment get_promotion_gate run_promotion_gate get_agent_environment",
+        PlatformToolGroup.AGENTS: "plan_solution install_solution prepare_solution get_solution_installation get_platform_context get_setup_link get_authoring_schema list_agent_versions get_agent_version list_agent_environments create_agent_environment update_agent_environment get_promotion_gate estimate_promotion_gate run_promotion_gate get_agent_environment",
         PlatformToolGroup.CONNECTIONS: "list_secret_references list_model_providers create_model_profile update_model_profile list_embedding_endpoints create_embedding_endpoint get_model_profile get_model_provider get_embedding_endpoint",
         PlatformToolGroup.KNOWLEDGE: "get_knowledge_base list_knowledge_documents get_knowledge_ingestion list_knowledge_connectors list_knowledge_sources create_knowledge_source sync_knowledge_source list_knowledge_sync_logs get_knowledge_source get_knowledge_connector read_context_file_content",
         PlatformToolGroup.RUNS: "create_dataset get_dataset add_dataset_case list_dataset_cases estimate_eval_run start_eval_run list_eval_suites estimate_eval_suite create_eval_suite update_eval_suite get_dataset_case read_dataset_case_field get_eval_suite",
