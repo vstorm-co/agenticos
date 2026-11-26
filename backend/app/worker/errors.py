@@ -5,6 +5,7 @@ import traceback
 from pydantic import ValidationError
 
 from app.core.exceptions import AppException
+from app.core.redaction import redact_secrets
 
 _FRAMES = 3
 """Frames of the traceback kept on the row; the whole of it is in the worker's log."""
@@ -23,7 +24,9 @@ def describe(exc: BaseException) -> str:
     its query string, a provider error carries the response body. So only an
     `AppException` keeps its message, and a validation error says which fields
     failed without their values. Everything else stays in the worker's log beside
-    the full traceback. A message is cut at `_MESSAGE_LIMIT` characters.
+    the full traceback. An `AppException`'s message can still quote a name a person
+    chose, so a credential in it is redacted. A message is cut at `_MESSAGE_LIMIT`
+    characters.
     """
     message = _message(exc)
     if len(message) > _MESSAGE_LIMIT:
@@ -35,7 +38,9 @@ def describe(exc: BaseException) -> str:
 
 def _message(exc: BaseException) -> str:
     if isinstance(exc, AppException):
-        return exc.message
+        verdict = redact_secrets(exc.message)
+        replacement = verdict.replacement
+        return replacement if isinstance(replacement, str) else exc.message
     if isinstance(exc, ValidationError):
         fields = sorted(
             {
