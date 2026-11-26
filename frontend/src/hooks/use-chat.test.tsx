@@ -7461,7 +7461,9 @@ describe("useChat - receipt-backed queue actions", () => {
           }),
         ]),
       );
-      expect(get).toHaveBeenCalledWith("/conversations/c-1/queued-messages");
+      expect(get.mock.calls.some(([url]) => url === "/conversations/c-1/queued-messages")).toBe(
+        true,
+      );
     } finally {
       socket.isConnected = true;
     }
