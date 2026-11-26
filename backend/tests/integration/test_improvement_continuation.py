@@ -440,16 +440,12 @@ async def test_try_again_reads_and_prices_the_same_learning_questions(db):
 
 async def _confirmed_attempt(db, monkeypatch):
     """A second attempt, confirmed, that learns from two questions of its own draw."""
-    from app.db.models.dataset import Dataset
-
     monkeypatch.setattr("app.services.improvement_pipeline.MIN_HOLDOUT_CASES", 3)
     ctx, agent, ready = await _ready_proposal(db)
     row = await db.get(ImprovementRun, ready.id)
     assert row is not None
     row.max_iterations = 3
-    dataset = await db.get(Dataset, row.dataset_id)
-    assert dataset is not None
-    dataset.improvement_holdout_share = Decimal("0.6")
+    row.holdout_share = Decimal("0.6")
     await db.flush()
     service = ImprovementPipelineService(db)
     quote, consent = await _consent(service, ctx, agent, ready)
