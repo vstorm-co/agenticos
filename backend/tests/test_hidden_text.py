@@ -29,6 +29,7 @@ from app.schemas.authoring import (
     ToolChange,
 )
 from app.schemas.improvement import ChangeEdit
+from app.schemas.skill_check import SkillCheckRequest
 from app.schemas.skill_improvement import MergeTexts, SkillBodyEdit, SkillEdits
 from app.schemas.skill_merge import MergeDescriptionEdit, MergePartEdit
 from app.services import authoring_fields
@@ -70,6 +71,15 @@ def test_a_refusal_names_the_characters_and_a_json_value_is_read_whole():
     assert not holds_refused([None, 3, True, {"description": "Sorts."}])
 
 
+def _check_request(**text: str) -> SkillCheckRequest:
+    return SkillCheckRequest.model_validate(
+        {
+            "candidate": {"description": "Refunds", "content": "Refund in 30 days.", **text},
+            "base_version_id": uuid.uuid4(),
+        }
+    )
+
+
 @pytest.mark.parametrize(
     "build",
     [
@@ -79,8 +89,19 @@ def test_a_refusal_names_the_characters_and_a_json_value_is_read_whole():
         lambda text: MergeDescriptionEdit(result=text),
         lambda text: MergePartEdit(result=text),
         lambda text: ProposedSkill(name="refunds", description="Refunds", content=text),
+        lambda text: _check_request(content=text),
+        lambda text: _check_request(description=text),
     ],
-    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part", "skill-idea"],
+    ids=[
+        "reword",
+        "accept-text",
+        "accept-value",
+        "merge-description",
+        "merge-part",
+        "skill-idea",
+        "checked-text",
+        "checked-description",
+    ],
 )
 def test_a_person_s_edit_carrying_one_is_refused_on_its_field(build):
     with pytest.raises(ValidationError):
@@ -110,8 +131,9 @@ def test_windows_and_lone_carriage_return_line_breaks_are_written_as_newlines():
         ),
         (lambda text: MergeDescriptionEdit(result=text), lambda made: made.result),
         (lambda text: MergePartEdit(result=text), lambda made: made.result),
+        (lambda text: _check_request(content=text), lambda made: made.candidate.content),
     ],
-    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part"],
+    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part", "checked"],
 )
 def test_a_person_s_edit_with_windows_line_breaks_is_kept_with_newlines(build, read):
     assert read(build(WINDOWS)) == UNIX

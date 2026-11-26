@@ -2,11 +2,12 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AfterValidator, Field, model_validator
 
+from app.core.hidden_text import visible
 from app.db.models.skill_check import (
     AgentState,
     CheckMode,
@@ -67,9 +68,25 @@ class SkillCheckStart(BaseSchema):
         return self
 
 
+class VisibleCandidateText(CandidateText):
+    """A text a caller asks to check, refused when it holds a character a person cannot see."""
+
+    description: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=500)
+    content: Annotated[str, AfterValidator(visible)]
+
+
+def _visible(candidate: CandidateText | None) -> CandidateText | None:
+    if candidate is None:
+        return None
+    return VisibleCandidateText.model_validate(candidate, from_attributes=True)
+
+
 class SkillCheckRequest(SkillCheckStart):
     """A check as a caller asks for it: a text names the version it was written against,
-    so a save made meanwhile is refused rather than written over."""
+    so a save made meanwhile is refused rather than written over, and holds no character
+    a person cannot see."""
+
+    candidate: Annotated[CandidateText | None, AfterValidator(_visible)] = None
 
     @model_validator(mode="after")
     def _text_names_its_base(self) -> Self:
