@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.service_connection import ServiceConnectionKind
 from app.repositories import knowledge_base_repo
@@ -198,6 +198,15 @@ class EmbeddingProbeService:
         identity = await identify_target(
             self.db, target_settings, organization_id=kb.organization_id
         )
+        if identity.key_source is EmbeddingKeySource.CONNECTION and not ctx.has(
+            Perm.CONNECTIONS_VIEW
+        ):
+            # Even an unchanged Test spends the retained connection's key;
+            # identifying the target has not unsealed that credential yet.
+            raise refused_field(
+                "embedding_endpoint_id",
+                "Testing a keyed connection requires the connections permission. Ask an administrator.",
+            )
         target = await self._usable(identity, key_field="embedding_endpoint_id", kb=True)
         binding = ProbeBinding.of(
             ProbePurpose.KB_CHANGE,

@@ -24,12 +24,17 @@ from app.agents.capabilities.budget import (
 from app.services.rag.embeddings import OpenAIEmbeddingProvider
 from app.services.rag.image_describer import PydanticAIImageDescriber
 from app.worker.tasks.rag_tasks import _record_embedding_spend, _run_ingestion
+from tests.embedding_responses import embedding_response
 
 
 def _provider(*, usage: object) -> OpenAIEmbeddingProvider:
     provider = OpenAIEmbeddingProvider(model="text-embedding-3-large", api_key="key")
-    response = MagicMock(data=[MagicMock(embedding=[0.1, 0.2])], usage=usage)
-    provider._client = MagicMock(embeddings=MagicMock(create=MagicMock(return_value=response)))
+    response = embedding_response(
+        [[0.1, 0.2]], prompt_tokens=None if usage is None else usage.prompt_tokens
+    )
+    provider._client = MagicMock(
+        embeddings=MagicMock(with_raw_response=MagicMock(create=MagicMock(return_value=response)))
+    )
     return provider
 
 

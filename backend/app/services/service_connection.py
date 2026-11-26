@@ -356,6 +356,11 @@ class ServiceConnectionService:
                 or row.provider != DOCLING_PROVIDER
             ):
                 raise refused_field("service_id", "That connection is not a Docling Serve.")
+            if row.requires_key and row.secret_id is None:
+                raise refused_field(
+                    "service_id",
+                    "This connection's key is no longer in the vault. Choose another key before testing.",
+                )
             if row.secret_id is not None and row.organization_id is not None:
                 if base_url != row.base_url.rstrip("/"):
                     await self._viewable_key(ctx, row.secret_id, owner=row.organization_id)

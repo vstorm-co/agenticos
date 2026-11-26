@@ -36,6 +36,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Require connection access before testing a retained keyed embedding endpoint, including model-only and unchanged tests. Refuse Docling tests when a required Vault key was deleted instead of retrying without credentials.
+- Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Invalid responses stay controlled provider failures, with reported usage retained.
+- Keep Docling Test results bound to the address, credentials and ownership actually tested, including when a form changes while the request is still running.
+
 - Naming a keyed service connection for a knowledge base, a move or a Test needs `connections:view`, so a Member cannot spend a connection key that was never shared with them.
 - An upload or retry into an app-scoped knowledge base checks its Docling connection as the collection, so an organization's private connection cannot be reached through an upload override.
 - Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.

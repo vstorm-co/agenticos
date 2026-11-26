@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from typing import Annotated
 
 from openai import (
     APIConnectionError,
@@ -13,6 +14,7 @@ from openai import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
+from pydantic import BaseModel, Field, FiniteFloat, StrictInt, TypeAdapter, ValidationError
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import record_ambient_usage
@@ -53,6 +55,50 @@ _PROBE_FAILURES = {
     "model_unknown": "The embedding endpoint does not serve that model, or did not answer with a vector.",
 }
 
+
+class _EmbeddingResult(BaseModel):
+    embedding: Annotated[list[FiniteFloat], Field(min_length=1)]
+
+
+_EMBEDDING_RESULTS = TypeAdapter(list[_EmbeddingResult])
+
+
+class _EmbeddingUsage(BaseModel):
+    prompt_tokens: Annotated[StrictInt, Field(ge=0)]
+
+
+class _EmbeddingAnswer(BaseModel):
+    data: object = None
+    usage: _EmbeddingUsage | None = None
+
+
+def _embedding_answer(content: bytes) -> _EmbeddingAnswer:
+    try:
+        return _EmbeddingAnswer.model_validate_json(content, strict=True)
+    except ValidationError:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned an invalid embeddings response.",
+            details={},
+        ) from None
+
+
+def _embedding_vectors(data: object, *, expected: int) -> list[list[float]]:
+    """Narrow an endpoint answer before it can reach pgvector or a probe token."""
+    try:
+        results = _EMBEDDING_RESULTS.validate_python(data, from_attributes=True, strict=True)
+    except ValidationError:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned invalid vectors. Expected nonempty finite numeric arrays.",
+            details={},
+        ) from None
+    if len(results) != expected:
+        raise ExternalServiceError(
+            message="The embedding endpoint returned the wrong number of vectors.",
+            details={"expected": expected, "received": len(results)},
+        )
+    return [result.embedding for result in results]
+
+
 PROBE_TIMEOUT_SECONDS = 30.0
 """How long one test request may take."""
 
@@ -78,7 +124,9 @@ async def embed_for_probe(
         max_retries=0,
     )
     try:
-        response = await client.embeddings.create(model=model, input=[text])
+        response = await client.embeddings.with_raw_response.create(
+            model=model, input=[text], encoding_format="float"
+        )
     except (AuthenticationError, PermissionDeniedError) as error:
         raise _probe_failure("key_refused", error) from error
     except (NotFoundError, BadRequestError, UnprocessableEntityError) as error:
@@ -90,11 +138,13 @@ async def embed_for_probe(
         raise _probe_failure("model_unknown", error) from error
     finally:
         await client.close()
-    vector = response.data[0].embedding if response.data else None
-    if not isinstance(vector, list) or not vector:
-        logger.warning("embedding_probe_no_vector")
-        raise EmbeddingProbeError("model_unknown")
-    return [float(value) for value in vector]
+    try:
+        return _embedding_vectors(
+            _embedding_answer(response.http_response.content).data, expected=1
+        )[0]
+    except ExternalServiceError:
+        logger.warning("embedding_probe_invalid_vector")
+        raise EmbeddingProbeError("model_unknown") from None
 
 
 def _probe_failure(outcome: str, error: Exception) -> EmbeddingProbeError:
@@ -226,7 +276,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed one request's worth of `texts` and book its usage."""
         try:
-            response = self.client.embeddings.create(model=self.model, input=texts)
+            response = self.client.embeddings.with_raw_response.create(
+                model=self.model, input=texts, encoding_format="float"
+            )
         except NotFoundError as error:
             # A 404 from `/embeddings` is about the model or the address, never
             # the key - OpenRouter's EU endpoint answers it for every model it
@@ -247,13 +299,15 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         # The "openai" hint is what resolves the price - `genai-prices` cannot
         # auto-detect embedding model names - and a model the hint does not
         # match is retried without it rather than mispriced.
-        if response.usage is not None:
+        answer = _embedding_answer(response.http_response.content)
+        usage = answer.usage
+        if usage is not None:
             record_ambient_usage(
                 self.model,
-                RequestUsage(input_tokens=response.usage.prompt_tokens),
+                RequestUsage(input_tokens=usage.prompt_tokens),
                 provider="openai",
             )
-        return [data.embedding for data in response.data]
+        return _embedding_vectors(answer.data, expected=len(texts))
 
     def embed_document(self, document: Document) -> list[list[float]]:
         return self.embed_queries(_chunk_texts(document))
@@ -312,19 +366,19 @@ class EmbeddingService:
 
     def embed_queries(self, queries: list[str]) -> list[list[float]]:
         results = self.provider.embed_queries(queries)
-        if results and len(results[0]) != self.expected_dim:
+        if any(len(vector) != self.expected_dim for vector in results):
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(results[0])}. Check your embedding model configuration."
+                f"got {[len(vector) for vector in results]}. Check your embedding model configuration."
             )
         return results
 
     def embed_document(self, document: Document) -> list[list[float]]:
         results = self.provider.embed_document(document)
-        if results and len(results[0]) != self.expected_dim:
+        if any(len(vector) != self.expected_dim for vector in results):
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(results[0])}. Check your embedding model configuration."
+                f"got {[len(vector) for vector in results]}. Check your embedding model configuration."
             )
         return results
 

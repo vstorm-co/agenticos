@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -352,6 +352,25 @@ describe("ServiceConnections", () => {
       await userEvent.type(screen.getByLabelText("Address"), "/");
       expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
       expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
+    });
+
+    it("does not label changed settings as tested when an older request finishes", async () => {
+      let finish: ((value: { outcome: "ok"; version: string }) => void) | undefined;
+      vi.mocked(apiClient.post).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await openDoclingDialog();
+      await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+      await userEvent.type(screen.getByLabelText("Address"), "/another");
+      await act(async () => {
+        finish?.({ outcome: "ok", version: "1.39.0" });
+      });
+      expect(screen.queryByRole("button", { name: "Tested" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+      expect(screen.queryByText(/Docling Serve 1\.39\.0/)).toBeNull();
     });
 
     it("keeps offering the Test after one that did not pass", async () => {

@@ -20,6 +20,7 @@ from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import TenantScope, compose
 from app.services.rag.models import Document, DocumentMetadata, DocumentPageChunk
 from app.services.rag.vectorstore import PgVectorStore
+from tests.embedding_responses import embedding_response
 
 pytestmark = pytest.mark.anyio
 
@@ -34,11 +35,13 @@ async def test_embedding_http_runs_off_loop_and_books_the_request_ledger(
 
     def respond(**kwargs: object) -> MagicMock:
         observed.append((threading.get_ident(), request_scope.get()))
-        return MagicMock(data=[MagicMock(embedding=[0.1, 0.2])], usage=MagicMock(prompt_tokens=100))
+        return embedding_response([[0.1, 0.2]], prompt_tokens=100)
 
     settings = RAGSettings()
     embedding = EmbeddingService(settings, api_key="test", expected_dim=2)
-    embedding.provider._client = MagicMock(embeddings=MagicMock(create=respond))
+    embedding.provider._client = MagicMock(
+        embeddings=MagicMock(with_raw_response=MagicMock(create=respond))
+    )
     store = object.__new__(PgVectorStore)
     store.settings = settings
     monkeypatch.setattr(store, "_collection_exists", AsyncMock(return_value=True))

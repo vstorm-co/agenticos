@@ -770,3 +770,43 @@ def test_the_outcomes_match_the_schema_literal() -> None:
 
 def _raise() -> None:
     raise BudgetExceeded(limit_usd=Decimal(1), spent_usd=Decimal(2), scope=next(iter(BudgetScope)))
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", [{}, {"embedding_model": "another-model"}])
+async def test_kept_keyed_endpoint_probe_requires_connection_access_before_unsealing(
+    monkeypatch: pytest.MonkeyPatch, change: dict[str, str]
+) -> None:
+    from dataclasses import replace
+
+    from app.db.models.service_connection import ServiceConnection
+    from app.repositories import service_connection_repo
+
+    ctx = replace(_ctx(), role=OrgRoleName.MEMBER.value)
+    kb = _kb()
+    kb.embedding_endpoint_id = uuid.uuid4()
+    connection = ServiceConnection(
+        id=kb.embedding_endpoint_id,
+        organization_id=ctx.organization_id,
+        name="Private gateway",
+        kind="embedding",
+        provider="openai_compatible",
+        base_url="https://gateway.example/v1",
+        is_active=True,
+        requires_key=True,
+        secret_id=uuid.uuid4(),
+    )
+    monkeypatch.setattr(service_connection_repo, "get_visible", AsyncMock(return_value=connection))
+    monkeypatch.setattr(probe, "identify_target", AsyncMock(return_value=_identity()))
+    opened = AsyncMock(return_value=EmbeddingTarget(_identity(), api_key="must-stay-sealed"))
+    monkeypatch.setattr(probe, "open_target", opened)
+    monkeypatch.setattr(probe, "assert_organization_within_budget", AsyncMock())
+    service = _service(_store())
+    service.bases.get_for_write = AsyncMock(return_value=kb)
+    with (
+        patch(_EMBED, new=AsyncMock(return_value=[1.0, 0.0])) as embed,
+        pytest.raises(BadRequestError),
+    ):
+        await service.probe_kb_change(ctx, kb.id, KbEmbeddingProbeRequest(**change))
+    opened.assert_not_awaited()
+    embed.assert_not_awaited()
