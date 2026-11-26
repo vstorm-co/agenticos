@@ -124,3 +124,9 @@ it("shows per-account last activity and active sessions in the list", async () =
   expect(within(account).getByText("3")).toBeInTheDocument();
   expect(screen.getByText("Never signed in")).toBeInTheDocument();
 });
+
+it("keeps organization onboarding out of the deployment-wide user table", async () => {
+  render(<AdminUsersPage />, { wrapper });
+  await screen.findByText("kacper@example.com");
+  expect(screen.queryByRole("columnheader", { name: "Onboarding" })).not.toBeInTheDocument();
+});

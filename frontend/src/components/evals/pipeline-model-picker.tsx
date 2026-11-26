@@ -7,12 +7,14 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { usableForAgents } from "@/lib/model-profiles";
 import { PipelineProfileSelect } from "./pipeline-profile-select";
 import { MoreOptions } from "@/components/ui/more-options";
+import { useModelProviders } from "@/hooks/use-model-providers";
 
 type PipelineModelPickerProps = ComponentProps<typeof ModelProfilePicker>;
 
 /** Pipeline setup chooses an existing model first; creation stays available on demand. */
 export function PipelineModelPicker({ allowAdd, ...props }: PipelineModelPickerProps) {
   const t = useTranslations("agents");
+  const models = useModelProviders({ silentCreate: true });
   const [adding, setAdding] = useState(false);
   const [firstCreation, setFirstCreation] = useState<"pending" | "open" | "done">("pending");
   if (firstCreation === "pending" && props.profilesStatus === "loaded") {
@@ -42,6 +44,8 @@ export function PipelineModelPicker({ allowAdd, ...props }: PipelineModelPickerP
           value={props.value}
           onChange={props.onChange}
           disabled={props.disabled}
+          onRefresh={() => void models.refetchProfiles()}
+          refreshing={models.isFetching}
         />
       ) : (
         <ModelProfilePicker {...props} />

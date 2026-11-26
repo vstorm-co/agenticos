@@ -98,6 +98,9 @@ export async function getRoomThread(
   const page = await apiClient.get<RoomThreadPage>(
     `${roomPath(conversationId)}/room-threads/${encodeURIComponent(rootMessageId)}?${params}`,
   );
+  const context = page.context ?? null;
+  const contextIds = new Set(context?.message_ids ?? []);
+  const contextMessageIds = new Set<string>();
   if (
     page.root.id !== rootMessageId ||
     page.root.conversation_id !== conversationId ||
@@ -106,7 +109,23 @@ export async function getRoomThread(
     page.items.some(
       (item) =>
         item.conversation_id !== conversationId || item.thread_root_message_id !== rootMessageId,
-    )
+    ) ||
+    (context !== null &&
+      (context.source_conversation_id.length === 0 ||
+        context.start_message_id.length === 0 ||
+        context.end_message_id.length === 0 ||
+        context.revision < 0 ||
+        context.message_count !== context.message_ids.length)) ||
+    (page.context_messages ?? []).some((item) => {
+      const invalid =
+        context === null ||
+        item.conversation_id !== context.source_conversation_id ||
+        item.role === "system" ||
+        !contextIds.has(item.id) ||
+        contextMessageIds.has(item.id);
+      contextMessageIds.add(item.id);
+      return invalid;
+    })
   ) {
     // The panel renders chat.roomThread.unavailable; this diagnostic stays machine-readable.
     throw new Error("ROOM_THREAD_SCOPE_MISMATCH");

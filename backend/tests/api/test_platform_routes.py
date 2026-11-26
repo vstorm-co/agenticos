@@ -124,9 +124,9 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
-    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
-    # the stub answers 404 like the rest; the per-agent routes are ungated and never
-    # reach this sweep.
+    # The org-wide `GET /triggers` and `POST /triggers/readiness` are the gated trigger
+    # routes, so past their gate the stub answers 404 like the rest; the per-agent
+    # routes are ungated and never reach this sweep.
     deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
@@ -146,6 +146,7 @@ _SERVICE_DEPS = (
     deps.get_network_connection_service,
     deps.get_secret_service,
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -369,6 +370,7 @@ CALLS: tuple[Call, ...] = (
     # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("POST", "/triggers/readiness", Perm.AGENTS_VIEW, body={"trigger_ids": [str(uuid4())]}),
     Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
     # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
     # beside it - browsing ready-made schedules, not acting on one agent.
@@ -670,6 +672,15 @@ CALLS: tuple[Call, ...] = (
     # (PATCH, DELETE) hand the decision to the service - a gate there would
     # refuse a member holding an explicit grant before `resolve_access` could
     # widen their access.
+    Call(
+        "POST",
+        "/secrets/openai-chatgpt",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "My plan",
+            "callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s",
+        },
+    ),
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
     Call("GET", "/secrets/purposes", Perm.SECRETS_VIEW),
     Call("GET", "/secrets", Perm.SECRETS_VIEW),
@@ -785,8 +796,9 @@ CALLS: tuple[Call, ...] = (
 )
 
 # Planning validates caller-supplied content without reading resources or writing;
-# POST keeps the manifest out of query strings and access logs.
-_READ_ONLY_POSTS = frozenset({"/solutions/plan"})
+# POST keeps the manifest out of query strings and access logs. Routine readiness
+# writes nothing either: POST carries up to 100 ids a query string would not.
+_READ_ONLY_POSTS = frozenset({"/solutions/plan", "/triggers/readiness"})
 WRITE_CALLS: tuple[Call, ...] = tuple(
     call
     for call in CALLS
@@ -968,6 +980,7 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 
         assert response.status_code == 200
         assert response.json()["role"] == role.value
+        assert response.json()["run_agent_id"] is None
 
     @pytest.mark.parametrize("role", list(OrgRoleName), ids=lambda role: role.value)
     async def test_every_role_can_read_the_role_catalog(
@@ -1197,6 +1210,7 @@ RESOURCE_AWARE_SERVICES = (
     # A ChatGPT sign-in is a secret written another way: putting a new one in
     # place of an old one is the secret service's rotation, grants and all.
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.

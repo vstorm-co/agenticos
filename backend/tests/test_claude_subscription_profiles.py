@@ -291,13 +291,32 @@ async def test_disconnected_native_model_can_be_renamed_without_changing_ownersh
 
 async def test_subscription_model_choices_do_not_lookup_keys_or_consume_inference():
     secrets = AsyncMock(spec=OrganizationSecretService)
-    result = await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx())
+    result = await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), MagicMock())
     assert [model.id for model in result.items] == ["sonnet", "opus", "haiku"]
     assert result.source == "curated"
     assert all(model.chat_capable and model.output_modalities == ["text"] for model in result.items)
     secrets.listing_key.assert_not_awaited()
     with pytest.raises(BadRequestError):
-        await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), secret_id=uuid4())
+        await list_provider_models(
+            CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), MagicMock(), secret_id=uuid4()
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("base_url", "https://gateway.example/v1"), ("api", "chat")],
+)
+async def test_subscription_model_choices_reject_endpoints_and_api_overrides(field, value):
+    secrets = AsyncMock(spec=OrganizationSecretService)
+    with pytest.raises(BadRequestError):
+        await list_provider_models(
+            CLAUDE_SUBSCRIPTION_PROVIDER,
+            secrets,
+            _ctx(),
+            MagicMock(),
+            **{field: value},
+        )
+    secrets.listing_key.assert_not_awaited()
 
 
 @pytest.mark.parametrize("change", ["owner", "model", "key", "endpoint"])

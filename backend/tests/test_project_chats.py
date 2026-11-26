@@ -34,6 +34,16 @@ def coding_participants_repo() -> Iterator[AsyncMock]:
         yield mocked
 
 
+@pytest.fixture(autouse=True)
+def no_imported_context() -> Iterator[None]:
+    """No room here imports another's messages; the listing and delete paths still ask."""
+    with patch(
+        "app.repositories.room_thread_context_access.external_context_edges",
+        AsyncMock(return_value=[]),
+    ):
+        yield
+
+
 def _chat(*, project_id: UUID | None = None, user_id: UUID = OWNER) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
@@ -452,6 +462,10 @@ async def test_deletion_preserves_the_callers_project_grant_context():
     with (
         patch.object(service, "get_conversation", AsyncMock(return_value=chat)) as get,
         patch.object(service, "forget_stored_files", AsyncMock()),
+        patch(
+            f"{MODULE}.conversation_repo.has_external_thread_context",
+            AsyncMock(return_value=False),
+        ),
         patch(f"{MODULE}.conversation_repo.delete_conversation", AsyncMock()) as delete,
     ):
         await service.delete_conversation(chat.id, organization_id=ORG, user_id=TEAMMATE, ctx=ctx)

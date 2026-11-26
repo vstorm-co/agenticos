@@ -29,6 +29,7 @@ import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
 import * as personalModelKeys from "./personal-model-keys/[[...path]]/route";
 import * as codingAccounts from "./coding-accounts/[[...path]]/route";
+import * as subscriptionAccounts from "./subscription-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
@@ -85,7 +86,6 @@ import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route"
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
 import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
-import * as personalSubscriptions from "./personal-subscriptions/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
@@ -200,7 +200,6 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],
   ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
-  ["personal-subscriptions", personalSubscriptions],
   ["rag", rag],
   ["ratings", ratings],
   ["roles", roles],
@@ -327,10 +326,21 @@ it("coding accounts forwards only credential operations and requires a session",
   expect(response.status).toBe(401);
 });
 
+it("subscription accounts forwards list, sign-in and disconnect only, behind a session", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(subscriptionAccounts).sort()).toEqual(["DELETE", "GET", "POST"]);
+  for (const method of ["GET", "POST", "DELETE"] as const) {
+    const response = await subscriptionAccounts[method](
+      new NextRequest("http://localhost:3000/api/subscription-accounts/sign-ins", { method }),
+    );
+    expect(response.status).toBe(401);
+  }
+});
+
 it("personal model keys require a signed-in session for every exposed verb", async () => {
   const { NextRequest } = await import("next/server");
-  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "PUT"]);
-  for (const method of ["GET", "PUT", "DELETE"] as const) {
+  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "POST", "PUT"]);
+  for (const method of ["GET", "POST", "PUT", "DELETE"] as const) {
     const response = await personalModelKeys[method](
       new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
     );

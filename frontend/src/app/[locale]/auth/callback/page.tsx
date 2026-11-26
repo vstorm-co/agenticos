@@ -9,13 +9,17 @@ import { apiClient } from "@/lib/api-client";
 import { invokeShell, readShellInfo, ShellError } from "@/lib/desktop/shell";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { MfaCodeForm } from "@/components/auth/mfa-code-form";
-import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
+import {
+  goToDestination,
+  postRegistrationDestination,
+  postSignInDestination,
+} from "@/lib/auth-landing";
 import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
 import { createMfaChallengeStore } from "./mfa-challenge-store";
 
-type Adopted = { user: User; access_token: string };
+type Adopted = { user: User; access_token: string; is_new_user?: boolean };
 
 // A single-use code must be POSTed exactly once. React Strict Mode mounts this
 // effect, cleans it up, and mounts it again in development, and a plain remount
@@ -98,7 +102,13 @@ export default function AuthCallbackPage() {
         // a destination with a fragment has to load the document, and a branch
         // only one door takes is a deep link that behaves differently depending
         // on which button was pressed.
-        goToDestination(postSignInDestination(takeReturnTo()), (href) => router.replace(href));
+        const returnTo = takeReturnTo();
+        goToDestination(
+          data.is_new_user === true
+            ? postRegistrationDestination(returnTo)
+            : postSignInDestination(returnTo),
+          (href) => router.replace(href),
+        );
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);

@@ -838,6 +838,44 @@ class TestTheAssistantsCredential:
         assert caller.context.subject_id == member.id
         assert not caller.context.has(Perm.API_KEYS_CREATE)
 
+    @pytest.mark.security
+    async def test_only_a_run_credential_names_its_agent_on_me_permissions(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        from app.db.models.agent import Agent
+
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        other_owner = await _person(db)
+        other_organization = await _organization(db, other_owner)
+        agents = [
+            Agent(
+                organization_id=org.id,
+                owner_user_id=who.id,
+                name="Bot",
+                slug=f"bot-{uuid.uuid4().hex[:8]}",
+            )
+            for org, who in ((organization, owner), (other_organization, other_owner))
+        ]
+        db.add_all(agents)
+        await db.flush()
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+        service = ApiKeyService(db)
+        run_key = await service.issue_for_run(ctx, agent_id=agents[0].id)
+        foreign_key = await service.issue_for_run(ctx, agent_id=agents[1].id)
+        person_key = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        assert run_key is not None and foreign_key is not None
+
+        async with client() as http:
+            named = [
+                (await http.get(_url("/me/permissions"), headers=_bearer(key))).json()[
+                    "run_agent_id"
+                ]
+                for key in (run_key, person_key, foreign_key)
+            ]
+
+        assert named == [str(agents[0].id), None, None]
+
     async def test_nobody_behind_a_run_gets_nothing(self, db: AsyncSession) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)

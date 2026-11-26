@@ -1,5 +1,5 @@
 ---
-source_sha: "45127605c8f9"
+source_sha: "b8cfb018adf5"
 ---
 
 # Permisos { #permissions }
@@ -760,7 +760,7 @@ Esta opción no crea roles personalizados ni modifica sus permisos.
 
 | Endpoint | Responde |
 | --- | --- |
-| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, cada permiso con su scope y `hidden_navigation_items` para ese rol |
+| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, cada permiso con su scope y `hidden_navigation_items` para ese rol y, para la credencial de ejecución de un agent, `run_agent_id` |
 | `GET /roles/catalog` | el catálogo entero y lo que agrupa cada rol |
 | `GET /roles/navigation` | los `hidden_items` de la organización por rol, `configurable_items` y los `editable_roles` de quien llama |
 | `PATCH /roles/navigation/{role}` | sustituye los `hidden_items` de un rol; requiere `roles:manage` y autoridad sobre ese rol |

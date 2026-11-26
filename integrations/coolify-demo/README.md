@@ -53,9 +53,8 @@ may incur its charges.
 
 For the personal account option, see
 [Personal model connections](personal-model-connections.md). It describes owner
-access, Claude subscription sign-in, API connections and the matching backend
-migration required by the AI connections settings page. The native subscription
-option also needs its [private runtime service](../claude-subscription/README.md).
+access, API connections and the matching backend
+migration required by the AI connections settings page.
 
 ## Open the private preview
 

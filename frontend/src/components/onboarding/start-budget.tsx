@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
-import { Button } from "@/components/ui";
+import { Button, Input, Label } from "@/components/ui";
 import type { Organization } from "@/types";
 import { StartQuestion } from "./start-question";
 import styles from "./guided-start.module.css";
@@ -22,6 +22,9 @@ export function StartBudget({
   onBack?: () => void;
 }) {
   const t = useTranslations("start.guided");
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
+  const hintId = `${inputId}-hint`;
   const locale = useLocale();
   const errors = useTranslations("errors");
   const { setMonthlyBudget } = useOrganizations();
@@ -68,7 +71,6 @@ export function StartBudget({
     <StartQuestion
       stage="organization"
       index={0}
-      total={2}
       title={t("budgetTitle")}
       message={t("budgetGuide")}
       pending={pending}
@@ -78,9 +80,21 @@ export function StartBudget({
     >
       <div className={styles.budgetLayout}>
         <div>
-          <div className={styles.amount} aria-live="polite">
-            <strong>{formatted}</strong>
-            <span>{t(parsed === null ? "unlimitedHint" : "perMonth")}</span>
+          <div className={styles.budgetField}>
+            <Label htmlFor={inputId}>{t("budgetSlider")}</Label>
+            <Input
+              id={inputId}
+              type="number"
+              inputMode="decimal"
+              min="0.01"
+              step="any"
+              placeholder={t("unlimited")}
+              value={value}
+              disabled={pending}
+              aria-invalid={!valid}
+              aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+              onChange={(event) => choose(event.target.value)}
+            />
           </div>
           <input
             type="range"
@@ -120,9 +134,11 @@ export function StartBudget({
             </Button>
           </div>
         </div>
-        <p className={`${styles.hint} mt-6 text-center`}>{t("budgetHint")}</p>
+        <p id={hintId} className={styles.hint}>
+          {t("budgetHint")}
+        </p>
         {error && (
-          <p role="alert" className="text-destructive-ink mt-4 text-sm">
+          <p id={errorId} role="alert" className="text-destructive-ink mt-4 text-sm">
             {error}
           </p>
         )}

@@ -6,8 +6,8 @@
  * redirects came to hard-code `en|pl` and answer a German bookmark with a 404
  * while every other surface had been translated.
  *
- * The T3 fork ships English only. Upstream's Polish, German and Turkish
- * catalogs are deleted after every upstream sync (see `T3_FORK.md`).
+ * The T3 fork ships English only. Upstream's non-English catalogs
+ * are deleted after every upstream sync (see `T3_FORK.md`).
  */
 export const locales = ["en"] as const;
 
@@ -19,7 +19,7 @@ export const defaultLocale: Locale = "en";
  * Locales upstream served and this fork does not. A bookmark or shared link
  * under one of these prefixes redirects to the same page in English.
  */
-export const retiredLocales = ["pl", "de", "tr"] as const;
+export const retiredLocales = ["pl", "de", "tr", "fr", "nl", "pt"] as const;
 
 /** Whether a person can choose a language at all. Every language control hides when not. */
 export const hasLocaleChoice: boolean = (locales as readonly string[]).length > 1;

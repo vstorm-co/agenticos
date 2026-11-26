@@ -64,6 +64,9 @@ class MyPermissions(BaseSchema):
     is_app_admin: bool
     permissions: list[PermissionEntry]
     hidden_navigation_items: list[str] = Field(default_factory=list)
+    run_agent_id: UUID | None = None
+    """The agent whose run this credential was minted for; null for a signed-in
+    session, a key a person issued and an MCP client."""
 
 
 class RoleDefinition(BaseSchema):

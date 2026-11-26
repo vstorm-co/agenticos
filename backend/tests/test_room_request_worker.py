@@ -34,6 +34,7 @@ def work(monkeypatch: pytest.MonkeyPatch):
         run_id=None,
         job_id=uuid4(),
         created_at=datetime.now(UTC),
+        thread_root_message_id=None,
     )
     ctx = AuthContext(user_id=row.requester_id, organization_id=row.organization_id, role="member")
     message = SimpleNamespace(
@@ -74,6 +75,10 @@ def work(monkeypatch: pytest.MonkeyPatch):
         module.conversation_repo, "users_by_id", AsyncMock(return_value={row.requester_id: sender})
     )
     monkeypatch.setattr(module.conversation_repo, "link_message_to_run", AsyncMock())
+    monkeypatch.setattr(
+        module.conversation_repo, "has_imported_thread_context", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(module.room_thread_repo, "get_thread", AsyncMock(return_value=None))
     service = MagicMock(
         authority=AsyncMock(return_value=(ctx, topic, message)),
         read_message=AsyncMock(return_value=read),
@@ -212,7 +217,9 @@ async def test_missing_sender_after_revalidation_still_refuses_execution(work, m
 async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audience(
     work, in_thread
 ) -> None:
-    work.message.thread_root_message_id = uuid4() if in_thread else None
+    # The scope accepted with the request decides, not where the message sits now.
+    work.row.thread_root_message_id = uuid4() if in_thread else None
+    work.message.thread_root_message_id = uuid4()
 
     async def execute(ctx, agent_id, prompt, **options):
         assert ctx is work.ctx and ctx.user_id == work.row.requester_id
@@ -222,7 +229,7 @@ async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audien
         assert options["saved_prompt_id"] == work.message.id
         assert options["attachments"] == []
         assert options["memory_room_key"] == f"room:project:{work.row.conversation_id}"
-        assert options["thread_root_message_id"] == work.message.thread_root_message_id
+        assert options["thread_root_message_id"] == work.row.thread_root_message_id
         assert options["message_history"] is work.history
         assert options["acts_for_sender"] is True and options["parks_questions"] is True
         assert "local" not in options and "model_profile_id" not in options
@@ -366,7 +373,12 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
     monkeypatch, trace_available, in_thread
 ) -> None:
     # Exercise the real stream context separately from the worker fixture.
-    row = SimpleNamespace(conversation_id=uuid4(), requester_id=uuid4(), agent_id=uuid4())
+    row = SimpleNamespace(
+        conversation_id=uuid4(),
+        requester_id=uuid4(),
+        agent_id=uuid4(),
+        thread_root_message_id=uuid4() if in_thread else None,
+    )
     message = MessageRead(
         id=uuid4(),
         conversation_id=row.conversation_id,
@@ -375,7 +387,7 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
         client_message_id="token",
         created_at=datetime.now(UTC),
         sender=ChatPerson(user_id=row.requester_id, name="Sender"),
-        thread_root_message_id=uuid4() if in_thread else None,
+        thread_root_message_id=uuid4(),
     )
     trace = object() if trace_available else None
     begin, publish, end, begun = (
@@ -397,7 +409,7 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
         assert event[1] == "turn_prompt" and event[2]["message_id"] == str(message.id)
         assert event[2]["sender"]["user_id"] == str(row.requester_id)
         assert publish.call_args_list[-1].args[1] == "complete"
-        expected = str(message.thread_root_message_id) if in_thread else None
+        expected = str(row.thread_root_message_id) if in_thread else None
         assert all(
             call.args[2]["thread_root_message_id"] == expected for call in publish.call_args_list
         )

@@ -269,7 +269,28 @@ def test_openbot_features_apply_after_the_published_t3_teaching_chain(
 
 def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
     chain = _chain()
-    assert chain.get_heads() == ["0357_accepted_queued_messages"]
+    assert chain.get_heads() == ["0367_merge_t3_chat_queue"]
+    queue = chain.get_revision("0357_accepted_queued_messages")
+    assert queue is not None
+    assert queue.down_revision == "0356_trigger_webhook_receipts"
+    queue_merge = chain.get_revision("0367_merge_t3_chat_queue")
+    assert queue_merge is not None
+    assert queue_merge.down_revision == (
+        "0366_merge_t3_thread_context",
+        "0357_accepted_queued_messages",
+    )
+    upstream_merge = chain.get_revision("0365_merge_t3_v1930")
+    assert upstream_merge is not None
+    assert upstream_merge.down_revision == (
+        "0364_merge_routine_and_kb",
+        "0356_trigger_webhook_receipts",
+    )
+    thread_context_merge = chain.get_revision("0366_merge_t3_thread_context")
+    assert thread_context_merge is not None
+    assert thread_context_merge.down_revision == (
+        "0365_merge_t3_v1930",
+        "0358_room_thread_context",
+    )
     expected = {
         "0339_browser_teaching_capture": "0338_message_reply_excerpt",
         "0340_browser_teaching_review": "0339_browser_teaching_capture",

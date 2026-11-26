@@ -195,6 +195,10 @@ export default defineConfig({
         "src/components/chat/room-message-reactions.tsx",
         "src/components/chat/room-thread-button.tsx",
         "src/components/chat/room-thread-panel.tsx",
+        "src/components/chat/room-thread-context-source-picker.tsx",
+        "src/components/chat/room-thread-context-range-selector.tsx",
+        "src/components/chat/room-thread-context-panel.tsx",
+        "src/components/chat/room-thread-context-stub.tsx",
         // New room lead review controls start inside the existing coverage gate.
         "src/components/chat/room-lead-policy-dialog.tsx",
         "src/components/chat/room-routing-cards.tsx",
@@ -414,6 +418,7 @@ export default defineConfig({
         "src/components/vault/browser-secret-fields.tsx",
         "src/components/vault/browser-credential-metadata.tsx",
         "src/components/vault/browser-credential-policy.tsx",
+        "src/components/onboarding/start-subscriptions.tsx",
       ],
       exclude: [
         "node_modules",

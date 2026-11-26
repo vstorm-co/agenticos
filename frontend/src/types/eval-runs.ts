@@ -113,6 +113,8 @@ export interface EvalRunEstimate {
   judge_model_profile_id: string | null;
   total_usd: string;
   rerun_ceiling_usd: string;
+  /** What the run most likely costs: its first answers and the reruns a compared run usually asks. */
+  expected_usd: string;
   agent_remaining_usd: string | null;
   org_remaining_usd: string | null;
   agent_after_usd: string | null;
@@ -145,6 +147,12 @@ export interface ArmSummary {
   avg_tokens: number | null;
   p50_ms: number | null;
   p95_ms: number | null;
+  /** First answers' required criteria that passed, over every case. */
+  criteria_passed?: number;
+  /** First answers' required criteria that decided, over every case. */
+  criteria_graded?: number;
+  /** The mean share of each case's decided criteria its first answer passed; 6 of 7 is 6/7. */
+  partial_credit?: number | null;
 }
 
 export interface EvalRunArm {
@@ -213,6 +221,8 @@ export interface EvalRun {
   estimate_usd: string;
   /** What confirming reruns may add on top of the estimate. */
   rerun_ceiling_usd: string;
+  /** What the run was expected to cost: the estimate and the reruns a compared run usually asks. */
+  expected_usd: string;
   cost_usd: string;
   cost_is_partial: boolean;
   attempts_done: number;
@@ -337,6 +347,10 @@ export interface CaseFlip {
   tags: string[];
   /** Why the candidate's first answer failed, when its run crashed rather than answered. */
   candidate_error: string | null;
+  /** The baseline's first answer as [criteria passed, criteria decided]. */
+  baseline_criteria?: [number, number] | null;
+  /** The candidate's first answer as [criteria passed, criteria decided]. */
+  candidate_criteria?: [number, number] | null;
 }
 
 export interface Efficiency {
@@ -347,6 +361,27 @@ export interface Efficiency {
 }
 
 /** A candidate arm against its baseline; `baseline` null means nothing to compare with yet. */
+/**
+ * One family of criteria over the questions both sides graded it on: it passes in a
+ * question when every criterion of it does. `settled` when its own flipped questions
+ * were enough to tell its direction; otherwise only the flips the reruns repeated count.
+ */
+export interface FamilyMove {
+  family: string;
+  criteria: string[];
+  cases: number;
+  baseline_passed: number;
+  candidate_passed: number;
+  fixed: number;
+  broken: number;
+  fixed_confirmed: number;
+  broken_confirmed: number;
+  p_value: number;
+  settled: boolean;
+  better: boolean;
+  worse: boolean;
+}
+
 export interface EvalComparison {
   candidate: ComparisonSide;
   baseline: ComparisonSide | null;
@@ -373,6 +408,8 @@ export interface EvalComparison {
   flips_by_tag: Record<string, Partial<Record<Flip, number>>>;
   /** Net confirmed movement over every paired criterion grade, before detail limits. */
   criterion_change?: number;
+  /** Each family of criteria graded on both sides, counted question by question. */
+  families?: FamilyMove[];
 }
 
 /**

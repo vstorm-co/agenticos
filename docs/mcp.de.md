@@ -1,5 +1,5 @@
 ---
-source_sha: "8580321f0fe0"
+source_sha: "ac4bfd591389"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -472,12 +472,14 @@ unterscheidet.
 
     1. **Discover** — den Server prüfen, seinen Authorization Server auflösen,
        RFC-8414-Metadaten holen.
-    2. **Register** — dynamische Client-Registrierung nach RFC 7591. Ein Server,
-       der keinen Registrierungs-Endpunkt veröffentlicht — HubSpots ist so einer —
+    2. **Register** — dynamische Client-Registrierung nach RFC 7591. AgenticOS
+       registriert einen öffentlichen PKCE-Client, wenn der Authorization Server
+       `none` angibt und `client_secret_post` nicht unterstützt. Ein Server ohne
+       Registrierungs-Endpunkt — etwa HubSpot —
        lehnt hier ab, und der einzige Weg weiter ist ein Client, den Sie beim
        Anbieter von Hand registriert haben: Der Verbindungsdialog nimmt dessen
-       Client-ID und Secret unter *Eigener Client* entgegen und zeigt die
-       Redirect-URL, die der Anbieter exakt so hinterlegt haben muss.
+       Client-ID und, falls erforderlich, das Secret unter *Eigener Client*
+       entgegen. Registrieren Sie die angezeigte Redirect-URL genau wie angezeigt.
     3. **Consent** — eine PKCE-Autorisierungs-URL mit `state` und einem
        Resource-Indicator nach RFC 8707; der Browser geht dorthin.
     4. **Exchange** — der Callback tauscht den Code gegen Tokens und leitet den
@@ -535,19 +537,22 @@ was ein gewöhnlicher Client vom Resolver bekommt, ohne DNS ein zweites Mal zu
 fragen. Ein Name, der mit einer öffentlichen und einer privaten Adresse antwortet,
 wird **ganz** abgelehnt statt auf seine öffentliche Hälfte eingegrenzt.
 
-Zwei Ränder bleiben, beide schmal und beide gewollt:
+Die **Consent-URL** wird geprüft und dann dem Browser übergeben, der den Namen
+selbst auflöst. Diese Browser-Verbindung wird vom Server nicht gepinnt.
 
-- Die **Consent-URL** wird geprüft und dann einem Browser übergeben, der sie
-  selbst auflöst. Es gibt nichts zu pinnen.
-- Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
-  aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
-  heißt also, der Betreiber zu sein. Ein gelisteter
-  Host (`OUTBOUND_PRIVATE_ALLOWLIST` oder `MCP_ALLOWED_HOSTS`) wird ebenfalls
-  aufgelöst und jede Antwort geprüft: Eine private Antwort geht nur für einen Host
-  durch, den die Liste zulässt, eine Loopback- oder Metadaten-Antwort nie, und ein
-  per Namen gelisteter Host, der noch nicht aufgelöst wird, kann trotzdem
-  gespeichert werden. Die OAuth-Anfragen einer Connection, deren eigener Host gelistet ist, dürfen die
-  gelisteten Hosts erreichen, gepinnt wie jeder andere Schritt.
+Die **eigene URL der Connection** wird beim Speichern geprüft. Jede HTTP- oder
+SSE-Anfrage wird erneut geprüft und verbindet sich mit einer zugelassenen Adresse.
+Persönliche Connections werden von Mitgliedern kontrolliert, nicht vom Betreiber.
+Ein erneuter Verbindungsaufbau wiederholt die Prüfung. SDK-Weiterleitungen behalten
+den Origin des Endpunkts (oder einen zulässigen HTTPS-Wechsel) und die Methode.
+Ein Tool-POST mit ungewissem Ergebnis wird nicht wiederholt.
+
+Nur die Betreiberlisten `OUTBOUND_PRIVATE_ALLOWLIST` und `MCP_ALLOWED_HOSTS`
+erlauben private Hosts. Jede DNS-Antwort wird geprüft; Loopback-, Link-Local- und
+Metadaten-Adressen bleiben gesperrt. Ein gelisteter, noch nicht auflösbarer Name
+kann gespeichert werden, muss sich aber vor der Verbindung sicher auflösen.
+Eine öffentliche Connection erhält durch Weiterleitungen oder OAuth-Metadaten
+des Servers keine privaten Ausnahmen.
 
 Nichts, was ein _Modell_ wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs
@@ -1382,7 +1387,7 @@ Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb warte
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
+| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent; im eigenen Lauf eines Agents darf `create_routine` `agent_id` weglassen und meint dann diesen Agent |
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1516,6 +1521,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
 Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
+
+Im eigenen Lauf eines Agents liefert `whoami` zusätzlich `run_agent_id`, den Agent, zu
+dem der Lauf gehört, und `create_routine` ohne `agent_id` plant genau diesen Agent.
+Ein API-Schlüssel oder ein MCP-Client hat keinen solchen Agent und nennt ihn
+ausdrücklich. Ein Delegat, der ihn weglässt, plant den Agent, für den seine
+Zugangsdaten ausgestellt wurden, also den, der den Lauf gestartet hat.
 
 ### Desktop, Mobile und lokale Umgebungen { #desktop-mobile-and-local-environments }
 

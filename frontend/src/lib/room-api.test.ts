@@ -3,6 +3,7 @@ import {
   addRoomParticipant,
   createRoomConversation,
   getRoomDirectory,
+  getRoomThread,
   getRoomParticipants,
   joinPublicRoom,
   removeRoomParticipant,
@@ -61,5 +62,47 @@ describe("room directory API", () => {
       params: { skip: "10", limit: "5" },
     });
     expect(api.post).toHaveBeenNthCalledWith(2, "/conversations/room-1/join", {});
+  });
+});
+
+describe("room thread context validation", () => {
+  const context = {
+    source_conversation_id: "room-b",
+    start_message_id: "start",
+    end_message_id: "start",
+    revision: 1,
+    message_count: 1,
+    message_ids: ["start"],
+  };
+  const row = { id: "start", conversation_id: "room-b", role: "user" };
+  const page = (overrides: Record<string, unknown>) => ({
+    conversation_id: "room-a",
+    root: { id: "root", conversation_id: "room-a", role: "user" },
+    items: [],
+    context,
+    context_messages: [row],
+    ...overrides,
+  });
+
+  it("accepts a page whose context rows belong to the declared source", async () => {
+    const accepted = page({});
+    api.get.mockResolvedValue(accepted);
+    await expect(getRoomThread("room-a", "root")).resolves.toEqual(accepted);
+  });
+
+  it.each([
+    ["an empty source", { context: { ...context, source_conversation_id: "" } }],
+    ["an empty start", { context: { ...context, start_message_id: "" } }],
+    ["an empty end", { context: { ...context, end_message_id: "" } }],
+    ["a negative revision", { context: { ...context, revision: -1 } }],
+    ["a wrong message count", { context: { ...context, message_count: 2 } }],
+    ["rows without a context", { context: null }],
+    ["a row from another conversation", { context_messages: [{ ...row, conversation_id: "x" }] }],
+    ["a system row", { context_messages: [{ ...row, role: "system" }] }],
+    ["an undeclared row", { context_messages: [{ ...row, id: "other" }] }],
+    ["a repeated row", { context_messages: [row, row] }],
+  ])("refuses %s", async (_case, overrides) => {
+    api.get.mockResolvedValue(page(overrides));
+    await expect(getRoomThread("room-a", "root")).rejects.toThrow("ROOM_THREAD_SCOPE_MISMATCH");
   });
 });

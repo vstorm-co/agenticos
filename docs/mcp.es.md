@@ -1,5 +1,5 @@
 ---
-source_sha: "8580321f0fe0"
+source_sha: "ac4bfd591389"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -469,12 +469,14 @@ Tres modos, que es lo único que varía de verdad entre servidores.
 
     1. **Descubrir** — sondear el servidor, resolver su servidor de autorización,
        obtener los metadatos RFC 8414.
-    2. **Registrar** — registro dinámico de cliente, RFC 7591. Un servidor que no
-       publica endpoint de registro — el de HubSpot es uno — rechaza aquí, y la
+    2. **Registrar** — registro dinámico de cliente, RFC 7591. AgenticOS registra
+       un cliente público con PKCE si el servidor de autorización anuncia `none`
+       y no admite `client_secret_post`. Un servidor sin endpoint de registro,
+       como el de HubSpot, rechaza aquí, y la
        única salida es un cliente que registraste a mano en el proveedor: el
-       diálogo de conexión acepta su client ID y su secret bajo *Tu propio
-       cliente*, y muestra la redirect URL que el proveedor tiene que guardar
-       exactamente así.
+       diálogo de conexión acepta su client ID y, si hace falta, su secret bajo
+       *Tu propio cliente*. Registra con el proveedor la URL de redirección tal
+       como se muestra.
     3. **Consentir** — una URL de autorización PKCE con `state` y un indicador de
        recurso RFC 8707; el navegador va allí.
     4. **Intercambiar** — el callback cambia el código por tokens, y luego redirige
@@ -532,19 +534,23 @@ cliente ordinario obtiene del resolver, sin preguntar a DNS una segunda vez. Un
 nombre que responde con una dirección pública y otra privada se rechaza **entero**
 en lugar de estrecharse a su mitad pública.
 
-Quedan dos bordes, ambos estrechos y ambos deliberados:
+La **URL de consentimiento** se comprueba y después se entrega al navegador,
+que resuelve el nombre. Esa conexión del navegador queda fuera de la fijación
+de direcciones del servidor.
 
-- La **URL de consentimiento** se comprueba y luego se entrega al navegador de
-  alguien, que la resuelve por su cuenta. No hay nada que fijar.
-- La **URL propia de la conexión** se comprueba al guardar y se resuelve otra vez
-  cuando un agent se ejecuta — la escribe un operador, así que volver a apuntarla
-  significa ser el operador. Un host de la lista
-  (`OUTBOUND_PRIVATE_ALLOWLIST` o `MCP_ALLOWED_HOSTS`) también se resuelve y se
-  comprueba cada respuesta: una respuesta privada solo pasa para un host que la
-  lista admite, una de loopback o de metadatos nunca, y un host listado por nombre
-  que aún no se resuelve se puede guardar igualmente. Las peticiones
-  OAuth de una conexión cuyo propio host está en la lista pueden alcanzar los
-  hosts de la lista, fijadas como cualquier otro paso.
+La **URL propia de la conexión** se comprueba al guardar. Cada petición HTTP o
+SSE se comprueba de nuevo y conecta a una dirección admitida. Las conexiones
+personales las controla un miembro, no el operador del despliegue. Cada reconexión
+repite la comprobación. Las redirecciones del SDK conservan el origen del endpoint
+(o una actualización HTTPS permitida) y el método. Un POST de herramienta con
+resultado incierto no se repite.
+
+Solo las listas del operador `OUTBOUND_PRIVATE_ALLOWLIST` y `MCP_ALLOWED_HOSTS`
+admiten hosts privados. Se comprueba cada respuesta DNS; loopback, enlace local
+y direcciones de metadatos siguen bloqueados. Un nombre listado que todavía no
+resuelva se puede guardar, pero debe resolver de forma segura antes de conectar.
+Una conexión pública no recibe excepciones privadas de las redirecciones ni
+de los metadatos OAuth del servidor.
 
 Nada que elija un _modelo_ llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.
@@ -1364,7 +1370,7 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
+| `create_routine`, `run_routine_now` | `agents:run` sobre el agent; en la propia ejecución de un agent, `create_routine` puede omitir `agent_id` y entonces se refiere a ese agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1500,6 +1506,12 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
 rutina o cambia el idioma de la consola cuando se lo piden.
+
+En la propia ejecución de un agent, `whoami` devuelve además `run_agent_id`, el agent
+al que pertenece la ejecución, y `create_routine` sin `agent_id` programa ese agent.
+Una clave de API o un cliente MCP no tienen tal agent y lo indican explícitamente.
+Un delegado que lo omite programa el agent para el que se emitió su credencial, el
+que inició la ejecución.
 
 ### Escritorio, móvil y entornos locales { #desktop-mobile-and-local-environments }
 

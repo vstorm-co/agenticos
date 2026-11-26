@@ -13,9 +13,14 @@ from app.db.models.room_submission import RoomSubmission
 from app.db.session import get_worker_db_context
 from app.repositories import conversation as conversation_repo
 from app.repositories import room_submission as room_repo
+from app.repositories import room_thread as room_thread_repo
 from app.schemas.conversation import MessageRead
 from app.services import chat_room, live_turn
-from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.agent_runner import (
+    AgentRunnerService,
+    RunSegment,
+    room_context_event_payload,
+)
 from app.services.conversation import ConversationService
 from app.services.conversation_turns import claim
 from app.services.room_routing import RoomRoutingService
@@ -25,12 +30,22 @@ from app.worker.jobs import RoomRequestJob
 
 
 @asynccontextmanager
-async def _live(submission: RoomSubmission, message: MessageRead) -> AsyncGenerator[RunFrames]:
+async def _live(
+    submission: RoomSubmission,
+    message: MessageRead,
+    *,
+    suppress_room_payloads: bool = False,
+) -> AsyncGenerator[RunFrames]:
     conversation_id = str(submission.conversation_id)
     trace = await live_turn.begin(conversation_id)
 
     async def emit(kind: str, payload: dict[str, object]) -> None:
-        root_id = message.thread_root_message_id
+        if suppress_room_payloads:
+            safe_payload = room_context_event_payload(kind, payload)
+            if safe_payload is None:
+                return
+            payload = safe_payload
+        root_id = submission.thread_root_message_id
         payload = {
             **payload,
             "conversation_id": conversation_id,
@@ -135,6 +150,22 @@ async def run_request(job: RoomRequestJob) -> None:
                 return
             try:
                 ctx, conversation, message = await service.authority(submission)
+                thread = (
+                    None
+                    if submission.thread_root_message_id is None
+                    else await room_thread_repo.get_thread(
+                        db,
+                        organization_id=submission.organization_id,
+                        conversation_id=submission.conversation_id,
+                        root_message_id=submission.thread_root_message_id,
+                    )
+                )
+                source_conversation_id = (
+                    None if thread is None else thread.context_source_conversation_id
+                )
+                bound_room_context = await conversation_repo.has_imported_thread_context(
+                    db, submission.conversation_id
+                )
                 planning = (
                     await RoomRoutingService(db).planner(submission)
                     if submission.intent == "ask_lead"
@@ -212,7 +243,11 @@ async def run_request(job: RoomRequestJob) -> None:
                 saved_segment = segment
 
             try:
-                async with _live(submission, prompt_read) as frames:
+                async with _live(
+                    submission,
+                    prompt_read,
+                    suppress_room_payloads=bound_room_context,
+                ) as frames:
                     try:
                         _, run = await AgentRunnerService(db).execute(
                             ctx,
@@ -229,13 +264,23 @@ async def run_request(job: RoomRequestJob) -> None:
                                 if conversation.project_id is not None
                                 else f"room:conversation:{conversation_id}"
                             ),
-                            thread_root_message_id=message.thread_root_message_id,
+                            thread_root_message_id=submission.thread_root_message_id,
                             message_history=history,
                             acts_for_sender=True,
                             room_lead=planning,
                             parks_questions=True,
                             on_run_open=opened,
                             check_model_request=check_model_request,
+                            result_authority_check=(
+                                check_model_request if bound_room_context else None
+                            ),
+                            result_context_conversation_ids=(
+                                (submission.conversation_id, source_conversation_id)
+                                if bound_room_context and source_conversation_id is not None
+                                else (submission.conversation_id,)
+                                if bound_room_context
+                                else ()
+                            ),
                             on_segment=settled,
                             stream=frames.drive,
                         )

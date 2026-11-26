@@ -76,12 +76,12 @@ from app.services.routine_sources import (
     RoutineSourceService,
     RoutineSourcesRequired,
     account_identities,
+    compatible_spec_fingerprints,
     materialized_behavior,
     project_fingerprint,
     read_policy,
     require_bound_sources,
     source_scope,
-    spec_fingerprint,
 )
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
@@ -129,7 +129,9 @@ class RoutineAuthority:
     root_agent_id: UUID
     role: str
     acts_as_creator: bool
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     routine_kind: Literal["trigger", "watch"] = "trigger"
+    chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] = "report"
     sources: WatchSources | None = None
     action_consents: tuple[RoutineConsent, ...] = ()
@@ -174,7 +176,8 @@ class RoutineAuthority:
 
     def require_spec(self, spec: AgentSpec) -> None:
         if self.routine_kind == "trigger" and (
-            self.source_policy is None or spec_fingerprint(spec) != self.source_policy.spec_hash
+            self.source_policy is None
+            or self.source_policy.spec_hash not in compatible_spec_fingerprints(spec)
         ):
             raise RoutineSourcesRequired()
 
@@ -220,6 +223,8 @@ class RoutineAuthority:
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
+        chat_mode: Literal["per_run", "shared"] | None = None
+        action_mode: Literal["agent", "manual", "per_tool"] | None = None
         acts_as_creator = (
             ctx.fired_as_creator is not None
             if run is None
@@ -238,6 +243,34 @@ class RoutineAuthority:
                 if not isinstance(recorded_actor, bool):
                     raise _refused()
                 acts_as_creator = recorded_actor
+            recorded_chat = (
+                trigger.chat_mode if run is None else (run.routine_policy or {}).get("chat_mode")
+            )
+            if recorded_chat not in (None, "per_run", "shared"):
+                raise _refused()
+            chat_mode = (
+                "per_run"
+                if recorded_chat == "per_run"
+                else "shared"
+                if recorded_chat == "shared"
+                else None
+            )
+            recorded_action = (
+                trigger.action_mode
+                if run is None
+                else (run.routine_policy or {}).get("action_mode")
+            )
+            if recorded_action not in (None, "agent", "manual", "per_tool"):
+                raise _refused()
+            action_mode = (
+                "agent"
+                if recorded_action == "agent"
+                else "manual"
+                if recorded_action == "manual"
+                else "per_tool"
+                if recorded_action == "per_tool"
+                else None
+            )
             mode = (
                 trigger.result_mode
                 if run is None
@@ -291,7 +324,9 @@ class RoutineAuthority:
             root_agent_id=agent_id,
             role=member.role,
             acts_as_creator=acts_as_creator,
+            action_mode=action_mode,
             routine_kind="watch" if kind == "watch" else "trigger",
+            chat_mode=chat_mode,
             result_mode=result_mode,
             sources=sources,
             action_consents=action_consents,
@@ -383,6 +418,7 @@ class RoutineAuthority:
             or not trigger.is_active
             or trigger.created_by_user_id != self.user_id
             or trigger.agent_id != self.root_agent_id
+            or trigger.action_mode != self.action_mode
             or (trigger.result_mode == "inbox") != (self.result_mode == "inbox")
             or (trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC))
             or (self.acts_as_creator and not trigger.runs_as_creator)
@@ -480,7 +516,18 @@ class RoutineAuthority:
         """Default to approval for effects; only current, snapshotted consent may waive it."""
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
-            if self.source_policy is not None and self.source_policy.mode == "follow_agent":
+            if (
+                tool.name == "agenticos_publish_inbox_finding"
+                and (tool.metadata or {}).get(PLATFORM_TOOL) is True
+            ):
+                # Private reporting is the run's output, not a standing grant to
+                # operate the platform. An explicit spec gate still applies.
+                return RoutineToolDecision()
+            if self.action_mode == "agent" or (
+                self.action_mode is None
+                and self.source_policy is not None
+                and self.source_policy.mode == "follow_agent"
+            ):
                 origin = tool_origin(tool)
                 if origin is not None:
                     await self._mcp_in(db, origin)
@@ -625,6 +672,7 @@ class RoutineAuthority:
     ) -> UUID | None:
         if (
             self.routine_kind != "trigger"
+            or self.action_mode == "manual"
             or agent_id != self.root_agent_id
             or not self.action_consents
             or self.root_version_id is None

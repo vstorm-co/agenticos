@@ -31,7 +31,7 @@ from app.core.oauth import (
     verified_identity,
 )
 from app.main import app
-from app.services.user import UserService
+from app.services.user import OAuthAccount, UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -225,8 +225,10 @@ class TestTheRoundTrip:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": _CLAIMS}),
         )
-        created = AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True))
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        created = AsyncMock(
+            return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)
+        )
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
 
         resp = await client.get(_CALLBACK)
 
@@ -254,7 +256,7 @@ class TestTheRoundTrip:
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "email_verified": False}}),
         )
         created = AsyncMock()
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
 
         with caplog.at_level(logging.WARNING, logger="app.api.routes.v1.oauth"):
             resp = await client.get(_CALLBACK)
@@ -283,7 +285,7 @@ class TestTheRoundTrip:
         )
         monkeypatch.setattr(
             UserService,
-            "get_or_create_oauth_user",
+            "get_or_create_oauth_account",
             AsyncMock(
                 side_effect=AuthorizationError(
                     message="This deployment is invite-only. Ask an administrator to invite you."

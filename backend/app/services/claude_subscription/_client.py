@@ -3,8 +3,6 @@
 import json
 from base64 import b64encode
 from collections.abc import Sequence
-from typing import Literal
-from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
@@ -79,7 +77,7 @@ class ClaudeSubscriptionRuntime:
     """Server-only transport; owner identity comes from an authenticated application context.
 
     The native process owns the provider login and its storage. The backend sends
-    only an owner identity, a short-lived login code, or an inference request.
+    only an owner identity for status reads and inference requests.
     Redirects are refused so the service key cannot follow an upstream response.
     """
 
@@ -93,23 +91,7 @@ class ClaudeSubscriptionRuntime:
     async def status(self, owner: ClaudeSubscriptionOwner) -> ClaudeSubscriptionRead:
         if not self.configured:
             return ClaudeSubscriptionRead(available=False)
-        return await self._state("status", owner)
-
-    async def login(self, owner: ClaudeSubscriptionOwner) -> ClaudeSubscriptionRead:
-        return await self._state("login", owner)
-
-    async def code(
-        self, owner: ClaudeSubscriptionOwner, *, login_id: UUID, code: str
-    ) -> ClaudeSubscriptionRead:
-        return await self._state("login/code", owner, {"login_id": str(login_id), "code": code})
-
-    async def cancel(
-        self, owner: ClaudeSubscriptionOwner, *, login_id: UUID
-    ) -> ClaudeSubscriptionRead:
-        return await self._state("login/cancel", owner, {"login_id": str(login_id)})
-
-    async def disconnect(self, owner: ClaudeSubscriptionOwner) -> ClaudeSubscriptionRead:
-        return await self._state("disconnect", owner)
+        return await self._state(owner)
 
     async def infer(
         self,
@@ -153,11 +135,9 @@ class ClaudeSubscriptionRuntime:
 
     async def _state(
         self,
-        action: Literal["status", "login", "login/code", "login/cancel", "disconnect"],
         owner: ClaudeSubscriptionOwner,
-        extra: dict[str, JsonValue] | None = None,
     ) -> ClaudeSubscriptionRead:
-        result = await self._post(action, {**owner.payload(), **(extra or {})}, timeout=30)
+        result = await self._post("status", owner.payload(), timeout=30)
         try:
             state = ClaudeSubscriptionRead.model_validate_json(result)
         except ValidationError:
@@ -166,7 +146,6 @@ class ClaudeSubscriptionRuntime:
             ) from None
         if state.error_code is not None and state.error_code not in {
             *_ERRORS,
-            "CLAUDE_LOGIN_CANCELLED",
         }:
             raise ExternalServiceError(
                 message="The Claude runtime returned an invalid connection state"

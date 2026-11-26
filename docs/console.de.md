@@ -1,6 +1,17 @@
 ---
-source_sha: "744357532f30"
+source_sha: "1ff5f4e1ee1b"
 ---
+
+**Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
+
+Die Modellbibliothek im Chat blendet die Suche zunächst hinter der Lupe neben Models und Account oder Key aus. Escape leert und schließt zuerst die Suche, danach die Auswahl. Aktualisieren und die kompakte Modellanzahl stehen in der Tabzeile; die Katalogquelle ist bei der Anzahl verfügbar, Kontodetails unter Account. Gespeicherte Abonnementmodelle stellen den konkreten Dienst, das Konto und das Modell statt einer gemeinsamen Abonnementauswahl wieder her.
+
+
+Die Abonnementtabelle zeigt die ersten beiden gemeldeten Limits in einer kompakten Vorschau. **Details** öffnet alle Zeitfenster, Rücksetztermine und den Messzeitpunkt. Die Kontoaktionen stehen in einer Zeile; Trennen ist im Aktionsmenü verfügbar.
+
+Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
+
+Seitentitel, Listensteuerung und Tabellenköpfe verwenden eine kompakte Hierarchie. Tabellen in Listen haben einen äußeren Rahmen und behalten beim Laden ihre Zeilenhöhe. Agentenkarten öffnen Build auch dann, wenn Evals Aufmerksamkeit benötigt; die Markierung bleibt sichtbar. Der Laufverlauf bleibt in Activity statt über dem Builder. Die Laufansicht zeigt den gespeicherten Fehlergrund; vollständige Rohereignisse bleiben aufklappbar. Im Chat steht der Modellname über dem Anbieter oder persönlichen Konto. Projekte stehen vor Build in der Navigation; Wissen ist zunächst eingeklappt und öffnet sich für seine aktive Seite oder nach Ihrer Auswahl.
 
 # Die Konsole { #the-console }
 
@@ -16,9 +27,13 @@ Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt
 
 **Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
 
+Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Der Fortschritt gehört zur jeweiligen Mitgliedschaft; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
+
+Ein Schritt vor der Auswahl einer Organisation oder dem Beitritt wird nicht als Mitgliedschaftsfortschritt gespeichert. Kontosprache und Darstellung werden separat gespeichert. Im Organisationstab Assistent stehen Architect und die anderen Assistentendienste vor der Chat-Startseite; einheitliche Symbole und Kartenüberschriften erleichtern den Überblick.
+
 Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge und Erledigt denselben Listenrahmen, Zeilenabstand, dieselben Quellenmarkierungen, Titel- und Beschreibungsschriften sowie dieselbe responsive Anordnung der Aktionen. Erledigte Einträge behalten ihren Entscheidungsstatus und die Wiederherstellung abgelehnter Einträge; Quelle und Zeit bleiben auch auf dem Telefon sichtbar. Freigabeformulare verwenden denselben äußeren Abstand und behalten ihre Pflichtfelder und Berechtigungsprüfungen.
 
-Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
+Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Wenn der angedockte Chat zu schmal ist, um die Panelbreite zu ändern, wählen Sie in der Kopfzeile des Panels **Maximieren (Maximize)**. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
 
 Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar. Im Chat öffnet ein Dateilink mit passendem erfolgreichem Werkzeugbeleg die Arbeitsbereichsvorschau. Unbestätigte Pfade bleiben gewöhnliche Links; ein nicht verfügbarer privater Dateiursprung wird nicht verlinkt.
 
@@ -40,7 +55,7 @@ Agent-Galerien zeigen den Veröffentlichungsstatus mit Punkt und Text. Ein klein
 
 Ressourcenkataloge verwenden zurückhaltende Abstände, neutrale Metadaten und einheitliche Aktionen. Projekte, Wissensbasen, Tabellen und Datensätze behalten Zugriff, Größe und wichtige Verknüpfungen ohne Zeitstempel auf den Karten. In Build haben Anweisungen eine eigene Schreibfläche; Modell und die optionalen Variablen, Sprache und ersten Nachrichten teilen ein Panel mit Trennlinien. Das Hauptmodell bleibt sichtbar. Thinking und Answer format bleiben in den Modelleinstellungen; fehlende Pflichtkonfiguration und Validierungsfehler bleiben erreichbar.
 
-In Build zeigt First messages Karten mit Symbol, Titel und Nachricht. Öffnen Sie eine Karte, um sie zu bearbeiten. Beim Speichern eines bearbeiteten Beispiels bleiben die anderen Beispiele im Entwurf. Skills, Context und Knowledge search in Toolbox verwenden auswählbare Zeilen. Gespeicherte Chatmodelle bleiben in Models und Saved models sichtbar. Deaktivieren Sie Vorgeschlagene Prompts anzeigen, um im neuen Chat mehr Inbox-Einträge zu sehen.
+In Build zeigt First messages Karten mit Symbol, Titel und Nachricht. Öffnen Sie eine Karte, um sie zu bearbeiten. Beim Speichern eines bearbeiteten Beispiels bleiben die anderen Beispiele im Entwurf. Skills, Context und Knowledge search in Toolbox verwenden auswählbare Zeilen. Zuvor verwendete Modelle bleiben in der gemeinsamen Liste Models sichtbar. Deaktivieren Sie Vorgeschlagene Prompts anzeigen, um im neuen Chat mehr Inbox-Einträge zu sehen.
 
 Variables, Voice, First messages, Run reviewers, Alerts und Tracing beginnen eingeklappt; ihre Zusammenfassungen zeigen die aktuelle Konfiguration. Öffnen Sie den Bereich, den Sie ändern möchten. Erforderliche Einstellungen und Validierungsfehler bleiben erreichbar. Model bleibt geöffnet; Links zur Voice-Einrichtung öffnen den passenden Tab.
 
@@ -174,7 +189,7 @@ Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-S
 
 Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
 
-Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
+Die kompakte Quellen-Schaltfläche unter einer Antwort schaltet Sources neben dem Gespräch um, auf dem Smartphone als vollbreites Panel. Erneutes Anklicken schließt das Panel; eine andere Antwort wechselt die Quellen. Zitate öffnen das Panel und fokussieren die zitierte Passage. Browserkarten schalten ebenfalls ihr Seitenpanel um; die Auswahl eines Tabs darin lässt es geöffnet. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
 Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
 
@@ -186,7 +201,7 @@ Neue Chats zeigen unter dem Eingabefeld bis zu vier Einstiege des aktiven Agente
 
 Die Zeitleiste zeigt bis zu zwei Posteingangseinträge einschließlich eines Links zu offenen Genehmigungen und führt zum vollständigen Posteingang. Während des Ladens bleibt Platz für die Vorschau reserviert. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
-Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
+Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, mit einer gemeinsamen Liste Models und einem separaten Tab für Konto oder Schlüssel. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
 Die Gesprächssuche durchsucht Titel und indexierte Nachrichtentexte, einschließlich lesbarer Archive. Ergebnisse zeigen Textauszüge mit hervorgehobenen Treffern und der Anzahl passender Nachrichten. Pfeiltasten und Enter öffnen ein Ergebnis. Suchfehler bieten eine Wiederholung, statt eine leere Liste vorzutäuschen.
 
@@ -263,11 +278,13 @@ und - wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach d
 abgehakt, was existiert, wo auch immer er erledigt wurde, nicht nach einem Klick
 auf die Karte; wer die Karte schließt, blendet sie in diesem Browser aus.
 
-Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
-was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
-Code, Codex oder Cursor, Subagents, Sandboxes, Apps, Routines, Chat-Apps, den
-Web-Browser, Wissensbasen und Skills -, jede führt dorthin, wo es eingeschaltet
-wird, und nur die, die Sie nutzen können. Schließen Sie eine Kachel oder alle;
+Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**. Zuerst erscheinen
+persönliche Claude Code-, ChatGPT (Codex)- und Antigravity-Abonnements, eine erste
+Chat-Aufgabe und die Nutzung aus einem vorhandenen Coding-Client. Weitere Kacheln
+zeigen persönliche Werkzeugverbindungen, Projekte und Erinnerungen, danach
+Sandboxes, Subagents, Apps, Routines, Kanäle, Browser, Wissen und Skills. Jede
+verlinkt die Einrichtung oder Arbeitsansicht; berechtigungsabhängige Aktionen
+sehen nur Personen, die sie nutzen dürfen. Schließen Sie eine Kachel oder alle;
 auch das bleibt im Browser.
 
 Diagramme im Zeitverlauf wählen ihren Schritt selbst. Die Spanne vom ersten Run
@@ -314,7 +331,7 @@ Organisation → KI & Dienste zeigt einzelne Funktionskarten mit Schaltern und a
 
 Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
 
-Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
+Discover beginnt auf dem Dashboard mit persönlichen Konten und alltäglichen Aufgaben. Beim Überfahren
 einer Kurve in _Your period_ erscheinen Zeitabschnitt und Wert; Ausgaben werden
 als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
 Avatare wie im Chat.
@@ -862,6 +879,8 @@ Ungelesen-Markierungen nutzen denselben gespeicherten Verlauf. Mehr zu
 Mitgliedschaft, Antwortverhalten und Threads steht unter
 [Teamräume](projects.md#team-rooms).
 
+**Kontext auswählen (Select context)** erstellt einen Thread aus einem gewählten Nachrichtenbereich. Der Thread hält den Kontext getrennt von den Antworten und unterstützt das Verschieben, Zurückholen oder Bearbeiten des Bereichs. Du kannst auch eine kompatible Quellunterhaltung referenzieren. Auswahl- und Zugriffsregeln stehen unter [Ausgewählter Thread-Kontext](projects.md#selected-thread-context).
+
 Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
 ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf
 schmalen Bildschirmen füllt das ausgewählte Panel den Bildschirm. Nach einem Run
@@ -978,7 +997,7 @@ Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 wird mit Übernehmen im Konto gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
 Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
 Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
-ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
+ohne sie, und **Voll (Full)** (Standard in einem neuen Browser) behält sie, was auch immer das Betriebssystem
 sagt. Solange die Bewegung
 reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
 und der Pegel ist eine fünfstufige Anzeige.
@@ -1318,13 +1337,14 @@ Werkzeugaufruf, beim Fokussieren und für andere Geräte innerhalb von 30 Sekund
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
-Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+Die Konsole spricht Englisch, Polnisch, Deutsch, Türkisch, Französisch, Niederländisch und
+brasilianisches Portugiesisch. Die erste Karte des Rundgangs bietet alle sieben an, und das
+Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
 die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
-ihr, außer Sie schreiben in einer anderen Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+ihr, außer Sie bitten ausdrücklich um eine andere Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
 
 Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
@@ -1405,7 +1425,7 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
 
-Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding Personen, die einen Agenten vorbereiten dürfen, **Modell verbinden** an: ein Modell wählen und einen Agenten vorbereiten. Allen anderen bietet es einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
+Der Studio-Ablauf stellt die installierten Agenten AgenticOS und Architect vor. Ist der mitgelieferte AgenticOS noch ein zugänglicher Einrichtungsentwurf, öffnet seine Aktion den Konfigurationschat; Veröffentlichung und reguläre Ausführung behalten ihre üblichen Prüfungen. Berechtigte Personen können Architect konfigurieren, wenn ein Modell fehlt. Gewöhnliche Entwürfe und unzugängliche Agenten werden durch das Onboarding nicht ausführbar.
 
 Das Schließen des Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
 
@@ -1509,3 +1529,21 @@ Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele
 Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; MCP ist die Standardansicht. Die URL kann beide Tabs auswählen. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
 
 Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.
+
+Die Modellauswahl wird direkt und ohne Erfolgsmeldung übernommen. **Zurück zum Modell des Agenten** entfernt die Auswahl für dieses Gespräch. Persönliche Abonnements haben beim Onboarding einen eigenen Schritt nach dem persönlichen Kontext: Jede Dienstkachel bietet direkt **Verbinden**. **Settings → Subscriptions** zeigt eine Zeile je Konto mit Suche, Seitennavigation und gemeldeten Nutzungslimits; fehlende Daten werden ausdrücklich gekennzeichnet.
+
+Drei Onboarding-Layouts lassen sich unter `/onboarding?variant=conversation`, `?variant=studio` und `?variant=launchpad` vergleichen: eine Gesprächsspalte, ein Studio mit seitlicher Navigation und ein breites Launchpad. Sie nutzen dieselben Formulare, Berechtigungen und Speichervorgänge. Der Designwechsel behält den aktuellen Schritt und Entwürfe in eingebundenen Formularen. Anleitungstexte erscheinen schrittweise; Screenreader erhalten die vollständige Nachricht und bei reduzierter Bewegung bleibt der Text statisch.
+
+Diese Varianten ergänzen eine Modellauswahl mit dem normalen Anbieterkatalog, vorhandenen Vault-Schlüsseln und Verbindungsformularen sowie den bestehenden MCP-Katalog mit persönlichen und gemeinsamen Konten. Die Modellauswahl gilt für neue Chats der Person und ändert kein veröffentlichtes gemeinsames Agentenmodell. Eine MCP-Verbindung bindet Werkzeuge nicht an alle Agenten.
+
+Administratoren können Team- und Bereitstellungseinstellungen prüfen oder direkt zu den installierten Agenten AgenticOS und Architect wechseln. Beim Öffnen wird keine KI-Anfrage gesendet; nicht verfügbare Agenten behalten ihre Einrichtungshinweise.
+
+Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über Vorschauparameter erreichbar. Studio zeigt eine Formularspalte und eine kompakte Navigation ohne wiederholte dekorative Figuren. Das Aussehen lässt sich in einem Karussell der tatsächlichen Avatarfarben des Kontos wählen: Blättern speichert nichts, erst die Auswahl nutzt den bisherigen Kontospeicher. Bewegung respektiert die Einstellungen der App und des Betriebssystems.
+
+Studio behält Überschrift und untere Aktionen beim Schrittwechsel an ihrer Position. Die Avatar-Galerie rastet nach Ziehen oder Blättern mit den Pfeiltasten auf einer mittigen Vorschau ein; erst die Auswahl speichert sie. Reduzierte Bewegung deaktiviert Federbewegung und Schrittübergänge. An unvollständige Einrichtung erinnert nur die Seitenleiste, ohne zweites Banner über dem Arbeitsbereich.
+
+Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
+
+Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
+
+Wenn ein Agent eine Frage stellt, bleiben seine Karte und der normale Editor gemeinsam sichtbar. Der Editor behält Entwurf und Anhänge; neue Nachrichten warten in der Warteschlange, während Sie über die Karte antworten. Das Stoppen einer Antwort pausiert wartende Nachrichten bis zum ausdrücklichen Fortsetzen. Ein regulärer Abschluss verarbeitet die Warteschlange weiter.

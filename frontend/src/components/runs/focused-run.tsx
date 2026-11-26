@@ -440,13 +440,16 @@ export function FocusedRun({
             explain, and a `cancelled` run without one was stopped, not
             failed. */}
         {run.error !== null && TERMINAL_RUN_STATUSES.includes(run.status) && (
-          <p className="text-destructive flex items-start gap-1.5 text-xs">
+          <section
+            aria-label={t("recordedFailure")}
+            className="text-destructive flex items-start gap-1.5 text-xs"
+          >
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            <span>
+            <p className="min-w-0 break-words whitespace-pre-wrap">
               <span className="font-medium">{t("whyItStopped")}: </span>
-              {run.error}
-            </span>
-          </p>
+              <span>{run.error}</span>
+            </p>
+          </section>
         )}
 
         {/* The input above includes the cache's share, priced apart from the rest:

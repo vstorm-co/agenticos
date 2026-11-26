@@ -35,6 +35,12 @@ from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.runtime_questions import (
+    RuntimeAnswer,
+    RuntimeQuestionRequest,
+    RuntimeQuestionResponse,
+    normalize_runtime_answers,
+)
 from app.agents.steering import Steer, SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
@@ -271,6 +277,8 @@ class AgentSession:
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        self._runtime_question_id: str | None = None
+        self._runtime_request: RuntimeQuestionRequest | None = None
         self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
@@ -306,6 +314,10 @@ class AgentSession:
         # Until when the room this socket is in was last found readable - see
         # `ROOM_READS_FOR_SECONDS`.
         self._reads_until = float("-inf")
+        # True when this room's transcript depends on another room's access
+        # rules. Unknown is treated like True so a failed lookup never enables
+        # the short positive cache for imported content.
+        self._room_has_imported_thread_context: bool | None = None
         # When this socket last told its room the person is typing - see `typing`.
         self._typed_at = float("-inf")
         # Set by `shutdown`. A room joined or a turn followed after it - by a turn
@@ -417,10 +429,22 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
+            runtime_id = self._runtime_question_id
+            if runtime_id is not None and data.get("runtime_question_id") != runtime_id:
+                return
             if not await self._reauthorize_write():
+                return
+            if (
+                self._ask_user_future is not fut
+                or fut.done()
+                or self._runtime_question_id != runtime_id
+            ):
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
+            if self._runtime_request is not None:
+                normalized = normalize_runtime_answers(self._runtime_request, answers)
+                answers = [answer.model_dump() for answer in normalized.answers]
             fut.set_result(answers)
             # Recorded here, in the receive loop, rather than after the run
             # resumes past its await: a `stop` sent right behind the answer is
@@ -429,10 +453,21 @@ class AgentSession:
             # (#502).
             if self._pending_questions is not None and self._current_timeline is not None:
                 for index, question in enumerate(self._pending_questions):
+                    rendered = render_answer(answers[index] if index < len(answers) else None)
+                    if (
+                        self._runtime_request is not None
+                        and index < len(self._runtime_request.questions)
+                        and index < len(answers)
+                    ):
+                        runtime_question = self._runtime_request.questions[index]
+                        answer = RuntimeAnswer.model_validate(answers[index])
+                        if not answer.skipped and not answer.selected:
+                            if runtime_question.multiline:
+                                rendered = answer.answer or "(empty text)"
+                            elif runtime_question.allow_empty and not answer.answer:
+                                rendered = "(empty text)"
                     self._current_timeline.add_ask_user(
-                        question,
-                        render_answer(answers[index] if index < len(answers) else None),
-                        asked_by=self._pending_asked_by,
+                        question, rendered, asked_by=self._pending_asked_by
                     )
             request_id = data.get("request_id")
             if isinstance(request_id, str):
@@ -1078,6 +1113,7 @@ class AgentSession:
                         live_surface=LiveRunSurface(
                             ask_user=self._ask_one,
                             ask_questions=self._ask_questions,
+                            runtime_questions=self._runtime_questions,
                             emit=self._resume_frame,
                         ),
                     )
@@ -1225,6 +1261,9 @@ class AgentSession:
             "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
             "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
             "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "fr": "Bonjour, je suis {name}. Je suis prêt à vous aider à planifier, travailler sur des documents et avancer sur vos tâches. Avant que je puisse répondre, terminez la connexion de mon modèle d'IA et publiez-moi. Ajoutez une clé de fournisseur si le modèle choisi en demande une. Préparons cela ensemble.",
+            "nl": "Hallo, ik ben {name}. Ik help je graag met plannen, werken met documenten en taken afronden. Rond eerst de koppeling met mijn AI-model af en publiceer de agent. Daarna kan ik je vraag beantwoorden. Voeg zo nodig een sleutel voor je provider toe. Laten we dat samen klaarzetten.",
+            "pt": "Olá, sou {name}. Posso ajudar você a planejar, trabalhar com documentos e concluir tarefas. Primeiro, conclua a conexão com meu modelo de IA e publique o agente. Depois poderei responder à sua pergunta. Se necessário, adicione uma chave do seu provedor. Vamos configurar isso juntos.",  # codespell:ignore meu
             "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
         }
         text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
@@ -1702,6 +1741,7 @@ class AgentSession:
                     accepted_queue_id=accepted_queue_id,
                     ask_user=self._ask_one,
                     ask_questions=self._ask_questions,
+                    runtime_questions=self._runtime_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -2078,6 +2118,30 @@ class AgentSession:
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
+    async def _runtime_questions(self, request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        """Answer a native process live; parking would strand its pending RPC."""
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = request.runtime_name
+            runtime_id = uuid4().hex
+            self._runtime_question_id = runtime_id
+            self._runtime_request = request
+            try:
+                raw = await self._send_and_wait(
+                    [
+                        question.model_dump(exclude={"id"}, exclude_none=True)
+                        for question in request.questions
+                    ]
+                )
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+                self._runtime_question_id = None
+                self._runtime_request = None
+                with anyio.move_on_after(2, shield=True):
+                    await self._emit("runtime_question_closed", {"runtime_question_id": runtime_id})
+        return normalize_runtime_answers(request, raw)
+
     async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
         """Park the run's own questions; answer a delegate's card live.
 
@@ -2124,7 +2188,10 @@ class AgentSession:
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            if not await self._emit("ask_user", {"questions": questions}):
+            data: dict[str, Any] = {"questions": questions}
+            if self._runtime_question_id is not None:
+                data["runtime_question_id"] = self._runtime_question_id
+            if not await self._emit("ask_user", data):
                 return []
             return await fut
         finally:
@@ -2448,6 +2515,7 @@ class AgentSession:
         self._room = conversation_id
         # Found readable for the last room, not this one.
         self._reads_until = float("-inf")
+        await self._refresh_room_context_access(conversation_id)
         await chat_room.join(conversation_id, self.user.id, self._socket)
         if self._closed or self._room != conversation_id:
             # `shutdown` - or another room - came in while joining, and its leave
@@ -2459,6 +2527,8 @@ class AgentSession:
     async def _leave_room(self) -> None:
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
+        self._room_has_imported_thread_context = None
+        self._reads_until = float("-inf")
         # Wound down before anything else: its heartbeat, cancelled and not
         # awaited, could count this socket back in after the leave below, and its
         # listener, still running, could start a new follower for this room
@@ -2511,10 +2581,14 @@ class AgentSession:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
-            if event["type"] == chat_room.ROOM_PARTICIPANTS:
+            if event["type"] in (chat_room.ROOM_PARTICIPANTS, chat_room.ROOM_THREAD):
                 # A removal must invalidate a recent successful access check,
-                # including the live follower sharing this session's cache.
+                # including the live follower sharing this session's cache. A
+                # thread change can make imported source access part of this
+                # room's read policy, so it invalidates the same exact-room cache.
                 self._reads_until = float("-inf")
+            if event["type"] == chat_room.ROOM_THREAD:
+                await self._refresh_room_context_access(conversation_id)
             if not await self._reads_lately(conversation_id):
                 await self._stop_following()
                 self._room = self._room_task = None
@@ -2561,13 +2635,32 @@ class AgentSession:
                 await self._follow_if_running(conversation_id)
 
     async def _reads_lately(self, conversation_id: str) -> bool:
-        """`_still_reads`, answered from the last time it said yes when that was lately."""
-        if time.monotonic() < self._reads_until:
+        """Use the short positive cache only for rooms without imported context."""
+        if self._room_has_imported_thread_context is False and time.monotonic() < self._reads_until:
             return True
         if not await self._still_reads(conversation_id):
             return False
-        self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        if self._room_has_imported_thread_context is False:
+            self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        else:
+            self._reads_until = float("-inf")
         return True
+
+    async def _refresh_room_context_access(self, conversation_id: str) -> None:
+        """Refresh whether transcript reads inherit an external room's ACL.
+
+        This is read once when the socket enters a room and again when a
+        `ROOM_THREAD` event changes its context. Unknown is fail-safe: `_reads_lately`
+        then runs the canonical access check on every room event.
+        """
+        self._room_has_imported_thread_context = None
+        try:
+            async with get_db_context() as db:
+                self._room_has_imported_thread_context = (
+                    await conversation_repo.has_imported_thread_context(db, UUID(conversation_id))
+                )
+        except Exception:
+            logger.warning("room_thread_context_access_lookup_failed", exc_info=True)
 
     async def _still_reads(self, conversation_id: str) -> bool:
         """Whether this person may still read the conversation, as of now.

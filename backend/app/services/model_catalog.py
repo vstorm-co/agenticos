@@ -23,22 +23,27 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
-import hashlib
+import hmac
 import json
 import logging
 import re
+import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
+import httpx2
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api, otari_price_identity
 from app.core import catalog
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_MODELS, CLAUDE_SUBSCRIPTION_PROVIDER
+from app.core.claude_subscription import (
+    CLAUDE_SUBSCRIPTION_MODELS,
+    CLAUDE_SUBSCRIPTION_PROVIDER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +53,9 @@ MAX_LISTING_BYTES = 2 * 1024 * 1024
 MAX_CATALOG_MODELS = 2048
 MAX_CATALOG_FIELD = 256
 MAX_CACHED_CATALOGS = 16
+# Cache partitions last only for this process; avoid a reusable credential
+# fingerprint in cache diagnostics across process lifetimes.
+_CACHE_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 CatalogSource = Literal["live", "curated", "unlisted"]
 """Where a picker's suggestions came from, and it is three answers rather than two.
@@ -218,7 +226,9 @@ def curated_models(provider: str) -> tuple[CatalogModel, ...]:
     if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
         return tuple(
             CatalogModel(
-                id=model, name=f"Claude {model.title()} (subscription)", output_modalities=("text",)
+                id=model,
+                name=f"Claude {model.title()} (subscription)",
+                output_modalities=("text",),
             )
             for model in CLAUDE_SUBSCRIPTION_MODELS
         )
@@ -429,6 +439,17 @@ CUSTOM_LISTINGS: dict[str, bool] = {
     "openrouter": False,
     "stav": True,
     "otari": True,
+    "zai": True,
+    "kimi_code": True,
+    "alibaba_coding_plan": True,
+    "opencode_go": True,
+    "ollama_cloud": True,
+    "nous_portal": True,
+    "inception": True,
+    "cline": True,
+    "chutes": True,
+    "synthetic": True,
+    "cliproxyapi": True,
     "openai_compatible": True,
     "anthropic_compatible": True,
 }
@@ -436,7 +457,7 @@ CUSTOM_LISTINGS: dict[str, bool] = {
 whether the vault key goes with that request.
 
 OpenRouter's list is public, so a regional OpenRouter is asked with no key.
-Stav and Otari need one; the key is the one the profile sends to that same
+The others need one; the key is the one the profile sends to that same
 endpoint on every run - listing there reaches no host the profile does not.
 The two custom providers need one for the same reason: the endpoint is the
 organization's own server, and it is the key stored for it that authenticates
@@ -450,7 +471,7 @@ DECISION_SUGGESTIONS: dict[str, tuple[FallbackModel, ...]] = catalog.load(
 
 
 async def _decision_models_for(
-    provider: str, *, base_url: str | None
+    provider: str, *, base_url: str | None, refresh: bool = False
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """Keep native-decision suggestions and caches separate from text models."""
     curated = [
@@ -467,7 +488,11 @@ async def _decision_models_for(
     listing = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=decisions")
     try:
         models = await _listed(
-            f"openrouter:decisions:{endpoint}", listing, None, custom=base_url is not None
+            f"openrouter:decisions:{endpoint}",
+            listing,
+            None,
+            custom=base_url is not None,
+            refresh=refresh,
         )
     except httpx.HTTPError, ValueError:
         logger.warning("The native decision model catalog could not be reached")
@@ -481,6 +506,7 @@ async def models_for(
     api_key: str | None = None,
     base_url: str | None = None,
     api: ModelApi | None = None,
+    refresh: bool = False,
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -497,8 +523,25 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if provider == "github_copilot":
+        from app.clients.github_copilot import CopilotAccountClient
+        from app.core.exceptions import BadRequestError
+
+        if base_url is not None:
+            raise ValueError("Copilot account models require the fixed GitHub.com gateway")
+        if api_key is None:
+            return [], "unlisted"
+        try:
+            models = await CopilotAccountClient().models(api_key)
+        except BadRequestError, httpx.HTTPError, httpx2.HTTPError:
+            logger.warning("Could not list this Copilot account's supported chat models")
+            return [], "unlisted"
+        return [
+            CatalogModel(id=model.id, name=model.name or model.id, surfaces=("chat",))
+            for model in models
+        ], "live"
     if is_decision_api(provider, api):
-        return await _decision_models_for(provider, base_url=base_url)
+        return await _decision_models_for(provider, base_url=base_url, refresh=refresh)
     if (
         base_url is None
         and (provider_spec := PROVIDERS.get(provider)) is not None
@@ -511,8 +554,8 @@ async def models_for(
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS or spec is None:
             raise ValueError(
-                "Custom model listing endpoints are supported only for OpenRouter, Stav, "
-                "Otari, Custom (OpenAI-compatible) and Custom (Anthropic-compatible)"
+                "Custom model listing endpoints are supported only for "
+                + ", ".join(sorted(CUSTOM_LISTINGS))
             )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")
@@ -529,10 +572,13 @@ async def models_for(
         return _fallback(curated)
 
     if spec.auth_header is not None and api_key is not None:
-        cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
+        fingerprint = hmac.digest(_CACHE_FINGERPRINT_KEY, api_key.encode(), "sha256").hex()
+        cache_key = f"{cache_key}:{fingerprint}"
 
     try:
-        models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
+        models = await _listed(
+            cache_key, spec, api_key, custom=base_url is not None, refresh=refresh
+        )
     except Exception:
         # What is said has to match what is answered: for a provider with no
         # curated entry there is no list to fall back to, and a log line during
@@ -581,7 +627,7 @@ async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
 
 
 async def _listed(
-    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool
+    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool, refresh: bool = False
 ) -> list[CatalogModel]:
     """One listing, from the cache while it is fresh, fetched and cached otherwise.
 
@@ -593,7 +639,11 @@ async def _listed(
     """
     async with _lock:
         entry = _cache.get(cache_key)
-        if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
+        if (
+            not refresh
+            and entry is not None
+            and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS
+        ):
             _cache.move_to_end(cache_key)
             return list(entry.models)
 

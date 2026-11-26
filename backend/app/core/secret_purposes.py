@@ -106,7 +106,8 @@ def _from_providers() -> tuple[SecretPurpose, ...]:
             description=f"Run models on {spec.name}.",
         )
         for spec in PROVIDERS.values()
-        if spec.secret_kind is not SecretKind.NONE
+        # Signed in per person from the console, never a key in the vault.
+        if spec.secret_kind is not SecretKind.NONE and not spec.personal_gateway
     )
 
 

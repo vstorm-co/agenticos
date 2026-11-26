@@ -8,6 +8,8 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { Secret as StoredSecret, SecretPurpose } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
+import type { ReactNode } from "react";
+import type { SubscriptionAccount } from "@/lib/subscription-accounts-api";
 
 /**
  * Adding a model: a provider, a model id, and which stored key pays for it.
@@ -39,9 +41,11 @@ interface ProviderCapabilities {
   native_api: "chat" | "responses" | null;
   regions?: ("eu" | "eea" | "global")[];
   api_from_model?: boolean;
+  personal_gateway?: boolean;
 }
 
 const state = {
+  accounts: [] as SubscriptionAccount[],
   purposes: [] as SecretPurpose[],
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
@@ -55,13 +59,38 @@ const state = {
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
+  canRefresh: true,
+  listingError: null as Error | null,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
   updateProfile: { mutateAsync: vi.fn(), isPending: false },
   permissions: [] as Permission[],
   createdPersonal: null as StoredSecret | null,
 };
 
+vi.mock("./subscription-model-form", () => ({
+  SubscriptionModelForm: ({
+    provider,
+    initialModel,
+    providerField,
+  }: {
+    provider: string;
+    initialModel?: string;
+    providerField?: ReactNode;
+  }) => (
+    <>
+      {providerField}
+      <div data-testid="subscription-form" data-model={initialModel}>
+        {provider}
+      </div>
+    </>
+  ),
+}));
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: () => ({ accounts: { data: { items: state.accounts } } }),
+}));
+
 const listingRequests = vi.fn();
+const refreshModels = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
@@ -80,6 +109,9 @@ vi.mock("@/hooks", () => ({
       refused: state.refused,
       source: state.source,
       isLoading: state.loadingModels,
+      canRefresh: state.canRefresh,
+      error: state.listingError,
+      refetch: refreshModels,
     };
   },
   usePermissions: () => ({
@@ -181,6 +213,7 @@ const OPENAI_CAPABILITIES: Partial<ProviderCapabilities> = {
 };
 
 beforeEach(() => {
+  state.accounts = [];
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
   // What each provider's SDK actually reads. `openai` takes an endpoint, is
   // keyless because OpenAI-compatible servers exist, and serves both of its
@@ -195,6 +228,9 @@ beforeEach(() => {
   state.refused = [];
   state.source = "live";
   state.loadingModels = false;
+  state.canRefresh = true;
+  state.listingError = null;
+  refreshModels.mockReset();
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
   state.updateProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
   // The form only exists for a caller holding `connections:manage`, and most of
@@ -489,7 +525,7 @@ describe("the add-model form", () => {
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
@@ -548,7 +584,7 @@ describe("the add-model form", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
   });
@@ -586,7 +622,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -602,7 +638,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
     await userEvent.type(screen.getByLabelText("Name"), "Cheap tier");
@@ -618,7 +654,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -694,7 +730,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -708,7 +744,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await pickProvider("OpenRouter");
 
@@ -743,8 +779,9 @@ describe("the add-model form", () => {
     state.secrets = [secret()];
     mount({ disabled: true });
     expect(screen.getByLabelText("Provider")).toBeDisabled();
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    // Upstream 1.92.0 disables the model field with the rest of the form, so
+    // there is no model to pick here; the save stays unreachable regardless.
+    expect(screen.getByLabelText("Model")).toBeDisabled();
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -812,7 +849,7 @@ describe("storing the key the model runs on", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
@@ -851,7 +888,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -886,7 +923,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -906,7 +943,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -927,7 +964,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
@@ -964,7 +1001,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Anthropic");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
@@ -993,7 +1030,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), url);
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   }
@@ -1127,7 +1164,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -1146,7 +1183,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -1188,7 +1225,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(screen.getByText(message)).toBeInTheDocument();
@@ -1212,7 +1249,7 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
   }
 
   async function pickApi(name: string) {
@@ -1513,7 +1550,7 @@ describe("choosing where a Stav model's requests run", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(sent()).not.toHaveProperty("region");
@@ -1533,7 +1570,7 @@ describe("a provider nobody can type a key for", () => {
     const { onCreated } = mount();
     await pickProvider("ChatGPT");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /GPT-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Sign in instead" }));
@@ -1571,6 +1608,152 @@ describe("the model the agent is already on", () => {
       ...overrides,
     } as Parameters<typeof AddModel>[0]["selected"];
   }
+
+  it.each(["create", "update"])(
+    "refuses invalid generation limits before %s",
+    async (operation) => {
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.models = [{ id: "openai/gpt-5.5", name: "Current model" }];
+      render(
+        <AddModel
+          selected={operation === "update" ? inUse({ params: { max_tokens: 6144 } }) : undefined}
+          generationSettings
+          onCreated={vi.fn()}
+        />,
+      );
+      if (operation === "create") {
+        await userEvent.click(screen.getByLabelText("Model"));
+        await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+      }
+      const tokens = screen.getByLabelText("Max tokens");
+      await userEvent.clear(tokens);
+      await userEvent.type(tokens, "0");
+      await userEvent.click(
+        screen.getByRole("button", { name: operation === "update" ? "Update model" : "Add model" }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("resets defaults for another model and restores the saved defaults when returning", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    state.models = [
+      { id: "openai/gpt-5.5", name: "Current model" },
+      { id: "openai/gpt-5", name: "Alternate model" },
+    ];
+    const created = vi.fn();
+    const { rerender } = render(
+      <AddModel
+        selected={inUse({ params: { thinking: "low" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("low");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Alternate model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("Provider default");
+    rerender(
+      <AddModel
+        selected={inUse({ params: { thinking: "high" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("Provider default");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("high");
+  });
+
+  it("does not treat reordered JSONB model defaults as unsaved changes", () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    const created = vi.fn();
+    const { rerender } = render(
+      <AddModel
+        selected={inUse({ params: { thinking: "low", max_tokens: 6144 } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    rerender(
+      <AddModel
+        selected={inUse({ params: { max_tokens: 6144, thinking: "low" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    expect(screen.getByText("In use")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    "refreshes saved defaults while preserving a dirty form (%s)",
+    async (dirty) => {
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      const created = vi.fn();
+      const { rerender } = render(
+        <AddModel
+          selected={inUse({ params: { thinking: "low" } })}
+          generationSettings
+          onCreated={created}
+        />,
+      );
+      if (dirty) {
+        await userEvent.click(screen.getByLabelText("Reasoning effort"));
+        await userEvent.click(screen.getByRole("option", { name: "medium" }));
+      }
+      rerender(
+        <AddModel
+          selected={inUse({ params: { thinking: "high" } })}
+          generationSettings
+          onCreated={created}
+        />,
+      );
+      expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent(
+        dirty ? "medium" : "high",
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("edits and reloads background generation defaults only after saving the model", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    const selected = inUse({
+      params: { thinking: "low", max_tokens: 6144, vendor_option: "keep" },
+    });
+    const { unmount } = render(
+      <AddModel selected={selected} generationSettings onCreated={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("low");
+    await userEvent.click(screen.getByLabelText("Reasoning effort"));
+    await userEvent.click(screen.getByRole("option", { name: "high" }));
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "p-1",
+        changes: expect.objectContaining({
+          params: { thinking: "high", max_tokens: 6144, vendor_option: "keep" },
+        }),
+      }),
+    );
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    unmount();
+    render(
+      <AddModel
+        selected={inUse({ params: { thinking: "high", max_tokens: 6144, vendor_option: "keep" } })}
+        generationSettings
+        onCreated={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("high");
+    expect(screen.getByLabelText("Max tokens")).toHaveValue(6144);
+    expect(screen.getByText("In use")).toBeVisible();
+  });
 
   it("keeps the active model visible while folding connection details and retaining endpoint edits", async () => {
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
@@ -1960,7 +2143,7 @@ it("creates an Otari profile using its selected vault key and gateway model sele
   );
   expect(screen.queryByLabelText("Region")).toBeNull();
   await userEvent.click(screen.getByLabelText("Model"));
-  await userEvent.click(screen.getByRole("option", { name: "Claude" }));
+  await userEvent.click(screen.getByRole("option", { name: /^Claude/ }));
   await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
     expect.objectContaining({
@@ -2124,12 +2307,6 @@ describe("native decision model setup", () => {
       }),
       capabilities("openrouter", "OpenRouter"),
     ];
-    state.catalog = [
-      capabilities("openai", "OpenAI", {
-        ...OPENAI_CAPABILITIES,
-        apis: ["responses", "chat", "decisions"],
-      }),
-    ];
     state.models = [{ id: "gpt-6-luna", name: "GPT-6 Luna" }];
     state.createProfile.mutateAsync.mockResolvedValue({
       id: "decision-1",
@@ -2141,7 +2318,7 @@ describe("native decision model setup", () => {
     expect(listingRequests).toHaveBeenLastCalledWith("openai", undefined, undefined, true);
     expect(screen.queryByLabelText("API")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: "GPT-6 Luna" }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-6 Luna/ }));
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -2170,6 +2347,27 @@ describe("native decision model setup", () => {
   });
 });
 
+it("confirms a Z.AI plan endpoint before listing and reconfirms after it changes", async () => {
+  state.purposes = [purpose("zai", "Z.AI")];
+  state.catalog = [capabilities("zai", "Z.AI", { supports_base_url: true })];
+  state.secrets = [secret({ id: "zai-plan", name: "Plan key", purpose: "zai" })];
+  mount();
+  expect(listingRequests).toHaveBeenLastCalledWith("zai", undefined, "zai-plan", false);
+  listingRequests.mockClear();
+  const endpoint = screen.getByLabelText("Endpoint");
+  await userEvent.type(endpoint, "https://api.z.ai/api/coding/paas/v4");
+  expect(listingRequests.mock.calls.every(([provider]) => provider === "")).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "zai",
+    "https://api.z.ai/api/coding/paas/v4",
+    "zai-plan",
+    false,
+  );
+  await userEvent.type(endpoint, "/changed");
+  expect(listingRequests).toHaveBeenLastCalledWith("", undefined, "zai-plan", false);
+});
+
 it("does not offer the native decision API for a chat profile", async () => {
   state.catalog = [
     capabilities("openai", "OpenAI", {
@@ -2183,4 +2381,111 @@ it("does not offer the native decision API for a chat profile", async () => {
   expect(screen.getByRole("option", { name: "Responses" })).toBeVisible();
   expect(screen.getByRole("option", { name: "Chat Completions" })).toBeVisible();
   expect(screen.queryByRole("option", { name: "Decisions" })).toBeNull();
+});
+
+it("offers familiar subscription names instead of gateway internals", async () => {
+  state.purposes = [];
+  state.secrets = [];
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  mount();
+  await userEvent.click(screen.getByLabelText("Provider"));
+  expect(screen.getByRole("option", { name: "Claude Code (Pro, Max)" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "ChatGPT (Codex)" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "Subscription accounts" })).toBeNull();
+});
+
+it("routes a subscription choice to inline setup and keeps old profiles editable", async () => {
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const { rerender } = render(
+    <AddModel fixedProviderId="subscription_accounts" onCreated={vi.fn()} />,
+  );
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Choose a provider");
+  await pickProvider("Claude Code");
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("claude");
+  rerender(<AddModel key="fixed" fixedProviderId="subscription:codex" onCreated={vi.fn()} />);
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
+  expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+});
+
+it("restores the concrete subscription and its model from the routed account", async () => {
+  const model = `account-${"a".repeat(24)}/claude-sonnet-4-6`;
+  state.accounts = [
+    {
+      name: "google",
+      provider: "antigravity",
+      model_prefix: `account-${"a".repeat(24)}`,
+      label: null,
+      email: null,
+      status: "active",
+      disabled: false,
+      unavailable: false,
+    },
+  ];
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  mount({
+    selected: {
+      id: "personal",
+      provider: "subscription_accounts",
+      model,
+      label: "My custom model",
+      secret_id: null,
+      params: {},
+      fallback_profile_ids: [],
+    },
+  });
+  const provider = screen.getByRole("combobox", { name: "Provider" });
+  expect(provider).toHaveTextContent("Google Antigravity");
+  expect(providerMarkIn(provider)).toBe("google");
+  expect(screen.getByTestId("subscription-form")).toHaveAttribute("data-model", model);
+  expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+  await pickProvider("ChatGPT");
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
+  expect(screen.getByTestId("subscription-form")).not.toHaveAttribute("data-model");
+});
+
+it("restores a legacy named subscription before account metadata loads", () => {
+  mount({
+    selected: {
+      id: "legacy",
+      provider: "subscription_accounts",
+      model: "claude-sonnet-4-6",
+      label: "Google Antigravity · claude-sonnet-4-6",
+      secret_id: null,
+      params: {},
+      fallback_profile_ids: [],
+    },
+  });
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent(
+    "Google Antigravity",
+  );
+  expect(screen.getByTestId("subscription-form")).toHaveAttribute(
+    "data-model",
+    "claude-sonnet-4-6",
+  );
+});
+
+it("refreshes the selected provider catalog without creating a model or changing its draft", async () => {
+  state.secrets = [secret({ id: "s-openrouter", purpose: "openrouter" })];
+  state.models = [{ id: "anthropic/claude-opus-5", name: "Claude Opus 5" }];
+  mount({ fixedProviderId: "openrouter" });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+  expect(refreshModels).toHaveBeenCalledOnce();
+  expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+  expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+});
+
+it("does not offer a refresh before endpoint discovery is allowed and reports its failures", async () => {
+  state.canRefresh = false;
+  state.listingError = new Error("catalog offline");
+  mount({ fixedProviderId: "openrouter" });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  expect(screen.queryByRole("button", { name: "Refresh models" })).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("The catalog could not be refreshed");
 });

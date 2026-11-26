@@ -20,6 +20,7 @@ from app.schemas.authoring import AuthoringStart, IdeaDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_usage import SkillUseRecord
 from app.services.authoring import AuthoringService
+from app.services.improvement_states import criterion_owners
 from app.services.skills import SKILL_BODY_CHARS, SkillService
 from tests.integration.test_authoring import (
     COMMENT,
@@ -75,6 +76,55 @@ async def _used(db: AsyncSession, ctx: AuthContext, run: AgentRun, *uses: SkillU
 
 def _improve_prompt(model: Improver) -> str:
     return next(prompt for prompt in model.prompts if prompt.startswith("Propose improvements"))
+
+
+async def test_only_a_problem_quoting_the_skill_s_own_line_takes_its_criteria(
+    db: AsyncSession,
+):
+    """A skill that is only silent leaves its criteria to the agent: the improver's
+    quoted line must be one the skill's body holds."""
+    ctx, agent, run = await _setup(db)
+    returns = await _skill(db, ctx, "returns-policy", RETURNS)
+    await _bound(db, agent, returns)
+    await _used(db, ctx, run, _use(returns, agent))
+    cited = [{"run_id": str(run.id), "quote": COMMENT}]
+    model = Improver(
+        db,
+        improve={
+            "summary": "The returns skill states the wrong window",
+            "expected_effect": "Answers say 30 days",
+            "skill_problems": [
+                {
+                    "skill": "returns-policy",
+                    "problem": "It says ninety days",
+                    "skill_line": "Explain that returns are  accepted for NINETY days",
+                    "criteria": ["Return window"],
+                    "evidence": cited,
+                },
+                {
+                    "skill": "returns-policy",
+                    "problem": "It never names the restocking fee",
+                    "skill_line": "Returns carry a restocking fee",
+                    "criteria": ["Restocking fee"],
+                    "evidence": cited,
+                },
+                {
+                    "skill": "returns-policy",
+                    "problem": "It never asks for a photo",
+                    "criteria": ["Photo asked"],
+                    "evidence": cited,
+                },
+            ],
+        },
+    )
+
+    request = await _improve(db, ctx, agent, model)
+
+    assert request.status == "completed", request.error
+    lines = [problem["skill_line"] for problem in request.report["skill_problems"]]
+    assert lines == ["Explain that returns are  accepted for NINETY days", None, None]
+    assert criterion_owners([request.report]) == {"return window": "returns-policy"}
+    assert "Copy that line into skill_line" in _improve_prompt(model)
 
 
 async def test_a_problem_is_kept_only_for_a_bound_skill_the_cited_runs_used(db: AsyncSession):

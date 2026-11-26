@@ -20,6 +20,7 @@ from app.api.deps import (
     get_conversation_service,
     get_current_user,
     get_db_session,
+    get_room_thread_context_read_service,
 )
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
@@ -58,6 +59,9 @@ async def service() -> AsyncGenerator[AsyncMock]:
     app.dependency_overrides[get_db_session] = lambda: AsyncMock()
     conversations = AsyncMock()
     app.dependency_overrides[get_conversation_service] = lambda: conversations
+    contexts = AsyncMock()
+    contexts.moved_stubs.return_value = []
+    app.dependency_overrides[get_room_thread_context_read_service] = lambda: contexts
     yield conversations
     app.dependency_overrides.clear()
 
@@ -108,6 +112,15 @@ async def test_latest_messages_carry_the_cursor_and_the_same_reader_scope(
     assert arguments["top_level_only"] is True
     assert arguments["organization_id"] is not None
     assert arguments["user_id"] is not None
+
+    contexts = app.dependency_overrides[get_room_thread_context_read_service]()
+    contexts.moved_stubs.assert_awaited_once()
+    assert contexts.moved_stubs.await_args.args[1] == CONVERSATION_ID
+    assert contexts.moved_stubs.await_args.kwargs == {
+        "page_message_ids": [],
+        "before": before,
+        "latest": True,
+    }
 
 
 async def test_message_reads_can_include_thread_replies(service: AsyncMock) -> None:

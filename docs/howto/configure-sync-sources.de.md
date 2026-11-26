@@ -1,5 +1,5 @@
 ---
-source_sha: "8819ef1c6f61"
+source_sha: "72c34809c7f5"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -319,6 +319,14 @@ Loopback-, Link-Local- oder Cloud-Metadata-Adresse wird immer abgelehnt, und ein
 Endpunkt im privaten Netz, etwa ein MinIO-Container, braucht seinen Host in
 [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Das
 `S3_RAG_ENDPOINT` des Betreibers wird nicht geprüft.
+
+Für den eigenen Endpunkt einer Quelle prüft jede neue SDK-Verbindung DNS erneut
+und verwendet eine zugelassene numerische Adresse. TLS-Zertifikate, SNI, HTTP Host
+und AWS-Signaturen behalten den ursprünglichen Hostnamen. Bereitstellungs-Proxys
+müssen das numerische CONNECT- oder absolute Anfrageziel beachten. Wählt ein
+AWS-Profil virtuelle Hostadressierung, muss jeder tatsächliche private Bucket-Host
+(etwa `bucket.minio`) oder ein geeignetes, vom Betreiber zugelassenes Suffix/Netz
+freigegeben werden; `minio` allein erlaubt nicht `bucket.minio`.
 
 ### 2. Konfigurationsfelder des S3-Connectors { #2-s3-connector-config-fields }
 

@@ -49,6 +49,7 @@ from app.db.models.browser_credential import (
 )
 from app.db.models.coding_account import CodingAccount
 from app.db.models.personal_model_key import PersonalModelKey
+from app.db.models.personal_model_generation import PersonalModelGeneration
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -117,10 +118,13 @@ from app.db.models.authoring import (
 )
 from app.db.models.improvement import (
     ImprovementIteration,
+    ImprovementMode,
     ImprovementRun,
+    ImprovementSearchVariant,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
+    SearchVariantStatus,
     StopReason,
 )
 from app.db.models.eval_run import (
@@ -213,8 +217,11 @@ from app.db.models.artifact import (
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
+from app.db.models.case_key_draft import CaseKeyDraft
+from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -295,6 +302,7 @@ __all__ = [
     "BrowserCredentialPolicy",
     "CodingAccount",
     "PersonalModelKey",
+    "PersonalModelGeneration",
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
@@ -314,12 +322,15 @@ __all__ = [
     "ArtifactShareRequest",
     "ArtifactVersion",
     "CaseGeneration",
+    "CaseKeyDraft",
+    "KeyCoverageReport",
     "CaseProposal",
     "CaseScore",
     "Dataset",
     "DatasetCase",
     "DatasetVersion",
     "KnowledgeGapClassification",
+    "KnowledgeGapEvalClassification",
     "KnowledgeGapMember",
     "KnowledgeGapTopic",
     "KnowledgeSearch",
@@ -413,10 +424,13 @@ __all__ = [
     "SpecProposalBatch",
     "SpecProposalHunk",
     "ImprovementIteration",
+    "ImprovementMode",
     "ImprovementRun",
+    "ImprovementSearchVariant",
     "ImprovementStage",
     "ImprovementStatus",
     "ImprovementVerdict",
+    "SearchVariantStatus",
     "StopReason",
     "EvalRun",
     "EvalRunArm",
@@ -553,3 +567,5 @@ __all__ = [
 ]
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
+
+from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration

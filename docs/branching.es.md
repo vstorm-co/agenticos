@@ -1,5 +1,5 @@
 ---
-source_sha: "2738919b34a2"
+source_sha: "deffef3ca00a"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -370,6 +370,8 @@ clic en vez de un ensayo.
   ejecución de `main` cancela otra.
 
 ## Cortes y versiones con varios cambios { #release-cuts-and-release-trains }
+
+La cadencia sigue la [decisión del mantenedor en la discusión #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). No se exige una versión por cada PR integrado.
 
 Mantén PR separados y prepara **una publicación manual al día** cuando haya
 cambios en Unreleased. No hay un cut programado ni publicación automática.

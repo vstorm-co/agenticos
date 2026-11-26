@@ -431,11 +431,13 @@ Three modes, which is the only thing that really varies between servers.
 
     1. **Discover** — probe the server, resolve its authorization server, fetch
        RFC 8414 metadata.
-    2. **Register** — RFC 7591 dynamic client registration. A server that
-       publishes no registration endpoint — HubSpot's is one — refuses here, and
+    2. **Register** — RFC 7591 dynamic client registration. AgenticOS registers a
+       public PKCE client if the authorization server advertises `none` and
+       does not support `client_secret_post`. A server that publishes no
+       registration endpoint — HubSpot's is one — refuses here, and
        the only way past is a client you registered at the provider by hand:
-       the connect dialog takes its client ID and secret under *Your own
-       client*, and shows the redirect URL the provider has to hold exactly.
+       the connect dialog takes its client ID and, if required, its secret under
+       *Your own client*. Register the displayed redirect URL exactly as shown.
     3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707
        resource indicator; the browser goes there.
     4. **Exchange** — the callback swaps the code for tokens, then redirects the
@@ -490,17 +492,20 @@ ordinary client gets from the resolver, without asking DNS a second time. A name
 answering with one public address and one private one is refused **whole** rather
 than narrowed to its public half.
 
-Two edges remain, both narrow and both deliberate:
+The **consent URL** is checked and then handed to somebody's browser, which
+resolves it itself. That browser connection is outside the server's pinning.
 
-- The **consent URL** is checked and then handed to somebody's browser, which
-  resolves it itself. There is no pinning to do.
-- The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator. A listed
-  host (`OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`) is resolved too and
-  every answer is checked: a private answer passes only for a host the list admits,
-  a loopback or metadata answer never does, and a host listed by name that does not
-  resolve yet can still be saved. The OAuth requests of a connection whose own host
-  is listed may reach the listed hosts, pinned like every other hop.
+The **connection's own URL** is checked when saved, then every HTTP or SSE
+request is checked and dialled at an admitted address. Personal connections
+are member-controlled, not deployment configuration. Reconnects repeat the
+check. SDK redirects stay on the endpoint's origin (or an eligible HTTPS
+upgrade) and preserve the request method. An uncertain tool POST is not replayed.
+
+Only the operator's `OUTBOUND_PRIVATE_ALLOWLIST` and `MCP_ALLOWED_HOSTS` can admit
+private hosts. Every DNS answer is checked; loopback, link-local and metadata
+answers remain refused. A listed name that does not resolve yet can be saved,
+but must resolve safely before connecting. A public connection never gains
+private exceptions from a server's redirect or OAuth metadata.
 
 Nothing a _model_ chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
@@ -1274,7 +1279,7 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` on the agent |
+| `create_routine`, `run_routine_now` | `agents:run` on the agent; in an agent's own run, `create_routine` may leave `agent_id` out to mean that agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1398,6 +1403,11 @@ named after this deployment; switching it on binds it as
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the
 console's language when asked - out of the box.
+
+In an agent's own run, `whoami` also returns `run_agent_id`, the agent the run
+belongs to, and `create_routine` without `agent_id` schedules that agent. An API key
+or an MCP client has no such agent and names one. A delegate that leaves it out
+schedules the agent its credential was issued for, the one that started the run.
 
 ### Desktop, mobile and local environments
 

@@ -807,12 +807,18 @@ class RoomParticipantService:
             is None
         ):
             raise AuthorizationError(message="An active organization member is required")
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        blocked = await RoomThreadContextAccessService(self.db).unreadable_destinations(
+            organization_id=organization_id, user_id=user_id, actor=ctx
+        )
         return await room_participant_repo.public_directory(
             self.db,
             organization_id=organization_id,
             user_id=user_id,
             skip=skip,
             limit=limit,
+            excluded_conversation_ids=blocked,
         )
 
     async def join_public_room(self, ctx: AuthContext, conversation_id: UUID) -> Conversation:

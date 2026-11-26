@@ -45,6 +45,7 @@ describe("the tool catalog", () => {
       "generate_video",
       "harness_prompt",
       "harness_start",
+      "run_acp_agent",
       "run_coding_agent",
       "run_python",
       "write_file",

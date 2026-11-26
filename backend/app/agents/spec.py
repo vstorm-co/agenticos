@@ -153,6 +153,9 @@ _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
+_CONTEXT_CAPABILITY = "context"
+_KNOWLEDGE_CAPABILITY = "knowledge"
+_DELEGATION_CAPABILITY = "subagents"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _TABLES_CAPABILITY = "virtual_tables"
@@ -1837,6 +1840,45 @@ class AgentSpec(BaseModel):
         specialist with content on.
         """
         return self.observability.content if self.observability else "full"
+
+    def _serves(self, capability_id: str) -> bool:
+        return any(binding.id == capability_id and binding.enabled for binding in self.capabilities)
+
+    # A selection survives switching its capability off - the Builder keeps it and
+    # publish still checks it - while a run reaches none of it. Every reader that
+    # decides what reaches a run, or what a routine's owner is asked to consent to,
+    # reads these rather than the raw lists.
+
+    @property
+    def served_skill_ids(self) -> list[UUID]:
+        """The bound skills a run serves, as instructions or workspace files.
+
+        None while `skills` is off.
+        """
+        return list(self.skill_ids) if self._serves(_SKILLS_CAPABILITY) else []
+
+    @property
+    def served_context_ids(self) -> list[UUID]:
+        """The bound context files a run reads: none while `context` is off."""
+        return list(self.context_ids) if self._serves(_CONTEXT_CAPABILITY) else []
+
+    @property
+    def served_collection_ids(self) -> list[UUID]:
+        """The bound collections a run searches: none while `knowledge` is off."""
+        return list(self.collection_ids) if self._serves(_KNOWLEDGE_CAPABILITY) else []
+
+    @property
+    def served_subagents(self) -> list[SubagentRef]:
+        """The pinned delegates a run can hand work to: none while `subagents` is off."""
+        return list(self.subagents) if self._serves(_DELEGATION_CAPABILITY) else []
+
+    @property
+    def served_external_agents(self) -> list[ExternalAgentRef]:
+        """The remote agents a run can hand work to.
+
+        Reached only by delegating, so none while `subagents` is off.
+        """
+        return list(self.external_agents) if self._serves(_DELEGATION_CAPABILITY) else []
 
     @model_validator(mode="before")
     @classmethod

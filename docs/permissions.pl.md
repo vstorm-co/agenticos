@@ -1,5 +1,5 @@
 ---
-source_sha: "45127605c8f9"
+source_sha: "b8cfb018adf5"
 ---
 
 # Uprawnienia { #permissions }
@@ -739,7 +739,7 @@ ról ani nie zmienia ich uprawnień.
 
 | Endpoint | Odpowiada |
 | --- | --- |
-| `GET /me/permissions` | rolą wywołującego, `is_app_admin`, każdym uprawnieniem wraz z jego scope'em oraz `hidden_navigation_items` dla tej roli |
+| `GET /me/permissions` | rolą wywołującego, `is_app_admin`, każdym uprawnieniem wraz z jego scope'em oraz `hidden_navigation_items` dla tej roli oraz, dla poświadczenia przebiegu agenta, `run_agent_id` |
 | `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
 | `GET /roles/navigation` | wartościami `hidden_items` organizacji dla poszczególnych ról, `configurable_items` oraz `editable_roles` wywołującego |
 | `PATCH /roles/navigation/{role}` | zastępuje `hidden_items` jednej roli; wymaga `roles:manage` i prawa do zarządzania tą rolą |

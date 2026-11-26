@@ -17,7 +17,7 @@ import {
 } from "@/components/ui";
 import { WatchDialog } from "@/components/watches/watch-dialog";
 import { useCanWatch } from "@/components/watches/watches-card";
-import { useCanCreateTrigger } from "@/hooks";
+import { useCanCreateTrigger, useOrganizations } from "@/hooks";
 
 export default function RoutinesPage() {
   const t = useTranslations("pages.routines");
@@ -25,6 +25,9 @@ export default function RoutinesPage() {
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const canWatch = useCanWatch();
+  const { activeOrg } = useOrganizations();
+  const watchUnavailable =
+    activeOrg?.proactive_watches_enabled === true ? "watchNeedsConnection" : "watchNeedsEnabling";
   const [creatingWatch, setCreatingWatch] = useState(false);
   const emptyAction = canCreate
     ? { label: t("scheduledTask"), onClick: () => setCreatingSchedule(true) }
@@ -34,8 +37,6 @@ export default function RoutinesPage() {
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      {/* The two ways to start a routine are the page's primary actions, so they
-          sit where every other page keeps its create button - in the header. */}
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -61,12 +62,17 @@ export default function RoutinesPage() {
                     {t("eventTask")}
                   </DropdownMenuItem>
                 )}
-                {canWatch && (
-                  <DropdownMenuItem onSelect={() => setCreatingWatch(true)}>
-                    <Radar className="h-4 w-4" />
-                    {t("newWatch")}
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem disabled={!canWatch} onSelect={() => setCreatingWatch(true)}>
+                  <Radar className="h-4 w-4 shrink-0" />
+                  <span className="flex flex-col">
+                    <span>{t("newWatch")}</span>
+                    {!canWatch && (
+                      <span className="max-w-64 text-xs leading-relaxed">
+                        {t(watchUnavailable)}
+                      </span>
+                    )}
+                  </span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : undefined

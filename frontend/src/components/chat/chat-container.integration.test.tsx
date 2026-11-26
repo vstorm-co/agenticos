@@ -17,6 +17,7 @@ import { announceChange } from "@/lib/live-updates";
 import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
+import { MainChatContext } from "./main-chat-context";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { apiClient } from "@/lib/api-client";
 import { useConversations } from "@/hooks/use-conversations";
@@ -212,14 +213,17 @@ function mount(
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   requestedMessageId?: string,
   onOpenMessage?: (target: ConversationMessageSearchTarget) => void,
+  mainChat = false,
 ) {
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer
-        requestedConversationId={requestedConversationId}
-        requestedMessageId={requestedMessageId}
-        onOpenMessage={onOpenMessage}
-      />
+      <MainChatContext.Provider value={mainChat}>
+        <ChatContainer
+          requestedConversationId={requestedConversationId}
+          requestedMessageId={requestedMessageId}
+          onOpenMessage={onOpenMessage}
+        />
+      </MainChatContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -353,967 +357,1008 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
-describe("the chat header's model selection reaches the next request", () => {
-  beforeEach(() => {
-    useChatControlsStore.setState({ byScope: {} });
-    const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) => {
-      if (url === "/me/permissions")
-        return Promise.resolve({
-          permissions: [
-            { permission: "agents:view", scope: "all" },
-            { permission: "agents:run", scope: "all" },
-            { permission: "connections:manage", scope: "all" },
-          ],
-        });
-      if (url.startsWith("/agents") && !url.includes("/dictation") && !url.includes("/voice"))
-        return Promise.resolve({
-          items: [
-            {
-              id: "model-agent",
-              slug: "model-agent",
-              name: "Model agent",
-              status: "published",
-              can_run: true,
-              published_model: {
-                profile_id: "agent-default",
-                provider: "openai",
-                model: "gpt-5",
-                label: "Default GPT",
+describe("the chat container - answering a durable question", () => {
+  it("keeps the normal draft composer below one inline question and queues follow-ups", async () => {
+    useChatStore.getState().addMessage({
+      id: "question-start",
+      role: "user",
+      content: "Ask about format",
+      timestamp: new Date(),
+    });
+    mount(undefined, undefined, undefined, undefined, true);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "My unsent draft");
+    receive("model_request_start", {});
+    receive("thinking_delta", { content: "Choosing a format" });
+    receive("ask_user", {
+      questions: [{ question: "Which format?", options: [{ label: "List" }] }],
+    });
+    expect(editor).toHaveAttribute("contenteditable", "true");
+    expect(editor).toBeVisible();
+    expect(messageOf(editor)).toBe("My unsent draft");
+    expect(screen.getByRole("button", { name: "Answer the agent’s question" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel task" })).toBeNull();
+    expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(await screen.findByText("My unsent draft")).toBeVisible();
+    expect(socket.send.mock.calls.some(([frame]) => frame.message === "My unsent draft")).toBe(
+      false,
+    );
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "ask_user_response")).toBe(
+      false,
+    );
+    expect(messageOf(editor)).toBe("");
+  });
+
+  describe("the chat header's model selection reaches the next request", () => {
+    beforeEach(() => {
+      useChatControlsStore.setState({ byScope: {} });
+      const base = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url === "/me/permissions")
+          return Promise.resolve({
+            permissions: [
+              { permission: "agents:view", scope: "all" },
+              { permission: "agents:run", scope: "all" },
+              { permission: "connections:manage", scope: "all" },
+            ],
+          });
+        if (url.startsWith("/agents") && !url.includes("/dictation") && !url.includes("/voice"))
+          return Promise.resolve({
+            items: [
+              {
+                id: "model-agent",
+                slug: "model-agent",
+                name: "Model agent",
+                status: "published",
+                can_run: true,
+                published_model: {
+                  profile_id: "agent-default",
+                  provider: "openai",
+                  model: "gpt-5",
+                  label: "Default GPT",
+                },
               },
-            },
-          ],
-          total: 1,
-        });
-      if (url === "/providers/model-profiles")
-        return Promise.resolve({
-          items: [
-            {
-              id: "saved-fast",
-              provider: "openai",
-              model: "gpt-fast",
-              label: "Saved fast model",
-              secret_id: "team-key",
-              params: {},
-              fallback_profile_ids: [],
-            },
-          ],
-          total: 1,
-        });
-      if (url === "/providers/catalog")
-        return Promise.resolve({ items: [{ id: "openai", name: "OpenAI" }] });
-      return base(url);
-    });
-    useAgentSelectionStore.setState({ selectedAgentId: "model-agent", selectedWorkflowId: null });
-  });
-
-  afterEach(() => act(() => useChatControlsStore.setState({ byScope: {} })));
-
-  it("sends the header's selected profile without editing the agent or discarding the draft", async () => {
-    mount();
-    const composer = await screen.findByRole("textbox", { name: "Type a message..." });
-    await userEvent.type(composer, "Use the selected model");
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Choose chat model: Default GPT" }),
-    );
-    await userEvent.click(await screen.findByRole("radio", { name: "Saved fast model" }));
-    expect(messageOf(composer)).toBe("Use the selected model");
-    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
-    await waitFor(() =>
-      expect(
-        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
-      ).toMatchObject({
-        message: "Use the selected model",
-        model_profile_id: "saved-fast",
-        agent_id: "model-agent",
-      }),
-    );
-    expect(apiClient.patch).not.toHaveBeenCalled();
-  });
-
-  it("omits the override from the next request after restoring the agent's model", async () => {
-    useChatControlsStore
-      .getState()
-      .update(currentChatControlScope(), { modelProfileId: "saved-fast" });
-    mount();
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Choose chat model: Saved fast model" }),
-    );
-    await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Type a message..." }),
-      "Use the agent default",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
-    await waitFor(() =>
-      expect(
-        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
-      ).toBeDefined(),
-    );
-    const sent = socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message);
-    expect(sent).not.toHaveProperty("model_profile_id");
-    expect(apiClient.patch).not.toHaveBeenCalled();
-  });
-});
-
-describe("the chat container - project room workspace", () => {
-  function savedProjectRoom(canPost: boolean): void {
-    const conversation = {
-      id: "c-room",
-      title: "Launch room",
-      user_id: SIGNED_IN.id,
-      project_id: "p-room",
-    };
-    const project: Project = {
-      id: "p-room",
-      name: "Launch",
-      description: null,
-      instructions: "",
-      default_agent_id: null,
-      default_agent_name: null,
-      owner_user_id: SIGNED_IN.id,
-      visibility: "private",
-      backend: "state",
-      runtime: null,
-      chat_count: 1,
-      last_active_at: null,
-      shared_groups: [],
-      can_use: canPost,
-      can_edit: canPost,
-      created_at: null,
-      updated_at: null,
-    };
-    const workspace: ConversationWorkspace = {
-      scope: "project",
-      backend: "state",
-      owner_label: "Launch",
-      total: 1,
-      bytes_total: 12,
-      bytes_limit: null,
-      truncated: false,
-      unreadable_reason: null,
-      items: [
-        {
-          path: "/report.md",
-          size: 12,
-          is_dir: false,
-          modified_at: null,
-          preview: null,
-          thumbnail: null,
-        },
-      ],
-    };
-    const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) => {
-      if (url.startsWith("/conversations?"))
-        return Promise.resolve({ items: [conversation], total: 1 });
-      if (url === "/projects/p-room") return Promise.resolve(project);
-      if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
-      if (url === "/conversations/c-room/room-requests")
-        return Promise.resolve({ items: [], total: 0, can_post: canPost });
-      if (url === "/conversations/c-room/workspace") return Promise.resolve(workspace);
-      return base(url);
-    });
-    useConversationStore.getState().setCurrentConversationId(conversation.id);
-  }
-
-  function roomAgent(id: string, name: string): RoomParticipantRead {
-    return {
-      kind: "agent",
-      id,
-      name,
-      avatar_url: null,
-      is_member: true,
-      can_add: false,
-      can_mention: true,
-      auto_reply: false,
-    };
-  }
-
-  function mountProjectRoomWithOpenThread(
-    mentionables: RoomParticipantRead[] = [roomAgent("agent-a", "Writer")],
-  ): void {
-    savedProjectRoom(true);
-    const root = {
-      id: "root-a",
-      conversation_id: "c-room",
-      role: "user" as const,
-      content: "Original room topic",
-      created_at: "2026-11-14T00:00:00Z",
-    };
-    loadTranscript([root]);
-    const fallback = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url === "/conversations/c-room/room-mentionables"
-        ? Promise.resolve({
-            items: mentionables,
-          })
-        : url.startsWith("/conversations/c-room/room-threads/root-a?")
-          ? Promise.resolve({ root, items: [], total: 0, can_post: true })
-          : fallback(url),
-    );
-    render(
-      <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-      >
-        <ChatContainer
-          requestedConversationId="c-room"
-          requestedThreadRootId="root-a"
-          onCloseThread={vi.fn()}
-        />
-      </QueryClientProvider>,
-    );
-  }
-
-  it("holds an unsent direct draft until the first project room has an id", async () => {
-    const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url === "/projects/p-room"
-        ? Promise.resolve({ id: "p-room", name: "Launch", can_use: true })
-        : url === "/conversations/c-room/room-requests"
-          ? Promise.resolve({ items: [], total: 0, can_post: true })
-          : url === "/conversations/c-room/room-mentionables"
-            ? Promise.resolve({ items: [] })
-            : base(url),
-    );
-    const initialContentRef = { current: "An unsent direct question" };
-    const consumeInitialContent = vi.fn(() => {
-      const content = initialContentRef.current;
-      initialContentRef.current = "";
-      return content;
-    });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const roomComposer = (conversationId: string | null) => (
-      <TeamRoomComposer
-        key={conversationId ?? "new-room"}
-        conversationId={conversationId}
-        projectId="p-room"
-        readOnly={false}
-        onTyping={vi.fn()}
-        consumeInitialContent={consumeInitialContent}
-      />
-    );
-    const view = render(
-      <QueryClientProvider client={client}>{roomComposer(null)}</QueryClientProvider>,
-    );
-
-    expect(initialContentRef.current).toBe("An unsent direct question");
-    expect(consumeInitialContent).not.toHaveBeenCalled();
-
-    view.rerender(
-      <QueryClientProvider client={client}>{roomComposer("c-room")}</QueryClientProvider>,
-    );
-    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
-    expect(composer).toHaveValue("An unsent direct question");
-    expect(initialContentRef.current).toBe("");
-    expect(consumeInitialContent).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the draft when the same conversation becomes a project room", async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const base = get.getMockImplementation()!;
-    const conversation = {
-      id: "c-room",
-      title: "Launch room",
-      user_id: SIGNED_IN.id,
-    };
-    const project: Project = {
-      id: "p-room",
-      name: "Launch",
-      description: null,
-      instructions: "",
-      default_agent_id: null,
-      default_agent_name: null,
-      owner_user_id: SIGNED_IN.id,
-      visibility: "private",
-      backend: "state",
-      runtime: null,
-      chat_count: 1,
-      last_active_at: null,
-      shared_groups: [],
-      can_use: true,
-      can_edit: true,
-      created_at: null,
-      updated_at: null,
-    };
-    let isRoom = false;
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
-        ? Promise.resolve({
-            items: [isRoom ? { ...conversation, project_id: "p-room" } : conversation],
+            ],
             total: 1,
-          })
-        : url === "/projects/p-room"
-          ? Promise.resolve(project)
-          : url === "/conversations/c-room/room-requests"
-            ? Promise.resolve({ items: [], total: 0, can_post: true })
-            : url === "/conversations/c-room/room-mentionables"
-              ? Promise.resolve({ items: [] })
-              : base(url),
-    );
-    useConversationStore.getState().setCurrentConversationId("c-room");
-    mount(undefined, client);
-    const directComposer = await screen.findByRole(
-      "textbox",
-      { name: "Type a message..." },
-      SETTLE,
-    );
-    await userEvent.type(directComposer, "Keep this draft in its converted room");
-
-    isRoom = true;
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: qk.conversations.all() });
+          });
+        if (url === "/providers/model-profiles")
+          return Promise.resolve({
+            items: [
+              {
+                id: "saved-fast",
+                provider: "openai",
+                model: "gpt-fast",
+                label: "Saved fast model",
+                secret_id: "team-key",
+                params: {},
+                fallback_profile_ids: [],
+              },
+            ],
+            total: 1,
+          });
+        if (url === "/providers/catalog")
+          return Promise.resolve({ items: [{ id: "openai", name: "OpenAI" }] });
+        return base(url);
+      });
+      useAgentSelectionStore.setState({ selectedAgentId: "model-agent", selectedWorkflowId: null });
     });
-    const roomComposer = await screen.findByRole(
-      "textbox",
-      { name: "Message to the team" },
-      SETTLE,
-    );
-    expect(roomComposer).toHaveValue("Keep this draft in its converted room");
-  });
 
-  it("hands a new-chat draft to the exact project room created from that selection", async () => {
-    const base = get.getMockImplementation()!;
-    const conversation = {
-      id: "c-room",
-      title: "Launch room",
-      user_id: SIGNED_IN.id,
-      project_id: "p-room",
-    };
-    const project: Project = {
-      id: "p-room",
-      name: "Launch",
-      description: null,
-      instructions: "",
-      default_agent_id: null,
-      default_agent_name: null,
-      owner_user_id: SIGNED_IN.id,
-      visibility: "private",
-      backend: "state",
-      runtime: null,
-      chat_count: 1,
-      last_active_at: null,
-      shared_groups: [],
-      can_use: true,
-      can_edit: true,
-      created_at: null,
-      updated_at: null,
-    };
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
-        ? Promise.resolve({ items: [conversation], total: 1 })
-        : url === "/projects/p-room"
-          ? Promise.resolve(project)
-          : url === "/conversations/c-room/room-requests"
-            ? Promise.resolve({ items: [], total: 0, can_post: true })
-            : url === "/conversations/c-room/room-mentionables"
-              ? Promise.resolve({ items: [] })
-              : base(url),
-    );
-    vi.mocked(apiClient.post).mockResolvedValue({
-      id: "c-room",
-      project_id: "p-room",
-    } as never);
-    mount();
-    const directComposer = await screen.findByRole(
-      "textbox",
-      { name: "Type a message..." },
-      SETTLE,
-    );
-    await userEvent.type(directComposer, "Keep this question in the new room");
+    afterEach(() => act(() => useChatControlsStore.setState({ byScope: {} })));
 
-    act(() => useConversationStore.getState().setPendingProjectId("p-room"));
-    await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
-    await waitFor(
-      () =>
-        expect(apiClient.post).toHaveBeenCalledWith("/conversations", {
-          project_id: "p-room",
-          title: expect.any(String),
+    it("sends the header's selected profile without editing the agent or discarding the draft", async () => {
+      mount();
+      const composer = await screen.findByRole("textbox", { name: "Type a message..." });
+      await userEvent.type(composer, "Use the selected model");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Choose chat model: Default GPT" }),
+      );
+      await userEvent.click(await screen.findByRole("radio", { name: "Saved fast model" }));
+      expect(messageOf(composer)).toBe("Use the selected model");
+      await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await waitFor(() =>
+        expect(
+          socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+        ).toMatchObject({
+          message: "Use the selected model",
+          model_profile_id: "saved-fast",
+          agent_id: "model-agent",
         }),
-      SETTLE,
-    );
-    await waitFor(
-      () => expect(routerPush).toHaveBeenCalledExactlyOnceWith("/chat?id=c-room"),
-      SETTLE,
-    );
+      );
+      expect(apiClient.patch).not.toHaveBeenCalled();
+    });
 
-    act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
-    const roomComposer = await screen.findByRole(
-      "textbox",
-      { name: "Message to the team" },
-      SETTLE,
-    );
-    expect(roomComposer).toHaveValue("Keep this question in the new room");
+    it("omits the override from the next request after restoring the agent's model", async () => {
+      useChatControlsStore
+        .getState()
+        .update(currentChatControlScope(), { modelProfileId: "saved-fast" });
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Choose chat model: Saved fast model" }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Type a message..." }),
+        "Use the agent default",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await waitFor(() =>
+        expect(
+          socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+        ).toBeDefined(),
+      );
+      const sent = socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message);
+      expect(sent).not.toHaveProperty("model_profile_id");
+      expect(apiClient.patch).not.toHaveBeenCalled();
+    });
   });
 
-  it("refuses a room-create handoff after the selection generation changes", async () => {
-    const base = get.getMockImplementation()!;
-    const room = {
-      id: "c-room",
-      title: "Launch room",
-      user_id: SIGNED_IN.id,
-      project_id: "p-room",
-    };
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
-        ? Promise.resolve({ items: [room], total: 1 })
-        : url === "/projects/p-room"
+  describe("the chat container - project room workspace", () => {
+    function savedProjectRoom(canPost: boolean): void {
+      const conversation = {
+        id: "c-room",
+        title: "Launch room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+      };
+      const project: Project = {
+        id: "p-room",
+        name: "Launch",
+        description: null,
+        instructions: "",
+        default_agent_id: null,
+        default_agent_name: null,
+        owner_user_id: SIGNED_IN.id,
+        visibility: "private",
+        backend: "state",
+        runtime: null,
+        chat_count: 1,
+        last_active_at: null,
+        shared_groups: [],
+        can_use: canPost,
+        can_edit: canPost,
+        created_at: null,
+        updated_at: null,
+      };
+      const workspace: ConversationWorkspace = {
+        scope: "project",
+        backend: "state",
+        owner_label: "Launch",
+        total: 1,
+        bytes_total: 12,
+        bytes_limit: null,
+        truncated: false,
+        unreadable_reason: null,
+        items: [
+          {
+            path: "/report.md",
+            size: 12,
+            is_dir: false,
+            modified_at: null,
+            preview: null,
+            thumbnail: null,
+          },
+        ],
+      };
+      const base = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url.startsWith("/conversations?"))
+          return Promise.resolve({ items: [conversation], total: 1 });
+        if (url === "/projects/p-room") return Promise.resolve(project);
+        if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
+        if (url === "/conversations/c-room/room-requests")
+          return Promise.resolve({ items: [], total: 0, can_post: canPost });
+        if (url === "/conversations/c-room/workspace") return Promise.resolve(workspace);
+        return base(url);
+      });
+      useConversationStore.getState().setCurrentConversationId(conversation.id);
+    }
+
+    function roomAgent(id: string, name: string): RoomParticipantRead {
+      return {
+        kind: "agent",
+        id,
+        name,
+        avatar_url: null,
+        is_member: true,
+        can_add: false,
+        can_mention: true,
+        auto_reply: false,
+      };
+    }
+
+    function mountProjectRoomWithOpenThread(
+      mentionables: RoomParticipantRead[] = [roomAgent("agent-a", "Writer")],
+    ): void {
+      savedProjectRoom(true);
+      const root = {
+        id: "root-a",
+        conversation_id: "c-room",
+        role: "user" as const,
+        content: "Original room topic",
+        created_at: "2026-11-14T00:00:00Z",
+      };
+      loadTranscript([root]);
+      const fallback = get.getMockImplementation()!;
+      get.mockImplementation((url: string) =>
+        url === "/conversations/c-room/room-mentionables"
+          ? Promise.resolve({
+              items: mentionables,
+            })
+          : url.startsWith("/conversations/c-room/room-threads/root-a?")
+            ? Promise.resolve({ root, items: [], total: 0, can_post: true })
+            : fallback(url),
+      );
+      render(
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <ChatContainer
+            requestedConversationId="c-room"
+            requestedThreadRootId="root-a"
+            onCloseThread={vi.fn()}
+          />
+        </QueryClientProvider>,
+      );
+    }
+
+    it("holds an unsent direct draft until the first project room has an id", async () => {
+      const base = get.getMockImplementation()!;
+      get.mockImplementation((url: string) =>
+        url === "/projects/p-room"
           ? Promise.resolve({ id: "p-room", name: "Launch", can_use: true })
           : url === "/conversations/c-room/room-requests"
             ? Promise.resolve({ items: [], total: 0, can_post: true })
             : url === "/conversations/c-room/room-mentionables"
               ? Promise.resolve({ items: [] })
               : base(url),
-    );
-    let finishCreation!: (value: { id: string; project_id: string }) => void;
-    const creation = new Promise<{ id: string; project_id: string }>((resolve) => {
-      finishCreation = resolve;
-    });
-    vi.mocked(apiClient.post).mockReturnValueOnce(creation as never);
-    mount();
-    const directComposer = await screen.findByRole(
-      "textbox",
-      { name: "Type a message..." },
-      SETTLE,
-    );
-    await userEvent.type(directComposer, "Draft from the selection that left");
-    act(() => useConversationStore.getState().setPendingProjectId("p-room"));
-    await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
-    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1), SETTLE);
-
-    // The empty chat stays mounted, but this visit to it has been superseded.
-    act(() => useConversationStore.getState().setCurrentConversationId(null));
-    await act(async () => finishCreation({ id: "c-room", project_id: "p-room" }));
-    expect(routerPush).not.toHaveBeenCalled();
-
-    // Even if the created room is opened later, the old generation cannot seed it.
-    act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
-    const roomComposer = await screen.findByRole(
-      "textbox",
-      { name: "Message to the team" },
-      SETTLE,
-    );
-    expect(roomComposer).toHaveValue("");
-  });
-
-  it("does not transfer a private conversation draft into a different project room", async () => {
-    const base = get.getMockImplementation()!;
-    const directConversation = {
-      id: "c-private",
-      title: "Private chat",
-      user_id: SIGNED_IN.id,
-    };
-    const roomConversation = {
-      id: "c-room-b",
-      title: "Launch room",
-      user_id: SIGNED_IN.id,
-      project_id: "p-room",
-    };
-    const project: Project = {
-      id: "p-room",
-      name: "Launch",
-      description: null,
-      instructions: "",
-      default_agent_id: null,
-      default_agent_name: null,
-      owner_user_id: SIGNED_IN.id,
-      visibility: "private",
-      backend: "state",
-      runtime: null,
-      chat_count: 1,
-      last_active_at: null,
-      shared_groups: [],
-      can_use: true,
-      can_edit: true,
-      created_at: null,
-      updated_at: null,
-    };
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
-        ? Promise.resolve({ items: [directConversation, roomConversation], total: 2 })
-        : url === "/projects/p-room"
-          ? Promise.resolve(project)
-          : url === "/conversations/c-room-b/room-requests"
-            ? Promise.resolve({ items: [], total: 0, can_post: true })
-            : url === "/conversations/c-room-b/room-mentionables"
-              ? Promise.resolve({ items: [] })
-              : base(url),
-    );
-    useConversationStore.getState().setCurrentConversationId("c-private");
-    mount();
-    const directComposer = await screen.findByRole(
-      "textbox",
-      { name: "Type a message..." },
-      SETTLE,
-    );
-    await userEvent.type(directComposer, "Private draft for A");
-
-    act(() => useConversationStore.getState().setCurrentConversationId("c-room-b"));
-    const roomComposer = await screen.findByRole(
-      "textbox",
-      { name: "Message to the team" },
-      SETTLE,
-    );
-    expect(roomComposer).toHaveValue("");
-  });
-
-  it.each(["account", "organization"] as const)(
-    "resets a new-chat draft when its %s owner changes",
-    async (boundary) => {
-      mount();
-      const before = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
-      await userEvent.type(before, "Only the original identity can see this");
-
-      act(() => {
-        if (boundary === "account") {
-          useAuthStore.setState({
-            user: { ...SIGNED_IN, id: "u-2", email: "other@example.test" } as never,
-            sessionOwnerId: "u-2",
-          });
-        } else {
-          useOrgStore.getState().setActiveOrgId("org-2");
-        }
+      );
+      const initialContentRef = { current: "An unsent direct question" };
+      const consumeInitialContent = vi.fn(() => {
+        const content = initialContentRef.current;
+        initialContentRef.current = "";
+        return content;
       });
-
-      const after = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
-      expect(after).not.toBe(before);
-      expect(messageOf(after)).toBe("");
-    },
-  );
-
-  it("keeps tagged replies out of the main view while room metadata and thread authorization are pending", async () => {
-    savedProjectRoom(true);
-    const root = {
-      id: "root-a",
-      conversation_id: "c-room",
-      role: "user" as const,
-      content: "Original room topic",
-      created_at: "2026-11-14T00:00:00Z",
-      thread_reply_count: 1,
-    };
-    const reply = {
-      id: "reply-a",
-      conversation_id: "c-room",
-      role: "user" as const,
-      content: "Scoped reply A",
-      created_at: "2026-11-14T00:00:01Z",
-      thread_root_message_id: "root-a",
-    };
-    loadTranscript([root, reply]);
-    const base = get.getMockImplementation()!;
-    let authorize!: (value: unknown) => void;
-    let metadata!: (value: unknown) => void;
-    let listing!: (value: unknown) => void;
-    get.mockImplementation((url: string) => {
-      if (url.startsWith("/conversations?"))
-        return new Promise((resolve) => {
-          listing = resolve;
-        });
-      if (url === "/conversations/c-room/metadata")
-        return new Promise((resolve) => {
-          metadata = resolve;
-        });
-      if (url.includes("/room-threads/root-a?"))
-        return new Promise((resolve) => {
-          authorize = resolve;
-        });
-      return base(url);
-    });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const openThread = vi.fn();
-    render(
-      <QueryClientProvider client={client}>
-        <ChatContainer
-          requestedConversationId="c-room"
-          requestedThreadRootId="root-a"
-          onCloseThread={vi.fn()}
-          onOpenThread={openThread}
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const roomComposer = (conversationId: string | null) => (
+        <TeamRoomComposer
+          key={conversationId ?? "new-room"}
+          conversationId={conversationId}
+          projectId="p-room"
+          readOnly={false}
+          onTyping={vi.fn()}
+          consumeInitialContent={consumeInitialContent}
         />
-      </QueryClientProvider>,
+      );
+      const view = render(
+        <QueryClientProvider client={client}>{roomComposer(null)}</QueryClientProvider>,
+      );
+
+      expect(initialContentRef.current).toBe("An unsent direct question");
+      expect(consumeInitialContent).not.toHaveBeenCalled();
+
+      view.rerender(
+        <QueryClientProvider client={client}>{roomComposer("c-room")}</QueryClientProvider>,
+      );
+      const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+      expect(composer).toHaveValue("An unsent direct question");
+      expect(initialContentRef.current).toBe("");
+      expect(consumeInitialContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the draft when the same conversation becomes a project room", async () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const base = get.getMockImplementation()!;
+      const conversation = {
+        id: "c-room",
+        title: "Launch room",
+        user_id: SIGNED_IN.id,
+      };
+      const project: Project = {
+        id: "p-room",
+        name: "Launch",
+        description: null,
+        instructions: "",
+        default_agent_id: null,
+        default_agent_name: null,
+        owner_user_id: SIGNED_IN.id,
+        visibility: "private",
+        backend: "state",
+        runtime: null,
+        chat_count: 1,
+        last_active_at: null,
+        shared_groups: [],
+        can_use: true,
+        can_edit: true,
+        created_at: null,
+        updated_at: null,
+      };
+      let isRoom = false;
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations?")
+          ? Promise.resolve({
+              items: [isRoom ? { ...conversation, project_id: "p-room" } : conversation],
+              total: 1,
+            })
+          : url === "/projects/p-room"
+            ? Promise.resolve(project)
+            : url === "/conversations/c-room/room-requests"
+              ? Promise.resolve({ items: [], total: 0, can_post: true })
+              : url === "/conversations/c-room/room-mentionables"
+                ? Promise.resolve({ items: [] })
+                : base(url),
+      );
+      useConversationStore.getState().setCurrentConversationId("c-room");
+      mount(undefined, client);
+      const directComposer = await screen.findByRole(
+        "textbox",
+        { name: "Type a message..." },
+        SETTLE,
+      );
+      await userEvent.type(directComposer, "Keep this draft in its converted room");
+
+      isRoom = true;
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: qk.conversations.all() });
+      });
+      const roomComposer = await screen.findByRole(
+        "textbox",
+        { name: "Message to the team" },
+        SETTLE,
+      );
+      expect(roomComposer).toHaveValue("Keep this draft in its converted room");
+    });
+
+    it("hands a new-chat draft to the exact project room created from that selection", async () => {
+      const base = get.getMockImplementation()!;
+      const conversation = {
+        id: "c-room",
+        title: "Launch room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+      };
+      const project: Project = {
+        id: "p-room",
+        name: "Launch",
+        description: null,
+        instructions: "",
+        default_agent_id: null,
+        default_agent_name: null,
+        owner_user_id: SIGNED_IN.id,
+        visibility: "private",
+        backend: "state",
+        runtime: null,
+        chat_count: 1,
+        last_active_at: null,
+        shared_groups: [],
+        can_use: true,
+        can_edit: true,
+        created_at: null,
+        updated_at: null,
+      };
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations?")
+          ? Promise.resolve({ items: [conversation], total: 1 })
+          : url === "/projects/p-room"
+            ? Promise.resolve(project)
+            : url === "/conversations/c-room/room-requests"
+              ? Promise.resolve({ items: [], total: 0, can_post: true })
+              : url === "/conversations/c-room/room-mentionables"
+                ? Promise.resolve({ items: [] })
+                : base(url),
+      );
+      vi.mocked(apiClient.post).mockResolvedValue({
+        id: "c-room",
+        project_id: "p-room",
+      } as never);
+      mount();
+      const directComposer = await screen.findByRole(
+        "textbox",
+        { name: "Type a message..." },
+        SETTLE,
+      );
+      await userEvent.type(directComposer, "Keep this question in the new room");
+
+      act(() => useConversationStore.getState().setPendingProjectId("p-room"));
+      await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
+      await waitFor(
+        () =>
+          expect(apiClient.post).toHaveBeenCalledWith("/conversations", {
+            project_id: "p-room",
+            title: expect.any(String),
+          }),
+        SETTLE,
+      );
+      await waitFor(
+        () => expect(routerPush).toHaveBeenCalledExactlyOnceWith("/chat?id=c-room"),
+        SETTLE,
+      );
+
+      act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
+      const roomComposer = await screen.findByRole(
+        "textbox",
+        { name: "Message to the team" },
+        SETTLE,
+      );
+      expect(roomComposer).toHaveValue("Keep this question in the new room");
+    });
+
+    it("refuses a room-create handoff after the selection generation changes", async () => {
+      const base = get.getMockImplementation()!;
+      const room = {
+        id: "c-room",
+        title: "Launch room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+      };
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations?")
+          ? Promise.resolve({ items: [room], total: 1 })
+          : url === "/projects/p-room"
+            ? Promise.resolve({ id: "p-room", name: "Launch", can_use: true })
+            : url === "/conversations/c-room/room-requests"
+              ? Promise.resolve({ items: [], total: 0, can_post: true })
+              : url === "/conversations/c-room/room-mentionables"
+                ? Promise.resolve({ items: [] })
+                : base(url),
+      );
+      let finishCreation!: (value: { id: string; project_id: string }) => void;
+      const creation = new Promise<{ id: string; project_id: string }>((resolve) => {
+        finishCreation = resolve;
+      });
+      vi.mocked(apiClient.post).mockReturnValueOnce(creation as never);
+      mount();
+      const directComposer = await screen.findByRole(
+        "textbox",
+        { name: "Type a message..." },
+        SETTLE,
+      );
+      await userEvent.type(directComposer, "Draft from the selection that left");
+      act(() => useConversationStore.getState().setPendingProjectId("p-room"));
+      await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1), SETTLE);
+
+      // The empty chat stays mounted, but this visit to it has been superseded.
+      act(() => useConversationStore.getState().setCurrentConversationId(null));
+      await act(async () => finishCreation({ id: "c-room", project_id: "p-room" }));
+      expect(routerPush).not.toHaveBeenCalled();
+
+      // Even if the created room is opened later, the old generation cannot seed it.
+      act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
+      const roomComposer = await screen.findByRole(
+        "textbox",
+        { name: "Message to the team" },
+        SETTLE,
+      );
+      expect(roomComposer).toHaveValue("");
+    });
+
+    it("does not transfer a private conversation draft into a different project room", async () => {
+      const base = get.getMockImplementation()!;
+      const directConversation = {
+        id: "c-private",
+        title: "Private chat",
+        user_id: SIGNED_IN.id,
+      };
+      const roomConversation = {
+        id: "c-room-b",
+        title: "Launch room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+      };
+      const project: Project = {
+        id: "p-room",
+        name: "Launch",
+        description: null,
+        instructions: "",
+        default_agent_id: null,
+        default_agent_name: null,
+        owner_user_id: SIGNED_IN.id,
+        visibility: "private",
+        backend: "state",
+        runtime: null,
+        chat_count: 1,
+        last_active_at: null,
+        shared_groups: [],
+        can_use: true,
+        can_edit: true,
+        created_at: null,
+        updated_at: null,
+      };
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations?")
+          ? Promise.resolve({ items: [directConversation, roomConversation], total: 2 })
+          : url === "/projects/p-room"
+            ? Promise.resolve(project)
+            : url === "/conversations/c-room-b/room-requests"
+              ? Promise.resolve({ items: [], total: 0, can_post: true })
+              : url === "/conversations/c-room-b/room-mentionables"
+                ? Promise.resolve({ items: [] })
+                : base(url),
+      );
+      useConversationStore.getState().setCurrentConversationId("c-private");
+      mount();
+      const directComposer = await screen.findByRole(
+        "textbox",
+        { name: "Type a message..." },
+        SETTLE,
+      );
+      await userEvent.type(directComposer, "Private draft for A");
+
+      act(() => useConversationStore.getState().setCurrentConversationId("c-room-b"));
+      const roomComposer = await screen.findByRole(
+        "textbox",
+        { name: "Message to the team" },
+        SETTLE,
+      );
+      expect(roomComposer).toHaveValue("");
+    });
+
+    it.each(["account", "organization"] as const)(
+      "resets a new-chat draft when its %s owner changes",
+      async (boundary) => {
+        mount();
+        const before = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
+        await userEvent.type(before, "Only the original identity can see this");
+
+        act(() => {
+          if (boundary === "account") {
+            useAuthStore.setState({
+              user: { ...SIGNED_IN, id: "u-2", email: "other@example.test" } as never,
+              sessionOwnerId: "u-2",
+            });
+          } else {
+            useOrgStore.getState().setActiveOrgId("org-2");
+          }
+        });
+
+        const after = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
+        expect(after).not.toBe(before);
+        expect(messageOf(after)).toBe("");
+      },
     );
-    await waitFor(() => expect(authorize).toBeDefined(), SETTLE);
-    expect(screen.queryByText("Scoped reply A")).toBeNull();
-    expect(screen.getByText("Original room topic")).toBeInTheDocument();
-    await act(async () => authorize({ root, items: [reply], total: 1, can_post: true }));
-    const panel = screen.getByRole("complementary", { name: "Thread" });
-    expect(await within(panel).findByText("Scoped reply A")).toBeInTheDocument();
-    expect(screen.getAllByText("Scoped reply A")).toHaveLength(1);
-    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
-    await act(async () => {
+
+    it("keeps tagged replies out of the main view while room metadata and thread authorization are pending", async () => {
+      savedProjectRoom(true);
+      const root = {
+        id: "root-a",
+        conversation_id: "c-room",
+        role: "user" as const,
+        content: "Original room topic",
+        created_at: "2026-11-14T00:00:00Z",
+        thread_reply_count: 1,
+      };
+      const reply = {
+        id: "reply-a",
+        conversation_id: "c-room",
+        role: "user" as const,
+        content: "Scoped reply A",
+        created_at: "2026-11-14T00:00:01Z",
+        thread_root_message_id: "root-a",
+      };
+      loadTranscript([root, reply]);
+      const base = get.getMockImplementation()!;
+      let authorize!: (value: unknown) => void;
+      let metadata!: (value: unknown) => void;
+      let listing!: (value: unknown) => void;
+      get.mockImplementation((url: string) => {
+        if (url.startsWith("/conversations?"))
+          return new Promise((resolve) => {
+            listing = resolve;
+          });
+        if (url === "/conversations/c-room/metadata")
+          return new Promise((resolve) => {
+            metadata = resolve;
+          });
+        if (url.includes("/room-threads/root-a?"))
+          return new Promise((resolve) => {
+            authorize = resolve;
+          });
+        return base(url);
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const openThread = vi.fn();
+      render(
+        <QueryClientProvider client={client}>
+          <ChatContainer
+            requestedConversationId="c-room"
+            requestedThreadRootId="root-a"
+            onCloseThread={vi.fn()}
+            onOpenThread={openThread}
+          />
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(authorize).toBeDefined(), SETTLE);
+      expect(screen.queryByText("Scoped reply A")).toBeNull();
+      expect(screen.getByText("Original room topic")).toBeInTheDocument();
+      await act(async () => authorize({ root, items: [reply], total: 1, can_post: true }));
+      const panel = screen.getByRole("complementary", { name: "Thread" });
+      expect(await within(panel).findByText("Scoped reply A")).toBeInTheDocument();
+      expect(screen.getAllByText("Scoped reply A")).toHaveLength(1);
+      expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+      await act(async () => {
+        const conversation = {
+          id: "c-room",
+          user_id: SIGNED_IN.id,
+          project_id: "p-room",
+          title: "Launch room",
+        };
+        listing({ items: [conversation], total: 1 });
+        metadata?.(conversation);
+      });
+      await within(panel).findByRole("textbox", { name: "Reply to thread" });
+      receive("turn_attached", { conversation_id: "c-room", thread_root_message_id: "root-b" });
+      receive("model_request_start", {
+        conversation_id: "c-room",
+        thread_root_message_id: "root-b",
+      });
+      receive("text_delta", {
+        conversation_id: "c-room",
+        thread_root_message_id: "root-b",
+        index: 0,
+        content: "Live in another thread",
+      });
+      expect(screen.queryByText("Live in another thread")).toBeNull();
+      receive("ask_user", {
+        conversation_id: "c-room",
+        thread_root_message_id: "root-b",
+        questions: [{ question: "Question in another thread", options: [{ label: "Continue" }] }],
+      });
+      expect(within(panel).queryByText("Question in another thread")).toBeNull();
+      const jump = within(panel).getByRole("button", { name: "Open thread" });
+      expect(screen.getAllByRole("button", { name: "Open thread" })).toHaveLength(1);
+      await userEvent.click(jump);
+      expect(openThread).toHaveBeenCalledWith("root-b");
+    });
+
+    it("keeps the main and thread mention listboxes and active options uniquely addressable", async () => {
+      mountProjectRoomWithOpenThread();
+      const mainComposer = await screen.findByRole(
+        "textbox",
+        { name: "Message to the team" },
+        SETTLE,
+      );
+      const panel = await screen.findByRole("complementary", { name: "Thread" }, SETTLE);
+      const threadComposer = await within(panel).findByRole(
+        "textbox",
+        { name: "Reply to thread" },
+        SETTLE,
+      );
+
+      await userEvent.type(mainComposer, "@Wri");
+      await userEvent.type(threadComposer, "@Wri");
+
+      const options = await screen.findAllByRole("option", undefined, SETTLE);
+      expect(options).toHaveLength(2);
+      const listboxIds = [
+        mainComposer.getAttribute("aria-controls"),
+        threadComposer.getAttribute("aria-controls"),
+      ];
+      const controls = listboxIds.filter((id): id is string => id !== null);
+      expect(controls).toHaveLength(2);
+      expect(new Set(controls).size).toBe(2);
+      const listboxes = screen.getAllByRole("listbox");
+      expect(listboxes).toHaveLength(2);
+      expect(new Set(listboxes.map((listbox) => listbox.id))).toEqual(new Set(controls));
+
+      const activeOptionIds = [
+        mainComposer.getAttribute("aria-activedescendant"),
+        threadComposer.getAttribute("aria-activedescendant"),
+      ];
+      const activeOptions = activeOptionIds.filter((id): id is string => id !== null);
+      expect(activeOptions).toHaveLength(2);
+      expect(new Set(activeOptions).size).toBe(2);
+      expect(activeOptions.every((id) => options.some((option) => option.id === id))).toBe(true);
+    });
+
+    it("resets keyboard mention selection when a query cycles through a different match set", async () => {
+      mountProjectRoomWithOpenThread([
+        roomAgent("agent-writer", "Writer"),
+        roomAgent("agent-willow", "Willow"),
+        roomAgent("agent-warden", "Warden"),
+      ]);
+      const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+      await userEvent.type(composer, "@W");
+      const listbox = await screen.findByRole("listbox", undefined, SETTLE);
+      expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+      expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-2`);
+
+      await userEvent.clear(composer);
+      await userEvent.type(composer, "@Wi");
+      expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+
+      await userEvent.clear(composer);
+      await userEvent.type(composer, "@W");
+      expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+    });
+
+    it("closes the mention palette after an accepted post and keeps unpicked text literal", async () => {
+      mountProjectRoomWithOpenThread();
+      const submitRoomPost = vi
+        .fn<(input: unknown) => Promise<unknown>>()
+        .mockRejectedValueOnce(new TypeError("Network lost"))
+        .mockResolvedValueOnce({
+          message: {
+            id: "saved-room-message",
+            conversation_id: "c-room",
+            role: "user",
+            content: "@Wri",
+            created_at: "2026-11-14T00:00:00Z",
+          },
+          request: null,
+        } as never);
+      vi.mocked(apiClient.post).mockImplementation(async (path, input) =>
+        path === "/conversations/c-room/room-messages" ? submitRoomPost(input) : {},
+      );
+      const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+      await userEvent.type(composer, "@Wri");
+      expect(await screen.findByRole("listbox", undefined, SETTLE)).toBeVisible();
+
+      const form = composer.closest("form")!;
+      fireEvent.submit(form);
+      await waitFor(
+        () => expect(within(form).getByRole("button", { name: /retry/i })).toBeEnabled(),
+        SETTLE,
+      );
+      expect(composer).toHaveValue("@Wri");
+      expect(screen.getByRole("listbox")).toBeVisible();
+      const frozen = submitRoomPost.mock.calls[0]![0];
+
+      fireEvent.submit(form);
+
+      await waitFor(() => expect(submitRoomPost).toHaveBeenCalledTimes(2), SETTLE);
+      expect(submitRoomPost.mock.calls[1]![0]).toEqual(frozen);
+      await waitFor(() => expect(composer).toHaveValue(""), SETTLE);
+      await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull(), SETTLE);
+      expect(submitRoomPost).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ content: "@Wri", mentions: [] }),
+      );
+    });
+
+    it("opens retained thread history read-only after its project is detached", async () => {
+      savedProjectRoom(true);
+      const root = {
+        id: "root-history",
+        conversation_id: "c-room",
+        role: "user" as const,
+        content: "Retained original",
+        created_at: "2026-11-14T00:00:00Z",
+        thread_reply_count: 1,
+      };
+      const reply = {
+        id: "history-reply",
+        conversation_id: "c-room",
+        role: "user" as const,
+        content: "Retained thread reply",
+        created_at: "2026-11-14T00:00:01Z",
+        thread_root_message_id: "root-history",
+      };
+      loadTranscript([root]);
+      const base = get.getMockImplementation()!;
       const conversation = {
         id: "c-room",
         user_id: SIGNED_IN.id,
-        project_id: "p-room",
-        title: "Launch room",
+        project_id: null,
+        title: "Retained conversation",
       };
-      listing({ items: [conversation], total: 1 });
-      metadata?.(conversation);
+      get.mockImplementation((url: string) => {
+        if (url.startsWith("/conversations?"))
+          return Promise.resolve({ items: [conversation], total: 1 });
+        if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
+        if (url.includes("/room-threads/root-history?"))
+          return Promise.resolve({ root, items: [reply], total: 1, can_post: false });
+        return base(url);
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const open = vi.fn();
+      render(
+        <QueryClientProvider client={client}>
+          <ChatContainer
+            requestedConversationId="c-room"
+            requestedThreadRootId="root-history"
+            onCloseThread={vi.fn()}
+            onOpenThread={open}
+          />
+        </QueryClientProvider>,
+      );
+      const panel = await screen.findByRole("complementary", { name: "Thread" });
+      expect(await within(panel).findByText("Retained thread reply")).toBeInTheDocument();
+      expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "1 reply" }));
+      expect(open).toHaveBeenCalledWith("root-history");
     });
-    await within(panel).findByRole("textbox", { name: "Reply to thread" });
-    receive("turn_attached", { conversation_id: "c-room", thread_root_message_id: "root-b" });
-    receive("model_request_start", { conversation_id: "c-room", thread_root_message_id: "root-b" });
-    receive("text_delta", {
-      conversation_id: "c-room",
-      thread_root_message_id: "root-b",
-      index: 0,
-      content: "Live in another thread",
-    });
-    expect(screen.queryByText("Live in another thread")).toBeNull();
-    receive("ask_user", {
-      conversation_id: "c-room",
-      thread_root_message_id: "root-b",
-      questions: [{ question: "Question in another thread", options: [{ label: "Continue" }] }],
-    });
-    expect(within(panel).queryByText("Question in another thread")).toBeNull();
-    const jump = within(panel).getByRole("button", { name: "Open thread" });
-    expect(screen.getAllByRole("button", { name: "Open thread" })).toHaveLength(1);
-    await userEvent.click(jump);
-    expect(openThread).toHaveBeenCalledWith("root-b");
-  });
-
-  it("keeps the main and thread mention listboxes and active options uniquely addressable", async () => {
-    mountProjectRoomWithOpenThread();
-    const mainComposer = await screen.findByRole(
-      "textbox",
-      { name: "Message to the team" },
-      SETTLE,
-    );
-    const panel = await screen.findByRole("complementary", { name: "Thread" }, SETTLE);
-    const threadComposer = await within(panel).findByRole(
-      "textbox",
-      { name: "Reply to thread" },
-      SETTLE,
-    );
-
-    await userEvent.type(mainComposer, "@Wri");
-    await userEvent.type(threadComposer, "@Wri");
-
-    const options = await screen.findAllByRole("option", undefined, SETTLE);
-    expect(options).toHaveLength(2);
-    const listboxIds = [
-      mainComposer.getAttribute("aria-controls"),
-      threadComposer.getAttribute("aria-controls"),
-    ];
-    const controls = listboxIds.filter((id): id is string => id !== null);
-    expect(controls).toHaveLength(2);
-    expect(new Set(controls).size).toBe(2);
-    const listboxes = screen.getAllByRole("listbox");
-    expect(listboxes).toHaveLength(2);
-    expect(new Set(listboxes.map((listbox) => listbox.id))).toEqual(new Set(controls));
-
-    const activeOptionIds = [
-      mainComposer.getAttribute("aria-activedescendant"),
-      threadComposer.getAttribute("aria-activedescendant"),
-    ];
-    const activeOptions = activeOptionIds.filter((id): id is string => id !== null);
-    expect(activeOptions).toHaveLength(2);
-    expect(new Set(activeOptions).size).toBe(2);
-    expect(activeOptions.every((id) => options.some((option) => option.id === id))).toBe(true);
-  });
-
-  it("resets keyboard mention selection when a query cycles through a different match set", async () => {
-    mountProjectRoomWithOpenThread([
-      roomAgent("agent-writer", "Writer"),
-      roomAgent("agent-willow", "Willow"),
-      roomAgent("agent-warden", "Warden"),
-    ]);
-    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
-    await userEvent.type(composer, "@W");
-    const listbox = await screen.findByRole("listbox", undefined, SETTLE);
-    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
-
-    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
-    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-2`);
-
-    await userEvent.clear(composer);
-    await userEvent.type(composer, "@Wi");
-    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
-
-    await userEvent.clear(composer);
-    await userEvent.type(composer, "@W");
-    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
-  });
-
-  it("closes the mention palette after an accepted post and keeps unpicked text literal", async () => {
-    mountProjectRoomWithOpenThread();
-    const submitRoomPost = vi
-      .fn<(input: unknown) => Promise<unknown>>()
-      .mockRejectedValueOnce(new TypeError("Network lost"))
-      .mockResolvedValueOnce({
-        message: {
-          id: "saved-room-message",
-          conversation_id: "c-room",
-          role: "user",
-          content: "@Wri",
-          created_at: "2026-11-14T00:00:00Z",
-        },
-        request: null,
-      } as never);
-    vi.mocked(apiClient.post).mockImplementation(async (path, input) =>
-      path === "/conversations/c-room/room-messages" ? submitRoomPost(input) : {},
-    );
-    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
-    await userEvent.type(composer, "@Wri");
-    expect(await screen.findByRole("listbox", undefined, SETTLE)).toBeVisible();
-
-    const form = composer.closest("form")!;
-    fireEvent.submit(form);
-    await waitFor(
-      () => expect(within(form).getByRole("button", { name: /retry/i })).toBeEnabled(),
-      SETTLE,
-    );
-    expect(composer).toHaveValue("@Wri");
-    expect(screen.getByRole("listbox")).toBeVisible();
-    const frozen = submitRoomPost.mock.calls[0]![0];
-
-    fireEvent.submit(form);
-
-    await waitFor(() => expect(submitRoomPost).toHaveBeenCalledTimes(2), SETTLE);
-    expect(submitRoomPost.mock.calls[1]![0]).toEqual(frozen);
-    await waitFor(() => expect(composer).toHaveValue(""), SETTLE);
-    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull(), SETTLE);
-    expect(submitRoomPost).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ content: "@Wri", mentions: [] }),
-    );
-  });
-
-  it("opens retained thread history read-only after its project is detached", async () => {
-    savedProjectRoom(true);
-    const root = {
-      id: "root-history",
-      conversation_id: "c-room",
-      role: "user" as const,
-      content: "Retained original",
-      created_at: "2026-11-14T00:00:00Z",
-      thread_reply_count: 1,
-    };
-    const reply = {
-      id: "history-reply",
-      conversation_id: "c-room",
-      role: "user" as const,
-      content: "Retained thread reply",
-      created_at: "2026-11-14T00:00:01Z",
-      thread_root_message_id: "root-history",
-    };
-    loadTranscript([root]);
-    const base = get.getMockImplementation()!;
-    const conversation = {
-      id: "c-room",
-      user_id: SIGNED_IN.id,
-      project_id: null,
-      title: "Retained conversation",
-    };
-    get.mockImplementation((url: string) => {
-      if (url.startsWith("/conversations?"))
-        return Promise.resolve({ items: [conversation], total: 1 });
-      if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
-      if (url.includes("/room-threads/root-history?"))
-        return Promise.resolve({ root, items: [reply], total: 1, can_post: false });
-      return base(url);
-    });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const open = vi.fn();
-    render(
-      <QueryClientProvider client={client}>
-        <ChatContainer
-          requestedConversationId="c-room"
-          requestedThreadRootId="root-history"
-          onCloseThread={vi.fn()}
-          onOpenThread={open}
-        />
-      </QueryClientProvider>,
-    );
-    const panel = await screen.findByRole("complementary", { name: "Thread" });
-    expect(await within(panel).findByText("Retained thread reply")).toBeInTheDocument();
-    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "1 reply" }));
-    expect(open).toHaveBeenCalledWith("root-history");
-  });
-  it("keeps project-room files reachable without losing the room draft", async () => {
-    savedProjectRoom(true);
-    mount();
-    const composer = await screen.findByRole("textbox", { name: "Message to the team" });
-    await userEvent.type(composer, "An unsent room draft");
-    const files = await screen.findByRole("button", { name: /^Show the files/ });
-    await userEvent.click(files);
-    await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
-    expect(composer).toHaveValue("An unsent room draft");
-
-    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
-    await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
-    expect(files).toHaveFocus();
-    expect(composer).toHaveValue("An unsent room draft");
-    expect(composer).toBeEnabled();
-  });
-
-  it("keeps personal-agent settings out of team rooms", async () => {
-    savedProjectRoom(true);
-    useAgentSelectionStore.setState({ selectedAgentId: "personal-agent" });
-    mount();
-    const composer = await screen.findByRole("textbox", { name: "Message to the team" });
-    await userEvent.type(composer, "Keep this room draft");
-
-    expect(useAgentSelectionStore.getState().selectedAgentId).toBe("personal-agent");
-    expect(screen.getByRole("button", { name: "Open Browser" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Open Computer" })).toBeVisible();
-    expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Open agent settings" })).toBeNull();
-
-    act(() => useBrowserPanelStore.getState().openSurface("settings"));
-    expect(useBrowserPanelStore.getState().surface).toBeNull();
-    expect(screen.queryByRole("complementary", { name: "Agent settings" })).toBeNull();
-    expect(composer).toHaveValue("Keep this room draft");
-  });
-
-  it.each([true, false])(
-    "keeps room workspace panes available and directs requests through the room composer (can post: %s)",
-    async (canPost) => {
-      savedProjectRoom(canPost);
+    it("keeps project-room files reachable without losing the room draft", async () => {
+      savedProjectRoom(true);
       mount();
-      const composer = canPost
-        ? await screen.findByRole("textbox", { name: "Message to the team" })
-        : null;
-      if (composer) await userEvent.type(composer, "An unsent room draft");
-      else
-        await screen.findByText(
-          "You can read this room. Posting requires permission to use its project.",
-        );
-      const postsBefore = vi.mocked(apiClient.post).mock.calls.length;
-      const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+      const composer = await screen.findByRole("textbox", { name: "Message to the team" });
+      await userEvent.type(composer, "An unsent room draft");
+      const files = await screen.findByRole("button", { name: /^Show the files/ });
+      await userEvent.click(files);
+      await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
+      expect(composer).toHaveValue("An unsent room draft");
 
-      for (const [opener, action] of [
-        ["Open Browser", "Ask agent to open browser"],
-        ["Open Computer", "Ask agent to start computer"],
-      ]) {
-        await userEvent.click(screen.getByRole("button", { name: opener }));
-        const guidance = canPost
-          ? "Mention the agent you want in the room composer and ask them to open the browser or computer."
-          : "You can view this conversation, but cannot start a session here.";
-        expect(screen.getByText(guidance)).toBeVisible();
-        if (canPost) {
-          const start = screen.getByRole("button", { name: action });
-          expect(start).toBeDisabled();
-          fireEvent.submit(start.closest("form")!);
-        } else expect(screen.queryByRole("button", { name: action })).toBeNull();
-        if (composer) {
-          expect(composer).toHaveValue("An unsent room draft");
-          expect(composer).toBeEnabled();
+      await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+      await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
+      expect(files).toHaveFocus();
+      expect(composer).toHaveValue("An unsent room draft");
+      expect(composer).toBeEnabled();
+    });
+
+    it("keeps personal-agent settings out of team rooms", async () => {
+      savedProjectRoom(true);
+      useAgentSelectionStore.setState({ selectedAgentId: "personal-agent" });
+      mount();
+      const composer = await screen.findByRole("textbox", { name: "Message to the team" });
+      await userEvent.type(composer, "Keep this room draft");
+
+      expect(useAgentSelectionStore.getState().selectedAgentId).toBe("personal-agent");
+      expect(screen.getByRole("button", { name: "Open Browser" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Open Computer" })).toBeVisible();
+      expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Open agent settings" })).toBeNull();
+
+      act(() => useBrowserPanelStore.getState().openSurface("settings"));
+      expect(useBrowserPanelStore.getState().surface).toBeNull();
+      expect(screen.queryByRole("complementary", { name: "Agent settings" })).toBeNull();
+      expect(composer).toHaveValue("Keep this room draft");
+    });
+
+    it.each([true, false])(
+      "keeps room workspace panes available and directs requests through the room composer (can post: %s)",
+      async (canPost) => {
+        savedProjectRoom(canPost);
+        mount();
+        const composer = canPost
+          ? await screen.findByRole("textbox", { name: "Message to the team" })
+          : null;
+        if (composer) await userEvent.type(composer, "An unsent room draft");
+        else
+          await screen.findByText(
+            "You can read this room. Posting requires permission to use its project.",
+          );
+        const postsBefore = vi.mocked(apiClient.post).mock.calls.length;
+        const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+
+        for (const [opener, action] of [
+          ["Open Browser", "Ask agent to open browser"],
+          ["Open Computer", "Ask agent to start computer"],
+        ]) {
+          await userEvent.click(screen.getByRole("button", { name: opener }));
+          const guidance = canPost
+            ? "Mention the agent you want in the room composer and ask them to open the browser or computer."
+            : "You can view this conversation, but cannot start a session here.";
+          expect(screen.getByText(guidance)).toBeVisible();
+          if (canPost) {
+            const start = screen.getByRole("button", { name: action });
+            expect(start).toBeDisabled();
+            fireEvent.submit(start.closest("form")!);
+          } else expect(screen.queryByRole("button", { name: action })).toBeNull();
+          if (composer) {
+            expect(composer).toHaveValue("An unsent room draft");
+            expect(composer).toBeEnabled();
+          }
         }
+        expect(apiClient.post).toHaveBeenCalledTimes(postsBefore);
+        expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(
+          promptsBefore,
+        );
+        expect(
+          screen.queryByText(
+            canPost
+              ? "You can view this conversation, but cannot start a session here."
+              : "Mention the agent you want in the room composer and ask them to open the browser or computer.",
+          ),
+        ).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
+      },
+    );
+
+    it("keeps project-room files reachable for a reader who cannot post", async () => {
+      savedProjectRoom(false);
+      mount();
+      await screen.findByText(
+        "You can read this room. Posting requires permission to use its project.",
+      );
+      expect(screen.queryByRole("textbox", { name: "Message to the team" })).toBeNull();
+      await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
+      await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
+      await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+      await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
+    });
+
+    it("joins an empty room only after its successful history load and displays colleague presence", async () => {
+      savedProjectRoom(true);
+      useConversationStore.getState().setCurrentConversationId(null);
+      let finish!: (value: unknown) => void;
+      const base = get.getMockImplementation()!;
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations/c-room/messages")
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : base(url),
+      );
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      function Wrapper({ children }: { children: ReactNode }) {
+        return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
       }
-      expect(apiClient.post).toHaveBeenCalledTimes(postsBefore);
-      expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(promptsBefore);
-      expect(
-        screen.queryByText(
-          canPost
-            ? "You can view this conversation, but cannot start a session here."
-            : "Mention the agent you want in the room composer and ask them to open the browser or computer.",
-        ),
-      ).toBeNull();
-      await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
-    },
-  );
+      const { result } = renderHook(() => useConversations(), { wrapper: Wrapper });
+      mount("c-room", client);
+      let reading!: Promise<void>;
+      act(() => {
+        reading = result.current.selectConversation("c-room");
+      });
+      await waitFor(() => expect(finish).toBeDefined());
+      expect(useConversationStore.getState().currentConversationId).toBe("c-room");
+      expect(useConversationStore.getState().isLoading).toBe(true);
+      expect(useChatStore.getState().loadedTranscript).toBeNull();
+      expect(socket.send).not.toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" });
 
-  it("keeps project-room files reachable for a reader who cannot post", async () => {
-    savedProjectRoom(false);
-    mount();
-    await screen.findByText(
-      "You can read this room. Posting requires permission to use its project.",
-    );
-    expect(screen.queryByRole("textbox", { name: "Message to the team" })).toBeNull();
-    await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
-    await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
-    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
-    await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
+      await act(async () => {
+        finish({ items: [], total: 0, cost: null });
+        await reading;
+      });
+      await waitFor(() =>
+        expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
+      );
+      expect(useChatStore.getState().messages).toEqual([]);
+      receive("presence", {
+        conversation_id: "c-room",
+        people: [
+          { user_id: "colleague", name: "Colleague", has_avatar: false, avatar_color: null },
+        ],
+      });
+      await waitFor(() => expect(screen.getByText("Colleague is here")).toBeVisible());
+    });
+
+    it("keeps the next room turn when a previously empty history refresh finishes late", async () => {
+      savedProjectRoom(true);
+      loadTranscript([]);
+      mount();
+      await waitFor(() =>
+        expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
+      );
+      let finish!: (value: unknown) => void;
+      const base = get.getMockImplementation()!;
+      get.mockImplementation((url: string) =>
+        url.startsWith("/conversations/c-room/messages")
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : base(url),
+      );
+      receive("turn_attached", { conversation_id: "c-room" });
+      receive("turn_followed_to_end", { conversation_id: "c-room" });
+      await waitFor(() => expect(finish).toBeDefined());
+      receive("turn_attached", { conversation_id: "c-room" });
+      receive("turn_prompt", {
+        conversation_id: "c-room",
+        message_id: "next-question",
+        content: "Next question",
+        sender: { user_id: "colleague", name: "Colleague" },
+      });
+      receive("model_request_start", {});
+      receive("text_delta", { index: 0, content: "New answer" });
+      await act(async () => finish({ items: [], total: 0, cost: null }));
+      receive("text_delta", { index: 0, content: " continues" });
+      expect(useChatStore.getState().messages.map((message) => message.content)).toEqual([
+        "Next question",
+        "New answer continues",
+      ]);
+      receive("final_result", { output: "New answer continues" });
+      receive("complete", {});
+      await waitFor(() => expect(screen.getByText("New answer continues")).toBeVisible());
+    });
   });
 
-  it("joins an empty room only after its successful history load and displays colleague presence", async () => {
-    savedProjectRoom(true);
-    useConversationStore.getState().setCurrentConversationId(null);
-    let finish!: (value: unknown) => void;
-    const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations/c-room/messages")
-        ? new Promise((resolve) => {
-            finish = resolve;
-          })
-        : base(url),
-    );
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    function Wrapper({ children }: { children: ReactNode }) {
-      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-    }
-    const { result } = renderHook(() => useConversations(), { wrapper: Wrapper });
-    mount("c-room", client);
-    let reading!: Promise<void>;
-    act(() => {
-      reading = result.current.selectConversation("c-room");
-    });
-    await waitFor(() => expect(finish).toBeDefined());
-    expect(useConversationStore.getState().currentConversationId).toBe("c-room");
-    expect(useConversationStore.getState().isLoading).toBe(true);
-    expect(useChatStore.getState().loadedTranscript).toBeNull();
-    expect(socket.send).not.toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" });
-
-    await act(async () => {
-      finish({ items: [], total: 0, cost: null });
-      await reading;
-    });
-    await waitFor(() =>
-      expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
-    );
-    expect(useChatStore.getState().messages).toEqual([]);
-    receive("presence", {
-      conversation_id: "c-room",
-      people: [{ user_id: "colleague", name: "Colleague", has_avatar: false, avatar_color: null }],
-    });
-    await waitFor(() => expect(screen.getByText("Colleague is here")).toBeVisible());
-  });
-
-  it("keeps the next room turn when a previously empty history refresh finishes late", async () => {
-    savedProjectRoom(true);
-    loadTranscript([]);
-    mount();
-    await waitFor(() =>
-      expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
-    );
-    let finish!: (value: unknown) => void;
-    const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations/c-room/messages")
-        ? new Promise((resolve) => {
-            finish = resolve;
-          })
-        : base(url),
-    );
-    receive("turn_attached", { conversation_id: "c-room" });
-    receive("turn_followed_to_end", { conversation_id: "c-room" });
-    await waitFor(() => expect(finish).toBeDefined());
-    receive("turn_attached", { conversation_id: "c-room" });
-    receive("turn_prompt", {
-      conversation_id: "c-room",
-      message_id: "next-question",
-      content: "Next question",
-      sender: { user_id: "colleague", name: "Colleague" },
-    });
-    receive("model_request_start", {});
-    receive("text_delta", { index: 0, content: "New answer" });
-    await act(async () => finish({ items: [], total: 0, cost: null }));
-    receive("text_delta", { index: 0, content: " continues" });
-    expect(useChatStore.getState().messages.map((message) => message.content)).toEqual([
-      "Next question",
-      "New answer continues",
-    ]);
-    receive("final_result", { output: "New answer continues" });
-    receive("complete", {});
-    await waitFor(() => expect(screen.getByText("New answer continues")).toBeVisible());
-  });
-});
-
-describe("the chat container - answering a durable question", () => {
   it("keeps the question disabled offline and resumes on the connected socket", async () => {
     mount();
-    await screen.findByRole("button", { name: "Voice input" });
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "Keep this draft while I answer");
     receive("model_request_start", {});
     receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
     receive("user_question_required", {
@@ -1334,6 +1379,10 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
+    expect(editor).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
+    expect(answer.closest("[data-transcript]")).toBeInTheDocument();
+    expect(answer.closest("[data-chat-dock]")).toBeNull();
     act(() => {
       socket.isConnected = true;
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });
@@ -1362,6 +1411,41 @@ describe("the chat container - answering a durable question", () => {
     );
     expect(screen.queryByText("How formal?")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Your answer was received.")).toBeInTheDocument());
+    expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Type a message..." })).toBe(editor);
+    expect(messageOf(editor)).toBe("Keep this draft while I answer");
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
+  });
+
+  it("cancels a durable question over HTTP even while the chat socket is offline", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue("Not performed: the run was stopped.");
+    mount();
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "Draft after cancellation");
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-cancel", args: {} });
+    receive("user_question_required", {
+      run_id: "cancel-question-run",
+      questions: [
+        {
+          tool_call_id: "ask-cancel",
+          questions: [{ question: "Continue?", options: [{ label: "Yes" }] }],
+        },
+      ],
+    });
+    receive("complete", {});
+    act(() => {
+      socket.isConnected = false;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    expect(screen.getByRole("button", { name: /Yes/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/runs/cancel-question-run/cancel"),
+    );
+    await waitFor(() => expect(editor).toBeVisible());
+    expect(messageOf(editor)).toBe("Draft after cancellation");
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
   });
 });
 
@@ -1565,6 +1649,31 @@ describe("the chat container - following the transcript", () => {
       for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
     });
   }
+
+  it("keeps the normal composer and its transcript clearance while a question is pending", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock(observers);
+    const region = dock.querySelector<HTMLElement>("[data-chat-composer-region]")!;
+    Object.defineProperty(dock, "offsetHeight", {
+      configurable: true,
+      get: () => (region.hidden ? 56 : 180),
+    });
+    const resize = () =>
+      act(() => {
+        for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
+      });
+    resize();
+    expect(scroller.style.paddingBottom).toBe("180px");
+    receive("model_request_start", {});
+    receive("thinking_delta", { content: "Choosing a format" });
+    receive("ask_user", {
+      questions: [{ question: "Choose a format", options: [{ label: "List" }] }],
+    });
+    expect(region).toBeVisible();
+    resize();
+    expect(scroller.style.paddingBottom).toBe("180px");
+    expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
+  });
 
   it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
     const observers = observeSizes();
@@ -3465,6 +3574,28 @@ describe("the chat container - a conversation shared with the reader", () => {
     expect(screen.queryByText("Could not verify access to this conversation")).toBeNull();
   });
 
+  it("keeps a shared routine history read-only and lets its creator continue through a fork", async () => {
+    openShared({ user_id: null, origin: "routine", can_fork_routine_log: true });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine-fork",
+      user_id: SIGNED_IN.id,
+      title: "Routine follow-up",
+    });
+    mount();
+    const continueButton = await screen.findByRole(
+      "button",
+      { name: "Continue in a new chat" },
+      SETTLE,
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(continueButton);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-theirs/fork", {
+        message_id: "m-1",
+      }),
+    );
+  });
+
   it("offers fork controls and lineage for an owned chat beyond the sidebar page", async () => {
     openShared({
       user_id: SIGNED_IN.id,
@@ -3474,10 +3605,10 @@ describe("the chat container - a conversation shared with the reader", () => {
     });
     mount();
 
-    expect(
-      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fork into a new conversation" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    }, SETTLE);
   });
 });
 

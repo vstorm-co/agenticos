@@ -17,6 +17,7 @@ from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
     ImprovementContinue,
+    ImprovementFinish,
     ImprovementStart,
     NextStepBlocked,
     TryAgainBlocked,
@@ -150,6 +151,34 @@ async def _two_rounds(db):
     assert [item.held_out for item in second_read.iterations] == [5, 5]
     second = await _round(db, ctx, agent, started.id, "ROUND_GOOD")
     return ctx, agent, started, first, second
+
+
+async def test_a_stopped_attempt_is_selected_and_accepted_in_one_call(db):
+    """A session that stopped on its attempt has no round waiting; naming the round in
+    the finish selects it and accepts it, without a separate select first."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    assert (await service.read(ctx, agent.id, started.id)).status == "stopped"
+
+    with pytest.raises(BadRequestError, match="checked round"):
+        await service.finish(ctx, agent.id, started.id, ImprovementFinish(confirmed=True))
+    result = await service.finish(
+        ctx, agent.id, started.id, ImprovementFinish(confirmed=True, round=1)
+    )
+
+    assert result.session.status == "accepted"
+    assert result.session.best_iteration_id == result.session.iterations[0].id
+    assert "ROUND_BAD" in AgentSpec.model_validate(agent.draft_spec).instructions
 
 
 async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db):

@@ -81,6 +81,7 @@ async def request(
         conversation_id=room.conversation.id,
         requester_id=room.user.id,
         message_id=row.id,
+        thread_root_message_id=payload.thread_root_message_id,
         client_message_id=payload.client_message_id,
         fingerprint=fingerprint(payload),
         agent_id=room.agent.id,
