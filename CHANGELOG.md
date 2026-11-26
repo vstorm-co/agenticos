@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0358_defer_dataset_source_links.py`, after `0357_accepted_queued_messages.py`, defers dataset conversation/message source checks until commit so conversation deletion succeeds in either foreign-key trigger order. It preserves stored cases and `SET NULL` actions, with a five-second catalog lock wait limit. Downgrade restores the previous ordering sensitivity.
+
 - Recreate API and ML service containers with the matching Compose configuration. The backend services now enable the container engine's init process to reap parser descendants after forced termination; existing containers need recreation to receive this setting.
 
 - Durable personal chat queues add migration `0357_accepted_queued_messages.py` after `0356_trigger_webhook_receipts.py`. Deploy the matching API, worker and console after the revision completes. Three unique indexes build concurrently; nullable columns and constraint attachment need brief catalog locks with a five-second wait limit, and existing rows are validated after those locks are released. An interrupted revision may leave columns or indexes: retry reuses exact valid definitions, rebuilds exact invalid standalone indexes and refuses conflicting objects or active builds. Downgrade refuses any retained receipt. Rehearse on a production-sized copy before release.
@@ -179,6 +181,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Queued-message recovery waits for the device outbox, finishes persisted cancellation requests, and preserves local actions while server reads are in flight. Late recovery responses cannot restore completed or cancelled items or overwrite newer local state.
+- Deleting a conversation preserves copied dataset cases and clears their conversation/message provenance in either foreign-key trigger order.
 - Bound S3 and Google Drive sync listings and streamed downloads, including CLI readers. Reject oversized files before transfer and remove partial results on refusal.
 - Bound PyMuPDF pages, extracted content, tables, images and prepared chunks. Run synchronous ML parsing in a killable child with CPU, memory and wall-time limits.
 

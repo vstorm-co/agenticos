@@ -130,6 +130,7 @@ export function queueMayDrain(message: QueuedMessage | undefined, receiptMode: b
     message.refused !== undefined ||
     message.accepting ||
     message.transferring ||
+    message.cancelRequested ||
     message.receiptError !== undefined ||
     message.transferError !== undefined
   )
