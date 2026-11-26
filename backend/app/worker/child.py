@@ -83,6 +83,7 @@ async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
         with running(attempt):
             result = await handler.execute(request.payload)
     except ValidationError as exc:
+        logger.exception("background_job_payload_invalid", extra={"kind": request.kind})
         return ChildReply(ok=False, error=describe(exc), permanent=True)
     except Exception as exc:
         logger.exception("background_job_failed", extra={"kind": request.kind})

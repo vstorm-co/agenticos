@@ -137,7 +137,9 @@ access logs.
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one
 new version. The import is all or nothing: if one row is invalid, no row is
 added, and the refusal names each invalid row so you can fix the file and try
-again. A file is at most 10 MB, and a dataset holds at most 10,000 cases.
+again. A file is at most 10 MB and 10,000 rows (`DATASET_IMPORT_MAX_BYTES`,
+`DATASET_IMPORT_MAX_ROWS`), and a dataset holds at most 10,000 cases. A value
+nested too deeply to read refuses its row.
 In the console, **Import** first lists the columns and offers **Download a
 template**, a CSV with every column and one case that imports as it is;
 **Choose file** opens the file picker.
@@ -311,6 +313,14 @@ export carries, including the arguments of an expected tool call, and to every
 way a case is added. The audit entry for the change records how many values
 were redacted, never the values.
 
+It recognizes the API keys and tokens of the providers and services the
+platform works with, JWTs and private keys, a password written into an address
+(`postgres://user:password@host`), a key or password in a query string or form
+body (`?api_key=`, `token=`, `password=`), and a Basic or Bearer
+`Authorization` header. The same detector scrubs what an improvement's helper
+reads, what the knowledge gaps classifier reads, and an agent's messages when
+its guardrail redacts secrets.
+
 A generation also redacts the questions and passages it hands the generator,
 before they leave for the model, and takes the personal data the detectors find
 - e-mail addresses, phone, card and account numbers - out of the questions and
@@ -482,6 +492,11 @@ and question, the reference answer when it is graded, the counter-example,
 every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer.
 
+Each of these is fenced in the judge's prompt, so text in it cannot close its
+own section and read as the prompt's own words. The prompt ends on the rule that
+fenced text is graded, never obeyed, and the dataset's own instructions cannot
+replace that rule.
+
 A case with a counter-example is always graded on a required **counter-example**
 criterion as well: the answer must not repeat the known bad answer, and the
 judge is asked to quote what sets the answer apart from it. It is graded
@@ -519,6 +534,10 @@ anew, with the configuration it was first graded with (`POST
 /datasets/{id}/scores/rescore`, up to ten scores a request). The agent does not
 run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
+
+A new grade on an eval run's answer settles that run's comparison, and the
+suites, improvement sessions and skill checks built on it, again, as a person's
+decision does.
 
 A cause still there - the judge unpublished - is refused as
 it stands, and so is an eval run's judge published anew since it failed, or a
@@ -624,8 +643,10 @@ changed from the dialog.
 | Change how a dataset is graded | `datasets:edit` on it |
 | Create a judge for it | `datasets:edit` on it, and `agents:edit` |
 | Score a run against it | `datasets:run` on it, and `runs:view` |
+| Score an answer again | `datasets:run` on it, and `runs:view`; for an eval run's answer, also access to the agent that answered |
 | Read its scores | `datasets:view` on it |
-| Send scores to review, record or withdraw a decision | `datasets:edit` on it |
+| Send scores to review | `datasets:edit` on it |
+| Record or withdraw a decision | `datasets:edit` on it; for an eval run's answer, also `runs:view` and access to the agent that answered |
 
 A reason the judge wrote is passed through the same credential redaction as a
 case before it is stored.
@@ -671,9 +692,15 @@ itself something they may not learn. A grant widens access to one dataset and
 never changes a role. See [Permissions](permissions.md) for how scopes and
 grants combine.
 
-A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
+A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked, for a copied case and for one generated from a chat. The duplicate-question check (`cases/twins`) never matches a masked case, and **Key coverage** leaves out key labels that only masked cases hold. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
+
+The judge's knowledge passages are removed with the answer. A reader who sees the answer is shown a passage only from a knowledge base they may read; see [Eval runs](evals.md).
+
+Text written from a dataset's cases follows the dataset's access. An Improve session's changes need read access to its dataset. A run does not record which dataset it read, so two reads need read access to every dataset: a skill session's quotes from eval answers, and, in a run's record, the messages an eval answer was sent and a platform agent's prompt and messages, such as the judge's.
+
+A decision on an eval run's answer, or a new grade for it, also needs `runs:view` and access to the answering agent, because it changes the verdicts built on that run: a reader who cannot see the answer is not offered either, and the API refuses it with `403`.
 
 Datasets are not grouped by department - the list has no group filter or
 department badges - so a department reaches a dataset through a grant on it,

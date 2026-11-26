@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from app.api.deps import Auth, CaseKeyDraftSvc, DatasetSvc, KeyCoverageSvc, ScoringSvc, require
 from app.api.public_api import ASSISTANT
 from app.api.responses import csv_response, jsonl_response
+from app.core.config import settings
 from app.core.permissions import Perm
 from app.schemas.case_key_draft import CaseKeyDraftRead
 from app.schemas.dataset import (
@@ -55,7 +56,6 @@ from app.schemas.scoring import (
     ReviewWithdrawn,
     ScoreOutcome,
 )
-from app.services.dataset_files import MAX_IMPORT_BYTES
 
 router = APIRouter()
 
@@ -358,7 +358,7 @@ async def import_dataset_cases(
     ),
 ) -> Any:
     """Append every case in a CSV or JSONL file as one new version - all rows or none."""
-    content = await file.read(MAX_IMPORT_BYTES + 1)
+    content = await file.read(settings.DATASET_IMPORT_MAX_BYTES + 1)
     return await service.import_cases(
         ctx, dataset_id, content=content, filename=file.filename, fmt=fmt
     )

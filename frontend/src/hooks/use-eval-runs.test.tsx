@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { ESTIMATE, attempt, evalCase, evalRun } from "@/test-utils/eval-runs";
+import { pollingAfterFailedRead } from "@/test-utils/live-polling";
 import {
+  LIVE_POLL_MS,
   isLive,
   useEvalCases,
   useEvalComparison,
@@ -449,5 +451,28 @@ describe("useRecentEvalRuns", () => {
     const { result } = renderHook(() => useRecentEvalRuns(20, { skip: 40 }), { wrapper });
     await waitFor(() => expect(result.current.total).toBe(41));
     expect(apiClient.get).toHaveBeenCalledWith("/eval-runs/recent?skip=40&limit=20");
+  });
+});
+
+describe("a live read that fails", () => {
+  const live = evalRun({ status: "running" });
+  const runs = { items: [live], total: 1 };
+  it.each([
+    ["an agent's runs", () => useEvalRuns("a1"), runs, 1],
+    ["one run", () => useEvalRun(live.id), live, 1],
+    ["a dataset's runs", () => useDatasetEvalRuns("d1"), runs, 1],
+    ["the latest runs", () => useRecentEvalRuns(), runs, 1],
+    ["a run's cases", () => useEvalCases(live.id, { live: true }), { items: [], total: 0 }, 1],
+    // The comparison reads a failure once more before it gives up.
+    ["a run's comparison", () => useEvalComparison(live.id, { live: true }), { arms: [] }, 2],
+  ])("stops reading %s again and says it stopped", async (_what, hook, answer, failures) => {
+    const get = vi.mocked(apiClient.get).mockResolvedValueOnce(answer);
+    for (let n = 0; n < failures; n++) get.mockRejectedValueOnce(new Error("refused"));
+    renderHook(() => hook(), { wrapper });
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: LIVE_POLL_MS,
+      after: false,
+      stopped: true,
+    });
   });
 });

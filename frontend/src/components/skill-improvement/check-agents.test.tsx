@@ -105,6 +105,39 @@ describe("CheckAgents", () => {
     ).toHaveLength(1);
   });
 
+  it("says an agent its own questions left unknown after the skill's showed no regression", () => {
+    const judged = { compared: 4, fixed: 1, broken: 0, unchanged: 3, unknown: 0 };
+    const skillSet = (counts: typeof judged | null, run: string) => [
+      { ...checkAgent("x", "unknown").stages[0]!, eval_run_id: run, counts },
+    ];
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Quotes", "unknown", {
+              unknown_reason: "failed",
+              stages: skillSet(judged, "run-quotes"),
+            }),
+            checkAgent("Orders", "unknown", {
+              unknown_reason: "failed",
+              stages: skillSet(null, "run-orders"),
+            }),
+            checkAgent("Kiosk", "unknown", {
+              unknown_reason: "cancelled",
+              stages: skillSet(null, "run-kiosk"),
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getAllByText(catalog.skillImprovement.agents.unknown.unfinished)).toHaveLength(1);
+    expect(screen.getByText("Not checked: its check failed.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Not checked: the check was stopped before its runs finished."),
+    ).toBeInTheDocument();
+  });
+
   it("says an agent had too few questions to be sure, with what they showed", async () => {
     render(
       <CheckAgents
@@ -183,13 +216,21 @@ describe("CheckAgents", () => {
 
   it("lists an agent and its specialist as two rows, and names no dataset the reader may not see", async () => {
     const own = checkAgent("Support", "better");
-    own.stages = [{ ...own.stages[0]!, kind: "dataset", dataset_name: null }];
+    own.stages = [
+      {
+        ...own.stages[0]!,
+        kind: "dataset",
+        dataset_id: null,
+        dataset_name: null,
+        eval_run_id: null,
+      },
+    ];
     const specialist = checkAgent("Support", "no_change", { via_specialist: "Refund helper" });
     render(<CheckAgents check={skillCheck({ agents: [own, specialist] })} />);
     await openAll();
 
     expect(screen.getAllByRole("button", { name: "Details of Support" })).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "Run on the agent's questions" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Run on the agent's questions" })).toBeNull();
   });
 
   it("keeps a label for every state an agent's check can reach, for the pages that name it", () => {
@@ -564,5 +605,24 @@ describe("CheckAgents", () => {
       );
       expect(screen.getByText("Nothing worse or unknown to look at")).toBeVisible();
     });
+  });
+
+  it("describes each agent's row by its state and why it was not checked", () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Refunds", "worse", { fixed: 1, broken: 3 }),
+            checkAgent("Billing", "unknown", { unknown_reason: "no_budget" }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Details of Refunds" })).toHaveAccessibleDescription(
+      /Worse/,
+    );
+    expect(screen.getByRole("button", { name: "Details of Billing" })).toHaveAccessibleDescription(
+      "Not checked: its budget is spent. Not verified",
+    );
   });
 });

@@ -23,6 +23,8 @@ interface ImportCasesDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Opens the file picker; the dialog closes as it does. */
   onChoose: () => void;
+  /** The largest file the deployment imports, in bytes. */
+  maxBytes: number;
 }
 
 /**
@@ -31,7 +33,12 @@ interface ImportCasesDialogProps {
  * The columns are described here rather than learned from a refusal, and the
  * template is a file with every column and one case that imports as it is.
  */
-export function ImportCasesDialog({ open, onOpenChange, onChoose }: ImportCasesDialogProps) {
+export function ImportCasesDialog({
+  open,
+  onOpenChange,
+  onChoose,
+  maxBytes,
+}: ImportCasesDialogProps) {
   const t = useTranslations("datasets");
   const [format, setFormat] = useState<"csv" | "jsonl">("csv");
   return (
@@ -39,7 +46,9 @@ export function ImportCasesDialog({ open, onOpenChange, onChoose }: ImportCasesD
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("importTitle")}</DialogTitle>
-          <DialogDescription>{t("importBody")}</DialogDescription>
+          <DialogDescription>
+            {t("importBody", { megabytes: Math.round(maxBytes / 104_857.6) / 10 })}
+          </DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-5")}>
           <div role="group" aria-label={t("importFormat")} className="flex gap-2">

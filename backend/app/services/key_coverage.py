@@ -421,7 +421,8 @@ class KeyCoverageService:
         cases = await dataset_repo.list_cases(
             self.db, version.id, organization_id=ctx.organization_id, limit=None
         )
-        return key_labels([case.checks or [] for case in cases])
+        masked = await self.datasets.masked_case_ids(ctx, cases)
+        return key_labels([case.checks or [] for case in cases if case.id not in masked])
 
     async def _material(
         self,
@@ -505,9 +506,16 @@ class KeyCoverageService:
         visible = await self._visible_sources(ctx, agent, report)
         changed = bool(await self._changed(ctx.organization_id, [report]))
         reasons = all(UUID(source) in visible for source in report.judged_sources)
+        readable = (
+            None
+            if ctx.has(Perm.RUNS_VIEW)
+            else set(await self._labels(ctx, dataset, report.dataset_version))
+        )
         items: list[CoverageItem] = []
         for raw in report.items:
             stored = StoredItem.model_validate(raw)
+            if readable is not None and stored.key not in readable:
+                continue
             items.append(
                 CoverageItem(
                     key=stored.key,

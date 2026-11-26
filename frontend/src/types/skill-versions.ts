@@ -57,6 +57,13 @@ export interface SkillVersionResource {
   digest: string;
 }
 
+/** One file with its body, as one version holds it. */
+export interface SkillVersionFile {
+  name: string;
+  description: string | null;
+  content: string;
+}
+
 export interface SkillVersionRead extends SkillVersionSummary {
   description: string;
   content: string;
